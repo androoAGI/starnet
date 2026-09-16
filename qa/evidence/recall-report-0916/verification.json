@@ -1,5 +1,5 @@
 {
-  "source": "3c8928e05",
+  "source": "46c929a88",
   "baseline": "87e10e1fe",
   "date": "2026-09-16",
   "transport": "isolated dev/seed.js --keep with a deterministic local OpenAI-compatible provider; no commercial-model quality claim",
@@ -15,19 +15,19 @@
     "createEnd": "done",
     "correctEnd": "done",
     "reviewedReplacement": {
-      "runId": "bb2e1b5e-ec23-439e-8578-0fae795e7b9b",
+      "runId": "1539844e-1f66-49e5-89f5-97bb0ae76372",
       "id": "prop_1",
       "kind": "note",
       "content": "User prefers square blue cards for Acme website design; approved reference is acme/reference.png",
       "scope": "stream",
       "origin": "commander",
-      "createdAt": 1789584325595,
+      "createdAt": 1789584715142,
       "replaceId": "note_1",
       "previousBody": "User does not prefer rounded purple cards for Acme website design"
     },
     "stopEnd": {
       "agentId": "agent",
-      "runId": "e2e94137-d44b-4001-8c2c-f4840029e275",
+      "runId": "82a49409-39ac-4cca-afb2-a34194713d12",
       "reason": "error",
       "turns": 3,
       "usd": 0
@@ -43,18 +43,18 @@
         "body": "User explicitly selected monochrome Acme cards",
         "scope": "stream",
         "streamId": "acme",
-        "sourceRunId": "504c086d-281d-4eb1-842e-3de3668d4d85",
+        "sourceRunId": "7f645276-5dba-4406-89a7-4e4b7a5e7227",
         "origin": "commander",
-        "createdAt": 1789584325006,
-        "lastUsedAt": 1789584329669,
-        "lastFeedbackAt": null,
+        "createdAt": 1789584714598,
+        "lastUsedAt": 1789584718666,
+        "lastFeedbackAt": 1789584716502,
         "useCount": 1,
         "trust": 0.3,
         "pinned": true,
-        "effectiveTrust": 0.2999995896475227,
+        "effectiveTrust": 0.29999979245704445,
         "revision": 2,
-        "updatedAt": 1789584327308,
-        "updatedSourceRunId": "bb2e1b5e-ec23-439e-8578-0fae795e7b9b"
+        "updatedAt": 1789584716502,
+        "updatedSourceRunId": "1539844e-1f66-49e5-89f5-97bb0ae76372"
       }
     ],
     "restartAndStaleReviewAssertions": "PASS"

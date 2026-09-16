@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-09-16
 lane: agent/recall-report-0916
-fix: 3c8928e05
+fix: 46c929a88
 origin: customer
 report: Anonymized customer complaint relayed by owner in local task on 2026-09-16
 affected: Customer version model and platform unknown; investigated source 87e10e1fe on Windows
@@ -45,7 +45,7 @@ The real tool's refusal is explicit, and its successful override receipt reflect
 
 ## Verdict
 
-Source-fixed in 3c8928e05. Installer verification and customer recovery remain unverified/unconfirmed. This is a repair of the reproduced mechanisms, not proof of the customer's exact original conversation.
+Source-fixed in 46c929a88. Installer verification and customer recovery remain unverified/unconfirmed. This is a repair of the reproduced mechanisms, not proof of the customer's exact original conversation.
 
 ## Regression
 
