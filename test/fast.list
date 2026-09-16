@@ -407,6 +407,7 @@ test/questledgerstore.test.js
 test/kitout.test.js
 test/coach-dodge.test.js
 test/tutorial-connect-beat.test.js
+test/tutorial-equipped-station.test.js
 test/field-manual-accessibility.test.js
 test/class-loadouts.test.js
 test/intent-offer.test.js

@@ -108,6 +108,7 @@ const Dialogue = (() => {
     // (never a flash of the generic 'AGENT'). resolveName honours a real typed name and mints only when unnamed.
     name = resolveName(opts && opts.name);
     ensure();
+    panel.classList.toggle('fnv-tour', !!(opts && opts.tour));
     open = true;
     if (speakerEl) speakerEl.textContent = name;
     document.body.classList.add('fnv-mode');
