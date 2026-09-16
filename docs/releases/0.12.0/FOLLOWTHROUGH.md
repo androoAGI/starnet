@@ -12,6 +12,8 @@ Owned branch: `agent/release-0120-prep-0915`, based on integration `90d6f0111`. 
 
 The gaze change repairs an inference in the audit, not world movement code. A separate crowded-floor campaign observed 20 bodies over 180 samples: 62 occupied-waypoint snapshots, no containment violations, 34 natural gaze calls and 380 exercised calls without movement mutation. A deliberate one-pixel movement fault was detected and restored. An occupied waypoint is therefore insufficient evidence that a gaze caused movement. The canonical containment and file-capability findings remain open; passing a new seed does not establish what happened in their original runs.
 
+A second campaign matched the original containment finding's 43-agent population: 180 samples, 131 occupied-waypoint snapshots, 70 natural + 1,806 exercised gaze calls, no movement or containment violations, and a detected/restored negative control. Its receipt is `.dogfood/release-followthrough/crowded43/report.json`. Population parity does not recreate the original saved layout or browser profile, so the original finding remains unresolved.
+
 ## Intake and bug disposition
 
 GitHub issues updated since the public 0.11.2 publication were freshly read, including closed reports. New #18 is recorded as source-fixed in `qa/bugs/09f0e9fa-interactive-replies-in-scheduled-conversations-c.md`; installed delivery and customer recovery remain unverified. #17's latest reply asks about setup and cost control, without confirming recovery. #14 remains open in the local register despite public closure: the briefing repair and executed parity test do not establish the original missing-tool cause.
@@ -24,11 +26,43 @@ Evidence lives under `.dogfood/release-followthrough/` in this owned worktree:
 
 - `telegram-before.log`, `telegram-after.log`: missing briefing before repair; 82 assertions after repair.
 - `rating-before.log`, `rating-after.log`: 11 failures before repair; expanded 57-assertion campaign after repair.
+- `rating-ui/report.json`: live seeded browser on `fdaf6fa60` executed a real routine and interactive continuation. The production shared rating control, mounted through `Chat.awayRate`, displayed “★ +XP” and the server retained the exact run's rating. This proves the control/save path, not automatic COMMS offer timing.
 - `audit-before.log`, `audit-repeat.log`, `audit-after.log`, `audit-after-report.json`: three live audit passes, including the repaired instrumentation.
 - `crowded.log`: 20-body containment and causal gaze proof. Detailed report: `.dogfood/release-0112-pointer/crowded-closeout/report.json`.
 - Focused checks: prompt diet 7 unit + 23 sidecar assertions; XP store 107; run store 95; shared work-rating control 5.
 
-Full fast and HTTP gates are pending on the final source snapshot. The earlier follow-through gate was deliberately stopped after new intake #18 required another source change; it is not a final receipt. No station-wide readiness claim is made.
+Final source `fdaf6fa60cfda3faba35000e9b464601980d667e` passed both complete gates, sequentially, with exit 0:
+
+```text
+npm run test:fast
+run-fast-tests: OK — 784 step(s) green
+npm run test:http
+run-test-list: OK — 115 step(s) green
+```
+
+The full HTTP run includes Telegram's 82 assertions and the expanded rating campaign's 57 assertions. Final receipt edits change documentation only. Log SHA-256:
+
+- `.dogfood/release-followthrough/fast-verified.log`: `e49d3b1ac77e4389a2f1d13240831fd957ad0f49d7394914c31eee56b6687507`
+- `.dogfood/release-followthrough/http-verified.log`: `149f6904b166819a6d871e26a3bb19cf69a2bb00ea2645676d10260573fde46c`
+
+The earlier follow-through gate was deliberately stopped after new intake #18 required another source change; it is not a final receipt. A subsequent attempt stopped at the evidence lint because the ignored live-proof script contained a key-shaped mock credential; it was replaced with `DEV`, the lint passed, and the full gate restarted. No actual credential was exposed.
+
+Canonical integration readiness was refreshed separately at approximately 02:21 UTC, still on `90d6f0111`:
+
+```text
+NOT READY — 5 reasons
+1. Ledger: 2 open P1 findings.
+2. Trunk bug register: 5 open P1 reports (7 in this preparation branch).
+3. Guardian: last cycle RED.
+4. Beginner: receipt belongs to aa20ee26, not current trunk.
+5. Installed smoke: binary source does not match current trunk.
+```
+
+Raw receipt: `.dogfood/release-followthrough/canonical-ready-final.json`. The final GitHub intake recheck found no further updates after 01:50 UTC. Connected-tool and browser inventory provided no private support inbox. Owned live proof ports were closed after verification.
+
+## Integration handoff
+
+The branch is verified and remains unmerged while the owner finishes the overhaul lanes. Integration's existing `docs/NEXT.md`, `qa/STATUS.md` and Rooms handoff edits were preserved. Merge current trunk into this Codex branch (never rebase), reconcile any overlaps, refresh the source lock if the combined surface changes, and earn the required gates on the combined candidate before its serialized trunk merge. Do not treat this branch's live audit or test receipts as proof of future merged art, migration or installers.
 
 ## Remaining work that needs a later candidate or external evidence
 

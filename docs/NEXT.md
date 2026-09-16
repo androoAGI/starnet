@@ -10,6 +10,14 @@ is NOT READY; seven open P1 reports including imports plus two canonical P1 find
 disposition. Private support intake still needs a fresh read. Keep 0.11.2's soak waiver
 scoped to 0.11.2. See the preparation validation receipt for current test results.
 
+Follow-through: `887210a7b` repairs trusted-channel delegation briefing, `346377c0b`
+proves gaze movement causally in the live audit, and `da0658486` fixes newly reported
+#18 (interactive replies in scheduled conversations could not be rated). Source tests
+and live rating-control proof are recorded in
+[releases/0.12.0/FOLLOWTHROUGH.md](releases/0.12.0/FOLLOWTHROUGH.md). Source `fdaf6fa60`
+passed full fast **784/784** and HTTP **115/115**. Combined-candidate acceptance remains
+separate; this lane is unmerged and has not reserved a merge.
+
 ## JOURNEY SWEEP — 2026-09-12 (`agent/journey-first-loop-0912`)
 
 Owner requested a sweep and polish. Reproduced two issues in the live seeded preview:
