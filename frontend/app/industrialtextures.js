@@ -146,6 +146,21 @@ const IndustrialTextures = (() => {
     detailTargets.set(proxy, { g, scale });
     return proxy;
   }
+  // The world watchdog must inspect the plates actually displayed, not only
+  // their native-resolution source. Return a snapshot; ownership stays here.
+  function baseLayers(cv) {
+    const hi = enabled() && plates.get(cv);
+    return hi ? (platePyramids.get(hi) || [hi]).slice() : [];
+  }
+  function discardBaseLayer(cv, lost) {
+    const hi = plates.get(cv);
+    if (!hi) return;
+    platePyramids.delete(hi);
+    // A lost reduction can be rebuilt from the healthy high-resolution plate.
+    // If that plate itself died, drawBase falls back to the intact native bake,
+    // just as on contextlost. The next normal rebake restores authored detail.
+    if (lost === hi) plates.delete(cv);
+  }
   function drawBase(ctx, cv, x = 0, y = 0) {
     const hi = enabled() && plates.get(cv);
     if (!hi) return false;
@@ -480,7 +495,7 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, baseLayers, discardBaseLayer, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

@@ -688,6 +688,8 @@ const World = (() => {
           without an event (and any future regression that blanks the bake).
      The probe costs one 1x1 readback a second, against a frame it saves entirely. */
   let bakeProbe = null;        // {x,y} a pixel buildBase painted opaque — the loss sentinel
+  let detailProbes = new WeakMap(); // discarded on rebake; never retain obsolete LOD plates
+  let lostDetailLayer = null;
   let probeOff = false;        // getImageData refused (tainted canvas): never retry, never spam
   let lastProbeAt = 0;         // throttle — the sentinel is read a few times a second, not per frame
   let lastRecoverAt = 0;       // when the last recovery ran (only consulted while backing off)
@@ -702,6 +704,7 @@ const World = (() => {
      watchdog simply stays inert rather than rebaking a legitimately empty frame forever. */
   function recordBakeProbe() {
     bakeProbe = null;
+    detailProbes = new WeakMap();
     if (probeOff || !cache || !cache.baseCv) return;
     const c = cache.baseCv, W = c.width, H = c.height;
     if (W < 2 || H < 2) return;
@@ -711,7 +714,7 @@ const World = (() => {
       for (const [fx, fy] of pts) {
         const x = Math.min(W - 1, Math.max(0, Math.round(W * fx)));
         const y = Math.min(H - 1, Math.max(0, Math.round(H * fy)));
-        if (readAlpha1(c, x, y) > 0) { bakeProbe = { x, y }; return; }   // via the probe canvas — see THE READBACK LAW below
+        if (readAlpha1(c, x, y) > 0) { bakeProbe = { x, y }; detailWentBlank(); return; }   // via the probe canvas — see THE READBACK LAW below
       }
     } catch (e) { probeOff = true; }
   }
@@ -735,10 +738,32 @@ const World = (() => {
   }
 
   // has the bake's backing store been zeroed under us? (opaque -> transparent is the tell)
+  function detailWentBlank() {
+    if (typeof IndustrialTextures === 'undefined' || !IndustrialTextures.baseLayers) return false;
+    const base = cache.baseCv;
+    for (const layer of IndustrialTextures.baseLayers(base)) {
+      const known = detailProbes.get(layer);
+      if (known) {
+        if (readAlpha1(layer, known.x, known.y) === 0) { lostDetailLayer = layer; return true; }
+        continue;
+      }
+      // Confirm an opaque witness independently on each plate: filtered edges
+      // need not have the same alpha as the native bake. Empty plates stay inert.
+      const points = [[bakeProbe.x / base.width, bakeProbe.y / base.height],
+        [.5,.5], [.3,.3], [.7,.3], [.3,.7], [.7,.7]];
+      for (const [fx, fy] of points) {
+        const x = Math.min(layer.width - 1, Math.floor(fx * layer.width));
+        const y = Math.min(layer.height - 1, Math.floor(fy * layer.height));
+        if (readAlpha1(layer, x, y) > 0) { detailProbes.set(layer, {x, y}); break; }
+      }
+    }
+    return false;
+  }
   function bakeWentBlank() {
+    lostDetailLayer = null;
     if (!bakeProbe || probeOff || !cache || !cache.baseCv) return false;
     try {
-      return readAlpha1(cache.baseCv, bakeProbe.x, bakeProbe.y) === 0;
+      return readAlpha1(cache.baseCv, bakeProbe.x, bakeProbe.y) === 0 || detailWentBlank();
     } catch (e) { probeOff = true; return false; }
   }
 
@@ -770,6 +795,12 @@ const World = (() => {
     if (now - lastProbeAt < PROBE_MS) return;
     lastProbeAt = now;
     if (!bakeWentBlank()) { futileRecoveries = 0; return; }
+    if (lostDetailLayer && IndustrialTextures.discardBaseLayer) {
+      IndustrialTextures.discardBaseLayer(cache.baseCv, lostDetailLayer);
+      detailProbes = new WeakMap(); lostDetailLayer = null;
+      recoveries++; futileRecoveries = 0;
+      return; // native bake is intact; do not stall the frame rebaking the entire station
+    }
     if (!recoverLostCanvases(now, 'bake sentinel went transparent')) return;
     rebake();
     futileRecoveries = bakeProbe ? 0 : futileRecoveries + 1;
@@ -9754,17 +9785,23 @@ const World = (() => {
      API to lose a 2D context on demand (unlike WEBGL_lose_context above), so reproducing the
      black station means reproducing its EFFECT. `sky`/`ground` reach into the other two cache
      owners, so one call reproduces the whole reported frame, not just the floor. */
-  const _dbgLoseCanvases = () => {
+  const _dbgLoseCanvases = (mode = 'all') => {
     const wipe = c => {
       try { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); return true; }
       catch (_) { return false; }
     };
-    let bake = 0;
-    if (cache) for (const k of ['baseCv', 'lightCv']) if (cache[k] && wipe(cache[k])) bake++;
+    let bake = 0, detail = 0;
+    // Arm witnesses before simulating loss, including newly allocated zoom LODs.
+    if (bakeProbe && !probeOff) bakeWentBlank();
+    if (cache && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.baseLayers) {
+      const layers = IndustrialTextures.baseLayers(cache.baseCv);
+      for (const c of (mode === 'lod' ? layers.slice(1) : layers)) if (wipe(c)) detail++;
+    }
+    if (mode === 'all' && cache) for (const k of ['baseCv', 'lightCv']) if (cache[k] && wipe(cache[k])) bake++;
     let sky = 0, ground = 0;
-    try { if (typeof SpaceBG !== 'undefined' && SpaceBG._dbgLosePixels) sky = SpaceBG._dbgLosePixels(); } catch (_) {}
-    try { if (typeof Terrain !== 'undefined' && Terrain._dbgLosePixels) ground = Terrain._dbgLosePixels(); } catch (_) {}
-    return { bake, sky, ground, probe: bakeProbe ? { x: bakeProbe.x, y: bakeProbe.y } : null };
+    try { if (mode === 'all' && typeof SpaceBG !== 'undefined' && SpaceBG._dbgLosePixels) sky = SpaceBG._dbgLosePixels(); } catch (_) {}
+    try { if (mode === 'all' && typeof Terrain !== 'undefined' && Terrain._dbgLosePixels) ground = Terrain._dbgLosePixels(); } catch (_) {}
+    return { bake, detail, sky, ground, probe: bakeProbe ? { x: bakeProbe.x, y: bakeProbe.y } : null };
   };
   // what the watchdog currently knows — lets a test assert recovery happened, not just that pixels returned
   const _dbgCanvasLoss = () => ({

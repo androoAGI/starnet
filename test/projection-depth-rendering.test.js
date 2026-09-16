@@ -9,7 +9,7 @@ async function materials(){
   const api=scope.module.exports;await api.ready;return api;
 }
 (async()=>{
-  const api=await materials(),base=Canvas.createCanvas(64,64),g=api.detailContext(base.getContext('2d'));
+  const api=await materials(),base=Canvas.createCanvas(64,64);let g=api.detailContext(base.getContext('2d'));
   // Subpixel alternating bars expose aliasing; large planes must retain alpha.
   for(let x=8;x<56;x++){g.fillStyle=x%2?'#c0c0c0':'#404040';g.fillRect(x,8,1,48);}
   const target=Canvas.createCanvas(400,400),ctx=target.getContext('2d'),native=ctx.drawImage.bind(ctx);let source;
@@ -20,6 +20,40 @@ async function materials(){
   ctx.setTransform(6,0,0,6,0,0);api.drawBase(ctx,base);assert.equal(source.width,384,'close view retains the full authored detail');
   g.fillStyle='#ff0000';g.fillRect(0,0,64,64);ctx.setTransform(1,0,0,1,0,0);api.drawBase(ctx,base);assert.notEqual(source,first,'rebaked pixels invalidate cached reductions');
   const center=ctx.getImageData(32,32,1,1).data;assert(center[0]>240&&center[1]<5,'new pixels survive pyramid rebuild');
+
+  // Execute the real world watchdog against real canvas pixels. Losing only a
+  // remaster plate used to evade it because the native bake remained opaque.
+  const world=fs.readFileSync('frontend/app/world.js','utf8');
+  const watchdog=world.slice(world.indexOf('  let bakeProbe = null;'),world.indexOf('  /* ---------- STAGE CONTEXT LOSS'));
+  let rebuilt=0;
+  const lossScope={document:{createElement:makeCanvas},IndustrialTextures:api,cache:{baseCv:base},bakeDirty:false,console:{warn(){}},
+    rebake(){rebuilt++;g.fillStyle='#ff0000';g.fillRect(0,0,64,64);lossScope.recordBakeProbe();}};
+  vm.runInNewContext(watchdog+'\nthis.recordBakeProbe=recordBakeProbe;this.blank=bakeWentBlank;this.watch=watchCanvasLoss;',lossScope);
+  lossScope.recordBakeProbe();assert.equal(lossScope.blank(),false);
+  const levels=api.baseLayers(base);assert(levels.length>1,'zoom reductions exist');
+  const low=levels.at(-1);low.getContext('2d').clearRect(0,0,low.width,low.height);
+  assert.equal(base.getContext('2d').getImageData(32,32,1,1).data[3],255,'native bake survives: old watchdog missed this');
+  assert.equal(lossScope.blank(),true,'blank overview plate detected independently');
+  lossScope.watch(1000);assert.equal(rebuilt,0,'LOD loss does not rebuild entire station');assert.equal(lossScope.blank(),false,'recovery replaces damaged zoom chain');
+  ctx.clearRect(0,0,400,400);api.drawBase(ctx,base);assert(ctx.getImageData(32,32,1,1).data[3]>0,'recovered station actually renders');
+  for(let i=0;i<3;i++){
+    // Restore a fresh detail plate as a normal rebake would.
+    g=api.detailContext(base.getContext('2d'));g.fillRect(0,0,64,64);lossScope.recordBakeProbe();
+    const hi=api.baseLayers(base)[0];hi.getContext('2d').clearRect(0,0,hi.width,hi.height);
+    assert.equal(lossScope.blank(),true,'high resolution loss detected');lossScope.watch(1300+i*300);
+    assert.equal(lossScope.blank(),false,'repeated losses heal without a success cooldown');
+    assert.equal(api.drawBase(ctx,base),false,'lost high detail falls back to intact native bake');
+    ctx.clearRect(0,0,400,400);ctx.drawImage(base,0,0);
+    assert.equal(ctx.getImageData(32,32,1,1).data[3],255,'native fallback visibly preserves the station');
+  }
+  assert.equal(rebuilt,0,'detail loss never forces a full station rebake');
+  g=api.detailContext(base.getContext('2d'));g.fillRect(0,0,64,64);lossScope.recordBakeProbe();
+  base.getContext('2d').clearRect(0,0,64,64);lossScope.watch(2400);
+  assert.equal(rebuilt,1,'native bake loss still invokes full recovery');
+  // Returned lists cannot mutate cache ownership, and absent/empty plates are safe.
+  api.baseLayers(base).length=0;assert(api.baseLayers(base).length>0);
+  lossScope.cache.baseCv=Canvas.createCanvas(64,64);api.detailContext(lossScope.cache.baseCv.getContext('2d'));
+  lossScope.recordBakeProbe();assert.equal(lossScope.blank(),false,'legitimately empty station does not loop');
 
   const props=fs.readFileSync('frontend/app/propsprites.js','utf8'),start=props.indexOf('  function contactShadow('),end=props.indexOf('  function projectedShadow(',start);
   assert(start>0&&end>start);

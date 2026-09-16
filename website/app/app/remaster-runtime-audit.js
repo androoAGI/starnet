@@ -142,6 +142,19 @@
     d.rooms[id].wallMat=wallReview.value;World.loadStation(WorldModel.deserialize(d));await pause(400);World.frameReviewRoom(id);World.setCinecamIdle(86400000);
     receipt.structure={material:wallReview.value,texturePack:IndustrialTextures.status(),room:id};last='Wall review: '+wallReview.value+' · '+receipt.structure.texturePack.assets.length+' textures loaded · '+receipt.structure.texturePack.failed.length+' failures';publish();
   });
+  button('Test remaster recovery',async()=>{
+    if(busy)return;busy=true;receipt.canvasRecovery=[];
+    try {
+      for(const mode of ['lod','lod','all','lod','detail']){
+        await pause(500);const before=World._dbgCanvasLoss(),wiped=World._dbgLoseCanvases(mode),during=World._dbgCanvasLoss();
+        const began=performance.now();let after;
+        do{await pause(50);after=World._dbgCanvasLoss();}while(after.recoveries===before.recoveries&&performance.now()-began<5000);
+        receipt.canvasRecovery.push({mode,wiped,detected:during.blank,recovered:after.recoveries>before.recoveries&&!after.blank,ms:Math.round(performance.now()-began)});
+        last='Canvas recovery: '+receipt.canvasRecovery.length+' / 5';publish();
+      }
+      last=receipt.canvasRecovery.every(r=>r.recovered&&r.detected)?'PASS: all five canvas losses recovered':'FAIL: inspect canvas recovery receipt';
+    } finally {busy=false;publish();}
+  });
   button('Measure 2 minute soak',async()=>{
     if(busy)return;busy=true;receipt.soak=[];
     for(let i=0;i<6;i++){
