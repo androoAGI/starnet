@@ -1,5 +1,7 @@
 # Space materials — September 15, 2026
 
+Revision notice: brick, thermal shielding and floors were reworked after visual feedback. Current artwork and exact replacement prompts are documented in [MATERIAL-REVISIONS.md](MATERIAL-REVISIONS.md). The original prompts below describe the earlier generation.
+
 Eleven additive materials for REFIT → SURFACE. Original, unedited PNGs generated with the built-in ImageGen tool, one generation per asset. The renderer normalizes relief into the selected paint hue, owns opacity and applies station lighting. Optional asset failures retain procedural material fallbacks.
 
 ## Thermal Ceramic (shell/thermal)

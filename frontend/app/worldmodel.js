@@ -222,9 +222,9 @@ const WorldModel = (() => {
     terrazzo: { label: 'TERRAZZO', pitch: [4, 4], suggest: 'hull' },
     octile:   { label: 'OCTILE',   pitch: [2, 2], suggest: 'sterile' },
     flightdeck: { label: 'FLIGHT DECK', pitch: [2, 2], suggest: 'hull' },
-    lunar: { label: 'LUNAR', pitch: [4, 2], suggest: 'ash' },
+    lunar: { label: 'LUNAR', pitch: [4, 2], suggest: 'sterile' },
     maggrid: { label: 'MAG GRID', pitch: [2, 2], suggest: 'corridor' },
-    habitat: { label: 'HABITAT', pitch: [2, 2], suggest: 'bone' },
+    habitat: { label: 'HABITAT', pitch: [2, 2], suggest: 'corridor' },
   };
   const MAT_ORDER = ['spine', 'alloy', 'runner', 'treadway', 'meshway', 'plate', 'diamond', 'cargo', 'panel', 'tile', 'ceramic', 'resin', 'tread', 'soft', 'grate', 'hex', 'plank', 'turf', 'basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile', 'flightdeck', 'lunar', 'maggrid', 'habitat'];
 
@@ -282,14 +282,14 @@ const WorldModel = (() => {
     timber:    { label: 'TIMBER',    suggest: 'walnut', blurb: 'stacked log courses — the cabin' },
     clapboard: { label: 'CLAPBOARD', suggest: 'ash',    blurb: 'lapped siding boards — the farmhouse' },
     shingle:   { label: 'SHINGLE',   suggest: 'oak',    blurb: 'overlapping shingles — a pitched roof from above' },
-    brick:     { label: 'BRICK',     suggest: 'rust',   blurb: 'staggered courses + mortar — the townhouse' },
+    brick:     { label: 'BRICK',     suggest: 'ember',  blurb: 'narrow fired-clay masonry with dark recessed mortar' },
     stone:     { label: 'STONE',     suggest: 'ash',    blurb: 'irregular rubble masonry — the cottage' },
     stucco:    { label: 'STUCCO',    suggest: 'amber',  blurb: 'rendered plaster + corner quoins — adobe' },
     curtain:   { label: 'CURTAIN',   suggest: 'indigo', blurb: 'glass curtain wall + mullions — the tower' },
     hedge:     { label: 'HEDGE',     suggest: 'fern',   blurb: 'clipped hedge — the garden wall' },
   };
   Object.assign(HULL_MATERIALS, {
-    thermal: { label: 'THERMAL', suggest: 'bone', blurb: 'clean ceramic thermal shield with broad staggered panels' },
+    thermal: { label: 'THERMAL', suggest: 'hull', blurb: 'dark carbon thermal shielding with interlocking armor panels' },
     insulation: { label: 'INSULATION', suggest: 'amber', blurb: 'quilted orbital insulation with restrained foil folds' },
     heatsink: { label: 'HEATSINK', suggest: 'hull', blurb: 'radiator fins between calm graphite cladding panels' }
   });
