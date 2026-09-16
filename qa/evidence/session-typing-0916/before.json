@@ -1,0 +1,12 @@
+{
+  "baseline": true,
+  "transport": "controlled local fixtures; no paid model",
+  "source": "1cbd6384dd1dc101a47d5f4ee936bda2576e9f5b",
+  "liveDraft": {
+    "selected": "workshop-typing-live",
+    "draft": "",
+    "focused": true,
+    "attachments": 0
+  },
+  "expectedFailure": "Delivery moved the selected session while typing"
+}
