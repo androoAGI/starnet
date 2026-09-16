@@ -1,0 +1,13 @@
+{
+  "runtimeCommit": "6a91950de42ae46de99b411dafc58688dc9b7a9e",
+  "testedHead": "708cb4f63758e68bcd7c6d0596ae764d1f6ff7f9",
+  "command": "npm run test:fast",
+  "result": "793/793 steps green",
+  "logSha256": "32c398f9566e75bb283bb6013c394ecc44fb1a669878845686baf62aaea87f33",
+  "skinFrames": 3099,
+  "remasteredSkins": 34,
+  "retainedSkins": 4,
+  "liveSittingCases": 42,
+  "liveSittingFailures": 0,
+  "scope": "Local opt-in 18797 preview; all seating views with Silver Cadet, not all skin/prop combinations"
+}
