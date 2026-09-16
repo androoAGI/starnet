@@ -5064,6 +5064,12 @@ const StationBake = (() => {
   // Validate the entire housing since neighbouring rooms can hide a panel.
   function hullNavLights(baseCv, interiorCv) {
     const result = [];
+    // Navigation hardware belongs to spacecraft cladding, not masonry, timber,
+    // plaster, glass buildings or hedges. Filter before joining facade runs so
+    // an adjacent spacecraft room cannot place a beacon on a civilian shell.
+    const spacecraft = new Set(['station', 'monocoque', 'thermal', 'insulation', 'heatsink']);
+    const eligible = G.allRects.filter(r => !G.isCorridor(r.z) && spacecraft.has(hullMatOf(r.z)));
+    if (!eligible.length) return result;
     if (!baseCv.getContext('2d').getImageData) return result;
     const base = baseCv.getContext('2d').getImageData(0,0,CW,CH).data;
     const inside = interiorCv.getContext('2d').getImageData(0,0,CW,CH).data;
@@ -5082,7 +5088,7 @@ const StationBake = (() => {
     // Adjacent room rectangles can form one continuous facade; do not double
     // the lamps merely because the builder split that room into two shapes.
     const fronts=[];
-    for(const r of G.allRects.filter(r=>!G.isCorridor(r.z)).slice().sort((a,b)=>a.y2-b.y2||a.x1-b.x1)){
+    for(const r of eligible.slice().sort((a,b)=>a.y2-b.y2||a.x1-b.x1)){
       const previous=fronts[fronts.length-1];
       if(previous&&previous.y2===r.y2&&r.x1<=previous.x2+1)previous.x2=Math.max(previous.x2,r.x2);
       else fronts.push({x1:r.x1,x2:r.x2,y2:r.y2});
