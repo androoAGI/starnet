@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "edb3d02dfd4d08d2cb307bb23c3336fbfdd19d5e",
+    "sourceCommit": "d2647ae4365ba7885d5724dd85db55acbc7c740a",
     "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
@@ -923,8 +923,8 @@
       },
       {
         "path": "frontend/app/remaster-runtime-audit.js",
-        "bytes": 19613,
-        "sha256": "a54c60bec93f019e6ea877aee6f8cad40e7fc882d8949effad48426e5aa7dd9b"
+        "bytes": 19619,
+        "sha256": "4bf033f1e40f8306f8ac04e2698b61babbab2ad7eb936cc73d02b5b5388c84f1"
       },
       {
         "path": "frontend/app/resummonstore.js",
