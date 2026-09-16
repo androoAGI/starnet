@@ -6,8 +6,8 @@ surface: sessions
 severity: P1
 status: fixed
 found: 2026-09-09
-lane: session-switch-investigation-0909
-fix: 086a74ba5d499f74d1829978291eeadeb22848f5
+lane: typing-focus-0916-c7a2
+fix: 86b33ace3
 origin: customer
 report: User-relayed report on 2026-09-09: StarNet randomly changes sessions and the next message goes to the wrong session
 affected: Reporter build/platform unknown; reproduced in seeded browser on source 41253b0bd, version 0.11.0
@@ -66,7 +66,15 @@ Source-fixed in 086a74ba5d499f74d1829978291eeadeb22848f5; generated website mirr
 
 The reporter's exact run/platform and whether they were using voice remain unknown. This fixes reproduced mechanisms matching the symptom; it does not establish installer delivery or customer recovery. Live voice remains bound to its starting session. Explicit new speech continues to address that bound session; incoming assistant speech no longer navigates.
 
+## September 16 follow-up — delivery and connector navigation
+
+The owner relayed the continuing complaint: sessions switch while typing. The September 9 repair addressed voice/model focus and stale sends, but not delivery reveal or delayed connector continuation. On baseline 1cbd6384d (source version 0.12.0), live seeded Chrome showed workshop.built change the selected session to workshop-typing-live and replace the visible draft with an empty composer. This is a reopened symptom record, not a claim that every earlier repaired path regressed.
+
+The new guard covers a focused composer, any draft including whitespace, and staged/uploading attachments. Delivery push, attach poll and return poll preserve focus while retaining unread delivery sessions; explicit review remains available. Connector rechecks retain their handoff and dispatch nothing when navigation changes or composition begins during the wait. Desktop and website copies receive the same fix. No installed artifact or reporter recovery is claimed.
+
 ## Regression
+
+September 16 regression: test/session-typing-safety.test.js failed before repair with selected workshop-live instead of original. The seeded baseline repeated that visible failure. After repair, the live delivery/attach/return checks preserved the draft and attachment; the next Send reached only the original session; delayed connector completion preserved focus and its handoff, and a deliberate retry started one run. Reload retained the original turn. Existing voice/model/upload safety tests remain required; explicit foreground model navigation retains its prior empty-composer behavior. Reproducible runner: scripts/qa/session-typing-live.cjs.
 
 Before: the actual seeded browser callback for a delayed assistant reply changed the selected title from Reading and typing to Voice call and replaced draft for reading session with an empty composer. The callback was exposed for deterministic invocation without altering its logic; no microphone/provider was required. The new test/session-focus-safety.test.js failed on the original callback with expected reading, actual call.
 
@@ -93,6 +101,13 @@ Reproducible live runner: scripts/qa/session-focus-live.cjs. Run against an isol
       "target": "real paid-provider and microphone execution",
       "state": "blocked",
       "reason": "Deterministic tool/voice callback injection was used; no customer credentials or physical microphone were exercised."
+    },
+    {
+      "target": "desktop and website frontend copies",
+      "state": "covered",
+      "test": "test/session-typing-safety.test.js",
+      "scenario": "same delivery and connector protections executed from each shipped source tree",
+      "gate": "fast"
     }
   ],
   "entrypoints": [
@@ -116,6 +131,20 @@ Reproducible live runner: scripts/qa/session-focus-live.cjs. Run against an isol
       "test": "test/session-focus-safety.test.js",
       "scenario": "upload-time navigation including leave-and-return cancels stale submissions",
       "gate": "fast"
+    },
+    {
+      "target": "workshop live push, attach poll and return-from-away poll",
+      "state": "covered",
+      "test": "test/session-typing-safety.test.js",
+      "scenario": "engaged composer keeps the selected session; idle reveal and explicit review still work",
+      "gate": "fast"
+    },
+    {
+      "target": "connector continuation",
+      "state": "covered",
+      "test": "test/session-typing-safety.test.js",
+      "scenario": "typing, uploads and navigation during asynchronous verification cancel dispatch and preserve the handoff; retry and duplicate-click handling work",
+      "gate": "fast"
     }
   ],
   "displays": [
@@ -130,6 +159,13 @@ Reproducible live runner: scripts/qa/session-focus-live.cjs. Run against an isol
       "target": "installed Windows and macOS shells",
       "state": "blocked",
       "reason": "Live seeded Chrome proof passed; packaged installer and physical macOS testing were not available in this source repair."
+    },
+    {
+      "target": "focused empty input, text drafts and attachments",
+      "state": "covered",
+      "test": "test/session-typing-safety.test.js",
+      "scenario": "focused input, whitespace, uploading and ready attachment states prevent background reveal",
+      "gate": "fast"
     }
   ],
   "lifecycle": [
@@ -144,6 +180,13 @@ Reproducible live runner: scripts/qa/session-focus-live.cjs. Run against an isol
       "target": "installer restart and customer recovery",
       "state": "blocked",
       "reason": "No installed build was replaced and the reporter has not retested; both remain explicitly unverified."
+    },
+    {
+      "target": "delayed responses and leave-and-return navigation",
+      "state": "covered",
+      "test": "test/session-typing-safety.test.js",
+      "scenario": "focus generation changes invalidate delayed continuation even after returning to the origin",
+      "gate": "fast"
     }
   ]
 }

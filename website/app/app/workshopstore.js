@@ -375,9 +375,10 @@ const WorkshopStore = (() => {
   }
 
   // the Commander is mid-something a focus jump would stomp: a streaming reply, an interview flow, or a
-  // focused dialogue panel. Any probe error fails toward NOT engaged (reveal proceeds) — the reveal itself
-  // is harmless (it opens a session), while a false "engaged" re-hides the build (the bug this fixes).
+  // focused dialogue panel or composer. A composer probe error preserves focus; the unread delivery
+  // remains available in its own session, so uncertainty never justifies stealing an in-progress draft.
   function commanderEngaged() {
+    try { if (typeof Chat !== 'undefined' && Chat.isComposerEngaged && Chat.isComposerEngaged()) return true; } catch (_) { return true; }
     try { if (typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()) return true; } catch (_) {}
     try { if (typeof Onboarding !== 'undefined' && Onboarding.isRunning && Onboarding.isRunning()) return true; } catch (_) {}
     try { if (typeof Intake !== 'undefined' && Intake.isRunning && Intake.isRunning()) return true; } catch (_) {}
