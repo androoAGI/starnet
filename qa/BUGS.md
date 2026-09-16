@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**2** open (open+claimed) of 156 total — 0 P0 · 0 P1 · 2 P2
+**2** open (open+claimed) of 157 total — 0 P0 · 0 P1 · 2 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **73** · source fixed: **71** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **71**.
+User/owner reports: **74** · source fixed: **72** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **72**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -54,6 +54,7 @@ User/owner reports: **73** · source fixed: **71** · installer verified: **6** 
 | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | desktop-microphone | fixed | unverified | unconfirmed |
 | [Spoken replies fragment at punctuation and omit failed audio chunks](bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md) | voice-continuity | fixed | unverified | unconfirmed |
 | [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | doorway-movement | fixed | unverified | unconfirmed |
+| [Approved agent sprites remain behind preview switch in normal desktop](bugs/84e26970-approved-agent-sprites-remain-behind-preview-swi.md) | production-skin-activation | fixed | unverified | unconfirmed |
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
 | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | backdrop-performance | fixed | verified | unconfirmed |
 | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | durability-and-visibility | fixed | unverified | unconfirmed |
@@ -177,6 +178,7 @@ User/owner reports: **73** · source fixed: **71** · installer verified: **6** 
 | P1 | fixed | voice | [Voice.init (agent focus / persona change / dossier apply) calls reflectToggle without clearing fbNotified, permanently wiping the pinned degrade tooltip while t](bugs/562c293e-voice-init.md) | sweep/voice | 50a8b07b |
 | P1 | fixed | world | [A Meeseeks helper sprite whose terminal `task` event is lost stays asserted LIVE forever — the ledger has no TTL, no snapshot reconcile, and no reset on NEW AGE](bugs/c96c4d41-a-meeseeks-helper-sprite-whose-terminal-task-eve.md) | sweep/world | meeseeks layer removed 2026-07-30 (agent/meeseeks-visual) |
 | P1 | fixed | world | [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | wall-clearance-0916 | 2dbc0ef5a |
+| P1 | fixed | world | [Approved agent sprites remain behind preview switch in normal desktop](bugs/84e26970-approved-agent-sprites-remain-behind-preview-swi.md) | agent/release-0120-prep-0915 | df4d1ba25 |
 | P1 | fixed | world | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | release-0110 | 86560bea9 |
 | P1 | fixed | world | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | agent/backdrop-performance-0910 | 2c041bbe69124eda1f60a6eb5a11cc44676028cb |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
