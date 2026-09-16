@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "9b2ce2d35804623e97fa0a081cc11ffddd33d534",
+  "date": "2026-09-13",
+  "node": "24.19.0",
+  "fast": {
+    "steps": 779,
+    "sourceFrozen": true,
+    "sha256": "75D04F9B639319C956B5D27C02F155A5B6055F8443A331AA47437FB0B5B852E0",
+    "exitCode": 0
+  },
+  "http": {
+    "steps": 115,
+    "note": "Started before metadata forwarding correction; latest factory and cache regression also passed separately after correction.",
+    "sha256": "EF4F2667F0C12586603F65C3E7C61A89116E9E3CD598DE5E27407687893F6578",
+    "exitCode": 0
+  },
+  "customerJourneys": {
+    "steps": 34,
+    "sourceFrozen": true,
+    "sha256": "836B6B87B450E4039D2183A7938522767614C3894FAF0EA13456796AA1B4EB25",
+    "exitCode": 0
+  },
+  "seededThreeAdapterProof": {
+    "sha256": "5458313A08ECDA246F8F95C7D77F3195DA135F40895E72730B2B4C747FD55D71",
+    "passed": true
+  },
+  "limitations": [
+    "No paid-provider timing benchmark or actual cache-hit receipt.",
+    "No installer release or affected-customer recovery proof.",
+    "Initial HTTP attempt encountered Windows libuv UV_HANDLE_CLOSING after outcomes suite; unchanged isolated rerun and complete second HTTP gate passed.",
+    "Initial NODE_PATH-only audit environment failed localvoice; dependency junction corrected environment and full gates passed."
+  ]
+}

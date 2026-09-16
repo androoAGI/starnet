@@ -205,5 +205,37 @@ module.exports = (async () => {
   const gemini = factory.selectProvider({ provider: 'gemini', fetch: async () => new Response('', { status: 200 }) });
   A.ok(gemini && typeof gemini.stream === 'function', 'factory returns Gemini adapter');
 
+  // A configured but unused OAuth fallback must not refresh or send a request.
+  for (const provider of ['codex', 'kimi', 'grok']) {
+    let refreshed=0, requests=0, headers;
+    const p=factory.selectProvider({provider,reasoningEffort:'high', tokenProvider:async()=>{refreshed++;return 'new-token';},fetch:async(_,o)=>{
+      if(!o.body) return new Response(JSON.stringify({data:[{id:'discovered-model',context_length:65536,supported_parameters:['reasoning']}]}));
+      requests++;headers=o.headers;const b=JSON.parse(o.body);
+      A.eq(b.reasoning ? b.reasoning.effort : b.reasoning_effort,provider==='kimi'?undefined:'high','fallback preserves adapter-supported effort behavior');
+      return new Response(provider==='codex' ? 'data: {"type":"response.completed","response":{}}\n\n' : 'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+    }});
+    p.contextLimit('test'); p.supportsTools('test');
+    A.eq(refreshed,0,'fallback metadata does not refresh '+provider);
+    A.eq(requests,0,'unused fallback does not call '+provider);
+    const cancelled=new AbortController();cancelled.abort();
+    for await(const e of p.stream({model:'test',messages:[],signal:cancelled.signal})) {}
+    A.eq(refreshed,0,'cancel before use skips refresh '+provider);
+    for(let i=0;i<2;i++) for await(const e of p.stream({model:'test',messages:[]})) {}
+    A.eq(refreshed,1,'successful activation reused '+provider);
+    A.eq(requests,2,'both selected calls execute '+provider);
+    A.eq(headers.Authorization,'Bearer new-token','fresh credential reaches selected fallback '+provider);
+    if(provider!=='codex') {
+      await p.listModels();
+      A.eq(p.contextLimit('discovered-model'),65536,'activated metadata follows the live catalog '+provider);
+      A.eq(refreshed,1,'catalog query reuses authenticated adapter '+provider);
+    }
+  }
+  {
+    let count=0;const p=factory.selectProvider({provider:'codex',tokenProvider:async()=>{if(++count===1)throw new Error('refresh unavailable');return 'fresh';},fetch:async()=>new Response('data: {"type":"response.completed","response":{}}\n\n')});
+    let failed=false;try{for await(const e of p.stream({messages:[]})) {}}catch(e){failed=e.message==='refresh unavailable';}
+    A.ok(failed,'refresh failure is surfaced, never silently successful');
+    for await(const e of p.stream({messages:[]})) {}
+    A.eq(count,2,'failed activation can recover');
+  }
   A.report('provider.registry.test');
 })();

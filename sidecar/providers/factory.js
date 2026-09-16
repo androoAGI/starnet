@@ -48,6 +48,38 @@
 
   function selectProvider(opts) {
     opts = opts || {};
+    // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
+    // Cache a successful activation for this run. Failed activation stays retryable, and a
+    // cancelled caller never starts refresh/inference. No credential is shared across wrappers.
+    if (typeof opts.tokenProvider === 'function') {
+      const base = Object.assign({}, opts); delete base.tokenProvider;
+      const metadata = selectProvider(base);
+      let active = null, live = null;
+      const activate = () => {
+        if (!active) {
+          active = Promise.resolve().then(() => opts.tokenProvider()).then(token => {
+            live = selectProvider(Object.assign({}, base, { token, headers: typeof opts.headersProvider === 'function' ? opts.headersProvider() : base.headers }));
+            return live;
+          });
+          active.catch(() => { active = null; });
+        }
+        return active;
+      };
+      const deferred = Object.assign({}, metadata);
+      // After activation, metadata must follow the same adapter/catalog as inference.
+      // Otherwise a freshly discovered context window or reasoning setting would stay stale.
+      for (const name of Object.keys(metadata)) {
+        if (typeof metadata[name] === 'function') deferred[name] = (...args) => (live || metadata)[name](...args);
+      }
+      if (metadata.listModels) deferred.listModels = async (...args) => (await activate()).listModels(...args);
+      deferred.stream = async function* (req) {
+        if (req && req.signal && req.signal.aborted) return;
+        const provider = await activate();
+        if (req && req.signal && req.signal.aborted) return;
+        yield* provider.stream(req);
+      };
+      return deferred;
+    }
     const id = registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID);
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));
