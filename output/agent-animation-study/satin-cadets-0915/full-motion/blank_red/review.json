@@ -1,0 +1,9 @@
+{
+  "id": "blank_red",
+  "walkApproved": true,
+  "seatsApproved": true,
+  "selectedFrames": 80,
+  "standingHeight": 19,
+  "review": "Inspected all eight rotations, eight walk directions, four seated poses and four north typing frames. Diagonal facing cleanup and front wrist cleanup selected from built-in ImageGen sheets. Mechanical atlas packing preserves transparent alpha and subject bounds.",
+  "limitation": null
+}

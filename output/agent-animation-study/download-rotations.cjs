@@ -1,0 +1,3 @@
+const fs=require('fs'),path=require('path');
+const chars=require('./characters.json');
+(async()=>{for(const [name,text] of Object.entries(chars.details)){const out=path.resolve(__dirname,'../../frontend/assets/agent-animation-0914',name,'rotations');fs.mkdirSync(out,{recursive:true});const urls=[...text.matchAll(/^  ([a-z-]+): (https:\/\/\S+\.png\?\S+)/gm)];await Promise.all(urls.map(async([,dir,url])=>{const r=await fetch(url);if(!r.ok)throw Error(r.status);fs.writeFileSync(path.join(out,dir+'.png'),Buffer.from(await r.arrayBuffer()));}));console.log(name,urls.length);}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,14 @@
+{
+  "id": "blank_red",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Move from standing to FULLY SEATED facing camera. By the final frame, the head is 18 pixels LOWER on this 96px canvas, hips 20 pixels LOWER; total visible height is about 56 pixels, not 76. Torso stays upright and same length, thighs point forward toward camera and are strongly foreshortened, knees are together at seated hip height, shins vertical, feet on original baseline. Hands together forward at desk height, elbows tucked. Clear sitting posture with bent legs, not standing or wide squat. Preserve exactly the input faceless colored pixel character, its original color, size of head and torso, pixel shading. No chair, furniture, background, shadow or new objects.",
+  "request": "id: 1c84bfc0-dddd-4016-8e27-cdeaeac6137c\njob_id: 1c84bfc0-dddd-4016-8e27-cdeaeac6137c\ndescription: Move from standing to FULLY SEATED facing camera. By the final frame, the head is 18 pixels LOWER on this 96px canvas, hips 20 pixels LOWER; total visible height is about 56 pixels, not 76. Torso stays upright and same length, thighs point forward toward camera and are strongly foreshortened, knees are together at seated hip height, shins vertical, feet on original baseline. Hands together forward at desk height, elbows tucked. Clear sitting posture with bent legs, not standing or wide squat. Preserve exactly the input faceless colored pixel character, its original color, size of head and torso, pixel shading. No chair, furniture, background, shadow or new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"1c84bfc0-dddd-4016-8e27-cdeaeac6137c\")",
+  "job": "1c84bfc0-dddd-4016-8e27-cdeaeac6137c",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_red/refs/south.png",
+  "result": "status: completed\nid: 1c84bfc0-dddd-4016-8e27-cdeaeac6137c\njob_id: 1c84bfc0-dddd-4016-8e27-cdeaeac6137c\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/1c84bfc0-dddd-4016-8e27-cdeaeac6137c/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_red/minimax/sit-south/1c84bfc0-dddd-4016-8e27-cdeaeac6137c/4.png",
+  "frameCount": 5
+}

@@ -1,0 +1,24 @@
+{
+  "name": "plaguedoctor",
+  "kind": "idle",
+  "args": {
+    "character_id": "b3fe6acd-7249-4a23-95a6-824d10540947",
+    "template_animation_id": "breathing-idle",
+    "animation_name": "idle",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: b3fe6acd-7249-4a23-95a6-824d10540947\nanimation: breathing-idle\ndirections: south, east, north, west (4 jobs)\ngroup: 9e9179ac-2c55-4e84-b93f-32da70643ad6\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", template_animation_id=\"breathing-idle\", animation_group_id=\"9e9179ac-2c55-4e84-b93f-32da70643ad6\", directions=[...])\n\nhint: get_character(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\")\nif poor: delete_animation(character_id=\"b3fe6acd-7249-4a23-95a6-824d10540947\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

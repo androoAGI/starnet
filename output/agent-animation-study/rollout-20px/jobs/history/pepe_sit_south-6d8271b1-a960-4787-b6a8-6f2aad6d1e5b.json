@@ -1,0 +1,9 @@
+{
+  "id": "pepe",
+  "track": "sit",
+  "dir": "south",
+  "job": "6d8271b1-a960-4787-b6a8-6f2aad6d1e5b",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/pepe/minimax/sit-south/6d8271b1-a960-4787-b6a8-6f2aad6d1e5b/4.png"
+}

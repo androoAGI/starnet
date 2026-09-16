@@ -1,0 +1,24 @@
+{
+  "name": "ultron",
+  "kind": "idle",
+  "args": {
+    "character_id": "24f874f4-f802-4ae6-960c-5e1545e33f95",
+    "template_animation_id": "breathing-idle",
+    "animation_name": "idle",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: 24f874f4-f802-4ae6-960c-5e1545e33f95\nanimation: breathing-idle\ndirections: south, east, north, west (4 jobs)\ngroup: 9f97a2ce-fd22-4b04-bfea-742adf546baf\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"24f874f4-f802-4ae6-960c-5e1545e33f95\", template_animation_id=\"breathing-idle\", animation_group_id=\"9f97a2ce-fd22-4b04-bfea-742adf546baf\", directions=[...])\n\nhint: get_character(character_id=\"24f874f4-f802-4ae6-960c-5e1545e33f95\")\nif poor: delete_animation(character_id=\"24f874f4-f802-4ae6-960c-5e1545e33f95\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

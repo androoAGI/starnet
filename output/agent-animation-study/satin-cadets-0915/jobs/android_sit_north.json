@@ -1,0 +1,13 @@
+{
+  "id": "android",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: 3c4d5db4-7dad-4dee-9f3d-6b953aad50d1\njob_id: 3c4d5db4-7dad-4dee-9f3d-6b953aad50d1\ndescription: Sit down on an invisible chair facing north directly AWAY from camera. End fully seated at three quarters standing height. Knees point forward AWAY, only hip-width apart; thighs foreshortened behind torso, ankles close. Elbows tucked at waist; hands reach forward away from camera and remain mostly hidden. Upright torso, unchanged head and torso size. No wide squat or sideways arms. No chair, desk, floor, keyboard, shadow or new objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"3c4d5db4-7dad-4dee-9f3d-6b953aad50d1\")",
+  "job": "3c4d5db4-7dad-4dee-9f3d-6b953aad50d1",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/android/refs/north.png",
+  "result": "status: completed\nid: 3c4d5db4-7dad-4dee-9f3d-6b953aad50d1\njob_id: 3c4d5db4-7dad-4dee-9f3d-6b953aad50d1\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/3c4d5db4-7dad-4dee-9f3d-6b953aad50d1/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/android/minimax/sit-north/3c4d5db4-7dad-4dee-9f3d-6b953aad50d1/4.png",
+  "frameCount": 5
+}

@@ -1,0 +1,15 @@
+{
+  "id": "blank_amber",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: ccc02d84-c8f3-45cc-878c-1c68f1c515f2\njob_id: ccc02d84-c8f3-45cc-878c-1c68f1c515f2\ndescription: Sit down on an invisible chair facing north directly AWAY from camera. End fully seated at three quarters standing height. Knees point forward AWAY, only hip-width apart; thighs foreshortened behind torso, ankles close. Elbows tucked at waist; hands reach forward away from camera and remain mostly hidden. Upright torso, unchanged head and torso size. No wide squat or sideways arms. No chair, desk, floor, keyboard, shadow or new objects. Preserve exact faceless spherical head, continuous rounded limbs, proportions, color and crisp pixel-cluster shading. No eyes, mouth, armor, joints or smooth gradients.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"ccc02d84-c8f3-45cc-878c-1c68f1c515f2\")",
+  "job": "ccc02d84-c8f3-45cc-878c-1c68f1c515f2",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/refs/north.png",
+  "attempts": 1,
+  "failed": false,
+  "result": "status: completed\nid: ccc02d84-c8f3-45cc-878c-1c68f1c515f2\njob_id: ccc02d84-c8f3-45cc-878c-1c68f1c515f2\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/ccc02d84-c8f3-45cc-878c-1c68f1c515f2/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/minimax/sit-north/ccc02d84-c8f3-45cc-878c-1c68f1c515f2/4.png",
+  "frameCount": 5
+}

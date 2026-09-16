@@ -1,0 +1,22 @@
+{
+  "tool": "Built-in image_gen",
+  "purpose": "Front-only visual direction studies. Five characters repeated across three styles. Presentation sheets, not animation or production sprite assets.",
+  "base": "Create one wide character design comparison sheet with EXACTLY FIVE separate full-body front-facing game sprites, in one evenly spaced horizontal row. All five are standing upright in identical relaxed neutral stance, feet aligned to one baseline, arms at sides with small gaps. Low top-down game camera facing their fronts (no side/back views). Adult humanoid proportions: small head about 1/6 height, natural shoulders and legs, no chibi. Consistent scale, full silhouettes and generous blank gaps. Plain solid dark charcoal background, no scene or props or floor. Consistent soft upper-left lighting. Five subjects from LEFT TO RIGHT: 1 Cadet: ivory ceramic humanoid android shell over graphite joints, compact dark face visor with subtle teal optics. 2 Astronaut: burnt-orange practical pressure suit, compact helmet with smoked dark glass visor, off-white fittings and dark gloves/boots. 3 Robot: industrial brushed-steel humanoid robot with exposed articulated joints, compact angular head and two restrained cyan optics, no oversized limbs. 4 CRT-head: compact vintage charcoal CRT monitor head with muted green phosphor screen, navy mechanic coveralls, dark boots. 5 Alien: sage-green humanoid extraterrestrial with restrained slightly elongated head and dark eyes, fitted charcoal utility suit with muted olive panels. Preserve these identities and exact order. No weapons, capes, extra characters, logos or watermark. Each sprite must be fully visible, never overlap. Small clear labels beneath them exactly \"CADET\", \"ASTRONAUT\", \"ROBOT\", \"CRT-HEAD\", \"ALIEN\".",
+  "styles": [
+    {
+      "id": "a-clean",
+      "title": "A — Clean industrial",
+      "style": "Crisp clean modern pixel art. Deliberate chunky pixel clusters, approximately 96-pixel-tall native sprite appearance, limited 16-24 color palettes per character, selective dark outlines, two-to-three solid shading steps. Minimal surface noise, bold readable material blocks, practical restrained industrial detail. Visible square pixels and hard edges, no gradients or blur. Add a discreet heading 'A / CLEAN INDUSTRIAL'."
+    },
+    {
+      "id": "b-retro",
+      "title": "B — Detailed retro sci-fi",
+      "style": "Detailed gritty 1990s science-fiction RPG pixel art. Approximately 96-pixel-tall native sprite appearance. Dense but controlled pixel clusters, subtle dithering, worn metal highlights, believable fabric folds, warm/cool palette ramps, grounded eerie space-station mood. Realistic material texture with sharp pixel edges, no cartoon outline or smooth vector look. Add a discreet heading 'B / RETRO SCI-FI'."
+    },
+    {
+      "id": "c-soft",
+      "title": "C — Softly shaded",
+      "style": "Polished softly shaded pre-rendered 3D game sprites, smooth anti-aliased edges and subtle realistic ambient occlusion. Matte ceramic, brushed steel, fabric and glass look tactile. Restrained detail readable as a small game character, realistic adult proportions, no toy/chibi or plastic figurine style. Clearly distinct from pixel art: smooth tonal ramps and rounded lit surfaces. Add a discreet heading 'C / SOFTLY SHADED'."
+    }
+  ]
+}

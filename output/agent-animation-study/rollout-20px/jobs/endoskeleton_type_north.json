@@ -1,0 +1,13 @@
+{
+  "id": "endoskeleton",
+  "track": "type",
+  "dir": "north",
+  "request": "id: ef36d321-f412-44ff-b186-b2c609182d50\njob_id: ef36d321-f412-44ff-b186-b2c609182d50\ndescription: A subtle seamless seated typing loop, facing north throughout. Remain in this exact seated pose with hips, torso, head and feet fixed. Elbows stay tucked beside the waist. Only hands and forearms alternate tiny typing movements forward at desk height. Preserve exact outfit, silhouette and pixel art. No standing up, turning, chair, desk, keyboard, floor, shadow or other object.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"ef36d321-f412-44ff-b186-b2c609182d50\")",
+  "job": "ef36d321-f412-44ff-b186-b2c609182d50",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/endoskeleton/minimax/sit-north/bfca0bf1-e83a-474b-a8e3-06a0ff11f431/4.png",
+  "result": "status: completed\nid: ef36d321-f412-44ff-b186-b2c609182d50\njob_id: ef36d321-f412-44ff-b186-b2c609182d50\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/ef36d321-f412-44ff-b186-b2c609182d50/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/endoskeleton/minimax/type-north/ef36d321-f412-44ff-b186-b2c609182d50/4.png",
+  "frameCount": 5
+}

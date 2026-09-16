@@ -1,0 +1,24 @@
+{
+  "name": "voidwizard",
+  "kind": "idle",
+  "args": {
+    "character_id": "9cf4346e-1033-4f9b-9aa7-06c9b4831d6d",
+    "template_animation_id": "breathing-idle",
+    "animation_name": "idle",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: 9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\nanimation: breathing-idle\ndirections: south, east, north, west (4 jobs)\ngroup: 695496a9-f275-40f1-9af3-7bbd5036fa8a\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\", template_animation_id=\"breathing-idle\", animation_group_id=\"695496a9-f275-40f1-9af3-7bbd5036fa8a\", directions=[...])\n\nhint: get_character(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\")\nif poor: delete_animation(character_id=\"9cf4346e-1033-4f9b-9aa7-06c9b4831d6d\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

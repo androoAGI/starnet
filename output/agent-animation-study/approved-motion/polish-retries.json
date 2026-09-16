@@ -1,0 +1,18 @@
+[
+  {
+    "id": "voidwizard",
+    "dir": "west",
+    "job": "d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5",
+    "result": "status: completed\nid: d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5\njob_id: d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/d1cbae77-7e6f-40b6-ac0d-c2577c1aecf5/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  },
+  {
+    "id": "voidwizard",
+    "dir": "south-east",
+    "job": "cf00980a-1098-4ff5-b333-dcb1cce14189",
+    "result": "status: completed\nid: cf00980a-1098-4ff5-b333-dcb1cce14189\njob_id: cf00980a-1098-4ff5-b333-dcb1cce14189\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/cf00980a-1098-4ff5-b333-dcb1cce14189/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+    "done": true,
+    "approved": true
+  }
+]

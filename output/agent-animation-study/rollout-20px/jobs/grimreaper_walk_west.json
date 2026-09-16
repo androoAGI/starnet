@@ -1,0 +1,13 @@
+{
+  "id": "grimreaper",
+  "track": "walk",
+  "dir": "west",
+  "request": "id: 3843203c-f28f-4875-b2c8-f29f866d70d6\njob_id: 3843203c-f28f-4875-b2c8-f29f866d70d6\ndescription: A seamless two-step walk in place, facing west throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow.\nframes: 8\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"3843203c-f28f-4875-b2c8-f29f866d70d6\")",
+  "job": "3843203c-f28f-4875-b2c8-f29f866d70d6",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/grimreaper/refs/west.png",
+  "result": "status: completed\nid: 3843203c-f28f-4875-b2c8-f29f866d70d6\njob_id: 3843203c-f28f-4875-b2c8-f29f866d70d6\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/3843203c-f28f-4875-b2c8-f29f866d70d6/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/grimreaper/minimax/walk-west/3843203c-f28f-4875-b2c8-f29f866d70d6/8.png",
+  "frameCount": 9
+}

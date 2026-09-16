@@ -1,0 +1,15 @@
+{
+  "id": "masterchief",
+  "track": "walk",
+  "dir": "south-east",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place, facing DIRECTION throughout. Alternate left and right foot contact with restrained opposite arm swing. Keep the helmet rigid and unchanged: clean continuous olive armor outline and solid gold visor, no speckles or protruding pixels. Preserve armor color and exact body proportions. Head steady, one foot planted, no turns, no jumps or objects.",
+  "request": "id: 415dda7e-b2c1-4c0a-af38-05b36b9837ca\njob_id: 415dda7e-b2c1-4c0a-af38-05b36b9837ca\ndescription: A seamless two-step walk in place, facing south-east throughout. Alternate left and right foot contact with restrained opposite arm swing. Keep the helmet rigid and unchanged: clean continuous olive armor outline and solid gold visor, no speckles or protruding pixels. Preserve armor color and exact body proportions. Head steady, one foot planted, no turns, no jumps or objects.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"415dda7e-b2c1-4c0a-af38-05b36b9837ca\")",
+  "job": "415dda7e-b2c1-4c0a-af38-05b36b9837ca",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/masterchief/refs/south-east.png",
+  "result": "status: completed\nid: 415dda7e-b2c1-4c0a-af38-05b36b9837ca\njob_id: 415dda7e-b2c1-4c0a-af38-05b36b9837ca\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/415dda7e-b2c1-4c0a-af38-05b36b9837ca/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/masterchief/minimax/walk-south-east/415dda7e-b2c1-4c0a-af38-05b36b9837ca/8.png",
+  "frameCount": 9
+}

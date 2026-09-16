@@ -1,0 +1,84 @@
+{
+  "id": "alien",
+  "dir": "south-west",
+  "track": "walk",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/agent-demo/approved-motion/alien/rot_south-west.png",
+  "prompt": "Create a production pixel-art eight-frame walking animation sprite sheet of this exact gray-green alien in weathered charcoal station coveralls. Reference is the exact design, proportions, pixel texture, and facing to preserve. Eight evenly spaced cells in exactly four columns and two rows, reading order left to right then second row. Transparent alpha background, no shadows, no text, no grid. Full body in every cell with equal generous margin. Character faces 45 degrees toward viewer and screen left, BOTH eyes visible with the far eye narrower throughout EVERY frame. No body/head turns within cycle. A compact natural two-step walk IN THE DIRECTION THE CHEST FACES, never lateral stepping, sideways shuffling, or a profile walk pasted onto a front-facing body. Small shoulder counterrotation, arms swing front/back beside torso. Feet alternate contact, down, passing, up for left then right step. For front-facing view, forward motion is foreshortened: boots stay beneath their respective hips, one boot slightly lower/larger while other slightly higher/smaller. Legs never scissor sideways or spread wide. Diagonal views maintain a true three-quarter torso, do not drift to profile. Short restrained stride, no hunched pose, no long stretched legs. Match the exact reference silhouette height and slender normal proportions. Every cell contains the SAME character at same scale, lighting from upper left, fixed pelvis center. Crisp coarse pixel clusters matching reference, no smooth rendered appearance.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-175e82bd-53f5-4163-b879-ff1017cc1621.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/final-direction-audit/alien-south-west.png",
+  "selected": [
+    "walk_south-west_0.png",
+    "walk_south-west_1.png",
+    "walk_south-west_2.png",
+    "walk_south-west_3.png",
+    "walk_south-west_4.png",
+    "walk_south-west_5.png",
+    "walk_south-west_6.png",
+    "walk_south-west_7.png"
+  ],
+  "packed": true,
+  "scale": 0.21839080459770116,
+  "bounds": [
+    {
+      "left": 139,
+      "top": 123,
+      "width": 162,
+      "height": 348
+    },
+    {
+      "left": 122,
+      "top": 123,
+      "width": 166,
+      "height": 347
+    },
+    {
+      "left": 104,
+      "top": 123,
+      "width": 173,
+      "height": 347
+    },
+    {
+      "left": 93,
+      "top": 123,
+      "width": 161,
+      "height": 347
+    },
+    {
+      "left": 137,
+      "top": 64,
+      "width": 164,
+      "height": 344
+    },
+    {
+      "left": 122,
+      "top": 64,
+      "width": 171,
+      "height": 344
+    },
+    {
+      "left": 104,
+      "top": 64,
+      "width": 174,
+      "height": 347
+    },
+    {
+      "left": 91,
+      "top": 64,
+      "width": 163,
+      "height": 347
+    }
+  ],
+  "inputHashes": {
+    "frontend/assets/agent-demo/approved-motion/alien/rot_south-west.png": "1b4a4afa441f493a80c8f3a58b39aa4cf13bfd59e9ebc63da086b6e3b62f9037"
+  },
+  "selectedHashes": {
+    "walk_south-west_0.png": "4e1480d949f27ce9eadee825378c86a9e799ea5660675609220fda3c1e755c76",
+    "walk_south-west_1.png": "1d2e4b7bb707d4db4f84910b97a175c301ad312fa270f17aea424b5a57e8dbf6",
+    "walk_south-west_2.png": "4c368b444fafce51dd7164670b717ca379bb9b4ca0ef4034431f9c2310e738b6",
+    "walk_south-west_3.png": "4db6aac34f643bc5edc00430f938e605df2cb04366a15eed0cb4965754d694cf",
+    "walk_south-west_4.png": "32cc70ac29e284c802d3a883a13f4e55b37bda573b032069de586c24966b6d2a",
+    "walk_south-west_5.png": "d58e7b5a52b33b5e960f3ae99a60a72991c0d38ddfdf18bc309a5babe766ce6e",
+    "walk_south-west_6.png": "d9567559de58b62f9141992c867b21a6d9a849eb77282388a232f236714b30c3",
+    "walk_south-west_7.png": "26d7f5121f5ad5171e8b591da85b415a2d8cc6240873612d4b36d7effad48793"
+  }
+}

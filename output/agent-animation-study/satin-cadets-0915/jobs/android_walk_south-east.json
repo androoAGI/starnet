@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "south-east",
+  "pinLast": true,
+  "promptOverride": "Animate only the arms and legs in a natural alternating two-step walk IN PLACE. LOCK the torso to the exact south-east diagonal angle shown in the input for ALL frames. The head and torso must NOT rotate at any point. Fixed camera, fixed three-quarter body perspective, fixed shoulder width and shoulder positions. Feet alternate contact and passing with opposite arm swing. Short measured steps, subtle knee flexion, steady head height. Last pose matches first. Preserve pixel art, exact size, plain faceless head, simple unsegmented limbs and muted satin color. No turns, profile-view changes, muscle definition, armor, shadows or objects.",
+  "request": "id: 8213ecae-9467-40ad-9f26-380519ccf269\njob_id: 8213ecae-9467-40ad-9f26-380519ccf269\ndescription: Animate only the arms and legs in a natural alternating two-step walk IN PLACE. LOCK the torso to the exact south-east diagonal angle shown in the input for ALL frames. The head and torso must NOT rotate at any point. Fixed camera, fixed three-quarter body perspective, fixed shoulder width and shoulder positions. Feet alternate contact and passing with opposite arm swing. Short measured steps, subtle knee flexion, steady head height. Last pose matches first. Preserve pixel art, exact size, plain faceless head, simple unsegmented limbs and muted satin color. No turns, profile-view changes, muscle definition, armor, shadows or objects.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"8213ecae-9467-40ad-9f26-380519ccf269\")",
+  "job": "8213ecae-9467-40ad-9f26-380519ccf269",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/android/refs/south-east.png",
+  "result": "status: completed\nid: 8213ecae-9467-40ad-9f26-380519ccf269\njob_id: 8213ecae-9467-40ad-9f26-380519ccf269\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/8213ecae-9467-40ad-9f26-380519ccf269/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/android/minimax/walk-south-east/8213ecae-9467-40ad-9f26-380519ccf269/8.png",
+  "frameCount": 9
+}

@@ -1,0 +1,15 @@
+{
+  "id": "blank_green",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place facing south-west throughout. Preserve rigid unchanged olive armored helmet, clean outline, no speckles or protruding pixels. Alternate planted feet with small arm swings. Exact armor colors and proportions. No turns, jumps or objects; finish in original stance.",
+  "request": "id: f05d7708-71ac-4311-b37c-1d99a15c2ef6\njob_id: f05d7708-71ac-4311-b37c-1d99a15c2ef6\ndescription: A seamless two-step walk in place facing south-west throughout. Preserve rigid unchanged olive armored helmet, clean outline, no speckles or protruding pixels. Alternate planted feet with small arm swings. Exact armor colors and proportions. No turns, jumps or objects; finish in original stance.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"f05d7708-71ac-4311-b37c-1d99a15c2ef6\")",
+  "job": "f05d7708-71ac-4311-b37c-1d99a15c2ef6",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_green/refs/south-west.png",
+  "result": "status: completed\nid: f05d7708-71ac-4311-b37c-1d99a15c2ef6\njob_id: f05d7708-71ac-4311-b37c-1d99a15c2ef6\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/f05d7708-71ac-4311-b37c-1d99a15c2ef6/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/blank_green/minimax/walk-south-west/f05d7708-71ac-4311-b37c-1d99a15c2ef6/8.png",
+  "frameCount": 9
+}

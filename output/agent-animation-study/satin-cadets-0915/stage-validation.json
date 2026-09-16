@@ -1,0 +1,42 @@
+[
+  {
+    "id": "android",
+    "frames": 80,
+    "minWalkHeight": 73,
+    "maxWalkHeight": 80,
+    "minWalkFoot": 110,
+    "maxWalkFoot": 114
+  },
+  {
+    "id": "blank_blue",
+    "frames": 80,
+    "minWalkHeight": 73,
+    "maxWalkHeight": 80,
+    "minWalkFoot": 110,
+    "maxWalkFoot": 114
+  },
+  {
+    "id": "blank_green",
+    "frames": 80,
+    "minWalkHeight": 73,
+    "maxWalkHeight": 79,
+    "minWalkFoot": 110,
+    "maxWalkFoot": 114
+  },
+  {
+    "id": "blank_red",
+    "frames": 80,
+    "minWalkHeight": 74,
+    "maxWalkHeight": 78,
+    "minWalkFoot": 111,
+    "maxWalkFoot": 112
+  },
+  {
+    "id": "blank_amber",
+    "frames": 80,
+    "minWalkHeight": 73,
+    "maxWalkHeight": 76,
+    "minWalkFoot": 110,
+    "maxWalkFoot": 112
+  }
+]

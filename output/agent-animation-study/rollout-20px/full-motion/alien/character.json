@@ -1,0 +1,9 @@
+{
+  "id": "alien",
+  "skin": "alien",
+  "name": "Alien",
+  "stage": "pending",
+  "targetStandingHeight": 19,
+  "characterId": "9219b6fb-206e-48a1-a795-999cc27f5161",
+  "request": "id: 9219b6fb-206e-48a1-a795-999cc27f5161\nname: StarNet 19px industrial alien\nmode: v3 reference (2 generations, 8 directions)\nbody: humanoid\nsize: 96x96px\nview: low top-down\nstyle: from reference image (outline/detail hints ignored)\nstatus: processing (~3-5 min)\n\nhint: get_character(character_id=\"9219b6fb-206e-48a1-a795-999cc27f5161\")"
+}

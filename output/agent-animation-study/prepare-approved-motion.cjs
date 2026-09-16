@@ -1,0 +1,9 @@
+const fs=require('fs'),path=require('path'),sharp=require('sharp');
+(async()=>{const base='output/agent-animation-study/approved-motion';const rotations=JSON.parse(fs.readFileSync(base+'/rotations.json'));const metrics={};
+for(const[id,dirs]of Object.entries(rotations)){metrics[id]={};for(const[dir,url]of Object.entries(dirs)){
+ const folder=base+'/'+id;fs.mkdirSync(folder+'/raw-rotations',{recursive:true});fs.mkdirSync(folder+'/refs',{recursive:true});
+ const raw=folder+'/raw-rotations/'+dir+'.png';if(!fs.existsSync(raw)){const res=await fetch(url);if(!res.ok)throw Error('rotation '+res.status);fs.writeFileSync(raw,Buffer.from(await res.arrayBuffer()));}
+ if(dir==='south'){const front=id==='secretagent'?'frontend/assets/agent-demo/readability-v1/front.png':'frontend/assets/agent-demo/readability-crew/'+id+'/front.png';await sharp(front).extract({left:24,top:24,width:96,height:96}).png().toFile(folder+'/refs/'+dir+'.png');metrics[id][dir]={height:76,preservedApproved:true};continue;}
+ const{data,info}=await sharp(raw).ensureAlpha().raw().toBuffer({resolveWithObject:true});let l=info.width,r=-1,t=info.height,b=-1;for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>100){l=Math.min(l,x);r=Math.max(r,x);t=Math.min(t,y);b=Math.max(b,y);}
+ const crop=await sharp(raw).extract({left:l,top:t,width:r-l+1,height:b-t+1}).resize({height:76}).png().toBuffer();const m=await sharp(crop).metadata();await sharp({create:{width:96,height:96,channels:4,background:'#00000000'}}).composite([{input:crop,left:Math.floor((96-m.width)/2),top:12}]).png().toFile(folder+'/refs/'+dir+'.png');metrics[id][dir]={width:m.width,height:76};
+}}fs.writeFileSync(base+'/rotation-metrics.json',JSON.stringify(metrics,null,2));console.log('Prepared directions for '+Object.keys(rotations).join(', '));})();

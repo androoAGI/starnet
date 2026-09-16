@@ -1,0 +1,13 @@
+{
+  "id": "vaultboy",
+  "track": "sit",
+  "dir": "north",
+  "request": "id: e7bc642d-c033-4514-a8ee-788a396387ac\njob_id: e7bc642d-c033-4514-a8ee-788a396387ac\ndescription: The character lowers into a seated pose on an invisible chair, facing north throughout. Hips move down, thighs extend horizontally forward, knees bend to a clear right angle and feet stay below the knees. Torso stays upright, head stays same size. Arms reach forward at desk height. End fully seated. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"e7bc642d-c033-4514-a8ee-788a396387ac\")",
+  "job": "e7bc642d-c033-4514-a8ee-788a396387ac",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/refs/north.png",
+  "result": "status: completed\nid: e7bc642d-c033-4514-a8ee-788a396387ac\njob_id: e7bc642d-c033-4514-a8ee-788a396387ac\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/e7bc642d-c033-4514-a8ee-788a396387ac/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/vaultboy/minimax/sit-north/e7bc642d-c033-4514-a8ee-788a396387ac/4.png",
+  "frameCount": 5
+}

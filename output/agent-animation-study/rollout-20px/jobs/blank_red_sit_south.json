@@ -1,0 +1,13 @@
+{
+  "id": "blank_red",
+  "track": "sit",
+  "dir": "south",
+  "request": "id: e3031823-ba11-4f29-bc69-c77dde0e5f3c\njob_id: e3031823-ba11-4f29-bc69-c77dde0e5f3c\ndescription: The character lowers into a seated pose on an invisible chair, facing south throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art. For a south-facing pose, upper arms hang vertically against ribs, elbows at waist and hands stay close together in front of the abdomen, inside shoulder width. Forearms point toward camera and are foreshortened, never stretched sideways.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"e3031823-ba11-4f29-bc69-c77dde0e5f3c\")",
+  "job": "e3031823-ba11-4f29-bc69-c77dde0e5f3c",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/blank_red/refs/south.png",
+  "result": "status: completed\nid: e3031823-ba11-4f29-bc69-c77dde0e5f3c\njob_id: e3031823-ba11-4f29-bc69-c77dde0e5f3c\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/e3031823-ba11-4f29-bc69-c77dde0e5f3c/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/blank_red/minimax/sit-south/e3031823-ba11-4f29-bc69-c77dde0e5f3c/4.png",
+  "frameCount": 5
+}

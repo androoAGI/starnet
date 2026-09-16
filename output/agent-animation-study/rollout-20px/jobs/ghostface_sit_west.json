@@ -1,0 +1,13 @@
+{
+  "id": "ghostface",
+  "track": "sit",
+  "dir": "west",
+  "request": "id: f391da7b-d041-4040-8e3a-6a42c12a3d73\njob_id: f391da7b-d041-4040-8e3a-6a42c12a3d73\ndescription: The character lowers into a seated pose on an invisible chair, facing west throughout. Hips move down, thighs extend horizontally forward, knees bend to a clear right angle and feet stay below the knees. Torso stays upright, head stays same size. Arms reach forward at desk height. End fully seated. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"f391da7b-d041-4040-8e3a-6a42c12a3d73\")",
+  "job": "f391da7b-d041-4040-8e3a-6a42c12a3d73",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/ghostface/refs/west.png",
+  "result": "status: completed\nid: f391da7b-d041-4040-8e3a-6a42c12a3d73\njob_id: f391da7b-d041-4040-8e3a-6a42c12a3d73\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f391da7b-d041-4040-8e3a-6a42c12a3d73/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/ghostface/minimax/sit-west/f391da7b-d041-4040-8e3a-6a42c12a3d73/4.png",
+  "frameCount": 5
+}

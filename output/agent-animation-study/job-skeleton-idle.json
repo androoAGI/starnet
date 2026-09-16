@@ -1,0 +1,24 @@
+{
+  "name": "skeleton",
+  "kind": "idle",
+  "args": {
+    "character_id": "e22fffaa-53ed-46e0-87d1-985e86a6cdd4",
+    "template_animation_id": "breathing-idle",
+    "animation_name": "idle",
+    "directions": [
+      "south",
+      "east",
+      "north",
+      "west"
+    ]
+  },
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "character: e22fffaa-53ed-46e0-87d1-985e86a6cdd4\nanimation: breathing-idle\ndirections: south, east, north, west (4 jobs)\ngroup: 9036cd9c-8a3c-4f7d-bcfd-2fa92a5328d0\neta: ~2-4 min\nadd more directions to this group: animate_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", template_animation_id=\"breathing-idle\", animation_group_id=\"9036cd9c-8a3c-4f7d-bcfd-2fa92a5328d0\", directions=[...])\n\nhint: get_character(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\")\nif poor: delete_animation(character_id=\"e22fffaa-53ed-46e0-87d1-985e86a6cdd4\", animation_type=\"...\") then retry with mode=\"v3\""
+      }
+    ],
+    "isError": false
+  }
+}

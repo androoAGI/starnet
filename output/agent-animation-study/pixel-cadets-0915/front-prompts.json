@@ -1,0 +1,8 @@
+{
+  "tool": "built-in image_gen",
+  "approvedSources": [
+    "chrome-cadets-0915/pixel-revision/android-front-source.png",
+    "chrome-cadets-0915/pixel-revision/blank_green-front-source.png"
+  ],
+  "colorEdit": "Change only green metallic palette to cobalt blue, ruby red or amber gold. Preserve exact approved silhouette, proportions and pixel clusters."
+}

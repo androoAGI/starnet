@@ -1,0 +1,14 @@
+{
+  "id": "blank_green",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Move from standing to FULLY SEATED facing camera. By the final frame, the head is 18 pixels LOWER on this 96px canvas, hips 20 pixels LOWER; total visible height is about 56 pixels, not 76. Torso stays upright and same length, thighs point forward toward camera and are strongly foreshortened, knees are together at seated hip height, shins vertical, feet on original baseline. Hands together forward at desk height, elbows tucked. Clear sitting posture with bent legs, not standing or wide squat. Preserve exactly the input faceless colored pixel character, its original color, size of head and torso, pixel shading. No chair, furniture, background, shadow or new objects. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.",
+  "request": "id: f21e6613-231d-42fd-9e71-4df5c6fce3a8\njob_id: f21e6613-231d-42fd-9e71-4df5c6fce3a8\ndescription: Move from standing to FULLY SEATED facing camera. By the final frame, the head is 18 pixels LOWER on this 96px canvas, hips 20 pixels LOWER; total visible height is about 56 pixels, not 76. Torso stays upright and same length, thighs point forward toward camera and are strongly foreshortened, knees are together at seated hip height, shins vertical, feet on original baseline. Hands together forward at desk height, elbows tucked. Clear sitting posture with bent legs, not standing or wide squat. Preserve exactly the input faceless colored pixel character, its original color, size of head and torso, pixel shading. No chair, furniture, background, shadow or new objects. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"f21e6613-231d-42fd-9e71-4df5c6fce3a8\")",
+  "job": "f21e6613-231d-42fd-9e71-4df5c6fce3a8",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_green/refs/south.png",
+  "result": "status: completed\nid: f21e6613-231d-42fd-9e71-4df5c6fce3a8\njob_id: f21e6613-231d-42fd-9e71-4df5c6fce3a8\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f21e6613-231d-42fd-9e71-4df5c6fce3a8/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_green/minimax/sit-south/f21e6613-231d-42fd-9e71-4df5c6fce3a8/4.png",
+  "frameCount": 5
+}

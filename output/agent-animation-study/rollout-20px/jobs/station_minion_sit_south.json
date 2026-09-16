@@ -1,0 +1,14 @@
+{
+  "id": "station_minion",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Sit on an invisible chair facing south. Lower hips and bend knees, torso and helmet upright. Both upper arms stay pressed vertically against ribs, elbows at waist. Forearms point directly toward camera, foreshortened; hands stay close together in front of abdomen within shoulder width. Compact seated posture, no sideways arms or T pose. Preserve bronze robot armor. No furniture, floor, shadow or new objects.",
+  "request": "id: 9437929b-6c2f-44b8-9b65-1fcbb0226b32\njob_id: 9437929b-6c2f-44b8-9b65-1fcbb0226b32\ndescription: Sit on an invisible chair facing south. Lower hips and bend knees, torso and helmet upright. Both upper arms stay pressed vertically against ribs, elbows at waist. Forearms point directly toward camera, foreshortened; hands stay close together in front of abdomen within shoulder width. Compact seated posture, no sideways arms or T pose. Preserve bronze robot armor. No furniture, floor, shadow or new objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"9437929b-6c2f-44b8-9b65-1fcbb0226b32\")",
+  "job": "9437929b-6c2f-44b8-9b65-1fcbb0226b32",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/station_minion/refs/south.png",
+  "result": "status: completed\nid: 9437929b-6c2f-44b8-9b65-1fcbb0226b32\njob_id: 9437929b-6c2f-44b8-9b65-1fcbb0226b32\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/9437929b-6c2f-44b8-9b65-1fcbb0226b32/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/station_minion/minimax/sit-south/9437929b-6c2f-44b8-9b65-1fcbb0226b32/4.png",
+  "frameCount": 5
+}

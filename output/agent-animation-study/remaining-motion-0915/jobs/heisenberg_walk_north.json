@@ -1,0 +1,86 @@
+{
+  "id": "heisenberg",
+  "name": "Heisenberg",
+  "dir": "north",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/north.png",
+  "prompt": "Animate the supplied existing Heisenberg pixel-art game sprite walking IN PLACE. Preserve this exact design, outfit, identity, proportions, palette, camera angle and north facing in EVERY frame. Do not turn toward the camera or away from the input angle. Output EXACTLY EIGHT full-body frames on transparent background in a strict FOUR-COLUMN TWO-ROW grid, read left to right across the first row then the second. All eight equal square cells, generous empty padding, no labels/grid/scene/shadow. One seamless complete TWO-STEP gait: frame 1 left foot forward contact and right arm forward; 2 weight settling; 3 right foot passing; 4 right foot swinging forward; 5 right foot forward contact and left arm forward; 6 weight settling; 7 left foot passing; 8 left foot swinging forward toward frame 1. Consistent small natural steps, relaxed counter-swinging arms and steady head. Center torso in the same position, one supporting foot touches the same baseline in each cell. No sliding whole sprite within a cell, no duplicated endpoint, no hopping, no running, no exaggerated limbs. Keep readable crisp pixel clusters; no smooth painted shading. The output must have a real transparent alpha channel. No black backdrop, brown glow, halo or gradient behind the pixels.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-01033c1f-b9ac-44d9-bca1-cb50ae5ad1ac.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/heisenberg-walk-north.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "walk_north_0.png",
+    "walk_north_1.png",
+    "walk_north_2.png",
+    "walk_north_3.png",
+    "walk_north_4.png",
+    "walk_north_5.png",
+    "walk_north_6.png",
+    "walk_north_7.png"
+  ],
+  "packed": true,
+  "scale": 0.21965317919075145,
+  "bounds": [
+    {
+      "left": 149,
+      "top": 60,
+      "width": 144,
+      "height": 346
+    },
+    {
+      "left": 148,
+      "top": 60,
+      "width": 145,
+      "height": 346
+    },
+    {
+      "left": 149,
+      "top": 60,
+      "width": 144,
+      "height": 346
+    },
+    {
+      "left": 149,
+      "top": 60,
+      "width": 144,
+      "height": 346
+    },
+    {
+      "left": 149,
+      "top": 60,
+      "width": 144,
+      "height": 343
+    },
+    {
+      "left": 148,
+      "top": 60,
+      "width": 145,
+      "height": 343
+    },
+    {
+      "left": 149,
+      "top": 60,
+      "width": 144,
+      "height": 343
+    },
+    {
+      "left": 149,
+      "top": 60,
+      "width": 145,
+      "height": 343
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/north.png": "283ccf984d8789d70fb0371ca631d5bbddf04ada2ca4d53ecbf657646e8c8597"
+  },
+  "selectedHashes": {
+    "walk_north_0.png": "b212ff8560c090ccfee57460e83bdb75ddc7fc948aaa52798810da714ea833ab",
+    "walk_north_1.png": "57bf5a0496063295d53c11643b51f2066d4565e4bf4cd6af6ec870eb95a8b54f",
+    "walk_north_2.png": "6048043db9ac6b8cc09bb918a3b965e54b6f6a2c1ea741db8fec8de9f2ab16e0",
+    "walk_north_3.png": "9fa7f993a6ce92c76338c79b860dcb4db4b33bb12e2be077f11215edd016887b",
+    "walk_north_4.png": "eb76c0751243c1a3ca6a160d83534f596e94ac2de73843502558539635a2168b",
+    "walk_north_5.png": "3d4d5adfc46d1b7bda2aa90c7030cbcca8e69211f5ea056133ba417dafe644e1",
+    "walk_north_6.png": "a0d1f2ae1fb4cff0aa52ec550825c7235c66a992540629cbeecf8cbafaf2f730",
+    "walk_north_7.png": "3d5742459a9390044abf01e809571128ea16ae99fafb692f5a659f3e4b4dea2d"
+  }
+}

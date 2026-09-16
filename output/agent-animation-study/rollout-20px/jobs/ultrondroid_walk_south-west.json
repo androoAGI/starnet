@@ -1,0 +1,15 @@
+{
+  "id": "ultrondroid",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "promptOverride": "A seamless two-step walk in place facing front-left, SOUTHWEST toward the viewer throughout. The FRONT face and red eyes and FRONT chest light remain visible in every frame. Never show the back of the head or back of the torso. Alternate planted feet with modest arm swings, head steady. Preserve exact robot size, armor, red details and pixel art. No turns, jumps or props. End in original stance.",
+  "request": "id: 2a9aae1d-e42f-4438-85fb-9cb5a71e0d74\njob_id: 2a9aae1d-e42f-4438-85fb-9cb5a71e0d74\ndescription: A seamless two-step walk in place facing front-left, SOUTHWEST toward the viewer throughout. The FRONT face and red eyes and FRONT chest light remain visible in every frame. Never show the back of the head or back of the torso. Alternate planted feet with modest arm swings, head steady. Preserve exact robot size, armor, red details and pixel art. No turns, jumps or props. End in original stance.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"2a9aae1d-e42f-4438-85fb-9cb5a71e0d74\")",
+  "job": "2a9aae1d-e42f-4438-85fb-9cb5a71e0d74",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/ultrondroid/refs/south-west.png",
+  "result": "status: completed\nid: 2a9aae1d-e42f-4438-85fb-9cb5a71e0d74\njob_id: 2a9aae1d-e42f-4438-85fb-9cb5a71e0d74\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/2a9aae1d-e42f-4438-85fb-9cb5a71e0d74/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/ultrondroid/minimax/walk-south-west/2a9aae1d-e42f-4438-85fb-9cb5a71e0d74/8.png",
+  "frameCount": 9
+}

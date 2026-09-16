@@ -1,0 +1,86 @@
+{
+  "id": "ricksanchez",
+  "name": "Rick Sanchez",
+  "dir": "south-east",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/south-east.png",
+  "prompt": "Animate the supplied existing Rick Sanchez pixel-art game sprite walking IN PLACE. Preserve this exact design, outfit, identity, proportions, palette, camera angle and south-east facing in EVERY frame. Do not turn toward the camera or away from the input angle. Output EXACTLY EIGHT full-body frames on transparent background in a strict FOUR-COLUMN TWO-ROW grid, read left to right across the first row then the second. All eight equal square cells, generous empty padding, no labels/grid/scene/shadow. One seamless complete TWO-STEP gait: frame 1 left foot forward contact and right arm forward; 2 weight settling; 3 right foot passing; 4 right foot swinging forward; 5 right foot forward contact and left arm forward; 6 weight settling; 7 left foot passing; 8 left foot swinging forward toward frame 1. Consistent small natural steps, relaxed counter-swinging arms and steady head. Center torso in the same position, one supporting foot touches the same baseline in each cell. No sliding whole sprite within a cell, no duplicated endpoint, no hopping, no running, no exaggerated limbs. Keep readable crisp pixel clusters; no smooth painted shading. Use genuine alpha transparency, no colored halos or scene.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-1b8025a8-71b5-47de-b8a0-0ea57da0ed2a.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/ricksanchez-walk-south-east.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "walk_south-east_0.png",
+    "walk_south-east_1.png",
+    "walk_south-east_2.png",
+    "walk_south-east_3.png",
+    "walk_south-east_4.png",
+    "walk_south-east_5.png",
+    "walk_south-east_6.png",
+    "walk_south-east_7.png"
+  ],
+  "packed": true,
+  "scale": 0.19487179487179487,
+  "bounds": [
+    {
+      "left": 125,
+      "top": 72,
+      "width": 178,
+      "height": 390
+    },
+    {
+      "left": 131,
+      "top": 73,
+      "width": 134,
+      "height": 386
+    },
+    {
+      "left": 117,
+      "top": 73,
+      "width": 140,
+      "height": 386
+    },
+    {
+      "left": 91,
+      "top": 73,
+      "width": 167,
+      "height": 389
+    },
+    {
+      "left": 139,
+      "top": 50,
+      "width": 150,
+      "height": 382
+    },
+    {
+      "left": 123,
+      "top": 50,
+      "width": 149,
+      "height": 382
+    },
+    {
+      "left": 115,
+      "top": 50,
+      "width": 149,
+      "height": 382
+    },
+    {
+      "left": 96,
+      "top": 50,
+      "width": 174,
+      "height": 382
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/south-east.png": "cabb0f9875a73fb75db62c220dfae1a932fd7c9d872e39ee2c0d0ed38740c87c"
+  },
+  "selectedHashes": {
+    "walk_south-east_0.png": "406fce91a2b07e37f3e7200dce7cb50c880e745783d0cddbf714b2077c2c6b27",
+    "walk_south-east_1.png": "6d8e8f5eb3a6dcb0b2440499339ca0ab15cfd4d3252ebac0cc6e9a78bd9f02d2",
+    "walk_south-east_2.png": "b95618b0eede8eb89a1d03a3415510447c62a9f9e80602e91df7c6f618627052",
+    "walk_south-east_3.png": "f54ccf3ea733ecaf556afb85d36c9e6b2e9cb900f71d2153ff5f7cc3483f5c8e",
+    "walk_south-east_4.png": "d9093ba253322762d09c05ce603ceec25e7a19cdf1bf4ddca533f2940bcc9c10",
+    "walk_south-east_5.png": "c9ae68eed021afbf9d67e9e658b4531d4f1255b2aa913c826c9860919c854eba",
+    "walk_south-east_6.png": "42cdf2dedad44f59772750fbd2ed942f175933636630cc8f2565f3debe65a1d3",
+    "walk_south-east_7.png": "42520326e57b44843fdd9bf82c644bca838f2e02f6487e842f650f2a12c8787e"
+  }
+}

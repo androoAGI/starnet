@@ -1,0 +1,13 @@
+{
+  "id": "morpheus",
+  "track": "sit",
+  "dir": "east",
+  "request": "id: e6128cb2-82ee-48e2-be2c-9e5d2029636f\njob_id: e6128cb2-82ee-48e2-be2c-9e5d2029636f\ndescription: The character lowers into a seated pose on an invisible chair, facing east throughout. Hips move down, thighs extend forward, knees bend and remain hip-width apart, with feet below knees. Torso stays upright, head stays same size. Elbows stay tucked beside the waist and hands reach forward at desk height. End fully seated with a compact silhouette, not arms stretched sideways. Do not draw a chair, desk, keyboard, floor, shadow or any object. Preserve the exact character design and pixel art.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"e6128cb2-82ee-48e2-be2c-9e5d2029636f\")",
+  "job": "e6128cb2-82ee-48e2-be2c-9e5d2029636f",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/morpheus/refs/east.png",
+  "result": "status: completed\nid: e6128cb2-82ee-48e2-be2c-9e5d2029636f\njob_id: e6128cb2-82ee-48e2-be2c-9e5d2029636f\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/e6128cb2-82ee-48e2-be2c-9e5d2029636f/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/morpheus/minimax/sit-east/e6128cb2-82ee-48e2-be2c-9e5d2029636f/4.png",
+  "frameCount": 5
+}

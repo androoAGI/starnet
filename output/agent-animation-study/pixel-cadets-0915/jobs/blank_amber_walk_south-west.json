@@ -1,0 +1,15 @@
+{
+  "id": "blank_amber",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "promptOverride": "Seamless two-step walk IN PLACE facing south-west, a THREE-QUARTER FRONT view throughout. Torso stays diagonally toward camera and left exactly like input. Both front shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details.",
+  "request": "id: 0d69d02e-653f-48c9-9fd4-00b119d1c79b\njob_id: 0d69d02e-653f-48c9-9fd4-00b119d1c79b\ndescription: Seamless two-step walk IN PLACE facing south-west, a THREE-QUARTER FRONT view throughout. Torso stays diagonally toward camera and left exactly like input. Both front shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"0d69d02e-653f-48c9-9fd4-00b119d1c79b\")",
+  "job": "0d69d02e-653f-48c9-9fd4-00b119d1c79b",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/refs/south-west.png",
+  "result": "status: completed\nid: 0d69d02e-653f-48c9-9fd4-00b119d1c79b\njob_id: 0d69d02e-653f-48c9-9fd4-00b119d1c79b\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/0d69d02e-653f-48c9-9fd4-00b119d1c79b/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/blank_amber/minimax/walk-south-west/0d69d02e-653f-48c9-9fd4-00b119d1c79b/8.png",
+  "frameCount": 9
+}

@@ -351,15 +351,18 @@
       "id": "heisenberg",
       "skin": "heisenberg",
       "name": "Heisenberg",
-      "stage": "existing-art",
+      "stage": "complete",
       "targetStandingHeight": 19,
-      "walkFramesReady": false,
-      "walkReady": false,
-      "complete": false,
-      "retainedOriginal": true,
-      "sourceStandingHeight": 46,
+      "walkFramesReady": true,
+      "walkReady": true,
+      "complete": true,
+      "retainedOriginal": false,
+      "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "heisenberg"
+      "renderSet": "approved_heisenberg",
+      "motionSource": "remaining-motion-0915",
+      "motionMethod": "imagegen-sheets",
+      "style": "Existing new-style design with completed directional motion"
     },
     {
       "id": "endoskeleton",
@@ -463,15 +466,18 @@
       "id": "ricksanchez",
       "skin": "ricksanchez",
       "name": "Rick",
-      "stage": "existing-art",
+      "stage": "complete",
       "targetStandingHeight": 19,
-      "walkFramesReady": false,
-      "walkReady": false,
-      "complete": false,
-      "retainedOriginal": true,
-      "sourceStandingHeight": 43,
+      "walkFramesReady": true,
+      "walkReady": true,
+      "complete": true,
+      "retainedOriginal": false,
+      "sourceStandingHeight": 76,
       "readyForStation": true,
-      "renderSet": "ricksanchez"
+      "renderSet": "approved_ricksanchez",
+      "motionSource": "remaining-motion-0915",
+      "motionMethod": "imagegen-sheets",
+      "style": "Existing new-style design with completed directional motion"
     },
     {
       "id": "ninjaturtle",
@@ -488,32 +494,21 @@
       "renderSet": "approved_ninjaturtle"
     },
     {
-      "id": "minionchar",
-      "skin": "minionchar",
-      "name": "Minion",
-      "stage": "existing-art",
-      "targetStandingHeight": 19,
-      "walkFramesReady": false,
-      "walkReady": false,
-      "complete": false,
-      "retainedOriginal": true,
-      "sourceStandingHeight": 41,
-      "readyForStation": true,
-      "renderSet": "minionchar"
-    },
-    {
       "id": "pikachu",
       "skin": "pikachu",
       "name": "Pikachu",
-      "stage": "existing-art",
+      "stage": "approved-existing",
       "targetStandingHeight": 19,
       "walkFramesReady": false,
       "walkReady": false,
-      "complete": false,
+      "complete": true,
       "retainedOriginal": true,
       "sourceStandingHeight": 46,
       "readyForStation": true,
-      "renderSet": "pikachu"
+      "renderSet": "pikachu",
+      "acceptedExisting": true,
+      "approvedRelease": "v0.11.2",
+      "acceptanceNote": "User approved the existing v0.11.2 Pikachu set and its unique proportions; no new frames required."
     },
     {
       "id": "caseyjones",
@@ -545,483 +540,6 @@
     }
   ],
   "sprites": {
-    "heisenberg.blink.south": [
-      "heisenberg/blink_south.png"
-    ],
-    "heisenberg.rot.east": [
-      "heisenberg/rot_east.png"
-    ],
-    "heisenberg.rot.north-east": [
-      "heisenberg/rot_north-east.png"
-    ],
-    "heisenberg.rot.north-west": [
-      "heisenberg/rot_north-west.png"
-    ],
-    "heisenberg.rot.north": [
-      "heisenberg/rot_north.png"
-    ],
-    "heisenberg.rot.south-east": [
-      "heisenberg/rot_south-east.png"
-    ],
-    "heisenberg.rot.south-west": [
-      "heisenberg/rot_south-west.png"
-    ],
-    "heisenberg.rot.south": [
-      "heisenberg/rot_south.png"
-    ],
-    "heisenberg.rot.west": [
-      "heisenberg/rot_west.png"
-    ],
-    "heisenberg.sit.east": [
-      "heisenberg/sit_east.png"
-    ],
-    "heisenberg.sit.north": [
-      "heisenberg/sit_north.png"
-    ],
-    "heisenberg.sit.south": [
-      "heisenberg/sit_south.png"
-    ],
-    "heisenberg.sit.west": [
-      "heisenberg/sit_west.png"
-    ],
-    "heisenberg.gesture.east": [
-      "heisenberg/gesture_east_0.png",
-      "heisenberg/gesture_east_1.png",
-      "heisenberg/gesture_east_2.png",
-      "heisenberg/gesture_east_3.png",
-      "heisenberg/gesture_east_4.png",
-      "heisenberg/gesture_east_5.png",
-      "heisenberg/gesture_east_6.png",
-      "heisenberg/gesture_east_7.png",
-      "heisenberg/gesture_east_8.png"
-    ],
-    "heisenberg.gesture.north": [
-      "heisenberg/gesture_north_0.png",
-      "heisenberg/gesture_north_1.png",
-      "heisenberg/gesture_north_2.png",
-      "heisenberg/gesture_north_3.png",
-      "heisenberg/gesture_north_4.png",
-      "heisenberg/gesture_north_5.png",
-      "heisenberg/gesture_north_6.png",
-      "heisenberg/gesture_north_7.png",
-      "heisenberg/gesture_north_8.png"
-    ],
-    "heisenberg.gesture.south": [
-      "heisenberg/gesture_south_0.png",
-      "heisenberg/gesture_south_1.png",
-      "heisenberg/gesture_south_2.png",
-      "heisenberg/gesture_south_3.png",
-      "heisenberg/gesture_south_4.png",
-      "heisenberg/gesture_south_5.png",
-      "heisenberg/gesture_south_6.png",
-      "heisenberg/gesture_south_7.png",
-      "heisenberg/gesture_south_8.png"
-    ],
-    "heisenberg.gesture.west": [
-      "heisenberg/gesture_west_0.png",
-      "heisenberg/gesture_west_1.png",
-      "heisenberg/gesture_west_2.png",
-      "heisenberg/gesture_west_3.png",
-      "heisenberg/gesture_west_4.png",
-      "heisenberg/gesture_west_5.png",
-      "heisenberg/gesture_west_6.png",
-      "heisenberg/gesture_west_7.png",
-      "heisenberg/gesture_west_8.png"
-    ],
-    "heisenberg.walk.east": [
-      "heisenberg/walk_east_0.png",
-      "heisenberg/walk_east_1.png",
-      "heisenberg/walk_east_2.png",
-      "heisenberg/walk_east_3.png",
-      "heisenberg/walk_east_4.png",
-      "heisenberg/walk_east_5.png",
-      "heisenberg/walk_east_6.png",
-      "heisenberg/walk_east_7.png"
-    ],
-    "heisenberg.walk.north-east": [
-      "heisenberg/walk_north-east_0.png",
-      "heisenberg/walk_north-east_1.png",
-      "heisenberg/walk_north-east_2.png",
-      "heisenberg/walk_north-east_3.png",
-      "heisenberg/walk_north-east_4.png",
-      "heisenberg/walk_north-east_5.png",
-      "heisenberg/walk_north-east_6.png",
-      "heisenberg/walk_north-east_7.png"
-    ],
-    "heisenberg.walk.north-west": [
-      "heisenberg/walk_north-west_0.png",
-      "heisenberg/walk_north-west_1.png",
-      "heisenberg/walk_north-west_2.png",
-      "heisenberg/walk_north-west_3.png",
-      "heisenberg/walk_north-west_4.png",
-      "heisenberg/walk_north-west_5.png",
-      "heisenberg/walk_north-west_6.png",
-      "heisenberg/walk_north-west_7.png"
-    ],
-    "heisenberg.walk.north": [
-      "heisenberg/walk_north_0.png",
-      "heisenberg/walk_north_1.png",
-      "heisenberg/walk_north_2.png",
-      "heisenberg/walk_north_3.png",
-      "heisenberg/walk_north_4.png",
-      "heisenberg/walk_north_5.png",
-      "heisenberg/walk_north_6.png",
-      "heisenberg/walk_north_7.png"
-    ],
-    "heisenberg.walk.south-east": [
-      "heisenberg/walk_south-east_0.png",
-      "heisenberg/walk_south-east_1.png",
-      "heisenberg/walk_south-east_2.png",
-      "heisenberg/walk_south-east_3.png",
-      "heisenberg/walk_south-east_4.png",
-      "heisenberg/walk_south-east_5.png",
-      "heisenberg/walk_south-east_6.png",
-      "heisenberg/walk_south-east_7.png"
-    ],
-    "heisenberg.walk.south-west": [
-      "heisenberg/walk_south-west_0.png",
-      "heisenberg/walk_south-west_1.png",
-      "heisenberg/walk_south-west_2.png",
-      "heisenberg/walk_south-west_3.png",
-      "heisenberg/walk_south-west_4.png",
-      "heisenberg/walk_south-west_5.png",
-      "heisenberg/walk_south-west_6.png",
-      "heisenberg/walk_south-west_7.png"
-    ],
-    "heisenberg.walk.south": [
-      "heisenberg/walk_south_0.png",
-      "heisenberg/walk_south_1.png",
-      "heisenberg/walk_south_2.png",
-      "heisenberg/walk_south_3.png",
-      "heisenberg/walk_south_4.png",
-      "heisenberg/walk_south_5.png",
-      "heisenberg/walk_south_6.png",
-      "heisenberg/walk_south_7.png"
-    ],
-    "heisenberg.walk.west": [
-      "heisenberg/walk_west_0.png",
-      "heisenberg/walk_west_1.png",
-      "heisenberg/walk_west_2.png",
-      "heisenberg/walk_west_3.png",
-      "heisenberg/walk_west_4.png",
-      "heisenberg/walk_west_5.png",
-      "heisenberg/walk_west_6.png",
-      "heisenberg/walk_west_7.png"
-    ],
-    "ricksanchez.blink.south": [
-      "ricksanchez/blink_south.png"
-    ],
-    "ricksanchez.rot.east": [
-      "ricksanchez/rot_east.png"
-    ],
-    "ricksanchez.rot.north-east": [
-      "ricksanchez/rot_north-east.png"
-    ],
-    "ricksanchez.rot.north-west": [
-      "ricksanchez/rot_north-west.png"
-    ],
-    "ricksanchez.rot.north": [
-      "ricksanchez/rot_north.png"
-    ],
-    "ricksanchez.rot.south-east": [
-      "ricksanchez/rot_south-east.png"
-    ],
-    "ricksanchez.rot.south-west": [
-      "ricksanchez/rot_south-west.png"
-    ],
-    "ricksanchez.rot.south": [
-      "ricksanchez/rot_south.png"
-    ],
-    "ricksanchez.rot.west": [
-      "ricksanchez/rot_west.png"
-    ],
-    "ricksanchez.sit.east": [
-      "ricksanchez/sit_east.png"
-    ],
-    "ricksanchez.sit.north": [
-      "ricksanchez/sit_north.png"
-    ],
-    "ricksanchez.sit.south": [
-      "ricksanchez/sit_south.png"
-    ],
-    "ricksanchez.sit.west": [
-      "ricksanchez/sit_west.png"
-    ],
-    "ricksanchez.gesture.east": [
-      "ricksanchez/gesture_east_0.png",
-      "ricksanchez/gesture_east_1.png",
-      "ricksanchez/gesture_east_2.png",
-      "ricksanchez/gesture_east_3.png",
-      "ricksanchez/gesture_east_4.png",
-      "ricksanchez/gesture_east_5.png",
-      "ricksanchez/gesture_east_6.png",
-      "ricksanchez/gesture_east_7.png",
-      "ricksanchez/gesture_east_8.png"
-    ],
-    "ricksanchez.gesture.north": [
-      "ricksanchez/gesture_north_0.png",
-      "ricksanchez/gesture_north_1.png",
-      "ricksanchez/gesture_north_2.png",
-      "ricksanchez/gesture_north_3.png",
-      "ricksanchez/gesture_north_4.png",
-      "ricksanchez/gesture_north_5.png",
-      "ricksanchez/gesture_north_6.png",
-      "ricksanchez/gesture_north_7.png",
-      "ricksanchez/gesture_north_8.png"
-    ],
-    "ricksanchez.gesture.south": [
-      "ricksanchez/gesture_south_0.png",
-      "ricksanchez/gesture_south_1.png",
-      "ricksanchez/gesture_south_2.png",
-      "ricksanchez/gesture_south_3.png",
-      "ricksanchez/gesture_south_4.png",
-      "ricksanchez/gesture_south_5.png",
-      "ricksanchez/gesture_south_6.png",
-      "ricksanchez/gesture_south_7.png",
-      "ricksanchez/gesture_south_8.png"
-    ],
-    "ricksanchez.gesture.west": [
-      "ricksanchez/gesture_west_0.png",
-      "ricksanchez/gesture_west_1.png",
-      "ricksanchez/gesture_west_2.png",
-      "ricksanchez/gesture_west_3.png",
-      "ricksanchez/gesture_west_4.png",
-      "ricksanchez/gesture_west_5.png",
-      "ricksanchez/gesture_west_6.png",
-      "ricksanchez/gesture_west_7.png",
-      "ricksanchez/gesture_west_8.png"
-    ],
-    "ricksanchez.walk.east": [
-      "ricksanchez/walk_east_0.png",
-      "ricksanchez/walk_east_1.png",
-      "ricksanchez/walk_east_2.png",
-      "ricksanchez/walk_east_3.png",
-      "ricksanchez/walk_east_4.png",
-      "ricksanchez/walk_east_5.png",
-      "ricksanchez/walk_east_6.png",
-      "ricksanchez/walk_east_7.png"
-    ],
-    "ricksanchez.walk.north-east": [
-      "ricksanchez/walk_north-east_0.png",
-      "ricksanchez/walk_north-east_1.png",
-      "ricksanchez/walk_north-east_2.png",
-      "ricksanchez/walk_north-east_3.png",
-      "ricksanchez/walk_north-east_4.png",
-      "ricksanchez/walk_north-east_5.png",
-      "ricksanchez/walk_north-east_6.png",
-      "ricksanchez/walk_north-east_7.png"
-    ],
-    "ricksanchez.walk.north-west": [
-      "ricksanchez/walk_north-west_0.png",
-      "ricksanchez/walk_north-west_1.png",
-      "ricksanchez/walk_north-west_2.png",
-      "ricksanchez/walk_north-west_3.png",
-      "ricksanchez/walk_north-west_4.png",
-      "ricksanchez/walk_north-west_5.png",
-      "ricksanchez/walk_north-west_6.png",
-      "ricksanchez/walk_north-west_7.png"
-    ],
-    "ricksanchez.walk.north": [
-      "ricksanchez/walk_north_0.png",
-      "ricksanchez/walk_north_1.png",
-      "ricksanchez/walk_north_2.png",
-      "ricksanchez/walk_north_3.png",
-      "ricksanchez/walk_north_4.png",
-      "ricksanchez/walk_north_5.png",
-      "ricksanchez/walk_north_6.png",
-      "ricksanchez/walk_north_7.png"
-    ],
-    "ricksanchez.walk.south-east": [
-      "ricksanchez/walk_south-east_0.png",
-      "ricksanchez/walk_south-east_1.png",
-      "ricksanchez/walk_south-east_2.png",
-      "ricksanchez/walk_south-east_3.png",
-      "ricksanchez/walk_south-east_4.png",
-      "ricksanchez/walk_south-east_5.png",
-      "ricksanchez/walk_south-east_6.png",
-      "ricksanchez/walk_south-east_7.png"
-    ],
-    "ricksanchez.walk.south-west": [
-      "ricksanchez/walk_south-west_0.png",
-      "ricksanchez/walk_south-west_1.png",
-      "ricksanchez/walk_south-west_2.png",
-      "ricksanchez/walk_south-west_3.png",
-      "ricksanchez/walk_south-west_4.png",
-      "ricksanchez/walk_south-west_5.png",
-      "ricksanchez/walk_south-west_6.png",
-      "ricksanchez/walk_south-west_7.png"
-    ],
-    "ricksanchez.walk.south": [
-      "ricksanchez/walk_south_0.png",
-      "ricksanchez/walk_south_1.png",
-      "ricksanchez/walk_south_2.png",
-      "ricksanchez/walk_south_3.png",
-      "ricksanchez/walk_south_4.png",
-      "ricksanchez/walk_south_5.png",
-      "ricksanchez/walk_south_6.png",
-      "ricksanchez/walk_south_7.png"
-    ],
-    "ricksanchez.walk.west": [
-      "ricksanchez/walk_west_0.png",
-      "ricksanchez/walk_west_1.png",
-      "ricksanchez/walk_west_2.png",
-      "ricksanchez/walk_west_3.png",
-      "ricksanchez/walk_west_4.png",
-      "ricksanchez/walk_west_5.png",
-      "ricksanchez/walk_west_6.png",
-      "ricksanchez/walk_west_7.png"
-    ],
-    "minionchar.blink.south": [
-      "minionchar/blink_south.png"
-    ],
-    "minionchar.rot.east": [
-      "minionchar/rot_east.png"
-    ],
-    "minionchar.rot.north-east": [
-      "minionchar/rot_north-east.png"
-    ],
-    "minionchar.rot.north-west": [
-      "minionchar/rot_north-west.png"
-    ],
-    "minionchar.rot.north": [
-      "minionchar/rot_north.png"
-    ],
-    "minionchar.rot.south-east": [
-      "minionchar/rot_south-east.png"
-    ],
-    "minionchar.rot.south-west": [
-      "minionchar/rot_south-west.png"
-    ],
-    "minionchar.rot.south": [
-      "minionchar/rot_south.png"
-    ],
-    "minionchar.rot.west": [
-      "minionchar/rot_west.png"
-    ],
-    "minionchar.gesture.east": [
-      "minionchar/gesture_east_0.png",
-      "minionchar/gesture_east_1.png",
-      "minionchar/gesture_east_2.png",
-      "minionchar/gesture_east_3.png",
-      "minionchar/gesture_east_4.png",
-      "minionchar/gesture_east_5.png",
-      "minionchar/gesture_east_6.png",
-      "minionchar/gesture_east_7.png",
-      "minionchar/gesture_east_8.png"
-    ],
-    "minionchar.gesture.north": [
-      "minionchar/gesture_north_0.png",
-      "minionchar/gesture_north_1.png",
-      "minionchar/gesture_north_2.png",
-      "minionchar/gesture_north_3.png",
-      "minionchar/gesture_north_4.png",
-      "minionchar/gesture_north_5.png",
-      "minionchar/gesture_north_6.png",
-      "minionchar/gesture_north_7.png",
-      "minionchar/gesture_north_8.png"
-    ],
-    "minionchar.gesture.south": [
-      "minionchar/gesture_south_0.png",
-      "minionchar/gesture_south_1.png",
-      "minionchar/gesture_south_2.png",
-      "minionchar/gesture_south_3.png",
-      "minionchar/gesture_south_4.png",
-      "minionchar/gesture_south_5.png",
-      "minionchar/gesture_south_6.png",
-      "minionchar/gesture_south_7.png",
-      "minionchar/gesture_south_8.png"
-    ],
-    "minionchar.gesture.west": [
-      "minionchar/gesture_west_0.png",
-      "minionchar/gesture_west_1.png",
-      "minionchar/gesture_west_2.png",
-      "minionchar/gesture_west_3.png",
-      "minionchar/gesture_west_4.png",
-      "minionchar/gesture_west_5.png",
-      "minionchar/gesture_west_6.png",
-      "minionchar/gesture_west_7.png",
-      "minionchar/gesture_west_8.png"
-    ],
-    "minionchar.walk.east": [
-      "minionchar/walk_east_0.png",
-      "minionchar/walk_east_1.png",
-      "minionchar/walk_east_2.png",
-      "minionchar/walk_east_3.png",
-      "minionchar/walk_east_4.png",
-      "minionchar/walk_east_5.png",
-      "minionchar/walk_east_6.png",
-      "minionchar/walk_east_7.png"
-    ],
-    "minionchar.walk.north-east": [
-      "minionchar/walk_north-east_0.png",
-      "minionchar/walk_north-east_1.png",
-      "minionchar/walk_north-east_2.png",
-      "minionchar/walk_north-east_3.png",
-      "minionchar/walk_north-east_4.png",
-      "minionchar/walk_north-east_5.png",
-      "minionchar/walk_north-east_6.png",
-      "minionchar/walk_north-east_7.png"
-    ],
-    "minionchar.walk.north-west": [
-      "minionchar/walk_north-west_0.png",
-      "minionchar/walk_north-west_1.png",
-      "minionchar/walk_north-west_2.png",
-      "minionchar/walk_north-west_3.png",
-      "minionchar/walk_north-west_4.png",
-      "minionchar/walk_north-west_5.png",
-      "minionchar/walk_north-west_6.png",
-      "minionchar/walk_north-west_7.png"
-    ],
-    "minionchar.walk.north": [
-      "minionchar/walk_north_0.png",
-      "minionchar/walk_north_1.png",
-      "minionchar/walk_north_2.png",
-      "minionchar/walk_north_3.png",
-      "minionchar/walk_north_4.png",
-      "minionchar/walk_north_5.png",
-      "minionchar/walk_north_6.png",
-      "minionchar/walk_north_7.png"
-    ],
-    "minionchar.walk.south-east": [
-      "minionchar/walk_south-east_0.png",
-      "minionchar/walk_south-east_1.png",
-      "minionchar/walk_south-east_2.png",
-      "minionchar/walk_south-east_3.png",
-      "minionchar/walk_south-east_4.png",
-      "minionchar/walk_south-east_5.png",
-      "minionchar/walk_south-east_6.png",
-      "minionchar/walk_south-east_7.png"
-    ],
-    "minionchar.walk.south-west": [
-      "minionchar/walk_south-west_0.png",
-      "minionchar/walk_south-west_1.png",
-      "minionchar/walk_south-west_2.png",
-      "minionchar/walk_south-west_3.png",
-      "minionchar/walk_south-west_4.png",
-      "minionchar/walk_south-west_5.png",
-      "minionchar/walk_south-west_6.png",
-      "minionchar/walk_south-west_7.png"
-    ],
-    "minionchar.walk.south": [
-      "minionchar/walk_south_0.png",
-      "minionchar/walk_south_1.png",
-      "minionchar/walk_south_2.png",
-      "minionchar/walk_south_3.png",
-      "minionchar/walk_south_4.png",
-      "minionchar/walk_south_5.png",
-      "minionchar/walk_south_6.png",
-      "minionchar/walk_south_7.png"
-    ],
-    "minionchar.walk.west": [
-      "minionchar/walk_west_0.png",
-      "minionchar/walk_west_1.png",
-      "minionchar/walk_west_2.png",
-      "minionchar/walk_west_3.png",
-      "minionchar/walk_west_4.png",
-      "minionchar/walk_west_5.png",
-      "minionchar/walk_west_6.png",
-      "minionchar/walk_west_7.png"
-    ],
     "pikachu.blink.east": [
       "pikachu/blink_east.png"
     ],
@@ -5245,6 +4763,250 @@
       "../agent-demo/approved-motion/finn/type_north_2.png",
       "../agent-demo/approved-motion/finn/type_north_3.png",
       "../agent-demo/approved-motion/finn/type_north_4.png"
+    ],
+    "approved_heisenberg.rot.south": [
+      "../agent-demo/approved-motion/heisenberg/rot_south.png"
+    ],
+    "approved_heisenberg.walk.south": [
+      "../agent-demo/approved-motion/heisenberg/walk_south_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south_7.png"
+    ],
+    "approved_heisenberg.rot.south-east": [
+      "../agent-demo/approved-motion/heisenberg/rot_south-east.png"
+    ],
+    "approved_heisenberg.walk.south-east": [
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-east_7.png"
+    ],
+    "approved_heisenberg.rot.east": [
+      "../agent-demo/approved-motion/heisenberg/rot_east.png"
+    ],
+    "approved_heisenberg.walk.east": [
+      "../agent-demo/approved-motion/heisenberg/walk_east_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_east_7.png"
+    ],
+    "approved_heisenberg.rot.north-east": [
+      "../agent-demo/approved-motion/heisenberg/rot_north-east.png"
+    ],
+    "approved_heisenberg.walk.north-east": [
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-east_7.png"
+    ],
+    "approved_heisenberg.rot.north": [
+      "../agent-demo/approved-motion/heisenberg/rot_north.png"
+    ],
+    "approved_heisenberg.walk.north": [
+      "../agent-demo/approved-motion/heisenberg/walk_north_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north_7.png"
+    ],
+    "approved_heisenberg.rot.north-west": [
+      "../agent-demo/approved-motion/heisenberg/rot_north-west.png"
+    ],
+    "approved_heisenberg.walk.north-west": [
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_north-west_7.png"
+    ],
+    "approved_heisenberg.rot.west": [
+      "../agent-demo/approved-motion/heisenberg/rot_west.png"
+    ],
+    "approved_heisenberg.walk.west": [
+      "../agent-demo/approved-motion/heisenberg/walk_west_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_west_7.png"
+    ],
+    "approved_heisenberg.rot.south-west": [
+      "../agent-demo/approved-motion/heisenberg/rot_south-west.png"
+    ],
+    "approved_heisenberg.walk.south-west": [
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_0.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_1.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_2.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_3.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_4.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_5.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_6.png",
+      "../agent-demo/approved-motion/heisenberg/walk_south-west_7.png"
+    ],
+    "approved_heisenberg.sit.south": [
+      "../agent-demo/approved-motion/heisenberg/sit_south.png"
+    ],
+    "approved_heisenberg.sit.east": [
+      "../agent-demo/approved-motion/heisenberg/sit_east.png"
+    ],
+    "approved_heisenberg.sit.north": [
+      "../agent-demo/approved-motion/heisenberg/sit_north.png"
+    ],
+    "approved_heisenberg.sit.west": [
+      "../agent-demo/approved-motion/heisenberg/sit_west.png"
+    ],
+    "approved_heisenberg.type.north": [
+      "../agent-demo/approved-motion/heisenberg/type_north_0.png",
+      "../agent-demo/approved-motion/heisenberg/type_north_1.png",
+      "../agent-demo/approved-motion/heisenberg/type_north_2.png",
+      "../agent-demo/approved-motion/heisenberg/type_north_3.png"
+    ],
+    "approved_ricksanchez.rot.south": [
+      "../agent-demo/approved-motion/ricksanchez/rot_south.png"
+    ],
+    "approved_ricksanchez.walk.south": [
+      "../agent-demo/approved-motion/ricksanchez/walk_south_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south_7.png"
+    ],
+    "approved_ricksanchez.rot.south-east": [
+      "../agent-demo/approved-motion/ricksanchez/rot_south-east.png"
+    ],
+    "approved_ricksanchez.walk.south-east": [
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-east_7.png"
+    ],
+    "approved_ricksanchez.rot.east": [
+      "../agent-demo/approved-motion/ricksanchez/rot_east.png"
+    ],
+    "approved_ricksanchez.walk.east": [
+      "../agent-demo/approved-motion/ricksanchez/walk_east_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_east_7.png"
+    ],
+    "approved_ricksanchez.rot.north-east": [
+      "../agent-demo/approved-motion/ricksanchez/rot_north-east.png"
+    ],
+    "approved_ricksanchez.walk.north-east": [
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-east_7.png"
+    ],
+    "approved_ricksanchez.rot.north": [
+      "../agent-demo/approved-motion/ricksanchez/rot_north.png"
+    ],
+    "approved_ricksanchez.walk.north": [
+      "../agent-demo/approved-motion/ricksanchez/walk_north_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north_7.png"
+    ],
+    "approved_ricksanchez.rot.north-west": [
+      "../agent-demo/approved-motion/ricksanchez/rot_north-west.png"
+    ],
+    "approved_ricksanchez.walk.north-west": [
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_north-west_7.png"
+    ],
+    "approved_ricksanchez.rot.west": [
+      "../agent-demo/approved-motion/ricksanchez/rot_west.png"
+    ],
+    "approved_ricksanchez.walk.west": [
+      "../agent-demo/approved-motion/ricksanchez/walk_west_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_west_7.png"
+    ],
+    "approved_ricksanchez.rot.south-west": [
+      "../agent-demo/approved-motion/ricksanchez/rot_south-west.png"
+    ],
+    "approved_ricksanchez.walk.south-west": [
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_0.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_1.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_2.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_3.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_4.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_5.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_6.png",
+      "../agent-demo/approved-motion/ricksanchez/walk_south-west_7.png"
+    ],
+    "approved_ricksanchez.sit.south": [
+      "../agent-demo/approved-motion/ricksanchez/sit_south.png"
+    ],
+    "approved_ricksanchez.sit.east": [
+      "../agent-demo/approved-motion/ricksanchez/sit_east.png"
+    ],
+    "approved_ricksanchez.sit.north": [
+      "../agent-demo/approved-motion/ricksanchez/sit_north.png"
+    ],
+    "approved_ricksanchez.sit.west": [
+      "../agent-demo/approved-motion/ricksanchez/sit_west.png"
+    ],
+    "approved_ricksanchez.type.north": [
+      "../agent-demo/approved-motion/ricksanchez/type_north_0.png",
+      "../agent-demo/approved-motion/ricksanchez/type_north_1.png",
+      "../agent-demo/approved-motion/ricksanchez/type_north_2.png",
+      "../agent-demo/approved-motion/ricksanchez/type_north_3.png"
     ]
   }
 }

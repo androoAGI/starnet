@@ -1,0 +1,14 @@
+{
+  "id": "bear",
+  "track": "sit",
+  "dir": "south",
+  "promptOverride": "Sit on an invisible chair facing directly south. Torso and head remain upright and unchanged. Hips lower, knees bend, feet stay hip-width apart below knees. Both upper arms stay pressed vertically against the ribs, elbows at waist. Forearms point toward camera and are foreshortened; hands stay close together in front of abdomen inside shoulder width. Do not extend arms sideways. Preserve exact character, colors and body proportions. No chair, desk, floor, shadow or other objects.",
+  "request": "id: f80507b4-4ca3-4e9f-a0a9-89c49ed360dc\njob_id: f80507b4-4ca3-4e9f-a0a9-89c49ed360dc\ndescription: Sit on an invisible chair facing directly south. Torso and head remain upright and unchanged. Hips lower, knees bend, feet stay hip-width apart below knees. Both upper arms stay pressed vertically against the ribs, elbows at waist. Forearms point toward camera and are foreshortened; hands stay close together in front of abdomen inside shoulder width. Do not extend arms sideways. Preserve exact character, colors and body proportions. No chair, desk, floor, shadow or other objects.\nframes: 4\nsize: 96x96px\ntransparent: True\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"f80507b4-4ca3-4e9f-a0a9-89c49ed360dc\")",
+  "job": "f80507b4-4ca3-4e9f-a0a9-89c49ed360dc",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/bear/refs/south.png",
+  "result": "status: completed\nid: f80507b4-4ca3-4e9f-a0a9-89c49ed360dc\njob_id: f80507b4-4ca3-4e9f-a0a9-89c49ed360dc\nframes: 5\ndownload: https://api.pixellab.ai/mcp/images/f80507b4-4ca3-4e9f-a0a9-89c49ed360dc/download?index=0 ... ?index=4\n(1 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/bear/minimax/sit-south/f80507b4-4ca3-4e9f-a0a9-89c49ed360dc/4.png",
+  "frameCount": 5
+}

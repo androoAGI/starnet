@@ -1,0 +1,13 @@
+{
+  "tool": "built-in image_gen",
+  "prompt": "Edit this existing StarNet pixel-art cadet. Keep its EXACT outer silhouette, overall proportions, head-to-body ratio, width, limb lengths, neutral pose and pixel density. Change ONLY surface shading and material. It is currently too bright and reads as muscular: remove chest pec definition, abs, deltoid/biceps bulges, thigh muscle and calf highlights. Make a simple featureless messenger-icon person with plain continuous cylindrical limbs and a plain softly rounded torso. The existing outline dimensions must stay the same; do not bulk up, slim down, lengthen or shorten anything. Tone down metallic highlights substantially: muted satin colored metal, midtone dominant, small soft-gray tinted highlights, no pure-white hotspots, no candy gloss, no glowing colors. Preserve recognizable original COLOR hue but about 25 percent less saturated. Retain crisp deliberate pixel clusters and stepped pixel edges, slightly industrial pixel-sprite shading, not smooth high-resolution 3D gradients. Absolutely no face, eyes, mouth, armor, clothing, joints, seams, objects, shadow or background. One full-body front sprite on true transparent background.",
+  "colors": [
+    "silver",
+    "blue",
+    "green",
+    "red",
+    "amber gold"
+  ],
+  "references": "../pixel-cadets-0915/<id>-source.png",
+  "request": "Tone down brightness and muscular shading, keep approved proportions, finish every frame."
+}

@@ -1,0 +1,15 @@
+{
+  "id": "android",
+  "track": "walk",
+  "dir": "north-west",
+  "pinLast": true,
+  "promptOverride": "Seamless two-step walk IN PLACE facing north-west, a THREE-QUARTER REAR view throughout. Torso stays diagonally away from camera and left exactly like input. Both rear shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details.",
+  "request": "id: 45bd819a-4626-4665-9809-cc43f5e2ee08\njob_id: 45bd819a-4626-4665-9809-cc43f5e2ee08\ndescription: Seamless two-step walk IN PLACE facing north-west, a THREE-QUARTER REAR view throughout. Torso stays diagonally away from camera and left exactly like input. Both rear shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"45bd819a-4626-4665-9809-cc43f5e2ee08\")",
+  "job": "45bd819a-4626-4665-9809-cc43f5e2ee08",
+  "source": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/refs/north-west.png",
+  "result": "status: completed\nid: 45bd819a-4626-4665-9809-cc43f5e2ee08\njob_id: 45bd819a-4626-4665-9809-cc43f5e2ee08\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/45bd819a-4626-4665-9809-cc43f5e2ee08/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/pixel-cadets-0915/full-motion/android/minimax/walk-north-west/45bd819a-4626-4665-9809-cc43f5e2ee08/8.png",
+  "frameCount": 9
+}

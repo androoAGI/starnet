@@ -1,0 +1,15 @@
+{
+  "id": "capybara",
+  "track": "walk",
+  "dir": "south",
+  "pinLast": true,
+  "promptOverride": "A gentle seamless two-step walk in place directly facing south. Alternate planted feet and small opposite arm swings. This plain brown capybara has brown fur paws and tiny dark brown claws: paws remain BROWN in every frame, never purple, pink, magenta or colored gloves. Preserve its cream belly and exact brown fur palette. Keep head rigid and body centered. No turning, jumping, accessories or objects. Finish in original stance.",
+  "request": "id: 027b6f52-cdd2-4ccc-8be7-69560cbcf414\njob_id: 027b6f52-cdd2-4ccc-8be7-69560cbcf414\ndescription: A gentle seamless two-step walk in place directly facing south. Alternate planted feet and small opposite arm swings. This plain brown capybara has brown fur paws and tiny dark brown claws: paws remain BROWN in every frame, never purple, pink, magenta or colored gloves. Preserve its cream belly and exact brown fur palette. Keep head rigid and body centered. No turning, jumping, accessories or objects. Finish in original stance.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"027b6f52-cdd2-4ccc-8be7-69560cbcf414\")",
+  "job": "027b6f52-cdd2-4ccc-8be7-69560cbcf414",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/capybara/refs/south.png",
+  "result": "status: completed\nid: 027b6f52-cdd2-4ccc-8be7-69560cbcf414\njob_id: 027b6f52-cdd2-4ccc-8be7-69560cbcf414\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/027b6f52-cdd2-4ccc-8be7-69560cbcf414/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/capybara/minimax/walk-south/027b6f52-cdd2-4ccc-8be7-69560cbcf414/8.png",
+  "frameCount": 9
+}

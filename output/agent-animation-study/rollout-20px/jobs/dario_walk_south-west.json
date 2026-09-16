@@ -1,0 +1,14 @@
+{
+  "id": "dario",
+  "track": "walk",
+  "dir": "south-west",
+  "pinLast": true,
+  "request": "id: fea97808-9d11-4201-866b-f28f9886ca59\njob_id: fea97808-9d11-4201-866b-f28f9886ca59\ndescription: A seamless two-step walk in place, facing south-west throughout. Alternate left foot contact, passing pose, right foot contact, passing pose. One foot always carries weight on the same baseline. Opposite arm swings. The body stays upright and centered; head stays steady, only tiny shoulder counter-rotation. Preserve exact input body size, shape, clothing, leg colors and pixel style. No turns, no jump, no both-feet lift, no objects and no ground shadow. Return to the original facing and neutral stance in the last frame; do not rotate the torso toward the camera during the step. Keep the head and face rigid with an unchanged clean outline; no speckled pixels or protruding head artifacts.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"fea97808-9d11-4201-866b-f28f9886ca59\")",
+  "job": "fea97808-9d11-4201-866b-f28f9886ca59",
+  "source": "output/agent-animation-study/rollout-20px/full-motion/dario/refs/south-west.png",
+  "result": "status: completed\nid: fea97808-9d11-4201-866b-f28f9886ca59\njob_id: fea97808-9d11-4201-866b-f28f9886ca59\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/fea97808-9d11-4201-866b-f28f9886ca59/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/dario/minimax/walk-south-west/fea97808-9d11-4201-866b-f28f9886ca59/8.png",
+  "frameCount": 9
+}

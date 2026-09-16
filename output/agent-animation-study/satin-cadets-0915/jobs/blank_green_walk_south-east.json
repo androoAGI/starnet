@@ -1,0 +1,15 @@
+{
+  "id": "blank_green",
+  "track": "walk",
+  "dir": "south-east",
+  "promptOverride": "Seamless two-step walk IN PLACE facing south-east, a THREE-QUARTER FRONT view throughout. Torso stays diagonally toward camera and right exactly like input. Both front shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.",
+  "pinLast": true,
+  "request": "id: 01caaf1c-d025-40ff-ae85-3785986033e0\njob_id: 01caaf1c-d025-40ff-ae85-3785986033e0\ndescription: Seamless two-step walk IN PLACE facing south-east, a THREE-QUARTER FRONT view throughout. Torso stays diagonally toward camera and right exactly like input. Both front shoulders remain visible. Never rotate into side profile. Alternate left foot, passing pose, right foot, passing pose with opposite arm swing and flexing knees. Feet contact original baseline, head steady, body centered upright. End at exact input neutral pose. Preserve exact size, proportions, color, featureless ball head and crisp pixel shading. No turning, jumping, objects, shadow or added details. Preserve muted satin colors, restrained highlights, plain torso and cylindrical limbs. No muscle definition or bright gloss.\nframes: 8\nsize: 96x96px\ntransparent: True\nlast_frame: yes (animating toward it)\ncost: 2 generations\nstatus: processing (~1-5 min)\n\nhint: get_image(job_id=\"01caaf1c-d025-40ff-ae85-3785986033e0\")",
+  "job": "01caaf1c-d025-40ff-ae85-3785986033e0",
+  "source": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_green/refs/south-east.png",
+  "result": "status: completed\nid: 01caaf1c-d025-40ff-ae85-3785986033e0\njob_id: 01caaf1c-d025-40ff-ae85-3785986033e0\nframes: 9\ndownload: https://api.pixellab.ai/mcp/images/01caaf1c-d025-40ff-ae85-3785986033e0/download?index=0 ... ?index=8\n(5 more frames not shown — fetch them from the download URLs above)",
+  "done": true,
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/satin-cadets-0915/full-motion/blank_green/minimax/walk-south-east/01caaf1c-d025-40ff-ae85-3785986033e0/8.png",
+  "frameCount": 9
+}
