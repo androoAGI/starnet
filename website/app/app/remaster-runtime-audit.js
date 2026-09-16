@@ -3,7 +3,7 @@
 'use strict';
 (async()=>{
   if(['127.0.0.1','localhost'].includes(location.hostname)&&new URLSearchParams(location.search).get('worldPerf')==='1'){
-    const panel=document.createElement('div');panel.id='world-perf';panel.style.cssText='position:fixed;right:12px;top:80px;z-index:99999;padding:8px;background:#101b20;color:#c6d8dc;border:1px solid #647a80;max-width:600px;font:12px monospace';
+    const panel=document.createElement('div');panel.id='world-perf';panel.style.cssText='position:fixed;right:12px;top:80px;z-index:99999;padding:8px;background:#101b20;color:#c6d8dc;border:1px solid #647a80;max-width:600px;font:12px VT323,monospace';
     const button=document.createElement('button');button.className='bb';button.textContent='Measure frame performance';
     const overview=document.createElement('button');overview.className='bb';overview.textContent='Frame full station';overview.onclick=()=>{World.setCinecamIdle(86400000);World.frameReviewRoom('');};
     const recover=document.createElement('button');recover.className='bb';recover.textContent='Verify recovery';recover.onclick=async()=>{
