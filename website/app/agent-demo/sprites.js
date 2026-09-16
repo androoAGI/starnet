@@ -435,6 +435,17 @@ const SPRITES = (() => {
       key = pick8(set, ['rot'], dir8, dir); fps = 4;
     } else if (b.state === 'walk') {
       key = pick8(set, b._strideBlocked ? ['rot'] : ['walk'], dir8, dir); fps = 10;
+      // Four-direction artwork must choose its closest AVAILABLE facing from actual travel.
+      // Falling back to b.dir on a diagonal can select the wrong side of the quadrant.
+      if (!b._strideBlocked && b._resolvedTravelHeading != null
+          && (!frames[set + '.walk.' + dir8] || !frames[set + '.walk.north-east'])) {
+        let nearest = Infinity;
+        for (const [facing, angle] of Object.entries(DIR8_A)) {
+          const candidate = set + '.walk.' + facing;
+          const error = Math.abs(ang(angle - b._resolvedTravelHeading));
+          if (frames[candidate] && error < nearest) { nearest = error; key = candidate; }
+        }
+      }
     } else if (b.working && !glancing) {
       // Typing art is north-only on some skins: prefer a correctly facing sit/stand over a reversed worker.
       key = pick(set, b.sitting ? ['type', 'sit', 'rot'] : ['rot'], dir); fps = 6;

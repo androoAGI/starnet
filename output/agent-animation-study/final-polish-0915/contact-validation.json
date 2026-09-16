@@ -2,6 +2,8 @@
   "skins": 38,
   "walkingFrames": 2400,
   "height": 19,
+  "cardinalCases": 360,
+  "maxCardinalError": 45,
   "rows": [
     {
       "id": "android",
