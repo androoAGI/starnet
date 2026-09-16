@@ -236,7 +236,7 @@
     const rel = bm25(recs, query);   // shared lexical core — scores align with recs
     let scored = recs.map((r, i) => {
       const relevance = rel.scores[i];
-      const age = Math.max(0, now - (r.lastUsedAt || r.createdAt || r.ts || 0));
+      const age = Math.max(0, now - Math.max(r.lastUsedAt || 0, r.updatedAt || 0, r.createdAt || r.ts || 0));
       const recency = Math.pow(0.5, age / halfLife);        // 1 at age 0 → halves each half-life
       // time-decayed trust: an endorsement fades toward 0 the longer a belief goes un-reinforced (mirrors
       // memcore.decayTrust — keep in sync). Measured from the last memory.feedback, else creation. Recall stays

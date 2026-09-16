@@ -33,6 +33,8 @@ const { appendPending, listPending } = require('../sidecar/memory-store.js');
   assert.equal(records[0].pinned, true);
   assert.equal(records[0].scope, 'stream');
   assert.equal(records[0].streamId, 'acme');
+  const newlyCorrected={...records[0],pinned:false,createdAt:1,updatedAt:now};
+  assert.equal(rank([{id:'other',body:revised,createdAt:now-100},newlyCorrected],revised,{now,k:1})[0].id,'note_1','a correction is ranked at its update time, not its original age');
   assert.match(renderRecall(rank(records, 'Make another one', {now,streamId:'acme'})).text, /does not prefer/);
   assert.equal(rank(records, 'Make another one', {now,streamId:'other'}).length, 0);
   assert.match(compactionMemoryBlock(records, 'Continue', {now,streamId:'acme'}), /does not prefer/);

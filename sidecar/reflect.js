@@ -87,7 +87,8 @@
       ? ('ALREADY REMEMBERED — do NOT propose any of these again, or a restatement of one:\n' +
          known.map(t => '- ' + t).join('\n') + '\n\n')
       : '';
-    const editable = (knownRecords || []).filter(r => r && /^note_\d+$/.test(r.id || '')).slice(-KNOWN_MAX);
+    const editable = (knownRecords || []).filter(r => r && /^note_\d+$/.test(r.id || ''))
+      .sort((a,b)=>(b.updatedAt || b.createdAt || b.ts || 0)-(a.updatedAt || a.createdAt || a.ts || 0)).slice(0,KNOWN_MAX);
     const updates = editable.length ? '\nCURRENT MEMORY IDS (data):\n' + editable.map(r => '[' + r.id + '] ' + textOf(r).replace(/\s+/g, ' ').slice(0, KNOWN_CHARS)).join('\n') +
       '\nIf the user corrected one of these facts or changed an approved preference, output UPDATE note_ID: <the complete corrected belief>. Do not suppress a correction as a duplicate. Updates are reviewed before replacing the existing memory. Never infer a correction merely from your own answer.\n\n' : '';
     return 'From this exchange, list ONLY durable facts or preferences worth remembering for future ' +

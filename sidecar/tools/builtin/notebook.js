@@ -32,7 +32,7 @@
       body: change.body, content: change.body, updatedAt: now,
       updatedSourceRunId: change.runId || null, revision: (record.revision || 0) + 1, history,
       confirmation: change.userConfirmed ? 'user-confirmed' : 'inferred', authority: 'reference-only',
-      trust: 0, lastFeedbackAt: null, lastUsedAt: null, useCount: 0
+      trust: 0, lastFeedbackAt: change.userConfirmed ? now : null, lastUsedAt: null, useCount: 0
     });
   }
 
