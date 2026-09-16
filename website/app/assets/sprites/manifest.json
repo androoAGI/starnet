@@ -6337,6 +6337,12 @@
     ],
     "approved_finn.rot.south": [
       "approved_finn/rot_south.png"
+    ],
+    "approved_heisenberg.rot.south": [
+      "approved_heisenberg/rot_south.png"
+    ],
+    "approved_ricksanchez.rot.south": [
+      "approved_ricksanchez/rot_south.png"
     ]
   }
 }
