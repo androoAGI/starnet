@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "6d18e5f67388f7a4c452c4f607026700e7dcc04b",
+    "sourceCommit": "2df00fd71780cd2761ab95aa1cad036dbd7e6dd0",
     "pathSetSha256": "d78adcafc2e7df8e2bf528f419468d3310c97a59a7cfdc8a808709c92953854f",
     "files": [
       {
@@ -1193,8 +1193,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 162180,
-        "sha256": "b29c25636298d09bad392f52808ec96812298ed9e5bc3a5357f8c09cdbe7db2c"
+        "bytes": 162199,
+        "sha256": "d7fd7724f6fb7e8abd796353881e45dd11c9645cff41092066798047a84b9e4a"
       },
       {
         "path": "frontend/app/worldrenderer.js",
@@ -1238,8 +1238,8 @@
       },
       {
         "path": "frontend/assets/industrial/space-preview.html",
-        "bytes": 5143,
-        "sha256": "7173f264bff88961612acc96b76c8ecaa40e1cbc9c0414aa4ca23b796397a8b6"
+        "bytes": 5162,
+        "sha256": "0027c805ba580be3cd5133dfa2c73a24f7f4969ac1e703ad5f9375ff1e8e5b68"
       },
       {
         "path": "frontend/authored-machine-review.html",
