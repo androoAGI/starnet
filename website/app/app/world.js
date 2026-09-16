@@ -783,6 +783,7 @@ const World = (() => {
       console.warn('[world] cached canvases lost (' + why + ') — rebuilding station + sky + ground (recovery #' + recoveries + ')');
     } catch (_) {}
     bakeDirty = true; bakeProbe = null;
+    try { if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.restoreMaterials) IndustrialTextures.restoreMaterials(); } catch (_) {}
     try { if (typeof SpaceBG !== 'undefined' && SpaceBG.invalidate) SpaceBG.invalidate(); } catch (_) {}
     try { if (typeof Terrain !== 'undefined' && Terrain.invalidate) Terrain.invalidate(); } catch (_) {}
     return true;
@@ -9790,7 +9791,7 @@ const World = (() => {
       try { const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); return true; }
       catch (_) { return false; }
     };
-    let bake = 0, detail = 0;
+    let bake = 0, detail = 0, materials = 0;
     // Arm witnesses before simulating loss, including newly allocated zoom LODs.
     if (bakeProbe && !probeOff) bakeWentBlank();
     if (cache && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.baseLayers) {
@@ -9798,10 +9799,11 @@ const World = (() => {
       for (const c of (mode === 'lod' ? layers.slice(1) : layers)) if (wipe(c)) detail++;
     }
     if (mode === 'all' && cache) for (const k of ['baseCv', 'lightCv']) if (cache[k] && wipe(cache[k])) bake++;
+    if (mode === 'all' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures._dbgLoseMaterials) materials = IndustrialTextures._dbgLoseMaterials();
     let sky = 0, ground = 0;
     try { if (mode === 'all' && typeof SpaceBG !== 'undefined' && SpaceBG._dbgLosePixels) sky = SpaceBG._dbgLosePixels(); } catch (_) {}
     try { if (mode === 'all' && typeof Terrain !== 'undefined' && Terrain._dbgLosePixels) ground = Terrain._dbgLosePixels(); } catch (_) {}
-    return { bake, detail, sky, ground, probe: bakeProbe ? { x: bakeProbe.x, y: bakeProbe.y } : null };
+    return { bake, detail, materials, sky, ground, probe: bakeProbe ? { x: bakeProbe.x, y: bakeProbe.y } : null };
   };
   // what the watchdog currently knows — lets a test assert recovery happened, not just that pixels returned
   const _dbgCanvasLoss = () => ({

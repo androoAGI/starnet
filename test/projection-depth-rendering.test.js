@@ -3,13 +3,14 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 let Canvas;try{Canvas=require('@napi-rs/canvas');}catch{Canvas=require('C:/Users/andro/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');}
 const makeCanvas=()=>Canvas.createCanvas(1,1);
 async function materials(){
+  const allocated=[];
   class Image {constructor(){const c=Canvas.createCanvas(12,12);c.getContext('2d').fillRect(0,0,12,12);Object.defineProperty(c,'src',{set(){queueMicrotask(()=>c.onload());}});return c;}}
-  const scope={module:{exports:{}},URLSearchParams,location:{search:'?propSet=projection'},Image,document:{documentElement:{dataset:{}},createElement:makeCanvas}};
+  const scope={module:{exports:{}},URLSearchParams,location:{search:'?propSet=projection'},Image,document:{documentElement:{dataset:{}},createElement(){const c=makeCanvas();allocated.push(c);return c;}}};
   vm.runInNewContext(fs.readFileSync('frontend/app/industrialtextures.js','utf8'),scope);
-  const api=scope.module.exports;await api.ready;return api;
+  const api=scope.module.exports;await api.ready;return {api,allocated};
 }
 (async()=>{
-  const api=await materials(),base=Canvas.createCanvas(64,64);let g=api.detailContext(base.getContext('2d'));
+  const {api,allocated}=await materials(),base=Canvas.createCanvas(64,64);let g=api.detailContext(base.getContext('2d'));
   // Subpixel alternating bars expose aliasing; large planes must retain alpha.
   for(let x=8;x<56;x++){g.fillStyle=x%2?'#c0c0c0':'#404040';g.fillRect(x,8,1,48);}
   const target=Canvas.createCanvas(400,400),ctx=target.getContext('2d'),native=ctx.drawImage.bind(ctx);let source;
@@ -54,6 +55,13 @@ async function materials(){
   api.baseLayers(base).length=0;assert(api.baseLayers(base).length>0);
   lossScope.cache.baseCv=Canvas.createCanvas(64,64);api.detailContext(lossScope.cache.baseCv.getContext('2d'));
   lossScope.recordBakeProbe();assert.equal(lossScope.blank(),false,'legitimately empty station does not loop');
+  const tile=Canvas.createCanvas(12,12),tg=tile.getContext('2d');
+  api.floor(tg,0,0,12,0,0,'plate');assert.equal(tg.getImageData(6,6,1,1).data[3],255);
+  for(const c of allocated)c.getContext('2d').clearRect(0,0,c.width,c.height);
+  tg.clearRect(0,0,12,12);api.floor(tg,0,0,12,0,0,'plate');
+  assert.equal(tg.getImageData(6,6,1,1).data[3],0,'lost material caches would paint an empty rebake');
+  api.restoreMaterials();api.floor(tg,0,0,12,0,0,'plate');
+  assert.equal(tg.getImageData(6,6,1,1).data[3],255,'original image restores material and derived tint caches');
 
   const props=fs.readFileSync('frontend/app/propsprites.js','utf8'),start=props.indexOf('  function contactShadow('),end=props.indexOf('  function projectedShadow(',start);
   assert(start>0&&end>start);

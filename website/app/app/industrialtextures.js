@@ -13,7 +13,7 @@ const IndustrialTextures = (() => {
     crateReview = query.get('propReview') === 'crate';
     projectionReview = query.get('propSet') === 'projection';
   } catch (_) {}
-  const images = {}, failed = [];
+  const images = {}, originals = {}, failed = [];
   // Exposed to the existing CRT lab for a live, reproducible material review.
   // Values read back from the live CRT lab after the combined-room review.
   const lighting = { fixtureTint: projectionReview?.14:.04, propTint: projectionReview?.65:.48,
@@ -42,15 +42,33 @@ const IndustrialTextures = (() => {
     'chair-s': 1.3, 'chair-e': 1.3, 'chair-n': 1.3,
     'tactical-table': 1.5, 'console-bank': 1.5, 'equipment-bay': 1.5, 'deck-perimeter': 1.0,
     'calibration/crate': 1.5, 'remaster/crown': 2.0 };
+  function paintOriginal(name, img) {
+    const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext('2d');
+    const exposure = gain[name] || (name.includes('/floors/') ? 1.25 : name.includes('/walls/') ? 1.65 : name.endsWith('/shell') ? 2.05 : shellNames.includes(name)||surfaceNames.includes(name) ? 1 : 1.5);
+    ctx.filter = 'brightness(' + exposure + ')'; ctx.drawImage(img, 0, 0);
+    return cv;
+  }
+  function restoreMaterials() {
+    // Rebuilding geometry from zeroed albedo canvases only bakes another blank.
+    // Image elements retain their asset source independently of canvas storage.
+    for (const [name, img] of Object.entries(originals)) images[name] = paintOriginal(name, img);
+    materials.clear(); wallStrips.clear(); emitters.clear(); shellTints.clear();
+  }
+  function _dbgLoseMaterials() {
+    let count = 0;
+    for (const c of new Set([...Object.values(images), ...materials.values(), ...wallStrips.values(), ...emitters.values(), ...shellTints.values()])) {
+      if (!c || !c.getContext) continue;
+      const g = c.getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,c.width,c.height);count++;
+    }
+    return count;
+  }
   const ready = requested && typeof Image !== 'undefined' ? Promise.all([...names, ...shellNames, ...surfaceNames].map(name => new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
       try {
-        const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
-        const ctx = cv.getContext('2d');
-        const exposure = gain[name] || (name.includes('/floors/') ? 1.25 : name.includes('/walls/') ? 1.65 : name.endsWith('/shell') ? 2.05 : shellNames.includes(name)||surfaceNames.includes(name) ? 1 : 1.5);
-        ctx.filter = 'brightness(' + exposure + ')'; ctx.drawImage(img, 0, 0);
-        images[name] = cv;
+        originals[name] = img;
+        images[name] = paintOriginal(name, img);
       } catch (_) { failed.push(name); }
       resolve();
     };
@@ -495,7 +513,7 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, baseLayers, discardBaseLayer, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, baseLayers, discardBaseLayer, restoreMaterials, _dbgLoseMaterials, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

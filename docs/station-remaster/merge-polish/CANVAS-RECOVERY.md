@@ -22,6 +22,9 @@ Losing high detail falls back to the intact native station bake, matching the ex
 context-loss-event behavior. The next ordinary station rebake restores high detail.
 This fallback can reduce close-up detail, but preserves the floor/wall geometry.
 Losing the native bake still invokes the existing full station/sky/ground recovery.
+That full recovery now recreates industrial albedo canvases from retained original
+image elements and clears derived tint, wall-strip and emitter caches before rebaking.
+Otherwise a GPU reset could turn a new station bake into a copy of damaged textures.
 
 ## Live verification
 
@@ -47,4 +50,12 @@ It changes disposable raster buffers, not station contents. Raw measured receipt
 
 Focused checks: real-canvas projection/depth/recovery regression; existing canvas-loss
 contracts (44 assertions); IndustrialTextures contracts (398 assertions); JS syntax
-checks and mirrored frontend parity. No physical GPU reset or multi-hour soak is claimed.
+checks, texture-ready contracts (69 assertions), and mirrored frontend parity.
+A later preview inspection recorded actual context-loss warnings (stage rebuild and
+WebGL fallback) during this session. This supports graphics loss as a live failure
+mode but does not establish what triggered the user's original screenshot. No
+physical GPU-reset experiment or multi-hour soak is claimed.
+
+The full `npm run test:fast` attempt hit its 900000 ms wrapper deadline. Log retained
+at `dev/.scratch-workspace/canvas-recovery-fast.log`; this is not a passing gate.
+The focused checks above passed again after the material restoration change.
