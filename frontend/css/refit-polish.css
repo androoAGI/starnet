@@ -243,7 +243,7 @@
 .refit-overlay :is(.refit-toolset-label,.refit-key,#refit-palette-label) { display: none; }
 .refit-overlay :is(.refit-tool-belt,.refit-tool-line) { grid-column: auto; }
 .refit-overlay[data-build-group="props"] .refit-mode-section,
-.refit-overlay[data-build-group="surfaces"] .refit-mode-section { display: none; }
+.refit-overlay[data-build-group="surfaces"][data-tool="paint"] .refit-mode-section { display: none; }
 .refit-overlay .refit-option-section { min-height: 0; flex: 1 1 0; overflow: hidden; padding: 12px; }
 .refit-overlay[data-tool="prop"] .refit-option-section { min-height: 0; flex: 1 1 0; overflow: hidden; }
 .refit-overlay .refit-palette { min-height: 0; overflow-y: auto; }

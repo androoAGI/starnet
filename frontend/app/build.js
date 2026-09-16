@@ -233,7 +233,7 @@ const Build = (() => {
     tool = 'select';   // SELECT is the default mode — a fresh REFIT session never opens with a placement tool armed
     ridePending = false; rideAgentId = null; ridePrevReach = null;   // the auto first-ride re-arms (and re-baselines its reach snapshot) from THIS session's compile, never a stale one
     // finish-the-line: fresh session state (the registry itself persists in localStorage) + one seam probe
-    finSample = null; finKeySel = null; finSig = ''; finCardEl = null; finComp = null; valComps = null; lastStampIds = null; finPollTs = 0; finSampleRes = null;
+    finSample = null; finKeySel = null; finEngaged = false; finSig = ''; finCardEl = null; finComp = null; valComps = null; lastStampIds = null; finPollTs = 0; finSampleRes = null;
     for (const k in stampNameOf) delete stampNameOf[k];   // session-scoped blueprint-name placeholders (line naming)
     clearLineFields();   // a fresh session never inherits a prior floor's "where can this go" answers
     bumpGeo();           // …nor a prior floor's bounds/belts/bay-objects/mount memos (see geoVer)
@@ -271,7 +271,7 @@ const Build = (() => {
     resize();
     fitCamera();
     updateUndoRedo();
-    if (!hasSeen() && !tutorialCoaching()) showGuide();   // never stack this modal on the tutorial's own coaching (see tutorialCoaching)
+    // Help is available on demand; opening the editor starts with the library.
     running = true;
     if (typeof SFX !== 'undefined') SFX.open();
     raf = requestAnimationFrame(frame);
@@ -380,7 +380,7 @@ const Build = (() => {
       btn.title = t.hint + '  (' + t.key + ')';
       // clicking the ARMED tool's own button again DESELECTS it (back to select) — a tool must
       // always have an obvious off switch, not just eight other on switches.
-      btn.onclick = () => selectTool(t.id === tool ? 'select' : t.id);
+      btn.onclick = () => selectTool(t.id === 'line' || t.id === tool ? 'select' : t.id);
       return btn;
     };
     const byId = id => TOOLS.find(x => x.id === id);
@@ -389,7 +389,7 @@ const Build = (() => {
     for (const [id,name,ids] of BUILD_GROUPS) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'bb';
       b.dataset.buildGroup = id; b.textContent = name;
-      b.onclick = () => { buildGroup = id; selectTool(id === 'props' ? 'select' : ids[0]); };
+      b.onclick = () => { if (buildGroup === id) return; buildGroup = id; selectTool('select'); };
       tabs.appendChild(b);
     }
     tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Build tools');
@@ -484,6 +484,7 @@ const Build = (() => {
   const starterProps = () => PropSprites.STARTER.map(id => PropSprites.spec(id)).filter(Boolean);
   const abilityName = cap => EquipmentHelp.ABILITY_NAMES[cap] || String(cap || '').toUpperCase();
   const chooseLibrarySection = section => {
+    if (section === propSection) return;
     propSection = section; propAbility = ''; propCat = 'all'; propQuery = '';
     // Browsing another shelf must not silently arm its first item.
     selectTool('select');
@@ -763,6 +764,7 @@ const Build = (() => {
     if (!pal) return;
     const previousShelf = pal.querySelector('#refit-propgrid-host');
     if (previousShelf?.dataset.shelfKey) propShelfScroll.set(previousShelf.dataset.shelfKey,previousShelf.scrollTop);
+    if (pal.querySelector('.refit-linegrid')) propShelfScroll.set('workflow-layouts',pal.scrollTop);
     bumpUi();   // the dock is about to change height/width — positionFinCard must re-measure it
     const section = root.querySelector('#refit-option-section');
     const label = root.querySelector('#refit-palette-label');
@@ -774,11 +776,16 @@ const Build = (() => {
     root.querySelectorAll('.refit-toolset').forEach(g => { g.hidden = g.dataset.group !== buildGroup; });
     pal.innerHTML = '';
     propThumbs.length = 0;   // drop any preview tiles from a prior render (they're rebuilt below for the prop tool)
-    if (tool === 'select' && buildGroup !== 'props') {
+    if (tool === 'select' && buildGroup !== 'props' && buildGroup !== 'workflow') {
       paletteLabel = 'INSPECT';
       const note = document.createElement('div');
       note.className = 'refit-selectnote';
-      note.innerHTML = '<b>Click anything to edit</b><span>Click a prop to move, rotate, copy or delete it. For rooms, use Move, Copy or Delete above. Undo brings back layout changes.</span>';
+      const browse = {
+        rooms: ['Make space', 'Choose Room to add space, or Hallway to connect rooms. Click an existing room to edit it.'],
+        surfaces: ['Change the finish', 'Choose Surface to pick a floor, wall or exterior finish. Nothing changes until you apply it.'],
+        edit: ['Click anything to edit', 'Click a prop for its actions, or choose a tool above. Undo restores layout changes.']
+      }[buildGroup];
+      note.innerHTML = '<b>'+esc(browse[0])+'</b><span>'+esc(browse[1])+'</span>';
       pal.appendChild(note);
     } else if (tool === 'room') {
       /* ROOM TYPE was the last palette in REFIT still made of bare text chips, next to a prop
@@ -1008,7 +1015,7 @@ const Build = (() => {
       intro.className = 'refit-lineintro';
       intro.textContent = LINE_SENTENCE;
       pal.appendChild(intro);
-    } else if (tool === 'line') {
+    } else if (tool === 'line' || (tool === 'select' && buildGroup === 'workflow')) {
       /* THE LINE LIBRARY (v3, 2026-08-30) — one-click whole layouts, now a browsable library.
          Cards keep the v2 anatomy (schematic MINIATURE in the floor's own colour economy, NAME +
          footprint/dock chip, one-line purpose); with 15 systems on the shelf they group into
@@ -1044,9 +1051,9 @@ const Build = (() => {
         const bp = row.bp;
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'refit-linetile' + (bp.id === lineType ? ' active' : '');
+        b.className = 'refit-linetile' + (tool === 'line' && bp.id === lineType ? ' active' : '');
         b.dataset.line = bp.id;
-        b.setAttribute('aria-pressed', bp.id === lineType ? 'true' : 'false');
+        b.setAttribute('aria-pressed', tool === 'line' && bp.id === lineType ? 'true' : 'false');
         b.title = bp.desc;   // adopted by tooltip.js into the station card (never the OS bubble)
         const view = document.createElement('span'); view.className = 'refit-linetile-view';
         view.appendChild(lineSchematic(bp));
@@ -1074,15 +1081,16 @@ const Build = (() => {
           nf.textContent = 'NO ROOM ON THIS DECK — NEEDS ' + bp.w + '×' + bp.h + ' OF CLEAR FLOOR';
           b.appendChild(nf);
         }
-        b.onclick = () => { lineType = bp.id; renderPalette(); setHint(); frameBlueprint(); sfx('click'); };
+        b.onclick = () => { lineType = bp.id; selectTool('line'); };
         grid.appendChild(b);
       }
       pal.appendChild(grid);
       const note = document.createElement('div');
       note.className = 'refit-linenote';
-      note.textContent = 'STEPS NEED AN AGENT — CLICK EACH STEP TO ASSIGN AN AGENT · ONE UNDO REMOVES THE WHOLE LINE';
+      note.textContent = 'Assign agents when you want to run this workflow. One Undo removes a placed layout.';
       pal.appendChild(note);
     }
+    if (pal.querySelector('.refit-linegrid')) pal.scrollTop = propShelfScroll.get('workflow-layouts') || 0;
     /* NAME THE ARMED TOOL IN THE OPTIONS HEADER. The two zones of this dock — the tool you picked
        and the options for it — were only related by adjacency: "ROOM TYPE" over a grid of decks
        does not say WHICH tool it belongs to, and the connection is the whole reason the options
@@ -1637,6 +1645,7 @@ const Build = (() => {
      you land it. Do not reinstate a second voice for the same step. */
 
   function selectTool(id, o) {
+    if (drag || dragPid != null) releaseDrag();
     tool = id; drag = null; connectFrom = null; dupe = null; hideTip(); hidePropCard();
     if (id !== 'select') buildGroup = BUILD_GROUPS.find(g => g[2].includes(id))?.[0] || buildGroup;
     root.querySelectorAll('.refit-tool').forEach(b => {
@@ -1682,6 +1691,8 @@ const Build = (() => {
     // SURFACE means three different gestures depending on which surface is targeted — say which
     let verb = (t && t.verb) || (t && t.hint) || '';
     if (tool === 'select' && buildGroup === 'props') verb = 'Choose a prop, then click the floor to place it. Click existing props to edit.';
+    if (tool === 'select' && buildGroup === 'workflow') verb = 'Choose a layout, or use Belt to connect existing machines. Nothing is selected yet.';
+    if (tool === 'select' && (buildGroup === 'rooms' || buildGroup === 'surfaces')) verb = 'Choose a tool above to begin. Click existing objects to edit.';
     if (tool === 'paint') verb = paintTarget === 'hull' ? 'click a room to re-clad its outside'
       : paintTarget === 'walls' ? 'click a room to clad its walls'
       : 'click a room to lay this deck · drag to paint tiles';
@@ -1880,7 +1891,7 @@ const Build = (() => {
       button.onclick = () => {
         selected=item;armed=false;apply.disabled=false;apply.textContent='USE '+item.name;
         for(const b of g.querySelectorAll('[data-station-build]'))b.setAttribute('aria-pressed',b===button?'true':'false');
-        status.textContent=item.id==='creative' ? 'Brief → Drafter → Reviewer → Finished announcement. After applying, choose the two agents and try a small sample.' : item.name+' · '+item.rooms+' '+(item.rooms===1?'room':'rooms')+' · '+doc.props.length+' props'+(bays?' · '+bays+' workflow '+(bays===1?'step':'steps')+' to assign':'')+'.';
+        status.textContent=item.name+' · '+item.rooms+' '+(item.rooms===1?'room':'rooms')+' · '+doc.props.length+' props'+(bays?' · Optional conveyor workflow; set up agents whenever you want to use it.':'.');
       };
       g.querySelector('.station-build-grid').appendChild(button);
     }
@@ -1892,7 +1903,6 @@ const Build = (() => {
         localStorage.setItem(backupKey,JSON.stringify(station.serialize()));
         const result=station.replaceLayout(doc);if(!result.ok)throw Error(result.msg||result.error);
         fitCamera();closeP();sfx('click');
-        if (selected.id === 'creative') openPresetExample();
       }catch(e){armed=false;status.textContent='Layout unchanged: '+e.message;apply.textContent='USE '+selected.name;}
     };
     backupButton.onclick = () => {
@@ -2176,6 +2186,7 @@ const Build = (() => {
      (done/dismissed) stays quiet: finPick filters those before the key is consulted. */
   function finFocusLine(propId) {
     const c = lineOfProp(propId);
+    if (c) finEngaged = true;
     if (!c || c.key === finKeySel) return;
     finKeySel = c.key; finSig = '';
     if (running) renderFinCard();
@@ -3328,6 +3339,7 @@ const Build = (() => {
   let lastStampIds = null;      // prop ids of the line stamped this session → the card adopts that line
   const stampNameOf = {};       // intake propId -> blueprint label (session-scoped; the name field's placeholder)
   let finKeySel = null;         // the line key the card is focused on (session-scoped)
+  let finEngaged = false;       // workflow guidance follows an explicit configuration action
   let finCardEl = null, finComp = null, finSig = '', finPollTs = 0;
   function finState(c) {
     const unbound = c.bays.filter(b => !b.agentId);
@@ -3435,6 +3447,7 @@ const Build = (() => {
 
   function renderFinCard() {
     if (!root || !running) return;
+    if (!finEngaged && !tutorialCoaching()) { ordersHide(); return; }
     bumpUi();   // the card is about to be re-measured/rebuilt — drop its pinned-position memo
     const c = finPick();
     if (!c) { renderOrders(); return; }   // no line yet → the stage BEFORE it, in the same slot
@@ -4074,8 +4087,8 @@ const Build = (() => {
   const FACE_WORD = ['south', 'west', 'north', 'east'];
   // keyboard events carry no cursor position; the tip anchors to the last place the pointer was.
   const orientEv = () => ({ clientX: lastClient.x, clientY: lastClient.y });
-  // a turn/flip acts on the prop UNDER THE CURSOR when there is one, else on the pending placement
-  const orientTarget = () => (!drag && hoverPropId) ? station.propById(hoverPropId) : null;
+  // Placement owns R/M. Browsing may rotate the hovered furniture; placing never edits it.
+  const orientTarget = () => (tool === 'select' && !drag && hoverPropId) ? station.propById(hoverPropId) : null;
   const propLabel = t => String(propSpec(t).label || t).toUpperCase();
 
   function turnUnderCursor(dir) {
@@ -4137,6 +4150,7 @@ const Build = (() => {
   }
   function onInspect(p, ev) {
     if (!p) return;
+    if (tool !== 'select') selectTool('select');
     cardCloseAll(); hideTip(); hidePropCard();
     const id = p.id, sp = propSpec(p.t);
     const g = document.createElement('div');
@@ -4226,7 +4240,7 @@ const Build = (() => {
       // placement, so furnishing a room meant a re-pick per prop. Double-stamping on top of the
       // fresh prop can't happen (CLICK-ON-MACHINE WINS inspects it; occupied tiles fail red).
       // ESC / right-click still drops the tool; rooms and blueprints keep their one-shot flow.
-      if (isEditableProp(propType) && res.id) { openPropEditor(res.id, propType, ev); return; }   // configure the freshly-placed prop
+      // Configuration is a separate, explicit click on the placed object.
     }
     if (res && res.ok) renderEquipmentInfo(propType);
     feedback(res, ev, grant ? ('PLACED · ' + grant + ' equipment') : ('placed ' + propType));
@@ -4488,9 +4502,7 @@ const Build = (() => {
       if (categoryMenu) { categoryMenu.open = false; categoryMenu.querySelector('summary').focus(); return; }
       const details = root.querySelector('.refit-propworkspace.show-details');
       if (details) { const toggle = details.querySelector('.refit-details-toggle'); toggle.click(); toggle.focus(); return; }
-      if (drag) { releaseDrag(); hideTip(); setCursor(); return; }       // cancel an in-progress edit first
-      if (connectFrom) { connectFrom = null; hideTip(); return; }        // then a half-made connection
-      if (dupe) { dupe = null; hideTip(); setHint(); return; }           // then the armed copy
+      if (drag || connectFrom || dupe) { selectTool('select'); return; }
       if (tool !== 'select') { deselectTool(); return; }                 // then the armed tool → SELECT
       return close();                                                    // only a bare select-mode ESC leaves REFIT
     }
@@ -4500,11 +4512,10 @@ const Build = (() => {
       sfx(r.ok ? 'click' : 'bad'); return;
     }
     if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'y' || ev.key === 'Y')) { ev.preventDefault(); sfx(station.redo().ok ? 'click' : 'bad'); return; }
-    if (ev.key === '/') { ev.preventDefault(); if (tool !== 'prop') selectTool('prop'); toggleKit(false); root.querySelector('#refit-propsearch-input')?.focus(); return; }
+    if (ev.key === '/') { ev.preventDefault(); buildGroup = 'props'; selectTool('select'); root.querySelector('#refit-propsearch-input')?.focus(); return; }
     if (ev.key === 'f' || ev.key === 'F') { fitCamera(); return; }
-    // R turns · shift+R turns back · M flips. Acts on the prop UNDER THE CURSOR when there is one
-    // (so a furnished room can be re-aimed without tearing anything down), otherwise on the pending
-    // placement. Both are no-ops with a spoken reason on art that cannot honestly turn/flip.
+    // R/M belong to pending prop placement, or to hovered furniture while browsing.
+    // Both are no-ops with a reason on art that cannot turn/flip.
     if (ev.key === 'r' || ev.key === 'R') { ev.preventDefault(); turnUnderCursor(ev.shiftKey ? -1 : 1); return; }
     if (ev.key === 'm' || ev.key === 'M') { ev.preventDefault(); flipUnderCursor(); return; }
     const map = { '0': 'select', '1': 'room', '2': 'hall', '3': 'paint', '4': 'move', '5': 'reclaim', '6': 'prop', '7': 'belt', '8': 'dupe', '9': 'line' };
@@ -5260,7 +5271,7 @@ const Build = (() => {
        INSTANT any real preview crate rides (▸ PREVIEW / the first ride own the belt). Same belts,
        same junction decisions, same frame as the real sim; its own dedicated engine + stops. */
     if (ghost) {
-      const blocked = tutorialCoaching() || ridePending || !!rideTimer
+      const blocked = buildGroup !== 'workflow' || tutorialCoaching() || ridePending || !!rideTimer
         || !!(root && root.querySelector('.refit-firstrun')) || convey.boxCount() > 0;
       const feed = (opts && opts.world && opts.world.feedState) ? opts.world.feedState() : { known: false, fed: false };
       ghost.tick(dt, now, belts, jmap, { blocked, feed });
@@ -5272,7 +5283,7 @@ const Build = (() => {
     convey.drawBoxes(ctx, now, t); drawTestNotes(now, t);
     // projection + WOULD-captions over the real layer — captions go THROUGH the arbiter
     // (ghostCaption layer: mutes whenever any other voice speaks or the pointer rides the floor)
-    if (ghost) ghost.draw(ctx, now, t, Math.max(9, 11 / zoom), (box, paint) => voiceSay('ghostCaption', box, box, paint));
+    if (ghost && buildGroup === 'workflow') ghost.draw(ctx, now, t, Math.max(9, 11 / zoom), (box, paint) => voiceSay('ghostCaption', box, box, paint));
   }
 
   /* THE GUIDANCE LIVES WHERE THE HANDS ARE (2026-07-05 playtest): callouts render INSIDE build mode, in
@@ -5337,6 +5348,9 @@ const Build = (() => {
   }
   function drawRoutingValidation(t, now) {
     if (!cacheGeo) return;
+    // Dormant workflows do not ask for attention while furnishing or shaping rooms.
+    if (buildGroup !== 'workflow' && !tutorialCoaching()) return;
+    if (!finEngaged && tool !== 'belt' && tool !== 'line' && !tutorialCoaching()) return;
     const o = cacheGeo.origin || { tx: 0, ty: 0 };
     const pulse = 0.55 + 0.35 * Math.sin(now / 280);
     const placed = [];

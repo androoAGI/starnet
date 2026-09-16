@@ -590,6 +590,7 @@ test/chain.test.js
 test/chain.join-loop.test.js
 test/chain.limits.test.js
 test/refit-card-stack.test.js
+test/refit-flow-polish.test.js
 test/refit-junction-cards.test.js
 test/refit-footprint.test.js
 test/refit-run-gate.test.js

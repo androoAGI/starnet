@@ -858,6 +858,10 @@ const Tutorial = (() => {
   function showCoach(key, anchorSel, text, opts) {
     opts = opts || {};
     if (active || seen(key)) return;     // never during the First Command; once ever
+    // Build Mode owns its contextual instructions. Keep progress hooks, but don't
+    // interrupt browsing or placement with a second explanation and a dismiss button.
+    if ((['build','prop','belt','connector'].includes(key) || key.startsWith('wf-'))
+      && document.querySelector('.refit-overlay')) return;
     // don't paint over an open panel (e.g. the Field Manual) — defer (not marked seen) until it's closed.
     // EXCEPT a one-shot whose trigger never re-fires (level-up): show it over the panel rather than lose it forever.
     // Same rule for REFIT's first-run card (.refit-firstrun): it now waits for the tour to finish, so the very

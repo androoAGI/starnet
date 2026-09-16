@@ -1,8 +1,9 @@
 # Creative Studio working example
 
-Creative Studio now opens a single setup card after applying the preset. Existing
-studios can reopen it from Build Mode → Presets → Set up current studio, or from
-the conveyor line's setup card.
+Creative Studio loads as a furnished station. Workflow setup is optional, available
+from Build Mode → Presets → Set up current studio, or from the conveyor line's
+setup card after choosing to configure its equipment. Applying a preset does not
+open configuration automatically.
 
 The card explains the brief → draft → review → outbox flow, saves both role
 assignments through the normal station model, and offers a small fictional
