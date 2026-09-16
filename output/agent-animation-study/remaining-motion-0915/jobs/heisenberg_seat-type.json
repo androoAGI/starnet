@@ -1,0 +1,95 @@
+{
+  "id": "heisenberg",
+  "name": "Heisenberg",
+  "track": "seat-type",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/north.png",
+  "sources": [
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/south.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/east.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/north.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/west.png"
+  ],
+  "prompt": "Complete the seated and typing poses for these existing Heisenberg pixel-art game sprite references. Preserve their exact design, outfit, face, proportions, camera perspective, palette and pixel-cluster style. Output EXACTLY EIGHT sprites in a FOUR-COLUMN TWO-ROW grid with real transparent alpha background, no labels, grid, furniture, scene or shadows. Top row left to right: seated facing SOUTH, seated facing EAST, seated facing NORTH, seated facing WEST. Sitting on an invisible chair, thighs forward with right-angle knees, lower legs down, relaxed upright torso, hands at desk height, no chair or desk drawn. Head and torso stay their standing size; seated overall height roughly three quarters of standing. Bottom row: FOUR sequential subtle seated typing frames all facing NORTH (back to camera), matching top-row NORTH seated pose exactly in head position, hips, feet, height and body. Only alternating small hand and forearm movements; no torso twisting, bobbing, shrugging or wide squat. Equal cell spacing, identical scale and foot baseline across all eight cells. Generous transparent padding.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-f8f2883c-3e85-40ae-a166-12f558194c3b.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/heisenberg_seat-type.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "sit_south.png",
+    "sit_east.png",
+    "sit_north.png",
+    "sit_west.png",
+    "type_north_0.png",
+    "type_north_1.png",
+    "type_north_2.png",
+    "type_north_3.png"
+  ],
+  "packed": true,
+  "scale": 0.15803814713896458,
+  "bounds": [
+    {
+      "left": 126,
+      "top": 78,
+      "width": 161,
+      "height": 367
+    },
+    {
+      "left": 125,
+      "top": 78,
+      "width": 173,
+      "height": 367
+    },
+    {
+      "left": 105,
+      "top": 78,
+      "width": 155,
+      "height": 367
+    },
+    {
+      "left": 71,
+      "top": 78,
+      "width": 175,
+      "height": 367
+    },
+    {
+      "left": 127,
+      "top": 69,
+      "width": 159,
+      "height": 365
+    },
+    {
+      "left": 113,
+      "top": 69,
+      "width": 174,
+      "height": 365
+    },
+    {
+      "left": 96,
+      "top": 69,
+      "width": 171,
+      "height": 365
+    },
+    {
+      "left": 96,
+      "top": 69,
+      "width": 160,
+      "height": 365
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/south.png": "2f33e069507ab8adf8833c4f7745cc934132526ad94d05bb153ff4f6051b51e2",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/east.png": "ba0c494e5ccbbf335669422aadb449861a644638333e7750d3f79ce6d65366d1",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/north.png": "283ccf984d8789d70fb0371ca631d5bbddf04ada2ca4d53ecbf657646e8c8597",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/heisenberg/refs/west.png": "9036e234a27a3d0ef4c9ffdea590e875e2574a7b10aef7438c3b906846fc2c12"
+  },
+  "selectedHashes": {
+    "sit_south.png": "0c60ae7e1a6fc1b3459d8367fb1a56a8bdc7ab4845ad5353b0ffe448b4920567",
+    "sit_east.png": "98a0d63f0f984a17c21d92fe1fc33e022fa455497b49247d3d3058075b11880d",
+    "sit_north.png": "3947bb39640bf6d9b07e0085f4d4a170489da8c940b760b9c225eb6de0761ff0",
+    "sit_west.png": "992827589d94b5b3cdf7e38c2d346a2c7af54b46d476bdc625073188652443c6",
+    "type_north_0.png": "6a24c7b5e8b5402059c93015db0892e4984d04b0fb6a734123204e9e73666a1a",
+    "type_north_1.png": "777fc969f2ff94bf33215197913f06ec9e427fa5401825b4dd5b3db074ef7bc0",
+    "type_north_2.png": "6c7c4da4a446e0a77c8a27e13487d240022721f1a92ab692075c955a39d4b8af",
+    "type_north_3.png": "10bf1a014d3917421b45efd1ef4e01371f7c623903da77a3181bae45c45b0d09"
+  }
+}

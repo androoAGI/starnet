@@ -1,7 +1,7 @@
 {
   "standingHeight": 19,
-  "redesigned": 34,
-  "retained": 4,
+  "redesigned": 36,
+  "retained": 2,
   "rows": [
     {
       "id": "android",
@@ -269,8 +269,14 @@
     },
     {
       "id": "heisenberg",
-      "status": "existing art",
-      "standingHeight": 19
+      "status": "complete",
+      "standingHeight": 19,
+      "rotations": 8,
+      "walkFrames": 64,
+      "seats": 4,
+      "typingFrames": 4,
+      "minWalkHeight": 73,
+      "maxWalkHeight": 76
     },
     {
       "id": "endoskeleton",
@@ -351,8 +357,14 @@
     },
     {
       "id": "ricksanchez",
-      "status": "existing art",
-      "standingHeight": 19
+      "status": "complete",
+      "standingHeight": 19,
+      "rotations": 8,
+      "walkFrames": 64,
+      "seats": 4,
+      "typingFrames": 4,
+      "minWalkHeight": 74,
+      "maxWalkHeight": 76
     },
     {
       "id": "ninjaturtle",

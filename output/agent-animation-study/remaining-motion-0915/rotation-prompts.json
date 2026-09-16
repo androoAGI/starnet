@@ -1,0 +1,46 @@
+[
+  {
+    "id": "heisenberg",
+    "name": "Heisenberg",
+    "referenced_image_paths": [
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/heisenberg/south.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/heisenberg/east.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/heisenberg/north.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/heisenberg/west.png"
+    ],
+    "prompt": "Create the four missing diagonal orientation frames for this existing Heisenberg game sprite, using the supplied front, right, back and left as exact character-design references. This is animation completion, not a new character design: preserve outfit, face, proportions, color palette, pixel clusters and material treatment from the references. Transparent background. EXACTLY FOUR separate full-body sprites in ONE HORIZONTAL ROW of four equal square cells, generous clear padding, identical standing height and baseline. From left to right: SOUTH-EAST (front-right three-quarter view, face visible); NORTH-EAST (back-right three-quarter view, back visible); NORTH-WEST (back-left three-quarter view, back visible); SOUTH-WEST (front-left three-quarter view, face visible). Same elevated station game camera as the reference views. Neutral relaxed standing pose, arms at sides. No labels, no extra characters, no scene, no shadows, no motion blur."
+  },
+  {
+    "id": "ricksanchez",
+    "name": "Rick Sanchez",
+    "referenced_image_paths": [
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/ricksanchez/south.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/ricksanchez/east.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/ricksanchez/north.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/ricksanchez/west.png"
+    ],
+    "prompt": "Create the four missing diagonal orientation frames for this existing Rick Sanchez game sprite, using the supplied front, right, back and left as exact character-design references. This is animation completion, not a new character design: preserve outfit, face, proportions, color palette, pixel clusters and material treatment from the references. Transparent background. EXACTLY FOUR separate full-body sprites in ONE HORIZONTAL ROW of four equal square cells, generous clear padding, identical standing height and baseline. From left to right: SOUTH-EAST (front-right three-quarter view, face visible); NORTH-EAST (back-right three-quarter view, back visible); NORTH-WEST (back-left three-quarter view, back visible); SOUTH-WEST (front-left three-quarter view, face visible). Same elevated station game camera as the reference views. Neutral relaxed standing pose, arms at sides. No labels, no extra characters, no scene, no shadows, no motion blur."
+  },
+  {
+    "id": "minionchar",
+    "name": "Minion",
+    "referenced_image_paths": [
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/minionchar/south.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/minionchar/east.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/minionchar/north.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/minionchar/west.png"
+    ],
+    "prompt": "Create the four missing diagonal orientation frames for this existing Minion game sprite, using the supplied front, right, back and left as exact character-design references. This is animation completion, not a new character design: preserve outfit, face, proportions, color palette, pixel clusters and material treatment from the references. Transparent background. EXACTLY FOUR separate full-body sprites in ONE HORIZONTAL ROW of four equal square cells, generous clear padding, identical standing height and baseline. From left to right: SOUTH-EAST (front-right three-quarter view, face visible); NORTH-EAST (back-right three-quarter view, back visible); NORTH-WEST (back-left three-quarter view, back visible); SOUTH-WEST (front-left three-quarter view, face visible). Same elevated station game camera as the reference views. Neutral relaxed standing pose, arms at sides. No labels, no extra characters, no scene, no shadows, no motion blur."
+  },
+  {
+    "id": "pikachu",
+    "name": "Pikachu",
+    "referenced_image_paths": [
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/pikachu/south.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/pikachu/east.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/pikachu/north.png",
+      "C:/Users/andro/gen-trees/sprite-reimagine-0914/frontend/assets/skin-study-0914/pikachu/west.png"
+    ],
+    "prompt": "Create the four missing diagonal orientation frames for this existing Pikachu game sprite, using the supplied front, right, back and left as exact character-design references. This is animation completion, not a new character design: preserve outfit, face, proportions, color palette, pixel clusters and material treatment from the references. Transparent background. EXACTLY FOUR separate full-body sprites in ONE HORIZONTAL ROW of four equal square cells, generous clear padding, identical standing height and baseline. From left to right: SOUTH-EAST (front-right three-quarter view, face visible); NORTH-EAST (back-right three-quarter view, back visible); NORTH-WEST (back-left three-quarter view, back visible); SOUTH-WEST (front-left three-quarter view, face visible). Same elevated station game camera as the reference views. Neutral relaxed standing pose, arms at sides. No labels, no extra characters, no scene, no shadows, no motion blur."
+  }
+]

@@ -224,8 +224,8 @@
     {
       "id": "heisenberg",
       "frames": 64,
-      "cycleUnits": 10.64,
-      "cyclesPerSecondAt28": 2.631578947368421,
+      "cycleUnits": 11,
+      "cyclesPerSecondAt28": 2.5454545454545454,
       "minGap": 0.12999999999999545,
       "maxGap": 0.12999999999999545,
       "previousFootDrift": 0
@@ -298,8 +298,8 @@
       "frames": 64,
       "cycleUnits": 10.64,
       "cyclesPerSecondAt28": 2.631578947368421,
-      "minGap": 0.141627906976737,
-      "maxGap": 0.141627906976737,
+      "minGap": 0.12999999999999545,
+      "maxGap": 0.12999999999999545,
       "previousFootDrift": 0
     },
     {

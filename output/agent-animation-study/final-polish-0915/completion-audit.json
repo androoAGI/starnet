@@ -1,0 +1,323 @@
+{
+  "scope": "38 skins, each with 8 standing views, 64 walking frames, 4 sitting views and 4 north-facing typing frames; file coverage, not a claim of visual perfection",
+  "ready": false,
+  "completeSets": 36,
+  "totalSets": 38,
+  "missingFrames": 48,
+  "rows": [
+    {
+      "id": "android",
+      "name": "Silver Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "astronaut",
+      "name": "Astronaut",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "robot",
+      "name": "Robot",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "crthead",
+      "name": "CRT-head",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "alien",
+      "name": "Alien",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ultron",
+      "name": "Ultron Overseer",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "plaguedoctor",
+      "name": "Plague Doctor",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "secretagent",
+      "name": "Secret Agent",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "voidwizard",
+      "name": "Void Wizard",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "xenomorph",
+      "name": "Xenomorph",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "robocop",
+      "name": "Robocop",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "masterchief",
+      "name": "Master Chief",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "grimreaper",
+      "name": "Grim Reaper",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "crewmate",
+      "name": "Crewmate",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "bear",
+      "name": "Teddy Bear",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "pepe",
+      "name": "Pepe",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "capybara",
+      "name": "Capybara",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "vaultboy",
+      "name": "Fallout 1 Vault Dweller",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "station_minion",
+      "name": "Station Minion",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_blue",
+      "name": "Blue Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_green",
+      "name": "Green Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_red",
+      "name": "Red Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "blank_amber",
+      "name": "Amber Cadet",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "heisenberg",
+      "name": "Heisenberg",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "endoskeleton",
+      "name": "Endoskeleton",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ultrondroid",
+      "name": "Ultron Droid",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "samaltman",
+      "name": "Sam",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "dario",
+      "name": "Dario",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "freddyfazbear",
+      "name": "Freddy",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ghostface",
+      "name": "Ghostface",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "morpheus",
+      "name": "Morpheus",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ricksanchez",
+      "name": "Rick",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "ninjaturtle",
+      "name": "Ninja Turtle",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "minionchar",
+      "name": "Minion",
+      "complete": false,
+      "gaps": [
+        {
+          "track": "sit.south",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "sit.east",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "sit.north",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "sit.west",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "type.north",
+          "expected": 4,
+          "available": 0,
+          "missing": 4
+        }
+      ]
+    },
+    {
+      "id": "pikachu",
+      "name": "Pikachu",
+      "complete": false,
+      "gaps": [
+        {
+          "track": "rot.south-east",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "rot.north-east",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "rot.north-west",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "rot.south-west",
+          "expected": 1,
+          "available": 0,
+          "missing": 1
+        },
+        {
+          "track": "walk.south-east",
+          "expected": 8,
+          "available": 0,
+          "missing": 8
+        },
+        {
+          "track": "walk.north-east",
+          "expected": 8,
+          "available": 0,
+          "missing": 8
+        },
+        {
+          "track": "walk.north-west",
+          "expected": 8,
+          "available": 0,
+          "missing": 8
+        },
+        {
+          "track": "walk.south-west",
+          "expected": 8,
+          "available": 0,
+          "missing": 8
+        },
+        {
+          "track": "type.north",
+          "expected": 4,
+          "available": 0,
+          "missing": 4
+        }
+      ]
+    },
+    {
+      "id": "caseyjones",
+      "name": "Casey Jones",
+      "complete": true,
+      "gaps": []
+    },
+    {
+      "id": "finn",
+      "name": "Finn",
+      "complete": true,
+      "gaps": []
+    }
+  ]
+}

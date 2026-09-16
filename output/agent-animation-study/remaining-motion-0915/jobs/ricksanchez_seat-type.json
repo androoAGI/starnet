@@ -1,0 +1,95 @@
+{
+  "id": "ricksanchez",
+  "name": "Rick Sanchez",
+  "track": "seat-type",
+  "source": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/north.png",
+  "sources": [
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/south.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/east.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/north.png",
+    "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/west.png"
+  ],
+  "prompt": "Complete the seated and typing poses for these existing Rick Sanchez pixel-art game sprite references. Preserve their exact design, outfit, face, proportions, camera perspective, palette and pixel-cluster style. Output EXACTLY EIGHT sprites in a FOUR-COLUMN TWO-ROW grid with real transparent alpha background, no labels, grid, furniture, scene or shadows. Top row left to right: seated facing SOUTH, seated facing EAST, seated facing NORTH, seated facing WEST. Sitting on an invisible chair, thighs forward with right-angle knees, lower legs down, relaxed upright torso, hands at desk height, no chair or desk drawn. Head and torso stay their standing size; seated overall height roughly three quarters of standing. Bottom row: FOUR sequential subtle seated typing frames all facing NORTH (back to camera), matching top-row NORTH seated pose exactly in head position, hips, feet, height and body. Only alternating small hand and forearm movements; no torso twisting, bobbing, shrugging or wide squat. Equal cell spacing, identical scale and foot baseline across all eight cells. Generous transparent padding.",
+  "generated": "C:\\Users\\andro\\.codex\\generated_images\\01a09e2a-59d9-7333-ae0c-3d07653ddb14\\exec-4697e7b9-6697-4f05-93fd-eb0d2e935f8f.png",
+  "sheet": "C:/Users/andro/gen-trees/sprite-reimagine-0914/output/agent-animation-study/remaining-motion-0915/ricksanchez_seat-type.png",
+  "method": "built-in ImageGen",
+  "status": "generated",
+  "selected": [
+    "sit_south.png",
+    "sit_east.png",
+    "sit_north.png",
+    "sit_west.png",
+    "type_north_0.png",
+    "type_north_1.png",
+    "type_north_2.png",
+    "type_north_3.png"
+  ],
+  "packed": true,
+  "scale": 0.17210682492581603,
+  "bounds": [
+    {
+      "left": 130,
+      "top": 109,
+      "width": 152,
+      "height": 337
+    },
+    {
+      "left": 140,
+      "top": 109,
+      "width": 154,
+      "height": 337
+    },
+    {
+      "left": 98,
+      "top": 109,
+      "width": 168,
+      "height": 337
+    },
+    {
+      "left": 89,
+      "top": 109,
+      "width": 158,
+      "height": 337
+    },
+    {
+      "left": 121,
+      "top": 81,
+      "width": 170,
+      "height": 330
+    },
+    {
+      "left": 116,
+      "top": 81,
+      "width": 174,
+      "height": 330
+    },
+    {
+      "left": 96,
+      "top": 81,
+      "width": 172,
+      "height": 330
+    },
+    {
+      "left": 93,
+      "top": 81,
+      "width": 170,
+      "height": 330
+    }
+  ],
+  "inputHashes": {
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/south.png": "04229d3daeb55b181fefde2fe8c704a9d3d9d355189dbd1aa8a4faecb9dc3744",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/east.png": "1e99f063c53e8983f04e910cf28bd1a9dc78ee9a306693e1371c9298d03cbf70",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/north.png": "485ca67b9d453a0e3f5dd9002af1e97c0442252c0f0f9da1be0d351041183086",
+    "output/agent-animation-study/remaining-motion-0915/full-motion/ricksanchez/refs/west.png": "68aaefe41ec15daf996c2c8f782aa7e2043238ec3c73182359189d78586745cb"
+  },
+  "selectedHashes": {
+    "sit_south.png": "71b5483359c54cafc2d73ee9413252fe494b27b956b6108ded1add6e9fa4a22f",
+    "sit_east.png": "029345529e837fd35af170fe6df2c81d060790007dd50bb4040af72d5e51e7b5",
+    "sit_north.png": "8ed2d02c90bf36608471e8e8d78d2f4091ad5a6501e498130bba3b5455535df7",
+    "sit_west.png": "e23d7ffc5ac9e2fd70d204cb33e747285962a87e49434f8a6ee97b257810f004",
+    "type_north_0.png": "b4e41fb354f4bc6ba87fead0709ee85212c5079784225bb5e577f70a6486fb69",
+    "type_north_1.png": "a05766c603bbe86f3d5c0c2db0afa1c5aff513f54e99acd1c8347d628cc5f130",
+    "type_north_2.png": "78b232a45d91021dd70dc66a1d7422117a771ac7d8610f74006663cdbc6aa69a",
+    "type_north_3.png": "28f872934a984f011a58e83c4e799689bf128ba3fa127625acb1140817864dc9"
+  }
+}
