@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "fc4c9e0f415251870778da1405086c421aff0670",
+    "sourceCommit": "23a64d0edd68c1c49405e543b6bab30c0915e88c",
     "pathSetSha256": "bab9a009d72da26d3f09788b23df27fbaf063140c6d8e030b7e1df4b8fa69b0c",
     "files": [
       {
@@ -1083,8 +1083,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 160234,
-        "sha256": "8b3347ac28f9f266609086f17bd8bffb0b31aebdc83fab45aed5ee2c8049b8c8"
+        "bytes": 160253,
+        "sha256": "0df1d90357f5a4ee5ef433d03276b7b2d07eeb93eb1e0115ca32046edc61c151"
       },
       {
         "path": "frontend/app/worldrenderer.js",
@@ -1123,8 +1123,8 @@
       },
       {
         "path": "frontend/assets/industrial/space-preview.html",
-        "bytes": 5143,
-        "sha256": "7173f264bff88961612acc96b76c8ecaa40e1cbc9c0414aa4ca23b796397a8b6"
+        "bytes": 5162,
+        "sha256": "0027c805ba580be3cd5133dfa2c73a24f7f4969ac1e703ad5f9375ff1e8e5b68"
       },
       {
         "path": "frontend/css/agent-dossier.css",
