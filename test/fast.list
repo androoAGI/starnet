@@ -792,6 +792,7 @@ test/prop-industrial-remaster.test.js
 test/industrialtextures.test.js
 test/world-texture-ready.test.js
 test/qa-claims-blob-batch.test.js
+test/qa-claims-search-batch.test.js
 test/workstation-screen-state.test.js
 test/prop-remaster-contract.test.js
 test/authored-prop-content.test.js

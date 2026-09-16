@@ -477,21 +477,44 @@ function verificationPaths(ledger, allTracked) {
   return sortedUnique(paths);
 }
 
-function verifyCheck(check, readFile, label, errors, allTracked) {
-  const targets = checkTargets(check, allTracked);
-  if (!targets.length) { errors.push(label + ' scope matched no tracked files'); return; }
-  for (const target of targets) {
-    let contents;
-    try { contents = Buffer.from(readFile(target)).toString('utf8'); }
-    catch (error) { errors.push(label + ' unreadable ' + target + ': ' + error.message); continue; }
-    if (check.kind === 'contains' && !contents.includes(check.needle)) {
-      errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
+// Git snapshot buffers are immutable. Cache only search booleans, never decoded artwork;
+// injected readers stay uncached so a changed fixture cannot inherit an earlier verdict.
+const CHECKS_BY_BLOB = new WeakMap();
+export function verifyAuthorityChecks(requests, readFile, errors, allTracked, immutable = false) {
+  const byTarget = new Map();
+  for (const { check, label } of requests) {
+    const targets = checkTargets(check, allTracked);
+    if (!targets.length) errors.push(label + ' scope matched no tracked files');
+    for (const target of targets) {
+      if (!byTarget.has(target)) byTarget.set(target, []);
+      byTarget.get(target).push({ check, label });
     }
-    if (check.kind === 'absent') {
-      for (const needle of check.needles) {
-        if (contents.toLowerCase().includes(text(needle).toLowerCase())) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
+  }
+  for (const [target, checks] of byTarget) {
+    let bytes;
+    try { bytes = readFile(target); }
+    catch (error) {
+      for (const { label } of checks) errors.push(label + ' unreadable ' + target + ': ' + error.message);
+      continue;
+    }
+    const cacheable = immutable && Buffer.isBuffer(bytes);
+    const hits = cacheable && CHECKS_BY_BLOB.get(bytes) || new Map();
+    let contents, lower;
+    const matches = (needle, folded) => {
+      const key = JSON.stringify([folded, needle]);
+      if (hits.has(key)) return hits.get(key);
+      if (contents === undefined) contents = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : Buffer.from(bytes).toString('utf8');
+      if (folded && lower === undefined) lower = contents.toLowerCase();
+      const result = (folded ? lower : contents).includes(folded ? text(needle).toLowerCase() : needle);
+      hits.set(key, result); return result;
+    };
+    for (const { check, label } of checks) {
+      if (check.kind === 'contains' && !matches(check.needle, false)) errors.push(label + ' locator missing in ' + target + ': ' + JSON.stringify(check.needle));
+      if (check.kind === 'absent') for (const needle of check.needles) {
+        if (matches(needle, true)) errors.push(label + ' absence escaped in ' + target + ': ' + JSON.stringify(needle));
       }
     }
+    if (cacheable) CHECKS_BY_BLOB.set(bytes, hits);
   }
 }
 
@@ -614,6 +637,8 @@ export function inspectClaimsAuthority(options = {}) {
       }
     }
     const locked = new Set(lockedPaths);
+    const checks = [];
+    const verifyCheck = (check, _readFile, label) => checks.push({ check, label });
     for (const claim of ledger.claims) {
       for (let index = 0; index < claim.surfaceLocators.length; index += 1) {
         const locator = claim.surfaceLocators[index];
@@ -626,6 +651,7 @@ export function inspectClaimsAuthority(options = {}) {
     }
     for (const row of ledger.waveVerdicts) row.authorityChecks.forEach((check, index) => verifyCheck(check, readFile, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
     for (const row of ledger.doNotRebuild) row.authorityChecks.forEach((check, index) => verifyCheck(check, readFile, row.id + '.authorityChecks[' + index + ']', planningReasons, allTracked));
+    verifyAuthorityChecks(checks, readFile, planningReasons, allTracked, !options.readFile && !!candidateCommit);
   }
 
   const uniquePlanningReasons = sortedUnique(planningReasons);
