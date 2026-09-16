@@ -4,15 +4,14 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**3** open (open+claimed) of 155 total — 0 P0 · 1 P1 · 2 P2
+**2** open (open+claimed) of 155 total — 0 P0 · 0 P1 · 2 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **72** · source fixed: **69** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **70**.
+User/owner reports: **72** · source fixed: **70** · installer verified: **6** · customer confirmed: **1** · still reported failing: **1** · recovery unconfirmed: **70**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
-| [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) |  | open | unverified | unconfirmed |
 | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | delegated-capabilities | fixed | verified | unconfirmed |
 | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | durability-and-visibility | fixed | unverified | unconfirmed |
 | [Persisted E-STOP cannot be resumed from the desktop control](bugs/8f911536-persisted-e-stop-cannot-be-resumed-from-the-desk.md) | emergency-stop | fixed | unverified | unconfirmed |
@@ -42,6 +41,7 @@ User/owner reports: **72** · source fixed: **69** · installer verified: **6** 
 | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | capability-projection | fixed | unverified | unconfirmed |
 | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | provider-fallback | fixed | verified | unconfirmed |
 | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | catalog-truth | fixed | unverified | unconfirmed |
+| [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | packaged-runtime-asset-closure | fixed | unverified | unconfirmed |
 | [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | informed-approval | fixed | unverified | unconfirmed |
 | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | group-chat-picker | fixed | unverified | unconfirmed |
 | [Agent session focus commands can unexpectedly retarget the composer](bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md) | session-focus | fixed | unverified | unconfirmed |
@@ -94,7 +94,6 @@ User/owner reports: **72** · source fixed: **69** · installer verified: **6** 
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | release | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | agent/release-0120-prep-0915 | — |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [cron-store's armAt never receives the host defaultTz, so a tz-less cron routine's FIRST nextRunAt is UTC-anchored while every later advance uses local — the mar](bugs/f47a1e3a-cron-store-s-armat-never-receives-the-host-defau.md) | sweep/autonomy | 226cec3c |
 | P1 | fixed | autonomy | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
@@ -140,6 +139,7 @@ User/owner reports: **72** · source fixed: **69** · installer verified: **6** 
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
+| P1 | fixed | release | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | agent/release-0120-prep-0915 | d1848af00 |
 | P1 | fixed | release | [Dismissed frame name suppresses unrelated visual changes](bugs/8993bb79-dismissed-frame-name-suppresses-unrelated-visual.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
 | P1 | fixed | release | [Filtered journey run can replace the full release journey receipt](bugs/3d9dce85-filtered-journey-run-can-replace-the-full-releas.md) | agent/release-ui-audit-0906 | 042394b7d |
 | P1 | fixed | release | [migrate_workspace_data writes the .migrated marker unconditionally and drops copy_missing_dir's Err with no log — a partial legacy migration is permanent and lo](bugs/f42a5f46-migrate-workspace-data-writes-the-migrated-marke.md) | sweep/release | 5f8aa7ce |
@@ -256,5 +256,5 @@ User/owner reports: **72** · source fixed: **69** · installer verified: **6** 
 | onboarding | 0 |
 | world | 0 |
 | voice | 0 |
-| release | 1 |
+| release | 0 |
 

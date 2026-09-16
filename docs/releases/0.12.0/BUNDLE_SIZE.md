@@ -1,5 +1,7 @@
 # 0.12.0 desktop bundle size — the blocker found at packaging time
 
+**Correction from installed verification:** the runtime-evidence paragraph below missed a boot-time request. `industrialtextures.js` requires `calibration/crate.png` (2,784,196 bytes). Omitting it disables the entire texture pack and therefore every remastered prop, despite all 184 prop views loading. The installed `fd55ee2b2` candidate reproduced this exactly. The corrected staging set includes `calibration/`; the loader regression now executes the assembled URLs instead of relying on literal-path grep. The installer identity below is historical and must not be published. See [RECOVERY.md](RECOVERY.md).
+
 **Found:** September 16, 2026 while cutting the local signed installer for the candidate `93ed9e63d`.
 `cargo` built the shell, then NSIS failed:
 
