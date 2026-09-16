@@ -1,0 +1,26 @@
+[
+  {
+    "systemChars": 8684,
+    "maxTokens": null,
+    "tools": 0,
+    "lastUser": "hello"
+  },
+  {
+    "systemChars": 7368,
+    "maxTokens": null,
+    "tools": 0,
+    "lastUser": "INTERNAL — GOAL DECOMPOSITION. Do not run any tools. Reason only, then reply in the exact format below.\nYour Commander has this goal: \"Be the always-ready dev test agent for StarNet — a fully-onboarded general assistant a developer can talk to the instant the station boots.\".\nBreak it into a clear PATH — the ordered milestones that get them there. Hard rules:\n- Between 3 and 5 milestones. Ordered: earliest first, each a real step toward the goal.\n- Each milestone is ONE concrete, achievable outcome — something you could actually help build or do, not a vague theme.\n- Ground them in what you know about this Commander (their stack, pain, world). No generic filler.\n- One per line, numbered. Nothing else — no preamble, no closing note.\nReply in EXACTLY this format:\n1. <first milestone>\n2. <second milestone>\n3. <third milestone>"
+  },
+  {
+    "systemChars": 8680,
+    "maxTokens": 512,
+    "tools": 0,
+    "lastUser": "hello capped"
+  },
+  {
+    "systemChars": 7477,
+    "maxTokens": 4096,
+    "tools": 0,
+    "lastUser": "INTERNAL — GOAL DECOMPOSITION. Do not run any tools. Reason only, then reply in the exact format below.\nYour Commander has this goal: \"Be the always-ready dev test agent for StarNet — a fully-onboarded general assistant a developer can talk to the instant the station boots.\".\nBreak it into a clear PATH — the ordered milestones that get them there. Hard rules:\n- Between 3 and 5 milestones. Ordered: earliest first, each a real step toward the goal.\n- Each milestone is ONE concrete, achievable outcome — something you could actually help build or do, not a vague theme.\n- Ground them in what you know about this Commander (their stack, pain, world). No generic filler.\n- One per line, numbered. Nothing else — no preamble, no closing note.\nReply in EXACTLY this format:\n1. <first milestone>\n2. <second milestone>\n3. <third milestone>"
+  }
+]

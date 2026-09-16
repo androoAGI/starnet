@@ -473,6 +473,12 @@ module.exports = (async () => {
     A.eq((await wireOf({})).max_tokens, undefined, 'no ceiling on the wire unless a profile or caller asks for one');
     A.eq((await wireOf({ maxTokens: 4096 })).max_tokens, 4096, 'a profile-declared ceiling rides every request as max_tokens');
     A.eq((await wireOf({ maxTokens: 4096 }, { max_tokens: 512 })).max_tokens, 512, 'an explicit per-request max_tokens beats the profile ceiling');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 }, { isTask: false })).max_tokens, 512, 'explicit casual chat uses the smaller profile allowance');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 }, { isTask: true })).max_tokens, 4096, 'tasks retain their full allowance even without tool definitions');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 })).max_tokens, 4096, 'unclassified auxiliary calls retain their full allowance');
+    A.eq((await wireOf({ maxTokens: 256, maxChatTokens: 512 }, { isTask: false })).max_tokens, 256, 'casual allowance never raises a smaller configured ceiling');
+    A.eq((await wireOf({}, { isTask: false })).max_tokens, undefined, 'hosted chat is unchanged without a profile cap');
+    A.eq((await wireOf({ maxTokens: 4096 }, { max_tokens: Infinity })).max_tokens, 4096, 'a non-finite request cannot disable the output ceiling');
     A.eq((await wireOf({ maxTokens: 0 })).max_tokens, undefined, 'a zero/absent profile ceiling sends nothing');
     A.eq((await wireOf({ maxTokens: 'nope' })).max_tokens, undefined, 'a junk profile ceiling sends nothing');
     const calls = [];

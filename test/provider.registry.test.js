@@ -179,7 +179,7 @@ module.exports = (async () => {
   A.eq(factory.getProviderProfile('ollama').maxOutputTokens, 4096, 'Ollama profile declares a 4096-token output ceiling');
   A.eq(factory.getProviderProfile('openai').maxOutputTokens, undefined, 'hosted OpenAI-compatible profiles declare no ceiling');
   {
-    const wireFor = async (id, env) => {
+    const wireFor = async (id, env, isTask) => {
       const prev = process.env.SKYNET_OLLAMA_MAX_TOKENS;
       if (env == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = env;
       try {
@@ -188,7 +188,7 @@ module.exports = (async () => {
           if (init && init.method === 'POST') { wire = JSON.parse(init.body); return new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } }); }
           return new Response(JSON.stringify({ data: [] }), { status: 200 });
         } });
-        for await (const _ of p.stream({ model: 'm', messages: [{ role: 'user', content: 'hi' }] })) { /* drain */ }
+        for await (const _ of p.stream({ model: 'm', messages: [{ role: 'user', content: 'hi' }], isTask })) { /* drain */ }
         return wire;
       } finally {
         if (prev == null) delete process.env.SKYNET_OLLAMA_MAX_TOKENS; else process.env.SKYNET_OLLAMA_MAX_TOKENS = prev;
@@ -197,6 +197,10 @@ module.exports = (async () => {
     A.eq((await wireFor('ollama')).max_tokens, 4096, 'an Ollama run carries the profile ceiling as max_tokens');
     A.eq((await wireFor('ollama', '8192')).max_tokens, 8192, 'SKYNET_OLLAMA_MAX_TOKENS overrides the declared ceiling');
     A.eq((await wireFor('ollama', 'junk')).max_tokens, 4096, 'a junk override falls back to the declared ceiling');
+    A.eq((await wireFor('ollama', 'Infinity')).max_tokens, 4096, 'a non-finite environment override retains the ceiling');
+    A.eq((await wireFor('ollama', null, false)).max_tokens, 512, 'an explicitly casual Ollama turn uses 512 tokens');
+    A.eq((await wireFor('ollama', null, true)).max_tokens, 4096, 'an Ollama task retains 4096 tokens');
+    A.eq((await wireFor('deepseek', null, false)).max_tokens, undefined, 'hosted casual chat gets no new cap');
     A.eq((await wireFor('deepseek')).max_tokens, undefined, 'a hosted OpenAI-compatible run sends no max_tokens');
   }
 
@@ -205,5 +209,57 @@ module.exports = (async () => {
   const gemini = factory.selectProvider({ provider: 'gemini', fetch: async () => new Response('', { status: 200 }) });
   A.ok(gemini && typeof gemini.stream === 'function', 'factory returns Gemini adapter');
 
+  // A configured but unused OAuth fallback must not refresh or send a request.
+  for (const provider of ['codex', 'kimi', 'grok']) {
+    let refreshed=0, requests=0, headers;
+    const p=factory.selectProvider({provider,reasoningEffort:'high', tokenProvider:async()=>{refreshed++;return 'new-token';},fetch:async(_,o)=>{
+      if(!o.body) return new Response(JSON.stringify({data:[{id:'discovered-model',context_length:65536,supported_parameters:['reasoning']}]}));
+      requests++;headers=o.headers;const b=JSON.parse(o.body);
+      A.eq(b.reasoning ? b.reasoning.effort : b.reasoning_effort,provider==='kimi'?undefined:'high','fallback preserves adapter-supported effort behavior');
+      return new Response(provider==='codex' ? 'data: {"type":"response.completed","response":{}}\n\n' : 'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+    }});
+    p.contextLimit('test'); p.supportsTools('test');
+    A.eq(refreshed,0,'fallback metadata does not refresh '+provider);
+    A.eq(requests,0,'unused fallback does not call '+provider);
+    const cancelled=new AbortController();cancelled.abort();
+    for await(const e of p.stream({model:'test',messages:[],signal:cancelled.signal})) {}
+    A.eq(refreshed,0,'cancel before use skips refresh '+provider);
+    for(let i=0;i<2;i++) for await(const e of p.stream({model:'test',messages:[]})) {}
+    A.eq(refreshed,1,'successful activation reused '+provider);
+    A.eq(requests,2,'both selected calls execute '+provider);
+    A.eq(headers.Authorization,'Bearer new-token','fresh credential reaches selected fallback '+provider);
+    if(provider!=='codex') {
+      await p.listModels();
+      A.eq(p.contextLimit('discovered-model'),65536,'activated metadata follows the live catalog '+provider);
+      A.eq(refreshed,1,'catalog query reuses authenticated adapter '+provider);
+    }
+  }
+  {
+    let count=0;const p=factory.selectProvider({provider:'codex',tokenProvider:async()=>{if(++count===1)throw new Error('refresh unavailable');return 'fresh';},fetch:async()=>new Response('data: {"type":"response.completed","response":{}}\n\n')});
+    let failed=false;try{for await(const e of p.stream({messages:[]})) {}}catch(e){failed=e.message==='refresh unavailable';}
+    A.ok(failed,'refresh failure is surfaced, never silently successful');
+    for await(const e of p.stream({messages:[]})) {}
+    A.eq(count,2,'failed activation can recover');
+  }
+  {
+    let release, started, requests = 0;
+    const refreshing = new Promise(resolve => { started = resolve; });
+    const token = new Promise(resolve => { release = resolve; });
+    const p = factory.selectProvider({ provider: 'codex', tokenProvider: () => { started(); return token; }, fetch: async () => {
+      requests++; return new Response('data: {"type":"response.completed","response":{}}\n\n');
+    } });
+    const abort = new AbortController();
+    const run = (async () => { for await (const _ of p.stream({ messages: [], signal: abort.signal })) {} return 'stopped'; })();
+    await refreshing;
+    abort.abort();
+    let timer;
+    const settled = await Promise.race([run, new Promise(resolve => { timer = setTimeout(() => resolve('still waiting'), 500); })]);
+    clearTimeout(timer);
+    A.eq(settled, 'stopped', 'Stop does not wait for an already-running fallback token refresh');
+    release('fresh'); await run;
+    A.eq(requests, 0, 'cancelled activation never sends inference after refresh finishes');
+    for await (const _ of p.stream({ messages: [] })) {}
+    A.eq(requests, 1, 'successful background refresh remains usable by a later caller');
+  }
   A.report('provider.registry.test');
 })();

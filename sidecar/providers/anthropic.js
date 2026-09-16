@@ -459,9 +459,17 @@
       if (tools) body.tools = tools;
       // One breakpoint for the whole static prefix. System is the preferred anchor because it sits AFTER the
       // tools and so caches both; with no system prompt the last tool is the only anchor that covers them.
-      if (converted.system) body.system = breakpoint([{ type: 'text', text: converted.system }]);
-      else if (tools) breakpoint(tools);
-      /* SLIDING TAIL ANCHORS (2026-07-31, Hermes-parity pass): the LAST THREE messages each carry a
+      let systemAnchors = 1;
+      if (converted.system) {
+        // Two boundaries preserve both cross-run stable instructions and within-run full context.
+        // Keep the exact text and system authority; only the wire blocks/cache markers change.
+        const prefix = typeof req.cacheSystemPrefix === 'string' ? req.cacheSystemPrefix.trim() : '';
+        const split = prefix && converted.system.startsWith(prefix) && converted.system.slice(prefix.length).trim();
+        const texts = split ? [prefix, converted.system.slice(prefix.length)] : [converted.system];
+        systemAnchors = texts.length;
+        body.system = texts.map(text => breakpoint([{ type: 'text', text }])[0]);
+      } else if (tools) breakpoint(tools);
+      /* SLIDING TAIL ANCHORS: up to THREE messages (TWO with a split system) each carry a
          breakpoint — with the static-prefix anchor above, exactly the API's 4-breakpoint maximum.
          One trailing anchor was fragile for a mechanical reason: a breakpoint only looks BACK 20 content
          blocks for its predecessor, and a single agentic turn with parallel tool calls can append more
@@ -469,7 +477,7 @@
          re-bills as a cold write. Three sliding anchors keep every gap under the lookback window, and
          the anchors they slide off remain valid READ points as the tail grows. */
       const msgs = converted.messages;
-      for (let k = Math.max(0, msgs.length - 3); k < msgs.length; k++) {
+      for (let k = Math.max(0, msgs.length - (4 - systemAnchors)); k < msgs.length; k++) {
         if (msgs[k]) breakpoint(msgs[k].content);
       }
       return body;
