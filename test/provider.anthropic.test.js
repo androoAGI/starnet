@@ -331,5 +331,34 @@ async function collect(provider, req) { const out = []; for await (const e of pr
   }
 
   A.eq(_internals.normalizeUsage({ input_tokens: 1, cache_read_input_tokens: 2, output_tokens: 3 }).prompt_tokens, 3, 'cache read tokens are included in prompt total');
+  // Cross-run caching: changing runtime metadata must preserve a stable cache boundary,
+  // without dropping/reclassifying any system instructions, history or tool definitions.
+  {
+    const prefix = 'Follow every task check and skill. '.repeat(150);
+    const history = [{role:'user',content:'do the task'}, {role:'assistant',content:'checking'}, {role:'user',content:'continue'}];
+    let first;
+    for (const run of ['run-a','run-b']) {
+      let body;
+      const p = makeAnthropicProvider({key:'k',fetch:async (_,o)=>{body=JSON.parse(o.body);return new Response('data: {"type":"message_stop"}\n\n');}});
+      const text = prefix + '\n[RUNTIME] Run id: ' + run + '\nUse the required approval and verification steps.';
+      const messages=[{role:'system',content:text},...history]; const snapshot=JSON.stringify(messages);
+      await collect(p,{model:'claude-test',messages,cacheSystemPrefix:prefix,tools:[{type:'function',function:{name:'verify',description:'verify work',parameters:{type:'object',properties:{}}}}]});
+      A.eq(body.system.map(b=>b.text).join(''),text,'split preserves every system byte');
+      A.eq(body.system.length,2,'stable and changing context have separate blocks');
+      A.ok(body.system.every(b=>b.cache_control),'both boundaries remain cacheable');
+      A.eq((JSON.stringify(body).match(/cache_control/g)||[]).length,4,'four-breakpoint budget includes tail');
+      A.eq(body.tools[0].name,'verify','verification tool retained');
+      A.eq(body.messages.map(m=>m.role),history.map(m=>m.role),'history roles unchanged');
+      A.eq(JSON.stringify(messages),snapshot,'cache decoration never mutates history');
+      if(first) A.eq(body.system[0],first,'stable cache block identical across run IDs');
+      first=body.system[0];
+    }
+    for(const invalid of ['', 'not a prefix']) {
+      let body;const p=makeAnthropicProvider({key:'k',fetch:async(_,o)=>{body=JSON.parse(o.body);return new Response('data: {"type":"message_stop"}\n\n');}});
+      await collect(p,{model:'claude-test',messages:[{role:'system',content:'policy'}],cacheSystemPrefix:invalid});
+      A.eq(body.system.length,1,'mismatch uses unchanged legacy block');
+      A.eq(body.system[0].text,'policy','mismatch never drops text');
+    }
+  }
   A.report('provider.anthropic.test');
 })().catch(e => { console.log('FAIL: provider.anthropic.test threw -- ' + (e && e.stack || e)); process.exit(1); });

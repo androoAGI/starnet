@@ -92,7 +92,7 @@ ok(/function publishCreditsConfigured\(configured\)[\s\S]{0,300}setDesktopConfig
 ok(/if \(j && j\.configured\) \{[\s\S]{0,100}publishCreditsConfigured\(true\)/.test(stationui)
   && /if \(!\(j && j\.unavailable\)\) publishCreditsConfigured\(false\)/.test(stationui),
   'linked and definitive-unlinked answers converge the COMMS cache while temporary outages preserve it');
-ok((stationui.match(/\.then\(\(\) => refreshCreditsProvider\(\)\)\s*\.then\(\(\) => \{ scheduleSettingsRepaint\(\); wireCredits\(body\); \}\)/g) || []).length === 2,
+ok((stationui.match(/\.then\(\(\) => refreshCreditsProvider\(\)\)\s*\.then\(\(\) => \{ (?:_creditsUnlinkPending = false; )?scheduleSettingsRepaint\(\); wireCredits\(body\); \}\)/g) || []).length === 2,
   'link and unlink repaint the provider card after the Store and COMMS truth converges');
 ok(/_creditsLinkPollBusy/.test(stationui) && /generation !== _creditsLinkGeneration/.test(stationui),
   'the STORE pairing flow is also single-flight and ignores stale link responses');

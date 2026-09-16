@@ -458,5 +458,43 @@ module.exports = (async () => {
     A.ok(!receipt.text.includes('PRIVATE PROMPT'), 'raw upstream payload is not copied');
   }
 
+  // OUTPUT CEILING (issue #17): off by default, on when the profile declares it, explicit req.max_tokens wins,
+  // and an endpoint that 400s on the legacy param name self-heals through the droppable list.
+  {
+    const wireOf = async (opts, req) => {
+      let wire = null;
+      const p = makeOpenAICompatibleProvider(Object.assign({ baseUrl: 'http://local/v1', fetch: async (url, init) => {
+        if (init && init.method === 'POST') { wire = JSON.parse(init.body); return new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } }); }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      } }, opts));
+      await collect(p, Object.assign({ model: 'm', messages: [] }, req || {}));
+      return wire;
+    };
+    A.eq((await wireOf({})).max_tokens, undefined, 'no ceiling on the wire unless a profile or caller asks for one');
+    A.eq((await wireOf({ maxTokens: 4096 })).max_tokens, 4096, 'a profile-declared ceiling rides every request as max_tokens');
+    A.eq((await wireOf({ maxTokens: 4096 }, { max_tokens: 512 })).max_tokens, 512, 'an explicit per-request max_tokens beats the profile ceiling');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 }, { isTask: false })).max_tokens, 512, 'explicit casual chat uses the smaller profile allowance');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 }, { isTask: true })).max_tokens, 4096, 'tasks retain their full allowance even without tool definitions');
+    A.eq((await wireOf({ maxTokens: 4096, maxChatTokens: 512 })).max_tokens, 4096, 'unclassified auxiliary calls retain their full allowance');
+    A.eq((await wireOf({ maxTokens: 256, maxChatTokens: 512 }, { isTask: false })).max_tokens, 256, 'casual allowance never raises a smaller configured ceiling');
+    A.eq((await wireOf({}, { isTask: false })).max_tokens, undefined, 'hosted chat is unchanged without a profile cap');
+    A.eq((await wireOf({ maxTokens: 4096 }, { max_tokens: Infinity })).max_tokens, 4096, 'a non-finite request cannot disable the output ceiling');
+    A.eq((await wireOf({ maxTokens: 0 })).max_tokens, undefined, 'a zero/absent profile ceiling sends nothing');
+    A.eq((await wireOf({ maxTokens: 'nope' })).max_tokens, undefined, 'a junk profile ceiling sends nothing');
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push({ url, init });
+      if (!init || init.method !== 'POST') return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      const body = JSON.parse(init.body);
+      if (body.max_tokens !== undefined) return new Response(JSON.stringify({ error: { message: 'Unsupported parameter: max_tokens is not supported with this model. Use max_completion_tokens instead.' } }), { status: 400 });
+      return new Response('data: [DONE]\n\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    };
+    const p = makeOpenAICompatibleProvider({ fetch: fetchImpl, baseUrl: 'http://local/v1', maxTokens: 4096 });
+    await collect(p, { model: 'strict', messages: [] });
+    const posts = calls.filter(c => c.init && c.init.method === 'POST');
+    A.eq(posts.length, 2, 'an endpoint that rejects max_tokens gets one retry without it');
+    A.eq(JSON.parse(posts[1].init.body).max_tokens, undefined, 'the retry dropped max_tokens instead of failing the run');
+  }
+
   A.report('provider.openai-compatible.test');
 })();

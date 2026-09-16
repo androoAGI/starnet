@@ -935,7 +935,7 @@ const StationBake = (() => {
   // FALLBACK ONLY — projected geometry always carries matOf, so this map is not what you see in
   // game. WorldModel.ROOM_KINDS[kind].mat is the authority; keep the two in step.
   const MAT_BY_KIND = { hab: 'spine', corridor: 'spine', bridge: 'panel', lab: 'tile', factory: 'tread', storage: 'tread', quarters: 'soft' };
-  const MAT_PITCH = { alloy: [4, 3], plate: [2, 2], panel: [4, 1], tile: [2, 2], tread: [2, 2], soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [1, 1], spine: [4, 3], diamond: [1, 1], resin: [4, 4], ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3], basalt: [3, 2], parquet: [3, 3], rubber: [2, 2], slotted: [3, 2], terrazzo: [4, 4], octile: [2, 2] };
+  const MAT_PITCH = { alloy: [4, 3], plate: [2, 2], panel: [4, 1], tile: [2, 2], tread: [2, 2], soft: [3, 2], grate: [1, 1], hex: [1, 1], plank: [5, 1], turf: [1, 1], spine: [4, 3], diamond: [1, 1], resin: [4, 4], ceramic: [3, 3], cargo: [3, 2], runner: [2, 2], treadway: [3, 2], meshway: [3, 3], basalt: [3, 2], parquet: [3, 3], rubber: [2, 2], slotted: [3, 2], terrazzo: [4, 4], octile: [2, 2], flightdeck: [2, 2], lunar: [4, 2], maggrid: [2, 2], habitat: [2, 2] };
   const MAT_NO_WEAR = { tile: 1, grate: 1, turf: 1, ceramic: 1, resin: 1 };   // gloss, open mesh, growth, and a poured or glazed floor take no boot scuffs   // gloss, open mesh and growth don't take boot scuffs
   // the room's deck material — the model's per-room choice when it has one, else the kind default
   // (a station built before the material axis existed has none, and bakes exactly as it always did).
@@ -1584,7 +1584,7 @@ const StationBake = (() => {
   // Finish belongs to the material, not to the room. Keep it inside the tile and
   // anchored to world coordinates so refit swatches and chunked decks agree.
   function paintDeck(b, mat, base, x, y, X, Y, z, n, fd) {
-    if (nextSurfaces() || (typeof WorldSurface !== 'undefined' && ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile'].includes(mat))) {
+    if (nextSurfaces() || (typeof WorldSurface !== 'undefined' && ['basalt', 'parquet', 'rubber', 'slotted', 'terrazzo', 'octile', 'flightdeck', 'lunar', 'maggrid', 'habitat'].includes(mat))) {
       const origin = G && G.origin || { tx: 0, ty: 0 };
       WorldSurface.paintFloorTile(b, mat, base, X, Y, T, x + origin.tx, y + origin.ty, { detail: fd });
       return;
@@ -2424,10 +2424,17 @@ const StationBake = (() => {
     wallFoot(b, body, X, footY, wd);
   }
 
+  function spaceWall(id) {
+    return (b, pal, X, Y, h, tile, n, north, fullH) => {
+      if (typeof WorldSurface !== 'undefined' && WorldSurface.paintWallTile(b, id, pal.base, X, Y, T, h, tile.x)) return;
+      wallPanelled(b, pal, X, Y, h, tile, n, north, fullH);
+    };
+  }
   const WALL_RECIPES = {
     plating: wallPlating, ribbed: wallRibbed, panelled: wallPanelled,
     viewport: wallViewport, pipework: wallPipework, wainscot: wallWainscot, hedge: wallHedge,
-    bulkhead: wallBulkhead, courses: wallCourses, service: wallService
+    bulkhead: wallBulkhead, courses: wallCourses, service: wallService,
+    pressure: spaceWall('pressure'), radiator: spaceWall('radiator'), utility: spaceWall('utility'), acoustic: spaceWall('acoustic')
   };
 
   /* ---------------- THE SIDE FACE — the same inner face, seen foreshortened ----------------
@@ -2485,7 +2492,7 @@ const StationBake = (() => {
   let stripCache = null;
   function faceStrip(matId, pal, h) {
     if (matId !== 'viewport' && typeof IndustrialTextures !== 'undefined' && IndustrialTextures.enabled())
-      return IndustrialTextures.wallStrip(h);
+      { const authored = IndustrialTextures.wallStrip(h, matId, pal.base); if (authored) return authored; }
     const key = matId + '|' + pal.base + '|' + h;
     const tx0 = 0, ty = 0;
     if (stripCache && stripCache.has(key)) return stripCache.get(key);
@@ -3095,10 +3102,56 @@ const StationBake = (() => {
       }
     }
   };
+  // Small deterministic counterparts keep each new shell available in classic
+  // mode and when an optional image cannot load. Contours still own every pixel.
+  function spaceShell(id) {
+    const marks = (g, pal, w, h, vx, vy, topOf) => {
+      for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) {
+        const xx = ((vx + x) % 32 + 32) % 32;
+        const top = topOf && topOf[x] >= 0 ? topOf[x] : -vy;
+        const yy = ((y - top) % 16 + 16) % 16;
+        const row = Math.floor((y - top) / 16);
+        let tone = null;
+        if (id === 'thermal') {
+          const joint = (xx + ((row & 1) ? 16 : 0)) % 32;
+          if (yy === 0 || joint === 0) tone = pal.seam;
+          else if (yy === 1 || joint === 1) tone = pal.lit;
+        } else if (id === 'insulation') {
+          if (xx === 0 || yy === 0) tone = pal.seam;
+          else if (xx === 2 || yy === 2) tone = pal.rim;
+          else if (xx > 4 && xx < 28 && yy === 5 + Math.floor(xx / 8)) tone = pal.lit;
+        } else {
+          if (yy === 0 || xx < 10 && xx % 3 === 0) tone = pal.seam;
+          else if (xx < 10 && xx % 3 === 1) tone = pal.lit;
+        }
+        if (tone) { g.fillStyle = tone; g.fillRect(x, y, 1, 1); }
+      }
+    };
+    return { ...hullStation,
+      dress(g, pal, x, y, w, h) { g.save(); g.translate(x, y); marks(g, pal, w, h, x, y); g.restore(); },
+      veins: marks
+    };
+  }
   const HULL_RECIPES = {
     station: hullStation, monocoque: hullMonocoque, timber: hullTimber, clapboard: hullClapboard, shingle: hullShingle,
-    brick: hullBrick, stone: hullStone, stucco: hullStucco, curtain: hullCurtain, hedge: hullHedge
+    brick: hullBrick, stone: hullStone, stucco: hullStucco, curtain: hullCurtain, hedge: hullHedge, thermal: spaceShell('thermal'), insulation: spaceShell('insulation'), heatsink: spaceShell('heatsink')
   };
+  // Re-clad existing IDs: saved rooms, paint hues, silhouette ownership and the
+  // palette chips all keep the same contract. Classic mode / missing artwork
+  // continues through the original recipe for that individual material.
+  for (const [id, classic] of Object.entries(HULL_RECIPES)) {
+    if (id === 'station') continue;
+    HULL_RECIPES[id] = { ...classic,
+      dress(b, pal, x, y, w, h) {
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shellPlate(b, x, y, w, h, id, pal.base)) return;
+        if (classic.dress) classic.dress(b, pal, x, y, w, h);
+      },
+      veins(g, pal, w, h, vx, vy, topOf) {
+        if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.shell(g, w, h, vx, vy, topOf, id, pal.base)) return;
+        if (classic.veins) classic.veins(g, pal, w, h, vx, vy, topOf);
+      }
+    };
+  }
 
   /* how wide the LIT TOP SURFACE is on a wall that is not extruded up-screen. Hard-clamped to
      pad-1 — past that the crown falls outside the ambient plate and burns against the starfield
@@ -4163,7 +4216,7 @@ const StationBake = (() => {
       const sil = sils[gi];
       const shellContext = cv => {
         const g = cv.getContext('2d');
-        return recipe === hullStation && typeof IndustrialTextures !== 'undefined'
+        return typeof IndustrialTextures !== 'undefined'
           ? IndustrialTextures.detailContext(g) : g;
       };
       const f = canvas(CW, CH2);

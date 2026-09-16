@@ -62,8 +62,24 @@ async function run(agentId){
     A.eq((await api('/api/growth/ratings?epoch=1')).body.ratings.length,3,'both agents have durable ratings in the original generation');
     const duplicate=await XpStore.recordWorkRating({runId:runIds[0],verdict:'miss'},transport);
     A.ok(duplicate.ok&&duplicate.duplicate&&!duplicate.applied,'retry is idempotent and retains the first verdict');
+    // Another window records work while this projection is still open. A later local acknowledgement
+    // must not checkpoint over that unseen receipt, including when the station is saved and restarted.
+    const remoteRun=await run('agent');
+    const remoteRating=(await api('/api/growth/ratings',{runId:remoteRun,verdict:'great',epoch:1})).body.rating;
+    const localRun=await run('agent');
+    const beforeConcurrent=JSON.parse(JSON.stringify(live.hero.stats));
+    const localRating=await XpStore.recordWorkRating({runId:localRun,verdict:'great'},transport);
+    let expected=beforeConcurrent;
+    for(const rating of [remoteRating,localRating.rating]) for(const entry of rating.entries) expected=Xp.applyEvent(expected,{name:'memory.feedback',payload:entry}).stats;
+    const resumed=resume({...legacy,agent:JSON.parse(JSON.stringify(live.hero)),agents:[JSON.parse(JSON.stringify(live.agents.get('scribe')))],stationStats:JSON.parse(JSON.stringify(XpStore.stationStats()))});
+    const checkpoint=XpStore.stationStats().ratingSyncAt;
+    const savedProjection=JSON.parse(JSON.stringify(XpStore.stationStats()));
     await stop();await boot();
-    const history=await api('/api/growth/ratings?epoch=1');A.eq(history.body.ratings.length,3,'legacy ratings survive a sidecar restart');
+    await XpStore.init({getAgent:id=>resumed.agents.get(id||'agent'),agents:()=>Array.from(resumed.agents.values()),station:savedProjection,syncRatingsSince:checkpoint,loadRatings:since=>XpStore.loadRatingHistory(since,transport)});
+    A.eq(resumed.hero.stats.xp,expected.xp,'restart recovers the other-window rating instead of checkpointing past it');
+    A.eq(resumed.hero.stats.level,expected.level,'recovered ratings restore the earned level');
+    A.eq(resumed.hero.stats.counters.positiveFeedback,expected.counters.positiveFeedback,'all five acknowledged ratings remain represented exactly once across both agents');
+    const history=await api('/api/growth/ratings?epoch=1');A.eq(history.body.ratings.length,5,'legacy ratings survive a sidecar restart');
     const fresh={...legacy,_saveRevision:(await api('/api/save?agent=agent')).body.save._saveRevision,updatedAt:Date.now()+3600000,agent:{...legacy.agent,createdAt:1234567}};
     A.ok((await api('/api/save',fresh)).body.ok,'new station saves its explicit generation');
     A.eq(resume(fresh).hero.createdAt,1234567,'resume preserves a real creation timestamp');

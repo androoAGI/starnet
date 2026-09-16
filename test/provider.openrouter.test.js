@@ -381,5 +381,31 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(JSON.stringify(messages), original, 'provider translation never rewrites durable loop history');
   }
 
+  {
+    const prefix='All required task checks. '.repeat(150);
+    const apply=require('../sidecar/providers/openrouter.js').applyCacheControl;
+    let first;
+    for(const run of ['run-a','run-b']) {
+      const messages=[{role:'system',content:prefix+'\n[RUNTIME] '+run}, {role:'user',content:'task'}, {role:'assistant',content:'verification'}, {role:'user',content:'continue'}];
+      const before=JSON.stringify(messages);
+      const out=apply(messages,'anthropic/claude-test',prefix);
+      A.eq(out[0].content.map(b=>b.text).join(''),messages[0].content,'all system instructions retained');
+      A.eq(out[0].content.length,2,'stable prefix has its own cache boundary');
+      A.eq((JSON.stringify(out).match(/cache_control/g)||[]).length,4,'split plus two tails stays within four markers');
+      if(first) A.eq(out[0].content[0],first,'run ID cannot invalidate stable anchor');
+      first=out[0].content[0];
+      A.eq(JSON.stringify(messages),before,'request decoration leaves stored history unchanged');
+      A.eq(apply(messages,'openai/gpt-test',prefix),messages,'non-Claude wire shape unchanged');
+    }
+    const recall=[{role:'system',content:prefix+' runtime'}, {role:'system',content:'Relevant memory remains mandatory.'}, {role:'user',content:'task'}];
+    const remembered=apply(recall,'claude-test',prefix);
+    A.eq(remembered[0].content[0].text,prefix,'leading recall cannot hide stable cache anchor');
+    A.eq(remembered[0].content.map(b=>b.text).join(''),recall[0].content,'runtime context retained with recall');
+    A.eq(remembered[1].content[0].text,recall[1].content,'memory text and system role preserved');
+    A.eq(remembered[1].role,'system','memory retains system authority');
+    A.ok((JSON.stringify(remembered).match(/cache_control/g)||[]).length<=4,'recall respects cache marker budget');
+    A.eq(apply([{role:'system',content:'policy'}],'claude-test','wrong')[0].content.length,1,'bad prefix falls back without splitting');
+    A.eq(apply([{role:'system',content:'policy'}],'claude-test','policy')[0].content.length,1,'exact prefix never creates an empty block');
+  }
   A.report('provider.openrouter.test');
 })();

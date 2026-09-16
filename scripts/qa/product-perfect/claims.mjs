@@ -147,7 +147,7 @@ function git(repoRoot, args, options = {}) {
     encoding: options.encoding === 'buffer' ? null : (options.encoding || 'utf8'),
     input: options.input,
     windowsHide: true,
-    maxBuffer: options.maxBuffer || 64 * 1024 * 1024
+    maxBuffer: 64 * 1024 * 1024
   });
   if (result.status !== 0 || result.error) {
     const stderr = Buffer.isBuffer(result.stderr)
@@ -201,36 +201,38 @@ function preloadAtCommit(repoRoot, candidateCommit, relativePaths) {
   const root = path.resolve(repoRoot);
   const missing = sortedUnique(relativePaths).map(safeRelative).filter(relative => !BLOB_AT_COMMIT.has(root + '\0' + commit + '\0' + relative));
   if (!missing.length) return;
-  const input = missing.map(relative => commit + ':' + relative).join('\n') + '\n';
-  // Artwork is part of the prefix-wide absence checks too. Bound each read by
-  // blob bytes so adding a texture pack cannot overflow spawnSync's buffer.
-  const info = text(git(repoRoot, ['cat-file', '--batch-check=%(objecttype) %(objectsize)'], { input })).trim().split('\n');
+  const refs = missing.map(relative => commit + ':' + relative);
+  // Texture packs belong to the audited tree too. Bound each read by actual blob
+  // bytes so adding artwork cannot overflow the subprocess's 64 MiB pipe buffer.
+  // Keep every path in the audit; splitting transport must never narrow authority.
+  const sizes = text(git(repoRoot, ['cat-file', '--batch-check=%(objectsize)'], { input: refs.join('\n') + '\n' })).trim().split('\n');
+  if (sizes.length !== missing.length) throw new Error('git cat-file returned an incomplete size inventory');
   const batches = []; let batch = [], bytes = 0;
   for (let i = 0; i < missing.length; i++) {
-    const match = /^blob ([0-9]+)$/.exec(info[i]);
-    if (!match) throw new Error('git cat-file could not size ' + missing[i]);
-    const size = Number(match[1]) + 128;
-    if (batch.length && bytes + size > 16 * 1024 * 1024) { batches.push({ paths: batch, bytes }); batch = []; bytes = 0; }
-    batch.push(missing[i]); bytes += size;
+    if (!/^\d+$/.test(sizes[i].trim())) throw new Error('git cat-file could not size ' + missing[i]);
+    const size = Number(sizes[i]);
+    if (size > 60 * 1024 * 1024) throw new Error('audit blob exceeds bounded read capacity: ' + missing[i]);
+    if (batch.length && bytes + size + 128 > 16 * 1024 * 1024) { batches.push(batch); batch = []; bytes = 0; }
+    batch.push(missing[i]); bytes += size + 128;
   }
-  if (batch.length) batches.push({ paths: batch, bytes });
-  for (const group of batches) {
-  const output = Buffer.from(git(repoRoot, ['cat-file', '--batch'], { encoding: 'buffer',
-    input: group.paths.map(relative => commit + ':' + relative).join('\n') + '\n', maxBuffer: Math.max(64 * 1024 * 1024, group.bytes) }));
-  let offset = 0;
-  for (const relative of group.paths) {
-    const lineEnd = output.indexOf(0x0a, offset);
-    if (lineEnd < 0) throw new Error('git cat-file batch ended before ' + relative);
-    const header = output.subarray(offset, lineEnd).toString('utf8');
-    const match = /^([0-9a-f]{40}) blob ([0-9]+)$/.exec(header);
-    if (!match) throw new Error('git cat-file could not read ' + relative + ': ' + header);
-    const size = Number(match[2]);
-    const start = lineEnd + 1;
-    const end = start + size;
-    if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + relative);
-    BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + relative, Buffer.from(output.subarray(start, end)));
-    offset = end + 1;
-  }
+  if (batch.length) batches.push(batch);
+  for (const paths of batches) {
+    const input = paths.map(relative => commit + ':' + relative).join('\n') + '\n';
+    const output = Buffer.from(git(repoRoot, ['cat-file', '--batch'], { encoding: 'buffer', input }));
+    let offset = 0;
+    for (const relative of paths) {
+      const lineEnd = output.indexOf(0x0a, offset);
+      if (lineEnd < 0) throw new Error('git cat-file batch ended before ' + relative);
+      const header = output.subarray(offset, lineEnd).toString('utf8');
+      const match = /^([0-9a-f]{40}) blob ([0-9]+)$/.exec(header);
+      if (!match) throw new Error('git cat-file could not read ' + relative + ': ' + header);
+      const size = Number(match[2]);
+      const start = lineEnd + 1;
+      const end = start + size;
+      if (end >= output.length || output[end] !== 0x0a) throw new Error('git cat-file returned truncated bytes for ' + relative);
+      BLOB_AT_COMMIT.set(root + '\0' + commit + '\0' + relative, Buffer.from(output.subarray(start, end)));
+      offset = end + 1;
+    }
   }
 }
 
