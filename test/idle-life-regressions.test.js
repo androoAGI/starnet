@@ -52,10 +52,10 @@ A.ok(/if \(c\.kind === ['"]bar['"]\) continue/.test(world), 'a bar without a fre
 // Couch/TV regression: a claimed sofa cushion is rendered as a real sit and holds for minutes.
 // The SIDE_SEAT clause (recliner, 2026-08-17) is the only thing allowed to vary either line — a
 // profile seat slides its anchor onto the cushion and sorts behind its sitter; a sofa must not.
-A.ok(/self\.pendSeat\s*=\s*\{\s*px:\s*\(sx\s*\+\s*0\.5\)\s*\*\s*T\s*\+\s*\(side\s*\?\s*side\.dx\s*:\s*0\),\s*py:\s*\(vertical\s*\?\s*sy\s*\+\s*1\s*:\s*couch\.y\s*\+\s*h\)\s*\*\s*T\s*-\s*2,\s*lift:\s*side\s*\?\s*side\.lift\s*:\s*\(Number\.isFinite\(authoredLift\)\?authoredLift:0\),behindBack:!side&&authoredLift>0\s*\}/.test(world), 'couch planning keeps floor contact and uses the calibrated perch only behind its authored back');
+A.ok(/self\.pendSeat\s*=\s*\{\s*px:\s*\(sx\s*\+\s*0\.5\)\s*\*\s*T\s*\+\s*\(side\s*\?\s*side\.dx\s*:\s*0\),\s*py:\s*\(vertical\s*\?\s*sy\s*\+\s*1\s*:\s*couch\.y\s*\+\s*h\)\s*\*\s*T\s*-\s*2,\s*lift:\s*side\s*\?\s*side\.lift\s*:\s*\(remasteredCouch\(couch\) \? 2 : \(Number\.isFinite\(authoredLift\)\?authoredLift:0\)\),behindBack:!side&&authoredLift>0\s*\}/.test(world), 'couch planning keeps floor contact and uses the calibrated perch only behind its authored back');
 A.ok(/self\.useSit\s*=\s*true;\s*self\.useFace/.test(world), 'the couch plan commits to the sit pose');
 A.ok(/self\.goal\s*===\s*['"]lounge['"][\s\S]{0,500}self\.sitting\s*=\s*true[\s\S]{0,300}U\.irnd\(90000,\s*180000\)/.test(world), 'TV lounging sits on the couch for 90–180 seconds');
-A.ok(/sitterUse\s*&&\s*sitterUse\.kind\s*===\s*['"]couch['"]\s*&&\s*!sitterSide\s*\?\s*1\s*:\s*-1/.test(world), 'couch and stool seats retain their distinct occlusion order (a profile seat takes the stool\'s)');
+A.ok(/sitterUse\s*&&\s*sitterUse\.kind\s*===\s*['"]couch['"]\s*&&\s*!remasteredCouch\(p\)\s*&&\s*!sitterSide\s*\?\s*1\s*:\s*-1/.test(world), 'couch and stool seats retain their distinct occlusion order (a profile seat takes the stool\'s)');
 
 // Shared bar regression: reuse planSeat and the existing seat claims; one host may gain one joiner,
 // with a rare roll and a long cooldown rather than a per-frame social loop.
