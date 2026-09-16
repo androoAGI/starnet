@@ -174,12 +174,13 @@ const catchup = XpStore.init({
   loadRuns: async since => {
     A.eq(since, 100, 'catch-up starts at the last persisted browser save, not genesis');
     return { snapshotAt: 900, runs: [
-      { runId: 'closed-1', agentId: 'scribe', reason: 'done', toolsOk: 4, ts: 200 },
+      { runId: 'closed-1', agentId: 'scribe', reason: 'done', toolsOk: 4, streamId: 'cron-continued', surface: 'interactive', ts: 200 },
       { runId: 'closed-2', agentId: 'scribe', reason: 'max_iters', toolsOk: 2, ts: 300 },
       { runId: 'closed-3', agentId: 'scribe', reason: 'error', toolsOk: 0, ts: 400 },
       { runId: 'closed-4', agentId: 'scribe', reason: 'done', clarifying: true, toolsOk: 0, ts: 500 },
       { runId: 'closed-internal', agentId: 'scribe', reason: 'done', toolsOk: 9, internal: true, ts: 600 },
       { runId: 'closed-legacy-internal', agentId: 'scribe', reason: 'done', toolsOk: 9, streamId: 'cron-old-row', ts: 700 },
+      { runId: 'closed-scheduled', agentId: 'scribe', reason: 'done', toolsOk: 9, streamId: 'cron-scheduled', surface: 'autonomous', ts: 750 },
       { runId: 'closed-1', agentId: 'scribe', reason: 'done', toolsOk: 4, ts: 200 }
     ] };
   },
@@ -242,6 +243,9 @@ Promise.resolve(catchup).then(async summary => {
   for (const [status, error, expected] of [
     [409, 'station generation changed; reload before rating', 'Station changed'],
     [404, 'rateable run not found', 'saved run history'],
+    [409, 'internal run cannot be rated', 'No action is needed'],
+    [409, 'non-interactive run cannot be rated', 'New interactive replies'],
+    [409, 'run origin unavailable for rating', 'eligibility cannot be verified'],
     [409, 'run did not produce rateable agent work', 'did not finish'],
     [403, 'forbidden', 'connection was rejected'],
     [503, 'rating history unavailable', 'history is unavailable'],

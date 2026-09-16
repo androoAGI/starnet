@@ -16,7 +16,7 @@ const path = require('path');
 const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
 const once = (needle, label) => { A.eq(src.split(needle).length - 1, 1, label + ' (exactly one occurrence)'); };
 
-once("if (o.lead && isTask) {", 'the [ORCHESTRATION] briefing is gated on isTask as well as lead');
+once("if (isTask && resolved.tools.includes('team.dispatch')) {", 'the [ORCHESTRATION] briefing follows actual delegation authority on task turns');
 once("const manualBlock = (isTask && surface === 'interactive') ? starnetManual() : '';", 'the operator manual is gated on isTask');
 once("skillBlock = isTask", 'the skill recipe block is gated on isTask');
 once("if (isTask && resolved.tools.indexOf('skill.view') >= 0) {", 'the runtime skill index is gated on isTask');

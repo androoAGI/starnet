@@ -1,0 +1,1531 @@
+{
+  "target": "0.12.0",
+  "generatedAt": "2026-09-16T01:20:18.717Z",
+  "publishedBase": {
+    "tag": "v0.11.2",
+    "sha": "69baf91a5b2c22230f87e614da6a72882278bc6c"
+  },
+  "baseline": "90d6f0111931ec3991aaba28d580422b4b02a81b",
+  "scope": "Committed local ancestry and durable records; recent branch tips are observations, not an approved merge queue. No fresh private mailbox census.",
+  "totalCommitsSinceTag": 178,
+  "productCommits": [
+    {
+      "sha": "02332ee85cd8cfac125447ffae77ec132042f8bd",
+      "subject": "fix: keep account unlink failures visible and recoverable"
+    },
+    {
+      "sha": "5acf4640f95201f0817dd7402211daecf2a5d56c",
+      "subject": "fix: put non-task COMMS turns on a prompt diet and cap local-model output"
+    },
+    {
+      "sha": "a2764b70835a422cdb18f411cbfcf3154cc0eacd",
+      "subject": "feat: add orbital shells and clean station floors and walls"
+    },
+    {
+      "sha": "0f0f53033589ce5e076703ac31755dd2ea65d13c",
+      "subject": "qa: refresh source locks for clean shell materials"
+    },
+    {
+      "sha": "7b3ebf04a695add19ad186496b63ad239368e0d6",
+      "subject": "art: refresh legacy shells with clean material textures"
+    },
+    {
+      "sha": "a3a3a45ec8e470f5da50876e40193ef8ed720bba",
+      "subject": "art: add three industrial station shell textures"
+    },
+    {
+      "sha": "05a399cf0833c05f2ac7e692ed71002efb3dd2f5",
+      "subject": "fix: refresh earned XP and recover skipped rating credit"
+    },
+    {
+      "sha": "49733139ec126ced0db47ea4cb972bd5e7c25d9b",
+      "subject": "fix(comms): spell the reconcile bucket delimiter as an escape, not a literal NUL"
+    },
+    {
+      "sha": "003ac403e2694113c9e636fda73f8aed1e0ba477",
+      "subject": "fix(comms): reconcile the transcript without reordering the local thread"
+    },
+    {
+      "sha": "b5c5cba75889733cca2332794d7cd5c79a24e302",
+      "subject": "fix: preserve channel follow-up while validating local session bindings"
+    },
+    {
+      "sha": "c3d4f4f8e54fe34b5768c3c6a76b6d41c51d3820",
+      "subject": "fix: preserve review retries and validate routine bindings under lock"
+    },
+    {
+      "sha": "b54b44574c70de99871579a7733b986362ce2d04",
+      "subject": "fix: repair audited recovery, controls, settings and run attribution"
+    },
+    {
+      "sha": "d0046e1c7727df68ac16ef1983bd73fe6bc478e4",
+      "subject": "feat: add industrial station minion skin and directional animations"
+    },
+    {
+      "sha": "0054a3d7a46312bdddb981a2e116e6fdd39c6378",
+      "subject": "fix: finish secondary console layouts and recovery controls"
+    },
+    {
+      "sha": "4628cfcf010d3f59a532844c004d7b17b2754a0b",
+      "subject": "fix: remove turquoise contamination from bear walking frames"
+    },
+    {
+      "sha": "3259d9ff36d1faedff6206d048b807421386212b",
+      "subject": "style: quiet the arrival skip control with station phosphor styling"
+    },
+    {
+      "sha": "f49596784bcf67c751fad8c9ad2528045969608a",
+      "subject": "fix: preserve journey choices during refresh and planning"
+    },
+    {
+      "sha": "ae32f360f818144a48e840e4a84a55297063df82",
+      "subject": "feat: build a reference-authored command bridge"
+    },
+    {
+      "sha": "e1696ce991db778b70b4d82d3a8cf319589ed955",
+      "subject": "feat: connect ambitions to plans and concrete results"
+    },
+    {
+      "sha": "0250793ac3c629ee9193ae9ef2a4cbb86e6d84cf",
+      "subject": "fix: route signed-in onboarding through the actual credential"
+    },
+    {
+      "sha": "9568243c420e691e00943b35f48717d80c6e6301",
+      "subject": "feat: reveal the arriving agent across the full station viewport"
+    },
+    {
+      "sha": "312b7b5d6a8e1b9c4f9553a58f597af212806bb1",
+      "subject": "feat: make industrial station materials the default with saved-layout compatibility"
+    },
+    {
+      "sha": "9bbb27322803c6f8e5c4cb5c11ad85e395ada443",
+      "subject": "fix: fit industrial desks and preserve wall detail through corners and masks"
+    },
+    {
+      "sha": "039db1fcfe4b009995ff5d9cd45bdb1cb6f54413",
+      "subject": "art: broaden industrial furniture and author a matching wall bay"
+    },
+    {
+      "sha": "679a8467af305573986edbe4f70887f42ae322d4",
+      "subject": "fix: preserve intentional repeated reflections over time"
+    },
+    {
+      "sha": "c3e07f0b9c37f6d1d7f7d9e4098fa5e60de44ed3",
+      "subject": "polish: preserve journey drafts and refine goal interactions"
+    },
+    {
+      "sha": "14e263840936929a5a2bde837b6ee0e681eb5b56",
+      "subject": "fix: preserve workstation scale and integrate industrial chairs"
+    },
+    {
+      "sha": "0fc7e3f6dddfe568dce73dc4dd3cdcf66382ddf2",
+      "subject": "feat: stage a cinematic agent arrival with a replayable preview"
+    },
+    {
+      "sha": "ae9b60278a459a7621c442b07817fd43c402cd3f",
+      "subject": "art: replace compressed console and add industrial chair views"
+    },
+    {
+      "sha": "e529f9dc44bb113fda9d0eb717dc2347b8194665",
+      "subject": "fix: carry reported outcomes into completed journey reviews"
+    },
+    {
+      "sha": "61ed3db10721bbb67a5456b8cbc63a2e134e0e71",
+      "subject": "refine: lead journey progress with the personal constellation"
+    },
+    {
+      "sha": "172acd77e47f9cfe30c1a4d5d2f5dd7b1432b421",
+      "subject": "feat: expand personal journeys from possibilities to lasting chapters"
+    },
+    {
+      "sha": "7a9349aa071c8fd97f04b520333d37d821f55c69",
+      "subject": "fix: route OpenAI images through Studio"
+    },
+    {
+      "sha": "26f12626ae726214b60aa7ac1e5c363a4cf3205a",
+      "subject": "fix: replay the station tour without repeating task setup"
+    },
+    {
+      "sha": "5f80da1fbc51627a6ba7b5a5f8a2cd1f6c0ec5c4",
+      "subject": "feat: run industrial station texture preview with preserved geometry"
+    },
+    {
+      "sha": "53b62ff848223d1b524c2d5cc408e76edd4d7f56",
+      "subject": "feat: carry onboarding intent into the first real task"
+    },
+    {
+      "sha": "5855009f22757c0877c4bebd86453a6d296c28bd",
+      "subject": "feat: connect personal goals to the next useful action"
+    },
+    {
+      "sha": "274e88685977840e9baaed48a6c74a38449f23d2",
+      "subject": "art: add reference-based industrial station textures"
+    },
+    {
+      "sha": "05155ab010c34b3863dd6aac75da90692783dac4",
+      "subject": "style: make speech bubbles more compact"
+    },
+    {
+      "sha": "ac370cefb465b839945ba797c11802f48afa7b21",
+      "subject": "fix: remove redundant delivery acknowledgment bubbles"
+    },
+    {
+      "sha": "36ab972980eba2dadc380b6f1b085c6b0d8d166e",
+      "subject": "feat: make agent onboarding follow the user's intent"
+    },
+    {
+      "sha": "dcbc2b941f42d9c840b244cb0ee0732c0a2e76fd",
+      "subject": "fix: discover JavaScript-driven browser cards"
+    },
+    {
+      "sha": "f8b60bef099f82517dd336ce27f23cf962bf02e3",
+      "subject": "fix: align station pointer targets with CRT curvature"
+    },
+    {
+      "sha": "f772377919a3ae1fffba1e2a5d3c7f00ce6bce35",
+      "subject": "style: refresh station speech bubbles"
+    }
+  ],
+  "reportSummary": {
+    "total": 66,
+    "status": {
+      "fixed": 59,
+      "open": 7
+    },
+    "installer": {
+      "unverified": 59,
+      "verified": 6,
+      "not-applicable": 1
+    },
+    "recovery": {
+      "unconfirmed": 64,
+      "confirmed": 1,
+      "persists": 1
+    },
+    "newSinceTag": 8
+  },
+  "reports": [
+    {
+      "id": "0245a284",
+      "file": "0245a284-add-agents-silently-fails-when-group-backend-is.md",
+      "title": "Add agents silently fails when group backend is unavailable",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "cf6b3ca03c372c404bcb46997a56d570d7747d70",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "group-chat-picker",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "04ca4207",
+      "file": "04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md",
+      "title": "New backdrops stall switching and zoomed-out terrain rendering",
+      "origin": "owner",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "2c041bbe69124eda1f60a6eb5a11cc44676028cb",
+      "installer": "verified",
+      "recovery": "unconfirmed",
+      "family": "backdrop-performance",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "0d63e5d1",
+      "file": "0d63e5d1-gemini-loses-tool-signature.md",
+      "title": "Gemini rejects the turn after a tool call loses its signature",
+      "origin": "customer",
+      "found": "2026-08-27",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "fe30cc1b4",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "tool-history",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "0ff9dfc6",
+      "file": "0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md",
+      "title": "Bay names are unreadable at normal station zoom",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "86560bea9",
+      "installer": "verified",
+      "recovery": "confirmed",
+      "family": "bay-labels",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "112199f5",
+      "file": "112199f5-openrouter-orphan-tool-results.md",
+      "title": "Routed OpenRouter conversation fails on orphan tool results",
+      "origin": "customer",
+      "found": "2026-09-01",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "14f34372a",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "tool-history",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "11341152",
+      "file": "11341152-connector-buffered-sse-times-out.md",
+      "title": "Connector times out waiting for a buffered SSE reply",
+      "origin": "customer",
+      "found": "2026-08-25",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "6adda1348",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "protocol-lifecycle",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "1fc69e6a",
+      "file": "1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md",
+      "title": "Agent work rating fails with a generic not saved message",
+      "origin": "customer",
+      "found": "2026-09-07",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "a55a1ed07",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "work-rating",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "26433ecb",
+      "file": "26433ecb-crt-curve-displaces-agent-hover-and-click-target.md",
+      "title": "CRT curve displaces agent hover and click targets away from center",
+      "origin": "owner",
+      "found": "2026-09-12",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "f8b60bef0",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "world-pointer",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": true
+    },
+    {
+      "id": "2a9cb952",
+      "file": "2a9cb952-doctor-forces-unsupported-reasoning.md",
+      "title": "Live Doctor overrides selected model reasoning with none",
+      "origin": "customer",
+      "found": "2026-09-08",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "72a8a3043c263cd53ed353daed2042e256c8e236",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "execution-configuration",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "2b6d70fb",
+      "file": "2b6d70fb-byok-blocked-by-empty-managed-wallet.md",
+      "title": "Valid BYOK wake is blocked by an empty managed wallet",
+      "origin": "customer",
+      "found": "2026-08-28",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "5b5f50a1d",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "execution-configuration",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "2f156837",
+      "file": "2f156837-mac-boot-guard-reports-shared-specialty-catalog.md",
+      "title": "Mac boot guard reports shared specialty catalog load failure",
+      "origin": "customer",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "boot-integrity",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "305a9e3d",
+      "file": "305a9e3d-campaign-cards-missing-from-browser-element-disc.md",
+      "title": "Campaign cards missing from browser element discovery",
+      "origin": "customer",
+      "found": "2026-09-12",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "browser-card-discovery",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": false
+    },
+    {
+      "id": "3195ab5a",
+      "file": "3195ab5a-managed-chat-can-use-a-stale-request-endpoint.md",
+      "title": "Managed chat can use a stale request endpoint",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "177a9384e",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "managed-routing",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "32f959e0",
+      "file": "32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md",
+      "title": "Wake mistakes DEV configuration for an OpenAI API credential",
+      "origin": "owner",
+      "found": "2026-09-13",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "0250793ac",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "genesis-provider-credential-selection",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": true
+    },
+    {
+      "id": "3364dfb0",
+      "file": "3364dfb0-live-spoken-replies-stall-after-the-output-audio.md",
+      "title": "Live spoken replies stall after the output audio context closes",
+      "origin": "customer",
+      "found": "2026-09-10",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "f129e19e3",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "speech-device-recovery",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "3365f5ba",
+      "file": "3365f5ba-room-lighting-loses-colour-and-flickers-across-t.md",
+      "title": "Room lighting loses colour and flickers across the floor",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "011ba23a4",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "room-lighting",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "432df352",
+      "file": "432df352-saved-equipment-omitted-from-interactive-tool-pr.md",
+      "title": "Saved equipment omitted from interactive tool projection and toolset diagnostics",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "3c95b184fd28c5eacac8821ca2231d85da5b3395",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "capability-projection",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "48c51661",
+      "file": "48c51661-file-approval-omits-mutation.md",
+      "title": "File approval hides the proposed edit and patch payload",
+      "origin": "customer",
+      "found": "2026-09-08",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "72a8a3043c263cd53ed353daed2042e256c8e236",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "informed-approval",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "49192a68",
+      "file": "49192a68-agents-cross-walls-beside-hallway-openings.md",
+      "title": "Agents cross walls beside hallway openings",
+      "origin": "owner",
+      "found": "2026-09-10",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "a22f780e3",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "doorway-movement",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "4a151231",
+      "file": "4a151231-provider-card-status-alignment-and-dated-identit.md",
+      "title": "Provider card status alignment and dated identity artwork",
+      "origin": "owner",
+      "found": "2026-09-11",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "3f2cc70d4",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "provider-settings-presentation",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "52397fc0",
+      "file": "52397fc0-raised-room-corners-excluded-from-interior-light.md",
+      "title": "Raised room corners excluded from interior lighting",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "624e58ede",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "room-lighting",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "5a35bcfe",
+      "file": "5a35bcfe-deliverable-note-overrides-stop.md",
+      "title": "Deliverable naming instruction conflicts with explicit stop limits",
+      "origin": "customer",
+      "found": "2026-09-08",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "72a8a3043c263cd53ed353daed2042e256c8e236",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "task-scope",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "6ad254f9",
+      "file": "6ad254f9-earned-xp-appears-frozen-or-misses-ratings-from.md",
+      "title": "Earned XP appears frozen or misses ratings from another window",
+      "origin": "customer",
+      "found": "2026-09-14",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "05a399cf0",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "work-rating",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": true
+    },
+    {
+      "id": "6c54d22e",
+      "file": "6c54d22e-linked-state-confused-with-quota.md",
+      "title": "Linked account warning confuses provider quota with disconnection",
+      "origin": "customer",
+      "found": "2026-09-01",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "756ebec88",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recovery-truth",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "6c91f5d9",
+      "file": "6c91f5d9-secondary-console-layouts-lose-provider-text-and.md",
+      "title": "Secondary console layouts lose provider text and dropdown affordances at enlarged scale",
+      "origin": "owner",
+      "found": "2026-09-13",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "0054a3d7a",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "secondary-console-polish",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": true
+    },
+    {
+      "id": "72af29f4",
+      "file": "72af29f4-funded-station-false-zero-warning.md",
+      "title": "Funded working station still displays a zero-credit warning",
+      "origin": "customer",
+      "found": "2026-08-24",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "c364e991d8d9c0c4d446c9978b8d31c33fcbe09d",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recovery-truth",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "734b469e",
+      "file": "734b469e-dense-service-cards-squeeze-technical-prose-into.md",
+      "title": "Dense service cards squeeze technical prose into tiny columns",
+      "origin": "owner",
+      "found": "2026-09-07",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "221775a85",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "record-readability",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "741832d8",
+      "file": "741832d8-centered-room-lighting-leaves-sides-dark-and-cre.md",
+      "title": "Centered room lighting leaves sides dark and creates hotspots",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "5f40c3e60",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "room-lighting",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "74be01cc",
+      "file": "74be01cc-quest-log-tiny-text-and-undifferentiated-card-gr.md",
+      "title": "Quest log tiny text and undifferentiated card grid",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "55a30d5d7",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "quest-journal",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "758185bc",
+      "file": "758185bc-windows-computer-movement-resolves-to-filesystem.md",
+      "title": "Windows computer movement resolves to filesystem Move-Item",
+      "origin": "customer",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "dd85573b9",
+      "installer": "verified",
+      "recovery": "unconfirmed",
+      "family": "computer-movement",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "774641dc",
+      "file": "774641dc-agent-session-focus-commands-can-unexpectedly-re.md",
+      "title": "Agent session focus commands can unexpectedly retarget the composer",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "086a74ba5d499f74d1829978291eeadeb22848f5",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "session-focus",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "7ed4a93c",
+      "file": "7ed4a93c-managed-selection-keeps-wrong-provider.md",
+      "title": "Managed model selection retains the wrong provider identity",
+      "origin": "customer",
+      "found": "2026-08-24",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "17b9e1341",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "catalog-truth",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "850fdcfa",
+      "file": "850fdcfa-custom-phosphor-theme-desaturates-approved-room.md",
+      "title": "Custom phosphor theme desaturates approved room lighting",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "ba3e66447",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "room-lighting",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "8a553481",
+      "file": "8a553481-mac-desktop-microphone-blocked-while-browser-mir.md",
+      "title": "Mac desktop microphone blocked while browser mirror works",
+      "origin": "customer",
+      "found": "2026-09-06",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "d65f8f538",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "desktop-microphone",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "8ac0662a",
+      "file": "8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md",
+      "title": "Recipe Bay deep shelf collapses initial cards into slivers",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "fe5be77a9",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recipe-layout",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "8b22d414",
+      "file": "8b22d414-saved-fallback-changes-model-without-switching-p.md",
+      "title": "Saved fallback changes model without switching provider",
+      "origin": "customer",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "44c6b4952cd1e468f7caaf4d7ead804dc280cc40",
+      "installer": "verified",
+      "recovery": "unconfirmed",
+      "family": "provider-fallback",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "8f911536",
+      "file": "8f911536-persisted-e-stop-cannot-be-resumed-from-the-desk.md",
+      "title": "Persisted E-STOP cannot be resumed from the desktop control",
+      "origin": "customer",
+      "found": "2026-09-07",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "acdf5160c",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "emergency-stop",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "9256a771",
+      "file": "9256a771-viewport-black-after-idle.md",
+      "title": "Customer viewport becomes blank after ten to twenty minutes",
+      "origin": "customer",
+      "found": "2026-08-24",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "57112a690f8174f3ba3f3ac33fe786d07fa51c5d",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "durability-and-visibility",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "96921b22",
+      "file": "96921b22-standard-text-size-leaves-everyday-controls-and.md",
+      "title": "Standard text size leaves everyday controls and labels hard to read",
+      "origin": "owner",
+      "found": "2026-09-09",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "bb7df320ebad0f89338818730aba8503f5532091",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "standard-readability",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "98454b83",
+      "file": "98454b83-telegram-lead-delegation-unavailable.md",
+      "title": "Telegram-bound lead reports crew delegation unavailable",
+      "origin": "customer",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "channel-delegation-parity",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": false
+    },
+    {
+      "id": "99a1517b",
+      "file": "99a1517b-unlink-failures-silently-hide-account-recovery-c.md",
+      "title": "Unlink failures silently hide account recovery controls",
+      "origin": "customer",
+      "found": "2026-09-15",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recovery-truth",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": false
+    },
+    {
+      "id": "9dc98fa0",
+      "file": "9dc98fa0-connector-401-still-shows-up.md",
+      "title": "Connector stays up after an authenticated tool returns 401",
+      "origin": "customer",
+      "found": "2026-08-25",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "6adda1348",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recovery-truth",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "a55c0020",
+      "file": "a55c0020-session-recommendations-ignore-user-goals-and-ac.md",
+      "title": "Session recommendations ignore user goals and actual work",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "51768e661",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "session-starters",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "a76b93c4",
+      "file": "a76b93c4-local-model-small-talk-overload.md",
+      "title": "Local model small talk carries excessive context and produces prolonged replies",
+      "origin": "customer",
+      "found": "2026-09-15",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "local-model-conversation-latency",
+      "newSinceTag": true,
+      "statusAtTag": null,
+      "fixAfterTag": false
+    },
+    {
+      "id": "a9374d2c",
+      "file": "a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md",
+      "title": "Linked StarNet credits cannot authorize image generation",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "05fbfbd28",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "managed-media",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "acb47320",
+      "file": "acb47320-idle-usage-customer-unexplained.md",
+      "title": "Customer cannot explain idle behavior and unexpectedly high usage",
+      "origin": "customer",
+      "found": "2026-09-01",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "work-and-spend-truth",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "acd9ecb4",
+      "file": "acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md",
+      "title": "Delegated specialist lacks connected MCP tools",
+      "origin": "customer",
+      "found": "2026-09-11",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "44c6b4952cd1e468f7caaf4d7ead804dc280cc40",
+      "installer": "verified",
+      "recovery": "unconfirmed",
+      "family": "delegated-capabilities",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "b0431c24",
+      "file": "b0431c24-ordinary-wording-incorrectly-requires-image-gene.md",
+      "title": "Ordinary wording incorrectly requires image generation",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "e6cdd0f1a",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "image-intent",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "b3b8d28f",
+      "file": "b3b8d28f-website-station-preview-fails-when-hosting-beaco.md",
+      "title": "Website station preview fails when hosting beacon is blocked",
+      "origin": "owner",
+      "found": "2026-09-05",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "27560918e",
+      "installer": "not-applicable",
+      "recovery": "unconfirmed",
+      "family": "deployment-integrity",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "b8594ab9",
+      "file": "b8594ab9-room-fixture-grids-flood-edges-and-corners.md",
+      "title": "Room fixture grids flood edges and corners",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "1525663d0",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "room-lighting",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "b87dbc17",
+      "file": "b87dbc17-context-extraction-card-uses-a-flat-surface-outs.md",
+      "title": "Context extraction card uses a flat surface outside the current theme",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "fe5be77a9",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "context-presentation",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "c2a6c3c8",
+      "file": "c2a6c3c8-once-routine-reported-missing.md",
+      "title": "Customer reports an ONCE routine absent from Active Routines",
+      "origin": "customer",
+      "found": "2026-09-01",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "2b976f5f3df07473b2df8963690421f83ce0a45f",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "durability-and-visibility",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "c7fa86fc",
+      "file": "c7fa86fc-feedback-run-reference-ambiguous.md",
+      "title": "Feedback cards do not identify the run being rated",
+      "origin": "customer",
+      "found": "2026-09-08",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "72a8a3043c263cd53ed353daed2042e256c8e236",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "feedback-attribution",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "c978e7b7",
+      "file": "c978e7b7-sample-ignores-saved-provider.md",
+      "title": "Doctor works but sample ignores the saved provider",
+      "origin": "customer",
+      "found": "2026-09-04",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "e33914cb2",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "execution-configuration",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "ce430c35",
+      "file": "ce430c35-paused-routines-falsely-keep-an-idle-desktop-arm.md",
+      "title": "Paused routines falsely keep an idle desktop armed",
+      "origin": "owner",
+      "found": "2026-09-11",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "b87bdf26099327e91eae85f9c5b1933ea5dbbe56",
+      "installer": "verified",
+      "recovery": "unconfirmed",
+      "family": "lifecycle-truth",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "d07d3a35",
+      "file": "d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md",
+      "title": "Failed session repeats FAILED badge and leaves X steady",
+      "origin": "owner",
+      "found": "2026-09-11",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "407ac8433",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "session-status-presentation",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "d28ba8f4",
+      "file": "d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md",
+      "title": "Station button redesign escaped the bottom navigation",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "e4e4512b198279e35cdd9f2cc2be9d786b02e87f",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "dock-style-scope",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "ddea3c5d",
+      "file": "ddea3c5d-tiers-ignore-managed-catalog.md",
+      "title": "Tier picker reports available managed models missing",
+      "origin": "customer",
+      "found": "2026-09-04",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "e33914cb2",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "catalog-truth",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "de0bb232",
+      "file": "de0bb232-sent-group-attachments-appear-only-in-the-shared.md",
+      "title": "Sent group attachments appear only in the shared shelf",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "fe5be77a9",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "message-attachments",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "e1051446",
+      "file": "e1051446-spoken-replies-fragment-at-punctuation-and-omit.md",
+      "title": "Spoken replies fragment at punctuation and omit failed audio chunks",
+      "origin": "customer",
+      "found": "2026-09-09",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "7e83246fa",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "voice-continuity",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "e1d9f470",
+      "file": "e1d9f470-prop-details-crowd-out-the-build-catalog-at-larg.md",
+      "title": "Prop details crowd out the build catalog at larger UI scales",
+      "origin": "customer",
+      "found": "2026-09-07",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "c6f77fff4",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "prop-catalog-layout",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "e356ce13",
+      "file": "e356ce13-agent-look-back-flicker-and-waypoint-stutter.md",
+      "title": "Agent look-back flicker and waypoint stutter",
+      "origin": "owner",
+      "found": "2026-09-10",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "75a814c18",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "movement-continuity",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "e5d4b743",
+      "file": "e5d4b743-google-account-connection-asks-customers-for-dev.md",
+      "title": "Google account connection asks customers for developer credentials",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "cb8385c56",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "google-sign-in",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "e84d1dfd",
+      "file": "e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md",
+      "title": "COMMS starters suggest arbitrary tasks and lose session context",
+      "origin": "owner",
+      "found": "2026-09-06",
+      "severity": "P2",
+      "status": "fixed",
+      "fix": "33d995fed",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "session-starters",
+      "newSinceTag": false,
+      "statusAtTag": "fixed",
+      "fixAfterTag": false
+    },
+    {
+      "id": "eaaa3ec8",
+      "file": "eaaa3ec8-mac-onboarding-unreachable-after-link.md",
+      "title": "Mac paid onboarding becomes unreachable after reload and relink",
+      "origin": "customer",
+      "found": "2026-08-22",
+      "severity": "P1",
+      "status": "fixed",
+      "fix": "c364e991d8d9c0c4d446c9978b8d31c33fcbe09d",
+      "installer": "unverified",
+      "recovery": "unconfirmed",
+      "family": "recovery-truth",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    },
+    {
+      "id": "fd9c4b4d",
+      "file": "fd9c4b4d-managed-sonnet-400-unresolved.md",
+      "title": "Managed Sonnet request still returns an uncorrelated HTTP 400",
+      "origin": "customer",
+      "found": "2026-09-05",
+      "severity": "P1",
+      "status": "open",
+      "fix": "",
+      "installer": "unverified",
+      "recovery": "persists",
+      "family": "production-request-truth",
+      "newSinceTag": false,
+      "statusAtTag": "open",
+      "fixAfterTag": false
+    }
+  ],
+  "recentUnmergedBranches": [
+    {
+      "branch": "agent/station-default-0915",
+      "sha": "1f87ef828a8774b5c18fc5631c170e1e96c689e3",
+      "date": "2026-09-15T21:15:27-04:00",
+      "subject": "Refresh station integration source locks without changing claim verdicts",
+      "commitsNotInBaseline": 388,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-coordination-0914",
+      "sha": "708cb4f63758e68bcd7c6d0596ae764d1f6ff7f9",
+      "date": "2026-09-15T21:09:37-04:00",
+      "subject": "test: verify complete animated skin preview contract",
+      "commitsNotInBaseline": 403,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/sprite-reimagine-0914",
+      "sha": "bcba24697b8a93947b6dfb2a63e8a37bbb596e4d",
+      "date": "2026-09-15T20:18:05-04:00",
+      "subject": "qa: lock cardinal movement correction",
+      "commitsNotInBaseline": 68,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/growth-research-0912",
+      "sha": "2be6c165410db75c886d5f6fe77f340bb8486e67",
+      "date": "2026-09-15T05:02:17-04:00",
+      "subject": "docs: prepare day three first-agent video brief",
+      "commitsNotInBaseline": 6,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-utility-0914",
+      "sha": "76d623474dbfce5eb5c57f6b659946b0afedc2c6",
+      "date": "2026-09-14T21:50:52-04:00",
+      "subject": "docs: record projection effects verification and aggregate gate limitation",
+      "commitsNotInBaseline": 347,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-crew-0914",
+      "sha": "0a4a52d725d3f2126afee63e7ff659341fc9a678",
+      "date": "2026-09-14T21:40:17-04:00",
+      "subject": "feat: add full catalog furnished room review fixture",
+      "commitsNotInBaseline": 346,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-storage-0914",
+      "sha": "79e327e5d5ce9d34f8d9fb0ae3b8f3a104b61a95",
+      "date": "2026-09-14T21:10:37-04:00",
+      "subject": "fix: bound work-bay annotations and aggregate overview warnings",
+      "commitsNotInBaseline": 344,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/couch-pixel",
+      "sha": "298046fa1a933d1801abaa252098b75880c680d8",
+      "date": "2026-09-14T16:03:29-04:00",
+      "subject": "art: eleven hand-authored props in the approved material (couch back view + ten)",
+      "commitsNotInBaseline": 140,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/authored-content-0914",
+      "sha": "0d7ea85927e0492323d01cd5ed40ab64c739fd74",
+      "date": "2026-09-14T05:05:13-04:00",
+      "subject": "merge: native render diagnostic foundation",
+      "commitsNotInBaseline": 141,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/industrial-textures-0912",
+      "sha": "607c5859dc1ca75abd668871e4eaab859e6b1b22",
+      "date": "2026-09-14T05:04:20-04:00",
+      "subject": "feat: integrate authored prop directions content and machinery",
+      "commitsNotInBaseline": 133,
+      "containedInOtherRecentTips": [
+        "agent/station-default-0915",
+        "agent/prop-coordination-0914",
+        "agent/prop-utility-0914",
+        "agent/prop-crew-0914",
+        "agent/prop-storage-0914",
+        "agent/couch-pixel",
+        "agent/authored-content-0914"
+      ]
+    },
+    {
+      "branch": "agent/prop-manifest-recipes-0914",
+      "sha": "46755cb6b3d1ef877f40839e441b590c0b501e95",
+      "date": "2026-09-14T04:57:47-04:00",
+      "subject": "feat: map mounted props onto authored table surfaces",
+      "commitsNotInBaseline": 123,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/authored-motion-0914",
+      "sha": "f272080dfa8d4616c9d26f420311bc19aba59251",
+      "date": "2026-09-14T04:52:47-04:00",
+      "subject": "feat: animate authored heavy bags and document furniture contact geometry",
+      "commitsNotInBaseline": 125,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-remaster-art-b-0913",
+      "sha": "511afdba2f4518f190e1ca602fdc8c93fee95a80",
+      "date": "2026-09-14T00:00:07-04:00",
+      "subject": "art: remaster television plant beanbag and stool",
+      "commitsNotInBaseline": 34,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-remaster-runtime-0913",
+      "sha": "4aa9eda7cd009b32de6493c8e9e044e0f3c74743",
+      "date": "2026-09-13T22:25:00-04:00",
+      "subject": "art: remaster engineering bench and processing modules",
+      "commitsNotInBaseline": 33,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-remaster-art-a-0913",
+      "sha": "e217c13e869d6d49251075091572d564fcba4454",
+      "date": "2026-09-13T21:53:02-04:00",
+      "subject": "art: remaster freight and treasury storage props",
+      "commitsNotInBaseline": 33,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-inventory-0913",
+      "sha": "28857901563c21c15cfb7214db07af512d14cd55",
+      "date": "2026-09-13T17:33:26-04:00",
+      "subject": "chore: normalize support artwork metadata encoding",
+      "commitsNotInBaseline": 26,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-art-0913",
+      "sha": "6c0b5a325301f81ea1b240cadd8a5f31f1aeb12e",
+      "date": "2026-09-13T16:49:54-04:00",
+      "subject": "chore: normalize support artwork metadata encoding",
+      "commitsNotInBaseline": 25,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-animation-0913",
+      "sha": "d4967f0070137ab97ba24e3e399eabe962ed0799",
+      "date": "2026-09-13T16:35:27-04:00",
+      "subject": "fix: restore industrial workstation occupancy and screen animation",
+      "commitsNotInBaseline": 24,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/clean-surfaces-0913",
+      "sha": "53708c650460518783a08a6342cdd408d67d3c77",
+      "date": "2026-09-13T15:43:10-04:00",
+      "subject": "fix: bound claims audit blob batches by byte size",
+      "commitsNotInBaseline": 12,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/latency-audit-0913",
+      "sha": "e70defe526c005afd98d94627224a3d3ef563d38",
+      "date": "2026-09-13T15:18:47-04:00",
+      "subject": "style: normalize latency evidence line endings",
+      "commitsNotInBaseline": 4,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/clean-conveyors-0913",
+      "sha": "abe2b45e1a080a205810313bd532957af454c2ec",
+      "date": "2026-09-13T15:04:53-04:00",
+      "subject": "art: add bridge-style industrial floor material set",
+      "commitsNotInBaseline": 9,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/clean-props-0913",
+      "sha": "35941b779d449f07c93bf3f8b9e1fb67eb9f157f",
+      "date": "2026-09-13T03:41:26-04:00",
+      "subject": "style: blend native casing panels with authored industrial grain",
+      "commitsNotInBaseline": 10,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/seam-audit-0912-b",
+      "sha": "f7ff990782e99fa7887690962974811437c1f779",
+      "date": "2026-09-13T03:19:32-04:00",
+      "subject": "research: prioritize existing feature improvements from audit evidence",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/visual-replies-0912",
+      "sha": "783df1949fc4a8d942f4111dab7825e1d27e9c61",
+      "date": "2026-09-13T01:05:09-04:00",
+      "subject": "docs: record station diagram aesthetic verification",
+      "commitsNotInBaseline": 25,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/website-sharp-logo-0913",
+      "sha": "b37e69eaad971692d2ac17e299150025f674ebfb",
+      "date": "2026-09-13T01:02:10-04:00",
+      "subject": "docs: withdraw SVG logo direction and record restored website",
+      "commitsNotInBaseline": 5,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/website-brand-align-0913",
+      "sha": "b0df4312e28b3ae0c86f2de0f6e6021edfffc481",
+      "date": "2026-09-12T23:57:18-04:00",
+      "subject": "docs: record verified website header correction",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/sprite-expression-0912",
+      "sha": "0d3f300be6e96226283b4ffab1d45a0f56b50e09",
+      "date": "2026-09-12T23:42:11-04:00",
+      "subject": "docs: record bear palette audit and live verification",
+      "commitsNotInBaseline": 37,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/website-nav-font-0913",
+      "sha": "7ba861f27598d21014d3d4a87f762343be790cfc",
+      "date": "2026-09-12T23:38:20-04:00",
+      "subject": "docs: record verified navigation font restoration",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/website-docs-0912",
+      "sha": "b9a4c8a37e730c8a8d323e9350fa8f4b225a85b6",
+      "date": "2026-09-12T20:56:39-04:00",
+      "subject": "docs: record verified website deployment",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/prop-refine",
+      "sha": "307aac0c8b64f1e5d5b6a43fc7fdff1222428679",
+      "date": "2026-09-12T17:39:16-04:00",
+      "subject": "props: IRON calibration revamp — full masters at every camera (smaller pixels), taller chamfered console desk with double-edge bevels, button clusters and heavier glow; harness renders at the real camera scale (its base canvas was 1 px per world px, so every hi-res sheet was a 1x render blown up)",
+      "commitsNotInBaseline": 43,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/onboarding-flow",
+      "sha": "498e1740263da0de8a84efe0c035575bd2532b2f",
+      "date": "2026-09-12T16:19:50-04:00",
+      "subject": "onboarding: ChatGPT wake takes the codex path under DEV mode (honest credential check, not configured())",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    },
+    {
+      "branch": "agent/computer-move-proof-0911",
+      "sha": "17122b0544f1f9f835a85309575bece3cd2ec994",
+      "date": "2026-09-11T12:58:49-04:00",
+      "subject": "qa: retain pointer repair integration verification receipt",
+      "commitsNotInBaseline": 1,
+      "containedInOtherRecentTips": []
+    }
+  ]
+}

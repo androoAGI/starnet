@@ -9,7 +9,7 @@
 //   floor-rest (P1 foundation):
 //     • the test API is present + in-game
 //     • every PLACED body idles inside its OWN zone (Tier A containment)
-//     • awareness is GAZE-ONLY: no body is walking toward another body's tile (Tier C)
+//     • awareness is GAZE-ONLY: actual gaze calls cannot change movement state (Tier C)
 //     • HUD truthfulness: each on-screen number equals the reduction over the frozen U.bus log
 //       (no-app-lies) — for a fresh seed, SPEND/TOKENS must read exactly the event-derived totals
 //
@@ -21,13 +21,14 @@
 //   SKYNET_AUDIT_PORT=8934 SKYNET_AUDIT_CDP=9334 npm run audit
 //   SKYNET_AUDIT_LIVE_PROVIDER=1 npm run audit     # use the real configured provider/key
 //   SKYNET_AUDIT_REUSE=1 npm run audit             # intentionally drive an already-running sidecar
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { sleep, launchChrome, connectCDP, evalJS, capture, collectDiagnostics } from './lib/cdp.mjs';
 import { materializeSeedWorkspace, bootSeededSidecar, isUp, waitUp, waitDevReady, DEFAULT_MODEL } from './lib/seed.mjs';
 import { closeOnly, openSel, dismissRefitGuide } from './lib/states.mjs';
 import { messageContentText } from './lib/message-content.mjs';
+import { installGazeProof } from './lib/gaze-proof.mjs';
 
 const PORT = process.env.SKYNET_AUDIT_PORT || '8934';
 const CDP_PORT = Number(process.env.SKYNET_AUDIT_CDP || 9334);
@@ -191,7 +192,6 @@ async function waitSel(cdp, sel, tries = 25) {
 }
 const sendChat = (cdp, msg) => evalJS(cdp, `(() => { const i = document.getElementById('chat-input'); if (!i) return 'NO_INPUT'; i.focus(); i.value = ${J(msg)}; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true })); return 'sent'; })()`).catch((e) => 'ERR:' + e.message);
 const getBodies = (cdp) => evalJS(cdp, 'window.__SKYNET_TEST__.bodies()').catch(() => []);
-const tk = (t) => (t ? `${t.x},${t.y}` : '');
 // REAL canvas input over CDP: synthesize a genuine left-click (move → press → release) at viewport
 // coords, generating the same pointerdown/move/up build.js listens for. Unlike el.click(), this drives
 // the actual canvas pointer pipeline, so a placement here proves the mouse→tile→addProp path end-to-end.
@@ -206,12 +206,12 @@ const elAt = (cdp, x, y) => evalJS(cdp, `(() => { const e = document.elementFrom
 const heroCapTypes = (cdp) => evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?(World.heroCaps('agent')||[]).map(c=>c.objectType):null").catch(() => null);
 
 // containment + gaze-only over a body snapshot (the Tier A/C invariants, reused across scenarios).
-function assertFloorInvariants(A, prefix, list) {
+async function assertFloorInvariants(cdp, A, prefix, list) {
   const escaped = (list || []).filter((b) => b.zone && b.inOwnZone === false);   // only bodies that HAVE a zone may violate it
   A.ok(`${prefix}/zoned-bodies-contained`, escaped.length === 0, escaped.length ? escaped.map((b) => `${b.name}@(${b.tile.x},${b.tile.y})`).join('; ') : `${list.length} bodies, none roaming outside its zone`);
-  const occ = new Set((list || []).map((b) => tk(b.tile)));
-  const chasing = (list || []).filter((b) => b.moving && b.target && occ.has(tk(b.target.tile)) && tk(b.target.tile) !== tk(b.tile));
-  A.ok(`${prefix}/awareness-gaze-only`, chasing.length === 0, chasing.length ? chasing.map((b) => `${b.name} → ${tk(b.target.tile)}`).join('; ') : 'no body walking onto another');
+  const gaze = await evalJS(cdp, 'window.__STARNET_GAZE_PROOF__?.exercise()').catch(() => null);
+  A.ok(`${prefix}/awareness-gaze-only`, !!gaze && gaze.violations.length === 0,
+    gaze ? `${gaze.calls} gaze calls (${gaze.forced} exercised), ${gaze.violations.length} movement mutations` : 'gaze instrumentation unavailable');
 }
 
 // SCENARIO: the seeded floor at rest — the P1 invariants.
@@ -223,7 +223,7 @@ async function scenarioFloorRest(cdp, A) {
   A.ok('bodies/nonempty', Array.isArray(list) && list.length >= 1, `${(list || []).length} bodies`);
 
   // Tier A (containment) + Tier C (gaze-only awareness).
-  assertFloorInvariants(A, 'floor', list);
+  await assertFloorInvariants(cdp, A, 'floor', list);
 
   // Truthful telemetry — displayed HUD numbers equal the reduction over the frozen U.bus log.
   const hud = await evalJS(cdp, 'window.__SKYNET_TEST__.hud()').catch(() => null);
@@ -286,7 +286,7 @@ async function scenarioSummon(cdp, A) {
     await sleep(2200);                                                     // spawn + materialize + first stroll beat
     const list = await getBodies(cdp);
     A.ok('summon/body-spawned', list.length === before + 1, `${before} → ${list.length} (${rec})`);
-    assertFloorInvariants(A, 'summon', list);                             // the new body must stay contained + gaze-only
+    await assertFloorInvariants(cdp, A, 'summon', list);                   // the new body must stay contained + gaze-only
   }
   await evalJS(cdp, closeOnly).catch(() => {});                            // close the bay for the frame
   await sleep(700);
@@ -614,6 +614,7 @@ async function main() {
     const diag = collectDiagnostics(cdp);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
+    const gazeErrors = await installGazeProof(cdp, readFileSync(new URL('../frontend/app/world.js', import.meta.url), 'utf8'));
     await cdp.send('Page.navigate', { url: APP_URL });
 
     const floorReady = await waitDevReady(cdp, evalJS, { tries: 24, url: APP_URL });
@@ -661,6 +662,9 @@ async function main() {
       }
     }
     report.console = diag.consoleMsgs.slice(0, 30);
+    report.gazeProof = await evalJS(cdp, 'window.__STARNET_GAZE_PROOF__?.read()').catch(() => null);
+    report.gazeErrors = gazeErrors;
+    if (gazeErrors.length) exitCode = 3;
     report.exceptions = diag.exceptions.slice(0, 20);
     if (diag.exceptions.length) { console.log(`\nuncaught exceptions: ${diag.exceptions.length}`); diag.exceptions.slice(0, 8).forEach((e) => console.log('  ' + e)); }
   } finally {
