@@ -12,6 +12,10 @@ The current source baseline is `1cbd6384d`, which also includes the subsequent C
 
 ## Acceptance still to earn
 
+The combined lane now includes the typing/focus repair through `50791280b`, merged as `97325c2fe`, and the subsequent trunk operational digest. Website deploy staging uses the same corrected runtime-art filter as the installer. `scripts/qa/installed-graphics.mjs` requires exact shell/sidecar/executable identities and enabled graphics before collecting visible frame timing, engine-health latency, panel responsiveness and render errors. Its receipt is measured evidence on this machine, not a cross-hardware performance guarantee.
+
+The first recovery build is `725664380009a5e609b77a0a44f2efaa9b942948`. It is an intermediate graphics verification artifact, not the final combined release. The final installer must be rebuilt after the combined-source gates and source lock.
+
 - Package every runtime dependency and test the real loader against the staging rule.
 - Build from a clean, identified candidate; verify the updater signature.
 - Install and observe the remaster in the actual Tauri WebView; exercise restart and measure lag.

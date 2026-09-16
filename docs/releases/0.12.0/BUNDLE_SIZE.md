@@ -60,6 +60,8 @@ copy (`"frontend-dist": "frontend"`, target name unchanged, so `sidecar/index.js
 The installer is still larger than 0.11.2 (130 MB): the remaster's runtime art is ~200 MB of PNG that
 does not compress. Shrinking that further (pre-rasterizing the projection sources at their DENSITY-6
 size, or moving the 954 MB of calibration sources out of `frontend/` entirely) is a follow-up art-pipeline
-decision, not a release blocker. The website mirror (`website/app`) still carries the full tree; the
-Vercel deploy that has been hanging since September 15 11:30 is the same weight problem and needs the
-same exclusion on the website staging path.
+decision. The website source mirror (`website/app`) retains the full tree for source parity. The
+corrected `stage-website-deploy.mjs` now applies the same runtime-art filter to the upload artifact,
+including calibration/crate. The website staging test passes with the runtime texture retained and
+review batches absent. No website deployment was performed; the handoff's Vercel diagnosis was not
+independently established (the repository's staging script targets Cloudflare Pages direct upload).

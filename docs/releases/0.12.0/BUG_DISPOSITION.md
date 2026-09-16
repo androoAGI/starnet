@@ -2,7 +2,7 @@
 
 Refreshed September 16 after reviewing the release handoff and current GitHub issues. The authoritative records are in [qa/BUGS.md](../../../qa/BUGS.md). There are 156 records, including 73 customer/owner reports: 71 source-fixed and two open investigations. These are cumulative counts, not 73 defects introduced by 0.11.2. Six records have prior installer verification; only one has explicit customer-confirmed recovery. A source fix is not proof that the affected customer's installation recovered.
 
-All 70 previously recorded customer/owner fix commits were verified as ancestors of candidate `725664380009a5e609b77a0a44f2efaa9b942948`. The additional saved-file report imports an already merged fix, `8d4f3f5ca`. Machine-readable source checks are in `.dogfood/release-recovery/source-audit.json`. The active session-typing lane must also be included before final freeze.
+All 70 previously recorded customer/owner fix commits were verified as ancestors of candidate `725664380009a5e609b77a0a44f2efaa9b942948`. The additional saved-file report imports an already merged fix, `8d4f3f5ca`. Machine-readable source checks are in `.dogfood/release-recovery/source-audit.json`. The session-typing lane through `50791280b` is now included via merge `97325c2fe`; its focused typing and session-navigation regressions pass.
 
 ## Customer repairs requiring candidate acceptance
 
@@ -13,7 +13,7 @@ All 70 previously recorded customer/owner fix commits were verified as ancestors
 | Local-model small talk, #17 / `a76b93c4` | `5acf4640f`, plus `fc4c9e0f` reply ceiling | Prompt diet and capped-casual-reply regressions. The reporter's llama3.2:3b latency has not been measured on their hardware. Latest discussion also asks for setup/cost guidance. |
 | Telegram delegation, #14 / `98454b83` | `887210a7b` | Real-sidecar desktop/Telegram tool and briefing parity through restart; original customer's account recovery unconfirmed. |
 | Saved-file links, `253e5a8e` | `8d4f3f5ca` | Stored deliverables replay through original renderers. Inspected browser fixture restores the clickable row after reload. Native opening and customer recovery are separate. |
-| Conversation order and disappearing sessions | `f1bae44d9`, plus session-focus repairs | History repair is merged; active typing-protection lane addresses remaining background-navigation mechanisms. Include its final reviewed tip. |
+| Conversation order and disappearing sessions | `f1bae44d9`, plus session-focus repairs through `50791280b` | History repair and remaining composing/background-navigation protections are merged. Both focused regression suites pass. |
 | ChatGPT sign-in loses to stored API key, `f46a1875` | `f7e050e6f` | Actual wake-handler test: live sign-in with blank field chooses Codex; typed key still wins. Real keychain/OAuth installed acceptance is separate. |
 | Account unlink controls, `99a1517b` | `02332ee85` | Error/read recovery, retry and link controls are covered; original account recovery unconfirmed. |
 | Browser campaign discovery, `305a9e3d` | `dcbc2b941` | Expanded discovery and controlled browser proofs; customer's authenticated campaign account not exercised. |

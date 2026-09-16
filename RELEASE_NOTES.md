@@ -24,6 +24,7 @@ These notes cover the changes shipped since **0.11.2**.
 
 - **Compact speech bubbles** and fewer redundant delivery acknowledgments.
 - **Conversation history stays in order:** refreshing or retrying a conversation no longer reorders or rewrites the local transcript (the "my turns vanish / an old message moved to the front" report).
+- **Composing stays in your chosen session:** background workshop events and delayed connector checks respect the focused composer, unsent drafts and attachments. Explicit session navigation continues to work.
 - **Saved files stay clickable:** the "▤ saved <file>" and media rows an agent produced are replayed when a conversation is reopened, switched to, reloaded or retried, instead of surviving only in the model's prose.
 - **XP and ratings:** earned XP refreshes in open views, skipped rating credit can be recovered, and interactive replies in a conversation that also contains scheduled routine activity can be rated on their own run record. Ineligible replies now say exactly why.
 - **Secondary panels** render correctly at enlarged UI scale and narrow widths; provider text and dropdown affordances are readable; CRT curvature is accounted for in hover and click targets.
