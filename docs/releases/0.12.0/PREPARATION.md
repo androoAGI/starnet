@@ -4,6 +4,8 @@ Prepared September 15, 2026 EDT / September 16 UTC. Baseline: `90d6f0111931ec399
 
 ## What is prepared
 
+Follow-through source fixes, fresh intake (including new #18), live receipts and remaining limitations are recorded in [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md). Counts and readiness below describe the initial preparation snapshot.
+
 - [scope.json](scope.json): 178 commits since the public tag, including 44 non-merge commits touching product code/assets; all 66 classified customer/owner records and recent unmerged branch observations. These are overlapping scopes, not 178 user-facing features.
 - [BUG_DISPOSITION.md](BUG_DISPOSITION.md): the seven still-open reports, four source-fixed reports added since the tag, and the evidence needed to close each gap.
 - [ACCEPTANCE.md](ACCEPTANCE.md): a concrete combined-build, saved-station, installer and release checklist.

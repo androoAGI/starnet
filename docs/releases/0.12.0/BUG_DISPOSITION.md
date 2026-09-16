@@ -4,6 +4,8 @@ Baseline `90d6f0111`, refreshed September 16 UTC. The authoritative per-report e
 
 Eight customer/owner records are absent from the public 0.11.2 source tag: four source-fixed and four open. The three remaining open reports are carryovers. An unknown affected version stays unknown.
 
+Follow-through intake adds #18 / `09f0e9fa`, source-fixed by `da0658486`: interactive replies in scheduled conversations were incorrectly classified by their conversation prefix. Actual routine → interactive reply → rating → restart now passes. Earlier replies without saved origin remain explicitly unverified for rating. The register now contains 67 customer/owner reports, 60 source-fixed and 7 open; `scope.json` retains the initial snapshot. See [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md) for fresh receipts and the Telegram briefing repair (`887210a7b`), which does not close the original missing-tool investigation.
+
 ## Open reports
 
 | Record / report | Current evidence | Next concrete acceptance | Suggested routing |

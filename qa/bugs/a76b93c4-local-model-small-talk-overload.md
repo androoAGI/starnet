@@ -31,6 +31,8 @@ On Windows 0.11.2 with Ollama llama3.2:3b, a greeting reportedly waits about 2.5
 
 ## Evidence
 
+September 16 intake refresh: the reporter's 01:40 UTC comment thanks another user for setup advice and asks about CEO/specialist setup and cost control. It does not provide a new latency measurement or confirm recovery. Peer explanations about local-model performance are not accepted as a verified diagnosis. No support reply was sent by this preparation task.
+
 GitHub #17 was read on 2026-09-16 UTC. Source repair `5acf4640f95201f0817dd7402211daecf2a5d56c` is an ancestor of preparation baseline `90d6f0111931ec3991aaba28d580422b4b02a81b`. It removes task-only manual/recipe/orchestration blocks from non-task turns and adds the Ollama profile's configurable 4096-token ceiling. Anchors: `test/chat-prompt-diet.test.js`, `test/chat-prompt-diet.e2e.test.js`, `test/provider.openai-compatible.test.js`, `test/provider.registry.test.js`.
 
 The HTTP regression drives a real sidecar with a local mock provider, checking that greeting prompts omit task-only blocks while task tools and runtime identity remain. The default output ceiling is a bound, not proof of a brief response or an acceptable duration on a 3B local model. The public discussion contains no reporter recovery or exact timing after this repair.

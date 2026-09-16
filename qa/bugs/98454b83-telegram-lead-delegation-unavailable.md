@@ -41,7 +41,9 @@ Open investigation, imported during 0.12.0 preparation because the closed public
 
 ## Regression
 
-No exact before/after failure receipt. Existing Telegram wire coverage is corroboration only. Required acceptance: the same lead and task delegate through desktop and admitted Telegram, produce the specialist result, and remain correctly bound after restart.
+Source follow-through `887210a7b` reproduces and repairs a related briefing mismatch: trusted owner tasks advertised delegation but received no orchestration/crew briefing because only desktop callers set `o.lead`. The briefing now follows the tools actually granted. The before test failed the owner-task briefing assertion; the repaired `test/channels.telegram.e2e.test.js` passes 82 assertions. The same persisted lead delegates to the same named specialist through desktop and owner Telegram, receives the specialist result through the real tool loop, and repeats after sidecar restart. Workers receive neither recursive delegation nor the lead briefing. Raw receipts: `.dogfood/release-followthrough/telegram-before.log` and `telegram-after.log`.
+
+This establishes source parity and a real adjacent defect, not the missing original provider/tool trace. Keep the customer report open; its claim that the tool was absent has not been reproduced. Installed Telegram acceptance and affected-user recovery remain owed.
 
 ## Sibling coverage
 

@@ -30,6 +30,8 @@ StarNet 0.12.0 reworks the station's visual identity and the way you move from a
 
 ## Editorial holds before publication
 
+Pending integration of preparation repairs, add these verified source behaviors after combined acceptance: Telegram owner tasks receive the crew briefing matching their granted tools; new interactive replies in scheduled conversations can be rated independently. Older replies without saved origin receive a specific eligibility explanation. Source receipts: [FOLLOWTHROUGH.md](FOLLOWTHROUGH.md).
+
 The copy above describes code in baseline `90d6f0111`, not completed release acceptance. Do not promise measured local-model speedups, recovery on every customer machine, data-preservation guarantees or a fully repaired Telegram report without the corresponding evidence.
 
 Add final owner-selected furnished stations, Build library, remastered prop catalog, complete skin/motion work and final onboarding changes only after their actual combined inclusion and live verification. Retake screenshots from that build. Do not promise a community gallery or AI station builder based on the existence of furnished presets.
