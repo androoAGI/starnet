@@ -24,6 +24,10 @@ The combined lane now includes the typing/focus repair through `50791280b`, merg
 
 The first recovery build is `725664380009a5e609b77a0a44f2efaa9b942948`. It is an intermediate graphics verification artifact, not the final combined release. The final installer must be rebuilt after the combined-source gates and source lock.
 
+The second graphics build is `58e85d261e85248bb510879e034fac04e0adac55`, with all 37 production skin selections and 2,924 byte-verified staged animation frames. Its updater signature verifies against the baked key; fast gate 812/812 passed. This remains intermediate: the picker compatibility fix `495c3c6e0` and memory-reliability lane through `dcc1dc27f` are included afterward, the latter via merge `e2f0de9c7`. The final candidate must bind their combined source, executable and fresh gates.
+
+The broader branch audit found prop worker changes incorporated as equivalent cherry-picks, and authored content/machinery runtime files identical to their worker tips. The older expression branch is intentionally excluded: the owner requested "merge without all the gestures" in the Add expressive agent animations task; its bear-frame repair is present as `4628cfcf0`. Dedicated couch-specific skin frames remain deferred under the accepted temporary seating compromise. Review fixtures such as the Kepler showcase remain local-only; they must not replace a user's saved station layout.
+
 - Package every runtime dependency and test the real loader against the staging rule.
 - Build from a clean, identified candidate; verify the updater signature.
 - Install and observe the remaster in the actual Tauri WebView; exercise restart and measure lag.

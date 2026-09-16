@@ -1,6 +1,6 @@
 # 0.12.0 user-bug disposition
 
-Refreshed September 16 after reviewing the release handoff and current GitHub issues. The authoritative records are in [qa/BUGS.md](../../../qa/BUGS.md). There are 157 records, including 74 customer/owner reports: 72 source-fixed and two open investigations. These are cumulative counts, not 74 defects introduced by 0.11.2. Six records have prior installer verification; only one has explicit customer-confirmed recovery. A source fix is not proof that the affected customer's installation recovered.
+Refreshed September 16 after reviewing the release handoff and current GitHub issues. The authoritative records are in [qa/BUGS.md](../../../qa/BUGS.md). There are 159 records, including 76 customer/owner reports: 74 source-fixed and two open investigations. These are cumulative counts, not 76 defects introduced by 0.11.2. Six records have prior installer verification; only one has explicit customer-confirmed recovery. A source fix is not proof that the affected customer's installation recovered.
 
 All 70 previously recorded customer/owner fix commits were verified as ancestors of candidate `725664380009a5e609b77a0a44f2efaa9b942948`. The additional saved-file report imports an already merged fix, `8d4f3f5ca`. Machine-readable source checks are in `.dogfood/release-recovery/source-audit.json`. The session-typing lane through `50791280b` is now included via merge `97325c2fe`; its focused typing and session-navigation regressions pass.
 
@@ -8,6 +8,8 @@ All 70 previously recorded customer/owner fix commits were verified as ancestors
 
 | Report | Included source repair | Evidence and remaining limit |
 | --- | --- | --- |
+| Memory corrections forgotten or contradicted, `f97e73fb` | `3c8928e05`, `46c929a88`, included via `e2f0de9c7` | Real seeded UI review, durable supersession, stale-edit rejection, scoped pinning and restart proof. Corrected memories use update recency. Original customer's model and design fidelity remain unverified. |
+| Promises without action end as done, `b6f04205` | `3c8928e05`, included via `e2f0de9c7` | Controlled provider and real run loop finish as an explained incomplete-work error; unsupported memory-save claims require successful write receipts. Arbitrary model wording is not exhaustively covered. |
 | Agent sprites still legacy, `84e26970` | `df4d1ba25` activates selected roster and complete tracks in normal runtime | Installed before-capture proves preview-only activation gap. Production renderer verifies all 37 selections and motion. Rebuilt installed floor, portraits, picker and restart remain required. |
 | Graphical refresh absent in installer, `4a108286` | `d1848af00` includes required calibration texture | Original installed WebView reproduced fallback from missing calibration/crate. Production-loader regression fails before and passes after. New installer must show industrial materials and enabled props. |
 | Ratings in scheduled conversations, #18 / `09f0e9fa` | `da0658486` persists per-run origin | Real routine, interactive continuation, rating and restart: 57 assertions. Legacy rows without origin stay explicitly ineligible. Customer recovery unconfirmed. |
