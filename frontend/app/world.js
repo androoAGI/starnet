@@ -165,7 +165,7 @@ const World = (() => {
   const xpByAgent = new Map();
   const CREW_COLORS = ['#5ad0ff', '#ff8a5a', '#7df08a', '#e0a0ff', '#ffd45a', '#5affd0', '#ff6a9a'];
   const crewColor = aid => CREW_COLORS[U.hash('' + aid) % CREW_COLORS.length];
-  const footOf = (lx, ly) => ({ x: lx * T + T / 2, y: ly * T + T - 1 });
+  const footOf = (lx, ly) => geo && geo.footPoint ? geo.footPoint(lx, ly) : ({ x: lx * T + T / 2, y: ly * T + T - 1 });
   const tileOf = (px, py) => ({ x: Math.floor(px / T), y: Math.floor(py / T) });
   // where the agent is DRAWN: on its couch seat when seated, otherwise its logical foot position
   const rposX = () => (agent && agent.seated) ? agent.seatPx : agent.px;
@@ -600,7 +600,7 @@ const World = (() => {
 
   function rederive() {
     if (!station) return;
-    const next = station.projectGeometry();
+    const next = station.projectGeometry(typeof StationBake !== 'undefined' ? StationBake.WALL : {});
     const previousGeo = geo;
     const oldOrigin = geo ? geo.origin : null;
     geo = next; T = geo.TILE;

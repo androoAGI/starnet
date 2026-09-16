@@ -267,6 +267,16 @@ const CloudSave = (() => {
     // contamination, brutal to debug). Leave localStorage byte-unchanged and raise the honest update gate.
     if (isFutureSave(remote)) return futureSentinel(num(remote.version));
     revision = num(remote._saveRevision);
+    // The unload beacon may land after the old page can receive its ACK. On reload the
+    // cache is still dirty, but an identical durable payload proves that exact edit landed.
+    // Ignore only transport metadata; any changed station, roster, or conversation still
+    // takes the conflict-preserving path below.
+    const content = d => JSON.stringify({ ...d, updatedAt: undefined, _saveRevision: undefined, _saveClient: undefined, _saveDirty: undefined });
+    if (isSave(local) && local._saveDirty && content(local) === content(remote)) {
+      local = { ...local, updatedAt: remote.updatedAt, _saveRevision: revision, _saveDirty: false };
+      try { localStorage.setItem('starnet.save', JSON.stringify(local)); } catch (_) {}
+      return local;
+    }
     if (isSave(local) && local._saveDirty) {
       // Offline edits are still based on their original revision. Preserve them through the
       // same conflict receipt; never relabel a stale local snapshot with the remote revision.

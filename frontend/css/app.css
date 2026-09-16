@@ -4278,6 +4278,19 @@ body.crew-rail-off #screen-game.active {
 #bb-build.refit-nudge { color: var(--ph-bright); animation: refit-pulse 2s ease-in-out infinite; }
 
 /* first-use guide card */
+.station-build-box { box-sizing: border-box; width: min(850px, calc(94vw / var(--station-build-scale, 1))); max-height: calc(88vh / var(--station-build-scale, 1)); overflow: auto; padding: 22px; background: var(--panel); border: 1px solid var(--ph); color: var(--text); }
+.station-build-heading, .station-build-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.station-build-heading h2 { margin: 0; color: var(--ph-bright); font-size: 22px; }
+.station-build-box p { line-height: 1.45; margin: 14px 0; }
+.station-build-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.station-build-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; padding: 10px; gap: 7px; white-space: normal; }
+.station-build-card canvas { width: 100%; height: auto; background: rgba(0,0,0,.35); }
+.station-build-card b { color: var(--ph-bright); font-size: 16px; }
+.station-build-card small { font-size: 13px; line-height: 1.35; color: var(--text); }
+.station-build-card[aria-pressed="true"] { outline: 2px solid var(--ph); outline-offset: 2px; }
+.station-build-status { min-height: 3em; }
+@media (max-width: 700px) { .station-build-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .station-build-actions { flex-wrap: wrap; } }
+@media (max-width: 420px) { .station-build-grid { grid-template-columns: 1fr; } }
 .refit-guide {
   position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
   background: rgba(2,1,0,.55); backdrop-filter: blur(1px);

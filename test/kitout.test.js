@@ -40,8 +40,9 @@ A.ok(/⚑ QUESTS/.test(tut), 'the classic close points at the quest log by name'
 /* ---------- P0: REFIT's first-run card must never stack on the tour (2026-08-03 audit) ----------
    The kit-out ALWAYS causes the first REFIT open, so an ungated showGuide() put a full-viewport modal
    over the ⚇ PROP button the tour's ring was pulsing on — teaching a different lesson underneath. */
-A.ok(/if\s*\(!hasSeen\(\)\s*&&\s*!tutorialCoaching\(\)\)\s*showGuide\(\)/.test(build),
-  'the REFIT first-run card stands down while the tutorial is coaching');
+A.ok(!/if\s*\(!hasSeen\(\)[^\n]*showGuide\(\)/.test(build)
+  && /querySelector\('#refit-help'\)\.onclick = showGuide/.test(build),
+  'REFIT help opens only on request, so it cannot stack over the tutorial');
 A.ok(/function tutorialCoaching\(\)[\s\S]{0,200}Tutorial\.isCoaching\(\)/.test(build),
   'that gate reads Tutorial.isCoaching() (the same coordination dockglow.js uses)');
 A.ok(/markSeen\(\);\s*if \(g\.parentNode\)/.test(build),

@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "0dd89a5158a408d5c0bf72fd0830743130e763cc",
-    "pathSetSha256": "9e378403804c37f467ab12ee929e8f226c14b82b77364fcfe9992b50a4f4bb6a",
+    "sourceCommit": "fa7597cb1c8812bb900ebb8a02f861c638a90b94",
+    "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
         "path": "INSTALL.md",
@@ -313,8 +313,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 414571,
-        "sha256": "7ad94c8bf7eb57d0f5cc23c57605a9ca300338b25f55a79019dc0b79eaddf160"
+        "bytes": 433150,
+        "sha256": "b6f656d8cb0ee86d81616c042d755b7750661f5c4a577a0e58884183ffa4441c"
       },
       {
         "path": "frontend/app/channels.js",
@@ -343,8 +343,8 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 26116,
-        "sha256": "c6fde9f6dd0f18a5e41ac47fd3e2595ceaa3798c16958ba263e05a2663193e24"
+        "bytes": 26880,
+        "sha256": "42496ae28ca94a3347f48ee7db1e69988cda9e9d99c784deabb6c23270c75507"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
@@ -373,8 +373,8 @@
       },
       {
         "path": "frontend/app/crtlab.js",
-        "bytes": 23806,
-        "sha256": "1a1f2e190b9ee83c49b42176e047c66948e1669b9ca964c0581c4a0f30aa4467"
+        "bytes": 23936,
+        "sha256": "b67f9780426e1e69fb1af0ddbf8bd9c963808e1be76242d9adbc72fdc78bdb73"
       },
       {
         "path": "frontend/app/ctxgauge.js",
@@ -408,8 +408,8 @@
       },
       {
         "path": "frontend/app/dialogue.js",
-        "bytes": 24861,
-        "sha256": "64770b9bf2d6ad35528cc1d9a6d7dd46f4ca659b4dac2ed30f24f1269dac81a7"
+        "bytes": 24924,
+        "sha256": "9354e7731387be177220fbf2dcb136b151d2f773bad24c7d7f4ddde529b01bf8"
       },
       {
         "path": "frontend/app/discoverystore.js",
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/industrialtextures.js",
-        "bytes": 29262,
-        "sha256": "be337f59925d3201cfd39b6edcd25dc6dec07636425ce65d4652b33c9f83e874"
+        "bytes": 29297,
+        "sha256": "dee6a3d97c5791b5c428cd0ef164381c4208b4c87da712267febd67f7ff45d98"
       },
       {
         "path": "frontend/app/intake.js",
@@ -763,8 +763,8 @@
       },
       {
         "path": "frontend/app/propremaster.js",
-        "bytes": 31654,
-        "sha256": "b2aaa258cbda00ec26d4e31c68e2b53c5a1790e994a68d3b052d1f405fac3b0e"
+        "bytes": 31711,
+        "sha256": "bda5fcc238c02609efe66fd32383ae0c554947d1c65e101b3d97ceba2b79f245"
       },
       {
         "path": "frontend/app/propsearch.js",
@@ -1023,8 +1023,8 @@
       },
       {
         "path": "frontend/app/stationbake.js",
-        "bytes": 362004,
-        "sha256": "f709f68ad67f7a31fc0016f39ac76c3f0d0636b86102fbc3b1cf47aaf1a81cf3"
+        "bytes": 362090,
+        "sha256": "4bc31af332c3ae6a3d28608369babd2fd660813fa4b3188670e7b501205f846d"
       },
       {
         "path": "frontend/app/stationcommands.js",
@@ -1040,6 +1040,11 @@
         "path": "frontend/app/stationqueststore.js",
         "bytes": 12386,
         "sha256": "205d7e31999f8a650ce62b942869d4ee28b0a1c397f48575ef1e63b2070cf492"
+      },
+      {
+        "path": "frontend/app/stationtemplates.js",
+        "bytes": 10700,
+        "sha256": "bf712ae1d0cd5af522ae2d4f6a5434497f6fa867c13e6f19861e3753dccb378a"
       },
       {
         "path": "frontend/app/stationui.js",
@@ -1123,8 +1128,8 @@
       },
       {
         "path": "frontend/app/tutorial.js",
-        "bytes": 96065,
-        "sha256": "e7480ec271188311c9f71f4a1b4f20b25aa895d5f5aacafd185c4bbfe421793b"
+        "bytes": 97608,
+        "sha256": "d264e2a6178d65b080b51c1b2f6c4aa18b0efff2c8cbea9be5b52fa482987a5f"
       },
       {
         "path": "frontend/app/understanding.js",
@@ -1278,8 +1283,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 753988,
-        "sha256": "1fb8db083cae59ae3a9f139a1491970f5a973c80cbe04fd8470c182559c34eac"
+        "bytes": 754093,
+        "sha256": "2dee2cbc2983f4d6ff22fa9b1a2caeb5b9be14a620c37926aa936cc9e42b88f4"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1293,8 +1298,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 162199,
-        "sha256": "d7fd7724f6fb7e8abd796353881e45dd11c9645cff41092066798047a84b9e4a"
+        "bytes": 167402,
+        "sha256": "854e7f7f2843f3374f50154a370c7e1ed66cf342891c217d5912f3f4d9682753"
       },
       {
         "path": "frontend/app/worldrenderer.js",
@@ -1353,8 +1358,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 399704,
-        "sha256": "76a332af77d572bbb868563decd9c9f45b5c5ac9b70baaa9864921f8e38dcb81"
+        "bytes": 401106,
+        "sha256": "7e2906bb72674b985b6bc21e5bdcaa4f47a1e2bbc3222dfed81be10ac624335f"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1413,8 +1418,8 @@
       },
       {
         "path": "frontend/css/onboarding.css",
-        "bytes": 4686,
-        "sha256": "a1526c5155518bd40b0af559e422ea9c93badc64324f80f0f480de12cc8b44fc"
+        "bytes": 5146,
+        "sha256": "38baa42ed7091807d22ebe5e1913f164291665dd6a245d8a275b640eac8e1247"
       },
       {
         "path": "frontend/css/overseer-setup.css",
@@ -1443,8 +1448,8 @@
       },
       {
         "path": "frontend/css/refit-polish.css",
-        "bytes": 12143,
-        "sha256": "339045ba0e9a6dabc041935554fdaeed8ef58b76e0b4fe7b6fbfd862359a23ad"
+        "bytes": 28346,
+        "sha256": "2283d7a0747cd36600b0918731af2c5949e93fae433091dfbcca29205e8106b8"
       },
       {
         "path": "frontend/css/refit.css",
@@ -1553,8 +1558,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86479,
-        "sha256": "bc5ce78f58ccc82af417451e25b6ab1ff571f7862e60990b3edb8e222c965f3f"
+        "bytes": 86527,
+        "sha256": "978ef90cd60ddfb71bd7674fb92e5c76307b6d7d1f080729a1fa5701c5546bd2"
       },
       {
         "path": "frontend/js/arcade.js",

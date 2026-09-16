@@ -26,7 +26,7 @@
      silhouette it is pinned to. Add a WALL knob, add it here. */
   const WALL_DEFAULTS = { up: 30, corUp: 30, skirt: 40, side: 7, capH: 4, sideCap: 5, hullLit: 0.70, hullVoid: 0.34 };
   const DEPTH_DEFAULTS = { wallShadow: 0.5, sheen: 0.14, cornerAO: 0.55, dither: 0.12, floorWear: 0.55, floorDetail: 1, deckSeam: 0.38, wallDetail: 1, poolAlbedo: 1, edgeAO: 1, southFoot: 0 };
-  if(new URLSearchParams(location.search).get('propSet')==='projection'){
+  if(new URLSearchParams(location.search).get('textures')!=='classic'&&new URLSearchParams(location.search).get('propReview')!=='skins'&&new URLSearchParams(location.search).get('propSet')!=='approved'){
     Object.assign(WALL_DEFAULTS,{hullLit:.52,hullVoid:.24});Object.assign(LIGHT_DEFAULTS,{room:.60,pool:.96,reach:1.5});
   }
   // TUBE APERTURE — the CSS glass vignette over the feed (app.css :root --tube-*). NOT the barrel warp:

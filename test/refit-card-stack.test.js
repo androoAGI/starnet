@@ -97,7 +97,8 @@ A.ok(/function onCancel\(\) \{[^}]*releaseDrag\(\)/.test(build), 'pointercancel 
 const blur = build.slice(build.indexOf('function onBlur()'), build.indexOf('function onBlur()') + 200);
 A.ok(/releaseDrag\(\)/.test(blur), 'window blur releases the capture');
 A.ok(!/drag\.mode === 'pan'/.test(blur), 'and blur cancels EVERY drag, not just a pan (no frozen ghost after alt-tab)');
-A.ok(/if \(drag\) \{ releaseDrag\(\); hideTip\(\); setCursor\(\); return; \}/.test(escCode), 'ESC on a drag releases the capture too');
+A.ok(/if \(drag \|\| connectFrom \|\| dupe\) \{ selectTool\('select'\); return; \}/.test(escCode)
+  && /if \(drag \|\| dragPid != null\) releaseDrag\(\)/.test(build), 'ESC cancels the gesture and tool through the capture-release path');
 
 /* ---------- 5. completed Build actions leave truthful controls and status ---------- */
 // STARTER GEAR (2026-08-18, Andrew — replaced STATION ORDERS): the card's rows come from the ONE
