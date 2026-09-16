@@ -9,7 +9,7 @@ use std::path::Path;
 
 pub(crate) const KEYCHAIN_SERVICE: &str = "ai.skynet.harness";
 pub(crate) const KEYCHAIN_ACCOUNT: &str = "openrouter";
-pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
+pub(crate) const KEYCHAIN_PROVIDERS: [&str; 14] = [
     "openrouter",
     "openai",
     "anthropic",
@@ -22,6 +22,7 @@ pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
     "fireworks",
     "perplexity",
     "cerebras",
+    "qwencloud",
     "custom",
 ];
 
@@ -32,7 +33,7 @@ pub(crate) const SIDECAR_CHANNEL_TOKEN_ENVS: [(&str, &str); 2] = [
     ("discord", "SKYNET_DISCORD_TOKEN"),
 ];
 
-pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
+pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 13] = [
     ("openai", "SKYNET_OPENAI_API_KEY"),
     ("anthropic", "SKYNET_ANTHROPIC_API_KEY"),
     ("gemini", "SKYNET_GEMINI_API_KEY"),
@@ -44,6 +45,7 @@ pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
     ("fireworks", "SKYNET_FIREWORKS_API_KEY"),
     ("perplexity", "SKYNET_PERPLEXITY_API_KEY"),
     ("cerebras", "SKYNET_CEREBRAS_API_KEY"),
+    ("qwencloud", "SKYNET_QWENCLOUD_API_KEY"),
     ("custom", "SKYNET_CUSTOM_OPENAI_KEY"),
 ];
 
@@ -63,6 +65,7 @@ pub(crate) fn normalize_provider(provider: &str) -> &'static str {
         "fireworks" | "fireworks-ai" => "fireworks",
         "perplexity" | "pplx" | "sonar" => "perplexity",
         "cerebras" => "cerebras",
+        "qwencloud" | "qwen" | "dashscope" | "qwen-cloud" | "alibaba" => "qwencloud",
         "ollama" | "ollama-local" => "ollama",
         "custom" | "openai-compatible" | "local" | "vllm" | "lmstudio" => "custom",
         _ => "openrouter",
@@ -414,6 +417,7 @@ mod tests {
             ("pplx", "perplexity"),
             ("ollama-local", "ollama"),
             ("lmstudio", "custom"),
+            ("dashscope", "qwencloud"),
             ("unknown-provider", "openrouter"),
         ];
         for (input, expected) in cases {

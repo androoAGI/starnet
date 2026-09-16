@@ -38,6 +38,7 @@ const UNPRICED_BY_DESIGN = {
 const REPRESENTATIVE = {
   openai: 'gpt-5.4', xai: 'grok-4.6', groq: 'openai/gpt-oss-120b', mistral: 'mistral-medium-latest',
   deepseek: 'deepseek-chat', together: 'deepseek-ai/DeepSeek-V4-Pro-0813', fireworks: 'accounts/fireworks/models/kimi-k3',
+  qwencloud: 'qwen-plus',
   anthropic: 'claude-opus-5', gemini: 'gemini-3.5-flash', openrouter: 'openai/gpt-5.4'
 };
 
@@ -71,7 +72,8 @@ function burnProvider(tokensPerTurn, priceOf) {
       ['mistral',   'mistral-medium-latest',                    { in: 1.50, out: 7.50 },  'mistral-colossal-latest'],
       ['deepseek',  'deepseek-v4-pro',                          { in: 0.435, out: 0.87 }, 'deepseek-v9'],
       ['together',  'deepseek-ai/DeepSeek-V4-Pro-0813',         { in: 1.32, out: 3.96 },  'Qwen/Qwen9-Giant'],
-      ['fireworks', 'accounts/fireworks/models/kimi-k3',        { in: 3.00, out: 15.00 }, 'accounts/fireworks/models/never-heard-of-it']
+      ['fireworks', 'accounts/fireworks/models/kimi-k3',        { in: 3.00, out: 15.00 }, 'accounts/fireworks/models/never-heard-of-it'],
+      ['qwen',      'qwen-plus',                                { in: 0.40, out: 1.20 },  'qwen-never-heard-of-it']
     ];
     for (const [fam, known, rate, unknown] of cases) {
       const k = prices.priceOf(fam, known);
@@ -271,7 +273,7 @@ function burnProvider(tokensPerTurn, priceOf) {
       else if (p.adapter === 'openrouter') priced = { in: 1, out: 1, via: 'wire' };
       A.ok(priced && priced.in >= 0 && priced.out >= 0, p.id + ' (' + p.adapter + '): default model ' + id + ' is priced -> the spend cap can fire');
     }
-    A.ok(checked >= 9, 'the ratchet covered the metered profiles (' + checked + ')');
+    A.ok(checked >= 10, 'the ratchet covered the metered profiles (' + checked + ')');
     // and the allowlist cannot silently grow to cover a profile that is actually priceable now
     A.eq(Object.keys(UNPRICED_BY_DESIGN).filter(k => !profiles.some(p => p.id === k)).length, 0, 'every allowlist entry names a real profile');
   }

@@ -108,7 +108,8 @@
       max_completion_tokens: Number(m.max_completion_tokens || m.max_output_tokens || 0) || null,
       pricing: m.pricing || null,
       supported_parameters: params,
-      supportsTools: typeof m.supportsTools === 'boolean' ? m.supportsTools : (params.length ? params.indexOf('tools') >= 0 : null),
+      // supported_parameters without 'tools' is unknown (null), not false — many catalogs omit the flag.
+      supportsTools: typeof m.supportsTools === 'boolean' ? m.supportsTools : (params.indexOf('tools') >= 0 ? true : null),
       supportsReasoning: typeof m.supportsReasoning === 'boolean' ? m.supportsReasoning : null,
       reasoningEfforts: Array.isArray(m.reasoningEfforts) ? m.reasoningEfforts.slice() : []
     };

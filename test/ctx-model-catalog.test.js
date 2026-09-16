@@ -96,7 +96,7 @@ const OPUS_VIA_OR = {
 
 // every provider ModelDock warms; only anthropic is configured here
 const ALL_PROVIDERS = ['openrouter', 'openai', 'anthropic', 'gemini', 'codex', 'grok', 'kimi', 'xai',
-  'groq', 'mistral', 'deepseek', 'together', 'cerebras', 'fireworks', 'perplexity', 'ollama', 'custom'];
+  'groq', 'mistral', 'deepseek', 'together', 'cerebras', 'qwencloud', 'fireworks', 'perplexity', 'ollama', 'custom'];
 
 (async () => {
   /* 1. the ACTIVE provider's catalog warms and is readable */

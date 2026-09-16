@@ -16,7 +16,7 @@ const tauri = ['main.rs', 'credentials.rs']
 
 let n = 0;
 const ok = (cond, msg) => { assert.ok(cond, msg); n++; };
-const hostedProviders = ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras'];
+const hostedProviders = ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'qwencloud'];
 
 ok(!/Harness\.setKey\(\s*['"]{2}\s*\)/.test(app), 'Codex wake does not clear the OpenRouter BYOK slot');
 ok(/provider\s*!==\s*'codex'[\s\S]{0,80}reqBody\.key\s*=\s*key/.test(harness), 'browser BYOK key is sent only for key-backed provider runs');
@@ -71,5 +71,8 @@ ok(/const\s+health\s*=\s*providerHealth\[k\.provider\]/.test(station) &&
    !/const\s+runnable\s*=\s*k\.provider\s*===\s*active\s*&&\s*!!k\.model/.test(station),
   'the API-key rows also reserve ACTIVE for probe-proven runnability instead of selection alone');
 ok(!/connected\s*\?\s*connLabel[\s\S]{0,160}p\.id\s*===\s*'ollama'\s*\?\s*'[^']*LOCAL'/.test(station), 'Ollama does not fall through the generic credential status copy');
+
+ok(/function defaultModelFor\(provider\)[\s\S]*if \(p === 'custom'\) return ''/.test(app), 'custom defaultModelFor does not fall back to OpenRouter slugs');
+ok(/custom:\s*\[\]/.test(app), 'custom FALLBACK_MODELS stays empty so offline UX does not inject OpenRouter ids');
 
 console.log('provider-connections-ui.test.js OK -', n, 'assertions');

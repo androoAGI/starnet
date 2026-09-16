@@ -271,7 +271,27 @@
     [/./,                            { in: 1.20, out: 1.20 }]     // any other serverless id: the top size tier
   ];
 
-  const TABLES = { anthropic: ANTHROPIC, gemini: GEMINI, openai: OPENAI, xai: XAI, groq: GROQ, mistral: MISTRAL, deepseek: DEEPSEEK, together: TOGETHER, fireworks: FIREWORKS };
+  // Alibaba Model Studio / DashScope list rates (USD per Mtok, standard tier), approximate 2026-08.
+  // Sourced from public pricing docs; family fallbacks stay conservative until tests pin each id.
+  const QWEN = [
+    [/^qwen3\.5-plus/i,               { in: 0.40, out: 1.20 }],
+    [/^qwen3\.5-flash/i,              { in: 0.10, out: 0.40 }],
+    [/^qwen3-max/i,                   { in: 1.60, out: 6.40 }],
+    [/^qwen-max/i,                    { in: 1.60, out: 6.40 }],
+    [/^qwen-plus/i,                   { in: 0.40, out: 1.20 }],
+    [/^qwen-turbo/i,                  { in: 0.05, out: 0.20 }],
+    [/^qwen-long/i,                   { in: 0.40, out: 1.20 }],
+    [/^qwen2\.5-72b/i,                { in: 0.40, out: 1.20 }],
+    [/^qwen2\.5-32b/i,                { in: 0.20, out: 0.60 }],
+    [/^qwen2\.5-14b/i,                { in: 0.10, out: 0.30 }],
+    [/^qwen2\.5-7b/i,                 { in: 0.05, out: 0.15 }],
+    [/^qwen2\.5-coder/i,              { in: 0.20, out: 0.60 }],
+    [/^qwen2\.5/i,                    { in: 0.20, out: 0.60 }],
+    [/^qwen3/i,                       { in: 0.40, out: 1.20 }],
+    [/qwen/i,                         { in: 0.40, out: 1.20 }]
+  ];
+
+  const TABLES = { anthropic: ANTHROPIC, gemini: GEMINI, openai: OPENAI, xai: XAI, groq: GROQ, mistral: MISTRAL, deepseek: DEEPSEEK, together: TOGETHER, fireworks: FIREWORKS, qwen: QWEN };
 
   /* CACHE MULTIPLIERS, per family — what a cached prompt token bills relative to a fresh one. This exists
      because anthropic.js now actually ASKS for prompt caching: until then every cached_tokens figure was
