@@ -17,7 +17,14 @@
      3. only if a critical global is missing OR a <script> failed to load does it render the fatal banner — matte
         CRT chrome in the app's own vocabulary, naming the file, with COPY DIAGNOSTICS + RELOAD. A healthy boot
         never sees it: neither a runtime error in a non-critical module nor a rejected promise trips the banner;
-        those are counted and ride the diagnostics report (diagnostics.js appends BootGuard.summaryLine()).
+        those are counted and ride the diagnostics report (diagnostics.js appends BootGuard.summaryLine());
+     4. a shared/ script is the ONE resource the desktop page fetches from the sidecar PORT (the catalog
+        index.html writes against window.__STARNET_API__) — the only boot script that can fail because the
+        engine is still starting rather than because a file is broken. Two customer boots (2026-09-10 Mac,
+        2026-09-13 Windows) painted this banner naming shared/specialties.js while RELOAD cleared it. So a
+        shared/ load failure is RETRIED with backoff (~27 s, the shell's own port-wait window) before it is
+        declared fatal; a successful retry reloads the page ONCE (bounded) so the parser-ordered modules that
+        wrap the catalog bind to the real data. app/ and js/ scripts ship inside the bundle and never retry.
 
    Exposes `window.BootGuard`: state(), summaryLine(), report(), check(), render(). Node-requirable for tests. */
 'use strict';
@@ -32,8 +39,17 @@
   const state = {
     uncaught: 0, rejections: 0, scriptFailures: 0,
     errors: [], rejected: [], scripts: [],
-    missing: [], checked: false, fired: false, startedAt: Date.now()
+    missing: [], checked: false, fired: false, startedAt: Date.now(),
+    // shared/ catalog retry ledger — see header (4). attempts counts retries scheduled since page load;
+    // pending is the retry currently in flight (verify() defers the banner while one is); recovered marks a
+    // retry that loaded, after which the page reloads once so every dependent module binds the real catalog.
+    retry: { attempts: 0, pending: 0, recovered: 0, exhausted: false, deferred: false, src: '', reloads: 0 }
   };
+  // backoff schedule for the shared/ catalog (ms between attempts). ~27 s total: the desktop shell waits up
+  // to ~25 s for the sidecar port, so a boot that races the engine settles inside this window.
+  const RETRY_WAITS = [800, 2000, 4000, 8000, 12000];
+  const RELOAD_KEY = 'starnet.bootguard.autoreload';   // sessionStorage: bounded auto-reloads per tab
+  const RELOAD_MAX = 2;                                 // a flapping engine gets the banner, never a reload loop
 
   /* THE CRITICAL SET — module global → the file that defines it. Chosen from what app.js already guards with
      `typeof X !== 'undefined'`: with any one of these missing the station cannot boot, save, render, or talk.
@@ -66,6 +82,63 @@
     // not evidence that StarNet failed to boot. Keep the allowlist structural so real app/shared 404s remain loud.
     return /^(?:app|js|shared)\//.test(shortPath(s));
   }
+  // the sidecar-served catalog (header 4): the only station script whose failure can mean "engine not up yet".
+  function isSharedScript(s) { return /^shared\//.test(shortPath(s)); }
+  function isRetryElement(t) {
+    try { return !!(t && typeof t.getAttribute === 'function' && t.getAttribute('data-bootguard-retry')); } catch (_) { return false; }
+  }
+  // a retry needs a timer and a document to inject into; the node/vm test sandbox has neither, which keeps
+  // the classic "failed shared script is fatal" path deterministic there.
+  function canRetry() {
+    const doc = root.document;
+    return typeof root.setTimeout === 'function' && !!doc && typeof doc.createElement === 'function' && !!(doc.head || doc.body);
+  }
+  function reloadsSoFar() {
+    try { const v = root.sessionStorage && root.sessionStorage.getItem(RELOAD_KEY); return v ? (parseInt(v, 10) || 0) : 0; } catch (_) { return state.retry.reloads; }
+  }
+  function noteReload(n) {
+    state.retry.reloads = n;
+    try { if (root.sessionStorage) root.sessionStorage.setItem(RELOAD_KEY, String(n)); } catch (_) {}
+  }
+  function scheduleRetry(src) {
+    const r = state.retry;
+    if (r.exhausted || r.pending) return false;
+    if (r.attempts >= RETRY_WAITS.length) { r.exhausted = true; return false; }
+    const wait = RETRY_WAITS[r.attempts];
+    r.attempts++; r.pending++; r.src = shortPath(src);
+    root.setTimeout(function () {
+      try {
+        const doc = root.document;
+        const el = doc.createElement('script');
+        el.setAttribute('data-bootguard-retry', String(r.attempts));
+        el.async = false;
+        el.onload = function () { r.pending = Math.max(0, r.pending - 1); onRetryLoaded(); };
+        el.onerror = function () {
+          r.pending = Math.max(0, r.pending - 1);
+          if (!scheduleRetry(src)) { r.exhausted = true; if (r.deferred) verify(); }
+        };
+        el.src = String(src) + (String(src).indexOf('?') > -1 ? '&' : '?') + 'bootguard-retry=' + r.attempts;
+        (doc.head || doc.body).appendChild(el);
+      } catch (_) {
+        r.pending = Math.max(0, r.pending - 1);
+        r.exhausted = true; if (r.deferred) verify();
+      }
+    }, wait);
+    return true;
+  }
+  function onRetryLoaded() {
+    const r = state.retry;
+    r.recovered++;
+    const n = reloadsSoFar();
+    if (n < RELOAD_MAX) {
+      // the catalog answered late: app/specialties.js already wrapped an empty catalog, so the only honest
+      // recovery is a fresh parse — bounded, and only after a PROVEN successful load (never a blind loop).
+      noteReload(n + 1);
+      try { root.location.reload(); return; } catch (_) {}
+    }
+    // reload budget spent (a flapping engine): the page is still bound to an empty catalog → say so.
+    r.exhausted = true; if (r.deferred) verify();
+  }
   function reasonText(r) {
     if (r == null) return 'unhandled rejection (no reason)';
     if (typeof r === 'object') return String(r.message || r.reason || r.name || (function () { try { return JSON.stringify(r); } catch (_) { return '[object]'; } })());
@@ -79,9 +152,11 @@
       if (t && t !== root && t.tagName) {
         // a RESOURCE failure (capture phase). Only <script> is a boot fault — an <img>/<audio> that 404s is cosmetic.
         const src = t.src || t.getAttribute && t.getAttribute('src');
+        if (String(t.tagName).toUpperCase() === 'SCRIPT' && isRetryElement(t)) return;   // a retry's own miss is handled by its onerror
         if (String(t.tagName).toUpperCase() === 'SCRIPT' && isStationScript(src)) {
           state.scriptFailures++;
           push(state.scripts, shortPath(src));
+          if (isSharedScript(src) && canRetry()) scheduleRetry(src);
         }
         return;
       }
@@ -131,6 +206,7 @@
     L.push('boot check:     ' + (!state.checked ? 'not run yet' : (state.missing.length || state.scriptFailures) ? 'FAILED' : 'passed'));
     if (state.missing.length) L.push('missing:        ' + state.missing.map(m => m.name + ' (' + m.file + ')').join(', '));
     if (state.scripts.length) L.push('scripts failed: ' + state.scripts.join(', '));
+    if (state.retry.attempts) L.push('shared retry:   ' + state.retry.attempts + ' attempt(s) for ' + state.retry.src + (state.retry.recovered ? ' — recovered (reloaded ' + state.retry.reloads + '×)' : state.retry.exhausted ? ' — engine never answered' : ' — in progress'));
     L.push('page errors:    ' + summaryLine());
     state.errors.forEach(x => L.push('  error:        ' + x));
     state.rejected.forEach(x => L.push('  rejection:    ' + x));
@@ -189,7 +265,12 @@
   }
 
   function verify() {
-    try { if (!check()) render(); } catch (_) {}
+    try {
+      if (check()) return;
+      // a shared/ retry is still in flight: hold the banner until it loads (→ reload) or gives up (→ render).
+      if (state.retry.pending && !state.retry.exhausted) { state.retry.deferred = true; return; }
+      render();
+    } catch (_) {}
   }
   function arm() {
     const doc = root.document;
@@ -205,6 +286,6 @@
     state: () => state,
     installed, summaryLine, report, check, render, verify,
     PROBES: PROBES.map(p => ({ name: p[0], file: p[1] })),
-    _internals: { onError, onRejection, shortPath, isStationScript, reasonText, PROBES }
+    _internals: { onError, onRejection, shortPath, isStationScript, isSharedScript, reasonText, PROBES, RETRY_WAITS, RELOAD_MAX }
   };
 });

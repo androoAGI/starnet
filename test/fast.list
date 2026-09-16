@@ -481,6 +481,7 @@ test/chat-runmeta.test.js
 test/chat-stopped-retry.test.js
 test/retry-user-transcript.http.test.js
 test/comms-history-pin.test.js
+test/comms-deliverable-replay.test.js
 test/composer-paste-limit.test.js
 test/chat-linkify.test.js
 test/chat-code-copy.test.js
