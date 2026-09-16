@@ -4,10 +4,10 @@ slug: casual-replies-continue-after-the-local-output-c
 title: Casual replies continue after the local output ceiling
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-16
 lane: agent/response-audit-0915-7c2a
-fix:
+fix: fc4c9e0f415251870778da1405086c421aff0670
 origin: customer
 report: https://github.com/androoAGI/starnet/issues/17
 affected: 0.11.2 Windows Ollama; related ceiling repair 5acf4640f
@@ -32,11 +32,13 @@ Before repair: `FAIL: a capped casual reply stops after one generation — expec
 
 ## Verdict
 
-Source repair under verification. Casual Ollama requests have a smaller configurable cap; task and auxiliary requests keep their existing allowance. A pending brief promotes a terse answer to a task before either policy applies. Generic hosted requests have no new cap. Automatic output continuation stays enabled for tasks. The unrelated transport retry path remains intact. Installer and customer-model timing remain unverified.
+Source repair verified through the real host and a dev-seeded station. Casual Ollama requests have a smaller configurable cap; task and auxiliary requests keep their existing allowance. A pending brief promotes a terse answer to a task before either policy applies. Generic hosted requests have no new cap. Automatic output continuation stays enabled for tasks. The unrelated transport retry path remains intact. Full gate receipts belong to the audit report. Installer and customer-model timing remain unverified.
 
 ## Regression
 
 The real HTTP reproduction fails before the repair (five generations) and passes afterward (one). Provider tests cover absent classification for auxiliary calls, explicit task classification without tools, caller overrides, lower configured ceilings, non-finite values, and hosted requests. Cache-boundary and deferred-authentication regressions from the earlier latency branch are combined and tested separately.
+
+The second review reproduced an internal auxiliary run receiving 512 instead of 4096 tokens; internal calls now retain their original classification-independent policy. It also reproduced Stop waiting on deferred OAuth refresh; cancellation now releases the caller immediately without cancelling shared refresh work or sending inference afterward. Seeded evidence: `qa/evidence/casual-response-0915/seeded-response-proof.json` (eight foreground runs across two boots; local controlled inference, not a customer-model benchmark).
 
 ## Sibling coverage
 
