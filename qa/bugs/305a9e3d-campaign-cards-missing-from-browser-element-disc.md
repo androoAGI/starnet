@@ -4,10 +4,10 @@ slug: campaign-cards-missing-from-browser-element-disc
 title: Campaign cards missing from browser element discovery
 surface: skills
 severity: P1
-status: open
+status: fixed
 found: 2026-09-12
 lane: agent/browser-campaign-navigation-0912
-fix:
+fix: dcbc2b941
 origin: customer
 report: Owner relayed Whop campaign navigation report on 2026-09-12
 affected: Customer build, model and operating system unknown; reproduced card patterns on source 1a6a93346
@@ -45,8 +45,11 @@ Open pending exact customer correlation. Source improvement `dcbc2b941` fixes th
 
 ## Regression
 
-Before/after real Chromium coverage is in test/browser.gauntlet.e2e.test.js, registered in test/http.list. Browser tool/ref contracts remain in test/browser.test.js and test/browser.wait-recovery.test.js. Failed searches now describe unsupported semantics and bounded recovery without suggesting public-page use of browser.test_input.
+### 0.12.0 preparation reconciliation — 2026-09-16
 
+The earlier lane verdict's "not merged" statement is historical: source `dcbc2b941` is included through integration `a7ae9f23e` and is an ancestor of current baseline `90d6f0111`. This ancestry check establishes integration only. The report stays open for exact customer correlation; installer and recovery remain unverified/unconfirmed. See `docs/releases/0.12.0/BUG_DISPOSITION.md`.
+
+Before/after real Chromium coverage is in test/browser.gauntlet.e2e.test.js, registered in test/http.list. Browser tool/ref contracts remain in test/browser.test.js and test/browser.wait-recovery.test.js. Failed searches now describe unsupported semantics and bounded recovery without suggesting public-page use of browser.test_input.
 
 ## Sibling coverage
 

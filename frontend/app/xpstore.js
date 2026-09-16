@@ -236,6 +236,7 @@ const XpStore = (() => {
   function isInternalRun(row) {
     if (!row) return false;
     if (row.internal) return true;
+    if (row.surface === 'interactive') return false;
     const streamId = String(row.streamId || '');
     return ['nightshift-', 'nightshift-act-', 'cron-', 'workshop-'].some(prefix => streamId.indexOf(prefix) === 0);
   }
@@ -313,7 +314,10 @@ const XpStore = (() => {
       let error = 'Rating was not saved — try again.';
       if (!res) error = 'Cannot reach the rating service — try again.';
       else if (reason === 'station generation changed; reload before rating') error = 'Station changed — reload the app before rating this work.';
-      else if (reason === 'rateable run not found') error = 'This task is not in the saved run history, so it cannot be rated.';
+      else if (reason === 'rateable run not found') error = 'This task’s saved run history is unavailable. Restart and retry; if it still fails, include Settings diagnostics in a bug report.';
+      else if (reason === 'internal run cannot be rated') error = 'Internal station activity cannot be rated. No action is needed.';
+      else if (reason === 'non-interactive run cannot be rated') error = 'This scheduled activity is not eligible for rating. New interactive replies can be rated separately.';
+      else if (reason === 'run origin unavailable for rating') error = 'This older reply has no saved run origin, so its rating eligibility cannot be verified. It cannot be rated; new interactive replies can be rated separately.';
       else if (reason === 'run did not produce rateable agent work') error = 'This task did not finish with rateable work.';
       else if (status === 401 || status === 403) error = 'Rating connection was rejected — reload the app and try again.';
       else if (status === 503 || (body && body.growthUnavailable)) error = 'Rating history is unavailable — try again after restarting the app.';

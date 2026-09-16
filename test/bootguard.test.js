@@ -130,6 +130,86 @@ A.ok(!/bootguard\.js"[^>]*\bdefer\b/.test(INDEX), 'bootguard is NOT deferred —
   A.ok(textOf(t.banner()).includes('script did not load — shared/specialties.js'), 'the shared dependency is named');
 }
 
+/* ---- 4b. the sidecar-served shared/ catalog is RETRIED with backoff before it is fatal (engine not up yet) ---- */
+// a retry needs a timer + a document head; give the sandbox both and drive the fake clock by hand.
+function retryable(t, opts) {
+  opts = opts || {};
+  const timers = [];
+  t.sandbox.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+  t.sandbox.document.head = fakeEl('head');
+  if (opts.reloadsSoFar != null) {
+    let v = String(opts.reloadsSoFar);
+    t.sandbox.sessionStorage = { getItem: () => v, setItem: (k, x) => { v = String(x); } };
+  }
+  const shared = () => ({ target: Object.assign(fakeEl('script'), { src: 'http://127.0.0.1:8787/shared/specialties.js' }) });
+  const tick = () => { const x = timers.shift(); if (!x) throw new Error('no timer pending'); x.fn(); return x.ms; };
+  const lastRetry = () => t.sandbox.document.head.children[t.sandbox.document.head.children.length - 1] || null;
+  return { timers, shared, tick, lastRetry };
+}
+{
+  // (a) the catalog answers on the first retry → no banner, exactly one bounded reload (the parser-ordered wrappers rebind)
+  const t = boot(allGlobals());
+  const r = retryable(t);
+  t.fire('error', r.shared());
+  const st = t.guard.state();
+  A.eq([st.scriptFailures, st.retry.attempts, st.retry.pending], [1, 1, 1], 'a shared/ load failure is counted AND schedules one retry');
+  t.ready();
+  A.eq(t.banner(), null, 'DOMContentLoaded with a retry in flight holds the banner (deferred, not fatal yet)');
+  A.eq(st.retry.deferred, true, 'the deferred verify is recorded');
+  const ms = r.tick();
+  A.eq(ms, t.guard._internals.RETRY_WAITS[0], 'first retry waits the first backoff step');
+  const el = r.lastRetry();
+  A.ok(el && el.tagName === 'SCRIPT' && el.getAttribute('data-bootguard-retry') === '1', 'the retry is a marked <script> in <head>');
+  A.ok(/shared\/specialties\.js\?bootguard-retry=1$/.test(el.src), 'the retry re-requests the SAME sidecar URL with a cache-busting retry marker: ' + el.src);
+  t.fire('error', { target: el });
+  A.eq([st.scriptFailures, st.retry.attempts], [1, 1], 'a retry element\'s own capture-phase error is NOT double-counted or re-scheduled');
+  el.onload();
+  A.eq(t.sandbox.__reloaded, 1, 'a successful retry reloads the page once');
+  A.eq([st.retry.recovered, st.retry.reloads], [1, 1], 'the recovery + reload are recorded');
+  A.eq(t.banner(), null, 'no banner after a recovered catalog');
+  A.ok(t.guard.report().includes('shared retry:   1 attempt(s) for shared/specialties.js — recovered (reloaded 1×)'), 'the report names the recovered retry');
+}
+{
+  // (b) the engine never answers → every backoff step is spent, THEN the banner names the shared file (still fatal, just later)
+  const t = boot(allGlobals());
+  const r = retryable(t);
+  const WAITS = t.guard._internals.RETRY_WAITS;
+  t.fire('error', r.shared());
+  t.ready();
+  const seen = [];
+  for (let i = 0; i < WAITS.length; i++) {
+    A.eq(t.banner(), null, 'no banner while retry ' + (i + 1) + ' is pending');
+    seen.push(r.tick());
+    r.lastRetry().onerror();
+  }
+  A.eq(seen, WAITS, 'the retries follow the documented backoff schedule');
+  A.eq(r.timers.length, 0, 'no further retry is scheduled once the budget is spent');
+  const b = t.banner();
+  A.ok(b, 'exhausted retries render the fatal banner');
+  A.ok(textOf(b).includes('script did not load — shared/specialties.js'), 'the banner still names the shared dependency');
+  A.ok(t.guard.report().includes('shared retry:   ' + WAITS.length + ' attempt(s) for shared/specialties.js — engine never answered'), 'the report records the spent retry budget');
+  A.eq(t.sandbox.__reloaded, undefined, 'a failed retry never reloads the page');
+}
+{
+  // (c) the reload budget is bounded: a flapping engine gets the banner, never a reload loop
+  const t = boot(allGlobals());
+  const r = retryable(t, { reloadsSoFar: t.guard._internals.RELOAD_MAX });
+  t.fire('error', r.shared());
+  t.ready();
+  r.tick(); r.lastRetry().onload();
+  A.eq(t.sandbox.__reloaded, undefined, 'over budget: no reload');
+  A.ok(t.banner(), 'over budget: the banner renders instead (the page is still bound to an empty catalog)');
+}
+{
+  // (d) only shared/ retries — an app/ or js/ module ships inside the bundle; its failure is immediately fatal
+  const t = boot(allGlobals());
+  const r = retryable(t);
+  t.fire('error', { target: Object.assign(fakeEl('script'), { src: 'http://127.0.0.1:8787/app/recipes.js' }) });
+  A.eq([t.guard.state().retry.attempts, r.timers.length], [0, 0], 'an app/ script failure schedules no retry');
+  t.ready();
+  A.ok(t.banner(), 'an app/ script failure is fatal at once');
+}
+
 /* ---- 5. hosting-injected scripts are not station modules and cannot take the app down ---- */
 {
   const t = boot(allGlobals());

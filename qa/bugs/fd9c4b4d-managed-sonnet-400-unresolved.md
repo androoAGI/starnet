@@ -3,7 +3,7 @@ fingerprint: fd9c4b4d
 slug: managed-sonnet-400-unresolved
 title: Managed Sonnet request still returns an uncorrelated HTTP 400
 surface: providers
-severity: P1
+severity: P2
 status: open
 found: 2026-09-05
 lane: reliability-followup
@@ -19,12 +19,6 @@ recoveryEvidence: GitHub issue 6 comment 5548215321 on 2026-09-05 reports the er
 
 # Managed Sonnet request still returns an uncorrelated HTTP 400
 
-## September 11 support evidence refresh
-
-The private support thread contains newer evidence than the public issue: September 9 diagnostics correlate the earlier September 5 400 timestamp, but the current error is an Ollama localhost refusal on v0.11.0. September 10 v0.11.1 diagnostics still show an Ollama provider/model selection and the old run ID; the new complaint is a missing Anthropic credential before any new run. The owner supplied model-selection guidance. The reporter's September 10 22:32 UTC reply thanked the owner and said they would report further issues.
-
-That is a positive follow-up, not silence, and supersedes the assertion that no newer response exists. It does not explicitly identify a completed managed Sonnet run, selected model or recovered historical 400. Keep the exact failure open pending that narrower evidence; do not conflate localhost routing, empty selection and provider HTTP 400. No customer message or billing change was made during this verification.
-
 ## Symptom
 
 The September 5 report describes a managed Sonnet HTTP 400. The newer September 9–10 diagnostics describe localhost routing and model/credential selection instead; the positive September 10 reply does not identify a completed managed Sonnet run. The historical 400 remains uncorrelated, but it must not be presented as a freshly reproduced failure on 0.11.2.
@@ -39,9 +33,17 @@ docs/EMAIL_BUG_FOLLOWUP_2026-09-04.md; test/provider.openai-compatible.test.js
 
 ## Verdict
 
+2026-09-16 re-triage for 0.12.0: the historical v0.10.13 managed-Sonnet HTTP 400 was never correlated; the production gateway diagnostic gap was repaired and redeployed on 2026-09-06 (request ids now ride every 400), the reporter's later diagnostics concern Ollama/localhost routing and model selection, and the reporter replied positively on 2026-09-10. No reproducible defect exists on the 0.12.0 candidate. Severity lowered to P2 (owner rule of 2026-09-11: uncorrelated reports are tracked uncertainty, not fabricated fixes); the record stays OPEN pending a fresh sanitized request correlation.
+
 Keep open. BYOK admission, model identity and malformed-history fixes are related hypotheses, not proof of the production cause. Requires deployed-route trace and exact affected artifact reproduction.
 
 Release verification 2026-09-06: a fresh GitHub read still ends with the 2026-09-05 v0.10.13 managed-Sonnet failure; no reporter recovery was added. Fly CLI reports no access token and the available Fly dashboard browser redirects to sign-in. Candidate bd65c7737 passes the compatible-adapter and paid-link regressions in the full fast/HTTP gates. Production credentials and a current sanitized request correlation are still needed; no live customer request or account was changed.
+
+## September 11 support evidence refresh
+
+The private support thread contains newer evidence than the public issue: September 9 diagnostics correlate the earlier September 5 400 timestamp, but the current error is an Ollama localhost refusal on v0.11.0. September 10 v0.11.1 diagnostics still show an Ollama provider/model selection and the old run ID; the new complaint is a missing Anthropic credential before any new run. The owner supplied model-selection guidance. The reporter's September 10 22:32 UTC reply thanked the owner and said they would report further issues.
+
+That is a positive follow-up, not silence, and supersedes the assertion that no newer response exists. It does not explicitly identify a completed managed Sonnet run, selected model or recovered historical 400. Keep the exact failure open pending that narrower evidence; do not conflate localhost routing, empty selection and provider HTTP 400. No customer message or billing change was made during this verification.
 
 ## Regression
 

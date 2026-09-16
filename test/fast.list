@@ -294,6 +294,7 @@ test/genesis-starnet-link.test.js
 test/qa-product-perfect-provenance.test.js
 test/qa-cartographer.test.js
 test/golden.test.js
+test/audit-gaze-proof.test.js
 test/qa-beginner.test.js
 test/qa-installed-first-run.test.js
 test/qa-installed-link-transport.test.js
@@ -480,6 +481,7 @@ test/chat-runmeta.test.js
 test/chat-stopped-retry.test.js
 test/retry-user-transcript.http.test.js
 test/comms-history-pin.test.js
+test/comms-deliverable-replay.test.js
 test/composer-paste-limit.test.js
 test/chat-linkify.test.js
 test/chat-code-copy.test.js

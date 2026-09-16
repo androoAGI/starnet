@@ -9,7 +9,7 @@
 //   floor-rest (P1 foundation):
 //     • the test API is present + in-game
 //     • every PLACED body idles inside its OWN zone (Tier A containment)
-//     • awareness is GAZE-ONLY: no body is walking toward another body's tile (Tier C)
+//     • awareness is GAZE-ONLY: actual gaze calls cannot change movement state (Tier C)
 //     • HUD truthfulness: each on-screen number equals the reduction over the frozen U.bus log
 //       (no-app-lies) — for a fresh seed, SPEND/TOKENS must read exactly the event-derived totals
 //
@@ -21,13 +21,14 @@
 //   SKYNET_AUDIT_PORT=8934 SKYNET_AUDIT_CDP=9334 npm run audit
 //   SKYNET_AUDIT_LIVE_PROVIDER=1 npm run audit     # use the real configured provider/key
 //   SKYNET_AUDIT_REUSE=1 npm run audit             # intentionally drive an already-running sidecar
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { sleep, launchChrome, connectCDP, evalJS, capture, collectDiagnostics } from './lib/cdp.mjs';
 import { materializeSeedWorkspace, bootSeededSidecar, isUp, waitUp, waitDevReady, DEFAULT_MODEL } from './lib/seed.mjs';
 import { closeOnly, openSel, dismissRefitGuide } from './lib/states.mjs';
 import { messageContentText } from './lib/message-content.mjs';
+import { installGazeProof } from './lib/gaze-proof.mjs';
 
 const PORT = process.env.SKYNET_AUDIT_PORT || '8934';
 const CDP_PORT = Number(process.env.SKYNET_AUDIT_CDP || 9334);
@@ -191,7 +192,6 @@ async function waitSel(cdp, sel, tries = 25) {
 }
 const sendChat = (cdp, msg) => evalJS(cdp, `(() => { const i = document.getElementById('chat-input'); if (!i) return 'NO_INPUT'; i.focus(); i.value = ${J(msg)}; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true })); return 'sent'; })()`).catch((e) => 'ERR:' + e.message);
 const getBodies = (cdp) => evalJS(cdp, 'window.__SKYNET_TEST__.bodies()').catch(() => []);
-const tk = (t) => (t ? `${t.x},${t.y}` : '');
 // REAL canvas input over CDP: synthesize a genuine left-click (move → press → release) at viewport
 // coords, generating the same pointerdown/move/up build.js listens for. Unlike el.click(), this drives
 // the actual canvas pointer pipeline, so a placement here proves the mouse→tile→addProp path end-to-end.
@@ -206,12 +206,12 @@ const elAt = (cdp, x, y) => evalJS(cdp, `(() => { const e = document.elementFrom
 const heroCapTypes = (cdp) => evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?(World.heroCaps('agent')||[]).map(c=>c.objectType):null").catch(() => null);
 
 // containment + gaze-only over a body snapshot (the Tier A/C invariants, reused across scenarios).
-function assertFloorInvariants(A, prefix, list) {
+async function assertFloorInvariants(cdp, A, prefix, list) {
   const escaped = (list || []).filter((b) => b.zone && b.inOwnZone === false);   // only bodies that HAVE a zone may violate it
   A.ok(`${prefix}/zoned-bodies-contained`, escaped.length === 0, escaped.length ? escaped.map((b) => `${b.name}@(${b.tile.x},${b.tile.y})`).join('; ') : `${list.length} bodies, none roaming outside its zone`);
-  const occ = new Set((list || []).map((b) => tk(b.tile)));
-  const chasing = (list || []).filter((b) => b.moving && b.target && occ.has(tk(b.target.tile)) && tk(b.target.tile) !== tk(b.tile));
-  A.ok(`${prefix}/awareness-gaze-only`, chasing.length === 0, chasing.length ? chasing.map((b) => `${b.name} → ${tk(b.target.tile)}`).join('; ') : 'no body walking onto another');
+  const gaze = await evalJS(cdp, 'window.__STARNET_GAZE_PROOF__?.exercise()').catch(() => null);
+  A.ok(`${prefix}/awareness-gaze-only`, !!gaze && gaze.violations.length === 0,
+    gaze ? `${gaze.calls} gaze calls (${gaze.forced} exercised), ${gaze.violations.length} movement mutations` : 'gaze instrumentation unavailable');
 }
 
 // SCENARIO: the seeded floor at rest — the P1 invariants.
@@ -223,7 +223,7 @@ async function scenarioFloorRest(cdp, A) {
   A.ok('bodies/nonempty', Array.isArray(list) && list.length >= 1, `${(list || []).length} bodies`);
 
   // Tier A (containment) + Tier C (gaze-only awareness).
-  assertFloorInvariants(A, 'floor', list);
+  await assertFloorInvariants(cdp, A, 'floor', list);
 
   // Truthful telemetry — displayed HUD numbers equal the reduction over the frozen U.bus log.
   const hud = await evalJS(cdp, 'window.__SKYNET_TEST__.hud()').catch(() => null);
@@ -286,7 +286,7 @@ async function scenarioSummon(cdp, A) {
     await sleep(2200);                                                     // spawn + materialize + first stroll beat
     const list = await getBodies(cdp);
     A.ok('summon/body-spawned', list.length === before + 1, `${before} → ${list.length} (${rec})`);
-    assertFloorInvariants(A, 'summon', list);                             // the new body must stay contained + gaze-only
+    await assertFloorInvariants(cdp, A, 'summon', list);                   // the new body must stay contained + gaze-only
   }
   await evalJS(cdp, closeOnly).catch(() => {});                            // close the bay for the frame
   await sleep(700);
@@ -308,9 +308,25 @@ async function scenarioMoat(cdp, A) {
   for (let i = 0; i < 20; i++) { built = await evalJS(cdp, "!!(typeof Build!=='undefined' && Build.__test__ && Build.__test__.isOpen())").catch(() => false); if (built) break; await sleep(200); }
   A.ok('moat/build-mode', built, built ? 'REFIT open + dev hook present' : 'Build.__test__ not available');
 
+  // The default station ships pre-equipped (2026-09-15: workstation + all five capability props), so a
+  // fresh seed already owns TERMINAL. object=capability is proven in BOTH directions instead: strip every
+  // workbench through the validated model API → the capability must go OFFLINE after the re-bake; place one
+  // back → it must come ONLINE again. Either direction lying (a cap with no object, an object with no cap)
+  // is the app-lies pattern this scenario exists to catch.
   let placed = null;
   if (built) {
-    placed = await evalJS(cdp, "Build.__test__.placeCapProp('workbench')").catch((e) => ({ ok: false, reason: e.message }));
+    const stripped = await evalJS(cdp, "(() => { const st = Build.__test__.station(); if (!st || !st.propsByType) return { ok: false, reason: 'no-station' }; const ids = st.propsByType('workbench').map(p => p.id); const out = ids.map(id => (st.removeProp(id) || {}).ok !== false); return { ok: out.every(Boolean), removed: ids.length }; })()").catch((e) => ({ ok: false, reason: e.message }));
+    A.ok('moat/strip-prop', !!(stripped && stripped.ok), stripped && stripped.ok ? `${stripped.removed} workbench(es) removed via station.removeProp` : `strip failed: ${stripped && stripped.reason}`);
+    await clickSel(cdp, '#refit-done');                 // exit build → re-bake
+    await evalJS(cdp, closeOnly).catch(() => {});
+    await sleep(900);
+    const gone = capList(await evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?World.heroCaps('agent'):null").catch(() => null));
+    A.ok('moat/capability-offline', !gone.includes('workbench'), `after strip=[${gone.join(', ') || 'none'}] (no workbench object ⇒ no terminal)`);
+
+    await clickSel(cdp, '#bb-build');
+    let reopened = false;
+    for (let i = 0; i < 20; i++) { reopened = await evalJS(cdp, "!!(typeof Build!=='undefined' && Build.__test__ && Build.__test__.isOpen())").catch(() => false); if (reopened) break; await sleep(200); }
+    placed = reopened ? await evalJS(cdp, "Build.__test__.placeCapProp('workbench')").catch((e) => ({ ok: false, reason: e.message })) : { ok: false, reason: 'REFIT did not reopen' };
     A.ok('moat/place-prop', !!(placed && placed.ok), placed && placed.ok ? `workbench @ (${placed.tile.tx},${placed.tile.ty})` : `placement failed: ${placed && placed.reason}`);
     await clickSel(cdp, '#refit-done');                 // exit build → re-bake
     await evalJS(cdp, closeOnly).catch(() => {});
@@ -319,8 +335,8 @@ async function scenarioMoat(cdp, A) {
 
   // object=capability: a placed workbench ⇒ the TERMINAL capability (objectType 'workbench') comes online.
   const after = capList(await evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?World.heroCaps('agent'):null").catch(() => null));
-  A.ok('moat/capability-online', after.includes('workbench') && !before.includes('workbench'), `after=[${after.join(', ') || 'none'}] (workbench ⇒ terminal)`);
-  const KNOWN = new Set(['cabinet', 'dish', 'notebook', 'workbench']);   // heroCaps objectTypes (computer/connector excluded by design)
+  A.ok('moat/capability-online', after.includes('workbench'), `after=[${after.join(', ') || 'none'}] (workbench ⇒ terminal)`);
+  const KNOWN = new Set(['cabinet', 'dish', 'notebook', 'workbench', 'studio', 'jukebox']);   // heroCaps objectTypes = CAP_PROP_MAP values (computer/connector excluded by design)
   const bad = after.filter((c) => !KNOWN.has(c));
   A.ok('moat/caps-well-formed', bad.length === 0, bad.length ? 'unexpected: ' + bad.join(',') : 'every placed object maps to a known capability');
 }
@@ -333,8 +349,9 @@ async function scenarioMoat(cdp, A) {
 // World.heroCaps gains `dish` (WEB) — the placement, and the capability it earns, both came from a mouse.
 async function scenarioPropPlace(cdp, A) {
   await evalJS(cdp, closeOnly).catch(() => {});
-  const before = heroCapTypes(cdp) && (await heroCapTypes(cdp)) || [];
-  const hadDish = Array.isArray(before) && before.includes('dish');
+  // the pre-equipped default station already owns WEB, so the proof counts comms_dish OBJECTS in the live
+  // world model (before/after the real clicks) and then re-reads the capability after the re-bake.
+  const dishCount = () => evalJS(cdp, "(() => { const st = Build.__test__ && Build.__test__.station(); return st && st.propsByType ? st.propsByType('comms_dish').length : -1; })()").catch(() => -1);
 
   await clickSel(cdp, '#bb-build');
   let built = false;
@@ -349,29 +366,33 @@ async function scenarioPropPlace(cdp, A) {
   const canvasClear = !!(topEl && /refit-canvas/.test(topEl.cls));
   A.ok('prop-place/canvas-reachable', canvasClear, canvasClear ? `guide dismissed (${dismissed}); topmost @centre = ${topEl.cls}` : `centre still covered by ${topEl && topEl.cls} — real mouse would miss the grid`);
 
-  // select prop tool → CAPABILITY category → comms_dish, all through the REAL palette DOM.
+  // select prop tool → find the DISH through the REAL library search field (the 2026-09-15 Build library
+  // is sectioned FURNITURE / EQUIPMENT / ABILITIES and opens on FURNITURE; search browses the whole catalog
+  // the way a Commander looking for "dish" does) → click its tile, all through the actual palette DOM.
   const pt = await evalJS(cdp, "(() => { const t=document.querySelector('.refit-tool[data-tool=\"prop\"]'); if(!t) return 'NO_TOOL'; t.click(); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
   await sleep(150);
-  await evalJS(cdp, "(() => { const c=document.querySelector('.refit-propcat[data-cat=\"capability\"]'); if(c) c.click(); })()").catch(() => {});
-  await sleep(150);
+  const searched = await evalJS(cdp, "(() => { const i=document.querySelector('#refit-propsearch-input'); if(!i) return 'NO_SEARCH'; i.focus(); i.value='dish'; i.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
+  await sleep(200);
   const tile = await evalJS(cdp, "(() => { const b=document.querySelector('.refit-proptile[data-prop=\"comms_dish\"]'); if(!b) return 'NO_TILE'; b.click(); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
-  A.ok('prop-place/prop-selected', pt === 'ok' && tile === 'ok', `tool=${pt} tile=${tile}`);
+  A.ok('prop-place/prop-selected', pt === 'ok' && searched === 'ok' && tile === 'ok', `tool=${pt} search=${searched} tile=${tile}`);
+  const dishesBefore = await dishCount();
 
   // REAL mouse placement: try the framed centre, then a small spiral of nearby tiles (an occupied/edge
-  // centre tile just no-ops; a neighbour lands). We assert on the CAPABILITY appearing, not a fixed tile.
+  // centre tile just no-ops; a neighbour lands). We assert on a NEW comms_dish object in the live world
+  // model — the mouse→tile→addProp path end-to-end — never on a fixed tile.
   let placed = false; const attempts = [];
-  if (canvasClear) {
+  if (canvasClear && tile === 'ok') {
     const cx = 720, cy = 450;
     const spiral = [[0, 0], [0, -48], [48, 0], [0, 48], [-48, 0], [48, -48], [48, 48], [-48, 48], [-48, -48], [0, -96], [96, 0], [-96, 0], [0, 96]];
     for (const [dx, dy] of spiral) {
       await realClick(cdp, cx + dx, cy + dy);
       await sleep(140);
-      const now = (await heroCapTypes(cdp)) || [];
+      const now = await dishCount();
       attempts.push(`(${cx + dx},${cy + dy})`);
-      if (now.includes('dish') && !hadDish) { placed = true; break; }
+      if (dishesBefore >= 0 && now > dishesBefore) { placed = true; break; }
     }
   }
-  A.ok('prop-place/mouse-placed-dish', placed, placed ? `dish (WEB) online after real click ${attempts[attempts.length - 1]} (${attempts.length} pt${attempts.length > 1 ? 's' : ''})` : `no dish cap after ${attempts.length} real clicks: ${attempts.join(' ')}`);
+  A.ok('prop-place/mouse-placed-dish', placed, placed ? `comms_dish ${dishesBefore} → ${dishesBefore + 1} after real click ${attempts[attempts.length - 1]} (${attempts.length} pt${attempts.length > 1 ? 's' : ''})` : `no new comms_dish after ${attempts.length} real clicks (had ${dishesBefore}): ${attempts.join(' ')}`);
 
   // leave build; re-read the capability from the live world to prove the placement persisted the re-bake.
   await clickSel(cdp, '#refit-done');
@@ -511,12 +532,18 @@ async function runApprovalScenario() {
 
     // give the agent the FILES capability by placing a cabinet-granting prop (safe → cabinet). This isn't the
     // prop-placement test (that's scenarioPropPlace); here we just need fs.write to be OWNED, so use the fast hook.
-    await clickSel(cdp, '#bb-build');
-    for (let i = 0; i < 20; i++) { if (await evalJS(cdp, "!!(typeof Build!=='undefined'&&Build.__test__&&Build.__test__.isOpen())").catch(() => false)) break; await sleep(200); }
-    const placed = await evalJS(cdp, "Build.__test__.placeCapProp('safe')").catch((e) => ({ ok: false, reason: e.message }));
-    await clickSel(cdp, '#refit-done'); await evalJS(cdp, closeOnly).catch(() => {}); await sleep(700);
+    // The pre-equipped default station (2026-09-15) already grants FILES; only an older/bare seed needs the
+    // placement. Either way the assertion is the same truth: fs.write must be an OWNED capability here.
+    const owned = (await heroCapTypes(cdp)) || [];
+    let placed = { ok: true, skipped: true };
+    if (!owned.includes('cabinet')) {
+      await clickSel(cdp, '#bb-build');
+      for (let i = 0; i < 20; i++) { if (await evalJS(cdp, "!!(typeof Build!=='undefined'&&Build.__test__&&Build.__test__.isOpen())").catch(() => false)) break; await sleep(200); }
+      placed = await evalJS(cdp, "Build.__test__.placeCapProp('safe')").catch((e) => ({ ok: false, reason: e.message }));
+      await clickSel(cdp, '#refit-done'); await evalJS(cdp, closeOnly).catch(() => {}); await sleep(700);
+    }
     const caps = (await heroCapTypes(cdp)) || [];
-    A.ok('approval/files-cap-owned', !!(placed && placed.ok) && caps.includes('cabinet'), `placed=${placed && placed.ok} heroCaps=[${caps.join(', ') || 'none'}]`);
+    A.ok('approval/files-cap-owned', !!(placed && placed.ok) && caps.includes('cabinet'), `${placed && placed.skipped ? 'cabinet pre-equipped' : 'placed=' + (placed && placed.ok) + (placed && placed.reason ? ' (' + placed.reason + ')' : '')} heroCaps=[${caps.join(', ') || 'none'}]`);
 
     // send a directive → the tool-mock asks for fs.write → the interactive consent broker prompts.
     const sent = await sendChat(cdp, 'write a short note to a file, then stop');
@@ -614,6 +641,7 @@ async function main() {
     const diag = collectDiagnostics(cdp);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
+    const gazeErrors = await installGazeProof(cdp, readFileSync(new URL('../frontend/app/world.js', import.meta.url), 'utf8'));
     await cdp.send('Page.navigate', { url: APP_URL });
 
     const floorReady = await waitDevReady(cdp, evalJS, { tries: 24, url: APP_URL });
@@ -661,6 +689,9 @@ async function main() {
       }
     }
     report.console = diag.consoleMsgs.slice(0, 30);
+    report.gazeProof = await evalJS(cdp, 'window.__STARNET_GAZE_PROOF__?.read()').catch(() => null);
+    report.gazeErrors = gazeErrors;
+    if (gazeErrors.length) exitCode = 3;
     report.exceptions = diag.exceptions.slice(0, 20);
     if (diag.exceptions.length) { console.log(`\nuncaught exceptions: ${diag.exceptions.length}`); diag.exceptions.slice(0, 8).forEach((e) => console.log('  ' + e)); }
   } finally {

@@ -207,6 +207,9 @@ const clock = { now: () => clk };
   A.eq(s.record({ runId: 'w11', agentId: 'a', identityFallback: 1 }).identityFallback, true, 'truthy identityFallback coerces to a strict boolean');
   A.eq(s.record({ runId: 'w12', agentId: 'a', internal: true }).internal, true, 'reason-only internal runs are marked so progression catch-up can exclude them');
   A.eq(s.record({ runId: 'w13', agentId: 'a' }).internal, false, 'ordinary runs default to non-internal');
+  A.eq(s.record({ runId: 'interactive-origin', surface: 'interactive', streamId: 'cron-existing' }).surface, 'interactive', 'run origin survives independently of conversation prefix');
+  A.eq(s.record({ runId: 'scheduled-origin', surface: 'autonomous' }).surface, 'autonomous', 'scheduled origin stays distinct');
+  A.eq(s.record({ runId: 'unknown-origin', surface: 'invented' }).surface, '', 'unrecognized origins are not accepted as interactive evidence');
 }
 
 // ---- J. (work-visibility) OLD JSONL rows WITHOUT artifacts still parse + list (fail-open) ----

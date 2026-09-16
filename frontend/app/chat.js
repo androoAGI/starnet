@@ -6273,10 +6273,35 @@ const Chat = (() => {
     return true;
   }
 
+  /* DELIVERABLE REPLAY (2026-09-16 — customer: "can't send clickable files anymore, it sends a text path").
+     The ▤ saved / ▤ made rows were painted LIVE from the `deliverable` event only; renderHistory replayed
+     user / assistant / sys turns, so any reload, stream switch or Try Again dropped every clickable file row
+     and left the model's prose path as the only trace. Workstreams.recordDeliverable already files every shown
+     deliverable ({title, kind, runId, t}) on its stream — replay those in time order, each row landing where
+     the live run painted it: before the reply that followed it, leftovers after the last turn. Background
+     streams (never on screen when their run produced a file) gain their rows the first time they are opened. */
+  function replayableDeliverables(ws) {
+    const list = ws && Array.isArray(ws.deliverables) ? ws.deliverables : [];
+    return list
+      .filter(d => d && String(d.title || '').trim() && (d.kind === 'file' || d.kind === 'image' || d.kind === 'video' || d.kind === 'audio'))
+      .slice()
+      .sort((a, b) => (+a.t || 0) - (+b.t || 0));
+  }
+  function replayDeliverableRow(d, agentId) {
+    const mk = d.kind === 'file' ? mediaKindOf(d.title) : d.kind;   // the recorded kind IS the rendered kind (see onDeliverable)
+    if (mk === 'image') imageDeliverableLine(d.title, agentId);
+    else if (mk === 'video' || mk === 'audio') mediaPlayerLine(d.title, agentId, mk);
+    else deliverableLine(d.title, agentId);
+  }
   function renderHistory() {
     const h = activeWs ? activeWs.history : [];
     let lastReal = null;   // the trailing dialogue turn (for the error-recovery re-offer below)
     renderingHistory = true;   // suppress the per-row entrance animation across this bulk replay (restored below)
+    const delivs = replayableDeliverables(activeWs);
+    const delivAgent = (activeWs && activeWs.agentId) || 'agent';
+    let di = 0;
+    // every recorded deliverable stamped at/before `ts` lands now (ts == null flushes the rest)
+    const flushDeliverablesBefore = (ts) => { while (di < delivs.length && (ts == null || (+delivs[di].t || 0) <= ts)) replayDeliverableRow(delivs[di++], delivAgent); };
     try {
     for (const m of h) {
       if (m && m.truncated) {   // E3: the local history-cap marker — render it as a dim centered SYSTEM line (not a dropped record)
@@ -6295,11 +6320,13 @@ const Chat = (() => {
       // a turn produced by a WORK LINE stage carries its own agentId — replay names that agent, not the focused
       // one, or a reload would silently re-attribute two other agents' work to whoever owns the stream now.
       const spoke = (m && m.agentId && typeof App !== 'undefined' && App.agentName) ? App.agentName(m.agentId) : null;
+      if (stamp !== false) flushDeliverablesBefore(stamp);   // the files this reply's run produced were shown BEFORE the reply landed
       const r = row('agent', { stamp: stamp, who: spoke });   // past turns render as plain GROUPED messages; only the LIVE reply is the lit headline
       if (m.error) r.d.classList.add('err');
       renderProse(r.body, m.content);   // same linkify path as live tokens, so replayed history matches
       lastReal = m;
     }
+    flushDeliverablesBefore(null);   // files newer than the last stored turn (or from turns without a stamp)
     } finally { renderingHistory = false; }   // future LIVE rows animate again
     // STRANDED-USER LAW: a reload/switch onto a stream whose LAST turn failed (error:true) must not leave the
     // Commander with a dead thread and no way out — load() wiped the live recovery chips. Re-offer a plain retry
