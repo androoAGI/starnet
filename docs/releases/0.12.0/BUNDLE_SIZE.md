@@ -53,7 +53,7 @@ copy (`"frontend-dist": "frontend"`, target name unchanged, so `sidecar/index.js
 | --- | --- |
 | staged frontend | 11,225 files / 266 MB (dropped 670 files / 954 MB) |
 | `skynet-desktop.exe` | 268 MB (was 926 MB) |
-| `StarNet_0.12.0_x64-setup.exe` | INSTALLER_SIZE |
+| `StarNet_0.12.0_x64-setup.exe` | 908,434,576 bytes signed, sha256 6125316eeac173ca3c1971f5b0e438623b24174d0318b9e0a62ae51a06c30820, built from `fd55ee2b2` (first cut: 1,568,318,690 bytes) |
 
 The installer is still larger than 0.11.2 (130 MB): the remaster's runtime art is ~200 MB of PNG that
 does not compress. Shrinking that further (pre-rasterizing the projection sources at their DENSITY-6
