@@ -308,9 +308,25 @@ async function scenarioMoat(cdp, A) {
   for (let i = 0; i < 20; i++) { built = await evalJS(cdp, "!!(typeof Build!=='undefined' && Build.__test__ && Build.__test__.isOpen())").catch(() => false); if (built) break; await sleep(200); }
   A.ok('moat/build-mode', built, built ? 'REFIT open + dev hook present' : 'Build.__test__ not available');
 
+  // The default station ships pre-equipped (2026-09-15: workstation + all five capability props), so a
+  // fresh seed already owns TERMINAL. object=capability is proven in BOTH directions instead: strip every
+  // workbench through the validated model API → the capability must go OFFLINE after the re-bake; place one
+  // back → it must come ONLINE again. Either direction lying (a cap with no object, an object with no cap)
+  // is the app-lies pattern this scenario exists to catch.
   let placed = null;
   if (built) {
-    placed = await evalJS(cdp, "Build.__test__.placeCapProp('workbench')").catch((e) => ({ ok: false, reason: e.message }));
+    const stripped = await evalJS(cdp, "(() => { const st = Build.__test__.station(); if (!st || !st.propsByType) return { ok: false, reason: 'no-station' }; const ids = st.propsByType('workbench').map(p => p.id); const out = ids.map(id => (st.removeProp(id) || {}).ok !== false); return { ok: out.every(Boolean), removed: ids.length }; })()").catch((e) => ({ ok: false, reason: e.message }));
+    A.ok('moat/strip-prop', !!(stripped && stripped.ok), stripped && stripped.ok ? `${stripped.removed} workbench(es) removed via station.removeProp` : `strip failed: ${stripped && stripped.reason}`);
+    await clickSel(cdp, '#refit-done');                 // exit build → re-bake
+    await evalJS(cdp, closeOnly).catch(() => {});
+    await sleep(900);
+    const gone = capList(await evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?World.heroCaps('agent'):null").catch(() => null));
+    A.ok('moat/capability-offline', !gone.includes('workbench'), `after strip=[${gone.join(', ') || 'none'}] (no workbench object ⇒ no terminal)`);
+
+    await clickSel(cdp, '#bb-build');
+    let reopened = false;
+    for (let i = 0; i < 20; i++) { reopened = await evalJS(cdp, "!!(typeof Build!=='undefined' && Build.__test__ && Build.__test__.isOpen())").catch(() => false); if (reopened) break; await sleep(200); }
+    placed = reopened ? await evalJS(cdp, "Build.__test__.placeCapProp('workbench')").catch((e) => ({ ok: false, reason: e.message })) : { ok: false, reason: 'REFIT did not reopen' };
     A.ok('moat/place-prop', !!(placed && placed.ok), placed && placed.ok ? `workbench @ (${placed.tile.tx},${placed.tile.ty})` : `placement failed: ${placed && placed.reason}`);
     await clickSel(cdp, '#refit-done');                 // exit build → re-bake
     await evalJS(cdp, closeOnly).catch(() => {});
@@ -319,8 +335,8 @@ async function scenarioMoat(cdp, A) {
 
   // object=capability: a placed workbench ⇒ the TERMINAL capability (objectType 'workbench') comes online.
   const after = capList(await evalJS(cdp, "(typeof World!=='undefined'&&World.heroCaps)?World.heroCaps('agent'):null").catch(() => null));
-  A.ok('moat/capability-online', after.includes('workbench') && !before.includes('workbench'), `after=[${after.join(', ') || 'none'}] (workbench ⇒ terminal)`);
-  const KNOWN = new Set(['cabinet', 'dish', 'notebook', 'workbench']);   // heroCaps objectTypes (computer/connector excluded by design)
+  A.ok('moat/capability-online', after.includes('workbench'), `after=[${after.join(', ') || 'none'}] (workbench ⇒ terminal)`);
+  const KNOWN = new Set(['cabinet', 'dish', 'notebook', 'workbench', 'studio', 'jukebox']);   // heroCaps objectTypes = CAP_PROP_MAP values (computer/connector excluded by design)
   const bad = after.filter((c) => !KNOWN.has(c));
   A.ok('moat/caps-well-formed', bad.length === 0, bad.length ? 'unexpected: ' + bad.join(',') : 'every placed object maps to a known capability');
 }
@@ -333,8 +349,9 @@ async function scenarioMoat(cdp, A) {
 // World.heroCaps gains `dish` (WEB) — the placement, and the capability it earns, both came from a mouse.
 async function scenarioPropPlace(cdp, A) {
   await evalJS(cdp, closeOnly).catch(() => {});
-  const before = heroCapTypes(cdp) && (await heroCapTypes(cdp)) || [];
-  const hadDish = Array.isArray(before) && before.includes('dish');
+  // the pre-equipped default station already owns WEB, so the proof counts comms_dish OBJECTS in the live
+  // world model (before/after the real clicks) and then re-reads the capability after the re-bake.
+  const dishCount = () => evalJS(cdp, "(() => { const st = Build.__test__ && Build.__test__.station(); return st && st.propsByType ? st.propsByType('comms_dish').length : -1; })()").catch(() => -1);
 
   await clickSel(cdp, '#bb-build');
   let built = false;
@@ -349,29 +366,33 @@ async function scenarioPropPlace(cdp, A) {
   const canvasClear = !!(topEl && /refit-canvas/.test(topEl.cls));
   A.ok('prop-place/canvas-reachable', canvasClear, canvasClear ? `guide dismissed (${dismissed}); topmost @centre = ${topEl.cls}` : `centre still covered by ${topEl && topEl.cls} — real mouse would miss the grid`);
 
-  // select prop tool → CAPABILITY category → comms_dish, all through the REAL palette DOM.
+  // select prop tool → find the DISH through the REAL library search field (the 2026-09-15 Build library
+  // is sectioned FURNITURE / EQUIPMENT / ABILITIES and opens on FURNITURE; search browses the whole catalog
+  // the way a Commander looking for "dish" does) → click its tile, all through the actual palette DOM.
   const pt = await evalJS(cdp, "(() => { const t=document.querySelector('.refit-tool[data-tool=\"prop\"]'); if(!t) return 'NO_TOOL'; t.click(); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
   await sleep(150);
-  await evalJS(cdp, "(() => { const c=document.querySelector('.refit-propcat[data-cat=\"capability\"]'); if(c) c.click(); })()").catch(() => {});
-  await sleep(150);
+  const searched = await evalJS(cdp, "(() => { const i=document.querySelector('#refit-propsearch-input'); if(!i) return 'NO_SEARCH'; i.focus(); i.value='dish'; i.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
+  await sleep(200);
   const tile = await evalJS(cdp, "(() => { const b=document.querySelector('.refit-proptile[data-prop=\"comms_dish\"]'); if(!b) return 'NO_TILE'; b.click(); return 'ok'; })()").catch((e) => 'ERR:' + e.message);
-  A.ok('prop-place/prop-selected', pt === 'ok' && tile === 'ok', `tool=${pt} tile=${tile}`);
+  A.ok('prop-place/prop-selected', pt === 'ok' && searched === 'ok' && tile === 'ok', `tool=${pt} search=${searched} tile=${tile}`);
+  const dishesBefore = await dishCount();
 
   // REAL mouse placement: try the framed centre, then a small spiral of nearby tiles (an occupied/edge
-  // centre tile just no-ops; a neighbour lands). We assert on the CAPABILITY appearing, not a fixed tile.
+  // centre tile just no-ops; a neighbour lands). We assert on a NEW comms_dish object in the live world
+  // model — the mouse→tile→addProp path end-to-end — never on a fixed tile.
   let placed = false; const attempts = [];
-  if (canvasClear) {
+  if (canvasClear && tile === 'ok') {
     const cx = 720, cy = 450;
     const spiral = [[0, 0], [0, -48], [48, 0], [0, 48], [-48, 0], [48, -48], [48, 48], [-48, 48], [-48, -48], [0, -96], [96, 0], [-96, 0], [0, 96]];
     for (const [dx, dy] of spiral) {
       await realClick(cdp, cx + dx, cy + dy);
       await sleep(140);
-      const now = (await heroCapTypes(cdp)) || [];
+      const now = await dishCount();
       attempts.push(`(${cx + dx},${cy + dy})`);
-      if (now.includes('dish') && !hadDish) { placed = true; break; }
+      if (dishesBefore >= 0 && now > dishesBefore) { placed = true; break; }
     }
   }
-  A.ok('prop-place/mouse-placed-dish', placed, placed ? `dish (WEB) online after real click ${attempts[attempts.length - 1]} (${attempts.length} pt${attempts.length > 1 ? 's' : ''})` : `no dish cap after ${attempts.length} real clicks: ${attempts.join(' ')}`);
+  A.ok('prop-place/mouse-placed-dish', placed, placed ? `comms_dish ${dishesBefore} → ${dishesBefore + 1} after real click ${attempts[attempts.length - 1]} (${attempts.length} pt${attempts.length > 1 ? 's' : ''})` : `no new comms_dish after ${attempts.length} real clicks (had ${dishesBefore}): ${attempts.join(' ')}`);
 
   // leave build; re-read the capability from the live world to prove the placement persisted the re-bake.
   await clickSel(cdp, '#refit-done');
@@ -511,12 +532,18 @@ async function runApprovalScenario() {
 
     // give the agent the FILES capability by placing a cabinet-granting prop (safe → cabinet). This isn't the
     // prop-placement test (that's scenarioPropPlace); here we just need fs.write to be OWNED, so use the fast hook.
-    await clickSel(cdp, '#bb-build');
-    for (let i = 0; i < 20; i++) { if (await evalJS(cdp, "!!(typeof Build!=='undefined'&&Build.__test__&&Build.__test__.isOpen())").catch(() => false)) break; await sleep(200); }
-    const placed = await evalJS(cdp, "Build.__test__.placeCapProp('safe')").catch((e) => ({ ok: false, reason: e.message }));
-    await clickSel(cdp, '#refit-done'); await evalJS(cdp, closeOnly).catch(() => {}); await sleep(700);
+    // The pre-equipped default station (2026-09-15) already grants FILES; only an older/bare seed needs the
+    // placement. Either way the assertion is the same truth: fs.write must be an OWNED capability here.
+    const owned = (await heroCapTypes(cdp)) || [];
+    let placed = { ok: true, skipped: true };
+    if (!owned.includes('cabinet')) {
+      await clickSel(cdp, '#bb-build');
+      for (let i = 0; i < 20; i++) { if (await evalJS(cdp, "!!(typeof Build!=='undefined'&&Build.__test__&&Build.__test__.isOpen())").catch(() => false)) break; await sleep(200); }
+      placed = await evalJS(cdp, "Build.__test__.placeCapProp('safe')").catch((e) => ({ ok: false, reason: e.message }));
+      await clickSel(cdp, '#refit-done'); await evalJS(cdp, closeOnly).catch(() => {}); await sleep(700);
+    }
     const caps = (await heroCapTypes(cdp)) || [];
-    A.ok('approval/files-cap-owned', !!(placed && placed.ok) && caps.includes('cabinet'), `placed=${placed && placed.ok} heroCaps=[${caps.join(', ') || 'none'}]`);
+    A.ok('approval/files-cap-owned', !!(placed && placed.ok) && caps.includes('cabinet'), `${placed && placed.skipped ? 'cabinet pre-equipped' : 'placed=' + (placed && placed.ok) + (placed && placed.reason ? ' (' + placed.reason + ')' : '')} heroCaps=[${caps.join(', ') || 'none'}]`);
 
     // send a directive → the tool-mock asks for fs.write → the interactive consent broker prompts.
     const sent = await sendChat(cdp, 'write a short note to a file, then stop');
