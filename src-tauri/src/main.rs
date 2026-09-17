@@ -14,6 +14,7 @@
 mod credentials;
 mod fresh_start;
 mod lifecycle_preferences;
+mod window_visibility;
 
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -63,6 +64,7 @@ struct AppState {
     lifecycle_preferences_path: PathBuf,
     lifecycle_preferences: Mutex<LifecyclePreferences>,
     close_exit_pending: AtomicBool,
+    startup_reveal: window_visibility::StartupReveal,
     // Pauses the crash guardian while an explicit restart/reset owns the child lifecycle.
     recovery_in_progress: AtomicBool,
     // Flipped true the instant the app starts exiting, so the guardian thread stops
@@ -3957,6 +3959,7 @@ fn main() {
                 lifecycle_preferences_path,
                 lifecycle_preferences: Mutex::new(lifecycle_preferences),
                 close_exit_pending: AtomicBool::new(false),
+                startup_reveal: window_visibility::StartupReveal::new(start_minimized),
                 recovery_in_progress: AtomicBool::new(false),
                 shutting_down: AtomicBool::new(false),
                 guardian: Mutex::new(GuardianStatus::default()),
@@ -4057,10 +4060,15 @@ fn main() {
                 .initialization_script(&init)
                 .center()
                 .visible(false)
-                // Reveal only after the document paints — avoids a white flash.
-                .on_page_load(move |window, _payload| {
-                    if !start_minimized {
-                        let _ = window.show();
+                // Page-load hooks fire for Started AND Finished. Reveal only once,
+                // after Finished; a close cancels any still-pending startup reveal.
+                .on_page_load(move |window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                        if let Some(state) = window.app_handle().try_state::<AppState>() {
+                            if state.startup_reveal.finish_load() {
+                                let _ = window.show();
+                            }
+                        }
                     }
                 });
             // Windows: drop the stock titlebar/border — the frontend draws its own themed
@@ -4106,6 +4114,7 @@ fn main() {
                 main_window.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         if let Some(state) = app_handle.try_state::<AppState>() {
+                            state.startup_reveal.cancel();
                             state.close_exit_pending.store(true, Ordering::SeqCst);
                         }
                         api.prevent_close();
