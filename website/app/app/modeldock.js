@@ -190,6 +190,7 @@ const ModelDock = (() => {
   function asModel(item, p) {
     if (typeof item === 'string') return { id: item, name: item, provider: normalizeProvider(p) };
     const out = { id: String((item && item.id) || ''), name: (item && (item.displayName || item.name)) || String((item && item.id) || ''), provider: normalizeProvider(p) };
+    if (item && item.fallback) out.fallback = true;
     const params = (item && (item.supported_parameters || item.supportedParameters)) || null;
     const efforts = (item && (item.reasoningEfforts || item.reasoning_efforts || item.supportedReasoningEfforts || item.supported_reasoning_efforts)) || null;
     if (Array.isArray(params)) out.supported_parameters = params.slice();
@@ -432,16 +433,18 @@ const ModelDock = (() => {
         const r = await apiFetch('/api/auth/codex/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
+        if (j && j.error) throw new Error(j.error);
         if (!Array.isArray(j.models)) throw new Error((j && j.error) || 'invalid catalog response');
-        list = j.models.map(m => asModel(m, p)); confirmed = true;
+        list = j.models.map(m => asModel(m, p)); confirmed = !j.fallback && !list.some(m => m.fallback);
       } else if (p === 'grok' || p === 'kimi') {
         // the other keyless device-code providers: gate on the OAuth status, discover models via /api/auth/<pid>/models.
         if (!(await oauthProviderEnabled(p))) return disconnected();
         const r = await apiFetch('/api/auth/' + p + '/models', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const j = await r.json();
+        if (j && j.error) throw new Error(j.error);
         if (!Array.isArray(j.models)) throw new Error((j && j.error) || 'invalid catalog response');
-        list = j.models.map(m => asModel(m, p)); confirmed = true;
+        list = j.models.map(m => asModel(m, p)); confirmed = !j.fallback && !list.some(m => m.fallback);
       } else if (typeof Harness !== 'undefined' && Harness.listModels) {
         if (!providerEnabled(p)) return disconnected();
         try {
@@ -452,18 +455,19 @@ const ModelDock = (() => {
           const j = await r.json();
           if (j && j.error) throw new Error(j.error);
           if (!Array.isArray(j && j.models)) throw new Error('invalid catalog response');
-          list = j.models.map(m => asModel(m, p)); confirmed = true;
+          list = j.models.map(m => asModel(m, p)); confirmed = !j.fallback && !list.some(m => m.fallback);
         } catch (_) {}
         if (!confirmed) {
           list = (await Harness.listModels(p)).map(m => asModel(m, p));
-          // Harness deliberately collapses catalog failures to []; a non-empty result is still positive proof.
-          if (list.length) confirmed = true;
+          // A populated offline seed list is not evidence that a saved model was removed.
+          if (list.length && !list.some(m => m.fallback)) confirmed = true;
         }
       }
     } catch (_) {}
     if (!isCurrent()) return (cache[p] || []).slice();
     cacheRevisions[p] = revision;
     catalogState[p] = { confirmed: confirmed, reason: confirmed ? '' : 'catalog unavailable' };
+    if (!confirmed) list.forEach(m => { m.fallback = true; });
     if (!list.length && !confirmed && (p === 'codex' || p === 'openrouter' || p === 'anthropic' || p === 'gemini' || HOSTED_FALLBACKS[p])) {
       // E4: the live catalog fetch found nothing (sidecar/provider unreachable) — fall back to the
       // hardcoded seed list, but MARK each item so the UI can label it "(catalog offline)". Without the

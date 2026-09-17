@@ -473,6 +473,7 @@ test/provider-oauth-parity.test.js
 test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
+test/model-catalog-truth.test.js
 test/agent-model-select.test.js
 test/model-reasoning-presets.test.js
 test/provider-connections-ui.test.js
