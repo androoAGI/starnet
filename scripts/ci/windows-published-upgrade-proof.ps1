@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$CandidateInstaller,
   [Parameter(Mandatory = $true)][string]$CandidateVersion,
-  [string]$Output = "windows-published-upgrade-proof.json"
+  [string]$Output = "windows-published-upgrade-proof.json",
+  [string]$HarnessCommit = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,10 +31,24 @@ function Assert-UnderTemp {
 }
 
 function Remove-SafeTree {
-  param([Parameter(Mandatory = $true)][string]$Path)
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [int]$Seconds = 30
+  )
   $resolved = Assert-UnderTemp $Path
-  if (Test-Path -LiteralPath $resolved) {
-    Remove-Item -LiteralPath $resolved -Recurse -Force
+  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+  # NSIS may remove the app before its asynchronous uninstaller finishes deleting assets.
+  # Retry only this confined disposable tree; a persistent lock still fails the proof.
+  while ($true) {
+    try {
+      if (Test-Path -LiteralPath $resolved) {
+        Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction Stop
+      }
+      return
+    } catch {
+      if ([DateTime]::UtcNow -ge $deadline) { throw }
+      Start-Sleep -Milliseconds 250
+    }
   }
 }
 
@@ -269,6 +284,7 @@ try {
       futureUninstallPreservedState = $true
     }
 
+    Write-Host "::notice::$($source.tag) -> $CandidateVersion upgrade, active-process uninstall and state-preservation assertions passed; cleaning disposable installation."
     Reset-ProofInstall $installRoot
     Remove-ProofState $markerRoot
   }
@@ -284,6 +300,10 @@ try {
 $receipt = [ordered]@{
   schema = 'starnet.windows-published-upgrade-proof.v1'
   generatedAt = [DateTime]::UtcNow.ToString('o')
+  proofHarness = [ordered]@{
+    commit = $HarnessCommit
+    sha256 = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
   candidate = [ordered]@{
     version = $CandidateVersion
     installer = [IO.Path]::GetFileName($candidate)

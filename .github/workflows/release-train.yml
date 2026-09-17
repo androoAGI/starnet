@@ -566,16 +566,27 @@ jobs:
       - name: Prove published Windows upgrades survive a broken old uninstaller
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          PROOF_HARNESS_COMMIT: ${{ github.workflow_sha }}
         run: |
           $ErrorActionPreference = 'Stop'
+          # A recovery dispatch may repair the test harness while the application stays
+          # pinned to its immutable tag. Export the harness outside the checkout so the
+          # build's clean source identity remains untouched, and record both identities.
+          if ($env:PROOF_HARNESS_COMMIT -notmatch '^[0-9a-f]{40}$') { throw 'Missing exact workflow source commit' }
+          $proofSource = git show "$($env:PROOF_HARNESS_COMMIT):scripts/ci/windows-published-upgrade-proof.ps1"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the workflow-pinned upgrade harness' }
+          $proofScript = Join-Path $env:RUNNER_TEMP 'windows-published-upgrade-proof.ps1'
+          $proofSource | Set-Content -LiteralPath $proofScript -Encoding utf8
           $installer = Get-ChildItem -Path 'src-tauri/target' -Recurse -File -Filter '*-setup.exe' |
             Where-Object { $_.FullName -match '[\\/]bundle[\\/]nsis[\\/]' } |
             Select-Object -First 1
           if ($null -eq $installer) { throw 'could not locate candidate NSIS installer for upgrade proof' }
           $version = (Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json).version
-          & ./scripts/ci/windows-published-upgrade-proof.ps1 `
+          & $proofScript `
             -CandidateInstaller $installer.FullName `
             -CandidateVersion $version `
+            -HarnessCommit $env:PROOF_HARNESS_COMMIT `
             -Output 'windows-published-upgrade-proof.json'
 
       - name: Upload Windows published-upgrade receipt

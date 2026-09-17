@@ -56,6 +56,12 @@ const workflowStep = workflow.indexOf('Prove published Windows upgrades survive 
 const stageDraft = workflow.indexOf('stage-draft:');
 A.ok(workflowStep >= 0 && stageDraft > workflowStep, 'published-version upgrade proof blocks the train before draft staging');
 A.ok(workflow.includes('windows-published-upgrade-proof-${{ matrix.target }}'), 'release train retains the upgrade receipt');
+A.ok(workflow.includes('PROOF_HARNESS_COMMIT: ${{ github.workflow_sha }}') &&
+  workflow.includes('git show "$($env:PROOF_HARNESS_COMMIT):scripts/ci/windows-published-upgrade-proof.ps1"'),
+  'recovery dispatch pins its upgrade harness to the exact workflow commit');
+A.ok(workflow.includes("Join-Path $env:RUNNER_TEMP 'windows-published-upgrade-proof.ps1'") &&
+  proof.includes('proofHarness = [ordered]@{') && proof.includes('Get-FileHash -LiteralPath $PSCommandPath'),
+  'harness repair stays outside the immutable app checkout and records its executed bytes');
 A.ok(workflow.includes("!cancelled() && needs.build.result == 'success' && needs.notarize-macos.result == 'success'"),
   'Intel installed acceptance runs only when both build and notarization prerequisites succeeded');
 
@@ -65,6 +71,10 @@ if (process.platform === 'win32') {
     `$e=$null;$t=$null;[void][Management.Automation.Language.Parser]::ParseFile('${path.join(ROOT, 'scripts', 'ci', 'windows-published-upgrade-proof.ps1').replace(/'/g, "''")}',[ref]$t,[ref]$e);if($e.Count){$e|% Message;exit 1}`
   ], { encoding: 'utf8' });
   A.eq(ps.status, 0, 'Windows upgrade proof parses as PowerShell: ' + String(ps.stderr || ps.stdout));
+  const cleanup = spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'test', 'fixtures', 'windows-upgrade-cleanup.ps1')
+  ], { encoding: 'utf8', timeout: 20000 });
+  A.eq(cleanup.status, 0, 'disposable upgrade cleanup survives a transient lock and rejects persistent locks/unsafe paths: ' + String(cleanup.stderr || cleanup.stdout));
 }
 
 A.report('installer-upgrade-resilience.test');
