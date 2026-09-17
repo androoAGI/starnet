@@ -1580,7 +1580,7 @@ own runner (Q1 Guardian, Q2 Beginner Run, Q4 Janitor) or the Overseer digest; th
 
 | Crew member | Question it answers | Last run | Result | Open findings |
 | --- | --- | --- | --- | --- |
-| Green Guardian | Is trunk green and does the app still boot + look right? | 2026-09-16 19:42Z @ 47ee14e8 | GREEN | 0 |
+| Green Guardian | Is trunk green and does the app still boot + look right? | 2026-09-17 08:26Z @ 98e70fc0 | GREEN | 1 |
 | Beginner Run | Can a brand-new user reach first value, unassisted? | 2026-09-16T19:21:09.124Z · ui-only · 52936ms | PASS | 0 |
 | Truth Auditor | Does the UI show what actually happened? | 2026-07-01 23:28Z (in Guardian cycle) | GREEN | 0 |
 | Visual Auditor | Is the rendered game coherent? (needs eyes) | — (local /loop; not headless) | — | 0 |
@@ -3028,3 +3028,7 @@ RELEASE 0.11.2 merge: agent/release-0112-finalprep-0911 -> bb9f0719d9d632575670b
 2026-09-16: agent/typing-focus-0916-c7a2 -> trunk 1edb652f712e7d24d45888e32189544f486a603e (owner-requested fast-forward). Workshop delivery/attach/return no longer steals a focused composer, draft or attachment; delayed connector checks retain the handoff instead of overriding navigation/typing. Both frontend copies repaired. Final candidate 50791280b: fast 812/812 PASS, customer journeys 35/35 PASS; both seeded browser campaigns PASS with zero page errors. Integrated source is byte-identical to the verified source; post-merge typing/focus/connector/workshop regressions and syntax checks PASS. Existing operational edits preserved; no installer rebuilt/published. Release candidates must include this later source repair. Digest: qa/digests/2026-09-16-session-typing.md.
 
 2026-09-16: agent/recall-report-0916 -> trunk dcc1dc27f (verification receipt 72245f566). Memory corrections replace stale beliefs; scoped approved requirements persist through recall; unsupported save claims and exhausted action promises report incomplete work. Pre/post merge test:fast PASS 813/813 and test:http PASS 119/119; customer journeys PASS 36/36. Seeded HTTP restart/stale-review checks and actual Memory panel Keep verified. Existing operational edits preserved. Evidence: qa/evidence/recall-report-0916/MERGE.md. No installer rebuild or release; exact customer recovery remains unconfirmed.
+
+- 2026-09-16 release recovery: CI cleanup repair -> 93c9f30d6; pre/post-merge fast gates 814/814 GREEN. Application tag v0.12.0 remains immutable at df6090835; recovery train 35166711378 builds that tag with separately pinned CI harness. No publication.
+
+2026-09-17: agent/walk-cycle-fix -> trunk 4b2f55a28 (fast-forward; lane 775fc99c4, re-locks 7bd93c012 + 4b2f55a28, archive tag archive/walk-cycle-fix-merged-2026-09-17). 33 of 34 redesigned approved_* skins walk on Pixellab walking-8-frames skeleton cycles in all 8 directions; android/bear/blank_*/pepe/vaultboy manifests and the selected-refresh record repointed from 0..7/_repair_ to the canonical 1..8 frames and 458 orphaned PNGs removed. capybara keeps its previous frames (template invents hip gear). Worktree gate PASS 815/815 on the exact trunk tree. Live-checked on a seeded dev server (127.0.0.1:9917) by the owner. Existing operational edits preserved; no installer rebuild or release.
