@@ -10,10 +10,11 @@ lane: release-0112-finalprep-0911
 fix: 788578969
 origin: customer
 report: support-2026-09-10-mac-shared-specialties
-affected: Mac WebKit; app version and failing origin not supplied
+affected: Installed Mac app confirmed in September 16 follow-up; reported latest public update but exact version and failed resource response remain unverified
 family: boot-integrity
 installer: unverified
-recovery: unconfirmed
+recovery: persists
+recoveryEvidence: September 16 private follow-up confirms continued catalog failure in the installed Mac app on the current public release; this is not a retest of unpublished 0.12.0
 ---
 
 # Mac boot guard reports shared specialty catalog load failure
@@ -38,7 +39,7 @@ September 11 installed Windows candidate `7f6c7b005`: SharedSpecialties was load
 
 2026-09-16 source hardening for 0.12.0 (788578969): shared/specialties.js is the one boot script the desktop page fetches from the sidecar port, so an engine that answers late paints exactly this banner and RELOAD clears it. BootGuard now retries a failed shared/ catalog load with backoff (~27 s, the shell port-wait window) and, after a proven successful retry, reloads the page once (bounded to two auto-reloads per tab) so the parser-ordered modules bind the real catalog; only spent retries render the fatal banner, which now records the retry ledger for support. Covered by test/bootguard.test.js (retry success, exhaustion, reload budget, no retry for bundled app/ scripts) and proven live over CDP with a first request to /shared/specialties.js forced to fail. The original Mac origin and build remain uncorrelated; this closes the symptom class under the owner engineering-acceptance rule of 2026-09-11.
 
-Open pending the affected origin/build and Mac reproduction. Do not merge this symptom into eaaa3ec8 (native station data unreachable after relink) without evidence. Website-only record b3b8d28f includes a prior missing staged catalog, but a matching filename does not establish that this reporter used the website or that the same deployment was involved.
+Source hardening is included; affected-machine recovery remains pending. A fresh September 16 private reply identifies the installed Mac app and confirms that the public version still fails. It does not retest unpublished 0.12.0. The separate credit-usage concern is tracked independently and is not explained by this source fix. Do not merge this symptom into eaaa3ec8 (native station data unreachable after relink) without evidence. A September 13 Windows Edge report also names the shared catalog, but its full origin/build is unknown; it does not prove the same deployment or cause.
 
 ## Regression
 
