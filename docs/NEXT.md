@@ -1,3 +1,7 @@
+## 0.12.3 FINAL SPRITE RELEASE — IN PROGRESS — 2026-09-17 (`agent/release-0120-prep-0915`)
+
+The owner authorized the final sprite-animation merge, fresh rebuilt installers and publication after acceptance. Sprite commit `775fc99c4` is merged through `e681e59b4`; no additional feature lanes are in scope. The 0.12.2 candidate passed but remains unpublished and is superseded. The existing long-soak waiver applies to this final artwork addition to the same overhaul. See [0.12.3 release scope](releases/0.12.3/RELEASE.md). Late emails remain deferred; no customer messages or account actions are authorized. Earlier entries below are historical and their publication prohibition is superseded by the owner’s latest instruction.
+
 ## 0.12.2 RELEASE ACCEPTANCE — IN PROGRESS — 2026-09-17 (`agent/release-0120-prep-0915`)
 
 Owner-authorized prepublication preparation continues in this lane. Built 0.12.0 and 0.12.1 candidates are rejected and their drafts marked do not publish; public latest remains 0.11.2. The latest catalog-selection repair is `20be5165b`, proven in the isolated live app through restart. See [0.12.2 recovery](releases/0.12.2/RECOVERY.md). Full gates and official exact-installer acceptance remain required. No publication or website deployment is authorized. The entries below are historical, not current acceptance claims.
