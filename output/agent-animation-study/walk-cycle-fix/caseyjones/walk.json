@@ -1,0 +1,41 @@
+{
+  "charId": "07f53924-e13c-4b5a-9089-fe288bcb9f3e",
+  "group": "973743f7-ba41-4206-8b59-c6c64ac3acd7",
+  "template": "walking-8-frames",
+  "rotT": "1789496844",
+  "anims": {
+    "south-east": [
+      "b8ac093a-0e76-4ed2-8674-ff11741c7e5f",
+      "1789632668857"
+    ],
+    "north-east": [
+      "5ff378a4-4bea-4c07-8780-cf58c7ca3c07",
+      "1789632667649"
+    ],
+    "south": [
+      "bb4eef37-30e5-44c4-8a59-9431fa2814d4",
+      "1789633047233"
+    ],
+    "east": [
+      "5fc2df2f-4255-4d59-86b1-d380e18e5b6d",
+      "1789632635024"
+    ],
+    "north-west": [
+      "e5d43e7a-c2d5-4cc3-bf98-d2774b184709",
+      "1789632611636"
+    ],
+    "west": [
+      "ce9688e8-b34f-4e87-98fa-44b7f910042e",
+      "1789632604870"
+    ],
+    "south-west": [
+      "c4f765e8-c46d-4473-b570-9c62f11a0703",
+      "1789632594703"
+    ],
+    "north": [
+      "b0c66966-4869-4841-b350-2e68da2340ba",
+      "1789632594272"
+    ]
+  },
+  "note": "south regenerated once (first pass had three facing flips in opposite phases)"
+}

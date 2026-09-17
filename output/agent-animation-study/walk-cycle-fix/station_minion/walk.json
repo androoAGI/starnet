@@ -1,0 +1,44 @@
+{
+  "charId": "db6e27a7-d3bb-44d0-aca0-04c86bb95914",
+  "group": "dba47bae-1fef-49f1-8649-82b35a1985bc",
+  "template": "walking-8-frames",
+  "rotT": "1789495333",
+  "anims": {
+    "east": [
+      "566aec7b-0989-4a7f-a877-58fd9a3b57ab",
+      "1789630783611"
+    ],
+    "south-west": [
+      "6dbe8469-8b28-41bd-924a-7d8aae0f2421",
+      "1789630769795"
+    ],
+    "south-east": [
+      "c5df23f1-57b2-4c16-8ed0-8fa3b5226e56",
+      "1789630756407"
+    ],
+    "north": [
+      "aa29f7ca-9be4-401d-91b3-96c51c51ddb9",
+      "1789630750138"
+    ],
+    "west": [
+      "a65c228c-8ab1-4584-944a-a8b9b523f26b",
+      "1789630750132"
+    ],
+    "north-east": [
+      "0575661e-80c3-412f-a77a-0fc77a6cac65",
+      "1789630749358"
+    ],
+    "south": [
+      "79f9de1f-99be-471f-9f65-4ec77c421ee3",
+      "1789630747349"
+    ],
+    "north-west": [
+      "5d5582c4-d62d-412e-b021-271bc86e3529",
+      "1789630740525"
+    ]
+  },
+  "mirror": {
+    "east": "west"
+  },
+  "note": "the east track came back with blue jeans and bare skin (off-model); packed as a horizontal mirror of west"
+}

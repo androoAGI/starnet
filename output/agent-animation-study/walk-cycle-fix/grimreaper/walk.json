@@ -1,0 +1,46 @@
+{
+  "charId": "f25d518c-ccf6-4333-a450-55f8378f4b91",
+  "group": "12f2b0d4-c854-4416-9775-a765b2b610aa",
+  "template": "walking-8-frames",
+  "rotT": "1789494858",
+  "anims": {
+    "south-east": [
+      "283a685e-4de9-43e2-bdcc-5c460be47ca0",
+      "1789630104155"
+    ],
+    "east": [
+      "8649b710-f5e5-4538-b88b-b5d6b458996e",
+      "1789630102018"
+    ],
+    "north": [
+      "3cdba477-0f53-42b5-af3f-ba438427a16b",
+      "1789630101727"
+    ],
+    "south-west": [
+      "1d622621-b580-4948-86fc-0520073bd042",
+      "1789630016291"
+    ],
+    "south": [
+      "b692c0a8-7e77-4e05-9e29-641a2e8ef226",
+      "1789630012029"
+    ],
+    "west": [
+      "f840f20c-257e-43b6-b4c0-dc8bb118dac0",
+      "1789630011532"
+    ],
+    "north-west": [
+      "95862e3a-911e-4879-93c9-686b82eacd41",
+      "1789630010742"
+    ],
+    "north-east": [
+      "338429f3-dcbb-46fb-9b8b-08b3cfc80160",
+      "1789630008982"
+    ]
+  },
+  "mirror": {
+    "west": "east",
+    "north-west": "north-east",
+    "south-east": "south-west"
+  },
+  "note": "the template dropped the scythe on west, north-west and south-east; those tracks are horizontal mirrors of the opposite-hand tracks that kept it"
+}

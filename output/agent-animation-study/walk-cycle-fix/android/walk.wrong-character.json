@@ -1,0 +1,16 @@
+{
+  "charId": "b5e402dc-8868-4bbf-ae6f-45072e2c5231",
+  "group": "3aaa43c2-d3b5-427f-a833-450d79a426ed",
+  "template": "walking-8-frames",
+  "rotT": "1789493598",
+  "anims": {
+    "west": ["fc7e28ff-81cd-42fe-9560-99aa93fd272b", "1789626939953"],
+    "north": ["cf483dd9-079f-45c8-a74b-f37287508df1", "1789626916691"],
+    "south": ["79747e92-fdba-428c-a1f0-371de8ac5457", "1789626897232"],
+    "south-west": ["4061a7a2-4959-4f57-8c1a-320e74d400b6", "1789626896056"],
+    "north-west": ["dbc9e3b9-db98-43ec-a0eb-4b2447dc8c88", "1789626886460"],
+    "south-east": ["e1639dc8-accb-4739-9efb-01c39978ce6a", "1789626884134"],
+    "east": ["0537ccbb-e019-497f-b813-139319c62b6f", "1789626879766"],
+    "north-east": ["d23ba2c1-97b3-4d03-81a6-c0fbbdb867f7", "1789626869900"]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "charId": "043719dc-2d1e-4aad-97ec-56c3b332a288",
+  "group": "393fd24f-0d18-457d-9252-ff2adf43a810",
+  "template": "walking-8-frames",
+  "rotT": "1789493022",
+  "anims": {
+    "south-west": [
+      "05a65ecb-403c-4cd9-b430-fbf151963589",
+      "1789632026217"
+    ],
+    "north": [
+      "66bf9c15-b15a-41db-bdc5-ce779e1f5201",
+      "1789632023076"
+    ],
+    "north-west": [
+      "efc19d41-cbff-47fe-84c7-bcd79f14bc1a",
+      "1789632007950"
+    ],
+    "north-east": [
+      "4403e87f-4d80-4882-80fb-cc86f61bb251",
+      "1789631956579"
+    ],
+    "south": [
+      "6f611932-1437-4047-b0d8-9c413ee1fae2",
+      "1789631954760"
+    ],
+    "east": [
+      "457bd4cd-a9fa-463c-8f93-9d372daf7875",
+      "1789631953374"
+    ],
+    "south-east": [
+      "c669d259-8ef5-453c-a2b5-f007056a1729",
+      "1789631953325"
+    ],
+    "west": [
+      "0d570d02-3829-43c5-97fb-7773e7bd3a66",
+      "1789631952569"
+    ]
+  },
+  "mirror": {
+    "north-east": "north-west"
+  },
+  "note": "north-east came back colour-shifted (drift 64); packed as a horizontal mirror of north-west"
+}

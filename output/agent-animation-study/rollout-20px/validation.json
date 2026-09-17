@@ -11,8 +11,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 70,
+      "maxWalkHeight": 75
     },
     {
       "id": "astronaut",
@@ -22,8 +22,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 70,
+      "maxWalkHeight": 77
     },
     {
       "id": "robot",
@@ -33,8 +33,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 71,
+      "maxWalkHeight": 78
     },
     {
       "id": "crthead",
@@ -44,8 +44,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 70,
+      "maxWalkHeight": 77
     },
     {
       "id": "alien",
@@ -55,8 +55,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 71,
+      "maxWalkHeight": 76
     },
     {
       "id": "ultron",
@@ -66,8 +66,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 70,
+      "maxWalkHeight": 76
     },
     {
       "id": "skeleton",
@@ -77,8 +77,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 79
+      "minWalkHeight": 72,
+      "maxWalkHeight": 77
     },
     {
       "id": "plaguedoctor",
@@ -88,8 +88,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 79
+      "minWalkHeight": 71,
+      "maxWalkHeight": 77
     },
     {
       "id": "secretagent",
@@ -99,8 +99,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 71,
+      "maxWalkHeight": 77
     },
     {
       "id": "voidwizard",
@@ -110,8 +110,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 72,
-      "maxWalkHeight": 78
+      "minWalkHeight": 71,
+      "maxWalkHeight": 77
     },
     {
       "id": "xenomorph",
@@ -121,7 +121,7 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
+      "minWalkHeight": 72,
       "maxWalkHeight": 79
     },
     {
@@ -132,7 +132,7 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
+      "minWalkHeight": 71,
       "maxWalkHeight": 78
     },
     {
@@ -143,8 +143,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 78
+      "minWalkHeight": 66,
+      "maxWalkHeight": 73
     },
     {
       "id": "grimreaper",
@@ -154,8 +154,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 75,
-      "maxWalkHeight": 80
+      "minWalkHeight": 71,
+      "maxWalkHeight": 78
     },
     {
       "id": "crewmate",
@@ -165,8 +165,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 70,
+      "maxWalkHeight": 78
     },
     {
       "id": "bear",
@@ -177,7 +177,7 @@
       "seats": 4,
       "typingFrames": 4,
       "minWalkHeight": 70,
-      "maxWalkHeight": 78
+      "maxWalkHeight": 77
     },
     {
       "id": "pepe",
@@ -220,8 +220,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 71,
+      "maxWalkHeight": 79
     },
     {
       "id": "blank_blue",
@@ -231,8 +231,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 68,
+      "maxWalkHeight": 76
     },
     {
       "id": "blank_green",
@@ -242,8 +242,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 70,
+      "maxWalkHeight": 76
     },
     {
       "id": "blank_red",
@@ -253,8 +253,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 69,
+      "maxWalkHeight": 76
     },
     {
       "id": "blank_amber",
@@ -264,8 +264,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 76
+      "minWalkHeight": 69,
+      "maxWalkHeight": 77
     },
     {
       "id": "heisenberg",
@@ -286,8 +286,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 73,
+      "maxWalkHeight": 77
     },
     {
       "id": "ultrondroid",
@@ -297,8 +297,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 78
+      "minWalkHeight": 71,
+      "maxWalkHeight": 76
     },
     {
       "id": "samaltman",
@@ -308,8 +308,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 72,
-      "maxWalkHeight": 79
+      "minWalkHeight": 71,
+      "maxWalkHeight": 77
     },
     {
       "id": "dario",
@@ -319,8 +319,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 72,
-      "maxWalkHeight": 79
+      "minWalkHeight": 70,
+      "maxWalkHeight": 78
     },
     {
       "id": "freddyfazbear",
@@ -330,8 +330,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 79
+      "minWalkHeight": 71,
+      "maxWalkHeight": 77
     },
     {
       "id": "ghostface",
@@ -341,8 +341,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 80
+      "minWalkHeight": 69,
+      "maxWalkHeight": 77
     },
     {
       "id": "morpheus",
@@ -352,8 +352,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 79
+      "minWalkHeight": 70,
+      "maxWalkHeight": 77
     },
     {
       "id": "ricksanchez",
@@ -374,8 +374,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 74,
-      "maxWalkHeight": 78
+      "minWalkHeight": 70,
+      "maxWalkHeight": 77
     },
     {
       "id": "pikachu",
@@ -390,8 +390,8 @@
       "walkFrames": 64,
       "seats": 4,
       "typingFrames": 4,
-      "minWalkHeight": 73,
-      "maxWalkHeight": 78
+      "minWalkHeight": 68,
+      "maxWalkHeight": 82
     },
     {
       "id": "finn",
@@ -402,7 +402,7 @@
       "seats": 4,
       "typingFrames": 4,
       "minWalkHeight": 73,
-      "maxWalkHeight": 78
+      "maxWalkHeight": 79
     }
   ]
 }

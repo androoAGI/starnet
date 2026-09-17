@@ -1,0 +1,44 @@
+{
+  "charId": "abd3bba7-085c-4c18-b186-4e03878a4b1b",
+  "group": "5654fedd-4000-4c98-8370-11c6ec57d5ff",
+  "template": "walking-8-frames",
+  "note": "north-west lost the tail on two template runs; packed as a horizontal mirror of north-east. south-east was regenerated once.",
+  "rotT": "1789494404",
+  "anims": {
+    "north-west": [
+      "6f9353d6-137e-4307-97e7-8a79051c9dce",
+      "1789629984829"
+    ],
+    "south-east": [
+      "4e677fd3-8d61-408c-ad52-ad00e5dce5d8",
+      "1789629872114"
+    ],
+    "south-west": [
+      "fac7529f-5299-4a25-85b7-075926350c27",
+      "1789629376947"
+    ],
+    "west": [
+      "7c2e4079-4ed5-4f70-9996-9959c08e5c4f",
+      "1789629376596"
+    ],
+    "north-east": [
+      "86b8abf7-5e88-4d80-90d8-f5ba62aac22c",
+      "1789629376440"
+    ],
+    "east": [
+      "fc87fea0-44fb-4734-845c-9f539a34f468",
+      "1789629358727"
+    ],
+    "north": [
+      "6e403ad6-199a-422e-9d13-ded111f10c8b",
+      "1789629306759"
+    ],
+    "south": [
+      "e15941ff-6c3d-4049-b94a-2c66a26eb829",
+      "1789629293405"
+    ]
+  },
+  "mirror": {
+    "north-west": "north-east"
+  }
+}

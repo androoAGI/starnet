@@ -1,0 +1,17 @@
+{
+  "charId": "3b6fae9a-2821-4812-9e56-994df4bb5570",
+  "group": "54b2fb8d-715b-424a-a379-3e5e1ba7a362",
+  "template": "walking-8-frames",
+  "note": "north and west were dropped by a GPU worker on the first pass and re-queued into the same group",
+  "rotT": "1789496189",
+  "anims": {
+    "north": ["7e6ffd46-9087-4198-8e10-378c910dc2e1", "1789629156008"],
+    "west": ["762b51ae-f0eb-40cd-9854-fe0923fbbad2", "1789629098241"],
+    "east": ["41a3c54e-8123-4b8e-863f-0f041e2cc8c0", "1789628704452"],
+    "north-east": ["878ad8be-8211-4af2-8e77-7704a2420bbc", "1789628704092"],
+    "north-west": ["0a525ac4-65de-4424-a3cb-cf74d862f69b", "1789628700387"],
+    "south-west": ["f1a70bbb-9dbd-4415-bfd7-cda69aad6999", "1789628684322"],
+    "south-east": ["67a6fea7-3fb9-4533-99dd-d97bc378f36c", "1789628659267"],
+    "south": ["c66e1f87-6d52-43f2-a51d-d5f474bd7d0a", "1789628634679"]
+  }
+}

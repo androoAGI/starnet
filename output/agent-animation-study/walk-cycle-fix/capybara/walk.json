@@ -1,0 +1,45 @@
+{
+  "charId": "eab2cbbd-ddd6-4f23-b290-a3ff4ac93387",
+  "group": "3e8b023e-5f53-4bd7-9cd4-d0214b29a686",
+  "template": "walking-8-frames",
+  "note": "v2 — the first group (bb3e58f3) re-invented the grey hip equipment the rotations had been cleaned of, and was deleted. Production capybara rotations come from the 'corrected bare fur rotations' character. Both template runs invented grey hip gear and a maroon drape that survive the grey/red and palette scrubs (the gear outline sits inside the brown palette). Production keeps the previous MiniMax capybara walk until an ImageGen cleanup pass, as was done for its rotations.",
+  "rotT": "1789499528",
+  "anims": {
+    "north-east": [
+      "495b26d9-1392-4e07-b54e-28596cd0dd79",
+      "1789631179153"
+    ],
+    "west": [
+      "5414d8b9-d828-4516-a131-0c16d165d757",
+      "1789631163750"
+    ],
+    "south-west": [
+      "0ccb65b7-5aec-4e46-b76c-633eb56f3fdb",
+      "1789631142143"
+    ],
+    "south-east": [
+      "f8b914b6-d078-4553-9e0b-2194b71dbaf9",
+      "1789631140781"
+    ],
+    "north": [
+      "6d77c56c-2eec-49b3-9aef-e94f1945f301",
+      "1789631138606"
+    ],
+    "north-west": [
+      "5c7c18fb-7878-4180-bb5a-5754d847e9fc",
+      "1789631136152"
+    ],
+    "east": [
+      "8f16faa7-a7ce-4d15-b413-a4da8c5790d1",
+      "1789631133147"
+    ],
+    "south": [
+      "eb70ded7-e172-45b1-b85a-d2920b634277",
+      "1789631132981"
+    ]
+  },
+  "scrub": [
+    "palette"
+  ],
+  "status": "NOT INSTALLED"
+}

@@ -1,0 +1,17 @@
+{
+  "charId": "f835fd99-efde-4e81-957f-69f717d20b40",
+  "group": "497db088-4fae-4c39-a95c-7db0085958b4",
+  "template": "walking-8-frames",
+  "note": "v2 — the first group (fd82d77d) had a desaturated pink north-east track (colour drift 76) and was deleted",
+  "rotT": "1789508246",
+  "anims": {
+    "south-west": ["2617712b-e77b-4e07-85b7-caeeb430b3cf", "1789629166064"],
+    "north-west": ["98210319-c4b3-49ae-a94f-f266b3dbb61b", "1789629152603"],
+    "west": ["c9f5716f-8df9-4dc0-b827-779e27da1e7f", "1789629151674"],
+    "south-east": ["8adf266d-096a-4141-b3e4-3c840f3e06f2", "1789629114483"],
+    "east": ["946e144d-4dad-498d-968c-59dafe058028", "1789629095875"],
+    "north-east": ["334f4723-1a96-469d-98ac-c9e6bee26089", "1789629085409"],
+    "north": ["5c91330c-159b-4cc7-92e8-f1f0b39518a9", "1789629075791"],
+    "south": ["6fe74243-830d-496b-897c-3cee77bc42a0", "1789629072108"]
+  }
+}

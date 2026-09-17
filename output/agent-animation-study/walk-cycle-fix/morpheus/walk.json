@@ -1,0 +1,49 @@
+{
+  "charId": "1e53b511-d0f4-42d9-b357-09989f6e1855",
+  "group": "6abaa67a-59cc-4316-aacb-8750b86ed5b9",
+  "template": "walking-8-frames",
+  "rotT": "1789493063",
+  "anims": {
+    "east": [
+      "d6a88627-3aa3-4a96-9c48-ded76c18c13a",
+      "1789632242781"
+    ],
+    "north-west": [
+      "bdd5d2ae-f655-43da-9ba6-f64ee02ad89e",
+      "1789632206067"
+    ],
+    "south-west": [
+      "231f6d4f-bc41-4d9d-820e-e8b4d9fddf78",
+      "1789632163638"
+    ],
+    "south-east": [
+      "5dbc0013-c94f-4244-a1ad-c268df58d114",
+      "1789632159154"
+    ],
+    "south": [
+      "5f859990-5d10-42e6-88a3-1571ffff4fd4",
+      "1789632149524"
+    ],
+    "north": [
+      "9e13d9c8-28ec-46d5-a168-a73de5416b0f",
+      "1789632148257"
+    ],
+    "north-east": [
+      "1ac46bec-8afd-474f-8c10-20f2b63bce20",
+      "1789632145889"
+    ],
+    "west": [
+      "598926a2-e78e-4272-a1a9-fa012e8c3387",
+      "1789632143375"
+    ]
+  },
+  "badFrames": {
+    "south": [
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "note": "south frames 4-7 came back facing north; bald head defeats the facing metric, so they are marked bad by hand and rebuilt as mirrors of frames 0-3"
+}

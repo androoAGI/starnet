@@ -1,0 +1,17 @@
+{
+  "charId": "d774fb26-9143-4389-9a31-18ff9d77aa6b",
+  "group": "2c455228-ba79-4cc0-bd32-47ce0cacecb8",
+  "template": "walking-8-frames",
+  "note": "production Cadet art is the 'approved pixel cadet' family (pixel-cadets-0915), NOT the '19px industrial android' record in rollout-20px/full-motion — see walk.wrong-character.json",
+  "rotT": "1789508226",
+  "anims": {
+    "east": ["c599e46d-b25c-4f37-9464-29177e3ecade", "1789627500305"],
+    "south": ["f25a91f8-23a8-4f6f-8663-7c43393806b9", "1789627499373"],
+    "north-west": ["6bf457e7-96a9-4464-adff-c4b5ab34f6dd", "1789627488964"],
+    "north-east": ["6be3c47c-7e66-46d6-8b56-26710ea3a097", "1789627461878"],
+    "west": ["77094e8b-8a04-4c81-9429-0aeb947cf17c", "1789627440889"],
+    "south-east": ["f478c6fa-a995-4ef9-b1b1-795ecf8e166b", "1789627440295"],
+    "north": ["355c1d8a-3424-45d4-9d44-9fcc693f26e8", "1789627440184"],
+    "south-west": ["ca3e5c64-cf4b-4785-8e88-6625c9efab20", "1789627436632"]
+  }
+}

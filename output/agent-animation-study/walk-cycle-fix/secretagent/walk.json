@@ -1,0 +1,17 @@
+{
+  "charId": "97096b68-d4e3-4739-8359-9b1cb1600135",
+  "group": "8327e589-efd4-4957-a488-538496caf2f4",
+  "template": "walking-8-frames",
+  "note": "south comes from the 2026-09-15 catalog-walk-quality-check group (same template); PixelLab skipped it as already present",
+  "rotT": "1789456194",
+  "anims": {
+    "north-west": ["c1608629-ab37-4e37-8562-1b3d2dd29f55", "1789618418622"],
+    "west": ["8b26905b-12cc-4b23-922e-208c045f51cd", "1789618403364"],
+    "north": ["1375e07c-6357-456f-b3dd-22ebae797b33", "1789618393066"],
+    "north-east": ["c2aaca85-5b13-4e89-bcbe-64036e267c89", "1789618389387"],
+    "south-west": ["c0688457-19d1-418a-80ec-b3c72a305c8b", "1789618373644"],
+    "south-east": ["8a2407c7-1181-4744-b572-02e7b7b47a3d", "1789618353682"],
+    "east": ["e4f71867-5523-4bbc-b70a-2b4050e1d99c", "1789618324800"],
+    "south": ["e2f74580-2270-463b-a524-4925d6f3b3da", "1789492784542"]
+  }
+}

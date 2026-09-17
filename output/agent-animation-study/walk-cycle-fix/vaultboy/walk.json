@@ -1,0 +1,17 @@
+{
+  "charId": "7df8f11e-12b7-43c3-8272-79659968d68f",
+  "group": "5bafa5c6-22a8-4a71-ae67-666dec7e4b32",
+  "template": "walking-8-frames",
+  "note": "existing industrial-walk-19px template group generated 2026-09-15, never activated",
+  "rotT": "1789493023",
+  "anims": {
+    "south-east": ["3e848be0-bd47-4fcb-84c5-2663c30539c9", "1789493847690"],
+    "south-west": ["c2695936-7b8d-449d-8e0f-af629fcc09d1", "1789493824968"],
+    "north-west": ["b3999630-27b0-4eb7-ad7e-e84b4d873308", "1789493773347"],
+    "south": ["788c4b11-6829-403e-9a23-e4fd6b482616", "1789493752750"],
+    "north-east": ["63690c9c-a87b-4cde-b5c6-a993dd0983d2", "1789493750977"],
+    "east": ["cd3aa0ce-c365-40ca-a234-7c758bc4024b", "1789493748975"],
+    "west": ["b6ae9afa-4f8c-47b6-9e2c-69f738eb4927", "1789493746239"],
+    "north": ["3c7b2c51-b877-4c34-ab48-da6742ed1e37", "1789493739199"]
+  }
+}

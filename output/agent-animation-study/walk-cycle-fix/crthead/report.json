@@ -1,0 +1,601 @@
+{
+  "setId": "crthead",
+  "group": "walk-cycle-fix-0917",
+  "repairs": [
+    {
+      "dir": "north-west",
+      "frame": 5,
+      "from": 1,
+      "mirrored": false,
+      "why": [
+        "head outlier x1.93"
+      ]
+    }
+  ],
+  "directions": {
+    "south": {
+      "scale": 1,
+      "rotBox": {
+        "l": 29,
+        "t": 12,
+        "w": 38,
+        "h": 76,
+        "foot": 88,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 75,
+          "width": 34,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 75,
+          "width": 34,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 75,
+          "width": 33,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 75,
+          "width": 34,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 74,
+          "width": 35,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 75,
+          "width": 35,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 75,
+          "width": 35,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 75,
+          "width": 35,
+          "foot": 112,
+          "clipped": false
+        }
+      ]
+    },
+    "south-east": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 32,
+        "t": 10,
+        "w": 33,
+        "h": 79,
+        "foot": 89,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 75,
+          "width": 28,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 74,
+          "width": 33,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 73,
+          "width": 35,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 73,
+          "width": 33,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 75,
+          "width": 27,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 75,
+          "width": 35,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 75,
+          "width": 39,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 75,
+          "width": 32,
+          "foot": 111,
+          "clipped": false
+        }
+      ]
+    },
+    "east": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 38,
+        "t": 10,
+        "w": 20,
+        "h": 79,
+        "foot": 89,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 73,
+          "width": 21,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 73,
+          "width": 30,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 74,
+          "width": 35,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 72,
+          "width": 25,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 71,
+          "width": 22,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 71,
+          "width": 32,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 71,
+          "width": 35,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 71,
+          "width": 24,
+          "foot": 110,
+          "clipped": false
+        }
+      ]
+    },
+    "north-east": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 33,
+        "t": 9,
+        "w": 30,
+        "h": 79,
+        "foot": 88,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 74,
+          "width": 28,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 75,
+          "width": 31,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 76,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 74,
+          "width": 29,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 73,
+          "width": 28,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 73,
+          "width": 33,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 72,
+          "width": 34,
+          "foot": 108,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 74,
+          "width": 30,
+          "foot": 110,
+          "clipped": false
+        }
+      ]
+    },
+    "north": {
+      "scale": 0.987,
+      "rotBox": {
+        "l": 29,
+        "t": 10,
+        "w": 38,
+        "h": 77,
+        "foot": 87,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 76,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 76,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 75,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 75,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 75,
+          "width": 32,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 75,
+          "width": 33,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 75,
+          "width": 33,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 74,
+          "width": 32,
+          "foot": 111,
+          "clipped": false
+        }
+      ]
+    },
+    "north-west": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 31,
+        "t": 9,
+        "w": 32,
+        "h": 79,
+        "foot": 88,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 75,
+          "width": 28,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 74,
+          "width": 34,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 74,
+          "width": 35,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 75,
+          "width": 31,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 75,
+          "width": 27,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 74,
+          "width": 34,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 76,
+          "width": 39,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 75,
+          "width": 34,
+          "foot": 111,
+          "clipped": false
+        }
+      ]
+    },
+    "west": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 39,
+        "t": 10,
+        "w": 18,
+        "h": 79,
+        "foot": 89,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 76,
+          "width": 21,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 75,
+          "width": 31,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 74,
+          "width": 36,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 75,
+          "width": 28,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 76,
+          "width": 21,
+          "foot": 111,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 77,
+          "width": 31,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 77,
+          "width": 35,
+          "foot": 112,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 76,
+          "width": 25,
+          "foot": 111,
+          "clipped": false
+        }
+      ]
+    },
+    "south-west": {
+      "scale": 0.962,
+      "rotBox": {
+        "l": 31,
+        "t": 10,
+        "w": 32,
+        "h": 79,
+        "foot": 89,
+        "clipped": false,
+        "cw": 96,
+        "ch": 96
+      },
+      "standingHeight": 76,
+      "standingFoot": 112,
+      "frames": [
+        {
+          "i": 0,
+          "height": 72,
+          "width": 28,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 1,
+          "height": 72,
+          "width": 31,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 2,
+          "height": 72,
+          "width": 33,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 3,
+          "height": 72,
+          "width": 29,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 4,
+          "height": 72,
+          "width": 28,
+          "foot": 110,
+          "clipped": false
+        },
+        {
+          "i": 5,
+          "height": 71,
+          "width": 31,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 6,
+          "height": 70,
+          "width": 32,
+          "foot": 109,
+          "clipped": false
+        },
+        {
+          "i": 7,
+          "height": 70,
+          "width": 28,
+          "foot": 109,
+          "clipped": false
+        }
+      ]
+    }
+  }
+}
