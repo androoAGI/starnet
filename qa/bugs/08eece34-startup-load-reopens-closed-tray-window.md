@@ -4,10 +4,10 @@ slug: startup-load-reopens-closed-tray-window
 title: Completing startup loading reopens a window closed to the tray
 surface: release
 severity: P1
-status: open
+status: fixed
 found: 2026-09-16
 lane: release-0120-prep-0915
-fix:
+fix: 9c3b7819c
 origin: audit
 ---
 
@@ -33,4 +33,6 @@ The native `src-tauri/src/main.rs` page-load callback calls `window.show()` for 
 
 ## Verdict
 
-Open pending corrected native-binary and exact-installer proof. The failed 0.12.0 draft must remain unpublished. Per `docs/RELEASE_RUNBOOK.md`, preserve its already-built tag and cut 0.12.1 for the corrected overhaul.
+Fixed in the installed private 0.12.1 candidate `9bf98816021fc0d74d4e35c47ec9a1a06b9f2948`. The unchanged native close-to-tray matrix passes (`.dogfood/release-recovery/native-0121-tray-matrix.json`): the resident window is hidden, shell and sidecar stay alive, and a second launch reveals the same process. A separate real reload probe fails on the original 0.12.0 binary and passes on the corrected binary (`tray-reload-before-verified.json`, `tray-reload-after-native-0121.json`). The corrected private installer SHA-256 is `df29aee4897397d8912c7ded5136fc30d85dd7e9b1cd10718f058c3865e4c4ae`; this is not the future official signed release artifact.
+
+The failed 0.12.0 draft remains unpublished and is labeled superseded. Its already-built tag is retained per `docs/RELEASE_RUNBOOK.md`; the overhaul proceeds as 0.12.1. Exact official signed-artifact acceptance remains owed before publication. This disposition is recorded after native verification, separately from the frozen application source.
