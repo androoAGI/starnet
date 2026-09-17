@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 168 total — 0 P0 · 1 P1 · 6 P2
+**6** open (open+claimed) of 168 total — 0 P0 · 0 P1 · 6 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -105,7 +105,6 @@ User/owner reports: **83** · source fixed: **76** · installer verified: **6** 
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | — |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [cron-store's armAt never receives the host defaultTz, so a tz-less cron routine's FIRST nextRunAt is UTC-anchored while every later advance uses local — the mar](bugs/f47a1e3a-cron-store-s-armat-never-receives-the-host-defau.md) | sweep/autonomy | 226cec3c |
 | P1 | fixed | autonomy | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
@@ -152,6 +151,7 @@ User/owner reports: **83** · source fixed: **76** · installer verified: **6** 
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
+| P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
 | P1 | fixed | release | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | agent/release-0120-prep-0915 | d1848af00 |
 | P1 | fixed | release | [Dismissed frame name suppresses unrelated visual changes](bugs/8993bb79-dismissed-frame-name-suppresses-unrelated-visual.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
 | P1 | fixed | release | [Filtered journey run can replace the full release journey receipt](bugs/3d9dce85-filtered-journey-run-can-replace-the-full-releas.md) | agent/release-ui-audit-0906 | 042394b7d |
@@ -273,7 +273,7 @@ User/owner reports: **83** · source fixed: **76** · installer verified: **6** 
 | --- | --- |
 | channels | 0 |
 | autonomy | 2 |
-| providers | 3 |
+| providers | 2 |
 | safecell | 0 |
 | sessions | 0 |
 | skills | 0 |

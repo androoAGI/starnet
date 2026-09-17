@@ -4,10 +4,10 @@ slug: unavailable-oauth-model-catalog-clears-the-saved
 title: Unavailable OAuth model catalog clears the saved model selection
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-17
 lane: release-0120-prep-0915
-fix:
+fix: 20be5165bcf5f2ec99f882b572cdb10e442ecb6c
 origin: audit
 ---
 
@@ -29,4 +29,12 @@ Anchors: `frontend/app/modeldock.js` catalog confirmation; `frontend/app/harness
 
 ## Verdict
 
-Open release blocker. HTTP success alone does not prove catalog availability. Error envelopes and provider-marked offline seeds must preserve the selected model; a successful live catalog may still invalidate a genuinely removed model. Candidate 0.12.1 is held before publication. No customer recovery is inferred.
+Source repair `20be5165b` rejects catalog error envelopes and retains provider fallback provenance through HTTP serialization, Harness normalization and ModelDock confirmation. HTTP success alone does not prove catalog availability. A successful live catalog may still invalidate a genuinely removed model. Candidate 0.12.1 is rejected before publication; corrected installer acceptance remains required. No customer recovery is inferred.
+
+## Regression
+
+The actual installed 0.12.1 UI cleared the saved choice under the controlled HTTP 200 error fixture. The repaired full source app preserves the choice under both error and offline-fallback fixtures selected through the real model row. `catalog-failure-after-source.json` records this after proof. `catalog-restart-after-source.json` proves the same model in the server save and a fresh browser profile after a sidecar restart. Targeted tests pass 69 reconciliation assertions and 21 transport/normalization assertions. Full release gates remain candidate-specific.
+
+## Sibling coverage
+
+`test/model-provider-reconcile.test.js` covers Codex, Grok, Kimi, OpenAI-compatible, Anthropic, Ollama and custom-provider errors/fallbacks plus confirmed-empty catalogs, overlapping requests, provider switches and agent-identity changes. `test/model-catalog-truth.test.js` executes the production public serializer, OAuth route handlers and Harness normalization for live, fallback and error envelopes. The live source proof covers model-dock selection, Save persistence, server storage and restart. Commercial provider generation and customer-device recovery are outside this catalog-only regression.

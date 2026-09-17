@@ -1,0 +1,9 @@
+# Corrected overhaul candidate 0.12.2
+
+The complete overhaul and accepted merges remain included. Neither 0.12.0 nor 0.12.1 was published. The former failed close-to-tray acceptance; the latter's official installed preservation check found loss of a saved Commander model. Built tags remain immutable, so this repair requires another patch version.
+
+Catalog repair `20be5165b` distinguishes a proven live catalog from an error envelope or provider-marked fallback list. Unavailable catalogs preserve the saved choice; confirmed removal can still reconcile it. Targeted regression tests cover sibling providers, serialization and UI authority. A live isolated station retained the model under both failure fixtures and after a sidecar restart into a fresh browser profile. The rejected install's original failing evidence remains intact and its model was restored through the real UI.
+
+Support scope remains the [final September 16 intake](../0.12.0/FINAL_INTAKE.md): 83 customer/owner reports, 76 source-fixed, one policy disposition and six open P2 investigations. Installer verification is separate from customer recovery. The 0.12.1 Intel acceptance initially failed Gatekeeper, then passed one diagnostic rerun of the unchanged notarized artifact; the original failure is retained and its precise cause is unproven. The next candidate requires fresh acceptance.
+
+Required before handoff: frozen-source fast/HTTP and Guardian gates, Beginner, signed three-platform train, Apple notarization and installed Intel acceptance, Windows upgrade continuity, exact official installer preservation and catalog-failure proof, graphics/Refit/passive-panel checks, T0 and all G1 lifecycle cases, and an unpublished verified draft/manifest. The owner's existing duration waiver applies to this correction of the same overhaul; no unmeasured soak is claimed. Stop before publication, website deployment or customer messages.
