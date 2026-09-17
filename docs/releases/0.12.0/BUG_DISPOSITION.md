@@ -1,5 +1,7 @@
 # 0.12.0 user-bug disposition
 
+**Historical preparation snapshot, superseded by [FINAL_INTAKE.md](FINAL_INTAKE.md).** The final September 16 intake records 83 customer/owner reports: 76 source-fixed, one permission-policy disposition, and six open P2 investigations. Gmail was subsequently connected and reviewed. Installed candidate verification subsequently resolved the local Refit and graphics findings. The details below retain the earlier evidence boundary; they are not the final release verdict.
+
 Refreshed September 16 after reviewing the release handoff and current GitHub issues. The authoritative records are in [qa/BUGS.md](../../../qa/BUGS.md). There are 159 records, including 76 customer/owner reports: 74 source-fixed and two open investigations. These are cumulative counts, not 76 defects introduced by 0.11.2. Six records have prior installer verification; only one has explicit customer-confirmed recovery. A source fix is not proof that the affected customer's installation recovered.
 
 All 70 previously recorded customer/owner fix commits were verified as ancestors of candidate `725664380009a5e609b77a0a44f2efaa9b942948`. The additional saved-file report imports an already merged fix, `8d4f3f5ca`. Machine-readable source checks are in `.dogfood/release-recovery/source-audit.json`. The session-typing lane through `50791280b` is now included via merge `97325c2fe`; its focused typing and session-navigation regressions pass.
