@@ -19350,6 +19350,7 @@ function handleCodexStatus(req, res) {
 function publicModel(m) {
   return {
     id: m.id,
+    fallback: !!m.fallback,
     name: m.name || m.id,
     context_length: m.context_length || 0,
     max_completion_tokens: m.max_completion_tokens || null,
@@ -19503,6 +19504,7 @@ async function handleCodexModels(req, res) {
     // The bare `id` is still present on every entry, so older consumers that read m.id keep working.
     const rich = models.map(m => ({
       id: m.id,
+      fallback: !!m.fallback,
       displayName: m.displayName || m.name || m.id,
       description: m.description || '',
       context_length: m.context_length || 0,

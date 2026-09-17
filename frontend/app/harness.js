@@ -586,8 +586,13 @@ const Harness = (() => {
       const r = await fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
+      if (j && j.error) throw new Error(j.error);
       const raw = (j && j[field]) || [];
-      return raw.map(normalizeModel).filter(m => m.id);
+      return raw.map(m => {
+        const item = normalizeModel(m);
+        if ((j && j.fallback) || (m && m.fallback)) item.fallback = true;
+        return item;
+      }).filter(m => m.id);
     } finally { if (t) clearTimeout(t); }
   }
 

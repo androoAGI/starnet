@@ -1,5 +1,7 @@
 # Corrected overhaul candidate 0.12.1
 
+**REJECTED — DO NOT PUBLISH.** Official installed acceptance found the commander's saved model cleared during catalog unavailability. Controlled installed reproduction confirms the HTTP 200 error-envelope defect, tracked as `ebe2861a`. The original model was manually restored. The successful private checks below remain historical and do not clear this later failure. The signed draft is marked superseded; a new patch candidate is required.
+
 The complete overhaul intended for 0.12.0 is retained. The final hosted G1 gate caught a native close-to-tray failure before publication: finishing a page load could reopen a window the user closed. The 0.12.0 draft is labeled superseded/do not publish. Public latest remains 0.11.2. The release runbook requires a new patch after a built tag fails; no tag is moved and no published asset is replaced.
 
 Frozen application candidate: `9bf98816021fc0d74d4e35c47ec9a1a06b9f2948`. Native repair: `9c3b7819c`. The page-load callback now reveals the initial completed document once, cancels that permission on close, and leaves explicit tray Open/second-launch behavior intact. Start-minimized stays hidden. Four Rust behavior tests and the lifecycle contract test pass; the full pre-merge fast gate passed 814/814.

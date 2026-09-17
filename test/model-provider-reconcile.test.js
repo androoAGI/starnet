@@ -8,10 +8,12 @@ const path = require('path');
 const dockPath = path.join(__dirname, '..', 'frontend', 'app', 'modeldock.js');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function scenario(savedModel, catalog, switchFrom, duringFetch) {
+async function scenario(savedModel, catalog, switchFrom, duringFetch, options = {}) {
+  const targetProvider = options.provider || 'starnet';
+  const catalogPath = /^(codex|grok|kimi)$/.test(targetProvider) ? '/api/auth/' + targetProvider + '/models' : '/api/models/' + targetProvider;
   let revision = 0, identity = 'agent';
   let model = savedModel;
-  let provider = switchFrom || 'starnet';
+  let provider = switchFrom || targetProvider;
   let effort = 'medium';
   const applied = [];
   const old = { document: global.document, localStorage: global.localStorage, Harness: global.Harness, U: global.U };
@@ -33,18 +35,18 @@ async function scenario(savedModel, catalog, switchFrom, duringFetch) {
     getReasoningEffort: () => effort,
     setReasoningEffort: v => { effort = v; },
     normalizeReasoningEffort: v => String(v || 'medium'),
-    configured: p => p === 'starnet',
+    configured: p => p === targetProvider,
     getKey: () => '',
     getBaseUrl: () => '',
-    listModels: async () => [],
+    listModels: async () => options.harnessFallback || [],
     apiFetch: async url => {
-      if (url === '/api/models/starnet' && duringFetch) {
+      if (url === catalogPath && duringFetch) {
         const action = duringFetch; duringFetch = null;
         await Promise.resolve();
         action(global.Harness, value => { identity = value; });
       }
-      if (url === '/api/models/starnet') return new Response(JSON.stringify({ provider: 'starnet', models: catalog }), { status: 200 });
-      if (/^\/api\/auth\/(codex|grok|kimi)\/status$/.test(url)) return new Response(JSON.stringify({ connected: false }), { status: 200 });
+      if (url === catalogPath) return new Response(JSON.stringify(options.response || { provider: targetProvider, models: catalog }), { status: 200 });
+      if (/^\/api\/auth\/(codex|grok|kimi)\/status$/.test(url)) return new Response(JSON.stringify({ connected: url.includes('/' + targetProvider + '/') }), { status: 200 });
       return new Response(JSON.stringify({ models: [], error: 'not configured' }), { status: 200 });
     }
   };
@@ -59,7 +61,7 @@ async function scenario(savedModel, catalog, switchFrom, duringFetch) {
       await ModelDock.reconcile();
     }
     for (let i = 0; i < 100 && !applied.length; i++) await sleep(5);
-    return { model, provider, effort, applied, internals: ModelDock._internals };
+    return { model, provider, effort, applied, rows: await ModelDock.catalog(), internals: ModelDock._internals };
   } finally {
     delete require.cache[require.resolve(dockPath)];
     global.document = old.document;
@@ -135,6 +137,18 @@ module.exports = (async () => {
   }
   const empty = await scenario('obsolete', []);
   A.eq(empty.model, '', 'unchanged selection is cleared by a confirmed empty catalog');
+  for (const provider of ['codex', 'grok', 'kimi', 'openai', 'anthropic', 'ollama', 'custom']) {
+    const unavailable = await scenario('saved-model', [], null, null, { provider, response: { models: [], error: 'temporary catalog failure' } });
+    A.eq(unavailable.model, 'saved-model', provider + ' HTTP 200 error preserves the saved choice');
+    A.eq(unavailable.applied.length, 0, provider + ' outage never persists a cleared choice');
+    const fallback = [{ id: 'offline-seed', fallback: true }];
+    const seeded = await scenario('saved-model', fallback, null, null, { provider, harnessFallback: fallback });
+    A.eq(seeded.model, 'saved-model', provider + ' fallback rows cannot invalidate the saved choice');
+    A.eq(seeded.applied.length, 0, provider + ' fallback never persists a cleared choice');
+    A.ok(seeded.rows.some(m => m.id === 'offline-seed' && m.fallback), provider + ' preserves fallback provenance for display');
+    const confirmed = await scenario('removed-model', [], null, null, { provider });
+    A.eq(confirmed.model, '', provider + ' confirmed empty catalog still clears a removed model');
+  }
   await overlappingCatalogs();
   A.report('model-provider-reconcile.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });

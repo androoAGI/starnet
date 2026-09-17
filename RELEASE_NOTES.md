@@ -1,10 +1,12 @@
-# StarNet v0.12.1
+# StarNet v0.12.2
 
 This update remasters the station itself: industrial materials, a redesigned command bridge, a furnished default station with every essential ability already installed, a browsable Build library, remastered agent skins with grounded walk cycles, and an onboarding that goes from what you want to do straight to a first useful task. It includes fixes and hardening for customer-reported update, boot, rating, delegation and conversation-history problems reported since 0.11.2.
 
-These notes cover the changes shipped since **0.11.2**. The 0.12.0 candidate was held before publication; this corrected build includes the complete overhaul.
+These notes cover the changes shipped since **0.11.2**. The 0.12.0 and 0.12.1 candidates were held before publication; this corrected build includes the complete overhaul.
 
 - **Close-to-tray:** finishing startup or reloading the document no longer reopens a window you closed to the tray. Initial display waits for the completed document; explicit tray Open and a second launch still reveal the app.
+
+- **Saved model choices:** a temporary catalog error or offline fallback list no longer clears your selected model, including during startup and refresh.
 
 ## A remastered station
 
