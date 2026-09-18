@@ -33,8 +33,7 @@ clearance checks. New commands cancel the old passing agreement.
 The initial full gate caught two single-body test fixtures missing the new traffic
 dependency. Those fixtures were corrected without weakening their seat or corner
 assertions. The committed release-surface lock was refreshed for the new world
-source bytes; claim verdicts were not changed. Combined full gate and integration
-receipt are pending below.
+source bytes; claim verdicts were not changed. Combined npm run test:fast passes 817/817 on the synchronized source (local receipt: .dogfood/hallway/final-fast.log). Post-merge verification is pending.
 
 This is source and browser verification. No installer was rebuilt, no update was
 published, and recovery in the owner's installed station remains unconfirmed.
