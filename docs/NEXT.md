@@ -1,6 +1,6 @@
-## CHAT FILE DROP MERGE — IN PROGRESS — 2026-09-18 (`agent/chat-drop-0917`)
+## CHAT FILE DROP MERGED — 2026-09-18 (`agent/chat-drop-0917`)
 
-Owner requested sweep and merge. This lane reserves the trunk merge while it verifies the merged tree. Baseline trunk: `3ba5b8492`. Preserve the unrelated working-tree QA status refresh. Scope: whole-chat file drop target, native HTML5 drop delivery, regression coverage and QA evidence. No installer rebuild or publication is included.
+Owner-requested sweep and merge completed as `321704247`, from baseline `3ba5b8492`. Post-merge fast **816/816** and HTTP **119/119** PASS. Fresh live proof covers real multi-file uploads/read-back, previews, draft preservation, delayed Send, picker/paste, oversized files and outside drops; no page errors. Added edge coverage for disabled chat, folder-only drops, unavailable files, links and browser exit. Merge reservation released. The unrelated QA status refresh is preserved. Installer rebuild, native file-manager gesture acceptance and publication remain separate.
 
 ## 0.12.3 FINAL SPRITE RELEASE — IN PROGRESS — 2026-09-17 (`agent/release-0120-prep-0915`)
 
