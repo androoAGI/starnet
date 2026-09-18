@@ -4,17 +4,17 @@ slug: mac-boot-guard-reports-shared-specialty-catalog
 title: Mac boot guard reports shared specialty catalog load failure
 surface: onboarding
 severity: P1
-status: fixed
+status: open
 found: 2026-09-11
 lane: release-0112-finalprep-0911
-fix: 788578969
+fix:
 origin: customer
 report: support-2026-09-10-mac-shared-specialties
 affected: Installed Mac app confirmed in September 16 follow-up; reported latest public update but exact version and failed resource response remain unverified
 family: boot-integrity
 installer: unverified
 recovery: persists
-recoveryEvidence: September 16 private follow-up confirms continued catalog failure in the installed Mac app on the current public release; this is not a retest of unpublished 0.12.0
+recoveryEvidence: September 18 owner-supplied diagnostics show all five catalog retries exhausted in the installed Mac app; affected-machine recovery remains unproven.
 ---
 
 # Mac boot guard reports shared specialty catalog load failure
@@ -36,6 +36,8 @@ Anchors: `frontend/index.html:850` builds the parser-ordered script URL from the
 September 11 installed Windows candidate `7f6c7b005`: SharedSpecialties was loaded, no boot-fatal element was present, and the script's actual loopback URL returned HTTP 200 with bytes matching the committed catalog (SHA-256 `b346c34841d2b2b75eb77dabd2e9c47049a85738a56e001d73eecd4933f41893`). Evidence is retained in the release preparation worktree `.dogfood/customer-execution/installed-catalog.json`. This does not establish Mac recovery.
 
 ## Verdict
+
+September 18: REOPENED. New diagnostics explicitly show all five retries exhausted; the retry hardening did not resolve this report. Hardening commit 14c6a69a8 embeds the authoritative catalog in the staged desktop frontend and uses a same-origin static script tag. The engine startup/loopback request is removed from this boot-data path. Exhausted retries now report script load failure, not an unproven engine outage. A live fixture serving the actual staged bytes boots with SharedSpecialties loaded while the engine is unavailable and cross-origin scripts are denied; SHA-256 matches the shared authority. Packaging regression: test/mac-boot-compat.test.js. Full fast gate 818/818 and customer journeys 36/36 pass. See qa/digests/2026-09-18-mac-boot-compat.md. Keep this original incident open: its network failure cause, affected engine health and installed recovery remain unknown. The previous fixed verdict below describes retry-only hardening and is superseded by this entry.
 
 2026-09-16 source hardening for 0.12.0 (788578969): shared/specialties.js is the one boot script the desktop page fetches from the sidecar port, so an engine that answers late paints exactly this banner and RELOAD clears it. BootGuard now retries a failed shared/ catalog load with backoff (~27 s, the shell port-wait window) and, after a proven successful retry, reloads the page once (bounded to two auto-reloads per tab) so the parser-ordered modules bind the real catalog; only spent retries render the fatal banner, which now records the retry ledger for support. Covered by test/bootguard.test.js (retry success, exhaustion, reload budget, no retry for bundled app/ scripts) and proven live over CDP with a first request to /shared/specialties.js forced to fail. The original Mac origin and build remain uncorrelated; this closes the symptom class under the owner engineering-acceptance rule of 2026-09-11.
 

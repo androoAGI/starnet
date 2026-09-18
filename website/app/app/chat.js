@@ -556,7 +556,19 @@ const Chat = (() => {
   }
   function renderMarkdown(raw) {
     const lines=String(raw).split('\n');
-    const cells=line=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(s=>s.trim().replace(/\\\|/g,'|'));
+    // Older macOS WebKit cannot PARSE lookbehind, even in a function not yet called.
+    // Consume escaped pipes before splitting; retain the existing immediate-backslash semantics.
+    const cells = line => {
+      const text = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+      const result = []; let cell = '';
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\\' && text[i + 1] === '|') { cell += '|'; i++; }
+        else if (text[i] === '|') { result.push(cell.trim()); cell = ''; }
+        else cell += text[i];
+      }
+      result.push(cell.trim());
+      return result;
+    };
     const listMatch=line=>/^([ \t]*)([-*+][ \t]+|\d+[.)][ \t]+)(.*)$/.exec(line);
     function blocks(from,to,depth) {
       const parts=[];let i=from;
