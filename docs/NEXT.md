@@ -1,3 +1,7 @@
+## SMALL-SCREEN COMMS MERGED — 2026-09-18 (agent/small-screen-0917)
+
+Owner-approved responsive COMMS integrated at 80c9ea54f. Combined pre/post fast gates PASS 817/817; fresh live layout PASS 20/20 with retained widths/draft and working preview comparison. Verified candidate 3c3b7cd85 and merged source trees match. See qa/digests/2026-09-18-small-screen-comms.md. Merge reservation released; unrelated QA status edits preserved. Preview/worktree retained; no installer rebuild or publication.
+
 ## HALLWAY TRAFFIC MERGED — 2026-09-18 (agent/hallway-awareness-0917)
 
 Source fix integrated at cee250d8e. Pre/post fast gates both PASS 817/817; customer journeys PASS 36/36. Live opposing traffic reaches original destinations without wall crossings; tests cover single-file retreat, sidestepping, seated anchors, working crew and following distance. See qa/digests/2026-09-18-hallway-traffic.md. Merge reservation released. Unrelated QA status edits preserved; no installer rebuild or publication.
