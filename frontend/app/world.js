@@ -2285,6 +2285,142 @@ const World = (() => {
     return blockers && blockers.has(tx + ',' + ty);
   }
 
+  // Local right-of-way: notice an occupied leg BEFORE separation has to push.
+  // A passing agreement belongs to these bodies, targets and geometry only. It
+  // never replaces their work/social goals or survives a refit or a new command.
+  const trafficPlans = new WeakMap(), trafficRetry = new WeakMap();
+  function trafficDistance(p, a, b) {
+    const dx=b.x-a.x,dy=b.y-a.y,n=dx*dx+dy*dy;
+    const t=n ? Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/n)) : 0;
+    return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);
+  }
+  function trafficRoute(b, p, other) {
+    const obstacles=new Set(blocked),ot=tileOf(other.px,other.py),start=tileOf(b.px,b.py),end=tileOf(p.x,p.y);
+    obstacles.add(ot.x+','+ot.y);
+    const clear=(a,c)=>geo.clearFootSegment(a.x,a.y,c.x,c.y,obstacles);
+    const origin={x:b.px,y:b.py};
+    if(clear(origin,p))return [p];
+    const path=geo.path(start.x,start.y,end.x,end.y,obstacles);
+    if(!path)return null;
+    const points=[footOf(start.x,start.y),...path.map(t=>footOf(t.x,t.y)),p];
+    let prev=origin;
+    for(const point of points){if(!clear(prev,point))return null;prev=point;}
+    return points;
+  }
+  function trafficPocket(b, passer) {
+    const origin={x:b.px,y:b.py},a={x:passer.px,y:passer.py},end=passer.target;
+    if(!end)return null;
+    const vx=end.x-a.x,vy=end.y-a.y,len=Math.hypot(vx,vy);
+    if(len<1)return null;
+    const ux=vx/len,uy=vy/len,R=PERSONAL_TILES*T+2;
+    let best=null,bestCost=Infinity;
+    // Half-tile shoulders first; if the opening is single-file, search back
+    // into the adjoining room. Stable ordering prevents the doorway dance.
+    for(const back of [0,T,2*T,3*T,4*T,6*T,8*T])for(const side of [R,-R,2*T,-2*T,3*T,-3*T]){
+      const p={x:origin.x+ux*back-uy*side,y:origin.y+uy*back+ux*side};
+      const tile=tileOf(p.x,p.y);
+      if(!geo.walkable(tile.x,tile.y,blocked)||trafficDistance(p,a,end)<R)continue;
+      if(allBodies().some(o=>o!==b&&!o.unplaced&&Math.hypot(o.px-p.x,o.py-p.y)<R))continue;
+      if(Math.hypot(p.x-origin.x,p.y-origin.y)>=bestCost)continue;
+      const route=trafficRoute(b,p,passer);if(!route)continue;
+      let cost=0,prev=origin;for(const point of route){cost+=Math.hypot(point.x-prev.x,point.y-prev.y);prev=point;}
+      if(cost<bestCost){bestCost=cost;best={points:route,origin};}
+    }
+    return best;
+  }
+  function clearTraffic(plan) {
+    for(const b of [plan.yielder,plan.passer])if(trafficPlans.get(b)===plan)trafficPlans.delete(b);
+    const b=plan.yielder;
+    // A canceled detour can leave us off the old leg. Rejoin through real
+    // waypoints, never resume a diagonal through the doorway return.
+    if(plan.geo===geo&&b.target===plan.yieldTarget&&b.target&&
+      !geo.clearFootSegment(b.px,b.py,b.target.x,b.target.y,blocked)){
+      const from=tileOf(b.px,b.py),to=tileOf(b.target.x,b.target.y);
+      const path=geo.path(from.x,from.y,to.x,to.y,blocked);
+      if(path){const remaining=(b.pathPts||[]).slice(b.pathIdx);startBodyPath(b,[...path,...remaining]);crewNextWaypoint(b);}
+      else {b.pathPts=null;b.target=null;b.state='idle';}
+    }
+  }
+  function stepTraffic(b,dt,now) {
+    if(!geo||!geo.clearFootSegment)return false;
+    let plan=trafficPlans.get(b);
+    if(plan&&(plan.geo!==geo||now>plan.until||plan.yielder.unplaced||plan.passer.unplaced||
+      plan.yielder.target!==plan.yieldTarget||
+      plan.yielder.sitting||plan.yielder.seated||plan.yielder.working!==plan.working)){
+      clearTraffic(plan);plan=null;
+    }
+    // Match a slower walker instead of repeatedly shoving its back. This check
+    // runs every frame; the more expensive refuge search below is throttled.
+    if(!plan&&b.target){
+      const dx=b.target.x-b.px,dy=b.target.y-b.py,d=Math.hypot(dx,dy),R=PERSONAL_TILES*T;
+      if(d>1)for(const other of allBodies()){
+        if(other===b||other.unplaced||!other.target)continue;
+        const ox=other.px-b.px,oy=other.py-b.py,ahead=(ox*dx+oy*dy)/d;
+        if(ahead>0&&ahead<R+3&&Math.abs(ox*dy-oy*dx)/d<R&&
+          (other.target.x-other.px)*dx+(other.target.y-other.py)*dy>0&&
+          geo.clearFootSegment(b.px,b.py,other.px,other.py,blocked)){
+          b.state='idle';b.spd=0;return true;
+        }
+      }
+    }
+    if(!plan&&b.target&&now>=(trafficRetry.get(b)||0)){
+      trafficRetry.set(b,now+250);
+      const dx=b.target.x-b.px,dy=b.target.y-b.py,d=Math.hypot(dx,dy),R=PERSONAL_TILES*T;
+      if(d>1)for(const other of allBodies()){
+        if(other===b||other.unplaced||trafficPlans.has(other))continue;
+        const ox=other.px-b.px,oy=other.py-b.py,ahead=(ox*dx+oy*dy)/d;
+        if(ahead<0||ahead>Math.min(d+R,3*T)||Math.abs(ox*dy-oy*dx)/d>R+1)continue;
+        if(!geo.clearFootSegment(b.px,b.py,other.px,other.py,blocked))continue;
+        // Seats are immovable. Route the walker around the occupied tile,
+        // retaining the remainder of its path and the sitter's exact anchor.
+        if(other.sitting||other.seated){
+          const points=trafficRoute(b,b.target,other);
+          if(points&&points.length>1){
+            plan={points,origin:{x:b.px,y:b.py},yielder:b,passer:other,geo,yieldTarget:b.target,
+              passTarget:null,working:b.working,phase:'back',idx:0,until:now+10000};
+            trafficPlans.set(b,plan);break;
+          }
+          continue;
+        }
+        // A companion already walking away is followed, not asked to step aside.
+        if(other.target&&(other.target.x-other.px)*dx+(other.target.y-other.py)*dy>0)continue;
+        const options=other.working ? [[b,other]] : b.working ? [[other,b]] : [[other,b],[b,other]];
+        for(const [yielder,passer] of options){
+          if(!passer.target||yielder.goal==='awaiting')continue;
+          const pocket=trafficPocket(yielder,passer);if(!pocket)continue;
+          plan={...pocket,yielder,passer,geo,yieldTarget:yielder.target,passTarget:passer.target,
+            working:yielder.working,phase:'out',idx:0,until:now+10000};
+          trafficPlans.set(yielder,plan);trafficPlans.set(passer,plan);break;
+        }
+        if(plan)break;
+      }
+    }
+    if(!plan)return false;
+    if(b===plan.passer){
+      if(plan.phase!=='out')return false;
+      b.state='idle';b.spd=0;return true;
+    }
+    if(plan.phase==='hold'){
+      const vx=plan.passTarget.x-plan.origin.x,vy=plan.passTarget.y-plan.origin.y,d=Math.hypot(vx,vy)||1;
+      const passed=!plan.passer.target||plan.passer.target!==plan.passTarget||((plan.passer.px-plan.origin.x)*vx+(plan.passer.py-plan.origin.y)*vy)/d>PERSONAL_TILES*T;
+      if(!passed){b.state='idle';b.spd=0;b.dir=dirToward(b.px,b.py,plan.passer.px,plan.passer.py);return true;}
+      // Resume from the shoulder directly where safe; otherwise retrace the
+      // validated refuge route before continuing the original waypoint.
+      if(!b.target||geo.clearFootSegment(b.px,b.py,b.target.x,b.target.y,blocked)){clearTraffic(plan);return false;}
+      plan.points=[...plan.points.slice(0,-1).reverse(),plan.origin];plan.idx=0;plan.phase='back';
+    }
+    const p=plan.points[plan.idx],dx=p.x-b.px,dy=p.y-b.py,d=Math.hypot(dx,dy);
+    if(d<.3){
+      plan.idx++;
+      if(plan.idx>=plan.points.length){if(plan.phase==='back')clearTraffic(plan);else plan.phase='hold';}
+      b.state='idle';return true;
+    }
+    const step=stepGait(b,dx,dy,d,28,plan.idx===plan.points.length-1,dt);
+    const nx=b.px+dx/d*step,ny=b.py+dy/d*step;
+    if(!geo.clearFootSegment(b.px,b.py,nx,ny,blocked)){clearTraffic(plan);return true;}
+    b.px=nx;b.py=ny;b.state='walk';return true;
+  }
+
   /* ---------- BODIES ARE SOLID (2026-08-17, Andrew: "the agents walk through one another") ----------
      They did, and movementBlockers above is exactly why it LOOKED handled: setPathTo plans around the
      other bodies' tiles, but that is a ONE-SHOT SNAPSHOT taken the instant a path is plotted. Nothing
@@ -2292,11 +2428,10 @@ const World = (() => {
      tile another has since stopped on — simply interpenetrate, and at T=12 with a ~35px sprite the two
      merge into a single smear.
 
-     This is a SOFT separation, not a hard collision, and that is deliberate. The engine has no steering:
-     a hard block would stand two bodies nose to nose in a corridor with no rule that resolves it, and it
-     would fight arrive()'s snap-to-target. Instead, once every body has moved for the frame, any pair
-     closer than PERSONAL_TILES is pushed apart along the line between them, each taking half — so they
-     visibly squeeze PAST one another instead of through.
+     This is the SOFT separation backstop. Local right-of-way above handles anticipated encounters;
+     overlap can still occur when a body materializes or several paths converge in the same frame.
+     Once every body has moved, any pair closer than PERSONAL_TILES is pushed apart, each taking half.
+     Separation alone cannot resolve a head-on encounter: its axial push would undo forward progress.
 
      What is exempt, and why:
        · a SEATED body (sitting/seated — desk chair, couch cushion, bed) is an ANCHOR. Its pose is bound
@@ -2321,7 +2456,8 @@ const World = (() => {
     if (geo.clearFootSegment && !geo.clearFootSegment(b.px, b.py, nx, ny, blocked)) return false;
     // A sideways shove must not turn the rest of an already-planned leg into
     // a shortcut through the jamb on the following frame.
-    if (b.target && geo.clearFootSegment && !geo.clearFootSegment(nx, ny, b.target.x, b.target.y, blocked)) return false;
+    const traffic=trafficPlans.get(b),target=traffic&&traffic.yielder===b&&traffic.phase!=='hold' ? traffic.points[traffic.idx] : b.target;
+    if (target && geo.clearFootSegment && !geo.clearFootSegment(nx, ny, target.x, target.y, blocked)) return false;
     b.px = nx; b.py = ny;
     return true;
   }
@@ -2413,6 +2549,7 @@ const World = (() => {
      desk pose, generalised to crew: foot on the front tile, dir north, sitting (the chair sprite y-sorts behind
      so it reads as sitting IN the chair). Returns once seated; until then it advances along a path to the seat. */
   function stepCrewToSeat(b, s, dt, now) {
+    if (stepTraffic(b, dt, now)) return;
     const foot = seatFoot(s);
     if (Math.hypot(foot.x - b.px, foot.y - b.py) < 1.1) {   // arrived → sit at the desk
       b.px = foot.x; b.py = foot.y; b.pathPts = null; b.target = null; b.state = 'idle'; b.sitting = true; b.dir = s.face || 'north'; b.workRetryAt = 0;
@@ -2462,6 +2599,7 @@ const World = (() => {
      reflexes are already self===agent-gated, so a crew body here only consumes its OWN want-engine + quirks. Every
      target picker it can reach is caged to zoneFor(self)=zoneFor(b) (Tier A), so no body leaves its zone (J3). */
   function crewEngineStep(dt, now) {
+    if (stepTraffic(self, dt, now)) return;
     const SPEED = 28 * (self.pers ? self.pers.pace : 1);   // a calm background pace (a touch under the hero's 34), tilted by temperament
     // a just-finished task leaves the desk-sit pose (stepCrewToSeat set sitting=true). The engine only keeps sitting
     // for a leisure dwell (goal use/lounge) or a BED sleeper (planBedSleep, which claims a real mattress);
@@ -5897,7 +6035,9 @@ const World = (() => {
     // W4: the hero side of the passing acknowledgement (see maybeAcknowledge — gaze + a raised hand,
     // no slot, no movement). Self-gated on activity==='idle' inside, so a summoned hero never waves.
     maybeAcknowledge(now);
-    if (agent.target) {
+    if (stepTraffic(agent, dt, now)) {
+      // Traffic holds only the walk; harness state and the current goal stay intact.
+    } else if (agent.target) {
       // belt-yield: about to cross a belt with cargo bearing down → pause and let it pass (only on a casual stroll)
       if (now >= (agent.pauseUntil || 0) && now >= (agent.yieldCd || 0) && agent.goal == null && shouldYieldToCargo()) {
         agent.pauseUntil = now + U.irnd(450, 850); agent.pauseLook = 'cargo'; agent.yieldCd = now + 2600;
