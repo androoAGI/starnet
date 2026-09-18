@@ -18,9 +18,8 @@
         CRT chrome in the app's own vocabulary, naming the file, with COPY DIAGNOSTICS + RELOAD. A healthy boot
         never sees it: neither a runtime error in a non-critical module nor a rejected promise trips the banner;
         those are counted and ride the diagnostics report (diagnostics.js appends BootGuard.summaryLine());
-     4. a shared/ script is the ONE resource the desktop page fetches from the sidecar PORT (the catalog
-        index.html writes against window.__STARNET_API__) — the only boot script that can fail because the
-        engine is still starting rather than because a file is broken. Two customer boots (2026-09-10 Mac,
+     4. shared/ scripts are same-origin boot data (embedded by desktop staging). Older builds fetched
+        the catalog from the sidecar port and could fail while the engine was starting. Two customer boots (2026-09-10 Mac,
         2026-09-13 Windows) painted this banner naming shared/specialties.js while RELOAD cleared it. So a
         shared/ load failure is RETRIED with backoff (~27 s, the shell's own port-wait window) before it is
         declared fatal; a successful retry reloads the page ONCE (bounded) so the parser-ordered modules that
@@ -82,7 +81,7 @@
     // not evidence that StarNet failed to boot. Keep the allowlist structural so real app/shared 404s remain loud.
     return /^(?:app|js|shared)\//.test(shortPath(s));
   }
-  // the sidecar-served catalog (header 4): the only station script whose failure can mean "engine not up yet".
+  // Catalog retry retained for browser/dev service startup; failure does not prove engine health.
   function isSharedScript(s) { return /^shared\//.test(shortPath(s)); }
   function isRetryElement(t) {
     try { return !!(t && typeof t.getAttribute === 'function' && t.getAttribute('data-bootguard-retry')); } catch (_) { return false; }
@@ -206,7 +205,7 @@
     L.push('boot check:     ' + (!state.checked ? 'not run yet' : (state.missing.length || state.scriptFailures) ? 'FAILED' : 'passed'));
     if (state.missing.length) L.push('missing:        ' + state.missing.map(m => m.name + ' (' + m.file + ')').join(', '));
     if (state.scripts.length) L.push('scripts failed: ' + state.scripts.join(', '));
-    if (state.retry.attempts) L.push('shared retry:   ' + state.retry.attempts + ' attempt(s) for ' + state.retry.src + (state.retry.recovered ? ' — recovered (reloaded ' + state.retry.reloads + '×)' : state.retry.exhausted ? ' — engine never answered' : ' — in progress'));
+    if (state.retry.attempts) L.push('shared retry:   ' + state.retry.attempts + ' attempt(s) for ' + state.retry.src + (state.retry.recovered ? ' — recovered (reloaded ' + state.retry.reloads + '×)' : state.retry.exhausted ? ' — script load retries exhausted' : ' — in progress'));
     L.push('page errors:    ' + summaryLine());
     state.errors.forEach(x => L.push('  error:        ' + x));
     state.rejected.forEach(x => L.push('  rejection:    ' + x));

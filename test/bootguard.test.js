@@ -187,7 +187,7 @@ function retryable(t, opts) {
   const b = t.banner();
   A.ok(b, 'exhausted retries render the fatal banner');
   A.ok(textOf(b).includes('script did not load — shared/specialties.js'), 'the banner still names the shared dependency');
-  A.ok(t.guard.report().includes('shared retry:   ' + WAITS.length + ' attempt(s) for shared/specialties.js — engine never answered'), 'the report records the spent retry budget');
+  A.ok(t.guard.report().includes('shared retry:   ' + WAITS.length + ' attempt(s) for shared/specialties.js — script load retries exhausted'), 'the report records the spent retry budget without inventing engine health');
   A.eq(t.sandbox.__reloaded, undefined, 'a failed retry never reloads the page');
 }
 {
