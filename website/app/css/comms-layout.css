@@ -1,0 +1,74 @@
+/* Conversation space follows the window; text stays at the user's chosen reading size.
+   Cabinet dimensions are visual px, so retain the shared text-zoom reciprocal. */
+#chat-panel { min-width: 0; }
+#chat-panel > h3 .h3-right { align-items: center; }
+#comms-expand {
+  flex: 0 0 auto; padding: 3px 7px; min-height: 26px;
+  font: 13px/1 'VT323', monospace; letter-spacing: .6px;
+  color: var(--ph-bright); background: var(--panel); border: 1px solid var(--ph-dim);
+  border-radius: 3px; cursor: pointer;
+}
+#comms-expand:is(:hover, :focus-visible) { border-color: var(--ph-bright); background: var(--ph-faint); }
+#comms-expand:focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+
+/* A laptop gives space to reading before the station. A dragged width still wins. */
+@media (min-width: 861px) and (max-width: 1440px), (min-width: 861px) and (max-height: 740px) {
+  body #screen-game.active {
+    --comms-auto-width: clamp(360px, 38vw, 520px);
+    grid-template-columns: calc(var(--crew-w, 200px) * var(--cz)) minmax(0, 1fr) calc(var(--chat-w, var(--comms-auto-width)) * var(--cz));
+  }
+  body.crew-rail-off #screen-game.active {
+    grid-template-columns: minmax(0, 1fr) calc(var(--chat-w, var(--comms-auto-width)) * var(--cz));
+  }
+}
+
+/* One frame around a question, not a card nested inside another padded card. */
+#screen-game #chat-panel .cmsg.nudge:has(.task-conversation) { padding: 10px; }
+#screen-game #chat-panel .cmsg.nudge .task-conversation {
+  padding: 0; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none;
+}
+#screen-game #chat-panel .task-conversation :is(.tc-caption, .tc-question, .tc-reason) { margin-bottom: 6px; }
+#screen-game #chat-panel .task-conversation :is(.tc-understanding, .tc-sample) { padding: 8px; margin: 8px 0; }
+#screen-game #chat-panel .task-conversation .tc-answer {
+  height: 64px; min-height: 64px; max-height: 160px; padding: 7px 9px; margin: 4px 0 8px;
+}
+#screen-game #chat-panel .task-conversation .tc-shortcuts { display: grid; gap: 4px; margin: 5px 0 8px; }
+#screen-game #chat-panel .cmsg.nudge .task-conversation .tc-shortcut {
+  width: 100%; padding: 5px 8px; min-height: 30px; border-radius: 3px;
+  box-shadow: none; text-align: left;
+}
+#screen-game #chat-panel .task-conversation .tc-actions { gap: 6px; margin: 6px 0; }
+#screen-game #chat-panel .task-conversation .tc-actions .consent-btn { padding: 5px 8px; }
+
+/* Height matters even when the laptop is wide. Keep the header and composer modest. */
+@media (max-height: 740px) {
+  #screen-game #chat-panel .comms-idbar { padding-block: 5px; margin-bottom: 0; gap: 7px; }
+  #screen-game #chat-panel .comms-portrait { flex-basis: 28px; width: 28px; height: 34px; }
+  #screen-game #chat-panel .comms-portrait img { width: 24px; height: 30px; }
+  #screen-game #chat-panel .comms-overline { display: none; }
+  #screen-game #chat-panel #chat-inputrow { padding: 5px; gap: 5px; margin-top: 4px; flex-shrink: 0; }
+  #screen-game #chat-panel .chat-editline { padding: 6px; }
+  #screen-game #chat-panel #chat-input { min-height: 32px; max-height: 96px; }
+  #screen-game #chat-panel #chat-log { padding: 7px; }
+}
+@media (max-width: 860px) {
+  body #screen-game.active {
+    grid-template-rows: calc(42px * var(--cz)) minmax(calc(72px * var(--cz)), .3fr) minmax(0, 1fr) minmax(38px, auto);
+    padding: calc(5px * var(--cz)); gap: calc(6px * var(--cz));
+  }
+}
+@media (max-width: 860px) and (max-height: 680px) {
+  body #screen-game.active { grid-template-rows: calc(42px * var(--cz)) calc(72px * var(--cz)) minmax(0, 1fr) minmax(38px, auto); }
+}
+
+/* Explicit reading focus. Restore reveals the same crew/station widths and preferences. */
+body #screen-game.active.comms-expanded {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: calc(64px * var(--cz)) minmax(0, 1fr) minmax(44px, auto);
+  grid-template-areas: "top" "chat" "bot";
+}
+body #screen-game.comms-expanded :is(#left, #stage-wrap, #crew-resizer, #comms-resizer, .crew-show) { display: none; }
+body #screen-game.comms-expanded #chat-panel { min-height: 0; }
+@media (max-height: 740px) {
+  body #screen-game.active.comms-expanded { grid-template-rows: calc(42px * var(--cz)) minmax(0, 1fr) minmax(38px, auto); }
+}

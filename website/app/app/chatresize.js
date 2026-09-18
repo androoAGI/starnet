@@ -11,6 +11,17 @@
   const game = document.getElementById('screen-game');
   if (!handle || !game) return;
 
+  // Focus is temporary: never overwrite either saved divider width or the crew preference.
+  const expand = document.getElementById('comms-expand');
+  if (expand) expand.addEventListener('click', () => {
+    const expanded = game.classList.toggle('comms-expanded');
+    expand.textContent = expanded ? 'RESTORE' : 'EXPAND';
+    expand.setAttribute('aria-pressed', String(expanded));
+    expand.setAttribute('aria-label', expanded ? 'Restore station layout' : 'Expand conversation');
+    // Existing canvas, overlays and logo trackers share this layout notification.
+    window.dispatchEvent(new Event('resize'));
+  });
+
   // All of these are VISUAL px, and so is --chat-w. The grid holds the cabinet at its designed
   // size regardless of TEXT SIZE (app.css `#screen-game.active` counter-zooms every frame
   // dimension), so the padding/gap/rail the seam has to clear no longer move with the zoom — and a
@@ -77,6 +88,7 @@
 
   // a shrinking window can leave a stored width too wide — re-clamp on resize
   window.addEventListener('resize', () => {
+    if (game.classList.contains('comms-expanded')) return;
     const cur = parseInt(getComputedStyle(game).getPropertyValue('--chat-w'), 10);
     if (cur) apply(cur);
   });
