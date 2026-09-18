@@ -1,3 +1,7 @@
+## CHAT FILE DROP MERGE — IN PROGRESS — 2026-09-18 (`agent/chat-drop-0917`)
+
+Owner requested sweep and merge. This lane reserves the trunk merge while it verifies the merged tree. Baseline trunk: `3ba5b8492`. Preserve the unrelated working-tree QA status refresh. Scope: whole-chat file drop target, native HTML5 drop delivery, regression coverage and QA evidence. No installer rebuild or publication is included.
+
 ## 0.12.3 FINAL SPRITE RELEASE — IN PROGRESS — 2026-09-17 (`agent/release-0120-prep-0915`)
 
 The owner authorized the final sprite-animation merge, fresh rebuilt installers and publication after acceptance. Sprite commit `775fc99c4` is merged through `e681e59b4`; no additional feature lanes are in scope. The 0.12.2 candidate passed but remains unpublished and is superseded. The existing long-soak waiver applies to this final artwork addition to the same overhaul. See [0.12.3 release scope](releases/0.12.3/RELEASE.md). Late emails remain deferred; no customer messages or account actions are authorized. Earlier entries below are historical and their publication prohibition is superseded by the owner’s latest instruction.
