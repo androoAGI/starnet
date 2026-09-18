@@ -102,7 +102,7 @@ A.eq(feetBad,0,'rendered feet never cross solid doorway seams, void or furniture
 const worldSource=require('fs').readFileSync(require('path').join(__dirname,'../frontend/app/world.js'),'utf8');
 const helpers=worldSource.slice(worldSource.indexOf('  function startBodyPath('),worldSource.indexOf('  function setPathTo('));
 const nudge=worldSource.slice(worldSource.indexOf('  function nudgeBody('),worldSource.indexOf('  /* SLIDE,'));
-const runtime=Function('geo','blocked','footOf','tileOf',helpers+nudge+'; return { startBodyPath, canRoundCorner, nudgeBody };')(
+const runtime=Function('geo','blocked','footOf','tileOf','const trafficPlans = new WeakMap();'+helpers+nudge+'; return { startBodyPath, canRoundCorner, nudgeBody };')(
   geo,null,(x,y)=>geo.footPoint(x,y),(x,y)=>({x:Math.floor(x/12),y:Math.floor(y/12)}));
 let rounded=0,held=0,walkBad=0,arrivals=0;
 seed=83;
