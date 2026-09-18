@@ -4054,6 +4054,9 @@ fn main() {
             }
 
             let main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                // Let HTML5 file drops reach COMMS and the existing attachment uploader.
+                // Tauri's native handler otherwise intercepts them on Windows.
+                .disable_drag_drop_handler()
                 .title("StarNet")
                 .inner_size(1280.0, 832.0)
                 .min_inner_size(960.0, 600.0)
