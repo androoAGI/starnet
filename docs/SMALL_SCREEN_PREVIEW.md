@@ -41,3 +41,13 @@ At 1280×720 and STANDARD text, the same sample card measured:
 Screenshots: `.dogfood/small-screen/before-1280.png`, `after-1280.png`, `expanded-1280.png`.
 Original customer viewport, build, OS scaling and recovery are unknown. The preview uses a keyless
 seeded backend; this layout campaign does not establish a real provider/model round trip.
+
+## Final gates
+
+Source candidate `b993d1410` passed `npm run test:fast`: **815/815 steps**, using Node 24.19.0.
+`npm run qa:customer-journeys` passed **36/36 steps**. JavaScript syntax and diff whitespace
+checks passed. Local logs: `.small-screen-fast-verified.log`, `.small-screen-journeys.log`,
+`.small-screen-live.log`. The initial runs identified the required website mirror sync and
+source-hash refresh; both were corrected before the complete green run. No claims verdicts
+were changed. The worktree and preview server are retained for owner review; no integration
+merge or installer build was performed.
