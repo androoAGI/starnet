@@ -50,3 +50,24 @@ Receipts are retained in `.dogfood/mac-boot/{fast,http,journeys}.log`. The autho
 The affected Mac, its exact OS/WebKit version and the exact installed build are unavailable. The original catalog request's failure cause remains unknown; the desktop boot dependency on that request has been removed. The repair requires a rebuilt signed Mac installer and installed acceptance before claiming installer verification or customer recovery. No customer data, account settings, credentials, release tags, installed app or public downloads were changed.
 
 The source repair is committed in the isolated lane. No trunk merge was performed: `agent/small-screen-0917` owns the serialized merge and post-merge gate during this work. Its trunk integration advanced to `80c9ea54f` after this lane branched. A later integrator must merge current trunk into this lane (never rebase), run the combined fast gate and preserve that lane's reservation and unrelated operational edits. The compatibility record is source-fixed; the original catalog incident stays open for affected-machine engine diagnosis and recovery.
+
+## Owner-requested sweep and integration follow-through
+
+The preceding unmerged disposition describes the initial repair. The owner subsequently requested a sweep and merge. Current trunk `882897d52` was merged into this lane in `d076beb3c`; the sole conflict was the generated bug index, regenerated from the combined records. No source conflict was resolved by dropping either lane's changes.
+
+Sweep commit `7e8d8ee98` also fixes the sibling `agent-station-demo.html` entry (and generated website mirror), which still had the old engine-hosted catalog loader. Desktop dry-run now checks the catalog, rejects missing boot data before touching output, and counts the authoritative catalog exactly once even when replacing a stale source copy. Its predicted and real output both report 13,864 files / 284.4 MB. Tests verify both entry points' parser order, deadline helper order, missing-source rejection, preservation of prior output, and stale-copy replacement.
+
+Fresh live combined-code proof at 21:34 UTC:
+
+- Seeded capability-fault preview: native timeout absent, Chat and catalog loaded, boot passed, no page errors.
+- At 1280x720, COMMS expanded to 1258 px and restored to 486 px; the unsent draft remained identical across both actions. The existing responsive integration remains functional.
+- Actual staged demo entry, with engine unavailable: boot passed, Chat and catalog loaded, no page errors; escaped table pipe rendered as `a|b`, hostile HTML stayed literal, and zero unsafe elements were created.
+- Exhaustive bounded table-cell comparison against the original implementation passed 335,923 strings (pipes, backslashes, whitespace and text).
+
+One preliminary fast run rejected a local backup copy of pre-existing QA notes containing key-shaped text. That copy was removed, replaced by a length/hash-only preservation receipt, and evidence lint passed. No copied note or key-shaped value was committed or transmitted. The clean full gate was restarted without weakening the scanner.
+
+The combined committed candidate gate then caught stale release-surface byte hashes in the claims ledger. Commit `1a8b557d6` refreshes only `releaseSurface` to immutable source `7e8d8ee98`; it does not change claim verdicts or product readiness. This is a new committed-candidate gate, superseding the initial working-tree gate as integration authority. The production website staging script already copies the canonical catalog to `/shared/specialties.js`, so the embedded website keeps the same authoritative resource path.
+
+At 21:44 UTC the real staged main entry also passed boot with no native timeout API and no working engine; Chat and SharedSpecialties loaded, escaped cells rendered correctly, and no unsafe elements or page errors were recorded.
+
+Pre-merge committed-candidate gates: fast **818/818**, HTTP **119/119**, and customer journeys **36/36**. Logs: .dogfood/mac-boot/merge-fast.log, merge-http.log, and merge-journeys.log. Fast was run after committing the source-hash refresh (1a8b557d6); all production source matches the live-tested sweep.
