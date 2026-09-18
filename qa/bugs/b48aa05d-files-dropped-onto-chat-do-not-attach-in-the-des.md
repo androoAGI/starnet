@@ -36,6 +36,8 @@ Source repair 68a4cfabe verified in the isolated live browser with real uploads 
 
 ## Regression
 
+Validation at 946be0c08: full `npm run test:fast` **816/816**, full `npm run test:http` **119/119**, `npm run qa:customer-journeys` **36/36**, and Windows `cargo check --manifest-path src-tauri/Cargo.toml` all PASS. Logs are `.dogfood/chat-drop/{fast-final,http,journeys,cargo}.log`. The live proof also verifies a decoded image preview, Send waiting for a deliberately delayed upload, and rejection of an oversized dropped file. No installed-app, macOS gesture, merge, or publication claim is made by these results.
+
 The baseline transcript drop stages zero files. The repaired live transcript drop stages and uploads two, preserving the draft. The fast regression executes production event handlers for desktop and website mirrors, including nested targets, text drag, folders, cancellation, direct/group sessions and re-entry. It also guards the native window builder's HTML5 drop setting. Browser proof cannot establish native OS drag delivery on an installed binary.
 
 ## Sibling coverage
