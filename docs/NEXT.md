@@ -1,3 +1,7 @@
+## MAC BOOT COMPATIBILITY MERGED — 2026-09-18 (agent/mac-boot-compat-0918)
+
+Owner-requested compatibility repair and sibling sweep integrated at e71f132d2. Pre/post fast PASS 818/818 and HTTP PASS 119/119; combined customer journeys PASS 36/36. Live fault-injected and staged boot passed; escaped-table parity passed 335,923 inputs, and COMMS expand/restore retained the draft. See qa/digests/2026-09-18-mac-boot-compat.md. Reservation released; unrelated QA status edits preserved. Affected-Mac installed acceptance and catalog engine diagnosis remain open; no installer rebuild or publication.
+
 ## SMALL-SCREEN COMMS MERGED — 2026-09-18 (agent/small-screen-0917)
 
 Owner-approved responsive COMMS integrated at 80c9ea54f. Combined pre/post fast gates PASS 817/817; fresh live layout PASS 20/20 with retained widths/draft and working preview comparison. Verified candidate 3c3b7cd85 and merged source trees match. See qa/digests/2026-09-18-small-screen-comms.md. Merge reservation released; unrelated QA status edits preserved. Preview/worktree retained; no installer rebuild or publication.

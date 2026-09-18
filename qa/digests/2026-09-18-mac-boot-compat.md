@@ -1,6 +1,8 @@
 # Mac boot compatibility repair — September 18, 2026
 
-Source: `14c6a69a8` on `agent/mac-boot-compat-0918`, based on `b737e9cbe`.
+Integrated into `feat/harness-backend` at `e71f132d2`. Pre/post fast **818/818** and HTTP **119/119**; combined customer journeys **36/36**. No regressions found in the verified scenarios. Affected-Mac installed acceptance remains outstanding.
+
+Initial source: `14c6a69a8` on `agent/mac-boot-compat-0918`, based on `b737e9cbe`.
 
 ## Findings and repair
 
@@ -71,3 +73,9 @@ The combined committed candidate gate then caught stale release-surface byte has
 At 21:44 UTC the real staged main entry also passed boot with no native timeout API and no working engine; Chat and SharedSpecialties loaded, escaped cells rendered correctly, and no unsafe elements or page errors were recorded.
 
 Pre-merge committed-candidate gates: fast **818/818**, HTTP **119/119**, and customer journeys **36/36**. Logs: .dogfood/mac-boot/merge-fast.log, merge-http.log, and merge-journeys.log. Fast was run after committing the source-hash refresh (1a8b557d6); all production source matches the live-tested sweep.
+
+## Final integration receipt
+
+Merge `e71f132d29e0ac23d3f88e23192c2c94482d3f31` has the exact committed tree of verified candidate `f24e22731cacaa71dc249b27f08d5136585c62e0`. Post-merge gates ran from the integration tree and passed: fast **818/818**, HTTP **119/119**. Receipts: `.dogfood/mac-boot/post-merge-fast.log` and `post-merge-http.log`. The final bookkeeping commit changes only this report and the merge queue, outside the release-surface manifest.
+
+Merge reservation released. Unrelated QA status bytes were preserved; the required one-line merge digest is appended separately without staging those pre-existing edits. Temporary browser tabs and owned verification listeners on 8996–8998 were closed. The isolated worktree retains ignored test evidence; it was not reaped. No installer was rebuilt, signed, installed or published, and no remote push was performed. The catalog incident stays open for affected-machine engine diagnosis and recovery.
