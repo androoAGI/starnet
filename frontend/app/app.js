@@ -4150,7 +4150,13 @@ const App = (() => {
       ul.innerHTML = '<li class="proj-empty" role="status">Could not load projects. Reload to reconnect.</li>';
       return;
     }
-    renderProjectRows(ul, lastConfirmedProjects);
+    try { renderProjectRows(ul, lastConfirmedProjects); }
+    catch (e) {
+      // A renderer failure must not throw again from the promise rejection handler.
+      console.error('[projects] could not render saved list', e);
+      ul.innerHTML = '<li class="proj-empty" role="status">Could not display projects. Reload to retry. Your saved data has not been changed.</li>';
+      return;
+    }
     const warning = document.createElement('li');
     warning.className = 'proj-empty';
     warning.setAttribute('role', 'status');
@@ -4166,8 +4172,8 @@ const App = (() => {
         if (railView !== 'projects') return;   // toggled away while the fetch was in flight
         if (!j || !Array.isArray(j.projects)) throw new Error('invalid projects response');
         const rows = (typeof Projects !== 'undefined') ? Projects.toRows(j.projects, Date.now()) : [];
-        lastConfirmedProjects = rows;
         renderProjectRows(ul, rows);
+        lastConfirmedProjects = rows;
       })
       .catch(() => { if (railView === 'projects') renderProjectsUnavailable(ul); });
   }
@@ -4188,7 +4194,7 @@ const App = (() => {
       const tip = (r.blessed ? '' : 'REVOKED (trust withdrawn) — ') + 'click to open this project · right-click for actions';
       const sess = projSessionsOf(r.root);
       const extra = Math.max(0, sess.length - 3);
-      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + (st.status ? ', ' + st.status : '') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
+      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + projDot(r) + '"></span>' +
         '<span class="proj-main">' +
           '<span class="proj-line">' +
