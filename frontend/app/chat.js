@@ -885,6 +885,7 @@ const Chat = (() => {
     return 'file';
   }
   function wireComposerAttachments() {
+    wireChatDropTarget();
     const btn = el('chat-attach');
     if (btn) btn.onclick = () => { if (attachInput) attachInput.click(); };   // property assignments are idempotent — safe to re-run
     if (attachInput) attachInput.onchange = () => { handleFiles(attachInput.files); attachInput.value = ''; };
@@ -898,15 +899,65 @@ const Chat = (() => {
       const items = ev.clipboardData && ev.clipboardData.files;
       if (items && items.length) { ev.preventDefault(); handleFiles(items); }
     });
-    // DRAG-DROP onto the whole composer. preventDefault on dragover is what enables the drop.
-    const row = el('chat-inputrow');
-    if (row) {
-      const show = e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; row.classList.add('attach-dragover'); };
-      row.addEventListener('dragenter', show);
-      row.addEventListener('dragover', show);
-      row.addEventListener('dragleave', e => { if (e.target === row) row.classList.remove('attach-dragover'); });
-      row.addEventListener('drop', e => { e.preventDefault(); row.classList.remove('attach-dragover'); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
-    }
+  }
+  function wireChatDropTarget() {
+    const panel = el('chat-panel');
+    if (!panel) return;
+    if (panel.__resetFileDrop) { panel.__resetFileDrop(); return; }
+    const hint = document.createElement('div');
+    hint.className = 'chat-drop-hint'; hint.hidden = true;
+    hint.textContent = 'Drop files to attach';
+    hint.setAttribute('role', 'status');
+    panel.appendChild(hint);
+    let depth = 0;
+    const reset = () => { depth = 0; hint.hidden = true; panel.classList.remove('attach-dragover'); };
+    panel.__resetFileDrop = reset;
+    // During dragover browsers protect file bytes; inspect types, not just files.length.
+    const hasFiles = e => !!(e.dataTransfer && (
+      Array.from(e.dataTransfer.types || []).includes('Files') ||
+      Array.from(e.dataTransfer.items || []).some(item => item.kind === 'file') ||
+      (e.dataTransfer.files && e.dataTransfer.files.length)));
+    const available = () => !!(activeWs && input && !input.disabled);
+    const show = e => {
+      if (!hasFiles(e) || !available()) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+      hint.hidden = false; panel.classList.add('attach-dragover');
+    };
+    panel.addEventListener('dragenter', e => { if (hasFiles(e) && available()) { depth++; show(e); } });
+    panel.addEventListener('dragover', show);
+    panel.addEventListener('dragleave', e => {
+      depth = Math.max(0, depth - 1);
+      if (e.relatedTarget && panel.contains(e.relatedTarget)) return;
+      if (!depth || (e.relatedTarget && !panel.contains(e.relatedTarget))) reset();
+    });
+    panel.addEventListener('drop', e => {
+      reset();
+      if (!hasFiles(e)) return; // Text and links retain normal editing behavior.
+      e.preventDefault();
+      if (!available()) return;
+      const items = Array.from(e.dataTransfer.items || []).filter(item => item.kind === 'file');
+      let directories = false;
+      const files = items.length ? items.flatMap(item => {
+        const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+        if (entry && entry.isDirectory) { directories = true; return []; }
+        const file = item.getAsFile(); return file ? [file] : [];
+      }) : Array.from(e.dataTransfer.files || []);
+      if (directories && typeof StationUI !== 'undefined' && StationUI.notify) {
+        StationUI.notify('Drop individual files; folders cannot be attached.', 'warn');
+      }
+      if (files.length) { handleFiles(files); input.focus({ preventScroll: true }); }
+    });
+    // A missed file drop must never navigate away from the station. Capture does not
+    // stop propagation, so other file targets can still handle their own drops.
+    document.addEventListener('dragover', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (!panel.contains(e.target) || !available()) { e.dataTransfer.dropEffect = 'none'; reset(); }
+    }, true);
+    document.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); reset(); }, true);
+    document.addEventListener('dragend', reset, true);
+    document.addEventListener('dragleave', e => { if (!e.relatedTarget && (e.target === document || e.target === document.documentElement)) reset(); }, true);
+    window.addEventListener('blur', reset);
   }
   const ATTACH_VIDEO_EXT = { mp4: 1, mov: 1, webm: 1, m4v: 1, mkv: 1, avi: 1, ogv: 1 };
   function isVideoFile(f) {
