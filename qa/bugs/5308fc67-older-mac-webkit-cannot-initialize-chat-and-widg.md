@@ -4,10 +4,10 @@ slug: older-mac-webkit-cannot-initialize-chat-and-widg
 title: Older Mac WebKit cannot initialize Chat and widget polling
 surface: onboarding
 severity: P1
-status: open
+status: fixed
 found: 2026-09-18
 lane: mac-boot-compat-0918
-fix:
+fix: 14c6a69a8
 origin: customer
 report: support-2026-09-18-mac-boot
 affected: Installed Mac WebKit; exact app and OS versions unknown
@@ -32,7 +32,7 @@ Sanitized September 18 owner-supplied customer diagnostics: SyntaxError: Invalid
 
 ## Verdict
 
-Source repair under verification: scan table cells without lookbehind, use U.timeoutSignal for widget reads/writes and automation recovery, retaining native deadlines where available. No installer or affected-customer recovery claimed.
+Source-fixed in 14c6a69a8: scan table cells without lookbehind, use U.timeoutSignal for widget reads/writes and automation recovery, retaining native deadlines where available. Full fast gate 818/818 and customer journeys 36/36 pass. Live capability-fault comparison reproduces the original timeout exception and passes after repair; actual staged frontend loads Chat and catalog with no native timeout and no page errors. See qa/digests/2026-09-18-mac-boot-compat.md. No installer or affected-customer recovery claimed.
 
 ## Regression
 
