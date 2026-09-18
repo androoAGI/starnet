@@ -701,7 +701,15 @@
 .chat-attach-chip .rm:hover { color: var(--bad); }
 
 /* drop-target: dragging a file over the whole composer glows its border so the target reads as live */
-#chat-inputrow.attach-dragover { outline: 2px dashed var(--ph); outline-offset: 3px; border-radius: 5px; }
+#chat-panel > .chat-drop-hint {
+  position: absolute; inset: 8px; z-index: 30; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; text-align: center; font-size: 22px;
+  color: var(--ph-bright); background: var(--panel2);
+  border: 2px dashed var(--ph); border-radius: 5px;
+  box-shadow: inset 0 0 24px var(--ph-glow2);
+}
+#chat-panel > .chat-drop-hint[hidden] { display: none; }
 
 /* a SENT user message's attachments render under its text in the transcript (thumbnails + file chips) */
 .chat-attach-view { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }

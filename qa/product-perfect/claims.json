@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "556ee1f2fcf3f46275cd3f5e1170b3ab768e95f1",
-    "pathSetSha256": "a11c67cfb53f07eaaf8784fa4174bea4635d53b5741259b6894e8b5cccf6eac8",
+    "sourceCommit": "e30776ab7d51acc645358adf8afc1b0bf349bc4d",
+    "pathSetSha256": "7a0683b985d812421502830381422c3108a62af51a5244265282b959da58b038",
     "files": [
       {
         "path": "INSTALL.md",
@@ -323,13 +323,13 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 653177,
-        "sha256": "f1fb1bb4499d12224bf10b8b8ce0111703261806077a6e9e2aa95f031341ea18"
+        "bytes": 655725,
+        "sha256": "aff796d932a2c05f3352966d8bfcbc49f00294c75405df5abfff4d3fecbed19c"
       },
       {
         "path": "frontend/app/chatresize.js",
-        "bytes": 4993,
-        "sha256": "993a3f9d21c8950aa37996dc10ccbd905a3aafdab94b3bf622d650f2ad9d0934"
+        "bytes": 4313,
+        "sha256": "7454e86678425e97a885bfe43a19ad8b5ad08e1da66a908d674545bb2df16be1"
       },
       {
         "path": "frontend/app/classicons.js",
@@ -1283,8 +1283,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 761898,
-        "sha256": "439f83b99cbc3be1c213e99898394ffb3f89427218a598c88350fe21ed2636d6"
+        "bytes": 769663,
+        "sha256": "6fe9f101e8650294412f68f66deb925a8127c72a2fc3122000318d6bb022e4c2"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1382,14 +1382,9 @@
         "sha256": "74e32d49656c3bbd6926648451d44aee95ddbe4c6cb9d475b47da952ee2c96cb"
       },
       {
-        "path": "frontend/css/comms-layout.css",
-        "bytes": 4284,
-        "sha256": "c851e19dee7b24fd513d67fa19133f8f6278d6bc9e9d2ace7c2efb1b75b49ffd"
-      },
-      {
         "path": "frontend/css/comms.css",
-        "bytes": 51774,
-        "sha256": "4b0ca424c9ced03570cb45f28997f59f2aa925c22d3ef51b33864df6b0d6f69c"
+        "bytes": 52096,
+        "sha256": "7cc22462d3a002111dbb3bce45de269e18283894ea727180e1233ba22748784c"
       },
       {
         "path": "frontend/css/glass-comms.css",
@@ -1557,19 +1552,14 @@
         "sha256": "c7af253fe60903389f227afc4d081e9d82f5ddd58c5c2b252abd14cebd24da90"
       },
       {
-        "path": "frontend/dev/comms-layout-review.html",
-        "bytes": 3724,
-        "sha256": "828bcee0a99f604673805c94eb926748c6928057fd610f9b63fa06ee64a4ccab"
-      },
-      {
         "path": "frontend/dev/session-indicators.html",
         "bytes": 4099,
         "sha256": "5848ee6029be8d16ff70fee94322ef9493f0cfea67c384dc828ba0f0c7681283"
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86726,
-        "sha256": "f9740f49f742b655931d577a84ce3ea993f7c32d707972eda3ade5bdbbfc955e"
+        "bytes": 86538,
+        "sha256": "0fe30f94696b8ffebc911e0a8e1e99666125abb4f3abf99fe6f608651615d68e"
       },
       {
         "path": "frontend/js/arcade.js",
