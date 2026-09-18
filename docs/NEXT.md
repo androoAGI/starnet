@@ -1,3 +1,7 @@
+## HALLWAY TRAFFIC MERGED — 2026-09-18 (agent/hallway-awareness-0917)
+
+Source fix integrated at cee250d8e. Pre/post fast gates both PASS 817/817; customer journeys PASS 36/36. Live opposing traffic reaches original destinations without wall crossings; tests cover single-file retreat, sidestepping, seated anchors, working crew and following distance. See qa/digests/2026-09-18-hallway-traffic.md. Merge reservation released. Unrelated QA status edits preserved; no installer rebuild or publication.
+
 ## CHAT FILE DROP MERGED — 2026-09-18 (`agent/chat-drop-0917`)
 
 Owner-requested sweep and merge completed as `321704247`, from baseline `3ba5b8492`. Post-merge fast **816/816** and HTTP **119/119** PASS. Fresh live proof covers real multi-file uploads/read-back, previews, draft preservation, delayed Send, picker/paste, oversized files and outside drops; no page errors. Added edge coverage for disabled chat, folder-only drops, unavailable files, links and browser exit. Merge reservation released. The unrelated QA status refresh is preserved. Installer rebuild, native file-manager gesture acceptance and publication remain separate.

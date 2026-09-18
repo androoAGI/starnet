@@ -33,7 +33,7 @@ clearance checks. New commands cancel the old passing agreement.
 The initial full gate caught two single-body test fixtures missing the new traffic
 dependency. Those fixtures were corrected without weakening their seat or corner
 assertions. The committed release-surface lock was refreshed for the new world
-source bytes; claim verdicts were not changed. Combined npm run test:fast passes 817/817 on the synchronized source (local receipt: .dogfood/hallway/final-fast.log). Post-merge verification is pending.
+source bytes; claim verdicts were not changed. Combined npm run test:fast passes 817/817 on the synchronized source (local receipt: .dogfood/hallway/final-fast.log). Merged to feat/harness-backend at cee250d8ee5c7d3ba41f7b9cbf72b8f4ad1905d2. Post-merge npm run test:fast also passes 817/817, exit 0 (local receipt: .dogfood/hallway/post-merge-fast.log). Merged source hash and website mirror are identical to the live-tested source.
 
 This is source and browser verification. No installer was rebuilt, no update was
 published, and recovery in the owner's installed station remains unconfirmed.
