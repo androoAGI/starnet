@@ -17,6 +17,11 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     });
     if (baseline) await page.route('**/app/chat.js', r => r.fulfill({status:200, contentType:'application/javascript', body:cp.execFileSync('git',['show','3ba5b8492:frontend/app/chat.js'],{encoding:'utf8',maxBuffer:4*1024*1024})}));
     const uploaded = [], errors = [];
+    async function waitUploads(count) {
+      const until=Date.now()+5000;
+      while(uploaded.length<count&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,25));
+      assert.equal(uploaded.length,count);
+    }
     page.on('pageerror', e => errors.push(e.message));
     page.on('response', async r => { if (r.url().endsWith('/api/attachments') && r.request().method() === 'POST') { const j=await r.json().catch(()=>({})); if(j.path) uploaded.push(j); } });
     await page.goto(process.argv[2] || 'http://127.0.0.1:18973');
@@ -48,9 +53,10 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await cdp.send('Input.dispatchDragEvent',{type:'drop',x:box.x+box.width/2,y:box.y+box.height/2,data});
     await page.waitForFunction(()=>document.querySelectorAll('.chat-attach-chip').length===2&&!document.querySelector('.chat-attach-chip.uploading'));
     assert.equal(await page.locator('.chat-attach-chip.err').count(),0);
+    await page.waitForFunction(()=>{const img=document.querySelector('.chat-attach-chip img');return img&&img.complete&&img.naturalWidth>0;});
     assert.equal(await page.locator('#chat-input').inputValue(),'Keep my draft');
     assert.equal(await page.locator('.chat-drop-hint').isVisible(),false);
-    assert.equal(uploaded.length,2);
+    await waitUploads(2);
     for(const ref of uploaded){
       const bytes=await page.evaluate(async ref=>{const r=await fetch('/api/file?agent=agent&path='+encodeURIComponent(ref.path)+'&token='+encodeURIComponent(Harness.apiToken()));return {status:r.status,bytes:Array.from(new Uint8Array(await r.arrayBuffer()))};},ref);
       assert.equal(bytes.status,200);assert.deepEqual(Buffer.from(bytes.bytes),fs.readFileSync(ref.name==='drop-proof.txt'?textPath:pngPath));
@@ -67,10 +73,26 @@ const { chromium } = require(process.env.STARNET_PLAYWRIGHT_MODULE || 'playwrigh
     await page.locator('#chat-attach-input').setInputFiles(textPath);
     await page.evaluate(()=>{const dataTransfer=new DataTransfer();dataTransfer.items.add(new File(['paste proof'],'paste.txt',{type:'text/plain'}));document.querySelector('#chat-input').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:dataTransfer}));});
     await page.waitForFunction(()=>document.querySelectorAll('.chat-attach-chip').length===2&&!document.querySelector('.chat-attach-chip.uploading'));
-    assert.equal(uploaded.length,4);proof.checks.push('Picker and paste still upload once after session re-entry');
+    await waitUploads(4);proof.checks.push('Picker and paste still upload once after session re-entry');
     const url=page.url();const outside=await page.locator('#stage-wrap').boundingBox();
     for(const type of ['dragEnter','dragOver','drop'])await cdp.send('Input.dispatchDragEvent',{type,x:outside.x+outside.width/2,y:outside.y+outside.height/2,data});
     assert.equal(page.url(),url);assert.equal(uploaded.length,4);proof.checks.push('Drop outside chat does not navigate or attach');
+    // A send during a pending dropped-file upload must wait for its real reference.
+    let releaseUpload;
+    const holdUpload=new Promise(resolve=>{releaseUpload=resolve;});
+    await page.route('**/api/attachments',async r=>{if(r.request().postDataJSON()?.name==='delayed.txt')await holdUpload;await r.continue();});
+    await page.evaluate(()=>{const dataTransfer=new DataTransfer();dataTransfer.items.add(new File(['pending upload proof'],'delayed.txt',{type:'text/plain'}));document.querySelector('#chat-input').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer}));});
+    await page.waitForFunction(()=>document.querySelector('.chat-attach-chip.uploading'));
+    await page.locator('#chat-input').fill('Wait for all my files');await page.locator('#chat-send').click();
+    assert.equal(await page.evaluate(()=>dropRuns.length),1);releaseUpload();
+    await page.waitForFunction(()=>dropRuns.length===2&&!Chat.isBusy());
+    const delayed=await page.evaluate(()=>Workstreams.get(Workstreams.activeId()).history.find(m=>m.content==='Wait for all my files').attachments.map(a=>a.name).sort());
+    assert.deepEqual(delayed,['delayed.txt','drop-proof.txt','paste.txt']);
+    proof.checks.push('Composer drop uploads once after re-entry; Send waits for the delayed upload and includes all three refs');
+    await page.evaluate(()=>{const dataTransfer=new DataTransfer();dataTransfer.items.add(new File([new Uint8Array(8*1024*1024+1)],'too-large.txt',{type:'text/plain'}));document.querySelector('#chat-log').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer}));});
+    assert.equal(await page.locator('.chat-attach-chip').count(),0);
+    await page.locator('.toast').filter({hasText:'too-large.txt'}).waitFor({state:'visible'});
+    proof.checks.push('Dropped oversized file uses the existing 8MB rejection and stages nothing');
     proof.pageErrors=errors;console.log(JSON.stringify(proof,null,2));
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e);process.exitCode=1;});
