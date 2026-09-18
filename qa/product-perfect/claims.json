@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "e0a6efc2f96461958b3cf152644bc5d3a4988adf",
+    "sourceCommit": "7e8d8ee984ceaae246797d89d3c1649bc8dbed93",
     "pathSetSha256": "a11c67cfb53f07eaaf8784fa4174bea4635d53b5741259b6894e8b5cccf6eac8",
     "files": [
       {
@@ -153,8 +153,8 @@
       },
       {
         "path": "frontend/agent-station-demo.html",
-        "bytes": 86330,
-        "sha256": "77a0c8c042bacab923b22cf93d8328af7bfd3aad35769c992bd69765310308c4"
+        "bytes": 85898,
+        "sha256": "080c1018e3efbd468eafa1553b37dea42fa11c44456a8f49999e1a7c45b355f3"
       },
       {
         "path": "frontend/app/agentid.js",
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/bootguard.js",
-        "bytes": 17091,
-        "sha256": "1cf1b8da3c3bb9951e647639446be065f2d114b0420a1110bba6afcdbb0e90ac"
+        "bytes": 16991,
+        "sha256": "d1af306b7527f7f17580765ada49514235ed69e7a2ed720b4c0c477073d6ec6f"
       },
       {
         "path": "frontend/app/bottlestore.js",
@@ -323,8 +323,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 655725,
-        "sha256": "aff796d932a2c05f3352966d8bfcbc49f00294c75405df5abfff4d3fecbed19c"
+        "bytes": 656213,
+        "sha256": "a63d5f91a0c80514547d548872ab018a65ca22d1597e7264372bc3e99f000801"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -433,8 +433,8 @@
       },
       {
         "path": "frontend/app/emergency-control.js",
-        "bytes": 3356,
-        "sha256": "f6a3bac18253a732a3788f50dd2428cf3b98ffd87b2c21f2017221352b678902"
+        "bytes": 3352,
+        "sha256": "d8a8ddfa769f2dd95526590d95591d3b31b66aa3c78d02fe50bd6eaf7b55e98d"
       },
       {
         "path": "frontend/app/equipmenthelp.js",
@@ -1188,8 +1188,8 @@
       },
       {
         "path": "frontend/app/widgets.js",
-        "bytes": 57535,
-        "sha256": "0d696bde396c97711b1879db11cc91a57e6b4df1b8a46ebf2ab652841cbe98ff"
+        "bytes": 57523,
+        "sha256": "66c0b8502858198a2b2f6f1a76e796a979bfade433d62d4c5f3bd02418ed53ae"
       },
       {
         "path": "frontend/app/windows/automation.js",
@@ -1568,8 +1568,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86726,
-        "sha256": "f9740f49f742b655931d577a84ce3ea993f7c32d707972eda3ade5bdbbfc955e"
+        "bytes": 86317,
+        "sha256": "0b79e94893e8b9702f1c25d0a17c620e8c068769dad5a2dea09454d3865f077f"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -1593,8 +1593,8 @@
       },
       {
         "path": "frontend/js/util.js",
-        "bytes": 31079,
-        "sha256": "c5e152e347f2733b640419b15ef7f96fffcd677900413a02bb69b752e2485b49"
+        "bytes": 31676,
+        "sha256": "aded27c358c42bffd6e1ee2db2ae44bd8b89ee01e8c71ec0d76e72a030d85424"
       },
       {
         "path": "frontend/prop-atlas.html",
