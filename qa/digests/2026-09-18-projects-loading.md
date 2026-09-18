@@ -25,3 +25,9 @@ Do not ask the reporter to delete or reset application data. This is a rendering
 The backend stores project metadata in `projects.json` under its active workspaces directory; trust grants are separately held in `permissions.allow.json`. Neither should be manually removed to address this issue. Agents, sessions and station state need no migration for the fix.
 
 Suggested reply after an installer containing the repair is available: We reproduced the Projects loading issue and found a UI error in version 0.12.3. Your folder contents and station data do not need to be cleared. Please keep the application-data folder intact and install the update containing this fix. If it persists afterward, provide the new Diagnostics report and the page error text; do not send credentials or the whole station-data directory.
+
+## Integration receipt
+
+Merged into `feat/harness-backend` at `1c0640ee3e491cb1bda3454a09ef2717719dbb26`. Combined pre-merge and post-merge fast gates both PASS **818/818** (`fast-combined.log`, `fast-postmerge.log`). The original isolated fix passed **817/817** before the compatibility lane added one suite. Customer journeys PASS **36/36**. The merged tree exactly equals verified candidate `38a48cdd9`; its application source equals live-tested combined candidate `72d605fa1` (`.dogfood/projects/combined.json`, seven checks, zero page exceptions).
+
+The first gate correctly failed because this frontend edit invalidated its advertised-claims source hash. Only the mechanical release-surface hash/source lock was refreshed; no claim verdict changed. The final combined gates above passed afterward. No installer rebuild, publication, customer email or customer-data reset was performed. Merge reservation released after successful post-merge verification; owned worktree retained for receipts.
