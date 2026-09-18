@@ -62,6 +62,18 @@ for (const root of ['frontend', 'website/app']) {
   assert.equal(uploads.length, 2, 'inactive chat cannot stage files');
   ctx.activeWs = { conversationMode: 'group' }; panel.fire('drop', { dataTransfer: { types: ['Files'], files } });
   assert.equal(uploads.length, 3, 'group uses the same attachment path');
+  input.disabled = true;
+  panel.fire('dragover', drag()); panel.fire('drop', { dataTransfer: { types: ['Files'], files } });
+  assert.equal(hint.hidden, true); assert.equal(uploads.length, 3, 'disabled composer refuses drops');
+  input.disabled = false;
+  panel.fire('drop', { dataTransfer: { types: ['Files'], items: [mixed.dataTransfer.items[0]] } });
+  assert.equal(notices.length, 2); assert.equal(uploads.length, 3, 'folder-only drop explains the limitation without staging a file');
+  panel.fire('drop', { dataTransfer: { types: ['Files'], items: [{kind:'file',getAsFile:()=>null}] } });
+  assert.equal(uploads.length, 3, 'unavailable drag item does not stage a phantom file');
+  assert.equal(panel.fire('drop', {dataTransfer:{types:['text/uri-list'],files:[]}}).prevented, undefined, 'link dragging is not an attachment');
+  panel.fire('dragenter', drag());
+  document.fire('dragleave', {target:document.documentElement,relatedTarget:null});
+  assert.equal(hint.hidden, true, 'leaving the browser window clears the overlay');
 }
 const rust = fs.readFileSync(path.join(__dirname, '../src-tauri/src/main.rs'), 'utf8');
 assert.match(rust, /WebviewWindowBuilder::new\(app, "main"[^]*?\.disable_drag_drop_handler\(\)[^]*?\.build\(\)/, 'desktop shell must pass OS drops through to HTML5');
