@@ -498,7 +498,7 @@ const Widgets = (() => {
   async function widgetApi(path, body) {
     const r = await fetch('/api/widgets' + path, { method: body ? 'POST' : 'GET', cache: 'no-store',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(12000) });
+      body: body ? JSON.stringify(body) : undefined, signal: U.timeoutSignal(12000) });
     const data = await r.json();
     if (!r.ok || data.error) throw new Error(data.error || 'Could not reach the widget service.');
     return data;
@@ -873,7 +873,7 @@ const Widgets = (() => {
     if (!gameEntered()) return;
     if (![...layout.top, ...layout.bot].some(id => id === 'runs24' || id === 'tokens')) return;
     if (insightsRequest) return insightsRequest;
-    insightsRequest = fetch('/api/insights', { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+    insightsRequest = fetch('/api/insights', { cache: 'no-store', signal: U.timeoutSignal(10000) })
       .then(r => (r && r.ok) ? r.json() : null)
       .then(st => { if (st) { insights = st; liveRunEnds = 0; pollFail.insights = false; paintAll(); } else { pollFail.insights = true; paintAll(); } })
       .catch(() => { pollFail.insights = true; paintAll(); })
@@ -892,7 +892,7 @@ const Widgets = (() => {
   function pollFeed() {
     if (!gameEntered()) return;
     if (feedRequest) return feedRequest;
-    feedRequest = fetch('/api/widgets', { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+    feedRequest = fetch('/api/widgets', { cache: 'no-store', signal: U.timeoutSignal(10000) })
       .then(r => (r && r.ok) ? r.json() : null)
       .then(st => {
         if (!st || !Array.isArray(st.widgets)) throw new Error('Widget feed unavailable');

@@ -15,6 +15,9 @@ function snapshot(halted) { return { halted, subsystems: Object.fromEntries(['cr
   vm.runInNewContext(source, {
     document: { getElementById: id => nodes[id], addEventListener() {}, hidden: false },
     window: { addEventListener(k, fn) { if (k === 'focus') focus = fn; } }, setInterval() {}, AbortSignal,
+    U: vm.runInNewContext(fs.readFileSync('frontend/js/util.js', 'utf8') + ';U', {
+      AbortSignal: {}, AbortController, DOMException, setTimeout() {}
+    }),
     StationUI: { notify: m => notices.push(m) },
     fetch: async (path, opts) => {
       calls.push([path, opts]);
