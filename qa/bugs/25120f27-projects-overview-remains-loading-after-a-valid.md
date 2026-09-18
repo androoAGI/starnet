@@ -4,10 +4,10 @@ slug: projects-overview-remains-loading-after-a-valid
 title: Projects overview remains loading after a valid nonempty response
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-18
 lane: projects-loading-0918
-fix:
+fix: fa3d96b12474612e5cc7a648c9b1685cfeef94e8
 origin: customer
 report: Owner-forwarded support report, 2026-09-18
 affected: 0.12.3 Windows 11 x64
@@ -39,8 +39,6 @@ The overview incorrectly referenced a session-only status variable. Its rejectio
 ## Regression
 
 The baseline live app reproduces the exact symptom and ReferenceError; patched live app lists the same stored root with zero page exceptions. Production-renderer tests cover trusted/revoked rows, stale rows on network failure, terminal recovery text on renderer failures, retry recovery, and a genuinely empty ledger.
-
-
 
 ## Sibling coverage
 
@@ -97,5 +95,3 @@ The baseline live app reproduces the exact symptom and ReferenceError; patched l
     }
   ]
 }
-
-
