@@ -7,6 +7,14 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const os = require('node:os');
 const util = fs.readFileSync('frontend/js/util.js', 'utf8');
+for (const entry of ['frontend/index.html', 'frontend/agent-station-demo.html']) {
+  const html = fs.readFileSync(entry, 'utf8');
+  assert.match(html, /<script src="\/shared\/specialties.js"><\/script>/, entry);
+  assert.ok(html.indexOf('src="/shared/specialties.js"') < html.indexOf('src="app/specialties.js"'), entry + ' catalog loads before its consumer');
+  for (const consumer of ['app/widgets.js', 'app/emergency-control.js']) {
+    assert.ok(html.indexOf('src="js/util.js"') >= 0 && html.indexOf('src="js/util.js"') < html.indexOf('src="' + consumer + '"'), entry + ' deadline helper loads before ' + consumer);
+  }
+}
 const timers = [];
 const ctx = vm.createContext({ AbortSignal: {}, AbortController, DOMException, setTimeout: (fn, ms) => timers.push({ fn, ms }) });
 vm.runInContext(util + ';this.U = U;', ctx);
@@ -66,23 +74,30 @@ assert.equal(ctx.U.timeoutSignal(17), sentinel, 'native implementation remains a
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
   // Execute the real staging function on a small tree, then load the exact
   // packaged script referenced by index.html with no engine/global API origin.
-  const { stage, KEEP_INDUSTRIAL } = await import(pathToFileURL(path.resolve('scripts/stage-frontend-dist.mjs')));
+  const { stage, plan, KEEP_INDUSTRIAL } = await import(pathToFileURL(path.resolve('scripts/stage-frontend-dist.mjs')));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-mac-boot-'));
   try {
     const src = path.join(dir, 'frontend'), dest = path.join(dir, 'bundle');
     for (const name of KEEP_INDUSTRIAL) fs.mkdirSync(path.join(src, 'assets/industrial', name), { recursive: true });
     fs.copyFileSync('frontend/index.html', path.join(src, 'index.html'));
-    stage({ src, dest, log() {} });
+    fs.mkdirSync(path.join(src, 'shared'));
+    fs.writeFileSync(path.join(src, 'shared/specialties.js'), 'stale catalog must never ship');
+    const predicted = plan(src);
+    const staged = stage({ src, dest, log() {} });
+    assert.deepEqual(staged.kept, predicted.kept, 'dry run describes the real staged catalog');
+    assert.equal(staged.kept.files, 2, 'catalog is counted exactly once, replacing a stale copy');
     const html = fs.readFileSync(path.join(dest, 'index.html'), 'utf8');
     assert.match(html, /<script src="\/shared\/specialties.js"><\/script>/);
     assert.ok(html.indexOf('src="/shared/specialties.js"') < html.indexOf('src="app/specialties.js"'));
     assert.ok(!html.includes("document.write('<script src="), 'boot data must not depend on the loopback API origin');
     const catalog = fs.readFileSync(path.join(dest, 'shared/specialties.js'), 'utf8');
     assert.equal(catalog, fs.readFileSync('shared/specialties.js', 'utf8'));
+    assert.equal(staged.kept.bytes, Buffer.byteLength(html) + Buffer.byteLength(catalog));
     const catalogContext = vm.createContext({});
     vm.runInContext(catalog, catalogContext);
     assert.ok(vm.runInContext('typeof SharedSpecialties !== "undefined"', catalogContext));
     assert.throws(() => stage({ src, dest, shared: path.join(dir, 'missing'), log() {} }), /catalog missing/);
+    assert.throws(() => plan(src, path.join(dir, 'missing')), /catalog missing/, 'dry run fails on missing boot data too');
     assert.ok(fs.existsSync(path.join(dest, 'shared/specialties.js')), 'failed source preflight preserves previous output');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   // Catch the whole sibling class, not only the reported widget call.
