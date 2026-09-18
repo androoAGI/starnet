@@ -1,3 +1,5 @@
+// Reproduce the old head-on jam (--before), or verify the repaired steppers and
+// normal animation loop on an isolated seeded station. No personal save is used.
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
@@ -46,7 +48,7 @@ let side,chrome,cdp;const report={};
 try{
  side=bootSeededSidecar({port:18987,scratchDir:materializeSeedWorkspace(resolve(out,'workspace')),key:'fixture-no-provider'});
  if(!await waitUp('http://127.0.0.1:18987/'))throw Error('boot failed');
- chrome=launchChrome({cdpPort:19387,profileDir:resolve(out,'profile')}).proc;cdp=await connectCDP(19387);
+ chrome=launchChrome({cdpPort:19387,profileDir:resolve(out,'profile-'+Date.now())}).proc;cdp=await connectCDP(19387);
  await cdp.send('Page.enable');await cdp.send('Runtime.enable');
  const src=(process.argv.includes('--before')?execFileSync('git',['show','3ba5b8492:frontend/app/world.js'],{encoding:'utf8'}):readFileSync('frontend/app/world.js','utf8')).replace('  return {\n    init,', '  return {\n    init,');
  report.sourceSha256=createHash('sha256').update(src).digest('hex');
