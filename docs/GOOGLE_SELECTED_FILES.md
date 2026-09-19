@@ -27,7 +27,9 @@ review launcher now uses this same split without the future-release override.
 Google Picker API is enabled in `starnet-505202`, verified in the Cloud Console.
 The real native-client flow reached Google's per-file consent screen, without an
 unverified-app interstitial on the observed path. The file-access grant is awaiting
-user confirmation; no completed real file selection or read/edit acceptance is claimed.
+file selection. The user authorized consent and it was submitted, but automated
+clicks and keyboard input failed inside Picker. No completed real file selection or
+read/edit acceptance is claimed.
 The existing broad verification draft remains separate and unsubmitted.
 
 Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker
@@ -43,12 +45,19 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
 - Live seeded app, using synthetic Google endpoints: selected-file disclosure and
   button displayed; callback connected 11 tools; restart recovered the encrypted
   grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
-- Real Google Picker API activation completed after user authorization. File-access
-  consent is pending; no personal files were read or edited.
+- Real Google Picker API activation and the authorized per-file consent step completed.
+  File selection is still incomplete; no personal files were read or edited.
 - Branch remains isolated and unmerged. Full public release readiness is not claimed.
 - Synced trunk into this branch at merge `41f8bc76c`; the sole conflict was the
   release-surface hash ledger, resolved using trunk's verdicts and regenerated hashes.
-  Full post-sync gates remain outstanding because C: has approximately 0.6 GiB free.
-  Automatic approval review blocked deletion of this worktree's 1.21 GiB generated
-  incremental build cache. No cache was deleted. A Mac is still needed for native
-  acceptance; no remote or physical Mac was available in this session.
+  A second trunk sync is recorded at `3d516ffbb`, with combined hashes at `e151f09da`.
+- The user cleared disk space. Fresh gates on `e151f09da` passed: **823 fast steps**
+  and **120 HTTP steps**, including Google selected-file and broad-deferral lifecycle
+  checks. Logs: `.local/google-review/final-fast-retry.log` and
+  `.local/google-review/final-http.log` (local, ignored).
+- The first fresh fast run stopped at session-reliability step 777 because the Google
+  preview owned the same dev workspace. Stopping only this lane's preview resolved the
+  collision; the focused test and complete rerun passed. The native-keychain preview
+  was restarted afterward. No product workaround or test exclusion was introduced.
+- A Mac is still needed for native acceptance; no remote or physical Mac was available
+  in this session. Real Google file selection/read-edit acceptance also remains open.
