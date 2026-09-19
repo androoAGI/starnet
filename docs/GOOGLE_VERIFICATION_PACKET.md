@@ -74,6 +74,28 @@ It has not been uploaded or represented as a verification demo.
 
 ## Security and release conditions
 
+### Candidate execution record (2026-09-19)
+
+- Windows native keychain round-trip passed without printing key material.
+- The live seeded app showed all five connected services using synthetic Google
+  endpoints. A missing-key restart displayed the storage-lock message and preserved
+  the ciphertext; restoring the key recovered the connections. This proves local
+  lifecycle behavior, not real Google API acceptance.
+- The private native review launcher reached real Google account selection with the
+  installed client and reduced Docs scopes. Account selection and the fresh grant
+  remain unfinished; no new real Google API acceptance is claimed.
+- The HTTP suite passed 119 steps. Focused Google lifecycle, vault, station recovery,
+  update preparation and an encrypted-state update HTTP run also passed after the
+  follow-up fixes. The full fast run passed steps 1–750, then stopped because the
+  silent-catch baseline needed lowering from 371 to 368. After that metadata fix,
+  steps 751–819 passed through the same isolated manifest runner (69/69). All 819
+  steps therefore have passing coverage across the run and continuation; a single
+  uninterrupted final-commit fast gate has not been claimed and remains required
+  before merge.
+- No Mac installer acceptance, signed release, verification submission, external
+  assessment or station-wide `qa:ready` verdict is claimed. Work remains isolated
+  on `agent/google-oauth-audit-0919`; trunk and public activation are unchanged.
+
 | Condition | Evidence/status |
 | --- | --- |
 | Native client provisioning | Existing downloaded registration validates as Desktop/installed for this project; GitHub secret metadata confirmed. Contents not committed or printed. |
