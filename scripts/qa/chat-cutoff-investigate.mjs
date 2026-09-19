@@ -105,5 +105,7 @@ try {
   if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
   if (browser) browser.kill();
   // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
-  spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
+  if (app.exitCode === null && app.signalCode === null) {
+    spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
+  }
 }
