@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="css/comms.css">
 <link rel="stylesheet" href="css/marketplace.css">
 <link rel="stylesheet" href="css/menu-glass.css">
+<link rel="stylesheet" href="css/remote-status.css">
 <link rel="stylesheet" href="css/settings.css?v=5">
 <link rel="stylesheet" href="css/commander.css">
 <link rel="stylesheet" href="css/channels.css?v=4">
@@ -61,8 +62,8 @@
      carried the static .active). Truthful telemetry: it asserts nothing about state — just "connecting". -->
 <section id="screen-boot" class="screen active" aria-label="StarNet booting" aria-hidden="true">
   <div class="boot-veil">
-    <div class="boot-mark">◆ STARNET</div>
-    <div class="boot-line">establishing local uplink<span class="boot-dots"></span></div>
+    <div class="boot-mark logo-img" role="img" aria-label="StarNet"></div>
+    <div class="boot-line">connecting to your station<span class="boot-dots"></span></div>
   </div>
 </section>
 
@@ -204,6 +205,7 @@
                      path the user actually completed (app.js onWakeAttempt). -->
                 <button class="prov" data-prov="grok" aria-pressed="false">GROK</button>
                 <button class="prov" data-prov="kimi" aria-pressed="false">KIMI</button>
+                <button class="prov" data-prov="gateway" aria-pressed="false">GATEWAY</button>
                 <button class="prov" data-prov="openrouter" aria-pressed="false">OPENROUTER</button>
                 <button class="prov" data-prov="openai" aria-pressed="false">OPENAI</button>
                 <button class="prov" data-prov="anthropic" aria-pressed="false">ANTHROPIC</button>

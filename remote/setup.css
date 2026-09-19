@@ -1,0 +1,46 @@
+/* Layout only. Fonts, colors, chrome and controls come from the actual station
+   stylesheets listed in ui-assets.js, copied byte-for-byte when packaging. */
+#screen-remote-setup { padding: 24px; align-items: center; justify-content: center; }
+#screen-remote-setup [hidden] { display: none !important; }
+#screen-remote-setup .setup-console {
+  width: min(1060px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#screen-remote-setup .cc-console-head { padding-top: 22px; flex: 0 0 auto; }
+#screen-remote-setup .cc-titlebar { flex-wrap: wrap; }
+#screen-remote-setup .ov-title-row { margin-block: 18px 8px; }
+#screen-remote-setup .ov-sub { margin-bottom: 12px; }
+#screen-remote-setup .setup-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+#screen-remote-setup .ov-cfg { min-width: 0; }
+#screen-remote-setup .ov-field { margin-bottom: 24px; }
+#screen-remote-setup .ov-card span { display: block; }
+#screen-remote-setup .ov-card { min-width: 0; }
+#screen-remote-setup .ov-card-nm { overflow-wrap: anywhere; }
+#screen-remote-setup input { width: 100%; min-width: 0; }
+#screen-remote-setup .ov-crewnote { line-height: 1.4; }
+#screen-remote-setup .codex-actions { align-items: center; }
+#screen-remote-setup .setup-ports { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#screen-remote-setup summary { cursor: pointer; }
+#screen-remote-setup #install-panel { margin-top: 20px; }
+#screen-remote-setup .setup-footer { flex: 0 0 auto; flex-wrap: wrap; }
+#screen-remote-setup .setup-actions { display: flex; align-items: stretch; gap: var(--s-2); max-width: 100%; }
+#screen-remote-setup .setup-actions > .btn-xl { width: 220px; min-width: 0; flex: 1 1 220px; white-space: normal; }
+#screen-remote-setup .setup-receipt { flex: 1; min-width: 240px; }
+#screen-remote-setup #status { min-height: 2.4em; overflow-wrap: anywhere; user-select: text; }
+#screen-remote-setup #status[data-phase=error] { color: var(--bad); }
+#screen-remote-setup #status[data-phase=connected] { color: var(--ok); }
+@media (max-width: 720px) {
+  #screen-remote-setup { padding: 12px; }
+  #screen-remote-setup .setup-body { grid-template-columns: minmax(0, 1fr); }
+  #screen-remote-setup .setup-receipt { flex-basis: 100%; }
+  #screen-remote-setup .setup-actions { width: 100%; }
+}

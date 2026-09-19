@@ -5,13 +5,17 @@
 /* ---------- screen scaffolding ---------- */
 .screen { position: fixed; inset: 0; display: none; z-index: 10; }
 .screen.active { display: flex; }
+#station-host { align-items: center; justify-content: center; padding: var(--s-4); text-align: center; }
+#station-host > div { max-width: 100%; }
+#station-host .logo-img { margin: 0 auto var(--s-3); }
+#station-host h2 { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 
 /* boot veil — the neutral holding-card shown during init()'s async gap before the boot router picks a
    real screen. Solid ink so there's never a flash of the wrong screen (the old #screen-connect .active
    bug); reuses the phosphor vars so it matches whatever theme is about to load. */
 #screen-boot { background: var(--ink); align-items: center; justify-content: center; }
 .boot-veil { text-align: center; opacity: .82; animation: boot-fade 2.4s ease-in-out infinite; }
-.boot-mark { color: var(--ph-bright); font-size: 30px; letter-spacing: 8px; text-shadow: 0 0 14px var(--ph-glow), 0 0 3px var(--ph-glow); }
+.boot-mark { margin-inline: auto; }
 .boot-line { color: var(--ph-dim); font-size: 14px; letter-spacing: 3px; text-transform: uppercase; margin-top: 12px; }
 .boot-dots::after { content: '…'; animation: cc-blink 1.1s steps(1) infinite; }
 @keyframes boot-fade { 0%, 100% { opacity: .62; } 50% { opacity: .9; } }
@@ -5084,6 +5088,7 @@ select.fbc-sel:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba
 .con-pane {
   flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto;
   padding: var(--s-3) var(--s-4) var(--s-5);
+  overflow-anchor: none;
   scrollbar-width: thin; scrollbar-color: var(--ph) transparent;
 }
 .con-pane::-webkit-scrollbar { width: 8px; }

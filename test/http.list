@@ -120,3 +120,8 @@ test/output-only-repair.e2e.test.js
 test/saved-provider-fallback.e2e.test.js
 test/delegated-connectors.e2e.test.js
 test/prompt-cache-prefix.e2e.test.js
+
+# Remote station extension regressions.
+test/remote-gateway.test.js
+test/remote-integration.test.js
+test/remote-provider-persistence.test.js

@@ -70,7 +70,7 @@ function boot(port, env, attemptsLeft) {
 
 (async () => {
   const mock = await startMockOpenRouter();
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-ws-'));
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-ws-')));
   const alphaWorkspace = path.join(ws, 'alpha');
   const betaWorkspace = path.join(ws, 'beta');
   fs.mkdirSync(alphaWorkspace, { recursive: true });
@@ -78,7 +78,7 @@ function boot(port, env, attemptsLeft) {
   const alphaPrivate = path.join(alphaWorkspace, 'private.txt');
   fs.writeFileSync(alphaPrivate, 'LIVE_ALPHA_PRIVATE_MARKER\n');
   // a real project OUTSIDE the workspaces jail: a git repo with two files + a protected .env.
-  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-proj-'));
+  const proj = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-proj-')));
   fs.mkdirSync(path.join(proj, '.git'), { recursive: true });
   fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
   fs.writeFileSync(path.join(proj, 'src', 'main.js'), 'const MARKER_MAIN = 1;\n');
@@ -87,7 +87,7 @@ function boot(port, env, attemptsLeft) {
   const fileA = path.join(proj, 'src', 'main.js');
   const fileB = path.join(proj, 'README.md');
   // NS-5c: a SECOND real git repo to bless via the ADD-a-project route (POST /api/projects/bless), plus a plain file.
-  const repo2 = fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-repo2-'));
+  const repo2 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ptrust-repo2-')));
   fs.mkdirSync(path.join(repo2, '.git'), { recursive: true });
   fs.mkdirSync(path.join(repo2, 'src'), { recursive: true });
   fs.writeFileSync(path.join(repo2, 'index.js'), 'const MARKER_TWO = 2;\n');

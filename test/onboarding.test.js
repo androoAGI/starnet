@@ -74,7 +74,7 @@ A.ok(/PAIN_REPLY_MS\s*=\s*\d+/.test(src) && /SYNTHESIS_MS\s*=\s*\d+/.test(src) &
 
 /* ---------- the LIVE birth script: full-monologue generation, per-slot fallback, honest on a dead wire ---------- */
 // the prefetch is fire-and-collect (.then, no await) — the ceremony's pacing can never hinge on the model.
-A.ok(/llmCall\(WakeMind\.buildBirthScript\([\s\S]{0,80}\)\)\.then\(/.test(src),
+A.ok(/llmCall\(WakeMind\.buildBirthScript\([\s\S]{0,80}\), true\)\.then\(/.test(src),
   'the birth call is prefetched fire-and-collect (never awaited by a beat)');
 A.ok(!/await[\s\S]{0,40}buildBirthScript/.test(src), 'no beat awaits the birth call');
 // the only latency concession is the bounded held-dark poll at ignition — capped, never unbounded.
@@ -138,7 +138,7 @@ A.ok(/weight:\s*'synth'\s*\}\);\s*\}\s*\}/.test(src.replace(/\r/g, '')) || /upse
 /* ---------- S5: brain-before-interview (plan §8) ---------- */
 // a keyless wake gets NO fake interview: the honest holding line, the required scripted beats, and a
 // persisted IOU the first live-brain session pays via one gentle offer (spent on OFFER — never a nag).
-A.ok(/if \(!brainReady\(\) \|\| birthFailed\) \{[\s\S]{0,900}setDeferred\(\);[\s\S]{0,300}fallbackPurposeStep\(true\)/.test(src),
+A.ok(/if \(journal \? !journal.interviewReady : \(!brainReady\(\) \|\| birthFailed\)\) \{[\s\S]{0,900}setDeferred\(\);[\s\S]{0,300}fallbackPurposeStep\(true\)/.test(src),
   'a keyless OR dead-wire meeting banks the IOU and still lands purpose.md (no fake deep interview)');
 A.ok(/PROVEN, NOT ASSUMED/.test(src),
   'the live-wire proof doctrine is stated at the gate (the birth call is the preflight)');

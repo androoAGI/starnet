@@ -10,6 +10,10 @@ A.eq(P.providerFailure({ classification: { shouldFallback: true, retryable: true
   'retry', 'exhausted fallback chain uses bounded same-provider retry');
 A.eq(P.providerFailure({ classification: { retryable: true, reason: 'timeout', retryAfterMs: 2500 }, retriesUsed: 1, maxRetries: 6 }).delayMs,
   2500, 'server retry-after outranks the local rung');
+A.eq(P.providerFailure({ classification: { retryable: true, reason: 'timeout' }, firstByteTimeout: true, hasFallback: true, recoveriesUsed: 0, maxRecoveries: 2 }),
+  { action: 'fallback', reason: 'provider_first_byte_timeout', retryable: true, delayMs: 0, rotate: true }, 'a silent first-byte timeout uses the fallback ladder');
+A.eq(P.providerFailure({ classification: { retryable: true, reason: 'timeout' }, firstByteTimeout: true, hasFallback: false, recoveriesUsed: 0, maxRecoveries: 0 }),
+  { action: 'fail', reason: 'provider_first_byte_timeout', retryable: false, delayMs: 0 }, 'an exhausted silent provider fails instead of retrying forever');
 A.eq(P.providerFailure({ classification: { retryable: true }, retriesUsed: 6, maxRetries: 6 }).action,
   'fail', 'retry budget is a hard bound');
 A.eq(P.providerFailure({ classification: { retryable: true }, preStreamRetriesExhausted: true, retriesUsed: 0, maxRetries: 6 }).action,

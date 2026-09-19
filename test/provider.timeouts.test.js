@@ -30,6 +30,19 @@ async function collect(p, req) { const out = []; for await (const e of p.stream(
     A.eq(cls.reason, 'timeout', 'the idle-timeout error classifies as timeout');
     A.eq(cls.retryable, true, 'a timeout is retryable');
   }
+  // 1a. A response that never emits its first byte uses the shorter admission watchdog, not the long idle window.
+  {
+    let cancelled = false;
+    const guarded = timeouts.idleGuardedReader({
+      read: () => new Promise(() => {}),
+      cancel: () => { cancelled = true; return Promise.resolve(); }
+    }, { firstByteMs: 25, idleMs: 10000 });
+    let err = null;
+    try { await guarded.read(); } catch (e) { err = e; }
+    A.ok(err && err.firstByte === true, 'a silent first read is marked as a first-byte timeout');
+    A.eq(err && err.phase, 'first-byte', 'the timeout phase identifies stream admission');
+    A.ok(cancelled, 'the first-byte watchdog cancels the stalled reader');
+  }
 
   // 1b. THE 2026-07-08 ESCAPE (EL-11): a WHATWG-faithful reader — cancel() settles the pending read() as
   //     {done:true} synchronously, exactly like a real ReadableStream reader — must STILL surface the idle
@@ -193,6 +206,9 @@ async function collect(p, req) { const out = []; for await (const e of p.stream(
   //    connect guard disarms this is the streaming body's only ceiling and deep-reasoning turns go byte-silent).
   {
     const saved = process.env.SKYNET_PROVIDER_IDLE_MS;
+    process.env.SKYNET_PROVIDER_FIRST_BYTE_MS = '25';
+    A.eq(timeouts.firstByteMs(), 25, 'first-byte timeout honors SKYNET_PROVIDER_FIRST_BYTE_MS');
+    delete process.env.SKYNET_PROVIDER_FIRST_BYTE_MS;
     process.env.SKYNET_PROVIDER_IDLE_MS = '25';
     A.eq(timeouts.idleMs(), 25, 'idle timeout honors SKYNET_PROVIDER_IDLE_MS');
     delete process.env.SKYNET_PROVIDER_IDLE_MS;

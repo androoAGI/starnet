@@ -24,6 +24,15 @@
   //     legitimately exceed the hosted-provider default (local model loading in Ollama).
   const PROFILES = [
     {
+      id: 'gateway', aliases: [], name: 'Gateway', label: 'GATEWAY',
+      endpoint: 'your private model gateway', blurb: 'your connected model accounts',
+      live: true, adapter: 'responses-gateway', apiMode: 'responses', authType: 'api_key',
+      keyRequired: true, keyEnv: ['STARNET_GATEWAY_KEY'], modelsRequireAuth: true,
+      baseUrl: 'http://127.0.0.1:8781/v1', baseUrlEnv: ['STARNET_GATEWAY_BASE_URL'], modelsPath: '/models',
+      defaultReasoningEffort: 'medium', credentialPool: false,
+      supportsTools: true, supportsReasoning: true, order: 1
+    },
+    {
       id: 'openrouter',
       aliases: ['or'],
       name: 'OpenRouter',

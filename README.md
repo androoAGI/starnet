@@ -173,3 +173,7 @@ implication.
 MIT means you may fork, modify, and redistribute the code, including commercially. What you
 may not do is ship it as StarNet: forks and derivatives must use their own name, logo, and
 artwork, and must not present themselves as this project or as endorsed by it.
+
+## Remote station extension
+
+The desktop app can also connect to a private Linux station over SSH. Agents, credentials and ongoing work stay on that server when the Mac disconnects. Start with [connection setup](docs/remote/SETUP.md), [operations and recovery](docs/remote/OPERATIONS.md), or the [maintainer guide](docs/remote/MAINTAINER_GUIDE.md). This Computer retains the local workflow above.

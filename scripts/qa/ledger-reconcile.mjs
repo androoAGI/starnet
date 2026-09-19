@@ -615,9 +615,9 @@ if (INVOKED_DIRECTLY) {
     if (!ci.ok) {
       console.error('[qa:reconcile] CI RED — ' + ci.stale.length + ' likely-fixed record(s) still open for more than ' + ci.staleDays + ' day(s):');
       for (const r of ci.stale) console.error('  - ' + r.fingerprint + ' (' + r.ageDays + 'd, ' + r.status + ') ' + r.evidence.join('; '));
-      process.exit(3);
-    }
-    console.error('[qa:reconcile] CI OK — no likely-fixed record has sat open more than ' + ci.staleDays + ' day(s)');
+      process.exitCode = 3;
+    } else console.error('[qa:reconcile] CI OK — no likely-fixed record has sat open more than ' + ci.staleDays + ' day(s)');
   }
-  process.exit(0);
+  // Let piped output drain before exit; large JSON reports can exceed the pipe buffer.
+  process.exitCode = process.exitCode || 0;
 }

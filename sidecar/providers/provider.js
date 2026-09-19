@@ -77,6 +77,10 @@
     } catch (_) { return dflt; }
   }
   function connectMs() { return envInt('SKYNET_PROVIDER_CONNECT_MS', 30000); }
+  // A provider can return response headers successfully and then never emit the first SSE byte (for example,
+  // a spent/blocked model route that leaves a 200 response parked). Keep this admission timeout separate from
+  // the generous idle window used after a real stream has started.
+  function firstByteMs() { return envInt('SKYNET_PROVIDER_FIRST_BYTE_MS', 60000); }
   function idleMs() { return envInt('SKYNET_PROVIDER_IDLE_MS', 300000); }
 
   // DEPRECATED for streaming fetches — new code MUST use connectGuard() instead. This merges the caller's
@@ -138,6 +142,7 @@
     e.code = 'PROVIDER_STREAM_TIMEOUT';
     e.timeout = true;
     e.phase = phase || 'idle';
+    e.firstByte = e.phase === 'first-byte';
     return e;
   }
   function makeAbortError() { const e = new Error('aborted'); e.name = 'AbortError'; return e; }
@@ -183,11 +188,18 @@
   // so the loop reports 'cancelled'. Returns a reader-shaped object exposing read()/cancel().
   function idleGuardedReader(reader, opts) {
     opts = opts || {};
-    const ms = (opts.idleMs != null && opts.idleMs > 0) ? opts.idleMs : idleMs();
+    const hasIdleOverride = opts.idleMs != null && opts.idleMs > 0;
+    const idleTimeoutMs = hasIdleOverride ? opts.idleMs : idleMs();
+    // Backward-compatible for direct callers/tests that only supplied idleMs: their first read should remain
+    // governed by that explicit test timeout. Production adapters pass firstByteMs explicitly.
+    const firstByteTimeoutMs = (opts.firstByteMs != null && opts.firstByteMs > 0) ? opts.firstByteMs : (hasIdleOverride ? opts.idleMs : firstByteMs());
     const signal = opts.signal || null;
     let cancelled = false;
+    let firstRead = true;
     async function read() {
       if (signal && signal.aborted) { try { await reader.cancel(); } catch (_) {} throw makeAbortError(); }
+      const ms = firstRead ? firstByteTimeoutMs : idleTimeoutMs;
+      const phase = firstRead ? 'first-byte' : 'idle';
       let timer = null;
       let onAbort = null;
       const guard = new Promise((_resolve, reject) => {
@@ -199,7 +211,7 @@
           // run with tokens:0 (the 2026-07-08 stranded-user escape; night-shift beats inherited it and burned
           // leash reporting success). Rejecting first guarantees the guard settles before cancel can resolve
           // the read, so the watchdog genuinely errors the stream.
-          reject(timeoutError(ms, 'idle'));
+          reject(timeoutError(ms, phase));
           try { const p = reader.cancel(); if (p && typeof p.catch === 'function') p.catch(() => {}); } catch (_) {}
         }, ms);
         // NOTE: deliberately NOT unref'd. The watchdog must be able to fire even when the stalled read() is the
@@ -219,8 +231,9 @@
         const r = await Promise.race([reader.read(), guard]);
         // belt-and-braces: even if some reader settles its read() ahead of the guard's rejection, a fired
         // watchdog must NEVER surface as a clean end-of-stream — the timeout always wins.
-        if (cancelled) throw timeoutError(ms, 'idle');
+        if (cancelled) throw timeoutError(ms, phase);
         if (signal && signal.aborted) throw makeAbortError();
+        if (firstRead && r && !r.done) firstRead = false;
         return r;
       } finally {
         if (timer) clearTimeout(timer);
@@ -231,7 +244,7 @@
     return { read, cancel, get _cancelledByTimeout() { return cancelled; } };
   }
 
-  const timeouts = { envInt, connectMs, idleMs, connectSignal, connectGuard, idleGuardedReader, timeoutError, makeAbortError };
+  const timeouts = { envInt, connectMs, firstByteMs, idleMs, connectSignal, connectGuard, idleGuardedReader, timeoutError, makeAbortError };
   const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted };
 
   function recoveredToolContent(callId, content) {

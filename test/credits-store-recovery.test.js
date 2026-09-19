@@ -10,7 +10,7 @@ const end = source.indexOf('  // BUDGET panel', start);
 assert.ok(start >= 0 && end > start);
 
 class Host {
-  constructor() { this.isConnected = true; this.buttons = new Map(); }
+  constructor() { this.isConnected = true; this.buttons = new Map(); this.style = {}; this.offsetHeight = 0; }
   set innerHTML(html) {
     this.html = html; this.buttons = new Map();
     for (const match of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) {

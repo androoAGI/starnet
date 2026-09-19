@@ -148,6 +148,8 @@ const Harness = (() => {
   // (read only there). The browser build keeps the localStorage transport unchanged.
   const TAURI = (typeof window !== 'undefined') && window.__TAURI__ && window.__TAURI__.core;
   const DESKTOP = !!TAURI;
+  const REMOTE = typeof window !== 'undefined' && !!window.__STARNET_REMOTE__;
+  const remoteProviders = Object.create(null);
   const invoke = (cmd, args) => TAURI.invoke(cmd, args);
   // DEV fast-path (sidecar started with SKYNET_DEV=1, e.g. `npm run dev:seed`): the host injects
   // window.__STARNET_DEV__ = {model, prov} and holds the API key in its own env (runtimeKey). We treat dev
@@ -210,7 +212,7 @@ const Harness = (() => {
     return init;
   }
   function ensureApiToken() {
-    if (!apiToken && typeof window !== 'undefined' && window.__STARNET_API_TOKEN__) apiToken = String(window.__STARNET_API_TOKEN__);
+    if (typeof window !== 'undefined' && window.__STARNET_API_TOKEN__ && (!apiToken || window.__STARNET_REMOTE__)) apiToken = String(window.__STARNET_API_TOKEN__);
     if (apiToken) return Promise.resolve(apiToken);
     if (!apiTokenPromise) apiTokenPromise = Promise.resolve('').then(t => { apiTokenPromise = null; return t; });
     return apiTokenPromise;
@@ -230,6 +232,33 @@ const Harness = (() => {
     // BEFORE the desktop early-return on purpose: managed credits live in the SIDECAR, not the keychain, so
     // they are configured identically in a browser build and a packaged one. Probing after the return would
     // leave configured('starnet') false forever anywhere that isn't Tauri — including every dev session.
+    if (REMOTE) {
+      // Configuration presence is local server truth; never ask a provider about quota during boot.
+      try {
+        const response = await fetch('/api/providers', { signal: AbortSignal.timeout(5000) });
+        if (!response.ok) throw new Error('Provider settings unavailable');
+        const info = await response.json();
+        const rows = Array.isArray(info) ? info : (info.providers || []);
+        rows.forEach(rememberRemoteProvider);
+        if (info.credentialStore === 'server' && !info.storageError) {
+          await Promise.all(rows.filter(row => !['codex', 'grok', 'kimi', 'starnet'].includes(row.id)).map(async row => {
+            const key = readScoped(LS.key, row.id), baseUrl = readScoped(LS.baseUrl, row.id);
+            let keyPool = []; try { keyPool = JSON.parse(readScoped(LS.keyPool, row.id) || '[]'); } catch (_) {}
+            if (!key && !baseUrl && !keyPool.length) return;
+            try {
+              await saveRemoteProvider(row.id, { ...(key ? { key } : {}), ...(baseUrl ? { baseUrl } : {}), ...(keyPool.length ? { keyPool } : {}), migrate: true });
+              // Delete the old browser copies only after the server confirms durable storage.
+              for (const slot of [LS.key, LS.keyPool, LS.baseUrl]) {
+                localStorage.removeItem(providerSlot(slot, row.id));
+                if (row.id === 'openrouter') localStorage.removeItem(slot);
+              }
+            } catch (_) { /* retain the legacy copies so migration can retry next boot */ }
+          }));
+        }
+        if (!localStorage.getItem(LS.prov) && _configuredByProvider.gateway) setProv('gateway');
+      } catch (_) { /* a saved station remains accessible while the gateway reconnects */ }
+      return;
+    }
     await refreshCreditsConfigured();
     if (!DESKTOP) return;
     let loaded = false;
@@ -268,6 +297,24 @@ const Harness = (() => {
       } catch (_) {}
     }));
   }
+  function rememberRemoteProvider(row) {
+    remoteProviders[row.id || row.provider] = row;
+    _configuredByProvider[row.id || row.provider] = !!row.configured;
+    _alternateCountByProvider[row.id || row.provider] = Number(row.alternateCount) || 0;
+  }
+  async function saveRemoteProvider(provider, patch) {
+    const response = await fetch('/api/providers/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000), body: JSON.stringify({ provider, ...patch }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || 'Provider configuration could not be saved.');
+    rememberRemoteProvider(result);
+    for (const [field, slot] of [['key', LS.key], ['keyPool', LS.keyPool], ['baseUrl', LS.baseUrl]]) {
+      if (!Object.prototype.hasOwnProperty.call(patch, field)) continue;
+      localStorage.removeItem(providerSlot(slot, provider));
+      if (provider === 'openrouter') localStorage.removeItem(slot);
+    }
+    return result;
+  }
   // Whether this station can run on managed credits. The bearer is the linked device token the SIDECAR
   // holds — there is nothing on this side to inspect, so we ask, exactly as codex/grok/kimi do. Fail-open:
   // /api/credits 404s by design when credits are unconfigured, which just leaves the provider unconfigured.
@@ -290,6 +337,7 @@ const Harness = (() => {
      key (runtimeKey), so we report configured without one — that's what lets a fresh origin auto-resume. */
   function normalizeProviderId(provider) {
     const p = String(provider || getProv() || 'openrouter').trim().toLowerCase();
+    if (p === 'gateway') return 'gateway';
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
@@ -347,6 +395,7 @@ const Harness = (() => {
     // STARNET MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
     // through to the keyless branch below, which would answer "configured" for every station simply because
     // there is no key to look for, and claim a station can run on credits it has never been linked to.
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__ && _configuredByProvider[p]) return true;
     if (p === 'starnet') return !!_configuredByProvider.starnet;
     return DESKTOP ? !!(_configuredByProvider[p] || (p === 'openrouter' && _configured)) : (DEVMODE || !providerNeedsKey(p) || !!getKey(p));
   }
@@ -362,12 +411,14 @@ const Harness = (() => {
   //   - DEV seed: the host holds a server-side runtime credential for exactly DEV.prov (the seeded provider).
   function hasStoredCredential(provider) {
     const p = normalizeProviderId(provider);
+    if (REMOTE && remoteProviders[p] && typeof remoteProviders[p].credentialStored === 'boolean') return !!readScoped(LS.key, p) || remoteProviders[p].credentialStored;
     if (p === 'codex') return DESKTOP ? !!_configuredByProvider.codex : (getProv() === 'codex');
     // grok/kimi mirror codex: OAuth tokens live sidecar-side, so the desktop configured map (fed by the boot
     // probe + app.js's status refresh) is the only local truth; in the browser the active-provider pick stands in.
     if (p === 'grok' || p === 'kimi') return DESKTOP ? !!_configuredByProvider[p] : (getProv() === p);
     if (p === 'ollama') return false;                      // an endpoint is configuration, never a credential
     if (p === 'custom' && !getKey(p)) return false;        // a keyless custom endpoint must not manufacture a key row
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__ && _configuredByProvider[p]) return true;
     if (DESKTOP) return !!(_configuredByProvider[p] || (p === 'openrouter' && _configured));
     if (!!readScoped(LS.key, p)) return true;              // a real key is stored in this browser
     // DEV seed: the host may hold a server-side runtime key for the seeded provider. It is not a given —
@@ -383,6 +434,7 @@ const Harness = (() => {
   const setKey = (k, provider) => {
     selectionRevision++;
     const p = normalizeProviderId(provider || getProv());
+    if (REMOTE) return saveRemoteProvider(p, { key: String(k || '').trim(), baseUrl: getBaseUrl(p) || '' });
     if (DESKTOP) {
       const on = !!(k && String(k).trim());
       // configured flips ONLY after the keychain write PROVES itself. The old optimistic pre-invoke flip meant a
@@ -402,12 +454,13 @@ const Harness = (() => {
   };
   function keyPoolSize(provider) {
     const p = normalizeProviderId(provider || getProv());
-    if (DESKTOP) return Math.max(0, Number(_alternateCountByProvider[p]) || 0);
+    if (DESKTOP || REMOTE) return Math.max(0, Number(_alternateCountByProvider[p]) || 0);
     try { return JSON.parse(readScoped(LS.keyPool, p) || '[]').length || 0; } catch (_) { return 0; }
   }
   function setKeyPool(keys, provider) {
     const p = normalizeProviderId(provider || getProv());
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
+    if (REMOTE) return saveRemoteProvider(p, { keyPool: cleaned }).then(row => row.alternateCount);
     if (DESKTOP) {
       return invoke('harness_store_provider_key_pool', { provider: p, keys: cleaned })
         .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return count; });
@@ -455,10 +508,11 @@ const Harness = (() => {
   };
   const getProv = () => normalizeProviderId(localStorage.getItem(LS.prov) || 'openrouter');
   const setProv = p => { selectionRevision++; localStorage.setItem(LS.prov, normalizeProviderId(p || 'openrouter')); };
-  const getBaseUrl = provider => readScoped(LS.baseUrl, provider);
+  const getBaseUrl = provider => readScoped(LS.baseUrl, provider) || (REMOTE && remoteProviders[normalizeProviderId(provider)] || {}).currentBaseUrl || '';
   const setBaseUrl = (u, provider) => {
     selectionRevision++;
     const p = normalizeProviderId(provider || getProv());
+    if (REMOTE) return saveRemoteProvider(p, { baseUrl: u || '' });
     writeScoped(LS.baseUrl, p, u || '');
     if (DESKTOP) {
       return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' }).catch(() => {});
@@ -480,7 +534,7 @@ const Harness = (() => {
       med: 'medium', mid: 'medium', medium: 'medium',
       high: 'high',
       extra: 'xhigh', xtra: 'xhigh', extrahigh: 'xhigh', xhigh: 'xhigh',
-      max: 'max'
+      ultra: 'ultra', max: 'max'
     };
     return map[key] || 'medium';
   }
@@ -650,18 +704,24 @@ const Harness = (() => {
 
   // Replace a credential as one user-visible operation: prove the candidate first, then commit it. Validation
   // never mutates provider state, so a rejection/timeout leaves the previous working key untouched.
-  async function validateAndSetKey(key, provider) {
+  async function validateAndSetKey(key, provider, baseUrlOverride) {
     const p = normalizeProviderId(provider || getProv());
     const candidate = String(key || '').trim();
     if (!candidate) return setKey('', p);
+    // Custom OpenAI-compatible providers cannot be validated against the empty registry default. The Settings
+    // card supplies a first-time endpoint here; do not persist it until the candidate key has passed validation,
+    // so a bad z.ai/custom key still leaves the previous key and endpoint untouched.
+    const baseUrl = baseUrlOverride == null ? (getBaseUrl(p) || '') : String(baseUrlOverride || '').trim();
     const r = await fetch('/api/providers/validate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' })
+      body: JSON.stringify({ provider: p, key: candidate, baseUrl, model: p === getProv() ? getModel() : '' })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.credentialVerified) {
       throw new Error(String(j.error || 'the provider did not verify this key') + ' — your previous key is unchanged');
     }
+    if (REMOTE) { await saveRemoteProvider(p, { key: candidate, baseUrl }); return Object.assign({}, j, { stored: true }); }
+    if (baseUrlOverride != null) await Promise.resolve(setBaseUrl(baseUrl, p));
     await Promise.resolve(setKey(candidate, p));
     return Object.assign({}, j, { stored: true });
   }
@@ -693,7 +753,7 @@ const Harness = (() => {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
-    if (providerNeedsKey(provider) && !DESKTOP && !DEVMODE && !key) throw new Error('no API key set');
+    if (providerNeedsKey(provider) && !DESKTOP && !DEVMODE && !key && !configured(provider)) throw new Error('no API key set');
     if (!model) throw new Error('no model selected');
 
     let res;
@@ -740,6 +800,7 @@ const Harness = (() => {
       if (!DESKTOP && !DEVMODE) {
         try { const pool = JSON.parse(readScoped(LS.keyPool, provider) || '[]'); if (Array.isArray(pool) && pool.length) reqBody.keyPool = pool; } catch (_) {}
       }
+      if (typeof window !== 'undefined' && window.__STARNET_REMOTE__) reqBody.requestId = crypto.randomUUID();
       res = await fetch('/api/run', {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
@@ -781,7 +842,8 @@ const Harness = (() => {
         // thinking to itself (truthful-telemetry + honest-loot). The caller's own promise result is unaffected — the
         // switch below still latches runId/endReason locally from these same events.
         const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end');
-        if (!suppressBus && typeof U !== 'undefined' && U.bus) { try { U.bus.emit(name, payload); } catch (_) {} }
+        const remoteEvents = typeof window !== 'undefined' && window.__STARNET_REMOTE__ && !internal;
+        if (!suppressBus && !remoteEvents && typeof U !== 'undefined' && U.bus) { try { U.bus.emit(name, payload); } catch (_) {} }
         switch (name) {
           // latch the LEAD's runId on the FIRST run.start only. Stage 2: a delegated worker's run.start/end/error
           // are forwarded onto THIS (the lead's) stream for the floor animation — they still reach U.bus above, but

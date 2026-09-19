@@ -55,7 +55,7 @@ function boot(port, workspaces, attemptsLeft) {
 }
 
 (async () => {
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-'));
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-')));
   fs.mkdirSync(path.join(ws, 'channels'), { recursive: true });
   fs.writeFileSync(path.join(ws, 'channels', 'chatmap.json'), JSON.stringify({ version: 1, chats: { dev_target: { chatId: 'cron-dev', channel: 'dev', agentId: 'cron_brief' } } }), 'utf8');
   let booted = await boot(8890 + (process.pid % 60), ws, 20);
