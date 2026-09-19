@@ -46,6 +46,7 @@ const { FILE_SCOPE } = require('../sidecar/mcp/google-client.js');
     await fixture.restart();
     const row = (await fixture.json('GET', '/api/connectors')).body.connectors.find(c => c.id === 'google-files');
     assert.equal(row.state, 'up');
+    assert.notEqual(row.releaseDeferred, true, 'public URL redaction must not turn selected files into broad Drive');
     assert.equal(row.toolCount, 11);
     assert.equal((await fixture.json('POST', '/api/connectors', { id: 'google-files', transport: 'http', enabled: false })).status, 200);
     assert.equal((await fixture.json('GET', '/api/connectors')).body.connectors.find(c => c.id === 'google-files').enabled, false);

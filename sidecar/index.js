@@ -10880,7 +10880,7 @@ async function handleToolsetToggle(req, res) {
 /* ---- /api/connectors: the Connectors panel manages MCP servers. A token is accepted here, persisted to the
    protected sibling file, and NEVER echoed back (list/status carry `hasToken` only, never the value). ---- */
 function connectedConnectorSnapshot() {
-  return connectors.list().map(c => googleConnectorDeferred(c)
+  return connectors.list().map(c => googleConnectorDeferred(connectorConfigs.find(cfg => cfg.id === c.id) || c)
     ? Object.assign({}, c, { releaseDeferred: true, signInAvailable: false, detail: googleClientConfig.DEFERRED,
       oauth: !!connectorConfigs.find(cfg => cfg.id === c.id)?.oauth, oauthAuthorized: false,
       credentialSaved: !!connectorOauth.byId[c.id]?.accessToken })
