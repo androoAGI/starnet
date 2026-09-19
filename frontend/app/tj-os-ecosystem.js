@@ -37,16 +37,15 @@
       {from:'core',to:'forge',axis:'x'},
       {from:'core',to:'vault',axis:'x'},
       {from:'core',to:'network',axis:'y'},
-      {from:'garden',to:'network',axis:'y'},
+      {from:'garden',to:'core',axis:'x'},
       {from:'network',to:'commons',axis:'y'},
       {from:'commons',to:'meeting',axis:'x'},
       {from:'meeting',to:'security',axis:'y'},
       {from:'security',to:'observatory',axis:'y'},
       {from:'forge',to:'labs',axis:'y'},
       {from:'vault',to:'studio',axis:'y'},
-      {from:'labs',to:'village',axis:'x'},
       {from:'studio',to:'village',axis:'x'},
-      {from:'village',to:'observatory',axis:'y'}
+      {from:'labs',to:'observatory',axis:'x'}
     ],
     navigation:'world-mode spatial launcher; command-mode remains authoritative fallback'
   });
