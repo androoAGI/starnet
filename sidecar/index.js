@@ -19819,13 +19819,15 @@ function serveSaveLoad(req, res) {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
     if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(403, { error: 'forbidden' });
-    const doc = saveStore.load(agent);   // NOTE: this read is what quarantines a corrupt main / recovers .bak — run it BEFORE reading the marker
+    const state = saveStore.loadState(agent); // read before the recovery marker: may quarantine/recover
+    if (state.status === 'unreadable') return json(503, { error: 'Saved station is temporarily unreadable. Retry to recover it.', unreadable: true });
+    const doc = state.doc;
     // EL-11 FIX 2/3: surface the persisted quarantine/recovery marker (savestore writeRecoveryMarker) so the boot
     // path can disclose a damaged/restored save instead of silently presenting the pristine first-run ceremony.
     // EL-11 FIX 1 (GB-9): also surface workspaceDegraded at boot-read time, not only on the first refused write.
     const recovery = (typeof saveStore.recoveryNotice === 'function') ? (saveStore.recoveryNotice(agent) || null) : null;
     json(200, { save: doc || null, recovery: recovery, lineage: publicWorkspaceLineage(), degraded: workspaceDegraded ? true : undefined });
-  } catch (e) { json(200, { save: null, recovery: null, lineage: publicWorkspaceLineage() }); }
+  } catch (e) { json(503, { error: 'Could not read the saved station. Retry to recover it.', unreadable: true }); }
 }
 // POST /api/save/recovery-ack { agent? } — the frontend has SHOWN the honest quarantine/recovery notice; clear
 // the marker so it appears exactly once. Never touches the save itself (the quarantined copy stays on disk).

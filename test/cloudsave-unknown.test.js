@@ -23,6 +23,10 @@ const CloudSave = require('../frontend/app/cloudsave.js');
 const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, agent: { id: 'agent', name: 'NOVA' } });
 
 (async () => {
+  for (const body of [null, {}, { error: 'unavailable' }, { save: { broken: true } }, { save: null, ok: false }]) {
+    nextPull = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    A.ok(CloudSave.isUnknownSentinel(await CloudSave.reconcile(null)), 'malformed 200 is unknown, never a proven empty station');
+  }
   // ---- 1. auth-refused pull (403) + NO local cache → save-unknown sentinel, reason 'forbidden' ----
   nextPull = () => Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) });
   let r = await CloudSave.reconcile(null);
@@ -55,6 +59,23 @@ const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, age
   r = await CloudSave.reconcile(null);
   A.ok(CloudSave.isUnknownSentinel(r), 'a 5xx with no local cache yields the sentinel');
   A.eq(r.reason, 'unreachable', 'a server error reads as unreachable, not as an auth refusal');
+
+  nextPull = () => Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({ unreadable: true }) });
+  A.eq((await CloudSave.reconcile(null)).reason, 'unreadable', 'file read failure retains its specific recovery diagnosis');
+
+  // A valid remote whose cache/migration adoption fails is still an existing station.
+  nextPull = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ save: doc(200) }) });
+  global.localStorage = { getItem() { return null; }, setItem() { throw new Error('quota exceeded'); }, removeItem() {} };
+  A.ok(CloudSave.isUnknownSentinel(await CloudSave.reconcile(null)), 'failed remote adoption cannot fall through to onboarding');
+
+  const staleLocal = { ...doc(100), _saveRevision: 1 };
+  const newerRemote = { ...doc(200), _saveRevision: 5 };
+  nextPull = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ save: newerRemote }) });
+  global.Save = { CURRENT: 5, load: () => staleLocal };
+  const staleRaw = JSON.stringify(staleLocal);
+  global.localStorage.getItem = () => staleRaw;
+  A.eq(await CloudSave.reconcile(staleLocal), staleLocal, 'failed cache write retains the original local snapshot');
+  A.eq(CloudSave.revision(), 1, 'failed adoption cannot rebase a stale cache onto the newer durable revision');
 
   A.report('cloudsave-unknown');
 })().catch(e => { console.log('FAIL: unhandled — ' + (e && e.stack || e)); process.exit(1); });
