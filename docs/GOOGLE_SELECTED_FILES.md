@@ -59,5 +59,8 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
   preview owned the same dev workspace. Stopping only this lane's preview resolved the
   collision; the focused test and complete rerun passed. The native-keychain preview
   was restarted afterward. No product workaround or test exclusion was introduced.
-- A Mac is still needed for native acceptance; no remote or physical Mac was available
-  in this session. Real Google file selection/read-edit acceptance also remains open.
+- The user confirmed there is no Mac access; native Mac acceptance remains unverified.
+- The user selected both dedicated StarNet verification files in the real Picker.
+  The selected state and enabled **Insert 2 items** button were observed. Both semantic
+  and screenshot-coordinate confirmation attempts failed in the browser-control tool;
+  no completed OAuth callback or real read/edit acceptance is claimed.
