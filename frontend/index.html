@@ -17,6 +17,7 @@
 <link rel="preload" href="assets/sprites/approved_android/rot_south.png" as="image" fetchpriority="high">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/tj-os-theme.css">
+<link rel="stylesheet" href="css/tj-os-ecosystem.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/comms.css">
 <link rel="stylesheet" href="css/marketplace.css">
@@ -570,13 +571,13 @@
     <div id="stage-summary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
     <div class="tj-eco-overlay" aria-hidden="true">
       <div class="tj-eco-title"><span>TJ OS</span><small>ECOSYSTEM</small></div>
-      <div class="tj-eco-compass">
-        <span class="tj-zone tj-zone-core">TJ CORE</span>
-        <span class="tj-zone tj-zone-forge">TJ FORGE</span>
-        <span class="tj-zone tj-zone-labs">TJ LABS</span>
-        <span class="tj-zone tj-zone-vault">TJ VAULT</span>
-        <span class="tj-zone tj-zone-commons">TJ COMMONS</span>
-        <span class="tj-zone tj-zone-meeting">MEETING HALL</span>
+      <div class="tj-eco-compass" id="tj-eco-compass">
+        <span class="tj-zone" data-zone="core">TJ CORE</span><span class="tj-zone" data-zone="forge">TJ FORGE</span>
+        <span class="tj-zone" data-zone="labs">TJ LABS</span><span class="tj-zone" data-zone="studio">TJ STUDIO</span>
+        <span class="tj-zone" data-zone="vault">TJ VAULT</span><span class="tj-zone" data-zone="network">TJ NETWORK</span>
+        <span class="tj-zone" data-zone="garden">TJ GARDEN</span><span class="tj-zone" data-zone="observatory">TJ OBSERVATORY</span>
+        <span class="tj-zone" data-zone="security">TJ SECURITY</span><span class="tj-zone" data-zone="village">AGENT VILLAGE</span>
+        <span class="tj-zone" data-zone="meeting">TJ MEETING HALL</span><span class="tj-zone" data-zone="commons">TJ COMMONS</span>
       </div>
       <div class="tj-eco-status"><i></i> LIVING WORLD · SYSTEM STATE</div>
     </div>
@@ -842,6 +843,7 @@
 <script src="app/permissions.js"></script>
 <script src="app/trust.js"></script><!-- GROWTH Tier 3: pure EARNED-AUTONOMY engine (track record → trust) — folds run/feedback outcomes, mints consent-gated dial-raise/grant offers, demotes on a bad streak -->
 <script src="app/mint.js"></script>
+<script src="app/tj-os-ecosystem.js"></script><!-- TJ OS spatial identity registry -->
 <script src="app/zones.js"></script>
 <script src="app/toolprops.js"></script><!-- pure tool-name -> capability-prop mapper (world.js pulses props from agent.tool_call) -->
 <script src="app/worldsurface.js"></script>
