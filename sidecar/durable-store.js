@@ -101,7 +101,7 @@ function readJsonResilient(deps, file) {
   const b = readOne(fs, file + '.bak');
   if (b.kind === 'ok') return { value: b.value, status: 'recovered' };
   if (m.kind === 'absent' && b.kind === 'absent') return { value: undefined, status: 'absent' };
-  if (m.kind === 'absent' && b.kind === 'unreadable') return { value: undefined, status: 'unreadable', err: b.err, problemFile: file + '.bak' };
+  if (b.kind === 'unreadable') return { value: undefined, status: 'unreadable', err: b.err, problemFile: file + '.bak' };
   // main present-but-bad (empty/corrupt) and no usable .bak -> unrecoverable; do NOT silently empty.
   // When the main is absent, the forensic bytes live in the BACKUP. Carry that exact path so a host quarantine
   // never keeps trying to rename the missing main while the bad backup pins this key corrupt forever.
@@ -117,13 +117,27 @@ function writeJsonResilient(deps, file, value) {
   const pathMod = deps.path;
   const wd = (typeof deps.writeDurable === 'function') ? deps.writeDurable : writeFileDurable;
   const data = JSON.stringify(value);
+  // Every writer, including full-state set/save callers, must preserve inaccessible authority.
+  // A missing/torn main does not authorize replacement of an unreadable sole backup.
+  const prior = readJsonResilient({ fs }, file);
+  if (prior.status === 'unreadable') {
+    const error = new Error('durable-store: refusing to replace unreadable state');
+    error.code = 'ESTORE_UNREADABLE'; error.cause = prior.err;
+    throw error;
+  }
+  let cur;
   try {
-    const cur = fs.readFileSync(file, 'utf8');
-    if (cur && String(cur).length) {
-      try { JSON.parse(cur); wd({ fs: fs, path: pathMod }, file + '.bak', cur); }
-      catch (_) { /* current main is corrupt — leave the existing .bak (it may be the real last-good) */ }
+    cur = fs.readFileSync(file, 'utf8');
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') {
+      const failure = new Error('durable-store: current state became unreadable before write');
+      failure.code = 'ESTORE_UNREADABLE'; failure.cause = error; throw failure;
     }
-  } catch (_) { /* no current main (first write) — nothing to back up */ }
+  }
+  let valid = false;
+  if (cur && String(cur).length) { try { JSON.parse(cur); valid = true; } catch (_) {} }
+  // A backup write failure is not a parse failure. Refuse before replacing the committed main.
+  if (valid) wd({ fs: fs, path: pathMod }, file + '.bak', cur);
   wd({ fs: fs, path: pathMod }, file, data);
 }
 
@@ -146,9 +160,11 @@ function makeDurableJsonStore(deps) {
     const file = fileFor(key);
     const r = readJsonResilient({ fs: fs }, file);
     if (r.status === 'recovered') { try { onRecover(key, file, r); } catch (e) { failNote('durable-store.onRecover', e); } }
-    // both 'corrupt' (bad bytes, no .bak) and 'unreadable' (present but locked) are LOUD failures the caller
-    // must see — never a silent empty. Route both through the store's onCorrupt-style surface.
-    else if (r.status === 'corrupt' || r.status === 'unreadable') {
+    // Corrupt bytes may be quarantined; unreadable bytes get diagnostics only.
+    else if (r.status === 'unreadable') {
+      // onCorrupt is allowed to MOVE bytes. A transient read error is never that permission.
+      failNote('durable-store.unreadable', r.err || new Error('store temporarily unreadable'));
+    } else if (r.status === 'corrupt') {
       let handled = false;
       try { handled = !!onCorrupt(key, r.problemFile || file, r); } catch (e) { failNote('durable-store.onCorrupt', e); }
       // A successful quarantine changes the truth on disk. Re-read it now so the SAME update may initialize an

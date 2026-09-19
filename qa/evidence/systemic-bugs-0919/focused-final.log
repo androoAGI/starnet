@@ -1,0 +1,31 @@
+[failopen] durable-store.onCorrupt (x1): handler bug
+[failopen] durable-store.unreadable (x1): EBUSY: resource busy
+[failopen] durable-store.unreadable (x2): EBUSY: resource busy
+[failopen] durable-store.unreadable (x3): EBUSY: resource busy
+durable-store.test: OK (55 assertions)
+recipe-drift: OK (26 assertions)
+permissions.test: OK (76 assertions)
+workshop-permissions.test: OK (18 assertions)
+recipes: OK (2005 assertions)
+recipes.sop: OK (47 assertions)
+recipefit: OK (125 assertions)
+autojobs.test: OK (75 assertions)
+autojobstore.test: OK (83 assertions)
+autojobs-ui.test: OK (14 assertions)
+permissionsstore.test.js OK — 40 assertions
+permissions-ui.test.js OK — 94 assertions
+queryspine.test: OK (31 assertions)
+queryspine-wiring.test: OK (16 assertions)
+coordinated-prop-recipes.test: OK (603 assertions; 136 actual PNG views mapped)
+[failopen] durable-store.unreadable (x1): injected EACCES
+[failopen] durable-store.unreadable (x2): injected EACCES
+[failopen] durable-store.unreadable (x3): injected EACCES
+[failopen] durable-store.unreadable (x4): injected EACCES
+[failopen] durable-store.unreadable (x5): injected EACCES
+durable-store faults: 122/122 checks passed
+permissions authority: 79/79 checks passed
+JSON API lifecycle: 53/53 checks passed
+routine acknowledgements: malformed, refusal, missing identity, duplicate and verified create PASS
+marketplace authority: 68/68 checks passed
+control acknowledgements: 55/55 checks passed
+run-test-list: OK — 21 step(s) green

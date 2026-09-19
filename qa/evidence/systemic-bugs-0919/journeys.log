@@ -1,0 +1,168 @@
+
+> starnet-harness@0.12.3 qa:journeys
+> node scripts/qa/journeys.mjs
+
+provider: controllable journey mock on http://127.0.0.1:59587/api/v1
+sidecar: booting SEEDED SKYNET_DEV on :19872 (model=anthropic/claude-sonnet-4.6) ...
+sidecar: ready
+chrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe
+target: http://127.0.0.1:19872/
+floor + __SKYNET_TEST__ ready
+
+journey J1: task-lifecycle + taskboard truth
+    PASS  J1.0-board-open::board/rows-match-task-store  — board=[] taskStore=[]
+    PASS  J1.0-board-open::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J1.0-board-open::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J1.0-board-open::chip/done-implies-idle  — 0 DONE card(s), none busy
+    PASS  J1.0-board-open::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J1.0-board-open::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J1.0-board-open::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J1.0-board-open::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J1/plain-chat-sent  — sent
+    PASS  J1.1-after-plain-chat::board/rows-match-task-store  — board=[] taskStore=[]
+    PASS  J1.1-after-plain-chat::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J1.1-after-plain-chat::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J1.1-after-plain-chat::chip/done-implies-idle  — 0 DONE card(s), none busy
+    PASS  J1.1-after-plain-chat::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J1.1-after-plain-chat::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J1.1-after-plain-chat::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J1.1-after-plain-chat::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J1/task-created  — workstream id=ws_mu8s3i7sif6w
+    PASS  J1/run-in-flight  — busy on ws_mu8s3i7sif6w
+    PASS  J1.2-run-live::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w] taskStore=[ws_mu8s3i7sif6w]
+    PASS  J1.2-run-live::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J1.2-run-live::chip/running-implies-busy  — 1 RUNNING card(s), all Channels.isBusy
+    PASS  J1.2-run-live::chip/done-implies-idle  — 0 DONE card(s), none busy
+    PASS  J1.2-run-live::crew/working-not-exceeds-present  — shown=1 present=1
+    PASS  J1.2-run-live::crew/working-covers-busy  — shownWorking=1 >= busy-on-roster=1
+    PASS  J1.2-run-live::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J1.2-run-live::board/no-forever-running  — 1 run(s) legitimately in flight
+    PASS  J1/assigned-card-active  — assigned card state = {"lane":"active","heading":"IN PROGRESS / REVIEW 11 RUNNING","running":true,"busy":true}
+    PASS  J1/queue-midrun-keeps-running-chip  — re-queued mid-run → lane=TO busy=true RUNNING chip=true
+    PASS  J1/run-completed  — all channels idle after the quick run
+    PASS  J1.3-run-done::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w] taskStore=[ws_mu8s3i7sif6w]
+    PASS  J1.3-run-done::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J1.3-run-done::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J1.3-run-done::chip/done-implies-idle  — 1 DONE card(s), none busy
+    PASS  J1.3-run-done::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J1.3-run-done::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J1.3-run-done::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J1.3-run-done::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J1/chip-done-after-complete  — chip=kb-state done:FINISHED — REVIEW RESULT
+    PASS  J1/exactly-one-new-task  — taskStore 0 → 1 (plain chat must NOT add a card)
+
+journey J2a: interrupt: conversation Stop mid-run
+    PASS  J2/teardown/backend-prior-runs-drained  — prior=[] livePrior=[]
+    PASS  J2/provider-stream-held  — parked provider streams=1
+    PASS  J2/stop/run-held-live  — run held in-flight on ws_mu8s3lbc4r1y
+    PASS  J2/stop/current-stop-clicked  — clicked
+    PASS  J2/stop/settles-idle  — no channel busy after interrupt
+    PASS  J2/stop/backend-idle  — live backend runs=[]
+    PASS  J2/stop/provider-stream-closed  — parked provider streams=0
+    PASS  J2.stop::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y] taskStore=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y]
+    PASS  J2.stop::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J2.stop::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J2.stop::chip/done-implies-idle  — 2 DONE card(s), none busy
+    PASS  J2.stop::crew/working-not-exceeds-present  — shown=1 present=1
+    PASS  J2.stop::crew/working-covers-busy  — shownWorking=1 >= busy-on-roster=0
+    PASS  J2.stop::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J2.stop::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J2/stop/no-forever-running-chip  — interrupted card chip = not-running
+
+journey J2b: interrupt: panel-close mid-run
+    PASS  J2/teardown/backend-prior-runs-drained  — prior=[] livePrior=[]
+    PASS  J2/provider-stream-held  — parked provider streams=1
+    PASS  J2/panel-close/run-held-live  — run held on ws_mu8s3n0aetg5
+    PASS  J2/panel-close/run-survives-close  — run still in-flight after panel close (channel survived)
+    PASS  J2/panel-close/current-stop-clicked  — clicked
+    PASS  J2/panel-close/settles-idle  — no channel busy after interrupt
+    PASS  J2/panel-close/backend-idle  — live backend runs=[]
+    PASS  J2/panel-close/provider-stream-closed  — parked provider streams=0
+    PASS  J2.panel-close::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5] taskStore=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5]
+    PASS  J2.panel-close::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J2.panel-close::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J2.panel-close::chip/done-implies-idle  — 3 DONE card(s), none busy
+    PASS  J2.panel-close::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J2.panel-close::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J2.panel-close::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J2.panel-close::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J2/panel-close/no-forever-running-chip  — interrupted card chip = not-running
+
+journey J2c: interrupt: reload mid-run
+    PASS  J2/teardown/backend-prior-runs-drained  — prior=[] livePrior=[]
+    PASS  J2/provider-stream-held  — parked provider streams=1
+    PASS  J2/reload/run-held-live  — run held on ws_mu8s3oy96dzv
+    PASS  J2/reload/floor-back  — floor + testapi ready after reload
+    PASS  J2/reload/nothing-busy-after-reload  — no transient run survived the reload
+    PASS  J2.reload-after::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv] taskStore=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv]
+    PASS  J2.reload-after::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J2.reload-after::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J2.reload-after::chip/done-implies-idle  — 3 DONE card(s), none busy
+    PASS  J2.reload-after::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J2.reload-after::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J2.reload-after::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J2.reload-after::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J2/reload/no-running-chip-after-reload  — reloaded card shows an honest (non-running) state
+
+journey J3: double-send / rapid-toggle
+    PASS  J3/two-distinct-ids  — t1=ws_mu8s3stgk928 t2=ws_mu8s3sujb3ov
+    PASS  J3.mid-toggle::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv,ws_mu8s3stgk928,ws_mu8s3sujb3ov] taskStore=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv,ws_mu8s3stgk928,ws_mu8s3sujb3ov]
+    PASS  J3.mid-toggle::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J3.mid-toggle::chip/running-implies-busy  — 2 RUNNING card(s), all Channels.isBusy
+    PASS  J3.mid-toggle::chip/done-implies-idle  — 3 DONE card(s), none busy
+    PASS  J3.mid-toggle::crew/working-not-exceeds-present  — shown=1 present=1
+    PASS  J3.mid-toggle::crew/working-covers-busy  — shownWorking=1 >= busy-on-roster=1
+    PASS  J3.mid-toggle::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J3.mid-toggle::board/no-forever-running  — 2 run(s) legitimately in flight
+    PASS  J3/no-duplicate-board-rows  — 6 unique card(s)
+    PASS  J3.settled::board/rows-match-task-store  — board=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv,ws_mu8s3stgk928,ws_mu8s3sujb3ov] taskStore=[ws_mu8s3i7sif6w,ws_mu8s3lbc4r1y,ws_mu8s3n0aetg5,ws_mu8s3oy96dzv,ws_mu8s3stgk928,ws_mu8s3sujb3ov]
+    PASS  J3.settled::board/no-chat-sessions  — no chat/summon session rendered as a card
+    PASS  J3.settled::chip/running-implies-busy  — 0 RUNNING card(s), all Channels.isBusy
+    PASS  J3.settled::chip/done-implies-idle  — 5 DONE card(s), none busy
+    PASS  J3.settled::crew/working-not-exceeds-present  — shown=0 present=1
+    PASS  J3.settled::crew/working-covers-busy  — shownWorking=0 >= busy-on-roster=0
+    PASS  J3.settled::topbar/stationLevel  — displayed=1 eq expected=1
+    PASS  J3.settled::board/no-forever-running  — no stuck RUNNING chip while idle
+    PASS  J3/no-stuck-running  — 0 card(s) still RUNNING after both runs settled
+    PASS  J3/exactly-two-new-streams  — 2 new stream(s) (expected 2): ws_mu8s3stgk928,ws_mu8s3sujb3ov
+    PASS  J3/zero-new-exceptions  — no new uncaught exceptions during rapid send/toggle
+
+journey J4: summon→assign→deliverable→OPEN
+    PASS  J4/workshop-granted  — grant → {"ok":true,"agentId":"agent","on":true}
+    PASS  J4/build-queued  — queue → {"ok":true,"item":{"id":"journey-web","title":"a web tool: journey demo","detail":"","source":"queued","ts":178984602056
+    PASS  J4/shift-streams  — shift status=200
+    PASS  J4/deliverable-built  — fired=true reason=built runId=68c0d519-1b4c-4609-a5cc-1c76dfb88c08
+    PASS  J4/manifest-lists-index-html  — manifest files: [{"path":"index.html","bytes":161},{"path":"README.md","bytes":33}]
+    PASS  J4/workshop-run-200  — GET /workshop-run/.../index.html → 200
+    PASS  J4/served-as-runnable-html  — content-type=text/html; charset=utf-8 (RUNNABLE, not octet-stream)
+    PASS  J4/inline-script-intact  — served html still carries its inline <script> (it runs in a tab)
+    PASS  J4/opaque-origin-sandbox  — CSP=sandbox allow-scripts
+    PASS  J4/token-required  — no-token GET → 403 (must be 403)
+    PASS  J4/library-controls-visible  — search/filter/refresh/cleanup controls={"q":true,"status":true,"refresh":true,"clean":true,"title":"Journey Demo Tool","open":true,"keep":true,"discard":true}
+    PASS  J4/library-real-pending-row  — pending card/actions={"q":true,"status":true,"refresh":true,"clean":true,"title":"Journey Demo Tool","open":true,"keep":true,"discard":true}
+    PASS  J4/library-search-filters  — search result=NO MATCHES.Nothing in the library fits this view. Clear the filters to see everything.CLEAR FILTERS
+
+journey J6: bay-bound crew idle life (desk-stuck)
+    PASS  J6/bay-injected  — inject → {"belt":true,"bay":true}
+    PASS  J6/bay-body-born  — plan-derived crew body present
+    PASS  J6/idle-bay-body-has-life  — idle bay body came alive (goal=null tile=10,10 — not frozen at its bay)
+    PASS  J6/task-seizes-body  — body went to work on the task
+    PASS  J6/returns-to-idle-after-task  — body resumed idle life after run end (goal=null tile=9,10)
+    PASS  J6/stays-in-own-zone  — inOwnZone=true tile=9,10
+
+journey J7: slash INPUT-path truth (2026-07-05 ARGS-bug seam)
+    PASS  J7/composer-present  — #chat-input mounted
+    PASS  J7/model-line-typed  — drove "/model journey/slash-truth-1789846027411" through #chat-input: typed
+    PASS  J7/arg-command-dispatched  — local line: "Model set to journey/slash-truth-1789846027411"
+    PASS  J7/arg-reached-config  — App.currentAgent().model="journey/slash-truth-1789846027411" (expected the typed arg)
+    PASS  J7/arg-line-not-chat  — no "/model …" user chat row (dispatched, not sent)
+    PASS  J7/composer-cleared  — input.value after dispatch = ""
+    PASS  J7/whoami-line-typed  — drove "/whoami": typed
+    PASS  J7/bare-command-dispatched  — new local line from /whoami ("You are …")
+    PASS  J7/no-slash-user-rows  — no user chat row starts with "/" — every slash line dispatched
+    PASS  J7/plain-line-typed  — drove plain prose: typed
+    PASS  J7/plain-text-goes-to-chat  — plain prose became a .cmsg.user chat row (send path, not command)
+    PASS  J7/plain-not-a-command  — slashUserRows=[]
+
+
+JOURNEYS PASS — 139/139 assertions passed → C:\Users\andro\gen-trees\reliability-audit-0919\.uijourneys

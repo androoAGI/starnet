@@ -68,11 +68,22 @@ const CloudSave = (() => {
   // NOTE: no `keepalive` here — browsers cap a keepalive body at 64KB, and a save with workstreams + station
   // can exceed that. The normal debounced flush is a plain fetch; the unload path uses sendBeacon instead.
   function postNow(doc) {
-    return fetch(ENDPOINT, {
+    const controller = new AbortController();
+    let deadline;
+    // Bound headers AND acknowledgement parsing. A hung body must release the serial
+    // write queue, and its eventual late reply may not mark an expired attempt saved.
+    const request = fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(doc)
-    });
+      body: JSON.stringify(doc),
+      signal: controller.signal
+    }).then(async response => ({ response, body: await response.json() }));
+    return Promise.race([request, new Promise((_, reject) => {
+      deadline = setTimeout(() => {
+        reject(new Error('save acknowledgement timed out'));
+        controller.abort();
+      }, 15000);
+    })]).finally(() => clearTimeout(deadline));
   }
 
   // record a push outcome into the health brain + drive the one-warn-per-state-change console policy.
@@ -121,16 +132,14 @@ const CloudSave = (() => {
     const doc = pending; pending = null;
     if (!isSave(doc)) return Promise.resolve(false);
     const attempt = postNow(doc)
-      .then(async r => {
+      .then(({ response: r, body }) => {
         // a non-ok HTTP status (e.g. 409 stale, 500) is a FAILURE, not a success — fetch only rejects on
         // network error, so we must inspect r.ok ourselves or we'd stamp health OK on a rejected write.
         if (r && r.ok === false) { throw new Error('save HTTP ' + r.status); }
         // EL-11 FIX 1 ("the worst lie class"): the sidecar answers REFUSALS as HTTP 200 { ok:false, ... }
         // (degraded workspace / stale stamp / unreadable prior) — the status line alone is NEVER proof the
         // write landed. Parse the body: ok:false is a FAILED push, and degraded:true latches its own state.
-        // A non-JSON 200 (older sidecar / dev shim) still counts as landed — same trust as before.
-        let body = null;
-        try { body = await r.json(); } catch (_) { body = null; }
+        // Malformed replies prove nothing. Keep the snapshot pending until an explicit ok:true.
         if (body && typeof body === 'object') {
           degraded = (body.ok === false && body.degraded === true);   // any parsed answer re-proves (or clears) the degraded verdict
           if (body.conflict) { conflict = body; markFail(); return false; }
@@ -152,6 +161,7 @@ const CloudSave = (() => {
           }
           if (body.ok === false) throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown')));
         }
+        if (!body || body.ok !== true) throw new Error('save acknowledgement missing');
         markOk();
         return true;
       })
@@ -218,13 +228,16 @@ const CloudSave = (() => {
     let ctl = null, t = null;
     try { ctl = new AbortController(); t = setTimeout(() => { try { ctl.abort(); } catch (_) {} }, 2500); } catch (_) {}
     return fetch(ENDPOINT + '?agent=' + encodeURIComponent(AGENT_ID), { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
-      .then(r => {
+      .then(async r => {
         if (!r.ok) {
           // an auth refusal is its own truth — the sidecar is ALIVE but rejected us (lost/stale launch token).
           lastPullOutcome = (r.status === 401 || r.status === 403) ? 'forbidden' : 'unreachable';
+          if (r.status === 503) {
+            try { if ((await r.json()).unreadable === true) lastPullOutcome = 'unreadable'; } catch (_) {}
+          }
           return null;
         }
-        lastPullOutcome = 'empty';   // a 200 with no save below stays 'empty'; a real save upgrades it
+        lastPullOutcome = 'unreachable'; // status alone cannot prove a readable or empty station
         return r.json();
       })
       .then(j => {
@@ -236,8 +249,11 @@ const CloudSave = (() => {
           if (j.recovery && typeof j.recovery === 'object') lastRecovery = j.recovery;
           if (j.lineage && typeof j.lineage === 'object') lastLineage = j.lineage;
         }
-        const s = j && j.save;
+        if (!j || typeof j !== 'object' || Array.isArray(j) || j.ok === false || j.error ||
+            !Object.prototype.hasOwnProperty.call(j, 'save')) return null;
+        const s = j.save;
         if (isSave(s)) { lastPullOutcome = 'save'; return s; }
+        if (s === null) lastPullOutcome = 'empty';
         return null;
       })
       .catch(() => { lastPullOutcome = 'unreachable'; return null; })   // network fail/timeout/bad JSON -> we proved NOTHING
@@ -290,19 +306,27 @@ const CloudSave = (() => {
       // an OLDER schema (v1/v2) than this build. resumeInto() assumes a current-schema doc (reads .workstreams,
       // expects .agent.stats); adopting a raw v1/v2 remote would silently drop history + skip the XP seed.
       const priorLocalRaw = (() => { try { return localStorage.getItem('starnet.save'); } catch (_) { return null; } })();
-      try { localStorage.setItem('starnet.save', JSON.stringify(remote)); } catch (_) {}
+      let adopted = false;
+      try {
+        const raw = JSON.stringify(remote);
+        localStorage.setItem('starnet.save', raw);
+        adopted = localStorage.getItem('starnet.save') === raw;
+      } catch (_) {}
       try {
         // re-validate through Save.load(): it re-checks the forward-version guard on the just-adopted doc and
         // runs the migration ladder. A migrated, current-schema save is the only thing we hand back.
-        const migrated = (typeof Save !== 'undefined' && Save.load) ? Save.load() : null;
+        const migrated = adopted && (typeof Save !== 'undefined' && Save.load) ? Save.load() : null;
         if (isSave(migrated) && num(migrated.version) <= currentVersion()) return migrated;
       } catch (_) {}
       // adoption produced no readable current-schema doc (Save unavailable, or the re-read failed the guard).
       // NEVER return the raw, unmigrated remote — resumeInto() would misread it. Roll the cache back to the
-      // prior local and prefer it; if there was no prior local, fall through to null (boot onboards cleanly).
+      // prior local and prefer it. Without one, a failed adoption cannot justify first-run onboarding.
       try { if (priorLocalRaw != null) localStorage.setItem('starnet.save', priorLocalRaw); else localStorage.removeItem('starnet.save'); } catch (_) {}
       try { console.warn('[cloudsave] adopted remote did not re-validate; kept prior local cache.'); } catch (_) {}
-      return isSave(local) ? local : null;
+      // We kept the old document, so keep its causal revision too. Giving it the remote
+      // revision would let the next autosave overwrite newer durable edits without conflict.
+      revision = num(local && local._saveRevision);
+      return isSave(local) ? local : unknownSentinel('cache');
     }
     if (num(local.updatedAt) > num(remote.updatedAt)) push(local);   // local is ahead — let the server catch up
     return local;

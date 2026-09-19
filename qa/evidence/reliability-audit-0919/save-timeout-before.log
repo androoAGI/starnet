@@ -1,0 +1,59 @@
+{
+  "stalledReply": {
+    "outcome": "still-pending",
+    "aborted": false
+  },
+  "unprovenReplies": [
+    {
+      "body": "{}",
+      "confirmed": false
+    },
+    {
+      "body": "not-json",
+      "confirmed": false
+    },
+    {
+      "body": "{\"ok\":false,\"error\":\"disk full\"}",
+      "confirmed": false
+    },
+    {
+      "body": "{}",
+      "unknown": true,
+      "empty": false
+    },
+    {
+      "body": "{\"error\":\"unavailable\"}",
+      "unknown": true,
+      "empty": false
+    },
+    {
+      "body": "{\"save\":{\"broken\":true}}",
+      "unknown": true,
+      "empty": false
+    }
+  ],
+  "primary": {
+    "status": 503,
+    "unreadable": true,
+    "empty": false
+  },
+  "browser": {
+    "unknown": true,
+    "empty": false,
+    "outcome": "unreachable"
+  },
+  "primaryRecovered": "NOVA",
+  "backupRead": 503,
+  "backupWrite": {
+    "ok": false,
+    "stale": true,
+    "unreadable": true,
+    "updatedAt": 0
+  },
+  "afterRestart": {
+    "name": "RETAIN ME",
+    "recovery": "recovered"
+  },
+  "originalPrimaryRetained": true,
+  "exceptions": []
+}

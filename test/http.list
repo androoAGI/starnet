@@ -121,3 +121,5 @@ test/saved-provider-fallback.e2e.test.js
 test/delegated-connectors.e2e.test.js
 test/prompt-cache-prefix.e2e.test.js
 test/e2e.overseer.test.js
+test/save-unreadable.http.test.js
+test/durable-store-faults.http.test.js
