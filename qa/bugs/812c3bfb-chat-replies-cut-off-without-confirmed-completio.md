@@ -4,10 +4,10 @@ slug: chat-replies-cut-off-without-confirmed-completio
 title: Chat replies cut off without confirmed completion
 surface: channels
 severity: P1
-status: open
+status: fixed
 found: 2026-09-19
 lane: agent/chat-cutoff-0919
-fix:
+fix: 93a4ee64c
 origin: customer
 report: Owner-relayed customer chat report on 2026-09-19; frequent cut-off replies even in new sessions
 affected: Customer build, platform and provider unknown; browser defect reproduced on source acbf3c225 (package 0.12.3)
@@ -27,8 +27,8 @@ A customer reports frequent cut-off agent replies despite starting new sessions.
 1. In an isolated worktree with dependencies installed, run `node scripts/qa/chat-cutoff-investigate.mjs` (Node 22+, local Chromium, free ports 19419/19420).
 2. The script boots `node dev/seed.js --keep`, opens the real station in headless Chromium and starts fresh task sessions through `Chat.send`.
 3. At the browser fetch boundary only, inject `agent.run.start`, a mid-sentence `agent.token`, then clean EOF without `agent.run.end`. This is a controlled transport fixture, not an observed customer/network failure or real inference.
-4. Inspect `.dogfood/chat-cutoff/live.json`: EOF returns no error and no end reason; COMMS renders `RUN COMPLETE`, saves the partial text and emits `workitem.delivered`.
-5. Controls: a normal end is complete; `finishReason:length` shows `CUT SHORT` and emits no delivery. A complete final JSON end record without a trailing newline is ignored, reproducing the false completion too.
+4. Before repair: EOF returns no error and no end reason; COMMS renders `RUN COMPLETE`, saves the partial text and emits `workitem.delivered`. After repair: EOF throws a transport interruption, COMMS preserves partial text plus a durable error, and emits no delivery.
+5. Controls: a normal end is complete; `finishReason:length` shows `CUT SHORT` and emits no delivery. A complete final JSON end record without a trailing newline now retains the output-limit status too.
 
 ## Evidence
 
@@ -42,10 +42,16 @@ Focused checks passed: chat-prompt-diet HTTP (29 assertions), output-continuatio
 
 ## Verdict
 
-OPEN. Investigation only; no production fix, merge or release. Confirmed browser completion-integrity defect; original customer cause remains uncorrelated. Provider-to-sidecar recovery already retries a missing completion marker, but that does not protect the separate sidecar-to-browser stream. A connection reset that makes `reader.read()` throw follows a different existing error path; this reproduction specifically covers clean EOF.
+Source-fixed in `93a4ee64c`. The browser requires a matching lead completion receipt, flushes the final buffered record, and cleans up its reader and lead metadata on interruption. A transport error after confirmed completion cannot undo that completion. COMMS retains partial output and the error, records an unsuccessful run, and arms the existing durable-journal recovery path on thrown transport failures as well as in-band failures. The transport reader never repeats inference or tools. Website mirrors are identical.
 
-Recommended repair: require a matching lead completion receipt; parse the final buffered JSON record; retain partial text as interrupted and reconcile with the durable run journal before offering continuation. Never automatically replay possibly executed tools merely because the response connection ended.
+Original customer cause remains uncorrelated: no affected model, diagnostic bundle or example was supplied. This closes the reproduced source defect, not a claim of customer recovery or an installed release. Existing local-chat limits remain intentional and unchanged.
+
+## Regression
+
+The new `test/harness-stream-completion.test.js` executes the production browser functions in both desktop and website mirrors. It fails against the original harness (78 failed assertions in the initial 158-assertion comparison) and passes 188 assertions after the sweep: missing, malformed, foreign and internal completion; bytewise UTF-8; no final newline; explicit stop reasons; reader failure; post-completion connection loss; tool boundary; retained output; foreground/background failure and journal-recovery wiring.
+
+`qa/evidence/chat-cutoff-0919/verification.json` records nine real Chromium COMMS scenarios after repair. Missing completion, worker-only completion and reader error retain partial text with no delivery; the error survives session switching and browser reload. Normal completion and trailing connection loss after a confirmed end deliver once. Length/filter/cancel remain non-deliveries. The existing real-host recovery API regression passes 37 assertions including crash/restart after a mutation, review-required refusal and no replay of that mutation. Customer journeys pass 36/36. Full merge-gate receipts are recorded in the lane digest.
 
 ## Sibling coverage
 
-{"adapters":[{"target":"provider-to-sidecar transport","state":"covered","test":"test/loop.provider-recovery.test.js","scenario":"missing provider completion marker retries once and persistent truncation becomes error","gate":"fast"},{"target":"customer provider and model","state":"blocked","reason":"Provider/model and actual failing output were not supplied."}],"entrypoints":[{"target":"COMMS lead and delegated/internal streams","state":"blocked","reason":"Lead COMMS failure reproduced by investigation script; a registered before/after regression including worker end-event isolation and internal calls is still required."}],"displays":[{"target":"COMMS completion, partial transcript and delivered event","state":"blocked","reason":"Before-fix live proof recorded; repaired UI and installed desktop acceptance are not available."}],"lifecycle":[{"target":"reconnect, restart, session switch and journal reconciliation","state":"blocked","reason":"Needs repair-specific regression coverage, including safe handling of an already-executed tool."}]}
+{"adapters":[{"target":"provider-to-sidecar transport","state":"covered","test":"test/loop.provider-recovery.test.js","scenario":"missing provider completion marker retries once and persistent truncation becomes error","gate":"fast"},{"target":"customer provider and model","state":"blocked","reason":"Provider/model and actual failing output were not supplied."}],"entrypoints":[{"target":"COMMS lead, delegated-worker and internal streams","state":"covered","test":"test/harness-stream-completion.test.js","scenario":"matching lead end, worker-only end, internal suppression and interruption","gate":"fast"}],"displays":[{"target":"desktop and website partial transcript and failure state","state":"covered","test":"test/harness-stream-completion.test.js","scenario":"production COMMS branch persists partial before error, marks unsuccessful and respects background focus","gate":"fast"},{"target":"installed desktop customer acceptance","state":"blocked","reason":"No installer rebuild or customer retest is part of this source merge."}],"lifecycle":[{"target":"interrupted browser recovery and byte-stream teardown","state":"covered","test":"test/harness-stream-completion.test.js","scenario":"EOF, malformed tail, reader error, cancellation, post-end drop and journal watch","gate":"fast"},{"target":"restart and safe continuation after an executed mutation","state":"covered","test":"test/run-recovery.api.test.js","scenario":"crash after mutation, needs-review refusal, operator review, replay blocked and consumed continuation refused","gate":"http"}]}
