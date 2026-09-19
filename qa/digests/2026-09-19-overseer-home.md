@@ -1,5 +1,7 @@
 # Overseer home conversation — local verification
 
+**Historical design, superseded:** the owner rejected the sidebar/home-button UX. The current implementation removes it and coordinates existing crew through the orchestrator selected in COMMS. Use [the corrected scope and verification](2026-09-19-orchestrator-comms.md); the UI descriptions below are retained only as historical evidence.
+
 Implementation branch: `agent/overseer-home-0919`. Live UI candidate: `2d9b6b5cd`; final backend candidate: `b8d3d0274` (queue cleanup and E-STOP write-failure handling).
 
 Live app: `node dev/overseer-preview.cjs`, which launches the real seeded sidecar/UI with a deterministic local provider and an isolated profile. The browser was operated through its visible controls; model responses are scripted fixtures.

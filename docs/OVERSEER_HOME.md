@@ -7,7 +7,7 @@ There is no additional sidebar button, dashboard, review panel or required Gener
 ## Reused mechanisms
 
 - The existing COMMS selector chooses the station orchestrator (stable agent ID agent) or a specialist. No new agent type or mode toggle is added.
-- Existing roster and team.dispatch/team.subagents/team.steer/team.interrupt/team.resume tools provide delegation and management. The crew list and each worker's identity come from the current roster. Automatic follow-through instructions and review admission apply only to the station orchestrator; other agents retain their existing tools.
+- Existing roster and team.dispatch/team.subagents/team.steer/team.interrupt/team.resume tools provide delegation and management. The crew list and each worker's identity come from the current roster. Automatic follow-through starts from the station orchestrator in COMMS and continues for its admitted reviews. Other agents, internal helpers, scheduled work and external-channel conversations retain their existing coordination behavior and tools.
 - sidecar/overseer.js adds durable session ownership and a review queue. User turns and reviews serialize within the originating conversation. Reviews do not become synthetic Commander transcript messages. Uncertain interrupted reviews are surfaced rather than blindly replayed.
 - frontend/app/overseer.js only adopts durable working sessions and calls the existing StationCommands transcript reconciliation. It builds no interface and never changes focus. Polling is bounded and retried after connection recovery.
 - Project context remains scoped to its conversation. Permission and capability enforcement use the existing harness.
