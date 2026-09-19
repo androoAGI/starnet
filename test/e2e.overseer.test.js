@@ -6,7 +6,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 (async () => {
-  const provider = await require('./helpers/overseer-provider.js').startOverseerProvider();
+  const provider = await require('./helpers/overseer-provider.js').startOverseerProvider({ reviewDelay: 1500 });
   const mock = provider.server;
   const fixture = SidecarFixture.create({ env: { SKYNET_OPENROUTER_BASE: 'http://127.0.0.1:' + mock.address().port + '/api/v1',
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-local-proof', SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_FULL_ACCESS: '1' } });
@@ -27,6 +27,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const response = await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
       messages: [{ role: 'user', content: 'Delegate research and review the findings' }] });
     assert.equal(response.status, 200);
+    const reviewStartedDeadline = Date.now() + 18000;
+    while (provider.reviews() === 0 && Date.now() < reviewStartedDeadline) await sleep(25);
+    assert.equal(provider.reviews(), 1, 'automatic review has reached the provider');
+    // A real client sends its captured prior history, not just the new turn.
+    const queued = await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
+      messages: [{ role: 'user', content: 'Delegate research and review the findings' },
+        { role: 'assistant', content: 'Research started. You can keep talking here.' },
+        { role: 'user', content: 'DIRECT_PROOF: queued while the review is finishing' }] });
+    assert.equal(queued.status, 200);
+    const queuedPrompt = provider.requests.find(messages => messages.some(m => m.role === 'user' && /queued while the review/.test(m.content)));
+    assert.ok(queuedPrompt && queuedPrompt.some(m => m.role === 'assistant' && /Reviewed findings/.test(m.content)), 'queued user turn sees the review that finished while it waited');
     let snapshot;
     const deadline = Date.now() + 18000;
     while (Date.now() < deadline) {
@@ -43,7 +54,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal((await fixture.json('GET', '/api/transcript?stream=general&limit=100')).body.turns.length, 0, 'General is not the required home or result destination');
     await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'mira_custom', streamId: 'direct', isTask: true,
       messages: [{ role: 'user', content: 'DIRECT_PROOF: answer me directly' }] });
-    const direct = provider.requests.find(messages => messages.some(m => m.role === 'user' && /DIRECT_PROOF/.test(m.content)));
+    const direct = provider.requests.find(messages => messages.some(m => m.role === 'user' && /DIRECT_PROOF: answer me directly/.test(m.content)));
     assert.ok(direct);
     assert.ok(!direct.some(m => m.role === 'system' && /Background results return here automatically/.test(m.content)), 'specialist conversation does not acquire orchestrator coordination instructions');
     assert.ok(snapshot.workers.length > 0);
@@ -53,7 +64,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       }
     }
     const transcript = (await fixture.json('GET', '/api/transcript?stream=home&limit=100')).body.turns;
-    assert.equal(transcript.filter(m => m.role === 'user').length, 1, 'automatic review never impersonates a Commander message');
+    assert.equal(transcript.filter(m => m.role === 'user').length, 2, 'only the two actual user turns become Commander messages');
     const runs = (await fixture.json('GET', '/api/runs?agent=*&limit=30')).body.runs;
     assert.ok(runs.some(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')), 'review delivered to original conversation');
     assert.equal(runs.find(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')).deliveryPrompt, '', 'automatic review uses existing assistant delivery without a delegated-task marker');
@@ -100,6 +111,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'mira_custom', streamId: 'direct', isTask: true,
       messages: [{ role: 'user', content: 'DIRECT_PROOF: keep this specialist conversation separate' }] });
     assert.equal((await fixture.json('GET', '/api/overseer')).body.paused, true, 'talking to a specialist cannot resume orchestrator reviews');
+    assert.equal((await fixture.json('GET', '/api/halt')).body.subsystems.overseer.halted, true, 'existing halt status includes coordination');
+    const resumed = await fixture.json('POST', '/api/halt/resume', { confirm: true });
+    assert.equal(resumed.body.subsystems.overseer.halted, false, 'existing explicit resume also resumes coordination');
+    assert.equal((await fixture.json('GET', '/api/overseer')).body.reviews.some(r => r.status === 'pending'), false, 'explicit resume does not revive cancelled reviews');
     await fixture.stop();
     const beforeUpdate = JSON.parse(fs.readFileSync(statePath, 'utf8'));
     beforeUpdate.value.paused = false;

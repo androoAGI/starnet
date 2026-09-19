@@ -86,6 +86,7 @@ function makeOverseer(deps) {
   }
   // Shared by user and review turns. A failed turn never poisons the next turn.
   async function withThread(id, fn) {
+    const queued = locks.has(id);
     const previous = locks.get(id) || Promise.resolve();
     let release;
     const held = new Promise(resolve => { release = resolve; });
@@ -93,7 +94,7 @@ function makeOverseer(deps) {
     const tail = previous.then(() => held);
     locks.set(id, tail);
     await previous;
-    try { return await fn(); }
+    try { return await fn({ queued }); }
     finally { release(); if (locks.get(id) === tail) locks.delete(id); }
   }
   function stopReviews(workers) {

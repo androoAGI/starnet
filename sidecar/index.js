@@ -15127,8 +15127,16 @@ function recentUserText(list) {
    `prompt` for the watched browser; 'autonomous' (default-deny on ungranted mutation) for a headless chat. */
 async function runOnce(o) {
   if (o && o.streamId && !o.internal && !o.outputOnly) {
-    return overseer.withThread(o.streamId, () => {
+    return overseer.withThread(o.streamId, ({ queued }) => {
       if (o.signal && o.signal.aborted) return undefined;
+      // Refresh ordinary queued chat after the preceding turn has persisted.
+      // Preserve the new user message (including attachments); checkpoint and
+      // group histories retain their own provider-valid assembly contracts.
+      if (queued && !o.recovery && !o.groupTools && !o.parentRunId
+        && (o.messages || []).at(-1)?.role === 'user') {
+        o = { ...o, messages: (o.messages || []).filter(m => m.role === 'system')
+          .concat(transcriptStore.reconstruct(o.streamId, { limit: 100 }), o.messages.slice(-1)) };
+      }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
       if (o.parentRunId && o.sessionPrompt && overseer.threads().length) {
@@ -18797,7 +18805,8 @@ function haltStatus() {
   const subsystems = {
     cron: { halted: !!cronHalted },
     nightshift: { halted: nightshift.isHalted(nightshiftState) },
-    loops: { halted: !!loopsHalted }
+    loops: { halted: !!loopsHalted },
+    overseer: { halted: overseer.snapshot().paused, error: overseer.snapshot().error || '' }
   };
   return { halted: Object.values(subsystems).some(s => s.halted), subsystems };
 }
@@ -18828,6 +18837,7 @@ async function handleHaltResume(req, res) {
     if (loopsHalted) { saveLoopsHalted(false); loopsHalted = false; }
     armLoops(true);
   });
+  attempt('overseer', () => { overseer.resumeReviews(); });
   const state = haltStatus();
   const ok = !state.halted && Object.keys(errors).length === 0;
   haltJson(res, ok ? 200 : 503, { ok, ...state, errors });
