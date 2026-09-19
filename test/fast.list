@@ -1,5 +1,6 @@
 # Fast test gate steps - run in order by scripts/run-fast-tests.mjs. One path per line.
 test/schema.test.js
+test/overseer.test.js
 test/chat-file-drop.test.js
 test/group-sessions.test.js
 test/group-message-attachments.test.js
@@ -837,3 +838,4 @@ test/api-json-lifecycle.test.js
 test/routine-acknowledgement.test.js
 test/marketplace-authority.test.js
 test/control-acknowledgements.test.js
+test/overseer-ui.test.js
