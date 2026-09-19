@@ -47,4 +47,4 @@ For each change, run the affected remote tests and retained upstream regressions
 
 ## Validation and release boundaries
 
-See `TESTING.md` for reproducible commands and attended acceptance. The draft PR description records the actual results for this proposal revision. A local build is not public distribution approval. Developer ID signing, notarization, both Linux architecture installation checks, resource sizing, and maintainer release policy remain release decisions. No assertion of production certification or complete cross-platform coverage is implied.
+See `TESTING.md` for reproducible commands and attended acceptance. The [validation record](VALIDATION.md) and draft PR description record the actual results for this proposal revision. A local build is not public distribution approval. Developer ID signing, notarization, both Linux architecture installation checks, resource sizing, and maintainer release policy remain release decisions. No assertion of production certification or complete cross-platform coverage is implied.
