@@ -1,0 +1,71 @@
+grant must reject {}
+grant must reject []
+grant must reject {"ok":true}
+grant must reject {"error":"disk failed"}
+grant must reject {"ok":true,"error":"refused"}
+revoke must reject {}
+revoke must reject []
+revoke must reject {"ok":true}
+revoke must reject {"error":"disk failed"}
+revoke must reject {"ok":true,"error":"refused"}
+bypass must reject {}
+Expected values to be strictly equal:
+
+false !== true
+
+bypass must reject []
+Expected values to be strictly equal:
+
+false !== true
+
+bypass must reject {"ok":true}
+Expected values to be strictly equal:
+
+false !== true
+
+bypass must reject {"error":"disk failed"}
+Expected values to be strictly equal:
+
+false !== true
+
+bypass must reject {"ok":true,"error":"refused"}
+Expected values to be strictly equal:
+
+false !== true
+
+old reads cannot resurrect revoked authority
++ actual - expected
+
++ [
++   'cabinet:write'
++ ]
+- []
+
+old errors cannot replace current proof
++ actual - expected
+
++ 'obsolete failure'
+- ''
+
+old instance cannot mutate reinitialized store
++ actual - expected
+
++ [
++   'cabinet:write'
++ ]
+- []
+
+mutations reach host in submission order
++ actual - expected
+
+  [
+    true,
++   false
+  ]
+
+Expected values to be strictly equal:
+
+true !== false
+
+new station lockdown must reject ambiguous replies
+permissions authority: 46/72 checks passed

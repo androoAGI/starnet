@@ -65,7 +65,7 @@ const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, age
     'beacon blob is text/plain (CORS-simple; an application/json beacon is silently preflight-dropped cross-origin)');
 
   // ---- 2. dispatch is NOT success: the confirmable fetch flush also ran and is what stamps health ----
-  await Promise.resolve(); await Promise.resolve();   // let the flush promise settle
+  await CloudSave.flushForUpdate(); // wait for the acknowledged write, not a fixed microtask count
   A.eq(fetchCalls.length, 1, 'the hide handler also force-flushes via fetch (the confirmable path)');
   let h = CloudSave.health();
   A.ok(h.lastPushOkAt > 0, 'health OK was stamped by the CONFIRMED fetch flush');

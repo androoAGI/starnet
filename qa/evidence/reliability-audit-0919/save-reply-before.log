@@ -1,0 +1,55 @@
+{
+  "unprovenReplies": [
+    {
+      "body": "{}",
+      "confirmed": true
+    },
+    {
+      "body": "not-json",
+      "confirmed": true
+    },
+    {
+      "body": "{\"ok\":false,\"error\":\"disk full\"}",
+      "confirmed": false
+    },
+    {
+      "body": "{}",
+      "unknown": false,
+      "empty": true
+    },
+    {
+      "body": "{\"error\":\"unavailable\"}",
+      "unknown": false,
+      "empty": true
+    },
+    {
+      "body": "{\"save\":{\"broken\":true}}",
+      "unknown": false,
+      "empty": true
+    }
+  ],
+  "primary": {
+    "status": 503,
+    "unreadable": true,
+    "empty": false
+  },
+  "browser": {
+    "unknown": true,
+    "empty": false,
+    "outcome": "unreachable"
+  },
+  "primaryRecovered": "NOVA",
+  "backupRead": 503,
+  "backupWrite": {
+    "ok": false,
+    "stale": true,
+    "unreadable": true,
+    "updatedAt": 0
+  },
+  "afterRestart": {
+    "name": "RETAIN ME",
+    "recovery": "recovered"
+  },
+  "originalPrimaryRetained": true,
+  "exceptions": []
+}

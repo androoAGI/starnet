@@ -1,0 +1,151 @@
+{
+  "reviewed": "2026-09-19",
+  "github": [
+    {
+      "number": 20,
+      "title": "[Bug]: Ollama agent runs complete with 0 tool calls despite File Cabinet tools being available",
+      "url": "https://github.com/androoAGI/starnet/issues/20",
+      "state": "OPEN",
+      "updatedAt": "2026-09-19T07:00:37Z",
+      "commentsRetrieved": 0,
+      "disposition": "New unresolved report 678ac951; capture effective tool set and actual model wire."
+    },
+    {
+      "number": 19,
+      "title": "[Feature]: Support models/gemini-3.1-pro-preview",
+      "url": "https://github.com/androoAGI/starnet/issues/19",
+      "state": "OPEN",
+      "updatedAt": "2026-09-17T22:35:35Z",
+      "commentsRetrieved": 1,
+      "disposition": "Uncorrelated Gemini setup failure; screenshot could not be retrieved; exact error/model response needed."
+    },
+    {
+      "number": 18,
+      "title": "[Bug]: Cannot rate interactive replies in a conversation containing scheduled routine activity",
+      "url": "https://github.com/androoAGI/starnet/issues/18",
+      "state": "OPEN",
+      "updatedAt": "2026-09-16T01:47:18Z",
+      "commentsRetrieved": 0,
+      "disposition": "Existing source fix 09f0e9fa; per-run interactive eligibility; customer recovery unconfirmed."
+    },
+    {
+      "number": 17,
+      "title": "[Bug]: Main agent: complex overuse of information",
+      "url": "https://github.com/androoAGI/starnet/issues/17",
+      "state": "OPEN",
+      "updatedAt": "2026-09-17T00:22:40Z",
+      "commentsRetrieved": 4,
+      "disposition": "Existing a76b93c4 and 2e6344fc small-talk context/output safeguards; customer timing unconfirmed."
+    },
+    {
+      "number": 15,
+      "title": "[Feature]: Station Templates, Community Gallery & AI-Assisted Station Building",
+      "url": "https://github.com/androoAGI/starnet/issues/15",
+      "state": "OPEN",
+      "updatedAt": "2026-09-18T00:55:35Z",
+      "commentsRetrieved": 2,
+      "disposition": "Feature request for station templates/community gallery/agent assistance; no additional reproduced defect assigned."
+    },
+    {
+      "number": 14,
+      "title": "[Bug]: Telegram-bound orchestrator does not expose `team.dispatch`",
+      "url": "https://github.com/androoAGI/starnet/issues/14",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-11T21:22:02Z",
+      "commentsRetrieved": 0,
+      "disposition": "Existing 98454b83 channel delegation parity repair; no new recovery evidence."
+    },
+    {
+      "number": 13,
+      "title": "[Bug]: Delegated agent cannot access MCP connector tools available in live session",
+      "url": "https://github.com/androoAGI/starnet/issues/13",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-11T20:18:08Z",
+      "commentsRetrieved": 0,
+      "disposition": "Existing acd9ecb4 delegated connector capability repair; closed issue is not customer acceptance evidence."
+    },
+    {
+      "number": 12,
+      "title": "[Bug]: Cross-provider fallback keeps Codex provider when switching to OpenRouter model",
+      "url": "https://github.com/androoAGI/starnet/issues/12",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-11T20:18:07Z",
+      "commentsRetrieved": 0,
+      "disposition": "Existing cross-provider fallback routing repair and regression coverage; do not infer recovery of unrelated provider 400."
+    },
+    {
+      "number": 11,
+      "title": "[Feature]: Allow steering prompts while the commander is working",
+      "url": "https://github.com/androoAGI/starnet/issues/11",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-07T21:05:42Z",
+      "commentsRetrieved": 1,
+      "disposition": "Usage discovery: reporter found steer command and closed request."
+    },
+    {
+      "number": 10,
+      "title": "[Feature]: Make google email API keys removeable",
+      "url": "https://github.com/androoAGI/starnet/issues/10",
+      "state": "OPEN",
+      "updatedAt": "2026-09-06T00:51:42Z",
+      "commentsRetrieved": 0,
+      "disposition": "Feature request for editable/removable Google OAuth client configuration; no new reproduced defect."
+    },
+    {
+      "number": 6,
+      "title": "[Bug]: Stuck on agent resume screen",
+      "url": "https://github.com/androoAGI/starnet/issues/6",
+      "state": "OPEN",
+      "updatedAt": "2026-09-05T00:53:31Z",
+      "commentsRetrieved": 8,
+      "disposition": "Existing BYOK credit-gate and key-CTA repairs; later managed Sonnet 400 remains fd9c4b4d."
+    },
+    {
+      "number": 5,
+      "title": "[Bug]: Gmail OAuth reports connected but tool calls return 401; Wix OAuth times out on tools/list",
+      "url": "https://github.com/androoAGI/starnet/issues/5",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-03T21:01:15Z",
+      "commentsRetrieved": 1,
+      "disposition": "Existing 9dc98fa0 authentication-state and 11341152 SSE lifecycle repairs; source proof distinct from live account recovery."
+    },
+    {
+      "number": 2,
+      "title": "[Bug]:",
+      "url": "https://github.com/androoAGI/starnet/issues/2",
+      "state": "CLOSED",
+      "updatedAt": "2026-09-03T21:01:16Z",
+      "commentsRetrieved": 1,
+      "disposition": "Existing eaaa3ec8 onboarding recovery; later shared-catalog boot failure is separate."
+    },
+    {
+      "number": 1,
+      "title": "[Feature]:",
+      "url": "https://github.com/androoAGI/starnet/issues/1",
+      "state": "CLOSED",
+      "updatedAt": "2026-08-27T06:29:37Z",
+      "commentsRetrieved": 0,
+      "disposition": "Custom MCP OAuth feature request; not an additional proven failure on this candidate."
+    }
+  ],
+  "gmail": {
+    "queryScope": "Inbound StarNet messages after September 16, excluding sent/draft/spam/trash",
+    "messages": 9,
+    "threads": 8,
+    "dispositions": [
+      "September 18 Mac Chat regex boot failure: existing 5308fc67",
+      "September 18 Projects loading: existing 25120f27, source-fixed, not shipped in a new installer",
+      "September 18 Mac Chat/widget/shared-script diagnostics: existing 5308fc67 and separate 2f156837",
+      "Second brief Mac update-problem message: same incident context, insufficient standalone detail",
+      "September 17 Zoho bootstrap schema: new 54564ff9; two inbound messages in one thread",
+      "September 17 overnight verification follow-up: new f8d479d9; separate from prior route failures",
+      "September 16 Mac catalog/credits follow-up: existing 2f156837 and abd75bb4",
+      "September 16 Ollama chat request not observed: existing 5274c7b7"
+    ]
+  },
+  "limits": [
+    "No inline-image inspection",
+    "No complete historical mailbox reread",
+    "No external writes or customer recovery claims"
+  ]
+}

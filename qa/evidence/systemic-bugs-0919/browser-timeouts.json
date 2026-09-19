@@ -1,0 +1,47 @@
+{
+  "rows": [
+    {
+      "phase": "headers",
+      "verb": "get",
+      "error": "The station took too long to respond. Please retry.",
+      "aborted": true,
+      "elapsed": 165
+    },
+    {
+      "phase": "headers",
+      "verb": "post",
+      "error": "The station did not confirm this change. Check its state before retrying.",
+      "aborted": true,
+      "elapsed": 171
+    },
+    {
+      "phase": "headers",
+      "verb": "del",
+      "error": "The station did not confirm this change. Check its state before retrying.",
+      "aborted": true,
+      "elapsed": 141
+    },
+    {
+      "phase": "body",
+      "verb": "get",
+      "error": "The station took too long to respond. Please retry.",
+      "aborted": true,
+      "elapsed": 160
+    },
+    {
+      "phase": "body",
+      "verb": "post",
+      "error": "The station did not confirm this change. Check its state before retrying.",
+      "aborted": true,
+      "elapsed": 145
+    },
+    {
+      "phase": "body",
+      "verb": "del",
+      "error": "The station did not confirm this change. Check its state before retrying.",
+      "aborted": true,
+      "elapsed": 128
+    }
+  ],
+  "exceptions": []
+}

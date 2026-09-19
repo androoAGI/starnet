@@ -1,0 +1,20 @@
+{
+  "base": "67d717eec1e1e04a598ffab7cccdc8b8e4348d8c",
+  "trunk": "5bb28bb83",
+  "candidate": "5262a71073e07ffaa24e82320d4ac439e84b175c",
+  "overlap": [
+    "qa/BUGS.md",
+    "qa/product-perfect/claims.json",
+    "test/fast.list"
+  ],
+  "sourceOverlap": [],
+  "sharedContractChanged": [],
+  "note": "Application source changes are disjoint; runtime composition is verified separately. Generated index and source identity refreshed, test manifests unioned.",
+  "initialCandidate": "b0db2ffb841e474e966d99811abca95085be5124",
+  "integrationRepair": {
+    "commit": "b123e3ea3",
+    "bug": "46f9dad7",
+    "scope": "seed launcher and automated fixture isolation",
+    "productionSourceUnchanged": true
+  }
+}
