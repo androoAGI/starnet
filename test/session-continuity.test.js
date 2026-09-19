@@ -76,8 +76,9 @@ async function campaign(root, seed) {
   const report=vm.runInContext("withSessionContinuity('build identity')",context);
   assert.ok(report.includes('history-loaded'));
   assert.ok(!report.includes('SECRET') && !report.includes('latest read'),'copied diagnostics omit prose');
+  A.ok(true, root+' lifecycle sequence '+seed+' completed');
 }
 (async()=>{
   for(const root of ['frontend/app','website/app/app']) for(let seed=0;seed<24;seed++) await campaign(root,seed);
-  console.log('session-continuity: PASS (48 lifecycle sequences, both shipped trees)');
+  A.report('session-continuity (48 lifecycle sequences, both shipped trees)');
 })().catch(e=>{console.error(e);process.exitCode=1;});
