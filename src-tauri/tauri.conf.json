@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "StarNet",
+  "productName": "TJ OS",
   "version": "0.12.3",
   "identifier": "ai.skynet.harness",
   "build": {
