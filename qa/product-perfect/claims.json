@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7428a955e50e3c753a85b1f7974a0bba05a71502",
+    "sourceCommit": "57c53e0ed40f1a0b7ee270c1583662317d6b7d59",
     "pathSetSha256": "a8fe597c0f3e707b1f3d5bdc5a3e1dc9a4dfcc00775b82acecf202b5891341b0",
     "files": [
       {
@@ -168,8 +168,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 385219,
-        "sha256": "5f768e04a67b1e85cffe17f0750af6534a0a37c7f6c57d998ec556e8f36df06f"
+        "bytes": 385240,
+        "sha256": "32d331a26d643311844d124c52fe2787a77c6f58bf2c85a134cb61a38cca3fff"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -518,8 +518,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 87918,
-        "sha256": "38c3b59204a45d77e03bdd8df864266775b1910959e2bd6754f6484d8526a3f3"
+        "bytes": 88100,
+        "sha256": "38fa4cb55da8d6f5345155daa2052012b07ffae305bd8d00ab3fd2d14cb013b3"
       },
       {
         "path": "frontend/app/hint.js",
@@ -628,8 +628,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 46629,
-        "sha256": "3ca218929e79d278cdc42b9baf2723159157ebf358795a64bf41e0dd7ad4d2fe"
+        "bytes": 46650,
+        "sha256": "fb7d6f6c1f53428391df42a0e3f9b40699c124b6e660922777877e521c58876c"
       },
       {
         "path": "frontend/app/modelpicker.js",
