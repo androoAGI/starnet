@@ -1,0 +1,400 @@
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EACCES empty must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EACCES torn must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EBUSY empty must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EBUSY torn must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EPERM empty must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EPERM torn must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EMFILE empty must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EMFILE torn must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EIO empty must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+EIO torn must stay unreadable
++ actual - expected
+
++ 'corrupt'
+- 'unreadable'
+
+unreadable bytes must never enter destructive quarantine
+
+1 !== 0
+
+Missing expected exception.
+Missing expected exception.
+update must refuse too
++ actual - expected
+
++ undefined
+- 'ESTORE_UNREADABLE'
+
+restart recovers original bytes
++ actual - expected
+
+  {
++   important: 'replacement'
+-   important: 'retain'
+  }
+
+Missing expected exception.
+failed backup must preserve the committed primary
++ actual - expected
+
+  {
++   version: 2
+-   version: 1
+  }
+
+durable-store faults: 20/122 checks passed

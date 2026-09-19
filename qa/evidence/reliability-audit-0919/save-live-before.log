@@ -1,0 +1,23 @@
+{
+  "primary": {
+    "status": 200,
+    "empty": true
+  },
+  "browser": {
+    "unknown": false,
+    "empty": true,
+    "outcome": "empty"
+  },
+  "primaryRecovered": "NOVA",
+  "backupRead": 200,
+  "backupWrite": {
+    "ok": true,
+    "updatedAt": 200,
+    "revision": 1
+  },
+  "afterRestart": {
+    "name": "EMPTY REPLACEMENT"
+  },
+  "originalPrimaryRetained": true,
+  "exceptions": []
+}

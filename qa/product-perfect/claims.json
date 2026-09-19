@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "885390fafbb1ca9da7a4d2ec3df9ffc144fe28ae",
+    "sourceCommit": "62f524ab0d0684e75b8c1a01879f2126c14b3aa7",
     "pathSetSha256": "a11c67cfb53f07eaaf8784fa4174bea4635d53b5741259b6894e8b5cccf6eac8",
     "files": [
       {
@@ -168,8 +168,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 384448,
-        "sha256": "21a612311680b59b47c4e807ef5b2bbaf042c3ed7146633870cf39177128e6bd"
+        "bytes": 384869,
+        "sha256": "0c1c26b05a9400ddd2d571b75848fec6e77dec18443b8e93b7fce4749a8773f4"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -243,8 +243,8 @@
       },
       {
         "path": "frontend/app/autojobstore.js",
-        "bytes": 19361,
-        "sha256": "34d12d2f18c87f06590fc6a32aaf4c31c87e14e47fd7d04f92a15ff7a88f02a5"
+        "bytes": 19358,
+        "sha256": "8a0d090f468aa58049d7303ae1b8eae8792c645d505ddf6a7f2afcfe9de20360"
       },
       {
         "path": "frontend/app/autonomy.js",
@@ -343,8 +343,8 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 26880,
-        "sha256": "42496ae28ca94a3347f48ee7db1e69988cda9e9d99c784deabb6c23270c75507"
+        "bytes": 28243,
+        "sha256": "b013c908d464c49f1220775cfb547a5855d6040ee74c3b1a588fddd1ba6e0088"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
@@ -518,8 +518,8 @@
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 84299,
-        "sha256": "fe14bdd41b10f621dd8d754e58491c844c06b11ab73972237e49960e7af30478"
+        "bytes": 84806,
+        "sha256": "bdd1f46f527f2dd11d76d86c04c656044ad55f9eef2730188f83cc18b71d69fe"
       },
       {
         "path": "frontend/app/hint.js",
@@ -613,8 +613,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 272341,
-        "sha256": "49ac4f23cb4a12c3ad615a532a72bf4ee2df213e9b36bc5e800e64b231f8fed5"
+        "bytes": 272496,
+        "sha256": "082a7c77da177200a78b8423c869c7308935715565d37279a9a9ac986494fb4d"
       },
       {
         "path": "frontend/app/mint.js",
@@ -673,8 +673,8 @@
       },
       {
         "path": "frontend/app/permissionsstore.js",
-        "bytes": 9194,
-        "sha256": "1c4ad36dd5c0c551082092be344c397108202c7ed28fa9936ba0d3ea14fe441f"
+        "bytes": 9935,
+        "sha256": "fd14692a5aa1b95328ddd031b40f2feecd286287b9b8c99555a2cb8158dfd867"
       },
       {
         "path": "frontend/app/personas.js",
@@ -1048,8 +1048,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 735717,
-        "sha256": "13bf018230a7a102f15063805f1782fa7c996831cbbf251c4ca43fc332fc234c"
+        "bytes": 736123,
+        "sha256": "5649ce6a9970d7746f856734bd10665890088fd92cfec9facfde1f5cdedccff9"
       },
       {
         "path": "frontend/app/study.js",
@@ -1213,8 +1213,8 @@
       },
       {
         "path": "frontend/app/windows/messaging.js",
-        "bytes": 57321,
-        "sha256": "17f7c3fb77ee6de78ee9ca936bc7b9f15599bf125b839c6b161b7dfe37f2c0f5"
+        "bytes": 57585,
+        "sha256": "94a7d7efe8e53f377dc259d8f9d7da755f7351d08c34bd0290381df550cb8b08"
       },
       {
         "path": "frontend/app/windows/outbox.js",

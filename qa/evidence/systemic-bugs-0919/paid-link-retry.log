@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: unlink wins over an unfinished pairing response and survives restart
+ok 1 - unlink wins over an unfinished pairing response and survives restart
+  ---
+  duration_ms: 2382.4506
+  type: 'test'
+  ...
+# Subtest: unlink wins over an unfinished keychain-recovery response and survives restart
+ok 2 - unlink wins over an unfinished keychain-recovery response and survives restart
+  ---
+  duration_ms: 2887.3147
+  type: 'test'
+  ...
+# Subtest: an old account response cannot return its zero balance after unlink
+ok 3 - an old account response cannot return its zero balance after unlink
+  ---
+  duration_ms: 1321.6087
+  type: 'test'
+  ...
+# Subtest: funded link diagnostics survive restart without exposing account or token
+ok 4 - funded link diagnostics survive restart without exposing account or token
+  ---
+  duration_ms: 7245.6773
+  type: 'test'
+  ...
+# Subtest: a late first-link balance check cannot clear a newer funded link
+ok 5 - a late first-link balance check cannot clear a newer funded link
+  ---
+  duration_ms: 5363.1033
+  type: 'test'
+  ...
+# Subtest: managed HTTP 400 keeps local, relay and upstream correlation through restart
+ok 6 - managed HTTP 400 keeps local, relay and upstream correlation through restart
+  ---
+  duration_ms: 9412.9306
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30101.0534

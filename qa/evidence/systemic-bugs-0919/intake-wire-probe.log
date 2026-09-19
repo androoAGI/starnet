@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "ollamaProfileModels": 3,
+  "checks": 18,
+  "scope": "Native loopback HTTP, production provider factory, tools payload and structured response parsing; MCP required-field preservation. Controlled server only, not actual Ollama models or Zoho account."
+}

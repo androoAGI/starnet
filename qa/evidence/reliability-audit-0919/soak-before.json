@@ -1,0 +1,417 @@
+{
+  "schema": "starnet.soak-receipt.v1",
+  "verdict": "FAIL",
+  "failedRules": [
+    "accounting"
+  ],
+  "sidecarHead": "ce194a6bcb7b41f28bcbb2f5846468cf48c40ef8",
+  "startedAt": "2026-09-19T17:56:51.252Z",
+  "endedAt": "2026-09-19T18:01:53.959Z",
+  "plannedMinutes": 5,
+  "actualMinutes": 5.05,
+  "rules": {
+    "completed": {
+      "pass": true,
+      "actual": {
+        "completed": true,
+        "reason": null
+      },
+      "expected": {
+        "completed": true
+      },
+      "why": "an interrupted soak has measured nothing about the tail, which is where leaks and stalls show; INCOMPLETE is a FAIL, never a PASS by absence of evidence"
+    },
+    "runs": {
+      "pass": true,
+      "actual": {
+        "ok": 13,
+        "failed": 0,
+        "errors": []
+      },
+      "expected": {
+        "failed": "<= 0",
+        "ok": ">= 1"
+      },
+      "why": "the provider is a deterministic local mock that never errors, so every run error is a harness defect; a soak with zero completed runs measured no workload and fails too"
+    },
+    "routine": {
+      "pass": true,
+      "actual": {
+        "fires": 6
+      },
+      "expected": {
+        "fires": ">= 1"
+      },
+      "why": "the cron driver is the seam a long-running station depends on most; zero fires across the whole soak means the scheduler never ran"
+    },
+    "swallowed": {
+      "pass": true,
+      "actual": {
+        "ratePerMin": 0,
+        "count": 0,
+        "windowMinutes": 1.51,
+        "lastTags": {},
+        "totalAtEnd": 0
+      },
+      "expected": {
+        "ratePerMin": "<= 0.2",
+        "orCount": "< 3"
+      },
+      "why": "with a mock provider the steady-state fail-open count should be ~0; a permanently broken 60s maintenance loop shows as ≥1/min, so a sustained ≥0.2/min over the LAST THIRD (and at least 3 events, so a single blip cannot fail a short soak) is unbounded growth. Tallies reset on restart, so deltas are summed within a boot epoch only"
+    },
+    "rss": {
+      "pass": true,
+      "actual": {
+        "slopeMBPerMin": 0.7,
+        "growthPct": 0.9,
+        "epoch": 1,
+        "points": 10,
+        "firstMB": 107.5,
+        "lastMB": 99.4,
+        "peakMB": 131.2
+      },
+      "expected": {
+        "slopeMBPerMin": "<= 2",
+        "orGrowthPct": "< 20"
+      },
+      "why": "least-squares slope of RSS over the LAST HALF of the longest boot epoch in that half. 2 MB/min compounds to ~1.4 GB over a 12h soak — a leak by any definition; GC noise on a ~100 MB heap swings tens of MB but not monotonically, so BOTH the slope and ≥20% growth (mean of the last quarter of the window vs the first quarter) are required. Epochs under 5 points are not judged (null, with reason)"
+    },
+    "latency": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 16,
+        "points": 10,
+        "medianOfMediansMs": 3,
+        "maxMs": 16
+      },
+      "expected": {
+        "p95Ms": "<= 500"
+      },
+      "why": "loopback health on a healthy loop answers in single-digit ms; a p95 over 500 ms across the LAST HALF means the event loop is stalling (blocked timers, sync I/O, GC thrash) — the class of degradation a human soak catches only as \"it feels sluggish\""
+    },
+    "restart": {
+      "pass": true,
+      "actual": {
+        "cycles": 1,
+        "failed": 0,
+        "detail": [
+          {
+            "at": 1789840734496,
+            "epoch": 0,
+            "bootMs": 9211,
+            "stopMode": "terminate (TerminateProcess, as the desktop shell stops it)",
+            "runHistoryThrough": 1789840734525,
+            "counts": {
+              "agents": {
+                "before": 1,
+                "after": 1
+              },
+              "routines": {
+                "before": 10,
+                "after": 10
+              },
+              "runs": {
+                "before": 9,
+                "after": 9
+              },
+              "turns": {
+                "before": 20,
+                "after": 20
+              }
+            },
+            "lost": {},
+            "ok": true,
+            "error": null
+          }
+        ]
+      },
+      "expected": {
+        "cycles": ">= 1",
+        "lost": "none"
+      },
+      "why": "agents, routines, run history, and conversation turns a user expects to survive must round-trip a stop/boot on the same workspace; any id present before and missing after is data loss (the top recurring bug class)"
+    },
+    "process": {
+      "pass": true,
+      "actual": {
+        "unexpectedExits": 0,
+        "orphans": [],
+        "transientChildren": [],
+        "orphanCheck": "enumerated after stop, re-checked after 3000ms grace"
+      },
+      "expected": {
+        "unexpectedExits": 0,
+        "orphans": 0
+      },
+      "why": "an unplanned exit is a crash; a child process STILL alive 3s after the sidecar stopped is the close-zombie class (0.10.5/0.10.6). A child seen at the instant of the stop but gone within the grace is recorded as transient (a measurement, not a failure)"
+    },
+    "accounting": {
+      "pass": false,
+      "actual": {
+        "routines": 10,
+        "owed": 18,
+        "fired": 12,
+        "alreadyRunning": 3,
+        "caughtUp": 1,
+        "collapsed": 2,
+        "deferred": 61,
+        "disabled": 2,
+        "unfireable": 2,
+        "tail": 0,
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "problems": [
+          "r08-fireable: owed nothing in the window (no nextRunAt advance observed)",
+          "r09-fireable: owed nothing in the window (no nextRunAt advance observed)"
+        ],
+        "detail": [
+          {
+            "id": "de000bcc-6020-4557-bb55-1a036954b454",
+            "label": "r00-disabled",
+            "role": "disabled",
+            "schedule": "every 1m",
+            "owed": 0,
+            "fired": 0,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 2,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "779b6f38-67ad-46e6-9e4d-eeaae23ef8d9",
+            "label": "r01-unfireable",
+            "role": "unfireable",
+            "schedule": "every 1m",
+            "owed": 1,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 1,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "f73870c9-ca97-43b1-8686-35d70ec57f22",
+            "label": "r02-unfireable",
+            "role": "unfireable",
+            "schedule": "every 1m",
+            "owed": 1,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 1,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "48a81c15-521f-438e-a804-742858be801b",
+            "label": "r03-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 1,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 0,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "d06eeeee-6089-451f-befc-f8c5f729ac83",
+            "label": "r04-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 1,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "8d9219db-1b1e-44ea-90d0-9b94382a4389",
+            "label": "r05-slow",
+            "role": "slow",
+            "schedule": "every 1m",
+            "owed": 4,
+            "fired": 3,
+            "alreadyRunning": 1,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 1,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "906113bf-c5ed-4201-bf0d-729a0f22228d",
+            "label": "r06-fireable",
+            "role": "fireable",
+            "schedule": "cron 1-59/2 * * * *",
+            "owed": 1,
+            "fired": 1,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 14,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "469eb20a-edc7-4c6a-9cdd-a1e85f4b9127",
+            "label": "r07-fireable",
+            "role": "fireable",
+            "schedule": "every 1m",
+            "owed": 3,
+            "fired": 0,
+            "alreadyRunning": 0,
+            "caughtUp": 1,
+            "collapsed": 2,
+            "deferred": 14,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": true,
+            "note": null
+          },
+          {
+            "id": "2dbaf9d9-15a1-4ac5-860c-bdd60d590298",
+            "label": "r08-fireable",
+            "role": "fireable",
+            "schedule": "cron */2 * * * *",
+            "owed": 0,
+            "fired": 0,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 20,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": false,
+            "note": "owed nothing in the window (no nextRunAt advance observed)"
+          },
+          {
+            "id": "9dcb7c47-8ab8-4e57-997c-239a86441489",
+            "label": "r09-fireable",
+            "role": "fireable",
+            "schedule": "cron */5 * * * *",
+            "owed": 0,
+            "fired": 0,
+            "alreadyRunning": 0,
+            "caughtUp": 0,
+            "collapsed": 0,
+            "deferred": 11,
+            "disabled": 0,
+            "unfireable": 0,
+            "tail": 0,
+            "lost": [],
+            "doubled": [],
+            "unexpected": [],
+            "offSchedule": [],
+            "otherSkips": [],
+            "ok": false,
+            "note": "owed nothing in the window (no nextRunAt advance observed)"
+          }
+        ]
+      },
+      "expected": {
+        "lost": 0,
+        "doubled": 0,
+        "unexpected": 0,
+        "offSchedule": 0,
+        "every fireable routine": "owed >= 1"
+      },
+      "why": "the power-user claim is \"30–50 routines a day fire each one\". For EVERY seeded routine, every occurrence its schedule owes inside the soak window (enumerated with sidecar/cron.js nextFireAt from the armed nextRunAt — the scheduler's own math, never a re-implementation) must end as exactly ONE of: fired (cron.fire with that scheduledFor), skipped already-running (the previous run still held the lease), caught-up (misfire=skip past the grace), collapsed (a missed occurrence folded into the ONE catch-up by the misfire policy — visible only as the store's nextRunAt jumping more than one period), disabled (paused routine reported once per due window), or unfireable (a corrupt schedule marked once). At-capacity deferrals are transient (the occurrence stays due and must still reach a terminal). A fire whose scheduledFor is not an owed occurrence, two fires for one occurrence (a double-fire, the restart class), an owed occurrence with no terminal (lost), or a nextRunAt advance the schedule math does not predict is a FAIL. Judged only when the cron event log is readable; a soak in which a fireable routine is owed nothing is inconclusive and FAILS (the window measured no scheduling)"
+    },
+    "tick": {
+      "pass": true,
+      "actual": {
+        "p95Ms": 97,
+        "maxMs": 97,
+        "medianMs": 28,
+        "points": 9,
+        "catchUpMs": 1962,
+        "routines": 10
+      },
+      "expected": {
+        "p95Ms": "<= 300"
+      },
+      "why": "the cron tick runs SYNCHRONOUSLY under the process lock: planTick over every job, then saveCronJobs — a full-envelope fsync write + read-back verification of ALL routines — for each advance, and again in markRun for each result. That cost is O(routines) per tick and blocks the event loop while it runs. p95 of (lastSuccessAt − lastTickAt) sampled from GET /api/cron over the LAST HALF must stay under 300 ms at the scale the product claims (50 routines); above that the tick is visibly stalling every run and chat in the station. The first tick after a boot (the post-outage catch-up burst: every missed routine fires at once) is reported as catchUpMs and excluded from p95 — it is a one-time cost, not the steady one. A breach here is a finding against the store write model (index.js saveCronJobs), not a tuning knob"
+    }
+  }
+}

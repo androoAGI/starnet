@@ -1,0 +1,57 @@
+post headers must have a finite deadline
+
+false !== true
+
+Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- true
+
+late acknowledgement cannot resurrect timed-out mutation
+
+true !== false
+
+post body must have a finite deadline
+
+false !== true
+
+Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- true
+
+late acknowledgement cannot resurrect timed-out mutation
+
+true !== false
+
+del headers must have a finite deadline
+
+false !== true
+
+Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- true
+
+late acknowledgement cannot resurrect timed-out mutation
+
+true !== false
+
+del body must have a finite deadline
+
+false !== true
+
+Expected values to be strictly equal:
++ actual - expected
+
++ undefined
+- true
+
+late acknowledgement cannot resurrect timed-out mutation
+
+true !== false
+
+JSON API lifecycle: 12/24 checks passed

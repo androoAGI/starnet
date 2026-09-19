@@ -281,4 +281,26 @@ const envelope = (over) => Object.assign({ schema: 'starnet.save', version: 3, u
   A.eq(back && back.agent && back.agent.name, 'TRICKLE-ÅÖÜ', 'the FULL envelope (multi-byte chars included) round-trips — never a fsynced prefix');
 }
 
+// A torn/missing main does not authorize replacement while its backup is temporarily locked.
+for (const torn of [false, true]) {
+  const base = memFs(), file = pathMod.join(ROOT, 'agent.save.json');
+  const bytes = JSON.stringify({ updatedAt: 700, doc: envelope({ updatedAt: 700 }) });
+  base.files.set(file + '.bak', bytes);
+  if (torn) base.files.set(file, '{ torn');
+  let locked = true;
+  const s = mk({ ...base, readFileSync(p) {
+    if (locked && p === file + '.bak') throw Object.assign(new Error('locked'), { code: 'EACCES' });
+    return base.readFileSync(p);
+  } });
+  A.eq(s.loadState('agent').status, 'unreadable', 'backup read fault is unknown even with torn main');
+  A.eq(s.save('agent', envelope({ updatedAt: 900 })).ok, false, 'refuse replacement over unreadable backup');
+  A.eq(base.files.get(file + '.bak'), bytes, 'backup bytes retained');
+  A.eq(base.files.has(file), torn, 'main not replaced or quarantined during read fault');
+  locked = false;
+  A.eq(s.load('agent').updatedAt, 700, 'recovery works after backup unlock');
+  A.eq(s.recoveryNotice('agent').kind, 'recovered', 'backup recovery disclosed');
+  s.clearRecoveryNotice('agent'); s.load('agent');
+  A.eq(s.recoveryNotice('agent'), undefined, 'reading recovered backup does not re-arm acknowledged notice');
+}
+
 A.report('save.test');

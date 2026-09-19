@@ -3277,8 +3277,12 @@ const App = (() => {
       getExistingJobs: () => (typeof QuerySpine !== 'undefined' && QuerySpine.refresh ? QuerySpine.refresh('cron') : Promise.reject(new Error('cron query unavailable')))
         .then(q => (((q && q.hasData && q.data) || {}).jobs || []).map(x => x && x.name).filter(Boolean)).catch(() => []),
       // W6: surface the server's `duplicate` flag so the store retires a proposal the mint gate refused (rather than
-      // treating it as a plain success and re-offering). A non-JSON body degrades to { ok } exactly as before.
-      scheduleJob: (body) => fetch('/api/cron', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json().then(j => ({ ok: r.ok, duplicate: !!(j && j.duplicate) })).catch(() => ({ ok: r.ok }))).then(out => {
+      // treating it as a plain success and re-offering). Only an explicit persisted-job receipt confirms it.
+      scheduleJob: (body) => Harness.api.post('/api/cron', body).then(r => {
+        const j = r.j;
+        const ok = !!(r.ok && j && j.ok === true && !j.error && j.job && j.job.id);
+        return { ok, duplicate: ok && j.duplicate === true };
+      }).then(out => {
         if (out.ok && typeof QuerySpine !== 'undefined' && QuerySpine.invalidate) QuerySpine.invalidate('cron');
         return out;
       }).catch(() => ({ ok: false })),
@@ -3300,10 +3304,10 @@ const App = (() => {
         try { if (typeof TrustStore !== 'undefined' && TrustStore.onManualInitiative && typeof AutonomyStore !== 'undefined' && AutonomyStore.get) TrustStore.onManualInitiative((AutonomyStore.get() || {}).initiative); } catch (_) {}
       },
       api: {
-        load: () => fetch('/api/permissions', { cache: 'no-store' }).then(r => r.ok ? r.json() : { ok: false, reason: 'permissions service unavailable' }).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        grant: (key) => fetch('/api/permissions/grant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission grant failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        revoke: (key) => fetch('/api/permissions/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission revoke failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        bypass: (on) => fetch('/api/permissions/bypass', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on === true }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'bypass switch failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' }))
+        load: () => Harness.api.get('/api/permissions'),
+        grant: key => Harness.api.post('/api/permissions/grant', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission grant failed' }),
+        revoke: key => Harness.api.post('/api/permissions/revoke', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission revoke failed' }),
+        bypass: on => Harness.api.post('/api/permissions/bypass', { on: on === true }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'bypass switch failed' })
       }
     });
     // GROWTH Tier 3 — EARNED AUTONOMY (track record → trust): folds the SAME run outcomes xpstore folds into a
@@ -4689,11 +4693,17 @@ const App = (() => {
     try { if (World && World.stop) World.stop(); } catch (_) {}
     const sub = el('unreachable-sub');
     if (sub) sub.textContent = reason === 'forbidden' ? 'station service refused this window (stale session) — a relaunch usually clears it' : 'station service not answering';
+    if (sub && reason === 'unreadable') sub.textContent = 'saved station temporarily unreadable — retry without resetting';
+    if (sub && reason === 'cache') sub.textContent = 'saved station could not be restored into this window — retry without resetting';
     // Screenshot-readable diagnosis for a stranded beginner: support can distinguish an alive sidecar refusing
     // stale window auth from a fetch that died after the page loaded without asking for Terminal logs.
     const diagnosis = reason === 'forbidden'
       ? { code: 'SAVE-403 · STALE WINDOW SESSION', text: 'the station service is running, but it refused this app window' }
-      : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
+      : reason === 'unreadable'
+        ? { code: 'SAVE-READ · STATION FILE UNAVAILABLE', text: 'the station service is running, but could not read the saved station; your existing files are preserved' }
+        : reason === 'cache'
+          ? { code: 'SAVE-CACHE · LOCAL RESTORE FAILED', text: 'the saved station was received, but this window could not store or read it; the durable station is preserved' }
+          : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
     const code = el('unreachable-code');
     if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + diagnosis.text + '. Send a screenshot of this code to support.';
     const reportBtn = el('btn-unreachable-report'), reportHost = el('unreachable-report');
@@ -4736,8 +4746,10 @@ const App = (() => {
     const core = tauriCore();
     const BROWSER_HINT = 'the station service isn\'t answering. if you launched with `npm start`, check that terminal; otherwise open the desktop app.';
     if (!core) {
-      if (sub && reason !== 'forbidden') sub.textContent = 'station service not answering (browser mode)';
-      setStatus(BROWSER_HINT);
+      if (sub && reason !== 'forbidden' && reason !== 'unreadable' && reason !== 'cache') sub.textContent = 'station service not answering (browser mode)';
+      if (reason === 'cache') setStatus('Your durable save is untouched. Retry after browser storage becomes available.');
+      else if (reason === 'unreadable') setStatus('Your save is untouched. Retry when the station file becomes readable.');
+      else setStatus(BROWSER_HINT);
     }
     probeDegraded().then(r => { if (r) setStatus(r); });   // a live-but-degraded sidecar names its reason before the first poll
     const attempt = async () => {
@@ -4757,7 +4769,8 @@ const App = (() => {
         return;
       }
       const degraded = await probeDegraded();
-      setStatus((degraded ? degraded + ' — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core ? '' : ' ' + BROWSER_HINT));
+      const unreadable = r.reason === 'unreadable', cacheFailed = r.reason === 'cache';
+      setStatus((degraded ? degraded + ' — ' : unreadable ? 'saved station still unreadable — ' : cacheFailed ? 'local restore still unavailable — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core || unreadable || cacheFailed ? '' : ' ' + BROWSER_HINT));
       checking = false;
     };
     const btn = el('btn-unreachable-retry');

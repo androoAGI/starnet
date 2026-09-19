@@ -180,7 +180,7 @@ const AutoJobStore = (() => {
         const choice = await Dialogue.node({ lines: AutoJobs.proposalLines(pr), options: AutoJobs.approveChoices(), dismissable: true, dismissLabel: 'leave it — not now' });
         if (choice && choice.dismissed) { ledgerPost({ id: rid, state: 'deferred', reason: 'wrong_time' }); break; }
         if (choice && choice.value === 'yes' && deps.scheduleJob) {
-          try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); if (r && r.ok !== false && !(r && r.duplicate)) { scheduled++; live.push(pr.title); ledgerPost({ id: rid, state: 'completed', reason: 'completed' }); } } catch (_) {}
+          try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); if (r && r.ok === true && !r.duplicate) { scheduled++; live.push(pr.title); ledgerPost({ id: rid, state: 'completed', reason: 'completed' }); } } catch (_) {}
         } else if (choice) ledgerPost({ id: rid, state: 'declined', reason: 'wrong_thing' });
       }
       if (Dialogue.isOpen()) {
@@ -234,7 +234,7 @@ const AutoJobStore = (() => {
     const live = await liveJobNames();
     if (existsAmong(pr.title, live)) { state.pending = state.pending.filter(p => p && p.id !== id); save(); ledgerPost({ id: pr.recommendationId, state: 'completed', reason: 'already_done' }); return { ok: true, duplicate: true }; }
     let ok = false, duplicate = false;
-    if (deps.scheduleJob) { try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); duplicate = !!(r && r.duplicate); ok = !!(r && r.ok !== false); } catch (_) { ok = false; } }
+    if (deps.scheduleJob) { try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); ok = !!(r && r.ok === true); duplicate = ok && r.duplicate === true; } catch (_) { ok = false; } }
     // a real success OR a server-reported duplicate both retire the card (a dup is "already handled", not a failure).
     if (ok || duplicate) { state.pending = state.pending.filter(p => p && p.id !== id); save(); ledgerPost({ id: pr.recommendationId, state: 'completed', reason: duplicate ? 'already_done' : 'completed' }); }
     // Only a newly scheduled, explicitly approved routine proves adoption; dedup retirement does not.

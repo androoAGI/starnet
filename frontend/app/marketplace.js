@@ -198,10 +198,19 @@ const Marketplace = (() => {
   // skill catalog cache: { slug -> { name, description } } from /api/skills. Fetched once, then dossiers hydrate
   // async (the section renders a placeholder, then fills in). Best-effort — a missing catalog degrades to the slug.
   let skillCatalog = null, skillCatalogPending = null;
+  function readCollection(url, field, alternate) {
+    return Harness.api.get(url).then(d => {
+      if (!d || d.ok === false || d.error ||
+          (!Array.isArray(d[field]) && !(alternate && Array.isArray(d[alternate])))) {
+        throw new Error('could not verify ' + field);
+      }
+      return d;
+    });
+  }
   function loadSkillCatalog() {
     if (skillCatalog) return Promise.resolve(skillCatalog);
     if (skillCatalogPending) return skillCatalogPending;
-    skillCatalogPending = fetch('/api/skills').then(r => r.ok ? r.json() : { skills: [] })
+    skillCatalogPending = readCollection('/api/skills', 'skills')
       .then(d => {
         const map = {};
         for (const s of ((d && d.skills) || [])) if (s && s.slug) map[s.slug] = { name: s.name || s.slug, description: s.description || '' };
@@ -997,9 +1006,9 @@ const Marketplace = (() => {
   function loadCronJobs(force) {
     if (cronJobs && !force) return Promise.resolve(cronJobs);
     if (cronPending) return cronPending;
-    cronPending = fetch('/api/cron').then(r => r.ok ? r.json() : { jobs: [], enabled: false })
-      .then(d => { cronJobs = Array.isArray(d && d.jobs) ? d.jobs : []; cronArmed = !!(d && d.enabled); cronPending = null; return cronJobs; })
-      .catch(() => { cronJobs = cronJobs || []; cronPending = null; return cronJobs; });
+    cronPending = readCollection('/api/cron', 'jobs')
+      .then(d => { cronJobs = d.jobs; cronArmed = !!(d.enabled && !d.halted); cronPending = null; return cronJobs; })
+      .catch(() => { cronPending = null; return cronJobs || []; });
     return cronPending;
   }
   // async: fetch cron jobs, then repaint the focused recipe's dossier so its live-routine badge appears. Re-queries
@@ -1010,7 +1019,7 @@ const Marketplace = (() => {
       if (!root || tab !== 'recipes') return;
       const d = root.querySelector('#mkt-dossier'); if (!d) return;
       // if this is the first load (badge wasn't rendered), or the badge state differs from what's shown, repaint.
-      if (!had) renderDossier();
+      if (!had && cronJobs != null) renderDossier();
     });
   }
 
@@ -1029,8 +1038,7 @@ const Marketplace = (() => {
     if (recipeRunsPending) return recipeRunsPending;
     // the drift read rides alongside (advisory; a failed read asserts nothing)
     fetch('/api/recipes/drift', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { recipeDrift = (d && d.drift) || {}; }).catch(() => { recipeDrift = recipeDrift || {}; });
-    recipeRunsPending = fetch('/api/runs?agent=*&limit=200', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : { runs: [] })
+    recipeRunsPending = readCollection('/api/runs?agent=*&limit=200', 'runs')
       .then(d => {
         const map = {};
         // rows come newest-first; keep the FIRST row seen per recipe (its most recent run).
@@ -1041,7 +1049,7 @@ const Marketplace = (() => {
         });
         recipeRuns = map; recipeRunsPending = null; return recipeRuns;
       })
-      .catch(() => { recipeRuns = recipeRuns || {}; recipeRunsPending = null; return recipeRuns; });
+      .catch(() => { recipeRunsPending = null; return recipeRuns || {}; });
     return recipeRunsPending;
   }
   function hydrateRecipeRuns() {
@@ -1049,7 +1057,7 @@ const Marketplace = (() => {
     loadRecipeRuns().then(() => {
       if (!root || tab !== 'recipes') return;
       if (!root.querySelector('#mkt-dossier')) return;
-      if (!had) renderDossier();
+      if (!had && recipeRuns != null) renderDossier();
     });
   }
   // the file/target name of the first artifact a run recorded — a display label, never a link we can't honor.
@@ -1681,8 +1689,7 @@ const Marketplace = (() => {
     if (fitProjects) return Promise.resolve(fitProjects);
     if (fitProjectsPending) return fitProjectsPending;
     const gen = fitGen;
-    const p = fetch('/api/projects', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : { projects: [] })
+    const p = readCollection('/api/projects', 'projects')
       .then(d => {
         const rows = (Array.isArray(d && d.projects) ? d.projects : []).map(p2 => ({
           root: String((p2 && (p2.root || p2.path)) || ''),
@@ -1703,12 +1710,12 @@ const Marketplace = (() => {
     if (fitChannels) return Promise.resolve(fitChannels);
     if (fitChannelsPending) return fitChannelsPending;
     const gen = fitGen;
-    const p = fetch('/api/connectors', { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : { connectors: [] })
+    const p = readCollection('/api/connectors', 'connectors', 'items')
       .then(d => {
         const raw = Array.isArray(d && d.connectors) ? d.connectors : (Array.isArray(d && d.items) ? d.items : []);
         // CONNECTED only — a configured-but-broken connector cannot be cited as a reason the station is ready.
-        const rows = raw.filter(c => c && c.connected !== false && c.status !== 'error')
+        const rows = raw.filter(c => c && c.enabled !== false && !c.authRequired &&
+          ['up', 'cached'].includes(c.state) && c.connected !== false && c.status !== 'error')
           .map(c => ({ id: String((c && c.id) || ''), label: String((c && (c.label || c.name || c.kind || c.id)) || '') }))
           .filter(c => c.label);
         if (gen !== fitGen) return rows;                 // superseded: answer this caller, write through NOTHING

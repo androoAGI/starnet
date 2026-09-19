@@ -1,0 +1,74 @@
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/ssh', payload).then(j => {
+
+
+'bad' !== 'good'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('d
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('d
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('d
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('da
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('da
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('da
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('da
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/cleanup', { agentId: button.getAttrib
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/cleanup', { agentId: button.getAttrib
+
+'good' !== 'bad'
+
+execution outcome must match acknowledged result: Harness.api.post('/api/execution/cleanup', { agentId: button.getAttrib
+
+'good' !== 'bad'
+
+disconnect must be confirmed and durable
+
+true !== false
+
+disconnect must be confirmed and durable
+
+true !== false
+
+disconnect must be confirmed and durable
+
+true !== false
+
+disconnect must be confirmed and durable
+
+true !== false
+
+control acknowledgements: 37/55 checks passed

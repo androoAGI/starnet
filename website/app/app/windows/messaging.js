@@ -557,8 +557,12 @@
       dBtn.addEventListener('click', () => {
         if (!(configuredById[c.id])) { return; }   // nothing to disconnect — no lie, no request
         armed(c.pre + '-disconnect', dBtn, '⏏ DISCONNECT', '⏏ CONFIRM DISCONNECT', async () => {
-          try { await Harness.api.post('/api/channels/' + c.id + '/disconnect', {}); setMsg(msgEl, 'disconnected — token kept; RESUME to reconnect', 'info'); sfx('click'); }
-          catch (_) { setMsg(msgEl, '✕ could not reach the sidecar', ''); }
+          try {
+            const r = await Harness.api.post('/api/channels/' + c.id + '/disconnect', {});
+            const j = r.j;
+            if (!r.ok || !j || j.connected !== false || j.persisted !== true) throw new Error((j && j.error) || 'disconnect was not durably confirmed — refresh and retry');
+            setMsg(msgEl, 'disconnected — token kept; RESUME to reconnect', 'info'); sfx('click');
+          } catch (e) { setMsg(msgEl, '✕ ' + ((e && e.message) || 'could not confirm disconnect'), ''); }
           refreshAll();
         });
       });
