@@ -32,7 +32,7 @@ Owner screenshot reported 2026-09-19. Browser sample-code reproduction: foregrou
 
 ## Verdict
 
-Source repair under verification; installer and owner retest remain unverified.
+Source contrast repair verified in the live browser across all six built-in themes. Both frontend and website stylesheet copies match. Installer and owner retest remain unverified.
 
 ## Regression
 
@@ -51,3 +51,8 @@ Repro: start fresh onboarding, choose OpenAI, request a ChatGPT device sign-in c
 Live browser reproduction using the production stylesheet order and code classes with sample text measured the inherited foreground as rgb(25, 15, 2) at full opacity. The repair pairs the dark glass background with `var(--ph-bright)`.
 
 Settings sign-in codes use `.key-mask` with `var(--ph-bright)` already; Settings account-link codes use `var(--gold)`. Neither uses the defective onboarding override. Both HTML entrypoints load the repaired stylesheet. Native installer verification remains outstanding.
+
+## Validation receipt
+
+Customer journeys: 38/38 PASS. Release claims regression: 64 assertions PASS after updating only the changed stylesheet fingerprint and source commit. Full fast run stopped at step 317/822 on the unrelated web-search parser timing assertion (532 ms against 500 ms). Immediate unchanged focused rerun: web.search.test PASS, 18 assertions. The complete fast gate is not claimed green; no trunk merge or release performed. Logs remain in the owned .onboarding-test directory.
+
