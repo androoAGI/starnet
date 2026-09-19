@@ -24,10 +24,11 @@ The release build stages the existing publisher Desktop registration for this li
 connector while `RELEASE_DEFERRED` remains true for the five broad services. The native
 review launcher now uses this same split without the future-release override.
 
-Cloud prerequisite: enable Google Picker API in `starnet-505202`. The existing Docs,
-Sheets and Drive APIs and native client must also be available. The Cloud activation
-and real account selection/consent are still pending; no approval or public readiness
-is asserted. The existing broad verification draft remains separate and unsubmitted.
+Google Picker API is enabled in `starnet-505202`, verified in the Cloud Console.
+The real native-client flow reached Google's per-file consent screen, without an
+unverified-app interstitial on the observed path. The file-access grant is awaiting
+user confirmation; no completed real file selection or read/edit acceptance is claimed.
+The existing broad verification draft remains separate and unsubmitted.
 
 Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker
 (checked 2026-09-19; desktop Picker accepts only drive.file).
@@ -42,6 +43,12 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
 - Live seeded app, using synthetic Google endpoints: selected-file disclosure and
   button displayed; callback connected 11 tools; restart recovered the encrypted
   grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
-- Real Google Picker API is currently disabled in the Cloud project. Enabling it
-  is awaiting the user's terms confirmation. No personal files were read or edited.
+- Real Google Picker API activation completed after user authorization. File-access
+  consent is pending; no personal files were read or edited.
 - Branch remains isolated and unmerged. Full public release readiness is not claimed.
+- Synced trunk into this branch at merge `41f8bc76c`; the sole conflict was the
+  release-surface hash ledger, resolved using trunk's verdicts and regenerated hashes.
+  Full post-sync gates remain outstanding because C: has approximately 0.6 GiB free.
+  Automatic approval review blocked deletion of this worktree's 1.21 GiB generated
+  incremental build cache. No cache was deleted. A Mac is still needed for native
+  acceptance; no remote or physical Mac was available in this session.
