@@ -1,0 +1,106 @@
+
+> starnet-harness@0.12.3 qa:customer-journeys
+> node scripts/timeout.mjs --label qa:customer-journeys --timeout=900000 -- node scripts/run-test-list.mjs test/customer-journeys.list
+
+✔ customer journey: connect, select, tool, output, restart and repeat on all primary adapters (8813.7757ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10288.8953
+✔ sample uses each dock provider and saved model without environment defaults, including restart (3981.6907ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5431.3178
+sidecar.http.test: OK (504 assertions)
+provider-recovery.e2e: OK (15 assertions)
+codex-status.e2e.test: OK (13 assertions)
+provider.codex.pairing.test: OK (18 assertions)
+provider.gemini.test: OK (47 assertions)
+provider.openrouter.test: OK (89 assertions)
+provider.openai-compatible.test: OK (104 assertions)
+e2e.dispatch-session.test: OK (31 assertions)
+e2e.worker-access.test: OK (5 assertions)
+  · supersede race did not fire this run; #2 still delivered its real answer (invariant holds)
+channels.telegram.e2e.test: OK (82 assertions)
+cron.run-now.e2e.test: OK (35 assertions)
+cron.session-transcript.e2e.test: OK (10 assertions)
+routing.persist.e2e: OK (44 assertions)
+station-recovery.e2e.test: OK (23 assertions)
+✔ unlink wins over an unfinished pairing response and survives restart (2041.5825ms)
+✔ unlink wins over an unfinished keychain-recovery response and survives restart (3446.8399ms)
+✔ an old account response cannot return its zero balance after unlink (1020.9116ms)
+✔ funded link diagnostics survive restart without exposing account or token (4536.7207ms)
+✔ a late first-link balance check cannot clear a newer funded link (1866.2445ms)
+✔ managed HTTP 400 keeps local, relay and upstream correlation through restart (2773.4481ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17176.433
+credits-link.test: OK (95 assertions)
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status ?); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+credits.test: OK (113 assertions)
+✔ saved tier rows reconcile once with the active provider and survive reopening (9.1742ms)
+✔ catalog failure preserves saved pins without claiming absence; successful absence is labeled (2.9311ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16.8621
+model-provider-reconcile.test: OK (69 assertions)
+genesis-starnet-link.test.js OK - 47 assertions
+friendlyerror.test: OK (229 assertions)
+errorclass.test: OK (215 assertions)
+connectors-ui: OK (149 assertions)
+mcp.transport.test: OK (100 assertions)
+e2e.mcp-session-expiry: OK (17 assertions)
+connector-oauth-refresh-race.e2e.test: OK (5 assertions)
+✔ source fix cannot be closed without the four sibling dimensions and regression evidence (5.9394ms)
+✔ installer and customer claims require independent evidence and survive later updates (1.4503ms)
+✔ missing axis, fabricated coverage, and empty exemptions fail closed (0.5293ms)
+✔ legacy records remain valid without inventing historical recovery (0.2858ms)
+✔ covered regression must exist in its declared exercised gate (20.9439ms)
+✔ customer journey campaign cannot drift outside mandatory fast/http gates (34.034ms)
+✔ related fix prose cannot promote an unresolved customer report in reconciliation (1.5766ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71.3268
+PASS emergency recovery: stop/restart/resume, three partial failures, permission preservation, real cron tick
+growth-rating-upgrade.e2e: OK (57 assertions)
+Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=false
+✔ managed images: saved credits route generates, bills, survives restart and fails honestly (4298.4034ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5784.6166
+session-focus-safety.test: OK
+session-typing-safety.test: PASS (desktop and website, delivery/attach/return, drafts/focus/uploads, delayed continuation and explicit navigation)
+tool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)
+memory-corrections.http.test: PASS (real writes, scoped recall, reviewed updates, restart, stale review, stops, save receipts)
+run-test-list: OK — 36 step(s) green

@@ -1,0 +1,149 @@
+{
+  "schema": "starnet.reliability-audit.v1",
+  "createdAt": "2026-09-19T18:27:13.822Z",
+  "sourceCandidate": "43a59104e3c2c472cb3405780d56e5ab46ca9e43",
+  "branch": "agent/reliability-audit-0919",
+  "incorporatedTrunk": "7f55d8809",
+  "observedCurrentTrunk": "8e182efaf16ba1dd001296f2c885bae113528e88",
+  "runtime": {
+    "canonicalGates": "v22.23.0",
+    "platform": "win32"
+  },
+  "gates": [
+    {
+      "command": "npm run test:fast",
+      "result": "PASS",
+      "steps": 820,
+      "log": "fast-locked.log",
+      "source": "43a59104e3c2c472cb3405780d56e5ab46ca9e43"
+    },
+    {
+      "command": "npm run test:http",
+      "result": "PASS",
+      "steps": 120,
+      "log": "http-combined.log",
+      "startedAtSource": "9dfedb18f4b7b31f241909b46d41fcfd9af2e5c9",
+      "qualification": "Backend and HTTP manifest unchanged through final candidate."
+    },
+    {
+      "command": "npm run qa:journeys",
+      "result": "PASS",
+      "assertions": 139,
+      "log": "journeys-locked.log",
+      "source": "43a59104e3c2c472cb3405780d56e5ab46ca9e43"
+    }
+  ],
+  "supportingEvidence": [
+    {
+      "kind": "live seeded-browser behavior audit",
+      "assertions": 49,
+      "result": "PASS",
+      "log": "audit.log"
+    },
+    {
+      "kind": "customer-journey campaign with simulated upstreams",
+      "suites": 36,
+      "result": "PASS",
+      "log": "customer-journeys.log"
+    },
+    {
+      "kind": "live panel sweep",
+      "states": 16,
+      "result": "PASS",
+      "log": "panels-live.json"
+    },
+    {
+      "kind": "live save fault injection and recovery",
+      "result": "PASS",
+      "log": "save-final-candidate.log"
+    },
+    {
+      "kind": "five-minute capped scheduler/restart/outage probe",
+      "result": "PASS",
+      "log": "soak-after.json"
+    }
+  ],
+  "readiness": {
+    "result": "NOT READY",
+    "reasons": 5,
+    "log": "readiness-locked.log"
+  },
+  "limitations": [
+    "Supporting campaigns ran during the audit, not all on the final source commit; final fast and HTTP gates cover their constituent source regressions.",
+    "No exact-installer, affected Mac, real paid upstream/account, physical input or multi-hour acceptance claim.",
+    "Final save proof originalPrimaryRetained:false includes legitimate recovered browser autosaves; fault-time file byte preservation is asserted independently by save-unreadable.http.test.js.",
+    "Intermediate mixed-HEAD fast run failed one authority assertion; frozen rerun passed all 64 authority assertions.",
+    "Windows Node 24 native libuv crash remains open; canonical gates use Node 22.23.0.",
+    "Newer trunk must be synchronized and combined gates repeated before integration."
+  ],
+  "files": [
+    {
+      "path": "audit.log",
+      "sha256": "b6f96991fccd56bd1599fc120234f4fd37c26c470a6c709ba2df1d253dc25359"
+    },
+    {
+      "path": "customer-journeys.log",
+      "sha256": "c7bd458e77b128aadcd5a3fae67dc84906277a3bc692586875d5077c1b93c8e2"
+    },
+    {
+      "path": "fast-locked.log",
+      "sha256": "7f9a9eb2cbdc712bf3f6b5cb881b979b3fbbcc25da476b34b049fea529e0eca9"
+    },
+    {
+      "path": "http-combined.log",
+      "sha256": "ed97f59b33652965cd5f5a5e5d6b0e6ae14304235f7480b9e41b797fdd0dd255"
+    },
+    {
+      "path": "journeys-locked.log",
+      "sha256": "4474aee102a39fc205fe944d28283176cc7909d5dc0712f718c723c9f206a200"
+    },
+    {
+      "path": "native-runtime.json",
+      "sha256": "99d390e103e976e9cd8fd6333b289e959fcad9276c5285773fe61671cec5bef3"
+    },
+    {
+      "path": "panels-live.json",
+      "sha256": "4f560680aeb59eeb55fa1af8cd8e64a4a95a85385c5a2b1b1cb290ed1d38d28a"
+    },
+    {
+      "path": "readiness-locked.log",
+      "sha256": "a175aafe9a43b1912dca14ad88d98d1624889fbf606913e952aece694b8b4980"
+    },
+    {
+      "path": "save-adoption-before.log",
+      "sha256": "1f61fb80e25da6bdaa9684d580113658b45d3cc58649ae5d0b993c04b63139d9"
+    },
+    {
+      "path": "save-candidate.log",
+      "sha256": "c0ee0c0a0e0dc494ff151daeb367af294de702fab64af98215af91d74f9a6c38"
+    },
+    {
+      "path": "save-complete-live.log",
+      "sha256": "477d3921cb4f50f1d675087472b223551128ba01e16935b54fcf504001f9e8e8"
+    },
+    {
+      "path": "save-final-candidate.log",
+      "sha256": "75bfba69b57c4b7fedfd6193bd5eb855fd4c6ef1c2e3b8c7d04232c4065ec5c3"
+    },
+    {
+      "path": "save-live-before.log",
+      "sha256": "c655367d8031df5e3ddde047bdc7d59254c5c9402d3cf0c410502e4db6f43623"
+    },
+    {
+      "path": "save-reply-before.log",
+      "sha256": "441107e7ac7a7675aac326a646c67c511178f0daadec9cf6c031b166c5890d67"
+    },
+    {
+      "path": "save-timeout-before.log",
+      "sha256": "3d949d3fb7a8df04b3c0cec11e076293370b41f5eef101e1f2e93187eb4da310"
+    },
+    {
+      "path": "soak-after.json",
+      "sha256": "734ac4d321c3277768005657102d276416a697660665fae104d4c7897aaa61b3"
+    },
+    {
+      "path": "soak-before.json",
+      "sha256": "a0dc23cc87fe6c9e5a2e9196c59cc431289f10382b140cff40c96aba39a1a01b"
+    }
+  ]
+}
