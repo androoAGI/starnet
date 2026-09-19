@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 174 total — 0 P0 · 1 P1 · 6 P2
+**7** open (open+claimed) of 175 total — 0 P0 · 1 P1 · 6 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **89** · source fixed: **81** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **86**.
+User/owner reports: **90** · source fixed: **82** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **87**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
