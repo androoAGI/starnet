@@ -29,7 +29,7 @@ const FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const FILES_URL = 'https://www.googleapis.com/drive/v3#selected-files';
 function isSelectedFiles(cfg) { return !!cfg && cfg.id === 'google-files' && cfg.url === FILES_URL; }
 function fileScopeOnly(scope) { const scopes = String(scope || '').trim().split(/\s+/); return scopes.length === 1 && scopes[0] === FILE_SCOPE; }
-const DEFERRED = 'Google Workspace connections are deferred from 0.11.0 while Google verification is completed. Saved connections are kept but cannot run in this update.';
+const DEFERRED = 'Full Google Workspace access is deferred while Google verification is completed. Saved broad-access connections are kept but cannot run. Selected Google files is available separately.';
 function isWorkspaceUrl(raw) {
   try {
     const u = new URL(raw);
