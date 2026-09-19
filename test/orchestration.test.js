@@ -774,7 +774,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
   A.ok(/freeSlots: \(\) => \{ const m = concurrencyGate\.max\(\); return m > 0 \? Math\.max\(0, m - concurrencyGate\.active\(\)\) : null; \}/.test(src),
     'the run host wires concurrencyGate free capacity into makeOrchestrationTools');
-  A.ok(/now: \(\) => Date\.now\(\)/.test(src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000)),
+  A.ok(/now: \(\) => Date\.now\(\)/.test(src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')))),
     'the run host injects the real clock for the dispatch wall clock');
 }
 
@@ -935,7 +935,7 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
 // the run host wires the bridge in (the tool cannot reach the page by itself)
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-  const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000);
+  const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')));
   A.ok(/station: require\('\.\/overseer.js'\)\.isCoordinatorRun\([\s\S]*?\? overseerStation\(o.streamId, runId\) : stationBridge/.test(block), 'only coordinator runs receive durable session operations; other leads retain the visual bridge');
 }
 
