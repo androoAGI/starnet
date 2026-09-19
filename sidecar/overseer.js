@@ -11,7 +11,7 @@ function isCoordinatorRun(o) {
 }
 
 function makeOverseer(deps) {
-  const store = makeDomainStore({ fs: deps.fs, path: deps.path, file: deps.file,
+  const store = makeDomainStore({ fs: deps.fs, path: deps.path, file: deps.file, writeDurable: deps.writeDurable,
     defaults: () => ({ threads: [], reviews: [] }),
     normalize: value => {
       if (!value || !Array.isArray(value.threads) || !Array.isArray(value.reviews)
@@ -22,16 +22,18 @@ function makeOverseer(deps) {
       return value;
     } });
   const loaded = store.load();
-  if (!['ok', 'absent', 'recovered'].includes(loaded.status)) throw new Error('overseer state unavailable: ' + loaded.status);
+  const unavailable = !['ok', 'absent', 'recovered'].includes(loaded.status)
+    ? 'overseer state unavailable: ' + loaded.status : '';
   let state = loaded.value;
   let emergencyPaused = false;
   const copy = value => JSON.parse(JSON.stringify(value));
-  const commit = next => { store.save(next); state = next; };
+  const commit = next => { if (unavailable) throw new Error(unavailable); store.save(next); state = next; };
   const update = fn => { const next = copy(state); const out = fn(next); commit(next); return copy(out); };
   const valid = value => /^[A-Za-z0-9_-]{1,80}$/.test(String(value || ''));
   const locks = new Map();
 
   function threads() {
+    if (unavailable) throw new Error(unavailable);
     const legacy = deps.sessions() || {};
     const deleted = new Set(legacy.deletedIds || []);
     const rows = new Map((legacy.workstreams || []).map(w => [w.id, w]));
@@ -66,15 +68,18 @@ function makeOverseer(deps) {
       kind: 'chat', lane: 'active', history: [], runIds: [], createdAt: deps.now(), lastActiveAt: deps.now() };
     return update(s => { s.threads.push(row); return row; });
   }
-  function collect(workers) {
+  function freshReviews(workers) {
     const fresh = workers.filter(w => w.leadId === 'agent' && valid(w.parentStreamId) && (w.completedAt || w.status === 'stale')
       && ['done', 'error', 'refused', 'interrupted', 'stale'].includes(w.status)
       && !state.reviews.some(r => r.id === w.runId + ':review'));
-    if (!fresh.length) return;
-    update(s => { for (const w of fresh) s.reviews.push({ id: w.runId + ':review',
+    return fresh.map(w => ({ id: w.runId + ':review',
       parentStreamId: w.parentStreamId, childStreamId: w.streamId || '', agentId: w.leadId,
       workerId: w.id, workerRunId: w.runId, generation: w.generation, status: 'pending',
-      createdAt: deps.now(), reviewRunId: '', error: '' }); return null; });
+      createdAt: deps.now(), reviewRunId: '', error: '' }));
+  }
+  function collect(workers) {
+    const fresh = freshReviews(workers);
+    if (fresh.length) update(s => { s.reviews.push(...fresh); return null; });
   }
   function patchReview(id, fields) {
     return update(s => { const r = s.reviews.find(row => row.id === id); if (!r) throw new Error('unknown review'); Object.assign(r, fields); return r; });
@@ -94,15 +99,25 @@ function makeOverseer(deps) {
   function stopReviews(workers) {
     // Stop admission immediately even when the disk cannot accept a receipt.
     emergencyPaused = true;
-    if (workers) collect(workers);
-    update(s => { s.paused = true; for (const r of s.reviews) if (r.status === 'pending' || r.status === 'reviewing') {
+    // Keep cancellation in RAM even if persistence fails. A later successful
+    // resume must not resurrect work the Commander already stopped.
+    const next = copy(state);
+    next.reviews.push(...freshReviews(workers || []));
+    next.paused = true;
+    for (const r of next.reviews) if (r.status === 'pending' || r.status === 'reviewing') {
       r.status = 'cancelled'; r.error = 'Stopped by the Commander.';
-    } return null; });
+    }
+    state = next;
+    commit(state);
   }
-  function snapshot() { return { threads: threads().map(w => ({ id: w.id, title: w.title, agentId: w.agentId,
+  function snapshot() { if (unavailable) return { threads: [], reviews: [], paused: true, error: unavailable };
+    return { threads: threads().map(w => ({ id: w.id, title: w.title, agentId: w.agentId,
     parentStreamId: w.parentStreamId || '', projectRoot: w.projectRoot || null,
     kind: w.kind, lane: w.lane, createdAt: w.createdAt })), reviews: copy(state.reviews), paused: emergencyPaused || !!state.paused }; }
   function resumeReviews() {
+    // A damaged optional coordination store must not prevent ordinary chat.
+    // Reads/creates still refuse, and the poller remains paused; never overwrite it.
+    if (unavailable) return;
     if (state.paused || emergencyPaused) update(s => { s.paused = false; return null; });
     emergencyPaused = false;
   }

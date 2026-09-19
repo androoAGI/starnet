@@ -3908,7 +3908,7 @@ async function executeCronScript(job, signal) {
 }
 try { console.log('[exec-env]', JSON.stringify(executionEnvironment.describe())); } catch (_) {}
 const subagents = makeSubagentManager({ fs: fs, pathMod: path, file: path.join(WORKSPACES, 'subagents.json'), clock: { now: () => Date.now() }, emit: chanEmit, newId: () => crypto.randomUUID(), keep: 200, hooks: hookSpine });
-const overseer = require('./overseer.js').makeOverseer({ fs, path,
+const overseer = require('./overseer.js').makeOverseer({ fs, path, writeDurable: writeFileDurable,
   file: path.join(WORKSPACES, 'overseer.json'), now: () => Date.now(),
   newId: () => 'ws_' + crypto.randomUUID().replace(/-/g, ''),
   sessions: () => saveStore.load('agent') || {}, hasAgent: id => id === 'agent' || agentRoster.has(id) });
@@ -3944,7 +3944,7 @@ function overseerStation(parentStreamId, parentRunId) {
 
 let overseerTickRunning = false;
 async function tickOverseer() {
-  if (overseerTickRunning || workspaceDegraded || overseer.snapshot().paused) return;
+  if (overseerTickRunning || workspaceDegraded || updateWritesFrozen || overseer.snapshot().paused) return;
   overseerTickRunning = true;
   try {
     overseer.collect(subagents.list());
@@ -3980,7 +3980,7 @@ async function tickOverseer() {
         overseer.patchReview(review.id, { status: 'superseded', error: 'Worker has a newer attempt.' }); continue;
       }
       await overseer.withThread(parent.id, async () => {
-        if (overseer.snapshot().paused || !overseer.snapshot().reviews.some(r => r.id === review.id && r.status === 'pending')) return;
+        if (updateWritesFrozen || overseer.snapshot().paused || !overseer.snapshot().reviews.some(r => r.id === review.id && r.status === 'pending')) return;
         try { parent = overseer.resolve(review.parentStreamId); }
         catch (_) { overseer.patchReview(review.id, { status: 'cancelled', error: 'Parent conversation is no longer available.' }); return; }
         worker = subagents.get(review.workerId);
@@ -15688,7 +15688,8 @@ async function runOnceCore(o) {
     dispatchTimeoutMs: ORCH_DISPATCH_TIMEOUT_MS,   // minutes, not the 30s fast-tool cap (see constant)
     // Saved session metadata is available headlessly; visual delivery still uses
     // the page bridge and recovers from the durable run ledger on reconnect.
-    station: overseerStation(o.streamId, runId),
+    station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
+      ? overseerStation(o.streamId, runId) : stationBridge,
     now: () => Date.now(),   // the dispatch wall clock divides this budget across sequential workers (injected: lint-determinism)
     // FAN-OUT CAPACITY: how many NEW distinct agents the admission gate can still accept. A parallel dispatch runs
     // in waves of this size instead of firing all workers at once — the lead holds a slot for the whole dispatch, so
@@ -15708,7 +15709,8 @@ async function runOnceCore(o) {
   // session.list/create/focus: the LEAD's session verbs, over the same station bridge dispatch's resolver
   // uses. Same 'orchestrator' capability gate as team.* — conferred on the lead run only, so a delegated
   // worker can never open or steal the Commander's sessions. Only visual actions require a live page.
-  makeStationTools({ station: overseerStation(o.streamId, runId) }).register(registry);
+  makeStationTools({ station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
+    ? overseerStation(o.streamId, runId) : stationBridge }).register(registry);
   // routine.create/list: the lead can schedule real StarNet ROUTINES through the same cron store the panel uses.
   makeRoutineTools({
     roster: () => agentRoster,

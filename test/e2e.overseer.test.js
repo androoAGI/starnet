@@ -100,6 +100,31 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'mira_custom', streamId: 'direct', isTask: true,
       messages: [{ role: 'user', content: 'DIRECT_PROOF: keep this specialist conversation separate' }] });
     assert.equal((await fixture.json('GET', '/api/overseer')).body.paused, true, 'talking to a specialist cannot resume orchestrator reviews');
+    await fixture.stop();
+    const beforeUpdate = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    beforeUpdate.value.paused = false;
+    beforeUpdate.value.reviews[0].status = 'pending';
+    fs.writeFileSync(statePath, JSON.stringify(beforeUpdate));
+    await fixture.start();
+    const prepared = await fixture.json('POST', '/api/update/prepare', { targetVersion: '9.9.9' });
+    assert.equal(prepared.body.ok, true, JSON.stringify(prepared.body));
+    const frozenBytes = fs.readFileSync(statePath, 'utf8');
+    await sleep(2600);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), frozenBytes, 'review polling cannot change state behind the pre-update snapshot');
+    await fixture.json('POST', '/api/update/cancel', {});
+    await fixture.stop();
+    // A schema-invalid envelope cannot recover from a JSON backup: preserve it,
+    // keep coordination disabled, and let the rest of the station start normally.
+    fs.writeFileSync(statePath, JSON.stringify({ version: 1, value: { threads: 'invalid', reviews: [] } }));
+    await fixture.start();
+    const damaged = (await fixture.json('GET', '/api/overseer')).body;
+    assert.equal(damaged.paused, true);
+    assert.match(damaged.error, /unavailable/);
+    const ordinary = await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
+      messages: [{ role: 'user', content: 'DIRECT_PROOF: answer normally while coordination is unavailable' }] });
+    assert.equal(ordinary.status, 200);
+    assert.ok(provider.requests.some(messages => messages.some(m => m.role === 'user' && /answer normally while coordination/.test(m.content))), 'ordinary chat reaches its provider with damaged optional state');
+    assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).value.threads, 'invalid', 'ordinary chat does not overwrite damaged coordination state');
     console.log('e2e.overseer: headless create -> background dispatch -> automatic parent review -> restart PASS');
   } catch (e) { console.error(fixture.output().slice(-2500)); throw e; }
   finally { await fixture.dispose(); await new Promise(resolve => mock.close(resolve)); }
