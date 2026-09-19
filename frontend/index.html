@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STARNET</title>
+<title>TJ OS</title>
 <!-- VT323 — THE STARNET FONT — has exactly ONE source: the local @font-face in css/style.css
      (frontend/assets/fonts/vt323.woff2, SIL OFL, U+0-10FFFF — the whole range, no subsets).
      There is NO remote font link here and there must never be one again. The Google Fonts
@@ -59,9 +59,9 @@
      ends in show(<screen>) (splash / game / connect / future / recovery), which clears this veil — so a
      returning Commander never flashes the CREATE console on the way to their station (the old bug: #screen-connect
      carried the static .active). Truthful telemetry: it asserts nothing about state — just "connecting". -->
-<section id="screen-boot" class="screen active" aria-label="StarNet booting" aria-hidden="true">
+<section id="screen-boot" class="screen active" aria-label="TJ OS booting" aria-hidden="true">
   <div class="boot-veil">
-    <div class="boot-mark">◆ STARNET</div>
+    <div class="boot-mark">◆ TJ OS</div>
     <div class="boot-line">establishing local uplink<span class="boot-dots"></span></div>
   </div>
 </section>
@@ -71,14 +71,14 @@
      perspective grid floor, the big phosphor wordmark, and a blinking PRESS ANY KEY. Any key / click /
      tap advances into CREATE YOUR OVERSEER (app.js showSplash()). Resume/recovery paths never route
      here — a returning Commander lands in the station or the RESUME console, not a title card. -->
-<section id="screen-splash" class="screen" aria-label="StarNet boot screen">
+<section id="screen-splash" class="screen" aria-label="TJ OS boot screen">
   <canvas id="sp-stars" aria-hidden="true"></canvas>
   <div class="sp-nebula" aria-hidden="true"></div>
   <div class="sp-floor" aria-hidden="true"><div class="sp-grid"></div></div>
   <span class="cc-bracket sp-tl">┌</span><span class="cc-bracket sp-tr">┐</span>
   <span class="cc-bracket sp-bl">└</span><span class="cc-bracket sp-br">┘</span>
   <div class="sp-center">
-    <img class="sp-logo" src="assets/brand/starnet-logo.png" alt="STARNET" draggable="false">
+    <img class="sp-logo" src="assets/brand/starnet-logo.png" alt="TJ OS" draggable="false">
     <div class="sp-tag">AI-AGENT HARNESS</div>
     <button id="sp-press" class="sp-press" type="button">▮ PRESS ANY KEY TO START</button>
   </div>
@@ -100,7 +100,7 @@
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
 
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="ov-wordmark" role="img" aria-label="StarNet"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">COLOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span></div>
+      <div class="cc-titlebar"><span class="ov-wordmark" role="img" aria-label="TJ OS"></span><span id="cc-mode" class="cc-tb-mode">GENESIS</span><span class="cc-tb-phosphor"><span class="cc-tb-plabel">COLOR</span><span id="phosphor-swatches" class="phosphor-swatches" role="group" aria-label="Console phosphor tint"></span></span></div>
       <div class="cc-title-row ov-title-row">
         <h2 id="cc-title">Create your Overseer</h2>
         <span id="cc-sub" class="ov-sub">the first mind you wake is your <b>OVERSEER</b> — it runs the station and recruits every agent after it.</span>
