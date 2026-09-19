@@ -30,7 +30,7 @@ async function check(label, action) {
   await tick();
   assert.equal(pushed.length, before + 1, label + ': queued for durable write without closing Build');
   assert.deepEqual(stored().station, c.station.serialize(), label + ': complete station round-trip');
-  assert.equal(stored().workstreams[0].id, 'keep-session');
+  assert.equal(stored().workstreams[0].id, c.Workstreams.serialize().workstreams[0].id);
   assert.deepEqual(M.deserialize(stored().station).serialize(), c.station.serialize(), label + ': reload retains design');
 }
 (async () => {
@@ -63,5 +63,29 @@ async function check(label, action) {
   assert.equal(notices.length, 1, 'storage failures do not flood notifications');
   fail = false; assert.equal(vm.runInContext('persist()', c), true);
   assert.equal(stored().station.rooms[c.station.spawnRoomId()].name, 'Quota failure', 'retry saves retained in-memory design');
+  const noOpCount = pushed.length;
+  assert.equal(c.station.removeProp('not-a-prop').ok, false);
+  await tick(); assert.equal(pushed.length, noOpCount, 'rejected edits do not schedule a save');
+  const burstCount = pushed.length;
+  for (let i = 0; i < 500; i++) c.station.renameRoom(c.station.spawnRoomId(), 'Rapid edit ' + i);
+  await tick();
+  assert.equal(pushed.length, burstCount + 1, 'large synchronous edit burst causes one save');
+  assert.equal(stored().station.rooms[c.station.spawnRoomId()].name, 'Rapid edit 499');
+  const departing = c.station, reentryCount = pushed.length;
+  departing.renameRoom(departing.spawnRoomId(), 'Queued before reentry');
+  c.station = M.create(); watch();
+  c.station.renameRoom(c.station.spawnRoomId(), 'Replacement station');
+  await tick();
+  assert.equal(pushed.length, reentryCount + 1, 'pending old callback and new edit coalesce across reentry');
+  assert.deepEqual(stored().station, c.station.serialize(), 'queued save cannot resurrect the replaced model');
+  const hero = { id: 'agent', name: 'NOVA' }, crew = { id: 'crew', name: 'VEGA' };
+  c.agent = crew; c.agents = new Map([['agent', hero], ['crew', crew]]);
+  c.liveAgents = () => [hero, crew]; c.serializeAgentLite = a => ({ ...a });
+  c.Workstreams = { serialize: () => ({ workstreams: [{ id: 'new-session', draft: 'keep my draft' }], activeId: 'new-session' }) };
+  await check('build while crew and another session are focused', () => c.station.renameRoom(c.station.spawnRoomId(), 'Crew editing'));
+  assert.equal(stored().agent.id, 'agent', 'autosave retains the hero as the save root');
+  assert.equal(stored().agents.length, 2, 'autosave retains the crew roster');
+  assert.equal(stored().activeId, 'new-session', 'autosave retains the active session');
+  assert.equal(stored().workstreams[0].draft, 'keep my draft', 'autosave retains session content');
   console.log('station-autosave: edits, undo/redo, presets, coalescing, reentry and storage failure PASS');
 })().catch(e => { console.error(e); process.exitCode = 1; });
