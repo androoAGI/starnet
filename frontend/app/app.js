@@ -4717,7 +4717,8 @@ const App = (() => {
     const BROWSER_HINT = 'the station service isn\'t answering. if you launched with `npm start`, check that terminal; otherwise open the desktop app.';
     if (!core) {
       if (sub && reason !== 'forbidden' && reason !== 'unreadable') sub.textContent = 'station service not answering (browser mode)';
-      setStatus(reason === 'unreadable' ? 'Your save is untouched. Retry when the station file becomes readable.' : BROWSER_HINT);
+      if (reason === 'unreadable') setStatus('Your save is untouched. Retry when the station file becomes readable.');
+      else setStatus(BROWSER_HINT);
     }
     probeDegraded().then(r => { if (r) setStatus(r); });   // a live-but-degraded sidecar names its reason before the first poll
     const attempt = async () => {
