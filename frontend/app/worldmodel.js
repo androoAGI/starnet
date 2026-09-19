@@ -310,14 +310,19 @@ const WorldModel = (() => {
      every station already built — floorMat is null on all of them — because the default deck is the
      one surface every player sees. `plate` stays in the palette, so the old look is still choosable
      and nothing is destroyed. It also means the Guardian goldens all shift. */
+  /* TJ OS default spatial palette.
+   * Explicitly painted rooms keep their saved appearance. These defaults only affect
+   * rooms that have not been given a custom floor/material, preserving existing state
+   * while shifting newly-rendered/default spaces toward the eco-industrial world direction.
+   */
   const ROOM_KINDS = {
-    hab:      { label: 'HAB',      floor: 'hull',     mat: 'spine' },
-    bridge:   { label: 'BRIDGE',   floor: 'cobalt',   mat: 'panel' },
-    lab:      { label: 'LAB',      floor: 'sterile',  mat: 'tile'  },
-    factory:  { label: 'FOUNDRY',  floor: 'rust',     mat: 'tread' },
-    quarters: { label: 'QUARTERS', floor: 'verdant',  mat: 'soft'  },
-    storage:  { label: 'STORAGE',  floor: 'rust',     mat: 'tread' },
-    corridor: { label: 'CORRIDOR', floor: 'corridor', mat: 'spine' },
+    hab:      { label: 'HAB',      floor: 'oak',     mat: 'plank' },
+    bridge:   { label: 'BRIDGE',   floor: 'ash',     mat: 'terrazzo' },
+    lab:      { label: 'LAB',      floor: 'white',   mat: 'ceramic' },
+    factory:  { label: 'FOUNDRY',  floor: 'basalt',  mat: 'basalt' },
+    quarters: { label: 'QUARTERS', floor: 'meadow',  mat: 'turf' },
+    storage:  { label: 'STORAGE',  floor: 'walnut',  mat: 'cargo' },
+    corridor: { label: 'CORRIDOR', floor: 'oak',     mat: 'parquet' },
   };
   // a room's effective deck material: explicit override, else the kind default, else plate.
   const matOfRoom = rm => (rm && FLOOR_MATERIALS[rm.floorMat]) ? rm.floorMat
