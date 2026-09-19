@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TJ OS</title>
-<!-- VT323 — THE STARNET FONT — has exactly ONE source: the local @font-face in css/style.css
+<!-- VT323 — THE TJ OS FONT — has exactly ONE source: the local @font-face in css/style.css
      (frontend/assets/fonts/vt323.woff2, SIL OFL, U+0-10FFFF — the whole range, no subsets).
      There is NO remote font link here and there must never be one again. The Google Fonts
      <link> that used to sit on this line registered THREE extra VT323 faces carrying
@@ -172,7 +172,7 @@
       <div class="ov-cfg ov-col-brain" id="ov-brain">
         <div class="ov-step"><b>03</b> THE BRAIN <span class="ov-req">REQUIRED</span></div>
         <div class="ov-field ov-field-brain">
-          <div class="ov-section-heading" id="ov-provider-intro"><h3>Connect a brain</h3><p>Start with StarNet, or use a provider you already have.</p></div>
+          <div class="ov-section-heading" id="ov-provider-intro"><h3>Connect a brain</h3><p>Start with TJ OS, or use a provider you already have.</p></div>
           <!-- BEGINNER FUNNEL: lead with the no-API-key path. A ChatGPT Plus/Pro login (Codex OAuth) needs
                no key at all, so it's the recommended default and sits first; BYOK (OpenRouter etc.) stays a
                fully visible one-click alternative for anyone who already has a key. -->
@@ -184,7 +184,7 @@
                  .prov[data-prov] button + #prov-more stay in the DOM so app.js wiring (selectProviderUI,
                  setProviderRowExpanded) is untouched — the queries match .prov descendants regardless of nesting. -->
             <div class="provider-row ov-prov">
-              <!-- THE HERO IS THE STARNET SUBSCRIPTION — the promoted easiest start. It ships HIDDEN and is
+              <!-- THE HERO IS THE TJ OS SUBSCRIPTION — the promoted easiest start. It ships HIDDEN and is
                    revealed only when the sidecar reports a real cloud seam (/api/credits linkable or configured):
                    the honesty law says a build with no cloud must not offer a subscription it cannot link
                    (app.js revealStarnetGenesis, which also makes it the default pick on a fresh create).
@@ -192,7 +192,7 @@
               <button class="prov prov-hero hidden" data-prov="starnet" aria-pressed="false">
                 <span class="prov-hero-row">
                   <span class="prov-hero-body">
-                    <span class="prov-hero-title"><span class="prov-hero-prefix">START WITH</span><span class="ov-wordmark" role="img" aria-label="StarNet"></span></span>
+                    <span class="prov-hero-title"><span class="prov-hero-prefix">START WITH</span><span class="ov-wordmark" role="img" aria-label="TJ OS"></span></span>
                     <span class="prov-hero-sub">Subscribe and start. No API keys.</span>
                   </span>
                   <span class="prov-hero-arrow" aria-hidden="true">→</span>
@@ -255,7 +255,7 @@
               </div>
             </div>
 
-            <!-- STARNET MANAGED link block — the subscription twin of #codex-block, reusing its classes so the
+            <!-- TJ OS MANAGED link block — the subscription twin of #codex-block, reusing its classes so the
                  two paths look and behave identically. LINK mints a pairing code (sidecar /api/credits/link/start),
                  opens the browser to confirm it, and polls until the account is linked — no key, no token in the
                  WebView, ever. Payment always stays in the external browser. -->
@@ -264,12 +264,12 @@
                 <div id="starnet-status" class="codex-status">checking…</div>
                 <div id="starnet-code" class="codex-code hidden"></div>
                 <div class="codex-actions">
-                  <button type="button" id="btn-starnet-link" class="btn">CONNECT STARNET ACCOUNT ↗</button>
+                  <button type="button" id="btn-starnet-link" class="btn">CONNECT TJ OS ACCOUNT ↗</button>
                   <button type="button" id="btn-starnet-open" class="btn hidden">↗ OPEN PAGE</button>
                   <button type="button" id="btn-starnet-credits" class="btn hidden">＄ ADD CREDITS ▸</button>
                   <button type="button" id="btn-starnet-switch" class="btn hidden">↻ USE A DIFFERENT ACCOUNT</button>
                 </div>
-                <div class="dim hint" id="starnet-hint">Runs on your StarNet subscription — no API key to find or paste. You’ll confirm a short code in your browser; StarNet never handles your payment details in the app.</div>
+                <div class="dim hint" id="starnet-hint">Runs on your TJ OS subscription — no API key to find or paste. You’ll confirm a short code in your browser; TJ OS never handles your payment details in the app.</div>
               </div>
             </div>
 
@@ -308,7 +308,7 @@
                  keyless Codex path (no key ⇒ the whole note is irrelevant there). -->
             <div id="byok-disclose" class="byok-disclose">
               <button type="button" id="byok-toggle" class="byok-toggle" aria-expanded="false" aria-controls="byok-note">▸ where does my key go?</button>
-              <p id="byok-note" class="muted byok-note hidden">Bring your own key — stored locally, sent only to the STARNET sidecar on this machine (127.0.0.1), which calls your chosen model. On a <b>task</b> the agent can search the live web (DuckDuckGo · Jina Reader) and read/write files in its workspace. <span class="dim">(In the shipped desktop build the key moves behind the OS keychain.)</span></p>
+              <p id="byok-note" class="muted byok-note hidden">Bring your own key — stored locally, sent only to the TJ OS sidecar on this machine (127.0.0.1), which calls your chosen model. On a <b>task</b> the agent can search the live web (DuckDuckGo · Jina Reader) and read/write files in its workspace. <span class="dim">(In the shipped desktop build the key moves behind the OS keychain.)</span></p>
             </div>
             </div>
           </div>
@@ -321,13 +321,13 @@
         <span class="ov-foot-cap">＋ later: agent setup in CREW › AGENTS · model in COMMS · providers, permissions &amp; appearance in SYSTEM › SETTINGS</span>
         <!-- DATA PORTABILITY — RESTORE must stay reachable for first-run users now that the title screen is gone.
              Labeled RESTORE BACKUP (not IMPORT AGENT) so it can't be mistaken for the Recruitment Bay's
-             Hermes/OpenClaw agent importer — this button only reads StarNet's own export file. EXPORT is
+             Hermes/OpenClaw agent importer — this button only reads TJ OS's own export file. EXPORT is
              surfaced here whenever there's a saved agent to back up (it is the only in-app export
              entry point); app.js (applyRecoveryMode) toggles its visibility. -->
         <button id="btn-import" class="btn-sm">⭱ RESTORE BACKUP</button>
         <button id="btn-export" class="btn-sm hidden">⭳ EXPORT AGENT</button>
         <input id="file-import" type="file" accept="application/json,.json" hidden>
-        <span class="dim">restores a StarNet export file — secrets excluded, re-enter keys after</span>
+        <span class="dim">restores a TJ OS export file — secrets excluded, re-enter keys after</span>
         <span id="data-status" class="title-status"></span>
       </div>
       <div class="connect-actions ov-actions">
@@ -343,7 +343,7 @@
 </section>
 
 <!-- ============ FORWARD-VERSION GATE ============ -->
-<!-- Blocking screen raised when the local/durable save (or an adopted remote) was written by a NEWER StarNet
+<!-- Blocking screen raised when the local/durable save (or an adopted remote) was written by a NEWER TJ OS
      than this build can read (save.js forward-version guard, P0.3). It reuses the connect-panel CRT chrome so
      no new window vocabulary is invented. While this screen is active NOTHING calls persist()/Save.write() —
      app.js showFutureSaveGate() returns before any resume/create path runs, so the newer save is never
@@ -355,13 +355,13 @@
     <span class="cc-bracket cc-tl">┌</span><span class="cc-bracket cc-tr">┐</span>
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">UPDATE REQUIRED</span><span class="cc-tb-rec">● HOLD</span></div>
+      <div class="cc-titlebar"><span class="cc-tb-tag">TJ OS</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">UPDATE REQUIRED</span><span class="cc-tb-rec">● HOLD</span></div>
       <div class="cc-title-row ov-title-row">
-        <h2>▮ SAVE FROM A NEWER STARNET</h2>
+        <h2>▮ SAVE FROM A NEWER TJ OS</h2>
         <span id="future-sub" class="ov-sub"></span>
       </div>
       <div class="ov-recovery" role="alert">
-        Your station was last saved by a <b>newer version of StarNet</b>. This build can't read that save
+        Your station was last saved by a <b>newer version of TJ OS</b>. This build can't read that save
         without risking damage to it, so it's being kept <b>untouched</b>. Update the app to continue — your
         agent, history and progress are safe.
       </div>
@@ -372,7 +372,7 @@
         <span class="ov-foot-cap">＋ your save is intact — this build simply predates it</span>
       </div>
       <div class="connect-actions ov-actions">
-        <button id="btn-future-update" class="btn-xl">⭯ UPDATE STARNET ▸</button>
+        <button id="btn-future-update" class="btn-xl">⭯ UPDATE TJ OS ▸</button>
       </div>
     </div>
   </div>
@@ -389,7 +389,7 @@
     <span class="cc-bracket cc-tl">┌</span><span class="cc-bracket cc-tr">┐</span>
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">SAVE DAMAGED</span><span class="cc-tb-rec">● HOLD</span></div>
+      <div class="cc-titlebar"><span class="cc-tb-tag">TJ OS</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">SAVE DAMAGED</span><span class="cc-tb-rec">● HOLD</span></div>
       <div class="cc-title-row ov-title-row">
         <h2>▮ YOUR SAVE WAS DAMAGED</h2>
         <span class="ov-sub"></span>
@@ -423,17 +423,17 @@
     <span class="cc-bracket cc-tl">┌</span><span class="cc-bracket cc-tr">┐</span>
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">RECONNECTING</span><span class="cc-tb-rec">● HOLD</span></div>
+      <div class="cc-titlebar"><span class="cc-tb-tag">TJ OS</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">RECONNECTING</span><span class="cc-tb-rec">● HOLD</span></div>
       <div class="cc-title-row ov-title-row">
         <h2>▮ STATION DATA UNREACHABLE</h2>
         <span id="unreachable-sub" class="ov-sub"></span>
       </div>
       <div class="ov-recovery" role="alert">
-        StarNet <b>could not read your saved station</b> — the local station service didn't answer.
+        TJ OS <b>could not read your saved station</b> — the local station service didn't answer.
         Your save has <b>not</b> been deleted or touched; it just can't be reached right now.
-        StarNet is retrying automatically and will resume your station the moment it reconnects.
+        TJ OS is retrying automatically and will resume your station the moment it reconnects.
         If it cannot recover, <b>START COMPLETELY FRESH</b> safely sets the old local station aside.
-        It does not remove your StarNet account link or purchased credits.
+        It does not remove your TJ OS account link or purchased credits.
       </div>
       <div id="unreachable-code" class="ov-recovery" aria-live="polite"></div>
       <div id="unreachable-report"></div>
@@ -461,13 +461,13 @@
     <span class="cc-bracket cc-tl">┌</span><span class="cc-bracket cc-tr">┐</span>
     <span class="cc-bracket cc-bl">└</span><span class="cc-bracket cc-br">┘</span>
     <header class="cc-console-head ov-head">
-      <div class="cc-titlebar"><span class="cc-tb-tag">STARNET</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">RECOVERY MODE</span><span class="cc-tb-rec">● READ ONLY</span></div>
+      <div class="cc-titlebar"><span class="cc-tb-tag">TJ OS</span><span class="cc-tb-rule"></span><span class="cc-tb-mode">RECOVERY MODE</span><span class="cc-tb-rec">● READ ONLY</span></div>
       <div class="cc-title-row ov-title-row">
         <h2>▮ PRIOR STATION DATA FOUND</h2>
         <span class="ov-sub">new-station onboarding is paused</span>
       </div>
       <div class="ov-recovery" role="alert">
-        StarNet did not find a readable active save, but it <b>did find evidence of an earlier station</b>.
+        TJ OS did not find a readable active save, but it <b>did find evidence of an earlier station</b>.
         Nothing has been erased. Recovery Mode prevents a new station from being created over that evidence.
         <div id="lineage-evidence" style="margin-top:12px;word-break:break-word"></div>
       </div>
@@ -498,7 +498,7 @@
      var(--ph) per theme and stay crisp at any DPR / TEXT SIZE. The SVG is the master art's OWN
      letterforms traced out of its perceived-density field (dev/trace-logo.mjs), NOT a redraw; the
      title screen keeps the full-size master PNG, where the ASCII-digit texture actually reads. -->
-<div id="logo"><span class="logo-img" role="img" aria-label="STARNET"></span></div>
+<div id="logo"><span class="logo-img" role="img" aria-label="TJ OS"></span></div>
 
 <section id="screen-game" class="screen">
 
@@ -654,7 +654,7 @@
         <div id="model-dock-list" class="model-dock-list scrolly" role="listbox" aria-label="Available models"></div>
         <div class="model-dock-foot">
           <button id="model-dock-refresh" type="button">REFRESH</button>
-          <a id="model-dock-subscription" href="https://www.starnetos.com/pricing" target="_blank" rel="noopener noreferrer" aria-label="StarNet subscription (opens in your browser)"><span>STARNET SUBSCRIPTION</span><span aria-hidden="true">↗</span></a>
+          <a id="model-dock-subscription" href="https://www.starnetos.com/pricing" target="_blank" rel="noopener noreferrer" aria-label="TJ OS subscription (opens in your browser)"><span>TJ OS SUBSCRIPTION</span><span aria-hidden="true">↗</span></a>
         </div>
       </div>
       <button id="voice-toggle" class="voice-toggle" title="agent voice" aria-label="Agent voice" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.1h2.1L7.7 3.3v9.4L4.3 9.9H2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10.3 6a3.2 3.2 0 0 1 0 4"/><path d="M12.4 4a6.2 6.2 0 0 1 0 8"/></g></svg></button>
@@ -786,7 +786,7 @@
 <script src="app/updates.js"></script>
 <script src="app/quitguard.js"></script><!-- GB-4 quit half: close-requested guard when agents are live (Tauri only; preview no-op) -->
 <script src="app/fullscreen.js"></script>
-<script src="app/titlebar.js"></script><!-- custom window chrome: renders the themed titlebar ONLY when the desktop shell sets __STARNET_CUSTOM_CHROME__ (Windows, decorations off) -->
+<script src="app/titlebar.js"></script><!-- custom window chrome: renders the themed titlebar ONLY when the desktop shell sets __TJ OS_CUSTOM_CHROME__ (Windows, decorations off) -->
 <script src="app/ctxgauge.js"></script>
 <script src="app/floorstats.js"></script>
 <script src="app/slaglog.js"></script>
@@ -812,7 +812,7 @@
 <script src="app/quests.js"></script>
 <script src="app/journey.js"></script><!-- pure Commander-journey helpers: metrics/domain labels; separate from XP and never gates -->
 <script src="app/goals.js"></script><!-- GROWTH Tier 2: pure GOAL-TREE engine (understanding → direction) — decompose/parse/progress/chaining/evidence-fold/retire + arc projection -->
-<script src="app/goalloop.js"></script><!-- /goal AUTONOMOUS LOOP (StarNet's "Ralph loop"): pure judge-verdict parse + continuation/preemption/budget state machine; chat.js supplies the aux judge call + persistence -->
+<script src="app/goalloop.js"></script><!-- /goal AUTONOMOUS LOOP (TJ OS's "Ralph loop"): pure judge-verdict parse + continuation/preemption/budget state machine; chat.js supplies the aux judge call + persistence -->
 <script src="app/stationquests.js"></script><!-- pure station-quest generator (G1b): capdenied/capability-gap → fix-it quest (dedup, completion-on-placement, dismiss-forever) -->
 <script src="app/workquests.js"></script><!-- pure work-quest generator (G1c): accepted idea → multi-step build (gaps → steps, run-completion → done, dismiss-forever) -->
 <script src="app/maintquests.js"></script><!-- pure maintenance-quest generator (G1c): recurring slag cause / jammed routine → fix-it quest (threshold, dedup, clears-when-signal-clears) -->
@@ -836,7 +836,7 @@
 <script src="app/worldrenderer.js"></script>
 <script src="app/arrival.js"></script>
 <script src="app/world.js"></script>
-<script src="app/testapi.js"></script><!-- DEV-only: window.__SKYNET_TEST__ (inert unless __STARNET_DEV__) -->
+<script src="app/testapi.js"></script><!-- DEV-only: window.__SKYNET_TEST__ (inert unless __TJ OS_DEV__) -->
 <script src="app/classify.js"></script>
 <script src="app/codexsignin.js"></script><!-- the ONE ChatGPT device-code sign-in engine (DOM-free); the brain screen (app.js) and Settings PROVIDERS RE-SIGN-IN (stationui.js) both drive it -->
 <script src="app/friendlyerror.js"></script>
@@ -854,9 +854,9 @@
 /* Class Loadouts S1: the SHARED specialty catalog (loadout data) — MUST load before app/specialties.js,
    which wraps it. In the browser the page is same-origin with the sidecar's /shared/*.js allowlist; in the
    DESKTOP shell the page is served from the Tauri app origin where /shared/ doesn't exist, so the tag must
-   point at the sidecar explicitly (window.__STARNET_API__, injected by the shell before any page script).
+   point at the sidecar explicitly (window.__TJ OS_API__, injected by the shell before any page script).
    document.write during parse keeps the load order guarantee a static tag had. */
-document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/specialties.js') + '"><\/script>');
+document.write('<script src="' + ((window.__TJ OS_API__ || '') + '/shared/specialties.js') + '"><\/script>');
 </script>
 <script src="app/specialties.js"></script>
 <script src="app/recipe-catalog/core.js"></script><!-- Recipe Marketplace R1: the DATA catalog of built-in recipes — MUST load before recipe-catalog/index.js (persona files register here too) -->
