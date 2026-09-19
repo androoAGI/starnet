@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createServer } from 'node:net';
+import assert from 'node:assert/strict';
 import { launchChrome, connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 import { waitDevReady } from '../lib/seed.mjs';
 
@@ -47,26 +48,57 @@ try {
         {name:'agent.run.start',payload:{runId,agentId:'agent',model:'test/model'}},
         {name:'agent.token',payload:{runId,agentId:'agent',delta: mode === 'clean' ? 'The answer is complete.' : 'The answer stops in the middle of'}}
       ];
-      if (mode !== 'eof') rows.push({name:'agent.run.end',payload:{runId,agentId:'agent',reason:'done',...(['length','no-newline'].includes(mode)?{finishReason:'length'}:{})}});
+      if (mode === 'worker-only') rows.push({name:'agent.run.end',payload:{runId:runId+'-worker',agentId:'worker',reason:'done'}});
+      if (!['eof','worker-only','reader-error'].includes(mode)) rows.push({name:'agent.run.end',payload:{runId,agentId:'agent',reason:mode==='cancelled'?'cancelled':'done',...(['length','no-newline'].includes(mode)?{finishReason:'length'}:mode==='policy'?{finishReason:'content_filter'}:{})}});
       let text = rows.map(e=>JSON.stringify(e)).join('\\n');
       if (mode !== 'no-newline') text += '\\n';
-      return new Response(text, {status:200, headers:{'Content-Type':'application/x-ndjson'}});
+      const body = ['reader-error','after-end-error'].includes(mode) ? new ReadableStream({start(controller) {
+        controller.enqueue(new TextEncoder().encode(text));
+        setTimeout(() => controller.error(new TypeError('network error: socket closed')), 30);
+      }}) : text;
+      return new Response(body, {status:200, headers:{'Content-Type':'application/x-ndjson'}});
     };
     try {
       const results = [];
-      for (const scenario of ['clean','length','eof','no-newline']) {
+      for (const scenario of ['clean','length','eof','no-newline','worker-only','reader-error','cancelled','policy','after-end-error']) {
         mode = scenario;
-        const transport = await Harness.chat({messages:[{role:'user',content:'Explain this'}],agentId:'agent',isTask:true});
+        Harness.setModel('test/model'); // test-only identity is intentionally absent from the live catalog
+        let transport;
+        try { transport = await Harness.chat({messages:[{role:'user',content:'Explain this'}],agentId:'agent',isTask:true}); }
+        catch (e) { transport = {error:e.message}; }
         const ws = Workstreams.create('Cutoff ' + scenario, {agentId:'agent',kind:'task'});
         Chat.load(ws);
+        Harness.setModel('test/model');
         const before = events.length;
         await Chat.send('Explain this');
-        results.push({scenario, transport, history:ws.history, delivered:events.slice(before), visible:document.getElementById('comms-log')?.innerText || document.body.innerText.slice(-12000)});
+        const visible = document.getElementById('chat-log').innerText;
+        const other = Workstreams.create('Replay neighbor', {agentId:'agent'});
+        Chat.load(other); Chat.load(ws);
+        results.push({scenario, wsId:ws.id, transport, history:ws.history, delivered:events.slice(before), visible,
+          replay:document.getElementById('chat-log').innerText});
       }
       return {ready:document.querySelector('.screen.active')?.id,results};
     } finally {window.fetch = realFetch;}
   })()`);
+  await sleep(1800);
+  await cdp.send('Page.reload');
+  await sleep(1000); // let navigation replace the old document before checking its ready flag
+  if (!await waitDevReady(cdp, evalJS, { url })) throw new Error('Reload did not reach station');
+  receipt.reloaded = await evalJS(cdp, `(${JSON.stringify(receipt.results.map(r=>({scenario:r.scenario,id:r.wsId})))})
+    .map(r=>({scenario:r.scenario,history:Workstreams.get(r.id)?.history || []}))`);
   writeFileSync(resolve(out, 'live.json'), JSON.stringify(receipt, null, 2));
+  for (const row of receipt.results) {
+    assert.equal(row.delivered.length, ['clean','after-end-error'].includes(row.scenario) ? 1 : 0, row.scenario + ' delivery');
+    if (['eof','worker-only','reader-error'].includes(row.scenario)) {
+      assert.match(row.transport.error, /disconnected|socket closed/);
+      assert.ok(row.history.some(m => m.error), 'interruption is recorded in history');
+      assert.ok(row.history.some(m => m.content === 'The answer stops in the middle of'), 'partial answer survives');
+      assert.ok(!row.visible.includes('RUN COMPLETE'), 'interrupted run is not complete');
+      assert.ok(row.replay.includes('reply stream stopped'), 'session switch retains error');
+      assert.ok(receipt.reloaded.find(r=>r.scenario===row.scenario).history.some(m=>m.error), 'reload retains error');
+    }
+    if (['length','no-newline'].includes(row.scenario)) assert.ok(row.visible.includes('CUT SHORT'));
+  }
   console.log(JSON.stringify(receipt.results.map(r => ({scenario:r.scenario,text:r.transport.text,error:r.transport.error || null,endReason:r.transport.endReason,finishReason:r.transport.finishReason,delivered:r.delivered.length,history:r.history})), null, 2));
 } finally {
   writeFileSync(resolve(out, 'boot.log'), log);
