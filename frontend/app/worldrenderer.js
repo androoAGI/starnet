@@ -173,9 +173,19 @@ const WorldRenderer = (() => {
         ctx.drawImage(baked.baseCv, 0, 0);
       }
     }
-    function drawEntities(ctx, items) {
-      entityCount = (items || []).length;
-      for (const item of sortedItems(items)) item.draw(ctx);
+    function drawEntities(ctx, items, options) {
+      const list = items || [];
+      entityCount = list.length;
+      const opts = options || {};
+      // Default remains the established depth order. A caller that explicitly opts into
+      // the 2.5D compositor gets a stable depth/height pass without changing world data.
+      const ordered = opts.twoPointFiveD
+        ? list.map((item, index) => ({ item, index }))
+            .sort((a, b) => compareDepth(a.item, b.item) || finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
+            .map(entry => entry.item)
+        : sortedItems(list);
+      for (const item of ordered) item.draw(ctx);
+      return ordered.length;
     }
     function drawGrounding(ctx, bodies) {
       if (lighting && lighting.drawGrounding) lighting.drawGrounding(ctx, bodies || []);
