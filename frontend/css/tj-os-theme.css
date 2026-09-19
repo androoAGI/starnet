@@ -1,0 +1,93 @@
+/* TJ OS visual layer — additive only. Core behavior remains owned by existing styles. */
+:root{
+  --tj-navy:#07131f;
+  --tj-navy-2:#0c1d2a;
+  --tj-blue:#1597ff;
+  --tj-blue-soft:#5fc5ff;
+  --tj-silver:#dce7ef;
+  --tj-white:#f7fbff;
+  --tj-wood:#7b5435;
+  --tj-stone:#69736f;
+  --tj-leaf:#52745a;
+  --tj-water:#2d9bc7;
+  --tj-glass:rgba(7,19,31,.72);
+  --tj-border:rgba(126,194,226,.28);
+  --tj-shadow:0 18px 50px rgba(0,0,0,.42);
+}
+
+/* TJ OS command chrome: premium eco-industrial, not cyberpunk. */
+body{
+  background:
+    radial-gradient(circle at 72% 12%,rgba(21,151,255,.13),transparent 32%),
+    linear-gradient(180deg,var(--tj-navy),#040a10 72%);
+}
+#screen-game{
+  background:
+    radial-gradient(ellipse at 50% 18%,rgba(82,116,90,.11),transparent 42%),
+    linear-gradient(180deg,rgba(7,19,31,.28),rgba(3,8,12,.5));
+}
+#topbar,#left,#chat-panel{
+  background:linear-gradient(180deg,rgba(10,27,38,.91),rgba(4,13,20,.91));
+  border-color:var(--tj-border);
+  box-shadow:var(--tj-shadow);
+}
+#topbar{
+  backdrop-filter:blur(16px) saturate(120%);
+}
+#stage-wrap{
+  background:
+    linear-gradient(135deg,rgba(82,116,90,.08),transparent 35%),
+    radial-gradient(circle at 50% 45%,rgba(45,155,199,.09),transparent 48%),
+    #091722;
+}
+.cam-hud{
+  background:linear-gradient(180deg,rgba(7,19,31,.72),rgba(7,19,31,.38));
+  border-color:var(--tj-border);
+  backdrop-filter:blur(8px);
+}
+.cam-label{letter-spacing:.16em}
+.tb-status,.tb-inst,.ws-head,.comms-idbar{
+  border-color:var(--tj-border)!important;
+}
+#screen-splash{
+  background:
+    radial-gradient(ellipse at 72% 6%,rgba(70,146,202,.42),transparent 36%),
+    linear-gradient(180deg,#061827 0%,#07121b 58%,#0a1719 100%);
+}
+#screen-splash .sp-nebula{
+  opacity:.42;
+  filter:saturate(.72);
+}
+#screen-splash .sp-floor{
+  opacity:.38;
+}
+#screen-splash .sp-center{
+  filter:drop-shadow(0 20px 45px rgba(0,0,0,.55));
+}
+#screen-splash .sp-tag{
+  color:var(--tj-blue-soft);
+  letter-spacing:.28em;
+}
+#screen-splash .sp-press{
+  border-color:rgba(95,197,255,.48);
+  background:rgba(7,19,31,.66);
+  color:var(--tj-white);
+  box-shadow:0 8px 30px rgba(21,151,255,.12);
+}
+#screen-connect .panel{
+  background:linear-gradient(145deg,rgba(13,31,42,.96),rgba(5,14,21,.96));
+  border-color:var(--tj-border);
+  box-shadow:var(--tj-shadow);
+}
+
+/* Make existing CRT/terminal chrome read as TJ OS industrial instrumentation. */
+.cc-titlebar,.cc-console-head,.panel{
+  --ph:var(--tj-blue);
+}
+#logo .logo-img{
+  filter:saturate(.92) brightness(1.04);
+}
+
+/* Eco-industrial signal accents. */
+#status-pill,#sig b{color:var(--tj-blue-soft)}
+#save-dot{color:#7ecf8a}
