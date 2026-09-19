@@ -56,6 +56,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal(transcript.filter(m => m.role === 'user').length, 1, 'automatic review never impersonates a Commander message');
     const runs = (await fixture.json('GET', '/api/runs?agent=*&limit=30')).body.runs;
     assert.ok(runs.some(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')), 'review delivered to original conversation');
+    assert.equal(runs.find(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')).deliveryPrompt, '', 'automatic review uses existing assistant delivery without a delegated-task marker');
     const childId = snapshot.threads.find(w => w.title === 'Research proof').id;
     await fixture.restart(); await sleep(2600);
     snapshot = (await fixture.json('GET', '/api/overseer')).body;
