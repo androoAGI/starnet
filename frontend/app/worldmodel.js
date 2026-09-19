@@ -2598,7 +2598,6 @@ const WorldModel = (() => {
         { id:'tj-h-forge-labs', kind:'corridor', name:'FORGE → LABS', rect:[28,10,31,14], floorStyle:'oak', floorMat:'parquet' },
         { id:'tj-h-vault-studio', kind:'corridor', name:'VAULT → STUDIO', rect:[-12,10,-9,14], floorStyle:'oak', floorMat:'parquet' },
         { id:'tj-h-studio-village', kind:'corridor', name:'STUDIO → VILLAGE', rect:[-24,19,-21,21], floorStyle:'oak', floorMat:'parquet' },
-        { id:'tj-h-village-garden', kind:'corridor', name:'VILLAGE → GARDEN', rect:[-24,-8,-21,-6], floorStyle:'oak', floorMat:'parquet' },
         { id:'tj-h-labs-observatory', kind:'corridor', name:'LABS → OBSERVATORY', rect:[38,19,57,21], floorStyle:'oak', floorMat:'parquet' }
       ];
 
