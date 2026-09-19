@@ -1,0 +1,295 @@
+{
+  "id": "ws_mu8wmhmdclp9",
+  "neighbor": "ws_mu8wmhmdfgi",
+  "delayedVisible": true,
+  "beforeHistoryReady": 0,
+  "modelContext": true,
+  "promptLast": true,
+  "draftProtected": true,
+  "focusProtected": true,
+  "unavailableProtected": true,
+  "retryOnce": true,
+  "partialProtected": true,
+  "failedSave": false,
+  "localRetained": true,
+  "saved": true,
+  "diagnostics": [
+    {
+      "at": 1789853605919,
+      "session": 1,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853605921,
+      "session": 1,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853606582,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853606597,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853606798,
+      "session": 1,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853606980,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853607169,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853607170,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853607170,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853607180,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853607403,
+      "session": 3,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853607403,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853607404,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789853607799,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853607814,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853607817,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853607817,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853607869,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853607870,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789853607874,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789853607890,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853607893,
+      "session": 2,
+      "event": "history-unavailable"
+    },
+    {
+      "at": 1789853607893,
+      "session": 2,
+      "event": "send-held-history-unavailable"
+    },
+    {
+      "at": 1789853607963,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789853608010,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789853608010,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789853608026,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789853608036,
+      "session": 3,
+      "event": "history-loaded"
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Remember the launch code: ORBIT-17"
+    },
+    {
+      "role": "assistant",
+      "content": "I have the launch code."
+    },
+    {
+      "role": "user",
+      "content": "The destination is Europa."
+    },
+    {
+      "role": "assistant",
+      "content": "Europa is the destination."
+    },
+    {
+      "role": "user",
+      "content": "Change destination to Titan."
+    },
+    {
+      "role": "assistant",
+      "content": "Titan is now the destination."
+    },
+    {
+      "role": "user",
+      "content": "What destination did we choose?"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Stay bound to A while I read B"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Preserve this message through a failed restore"
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns."
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Retain a partial reply"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again."
+    }
+  ],
+  "draft": "",
+  "restart": {
+    "exists": true,
+    "history": [
+      {
+        "role": "user",
+        "content": "Remember the launch code: ORBIT-17"
+      },
+      {
+        "role": "assistant",
+        "content": "I have the launch code."
+      },
+      {
+        "role": "user",
+        "content": "The destination is Europa."
+      },
+      {
+        "role": "assistant",
+        "content": "Europa is the destination."
+      },
+      {
+        "role": "user",
+        "content": "Change destination to Titan."
+      },
+      {
+        "role": "assistant",
+        "content": "Titan is now the destination."
+      },
+      {
+        "role": "user",
+        "content": "What destination did we choose?"
+      },
+      {
+        "role": "assistant",
+        "content": "Continuity checked."
+      },
+      {
+        "role": "user",
+        "content": "Stay bound to A while I read B"
+      },
+      {
+        "role": "assistant",
+        "content": "Continuity checked."
+      },
+      {
+        "role": "user",
+        "content": "Preserve this message through a failed restore"
+      },
+      {
+        "role": "assistant",
+        "content": "⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns."
+      },
+      {
+        "role": "assistant",
+        "content": "Continuity checked."
+      },
+      {
+        "role": "user",
+        "content": "Retain a partial reply"
+      },
+      {
+        "role": "assistant",
+        "content": "Continuity checked."
+      },
+      {
+        "role": "assistant",
+        "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again."
+      }
+    ],
+    "visible": "COMMANDER\nRemember the launch code: ORBIT-17\n⧉\nNOVA\nI have the launch code.\n⧉\nCOMMANDER\nThe destination is Europa.\n⧉\nNOVA\nEuropa is the destination.\n⧉\nCOMMANDER\nChange destination to Titan.\n⧉\nNOVA\nTitan is now the destination.\n⧉\nCOMMANDER\n17:33\nWhat destination did we choose?\n⧉\nNOVA\n17:33\nContinuity checked.\n⧉\nCOMMANDER\n17:33\nStay bound to A while I read B\n⧉\nNOVA\n17:33\nContinuity checked.\n⧉\nCOMMANDER\n17:33\nPreserve this message through a failed restore\n⧉\nNOVA\n17:33\n⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns.\n⧉\nContinuity checked.\n⧉\nCOMMANDER\n17:33\nRetain a partial reply\n⧉\nNOVA\n17:33\nContinuity checked.\n⧉\n⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again.\n⧉\n↻ Try again\n⧉ copy diagnostics for a bug report"
+  }
+}

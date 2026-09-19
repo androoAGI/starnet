@@ -1,0 +1,79 @@
+{
+  "schema": "starnet.reliability-merge.v1",
+  "date": "2026-09-19T21:35:43.305Z",
+  "baseline": "5bb28bb833469b5b9e7a7dd7cf8573b098a90a50",
+  "candidate": "5262a71073e07ffaa24e82320d4ac439e84b175c",
+  "merge": "d1a6046bef6009b2cc2f9fb7f8534b2b06369c3d",
+  "tree": "778eefa3a22a3ff8a0de29cbeecb45f32b917c70",
+  "exactCandidateTree": true,
+  "runtime": "v22.23.0",
+  "platform": "win32",
+  "pre": {
+    "fast": 829,
+    "http": 122,
+    "customerJourneySteps": 38,
+    "liveJourneyAssertions": 139,
+    "systemicBrowser": "pass",
+    "saveBrowserAndRestart": "pass",
+    "sessionBrowserAndRestart": "pass"
+  },
+  "post": {
+    "fast": 829,
+    "http": 122,
+    "systemicBrowser": "pass",
+    "saveBrowserAndRestart": "pass",
+    "sessionBrowserAndRestart": "pass"
+  },
+  "registerRecords": 194,
+  "applicationChangesDuringIntegration": 0,
+  "fixtureRepair": {
+    "bug": "46f9dad7",
+    "commit": "b123e3ea3",
+    "note": "First post-merge fast failed at shared seeded workspace boot; rolled trunk back and fixed campaign isolation before re-gating. Production ownership guard unchanged."
+  },
+  "preservedTrunkNotes": [
+    "docs/NEXT.md",
+    "qa/STATUS.md"
+  ],
+  "firstFastFailure": "Evidence scanner found a key-shaped string in an exact backup of pre-existing operational notes. Moved private backups outside the scanned repository, then reran the entire gate. No application source change or scanner exception.",
+  "limits": [
+    "Existing unresolved customer incidents remain open.",
+    "Controlled provider fixtures do not establish affected production account/model recovery.",
+    "Guardian has pre-existing sidecar-startup and CDP connection failures; this merge does not claim Guardian green.",
+    "Node 24 native crash remains open; gates use Node 22.",
+    "No installer build, publication or push."
+  ],
+  "artifacts": {
+    "composition.json": "86644ad1e014ad129264c6381342b5b573981a9b8224e7c7b5b74f50e0234e87",
+    "customer-journeys.log": "230fc372c3a4a95b0369109be57ae8026b160185987a33263e1231771f6b5d23",
+    "first-integration.json": "7be735e1f78f69c94466910255cae05e9671ae267c956399c5d018bec34d79dc",
+    "first-post-fast-failed.log": "3c5db90ce604ade70f4f613520af2f64aa57d676a30c2564353035c283d27ba8",
+    "first-post-http-pass.log": "cb6f697028d6fe274f44aa06686141f816e67fa2b14c8e1173e10fdd6cc42d24",
+    "first-pre-fast-pass.log": "13f3ff6c6f864760c4e0d082cbf910878c4fd88a189a4f19b22762a598b66f32",
+    "first-pre-http-pass.log": "b611cae3d264acc5643bbd0c0df4fc1baab80c87353d7158e7f1bf279ae3ae9d",
+    "guardian-context.json": "7dd676e5d569902c5989df5b8e44fdeba4ba2f3e769cada4615a597682586ae5",
+    "integration.json": "52ab9328a45ac963a0966716c20003a2e6f5834a09ea9968c4ebc7d37dca9f81",
+    "isolated-memory.log": "ed8b54b4ff4f34a922e40609e6a173b894f457919070c49bd75f0d255da60c1d",
+    "isolated-session.log": "94206f97f12a2ebc427a5d577343226caf280ef6563f9da8ce735b37272f0ea1",
+    "journeys.log": "166374420b7c9ddf7961fbae7d1cf45b9dc78b1ea5457568b734f2ddbdb4cbd6",
+    "post-fast.log": "d86fceb69b31831b3f95125be3e395a7eee8a5a812dbfcec31b2f4ffaefbf92e",
+    "post-http.log": "85b258995e33b71fe3c5eb91d39ebe792f731d0ea85a7207cfee9e36da9f9131",
+    "post-save-live.log": "1b02cf12342b2dc2d9d7edefcdf7e30268817023cfbfb2efd213448f53e7ba1e",
+    "post-save.json": "9df27cba24161a5af6c139cf48618ba8851065bafdabfe134753f8db0a944b07",
+    "post-session-live.log": "b1701af30dd06cc7d539083d72e341890c0d651a23cc9fa9bf638494c7243d7f",
+    "post-session.json": "3586a568d45ca15f11a4f70d5295dbfc9558ecbd88b65209956bf10c5c47552a",
+    "post-systemic-live.log": "d1f00e7b53d1d8f9c55c36f0657cc93a8c216793ddfebf8c4d3e21d1879206a8",
+    "post-systemic.json": "d1f00e7b53d1d8f9c55c36f0657cc93a8c216793ddfebf8c4d3e21d1879206a8",
+    "pre-fast-backup-scan-failed.log": "3c49e4ec4f3cea64c356d19c9dc7c6a1639f209ef709751f84ef376559bc2ae8",
+    "pre-fast.log": "08cf6aed258db1b917c70ca26a0a3420607289dafd8e1aaac94e44287b8becfa",
+    "pre-http.log": "a192974662e9f9ec0f1499eb4c2df870159c320ffdfdaaf364c45955b6e0f9ac",
+    "pre-save.json": "4e741a242aa88e12fd13252bfb6a9bc1814dad2efdca3539ce8e874c6ed02194",
+    "pre-session.json": "2ae6231316ce85fc4cafdff319670de67642dc27296d064392ded506271b913b",
+    "pre-systemic.json": "410ae1653aaed92e3d689796b162669d23d42f1a528980ecd70aeb851b1eaef5",
+    "rollback.json": "b2e86270b384cb3668c3bc8790d5c6f025aa92fa81e9c354d151f0cd0efe74cd",
+    "save-live.log": "550d8a337e26f86b667f9085664011667914494f1d7fefb37423d074e2b0bbe8",
+    "seed-isolation.log": "0583b41b7e94d5d0dd83df3f8c32e4c72190c514b9d6994d0b93bc5b1d5fc6d8",
+    "session-live.log": "8f7af23799c952a6f2b975f88a6af4f93df81bed923f65d82ba19010626cdff6",
+    "systemic-live.log": "410ae1653aaed92e3d689796b162669d23d42f1a528980ecd70aeb851b1eaef5"
+  }
+}

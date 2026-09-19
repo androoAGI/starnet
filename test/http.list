@@ -123,3 +123,4 @@ test/prompt-cache-prefix.e2e.test.js
 test/e2e.overseer.test.js
 test/save-unreadable.http.test.js
 test/durable-store-faults.http.test.js
+test/dev-seed-isolation.http.test.js

@@ -1,7 +1,7 @@
 // Real seeded browser lifecycle campaign. Transport faults are injected at fetch;
 // persistence and restart use the production sidecar. No customer data or paid calls.
 import { spawn } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { allocatePort, SidecarFixture } from '../../test/helpers/sidecar-fixture.js';
@@ -10,6 +10,8 @@ import { waitDevReady } from '../lib/seed.mjs';
 
 const out = resolve('.dogfood/session-reliability');
 mkdirSync(out, { recursive: true });
+// Each invocation owns a workspace; reuse it only for this campaign's restart.
+const seedWorkspace = mkdtempSync(resolve(out, 'workspace-'));
 const port = await allocatePort(), cdpPort = await allocatePort();
 const url = `http://127.0.0.1:${port}/`;
 let app, browser, cdp, log = '';
@@ -24,7 +26,7 @@ if (installed) {
 }
 async function boot() {
   if (installed) { await installed.start(); return; }
-  app = spawn(process.execPath, ['dev/seed.js', '--keep'], {
+  app = spawn(process.execPath, ['dev/seed.js', '--keep', '--workspace', seedWorkspace], {
     env: { ...process.env, SKYNET_PORT: String(port), SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_OPENROUTER_KEY: 'sk-or-session-fixture' },
     stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
   });
