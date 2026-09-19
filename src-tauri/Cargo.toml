@@ -1,8 +1,8 @@
 [package]
 name = "skynet-desktop"
 version = "0.12.3"
-description = "StarNet native desktop shell for the gamified AI-agent harness"
-authors = ["StarNet"]
+description = "TJ OS native desktop shell for the AI-agent harness"
+authors = ["TJ OS"]
 edition = "2021"
 rust-version = "1.77.2"
 
