@@ -78,9 +78,10 @@ function makeOverseer(deps) {
     const previous = locks.get(id) || Promise.resolve();
     let release;
     const held = new Promise(resolve => { release = resolve; });
-    const tail = previous.catch(() => {}).then(() => held);
+    // The queue stores release signals, not fn's result, so its tail never rejects.
+    const tail = previous.then(() => held);
     locks.set(id, tail);
-    await previous.catch(() => {});
+    await previous;
     try { return await fn(); }
     finally { release(); if (locks.get(id) === tail) locks.delete(id); }
   }
