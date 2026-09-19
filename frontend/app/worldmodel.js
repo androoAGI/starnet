@@ -2562,6 +2562,66 @@ const WorldModel = (() => {
       room.wallMat = 'wainscot';
       room.hullMat = 'timber';
       room.hullStyle = 'walnut';
+      /*
+       * TJ OS WORLD SEED
+       * Fresh worlds receive the spatial ecosystem below. Existing serialized worlds never pass
+       * through starterDoc(), so this cannot silently rewrite a user's saved station.
+       *
+       * This is deliberately composed from the existing WorldModel primitives/data shape:
+       * rooms are ordinary rooms/corridors, props remain ordinary props, and the runtime/pathing
+       * systems remain the same. No agent, pipeline, permission, persistence, or execution behavior
+       * is introduced here.
+       */
+      const seededRooms = [
+        // facilities
+        { id:'tj-forge', kind:'factory', name:'TJ FORGE', rect:[22,0,37,9], floorStyle:'rust', floorMat:'basalt', wallMat:'utility', hullStyle:'rust', hullMat:'heatsink' },
+        { id:'tj-labs', kind:'lab', name:'TJ LABS', rect:[22,15,37,24], floorStyle:'white', floorMat:'ceramic', wallMat:'acoustic', hullStyle:'white', hullMat:'curtain' },
+        { id:'tj-studio', kind:'hab', name:'TJ STUDIO', rect:[-20,15,-5,24], floorStyle:'orchid', floorMat:'plank', wallMat:'wainscot', hullStyle:'orchid', hullMat:'clapboard' },
+        { id:'tj-vault', kind:'storage', name:'TJ VAULT', rect:[-20,0,-5,9], floorStyle:'walnut', floorMat:'cargo', wallMat:'wainscot', hullStyle:'walnut', hullMat:'stone' },
+        { id:'tj-network', kind:'bridge', name:'TJ NETWORK', rect:[2,16,15,23], floorStyle:'teal', floorMat:'terrazzo', wallMat:'utility', hullStyle:'teal', hullMat:'thermal' },
+        { id:'tj-garden', kind:'quarters', name:'TJ GARDEN', rect:[-20,-12,-5,-5], floorStyle:'meadow', floorMat:'turf', wallMat:'hedge', hullStyle:'meadow', hullMat:'hedge' },
+        { id:'tj-observatory', kind:'bridge', name:'TJ OBSERVATORY', rect:[58,16,71,23], floorStyle:'indigo', floorMat:'terrazzo', wallMat:'acoustic', hullStyle:'indigo', hullMat:'curtain' },
+        { id:'tj-security', kind:'bridge', name:'TJ SECURITY', rect:[58,28,69,35], floorStyle:'cobalt', floorMat:'basalt', wallMat:'pressure', hullStyle:'cobalt', hullMat:'monocoque' },
+        { id:'tj-village', kind:'quarters', name:'AGENT VILLAGE', rect:[-40,15,-25,26], floorStyle:'fern', floorMat:'turf', wallMat:'hedge', hullStyle:'fern', hullMat:'timber' },
+        { id:'tj-meeting', kind:'hab', name:'TJ MEETING HALL', rect:[40,28,55,37], floorStyle:'ash', floorMat:'plank', wallMat:'acoustic', hullStyle:'ash', hullMat:'clapboard' },
+        { id:'tj-commons', kind:'quarters', name:'TJ COMMONS', rect:[0,28,17,37], floorStyle:'meadow', floorMat:'turf', wallMat:'hedge', hullStyle:'meadow', hullMat:'shingle' },
+
+        // circulation — ordinary corridor rooms so existing pathing/door logic owns navigation
+        { id:'tj-h-core-forge', kind:'corridor', name:'CORE → FORGE', rect:[18,4,21,6], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-vault', kind:'corridor', name:'CORE → VAULT', rect:[-4,4,-1,6], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-garden', kind:'corridor', name:'CORE → GARDEN', rect:[-4,-4,-1,3], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-network', kind:'corridor', name:'CORE → NETWORK', rect:[7,11,10,15], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-network-commons', kind:'corridor', name:'NETWORK → COMMONS', rect:[7,24,10,27], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-commons-meeting', kind:'corridor', name:'COMMONS → MEETING', rect:[18,32,39,34], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-meeting-security', kind:'corridor', name:'MEETING → SECURITY', rect:[56,32,57,34], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-security-observatory', kind:'corridor', name:'SECURITY → OBSERVATORY', rect:[63,24,66,27], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-forge-labs', kind:'corridor', name:'FORGE → LABS', rect:[28,10,31,14], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-vault-studio', kind:'corridor', name:'VAULT → STUDIO', rect:[-12,10,-9,14], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-studio-village', kind:'corridor', name:'STUDIO → VILLAGE', rect:[-24,19,-21,21], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-village-garden', kind:'corridor', name:'VILLAGE → GARDEN', rect:[-24,-8,-21,-6], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-labs-observatory', kind:'corridor', name:'LABS → OBSERVATORY', rect:[38,19,57,21], floorStyle:'oak', floorMat:'parquet' }
+      ];
+
+      for (const seed of seededRooms) {
+        const [x1,y1,x2,y2] = seed.rect;
+        const id = 'r' + doc._nid++;
+        doc.rooms[id] = {
+          id,
+          kind: seed.kind,
+          name: seed.name,
+          rects: [{x1,y1,x2,y2}],
+          floorStyle: seed.floorStyle,
+          floorMat: seed.floorMat,
+          wallStyle: null,
+          wallMat: seed.wallMat,
+          hullStyle: seed.hullStyle,
+          hullMat: seed.hullMat,
+          tier: 0,
+          floorPaint: {}
+        };
+        doc.order.push(id);
+      }
+
       doc.props = [
         // The five essentials are real floor grants. Keep the desk unassigned so
         // ensureWorkstation adopts it for the new Commander on the normal boot path.
