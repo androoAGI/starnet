@@ -60,7 +60,8 @@ fn main() -> Result<(), String> {
             format!(
                 "--require=\"{}\"",
                 root.join("test/fixtures/google-future-release.cjs")
-                    .display()
+                    .to_string_lossy()
+                    .replace('\\', "/")
             ),
         )
         .status()

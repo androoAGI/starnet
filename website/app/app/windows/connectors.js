@@ -847,6 +847,7 @@
       try {
         const j = await Harness.api.get('/api/connectors');
         const list = (j && j.connectors) || []; lastList = list;
+        const storageError = j && j.credentialStorage && j.credentialStorage.error;
         renderHandoffs(list);
         const overview = body.querySelector('#mc-overview');
         const notices = body.querySelector('#mc-notices');
@@ -857,6 +858,12 @@
         // A release-wide explanation belongs once above the list, not in every saved service.
         notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
           '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
+        if (storageError) {
+          overview.textContent = 'Saved services unavailable';
+          notices.innerHTML += '<div class="mc-notice"><b>Credential storage</b>' + esc(storageError) + '</div>';
+          listEl.innerHTML = '<div class="mc-detail">Your saved connections have not been erased. Unlock the credential store and restart StarNet.</div>';
+          return;
+        }
         if (list.length) {
           const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
           listEl.innerHTML = list.map(row).join('');
