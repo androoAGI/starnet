@@ -56,3 +56,7 @@ Settings sign-in codes use `.key-mask` with `var(--ph-bright)` already; Settings
 
 Customer journeys: 38/38 PASS. Release claims regression: 64 assertions PASS after updating only the changed stylesheet fingerprint and source commit. Full fast run stopped at step 317/822 on the unrelated web-search parser timing assertion (532 ms against 500 ms). Immediate unchanged focused rerun: web.search.test PASS, 18 assertions. The complete fast gate is not claimed green; no trunk merge or release performed. Logs remain in the owned .onboarding-test directory.
 
+
+## Integration verification
+
+Merged at 9ef5b7e61 on 2026-09-19. Fresh complete pre/post fast gates PASS 829/829 after sync with current trunk. This supersedes the earlier incomplete fast-run receipt. Live six-theme check repeated after sync. See qa/digests/2026-09-19-onboarding-contrast.md. Installer and owner retest remain unverified.
