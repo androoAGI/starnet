@@ -1,0 +1,6 @@
+{
+  "spend": "Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.",
+  "saveDisabled": false,
+  "cap": "2",
+  "msg": "✓ limits saved & applied"
+}
