@@ -316,12 +316,12 @@ const WorldModel = (() => {
    * while shifting newly-rendered/default spaces toward the eco-industrial world direction.
    */
   const ROOM_KINDS = {
-    hab:      { label: 'HAB',      floor: 'oak',     mat: 'plank' },
-    bridge:   { label: 'BRIDGE',   floor: 'ash',     mat: 'terrazzo' },
-    lab:      { label: 'LAB',      floor: 'white',   mat: 'ceramic' },
-    factory:  { label: 'FOUNDRY',  floor: 'basalt',  mat: 'basalt' },
-    quarters: { label: 'QUARTERS', floor: 'meadow',  mat: 'turf' },
-    storage:  { label: 'STORAGE',  floor: 'walnut',  mat: 'cargo' },
+    hab:      { label: 'TJ CORE',   floor: 'oak',     mat: 'plank' },
+    bridge:   { label: 'TJ NETWORK', floor: 'ash',    mat: 'terrazzo' },
+    lab:      { label: 'TJ LABS',   floor: 'white',   mat: 'ceramic' },
+    factory:  { label: 'TJ FORGE',  floor: 'basalt',  mat: 'basalt' },
+    quarters: { label: 'TJ COMMONS', floor: 'meadow', mat: 'turf' },
+    storage:  { label: 'TJ VAULT',  floor: 'walnut',  mat: 'cargo' },
     corridor: { label: 'CORRIDOR', floor: 'oak',     mat: 'parquet' },
   };
   // a room's effective deck material: explicit override, else the kind default, else plate.
