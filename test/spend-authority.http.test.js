@@ -2,11 +2,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http'),crypto=require('node:crypto');
 const {SidecarFixture}=require('./helpers/sidecar-fixture');
 (async()=>{
-  let calls=0;
+  let calls=0, hold=false;
   const server=http.createServer((req,res)=>{
     if(req.url.includes('/models'))return res.end(JSON.stringify({data:[{id:'test/spend',context_length:32000,pricing:{prompt:'0',completion:'0'}}]}));
     let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{
-      calls++;res.writeHead(200,{'Content-Type':'text/event-stream'});
+      calls++;if(hold)return;res.writeHead(200,{'Content-Type':'text/event-stream'});
       res.end('data: '+JSON.stringify({choices:[{delta:{content:'A measured response.'},finish_reason:'stop'}],usage:{prompt_tokens:3,completion_tokens:2,cost:0.4}})+'\n\ndata: [DONE]\n\n');
     });
   });
@@ -41,6 +41,15 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     await f.stop();
     fs.writeFileSync(path.join(dir,crypto.createHash('sha256').update('interrupted').digest('hex')+'.json'),JSON.stringify({runId:'interrupted',agentId:'agent'}));
     await f.start();assert.equal((await status()).body.spentToday,null);await run();assert.equal(calls,1,'unknown interrupted spend is not guessed zero after restart');
-    console.log('spend HTTP: unreadable history, zero paid dispatch, failed append, restart settlement, exact-once replay and uncertain crash receipt PASS');
+    await f.stop();
+    fs.unlinkSync(path.join(dir,crypto.createHash('sha256').update('interrupted').digest('hex')+'.json'));
+    await f.start();hold=true;
+    const interrupted=run().catch(()=>null);
+    for(let i=0;i<100&&calls<2;i++)await new Promise(r=>setTimeout(r,50));
+    assert.equal(calls,2,'provider accepted the request before process termination');
+    f.child.kill('SIGKILL');await f.stop();await interrupted;server.closeAllConnections();
+    await f.start();assert.equal((await status()).body.spentToday,null,'a real hard crash cannot erase uncertain provider usage');
+    await run();assert.equal(calls,2,'restart cannot dispatch again against unknown configured pools');
+    console.log('spend HTTP: unreadable history, zero paid dispatch, failed append, restart settlement, exact-once replay uncertain receipt and real hard-crash recovery PASS');
   } finally {await f.dispose();server.closeAllConnections();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
