@@ -1,7 +1,8 @@
 # Selected Google files
 
-Implementation candidate in `agent/google-oauth-audit-0919`. Not deployed or accepted
-against a real Google account yet.
+Implementation candidate in `agent/google-oauth-audit-0919`. Real Google connection,
+Windows native-keychain restart recovery, and Docs/Sheets read/write checks passed.
+Not merged or deployed; signed-installer and native Mac acceptance remain unverified.
 
 The new **Selected Google files** card uses Google's desktop Picker authorization
 flow: PKCE and state, `prompt=consent`, `trigger_onepick=true`, multiple Docs/Sheets,
@@ -26,10 +27,11 @@ review launcher now uses this same split without the future-release override.
 
 Google Picker API is enabled in `starnet-505202`, verified in the Cloud Console.
 The real native-client flow reached Google's per-file consent screen, without an
-unverified-app interstitial on the observed path. The file-access grant is awaiting
-file selection. The user authorized consent and it was submitted, but automated
-clicks and keyboard input failed inside Picker. No completed real file selection or
-read/edit acceptance is claimed.
+unverified-app interstitial on the observed path. The user completed selection of the
+two dedicated verification fixtures. The callback connected 11 tools with the exact
+drive.file grant. A stale earlier attempt returned Google's generic 400; a fresh
+attempt completed successfully. Browser automation could inspect but not operate
+Picker's iframe, so the user performed its final selection and Insert actions.
 The existing broad verification draft remains separate and unsubmitted.
 
 Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker
@@ -45,8 +47,8 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
 - Live seeded app, using synthetic Google endpoints: selected-file disclosure and
   button displayed; callback connected 11 tools; restart recovered the encrypted
   grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
-- Real Google Picker API activation and the authorized per-file consent step completed.
-  File selection is still incomplete; no personal files were read or edited.
+- Real Google Picker activation, consent, file selection, and callback completed.
+  Only dedicated StarNet verification files were used for acceptance.
 - Branch remains isolated and unmerged. Full public release readiness is not claimed.
 - Synced trunk into this branch at merge `41f8bc76c`; the sole conflict was the
   release-surface hash ledger, resolved using trunk's verdicts and regenerated hashes.
@@ -60,7 +62,16 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
   collision; the focused test and complete rerun passed. The native-keychain preview
   was restarted afterward. No product workaround or test exclusion was introduced.
 - The user confirmed there is no Mac access; native Mac acceptance remains unverified.
-- The user selected both dedicated StarNet verification files in the real Picker.
-  The selected state and enabled **Insert 2 items** button were observed. Both semantic
-  and screenshot-coordinate confirmation attempts failed in the browser-control tool;
-  no completed OAuth callback or real read/edit acceptance is claimed.
+- Real-account acceptance after restarting the native-keychain review preview: connector
+  returned up with 11 tools, encrypted storage, and no storage error. Eight real Google
+  calls through StarNet's /api/run and MCP adapter succeeded: read the selected Doc;
+  read selected Sheet cells; create/edit/read back a new Doc; create/write/read back a
+  new Sheet. Exact marker text and cell values were asserted after writes.
+- A loopback-only scripted model drove those calls, with Google endpoints unmocked and
+  no external model provider. Test artifacts remain as two files titled
+  `StarNet selected-file acceptance 2026-09-19`; existing fixtures were read only.
+  Local ignored receipts: `.local/google-review/doc-readback.json`,
+  `.local/google-review/sheet-readback.json`, and the local tool-check driver.
+- Real refresh-token renewal, revocation recovery, and signed-installer acceptance
+  are not established by this session's live read/write proof; lifecycle fault paths
+  have automated coverage described above.
