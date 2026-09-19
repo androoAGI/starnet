@@ -37,3 +37,11 @@ Initial fast run stopped at 291/819 because the two modified frontend files no l
 Final `npm run test:fast` on source candidate `4d555826f`, Node 24.19.0: **819/819 PASS**, exit 0. Receipt: `.station-save-fast-final.log` in the owned worktree, ending `run-fast-tests: OK — 819 step(s) green`. Customer-journey receipt: `.station-save-journeys.log`, ending `run-test-list: OK — 36 step(s) green`. No test limits or assertions were relaxed. The final evidence commit changes documentation and the bug register only.
 
 No integration merge, installer rebuild or publication was performed. Installed Windows/macOS acceptance, abrupt operating-system/power-loss durability and the affected customer's recovery are unverified. Recovering an already-lost design requires examining that user's cache, prior layout backup and durable save/backup/conflict copies; none were supplied.
+
+## Owner-requested merge regression review
+
+The owner subsequently requested integration and a check for newly introduced issues. Test-only commit `0b98366e5` adds coverage for rejected edits, 500 synchronous mutations producing one final save, replacing the station with an old save microtask still queued, and autosaving while a crew member and another session are focused. These checks pass: no old station resurrection, loss of the hero identity, crew roster or active session content was found. Eleven focused save/recovery suites passed again.
+
+A live conversation draft remained intact and editable after a Build preset change and SAVE & EXIT. The same check passed on the candidate combining station autosave with the separately owned chat-cutoff repair (`ebea9738f`); the layout reached disk with the same hero and active session at revision 27. The browser's selector-evaluation call timed out twice after closing Build, but native accessibility inspection and immediate typing proved the page responsive with the original draft intact and no error-level console entries. No application patch was needed for that inspection failure.
+
+Integration was queued behind the existing chat-cutoff merge reservation. The isolated combined candidate contains both regression suites; its generated bug index was regenerated and validated, and its source audit retains both lanes' reviewed hashes. Final merge and gate receipts follow in the completed integration record.
