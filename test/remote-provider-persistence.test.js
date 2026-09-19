@@ -106,3 +106,35 @@ test('failed migration retains local keys and endpoint for retry', async () => {
   await first.api.init(); assert.equal(first.cache.get('starnet.byok.key.custom'), 'test-key');
   assert.equal(first.api.getBaseUrl('custom'), 'https://example.com/v1');
 });
+
+test('legacy gateway records migrate without losing a key or reviving a removed canonical key', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-provider-alias-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'remote-providers.json');
+  const aliases = { levserver: 'gateway' };
+  fs.writeFileSync(file, JSON.stringify({ version: 1, providers: { levserver: { key: 'synthetic-legacy', baseUrl: 'http://127.0.0.1:8781/v1' } } }));
+  const store = createRemoteProviderStore({ fs, path, dir, aliases });
+  assert.equal(store.get('gateway').key, 'synthetic-legacy');
+  store.update('gateway', { key: '' });
+  assert.equal(JSON.parse(fs.readFileSync(file)).providers.levserver, undefined);
+  const restarted = createRemoteProviderStore({ fs, path, dir, aliases });
+  restarted.update('gateway', { key: 'stale-browser-copy' }, { migrate: true });
+  assert.equal(restarted.get('gateway').key, '');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, providers: { levserver: { key: 'old' }, gateway: { key: '' } } }));
+  assert.equal(createRemoteProviderStore({ fs, path, dir, aliases }).get('gateway').key, '');
+});
+
+test('legacy browser gateway credentials are removed only after canonical server acknowledgement', async () => {
+  const entries = [['starnet.byok.prov', 'levserver'], ['starnet.byok.key.levserver', 'synthetic-old-key']];
+  let saved;
+  const f = harness(async (url, options) => {
+    if (url === '/api/providers') return Response.json({ credentialStore: 'server', providers: [{ id: 'gateway', configured: false }] });
+    saved = JSON.parse(options.body);
+    return Response.json({ ok: true, provider: 'gateway', configured: true, credentialStored: true });
+  }, entries);
+  await f.api.init();
+  assert.equal(f.api.getProv(), 'gateway');
+  assert.equal(saved.provider, 'gateway');
+  assert.equal(saved.key, 'synthetic-old-key');
+  assert.equal(f.cache.has('starnet.byok.key.levserver'), false);
+});

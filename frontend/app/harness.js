@@ -311,6 +311,7 @@ const Harness = (() => {
     for (const [field, slot] of [['key', LS.key], ['keyPool', LS.keyPool], ['baseUrl', LS.baseUrl]]) {
       if (!Object.prototype.hasOwnProperty.call(patch, field)) continue;
       localStorage.removeItem(providerSlot(slot, provider));
+      if (provider === 'gateway') localStorage.removeItem(slot + '.levserver');
       if (provider === 'openrouter') localStorage.removeItem(slot);
     }
     return result;
@@ -337,7 +338,7 @@ const Harness = (() => {
      key (runtimeKey), so we report configured without one — that's what lets a fresh origin auto-resume. */
   function normalizeProviderId(provider) {
     const p = String(provider || getProv() || 'openrouter').trim().toLowerCase();
-    if (p === 'gateway') return 'gateway';
+    if (p === 'gateway' || p === 'levserver') return 'gateway';
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
@@ -369,6 +370,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider || getProv());
     const scoped = localStorage.getItem(providerSlot(base, p));
     if (scoped != null) return scoped;
+    if (p === 'gateway') return localStorage.getItem(base + '.levserver') || '';
     return p === 'openrouter' ? (localStorage.getItem(base) || '') : '';
   }
   function writeScoped(base, provider, value) {

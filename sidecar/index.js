@@ -810,7 +810,7 @@ const processFault = makeProcessFaultHandler({
 process.on('uncaughtException', e => processFault.onUncaught(e));
 
 try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
-const remoteProviderStore = REMOTE_MODE ? require('./remote-provider-store').createRemoteProviderStore({ fs, path, dir: path.join(WORKSPACES, '.secrets') }) : null;
+const remoteProviderStore = REMOTE_MODE ? require('./remote-provider-store').createRemoteProviderStore({ fs, path, dir: path.join(WORKSPACES, '.secrets'), aliases: { levserver: 'gateway' } }) : null;
 
 
 /* ---- P2 crash-safe persistence helpers for the single-file sibling stores (roster, dossier, channel

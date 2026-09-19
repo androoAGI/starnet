@@ -12,6 +12,13 @@ Report any jump with the settings section, elapsed time after opening, and wheth
 
 ## Automated gates
 
+On macOS, point the browser fixtures at an installed Chrome binary with `SKYNET_CHROME`. Canonicalize `TMPDIR` before HTTP fixtures: several existing blessed-project fixtures compare literal paths, while macOS aliases `/var` to `/private/var`.
+
+```sh
+export SKYNET_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+export TMPDIR="$(node -p 'require("node:fs").realpathSync(require("node:os").tmpdir())')"
+```
+
 ```sh
 npm ci
 npm ci --prefix remote --omit=dev --ignore-scripts
@@ -20,6 +27,7 @@ NODE_PATH="$PWD/remote/node_modules" node scripts/run-test-list.mjs test/remote-
 npm run test:fast
 npm run test:http
 npm run desktop:prepare
+node scripts/stage-voice-deps.mjs
 npm run desktop:stage-frontend
 cargo test --manifest-path src-tauri/Cargo.toml --bin skynet-desktop
 ```

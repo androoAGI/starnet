@@ -51,7 +51,7 @@ pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 13] = [
 
 pub(crate) fn normalize_provider(provider: &str) -> &'static str {
     match provider.trim().to_ascii_lowercase().as_str() {
-        "gateway" => "gateway",
+        "gateway" | "levserver" => "gateway",
         "codex" | "openai-codex" => "codex",
         "openai" | "openai-api" => "openai",
         "anthropic" | "claude" => "anthropic",
@@ -409,6 +409,7 @@ mod tests {
     fn provider_aliases_normalize_to_runtime_ids() {
         let cases = [
             ("gateway", "gateway"),
+            ("levserver", "gateway"),
             (" OpenAI-API ", "openai"),
             ("claude", "anthropic"),
             ("google-gemini", "gemini"),

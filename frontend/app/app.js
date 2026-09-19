@@ -745,7 +745,7 @@ const App = (() => {
   }
   function normalizeProviderId(provider) {
     const p = String(provider || 'openrouter').trim().toLowerCase();
-    if (p === 'gateway') return 'gateway';
+    if (p === 'gateway' || p === 'levserver') return 'gateway';
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';

@@ -1,6 +1,6 @@
 # Connect a remote StarNet station
 
-StarNet is one desktop app. **This Computer** uses the original local runtime, onboarding and keychain. **Remote Uplink** connects another computer or a private gateway. In remote mode, that computer owns your agent, provider keys, files and running work; closing the Mac app leaves the server running. The connection chooser currently ships on macOS; other desktop platforms retain their original local behavior.
+StarNet is one desktop app. **This Computer** uses the original local runtime, onboarding and keychain. **Remote Uplink** connects another computer or a private gateway. In remote mode, that computer owns your agent, provider keys, files and running work; closing the Mac app leaves the server running. The bundled connection chooser targets macOS 13 or later; other desktop platforms retain their original local behavior.
 
 ## Desktop setup
 

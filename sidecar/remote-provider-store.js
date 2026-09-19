@@ -2,7 +2,7 @@
 // Remote-only credentials. The existing desktop keychain and IPC gate stay independent.
 const { writeFileDurable } = require('./durable-write');
 
-function createRemoteProviderStore({ fs, path, dir, write = writeFileDurable }) {
+function createRemoteProviderStore({ fs, path, dir, write = writeFileDurable, aliases = {} }) {
   const file = path.join(dir, 'remote-providers.json');
   let rows = Object.create(null), error = '';
   try {
@@ -14,6 +14,13 @@ function createRemoteProviderStore({ fs, path, dir, write = writeFileDurable }) 
         || (Object.hasOwn(row, 'keyPool') && (!Array.isArray(row.keyPool) || row.keyPool.some(k => typeof k !== 'string')))) throw new Error('invalid provider record');
     }
     rows = Object.assign(Object.create(null), data.providers);
+    // Canonical records, including removals, win over old experimental IDs.
+    // Disk remains untouched until the next verified atomic write.
+    for (const [legacy, canonical] of Object.entries(aliases)) {
+      if (!Object.hasOwn(rows, legacy)) continue;
+      if (!Object.hasOwn(rows, canonical)) rows[canonical] = rows[legacy];
+      delete rows[legacy];
+    }
   } catch (e) {
     if (e.code !== 'ENOENT') error = 'Remote provider storage is unreadable; existing credentials were left untouched.';
   }
