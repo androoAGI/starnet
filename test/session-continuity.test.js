@@ -14,7 +14,7 @@ async function campaign(root, seed) {
   const w = { id: 'a', history: [{role:'user',content:'SECRET QUESTION',sourceRunId:'old'}] };
   const peer = { id:'b', history:[] }; sessions.set('a',w); sessions.set('b',peer);
   const context = vm.createContext({
-    Date, WeakMap, Map, Promise, AbortSignal, setTimeout,
+    Date, WeakMap, Map, Promise, AbortController, setTimeout, clearTimeout,
     Workstreams:{get:id=>sessions.get(id)}, Channels:{isBusy:()=>false},
     App:{persist:()=>{saves++; saved=JSON.stringify([...sessions.values()]);}},
     fetch:(_url,opts)=>new Promise(resolve=>requests.push({resolve,signal:opts.signal})),

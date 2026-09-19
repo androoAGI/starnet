@@ -1355,10 +1355,10 @@ const Chat = (() => {
   function continuityDiagnostics() { return continuityEvents.map(e => ({ ...e })); }
   function loadServerHistory(ws, loadToken) {
     if (!ws || !ws.id) return Promise.resolve(false);
-    const read = { history: ws.history, ready: false, promise: null };
+    const read = { history: ws.history, promise: null };
     historyLoads.set(ws, read);
     noteContinuity(ws, 'history-loading');
-    read.promise = reconcileServerHistory(ws, loadToken, read).then(ok => { read.ready = ok; return ok; });
+    read.promise = reconcileServerHistory(ws, loadToken, read);
     return read.promise;
   }
 
@@ -1391,8 +1391,10 @@ const Chat = (() => {
     const waits = cronSession && !busy ? [120, 400] : [];
     let turns = [], reachable = false;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+        const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store', signal: controller.signal });
         if (r.ok) {
           const j = (await r.json()) || {};
           if (!Array.isArray(j.turns)) break; // malformed is unknown, never an empty transcript
@@ -1401,6 +1403,7 @@ const Chat = (() => {
           if (!cronSession || turns.some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim())) break;
         }
       } catch (_) { /* retry the bounded cron persistence window below */ }
+      finally { clearTimeout(timeout); }
       if (attempt < waits.length) await new Promise(resolve => setTimeout(resolve, waits[attempt]));
     }
     // A superseded read, removed session or deliberate clear cannot write back.
