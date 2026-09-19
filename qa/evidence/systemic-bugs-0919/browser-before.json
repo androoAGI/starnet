@@ -1,0 +1,27 @@
+{
+  "staleRead": {
+    "cached": true,
+    "actual": false
+  },
+  "malformedBypass": {
+    "cached": false,
+    "error": "",
+    "actual": true
+  },
+  "routine": {
+    "accepted": {
+      "ok": true,
+      "duplicate": false,
+      "disarmed": {
+        "text": "saved, but the scheduler is off — this won’t run until you enable scheduling (ROUTINES → enable scheduling).",
+        "cta": {
+          "label": "enable scheduling",
+          "panel": "routines"
+        }
+      }
+    },
+    "preserved": false,
+    "actual": false
+  },
+  "exceptions": []
+}

@@ -549,6 +549,18 @@ const okRun = (text) => (o) => { o.emit('agent.run.start', { agentId: 'a', runId
     A.eq(s.getJob(deferredId).nextRunAt, cron._internals.iso(T0 + 300000 + 300000), 'now it has advanced (it actually fired)');
   }
 
+  // A fresh occurrence at the front of the store must not overtake older deferred work.
+  // Persisted due times carry this fairness across a driver restart without a volatile cursor.
+  for (const restart of [false, true]) {
+    let s = setup([intervalJob('early', 'every 1m'), intervalJob('late', 'every 1m')], okRun(), { maxParallel: 1 });
+    s.clock.set(T0 + 60000); s.driver.applyTick(s.clock.now()); await flush();
+    A.eq(s.runs[0].agentId, 'cron_early', 'equal deadlines retain stable store order');
+    if (restart) s = setup(s.getJobs(), okRun(), { maxParallel: 1 });
+    s.clock.set(T0 + 120000); s.driver.applyTick(s.clock.now()); await flush();
+    A.eq(s.runs[s.runs.length - 1].agentId, 'cron_late', 'older deferred occurrence precedes fresh recurring work, restart=' + restart);
+    A.eq(s.getJob('late').repeat.completed, 1, 'deferred routine actually completes');
+  }
+
   // ---- G4.4 TRANSIENT RETRY (proven end-to-end): transient-once-then-ok backs off, retryCount++, no lastRunAt advance, then succeeds ----
   {
     // The EXISTING retry path (markRun transient backoff) is proven through the REAL driver fire->settle

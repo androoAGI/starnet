@@ -49,7 +49,7 @@ async function journey() {
     SKYNET_DEFAULT_MODEL:'memory-fixture',STARNET_DEFAULT_MODEL:'memory-fixture'
   }});
   if(fixture && process.argv.includes('--seeded')) {
-    fixture.entry=path.resolve(__dirname,'../dev/seed.js'); fixture.args=['--keep']; fixture.timeoutMs=30000;
+    fixture.entry=path.resolve(__dirname,'../dev/seed.js'); fixture.args=['--keep','--workspace',fixture.workspace]; fixture.timeoutMs=30000;
     fs.cpSync(path.resolve(__dirname,'../dev/fixtures/seed-workspace'),fixture.workspace,{recursive:true});
     // The seed owns a sidecar child. Reap only this fixture's process tree on Windows.
     const stop=fixture.stop.bind(fixture);

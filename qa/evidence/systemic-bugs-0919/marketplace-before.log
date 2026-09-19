@@ -1,0 +1,133 @@
+loadSkillCatalog must retry {"status":403,"body":{}}
+
+1 !== 2
+
+loadSkillCatalog must recover real data
+loadSkillCatalog must retry {"status":503,"body":{}}
+
+1 !== 2
+
+loadSkillCatalog must recover real data
+loadSkillCatalog must retry {"status":200,"body":{}}
+
+1 !== 2
+
+loadSkillCatalog must recover real data
+loadSkillCatalog must retry {"status":200,"body":{"ok":false,"skills":[]}}
+
+1 !== 2
+
+loadSkillCatalog must recover real data
+loadCronJobs must retry {"status":403,"body":{}}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadCronJobs must retry {"status":503,"body":{}}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadCronJobs must retry {"status":200,"body":{}}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadCronJobs must retry {"status":200,"body":{"ok":false,"jobs":[]}}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadCronJobs must retry {"status":200,"body":"not JSON"}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadCronJobs must retry {}
+
+1 !== 2
+
+loadCronJobs must recover real data
+loadRecipeRuns must retry {"status":403,"body":{}}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadRecipeRuns must retry {"status":503,"body":{}}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadRecipeRuns must retry {"status":200,"body":{}}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadRecipeRuns must retry {"status":200,"body":{"ok":false,"runs":[]}}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadRecipeRuns must retry {"status":200,"body":"not JSON"}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadRecipeRuns must retry {}
+
+1 !== 2
+
+loadRecipeRuns must recover real data
+loadFitProjects must retry {"status":403,"body":{}}
+
+1 !== 2
+
+loadFitProjects must recover real data
+loadFitProjects must retry {"status":503,"body":{}}
+
+1 !== 2
+
+loadFitProjects must recover real data
+loadFitProjects must retry {"status":200,"body":{}}
+
+1 !== 2
+
+loadFitProjects must recover real data
+loadFitProjects must retry {"status":200,"body":{"ok":false,"projects":[]}}
+
+1 !== 2
+
+loadFitProjects must recover real data
+loadFitChannels must retry {"status":403,"body":{}}
+
+1 !== 2
+
+loadFitChannels must recover real data
+loadFitChannels must retry {"status":503,"body":{}}
+
+1 !== 2
+
+loadFitChannels must recover real data
+loadFitChannels must retry {"status":200,"body":{}}
+
+1 !== 2
+
+loadFitChannels must recover real data
+loadFitChannels must retry {"status":200,"body":{"ok":false,"connectors":[]}}
+
+1 !== 2
+
+loadFitChannels must recover real data
+readiness requires actual connector state
++ actual - expected
+
+  [
+    'up',
+    'cached',
++   'down',
++   'auth',
++   'disabled',
++   'unknown'
+  ]
+
+marketplace authority: 13/62 checks passed

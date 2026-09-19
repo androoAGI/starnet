@@ -75,6 +75,7 @@
       // records saved before this field existed simply read null. The PROJECTS rail uses it to list the
       // sessions attached to each project — a REAL stored link, never a guessed title match.
       projectRoot: opts.projectRoot != null ? String(opts.projectRoot) : null,
+      parentStreamId: opts.parentStreamId ? String(opts.parentStreamId) : null,
       history: Array.isArray(opts.history) ? opts.history.slice() : [],
       runIds: Array.isArray(opts.runIds) ? opts.runIds.slice() : [],
       connectorHandoff: normalizeConnectorHandoff(opts.connectorHandoff),

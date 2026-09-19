@@ -302,11 +302,12 @@ A.ok(/function invalidateFit\(\) \{ fitProjects = null; fitChannels = null; fitP
   const from = mkt.indexOf('  let fitProjects = null, fitProjectsPending = null');
   const to = mkt.indexOf('  // the context RecipeFit reasons over');
   A.ok(from > 0 && to > from, 'precondition: the fit-cache block is where the lock expects it');
-  const mkFit = new Function('fetch', mkt.slice(from, to) +
+  const collectionReader = A.fnBody(mkt, 'function readCollection(');
+  const mkFit = new Function('Harness', collectionReader + mkt.slice(from, to) +
     '\n return { loadFitProjects, invalidateFit, peek: () => fitProjects };');
   const gates = [];
-  const fit = mkFit(() => new Promise(res => gates.push(rows =>
-    res({ ok: true, json: () => Promise.resolve({ projects: rows }) }))));
+  const fit = mkFit({ api: { get: () => new Promise(res => gates.push(rows =>
+    res({ projects: rows }))) } });
   const first = fit.loadFitProjects();                                  // open #1 — fetch in flight
   A.eq(gates.length, 1, 'the first open really did fire a fetch');
   fit.invalidateFit();                                                  // …the Commander grants a folder and comes back

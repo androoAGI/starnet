@@ -1,0 +1,76 @@
+{
+  "latest": {
+    "stampIso": "2026-09-19T21:11:15.022Z",
+    "trunkHead": "95983cdb64a4b18b769b96effce349f07528d373",
+    "result": "red",
+    "gatesRan": [
+      "test-fast",
+      "http-e2e",
+      "saboteur",
+      "shoot",
+      "golden",
+      "audit",
+      "journeys"
+    ],
+    "gatesSkipped": [],
+    "gates": [
+      {
+        "id": "test-fast",
+        "exitCode": 1,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "http-e2e",
+        "exitCode": 1,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "saboteur",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "shoot",
+        "exitCode": 1,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "golden",
+        "exitCode": 1,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "audit",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false
+      },
+      {
+        "id": "journeys",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false
+      }
+    ]
+  },
+  "cycles": {
+    "200003": {
+      "test-fast.log": "boot-security.test: OK (16 assertions)\nsidecar-fixture.test: OK (10 assertions)\n\n[timeout] guardian/test-fast exceeded 900000ms; terminating process tree.\nFAIL: sidecar.security.test threw -- Error: sidecar readiness timed out after 9000ms\nsidecar output:\n[recovery] auto station recovery SKIPPED: target workspace is a scratch root (C:\\Users\\andro\\AppData\\Local\\Temp\\[redacted] is under C:\\Users\\andro\\AppData\\Local\\Temp); a real station is never ingested into a temp workspace. Explicit recovery (request file / CLI restore) is unaffected.\n[recovery] auto recovery skipped (AUTO_RECOVERY_TARGET_IS_SCRATCH): this workspace is a scratch/temp root, so no real station was ingested.\n\n    at SidecarFixture._waitUntilReady (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:161:11)\n    at async SidecarFixture.start (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:127:7)\n    at async C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\sidecar.security.test.js:18:3\nrun-fast-tests: FAILED at step 198/822: node test/sidecar.security.test.js (exit 1)\n",
+      "http-e2e.log": "\nError: sidecar readiness timed out after 9000ms\nsidecar output:\n[recovery] auto station recovery SKIPPED: target workspace is a scratch root (C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-provider-recovery-UzFUmB is under C:\\Users\\andro\\AppData\\Local\\Temp); a real station is never ingested into a temp workspace. Explicit recovery (request file / CLI restore) is unaffected.\n[recovery] auto recovery skipped (AUTO_RECOVERY_TARGET_IS_SCRATCH): this workspace is a scratch/temp root, so no real station was ingested.\n[exec-env] {\"backend\":\"local\",\"workspace\":\"C:\\\\Users\\\\andro\\\\AppData\\\\Local\\\\Temp\\\\starnet-provider-recovery-UzFUmB\",\"background\":true,\"safeCell\":{\"default\":true,\"hostileCodeSandbox\":false,\"controls\":[\"per-agent workspace\",\"fs realpath jail\",\"consent gate\",\"auto-checkpoint before execution\",\"foreground timeout/abort kill\",\"background kill/status\"]},\"routing\":{\"perAgent\":true,\"defaultBackend\":\"local\",\"availableBackends\":[\"local\",\"docker\",\"ssh\"],\"sandboxFallback\":\"refuse\"}}\n\n    at SidecarFixture._waitUntilReady (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:161:11)\n    at runNextTicks (node:internal/process/task_queues:64:5)\n    at process.processTimers (node:internal/timers:518:9)\n    at async SidecarFixture.start (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:127:7)\n    at async C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\provider-recovery.e2e.test.js:119:3\nrun-test-list: FAILED at step 1/119: node test/provider-recovery.e2e.test.js (exit 1)\n",
+      "shoot.log": "\n> starnet-harness@0.12.3 shoot\n> node scripts/shoot.mjs\n\nsidecar: booting SEEDED SKYNET_DEV on :8940 (model=anthropic/claude-sonnet-4.6) ...\nsidecar: ready\nchrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe\ntarget: http://127.0.0.1:8940/\nFATAL Error: Could not connect to CDP on 9340\n    at connectCDP (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/cdp.mjs:78:9)\n    at async runShoot (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/shootRun.mjs:46:11)\n    at async file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/shoot.mjs:24:18\n",
+      "golden.log": "\n> starnet-harness@0.12.3 golden\n> node scripts/golden.mjs\n\nsidecar: booting SEEDED SKYNET_DEV on :8941 (model=anthropic/claude-sonnet-4.6) ...\nFATAL Error: seeded sidecar failed to come up on :8941\n    at runShoot (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/shootRun.mjs:33:41)\n    at async captureSignatures (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/golden.mjs:88:16)\n    at async main (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/golden.mjs:134:16)\n"
+    },
+    "210003": {
+      "test-fast.log": "finish-line-doctrine.test: OK (12 assertions)\nmanual.test: OK (38 assertions)\npermissions.test: OK (76 assertions)\nworkshop-permissions.test: OK (18 assertions)\nmaster-bypass.test: OK (24 assertions)\nworkshop-store.test: OK (85 assertions)\nworkshop-undo.e2e.test: OK (28 assertions)\nError: boot timeout:\n\n    at Timeout._onTimeout (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\workshop-implement.e2e.test.js:118:98)\n    at listOnTimeout (node:internal/timers:585:17)\n    at process.processTimers (node:internal/timers:521:7)\nrun-fast-tests: FAILED at step 207/829: node test/workshop-implement.e2e.test.js (exit 1)\n",
+      "http-e2e.log": "# todo 0\n# duration_ms 36558.3072\ngroup HTTP: brief.ask choice -> durable group card -> answer -> SAME run resumed PASS\ngroup HTTP: actual runOnce -> fs.write -> immutable publish -> peer handoff -> exact file review -> restart PASS\nError: sidecar readiness timed out after 9000ms\nsidecar output:\n\n    at SidecarFixture._waitUntilReady (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:161:11)\n    at runNextTicks (node:internal/process/task_queues:64:5)\n    at process.processTimers (node:internal/timers:518:9)\n    at async SidecarFixture.start (C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\helpers\\sidecar-fixture.js:127:7)\n    at async C:\\Users\\andro\\Desktop\\_qa-guardian-pin\\test\\tool-model-fallback.e2e.test.js:59:5\nrun-test-list: FAILED at step 6/121: node test/tool-model-fallback.e2e.test.js (exit 1)\n",
+      "shoot.log": "\n> starnet-harness@0.12.3 shoot\n> node scripts/shoot.mjs\n\nsidecar: booting SEEDED SKYNET_DEV on :8940 (model=anthropic/claude-sonnet-4.6) ...\nsidecar: ready\nchrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe\ntarget: http://127.0.0.1:8940/\nFATAL Error: Could not connect to CDP on 9340\n    at connectCDP (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/cdp.mjs:78:9)\n    at async runShoot (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/shootRun.mjs:46:11)\n    at async file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/shoot.mjs:24:18\n",
+      "golden.log": "\n> starnet-harness@0.12.3 golden\n> node scripts/golden.mjs\n\nsidecar: booting SEEDED SKYNET_DEV on :8941 (model=anthropic/claude-sonnet-4.6) ...\nsidecar: ready\nchrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe\ntarget: http://127.0.0.1:8941/\nFATAL Error: Could not connect to CDP on 9341\n    at connectCDP (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/cdp.mjs:78:9)\n    at async runShoot (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/lib/shootRun.mjs:46:11)\n    at async captureSignatures (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/golden.mjs:88:16)\n    at async main (file:///C:/Users/andro/Desktop/_qa-guardian-pin/scripts/golden.mjs:134:16)\n"
+    }
+  },
+  "note": "Guardian startup timeouts and CDP connection failures also occurred before this integration. They remain unresolved; no guardian-ready claim."
+}

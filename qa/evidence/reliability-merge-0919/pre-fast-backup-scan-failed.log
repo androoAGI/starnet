@@ -1,0 +1,385 @@
+
+> starnet-harness@0.12.3 test:fast
+> node scripts/timeout.mjs --label test:fast --timeout=900000 -- npm run test:fast:raw
+
+
+> starnet-harness@0.12.3 test:fast:raw
+> node scripts/run-fast-tests.mjs
+
+schema.test: OK (42 assertions)
+chat-file-drop: PASS (desktop + website, panel/children, mixed files, directories, text, cancellation, session re-entry, groups, native bridge)
+group session id533: injected scheduler interruption
+group-sessions: routing, idempotency, context, revision cycles, cap, artifacts, independent opinions, interruption, approvals, restart and branches PASS
+group-message-attachments: association, file bytes, isolation, validation, upload/send retries and restart PASS
+bay-name-legibility: framed two-line plates, proportional zoom/DPI, rename, binding, fixed anchors and bounded long names PASS
+group edges: restart retry, membership cancellation, question/file isolation, ambiguous names and all recipients PASS
+group-chat-picker: loading, duplicate clicks, 404, auth, malformed response, roster failure, retry, selection and cancellation PASS
+contract.test: OK (95 assertions)
+events-contract.test: OK (9 assertions)
+clock-rng.test: OK (14 assertions)
+context.test: OK (180 assertions)
+runtimeinfo: OK (15 assertions)
+harness-snapshot: OK (23 assertions)
+harness-stream-completion: OK (188 assertions)
+station-inspect: OK (12 assertions)
+[failopen] aux.test.envelope (x1): aux pass died [redacted-key]
+[failopen] aux.test.envelope (x2): again
+[failopen] maint.test.loop (x1): once
+[failopen] flood.0 (x1): x
+[failopen] flood.1 (x1): x
+[failopen] flood.2 (x1): x
+[failopen] flood.3 (x1): x
+[failopen] flood.4 (x1): x
+[failopen] flood.5 (x1): x
+[failopen] flood.6 (x1): x
+[failopen] flood.7 (x1): x
+[failopen] flood.8 (x1): x
+[failopen] flood.9 (x1): x
+[failopen] flood.10 (x1): x
+[failopen] flood.11 (x1): x
+[failopen] flood.12 (x1): x
+[failopen] flood.13 (x1): x
+[failopen] flood.14 (x1): x
+[failopen] flood.15 (x1): x
+[failopen] flood.16 (x1): x
+[failopen] flood.17 (x1): x
+[failopen] flood.18 (x1): x
+[failopen] flood.19 (x1): x
+[failopen] flood.20 (x1): x
+[failopen] flood.21 (x1): x
+[failopen] flood.22 (x1): x
+[failopen] flood.23 (x1): x
+[failopen] flood.24 (x1): x
+[failopen] flood.25 (x1): x
+[failopen] flood.26 (x1): x
+[failopen] flood.27 (x1): x
+[failopen] flood.28 (x1): x
+[failopen] flood.29 (x1): x
+[failopen] flood.30 (x1): x
+[failopen] flood.31 (x1): x
+[failopen] flood.32 (x1): x
+[failopen] flood.33 (x1): x
+[failopen] flood.34 (x1): x
+[failopen] flood.35 (x1): x
+[failopen] flood.36 (x1): x
+[failopen] flood.37 (x1): x
+[failopen] flood.38 (x1): x
+[failopen] flood.39 (x1): x
+diagnostics: OK (47 assertions)
+diagnostics-support-email.test: OK (16 assertions)
+diagnostics-build.test: OK (17 assertions)
+diagnostics-dead-engine.test: OK (25 assertions)
+bootguard: OK (82 assertions)
+PASS Mac boot: legacy/native deadlines, real fetch cancellation, bundled catalog and sibling consumers
+TAP version 13
+# Subtest: live doctor refuses to probe without explicit consent
+ok 1 - live doctor refuses to probe without explicit consent
+  ---
+  duration_ms: 2.3732
+  type: 'test'
+  ...
+# Subtest: live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+ok 2 - live doctor preserves truthful states, latency, ordering, and a paste-ready receipt
+  ---
+  duration_ms: 7.6764
+  type: 'test'
+  ...
+# Subtest: receipt redacts credential-shaped detail and never promotes an unknown state
+ok 3 - receipt redacts credential-shaped detail and never promotes an unknown state
+  ---
+  duration_ms: 0.6858
+  type: 'test'
+  ...
+# Subtest: failure classifier distinguishes configuration, refusal, and reachability
+ok 4 - failure classifier distinguishes configuration, refusal, and reachability
+  ---
+  duration_ms: 1.095
+  type: 'test'
+  ...
+# Subtest: independent probes run concurrently and keep receipt order
+ok 5 - independent probes run concurrently and keep receipt order
+  ---
+  duration_ms: 4.9522
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23.6995
+TAP version 13
+# Subtest: browser live doctor sends the explicit consent bit and returns the receipt
+ok 1 - browser live doctor sends the explicit consent bit and returns the receipt
+  ---
+  duration_ms: 2.988
+  type: 'test'
+  ...
+# Subtest: settings keeps live probes behind a checkbox and renders the receipt as text
+ok 2 - settings keeps live probes behind a checkbox and renders the receipt as text
+  ---
+  duration_ms: 5.7727
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19.1163
+TAP version 13
+# Subtest: file approval preserves every mutation argument beyond the run summary cap
+ok 1 - file approval preserves every mutation argument beyond the run summary cap
+  ---
+  duration_ms: 5.6839
+  type: 'test'
+  ...
+# Subtest: rating controls name the originating task and run, even when an older card is shown
+ok 2 - rating controls name the originating task and run, even when an older card is shown
+  ---
+  duration_ms: 1.2547
+  type: 'test'
+  ...
+# Subtest: deliverable naming instruction yields to explicit task limits
+ok 3 - deliverable naming instruction yields to explicit task limits
+  ---
+  duration_ms: 1.0493
+  type: 'test'
+  ...
+# Subtest: Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+ok 4 - Codex probe sends Medium to Astra and completes instead of the unsupported-none 400
+  ---
+  duration_ms: 24.6084
+  type: 'test'
+  ...
+# Subtest: follow-up keeps the selected run through another run and save hydration
+ok 5 - follow-up keeps the selected run through another run and save hydration
+  ---
+  duration_ms: 34.3307
+  type: 'test'
+  ...
+# Subtest: a delayed rating for the preceding run cannot appear below newer work in the same session
+ok 6 - a delayed rating for the preceding run cannot appear below newer work in the same session
+  ---
+  duration_ms: 3.1022
+  type: 'test'
+  ...
+# Subtest: delayed memory decks do not reintroduce a superseded rating
+ok 7 - delayed memory decks do not reintroduce a superseded rating
+  ---
+  duration_ms: 0.5065
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 82.0286
+outbound-failure-diagnosability.test: OK (26 assertions)
+reflect.test: OK (114 assertions)
+memory-corrections.test: PASS (corrections, stale writes, failed persistence, review, scope, compaction)
+memcore.test: OK (93 assertions)
+cost.test: OK (38 assertions)
+spend.test: OK (10 assertions)
+ledger.test: OK (48 assertions)
+logbound.test: OK (23 assertions)
+budget.test: OK (49 assertions)
+budget-caps: OK (46 assertions)
+fallback-chain: OK (56 assertions)
+configexport.test.js OK — 76 assertions
+harness-import.test.js OK — 61 assertions
+settings-p1-backend.test.js OK — 36 assertions
+concurrency.test: OK (65 assertions)
+workspace-lease.test: OK (27 assertions)
+workspace-owner.test: OK (34 assertions)
+workspace-safety.test: OK (12 assertions)
+[recovery] auto station recovery SKIPPED: target workspace is a scratch root (C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-qobiLt\ci-scratch-jw6n8x\ws is under C:\Users\andro\AppData\Local\Temp\starnet-fake-real-home-qobiLt\ci-scratch-jw6n8x); a real station is never ingested into a temp workspace. Explicit recovery (request file / CLI restore) is unaffected.
+workspace-recovery.test: OK (66 assertions)
+workspace-lineage.test: OK (86 assertions)
+agent-lifecycle: OK (45 assertions)
+[failopen] durable-store.onCorrupt (x1): handler bug
+[failopen] durable-store.unreadable (x1): EBUSY: resource busy
+[failopen] durable-store.unreadable (x2): EBUSY: resource busy
+[failopen] durable-store.unreadable (x3): EBUSY: resource busy
+durable-store.test: OK (55 assertions)
+domain-store.test: OK (10 assertions)
+provider-runtime.test: OK (8 assertions)
+run-execution-state.test: OK (59 assertions)
+tool-progress-guard.test: OK (37 assertions)
+tool-dispatch-boundary.test: OK (10 assertions)
+completion-evidence.test: OK (16 assertions)
+task-postconditions.test: OK (21 assertions)
+connector-readback: OK (28 assertions)
+recipe-drift: OK (26 assertions)
+task-postconditions-ui.test: OK (10 assertions)
+recovery-policy.test: OK (12 assertions)
+tool-recovery.test: OK (6 assertions)
+run-journal-disk-boundary.test: OK (8 assertions)
+todo.durability.test: OK (54 assertions)
+halt: OK (15 assertions)
+readbody: OK (11 assertions)
+file-response.test: OK (14 assertions)
+test-list-runner.test: OK (8 assertions)
+runroute.test: OK (13 assertions)
+checkpoint: OK (34 assertions)
+checkpoint-default-on.test: OK (14 assertions)
+module-scope-shadowing.test: OK (7 assertions)
+source-text-integrity.test: OK (2135 tracked JS/MJS files)
+verify.test: OK (17 assertions)
+lsp-edit-feedback.test: OK (31 assertions)
+provider.replay.test: OK (13 assertions)
+agent-eval.test: OK (43 assertions)
+eval-campaign-preflight.test: OK (10 assertions)
+eval-soak-receipt.test: OK (12 assertions)
+eval-same-model-receipt.test: OK (10 assertions)
+eval-acp-client.test: OK (7 assertions)
+eval-fixture-host.test: OK (33 assertions)
+eval-installed-performance.test: OK (5 assertions)
+eval-installed-provider-soak.test: OK (20 assertions)
+eval-parity-offline.test: OK (27 assertions)
+overnight-reliability-runner.test: OK (28 assertions)
+provider.openrouter.test: OK (89 assertions)
+provider.openai-compatible.test: OK (104 assertions)
+realtime-voice.test.js: ok
+native-stt.test.js: ok
+local-voice.test.js: ok (models installed)
+media-service: OK (36 assertions)
+desktop voice bundle tests passed
+transcript.compaction.e2e.test: OK (19 assertions)
+provider.anthropic.test: OK (86 assertions)
+prices.live.test: OK (30 assertions)
+provider.gemini.test: OK (47 assertions)
+provider.toolschema.test: OK (28 assertions)
+provider.prices.test: OK (27 assertions)
+prices.all-providers.test: OK (119 assertions)
+provider.timeouts.test: OK (53 assertions)
+provider.registry.test: OK (148 assertions)
+ratelimits: OK (30 assertions)
+provider.codex-auth.test: OK (72 assertions)
+purge-leaked-codex-tokens: OK (14 assertions)
+provider.oauth-device.test: OK (72 assertions)
+codex-auth-state: OK (29 assertions)
+provider.codex.test: OK (66 assertions)
+provider.codex.pairing.test: OK (18 assertions)
+credpool.test: OK (15 assertions)
+credrotate.test: OK (29 assertions)
+sanitize.test: OK (42 assertions)
+errorclass.test: OK (215 assertions)
+[billing] managed run r5b over cap: reported $2.0100 vs reserved $2.0000 — charging the reservation; $0.0100 overage absorbed
+billing.test: OK (86 assertions)
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status ?); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+credits.test: OK (113 assertions)
+credits-link.test: OK (95 assertions)
+credits STORE recovery: native/HTTP/network failures, retry, stale reads, pending and successful unlink PASS
+friendlyerror.test: OK (229 assertions)
+codexsignin.test: OK (17 assertions)
+oauthsignin.test: OK (30 assertions)
+hooks.test: OK (49 assertions)
+shellhooks.test: OK (50 assertions)
+hooks.wiring.test: OK (31 assertions)
+plugins.test: OK (51 assertions)
+loop.replay.test: OK (121 assertions)
+loop.steer.test: OK (13 assertions)
+loop.verify-on-stop.test: OK (55 assertions)
+tests: OK (20 assertions)
+loop.parallel-tools.test: OK (15 assertions)
+loop.tool-images.test: OK (17 assertions)
+TAP version 13
+# Subtest: tool charges survive cancellation/failure and count toward the next budget guard
+ok 1 - tool charges survive cancellation/failure and count toward the next budget guard
+  ---
+  duration_ms: 3.9088
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9.7105
+loop.turn-budget: OK (24 assertions)
+loop.provider-recovery.test: OK (60 assertions)
+loop.failure-recovery.test: OK (12 assertions)
+loop.stop-means-stop: OK (28 assertions)
+output-continuation.test: OK (43 assertions)
+compaction.test: OK (40 assertions)
+compaction-summarizer.test: OK (341 assertions)
+loopguard.test: OK (15 assertions)
+loopguard.dispatch: OK (10 assertions)
+continuation-guard.test: OK
+continuation-guard.test: OK (40 assertions)
+text-toolcall-markup.test: OK
+text-toolcall-markup.test: OK (18 assertions)
+model-conformance.test: OK
+model-conformance.test: OK (22 assertions)
+iteration-budget.test: OK (24 assertions)
+updatecore: OK (72 assertions)
+quitguard: OK (28 assertions)
+desktop-lifecycle-preferences: OK (19 assertions)
+desktop-installed-cdp-forwarding.test: OK (5 assertions)
+cloudsavecore: OK (45 assertions)
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+[cloudsave] durable mirror sync recovered.
+cloudsave-refusal: OK (26 assertions)
+[cloudsave] adopted remote did not re-validate; kept prior local cache.
+[cloudsave] adopted remote did not re-validate; kept prior local cache.
+cloudsave-unknown: OK (22 assertions)
+freshstart.test: OK (15 assertions)
+unreachable-browser-mode: OK (20 assertions)
+harness.cancel-truth: OK (32 assertions)
+desktop-fresh-start-contract.test: OK (18 assertions)
+cloudsave-unload: OK (16 assertions)
+fullscreen.test: OK (40 assertions)
+titlebar.test.js OK
+titlebar.test: OK (21 assertions)
+logo-occlusion.test.js OK
+logo-occlusion: OK (14 assertions)
+keepawake.test: OK (18 assertions)
+grace.test: OK (7 assertions)
+shell-session.test: OK (28 assertions)
+shell-bg.test: OK (50 assertions)
+shell-bg-io: OK (29 assertions)
+shell-visible-window.test: OK (45 assertions)
+shell-input-isolation.test: OK (34 assertions)
+shell-machine-state.test: OK (266 assertions)
+procledger.test: OK (54 assertions)
+inputguard.test: OK (12 assertions)
+timeout.test: OK (6 assertions)
+phase4.evidence.test: OK (12 assertions)
+phase5.evidence.test: OK (15 assertions)
+phase5.runner.test: OK (10 assertions)
+t0-clean-install.test: OK (18 assertions)
+tests: OK (70 assertions)
+soak.test: OK (272 assertions)
+desktop-workspace-migration.test: OK (31 assertions)
+t1-signing.test: OK (20 assertions)
+t2-state-safety.test: OK (10 assertions)
+upgrade-085-090: OK (40 assertions)
+t3-release-smoke.test: OK (17 assertions)
+t4-update-delivery.test: OK (22 assertions)
+installer-upgrade-resilience.test: OK (33 assertions)
+t5-public-distribution.test: OK (35 assertions)
+minisign-verify.test: OK (21 assertions)
+release-assemble-manifest.test: OK (45 assertions)
+verify-update-host.test: OK (15 assertions)
+replacement-sweep.test: OK (19 assertions)
+lint-evidence-secrets.test: OK (8 assertions)
+lint-evidence-secrets: found key-shaped secrets in shareable evidence:
+- .dogfood\merge-reliability\STATUS.md.before:1895 [openrouter-v1-key]
+- .dogfood\merge-reliability\STATUS.md.before:1895 [openrouter-key]
+run-fast-tests: FAILED at step 186/829: node scripts/lint-evidence-secrets.mjs (exit 1)

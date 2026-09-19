@@ -7118,8 +7118,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (policySave) policySave.addEventListener('click', () => {
           const input = policyHost.querySelector('#exec-idle-min');
           policySave.disabled = true;
-          Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number(input && input.value) }).then(j => {
-            notify(j && j.ok ? 'idle-cell cleanup policy saved' : ((j && j.error) || 'could not save cleanup policy'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number(input && input.value) }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'idle-cell cleanup policy saved' : ((j && j.error) || 'could not save cleanup policy'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save cleanup policy', 'bad'); refreshExecutionProfiles(); });
         });
@@ -7355,27 +7356,34 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
           button.disabled = true;
           const payload = { agentId: box.getAttribute('data-exec-agent'), host: (box.querySelector('[data-ssh-host]') || {}).value || '', user: (box.querySelector('[data-ssh-user]') || {}).value || '', port: Number((box.querySelector('[data-ssh-port]') || {}).value || 22), remoteRoot: (box.querySelector('[data-ssh-root]') || {}).value || '/workspace' };
-          Harness.api.post('/api/execution/ssh', payload).then(j => {
-            notify(j && j.ready ? 'SSH target saved and ready' : (j && j.saved ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), j && j.ready ? 'good' : 'bad');
+          Harness.api.post('/api/execution/ssh', payload).then(r => {
+            const j = r.j, ready = r.ok && j && j.ok === true && j.ready === true;
+            notify(ready ? 'SSH target saved and ready' : (r.ok && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save SSH target', 'bad'); refreshExecutionProfiles(); });
         }));
         crewList.querySelectorAll('[data-ssh-sync]').forEach(button => button.addEventListener('click', () => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
           button.disabled = true;
-          Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('data-exec-agent'), direction: button.getAttribute('data-ssh-sync') }).then(j => {
-            notify(j && j.ok ? 'workspace ' + button.getAttribute('data-ssh-sync') + ' complete' : ((j && j.error) || 'workspace sync failed'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('data-exec-agent'), direction: button.getAttribute('data-ssh-sync') }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'workspace ' + button.getAttribute('data-ssh-sync') + ' complete' : ((j && j.error) || 'workspace sync failed'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('workspace sync failed', 'bad'); refreshExecutionProfiles(); });
         }));
         crewList.querySelectorAll('[data-ssh-clear]').forEach(button => ArmConfirm.wire(button, { armedLabel: 'SURE? CLEAR TARGET', restLabel: 'CLEAR TARGET', timeoutMs: 4000, onConfirm: () => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
-          Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('data-exec-agent'), clear: true }).then(() => { notify('SSH target cleared', 'good'); refreshExecutionProfiles(); }).catch(() => { notify('could not clear SSH target', 'bad'); refreshExecutionProfiles(); });
+          Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('data-exec-agent'), clear: true }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true && j.saved === true;
+            notify(ok ? 'SSH target cleared' : ((j && j.error) || 'could not clear SSH target'), ok ? 'good' : 'bad');
+            refreshExecutionProfiles();
+          }).catch(() => { notify('could not clear SSH target', 'bad'); refreshExecutionProfiles(); });
         } }));
         crewList.querySelectorAll('[data-cell-stop]').forEach(button => button.addEventListener('click', () => {
           button.disabled = true;
-          Harness.api.post('/api/execution/cleanup', { agentId: button.getAttribute('data-cell-stop') }).then(j => {
-            notify(j && j.ok ? 'idle Safe Cell stopped — container preserved' : ((j && (j.reason || j.error)) || 'cell is active or unavailable'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/cleanup', { agentId: button.getAttribute('data-cell-stop') }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'idle Safe Cell stopped — container preserved' : ((j && (j.reason || j.error)) || 'cell is active or unavailable'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not stop Safe Cell', 'bad'); refreshExecutionProfiles(); });
         }));

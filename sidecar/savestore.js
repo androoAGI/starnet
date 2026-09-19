@@ -47,6 +47,7 @@
     if (!clock || typeof clock.now !== 'function') throw new Error('makeSaveStore: an injected clock is required');
 
     let tmpSeq = 0;   // deterministic process-unique tmp suffix (a single host; no pid/rng needed)
+    const recoveredMissing = new Set();
 
     function ensureRoot() { try { if (fs.mkdirSync) fs.mkdirSync(rootDir, { recursive: true }); } catch (_) {} }
     function saveFile(agentId) {
@@ -107,14 +108,25 @@
     // conservative. Adds status 'recovered' (main was bad, .bak was clean -> the .bak value is authoritative).
     function readTagged(file) {
       const m = readTaggedRaw(file);
-      if (m.status === 'ok') return m;
+      if (m.status === 'ok') { recoveredMissing.delete(file); return m; }
       if (m.status === 'unreadable') return m;   // locked/EBUSY: don't roll back to a possibly-stale .bak
       // main is absent OR corrupt/torn — try the last-known-good .bak.
       const b = readTaggedRaw(file + '.bak');
+      // The backup may be the only intact copy. A transient read failure proves neither
+      // absence nor corruption, even when main is torn. Do not quarantine or replace it.
+      if (b.status === 'unreadable') return b;
       if (b.status === 'ok') {
         if (m.status === 'corrupt') {
           const dead = quarantine(file, 'main unparseable; recovered from .bak');
           writeRecoveryMarker(file, 'recovered', dead ? { quarantinedTo: dead } : undefined);
+          recoveredMissing.add(file);
+        } else {
+          // Missing main is also a recovery, not a pristine first run. Avoid re-arming an
+          // acknowledged notice on every read while the backup remains authoritative.
+          if (!recoveredMissing.has(file)) {
+            writeRecoveryMarker(file, 'recovered');
+            recoveredMissing.add(file);
+          }
         }
         return { status: 'recovered', wrapper: b.wrapper, err: m.err };
       }
@@ -176,6 +188,13 @@
     }
 
     return {
+      // HTTP callers must distinguish a missing station from temporarily inaccessible bytes.
+      // Keep load()'s legacy optional-document shape for internal best-effort readers.
+      loadState(agentId) {
+        const r = readTagged(saveFile(agentId));
+        const w = r.wrapper;
+        return { status: r.status, doc: w && typeof w === 'object' && w.doc && typeof w.doc === 'object' ? w.doc : undefined };
+      },
       // the stored save envelope (the exact doc the frontend persisted), or undefined when there is none or
       // the file is unreadable/corrupt. Never throws on a bad file — a wiped agent reads as "nothing yet".
       load(agentId) {

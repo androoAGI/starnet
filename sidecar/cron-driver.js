@@ -644,6 +644,10 @@
       //    one-shot fire-claim ceiling (G4.5): planTick suppresses a one-shot with a FRESH claim (in flight)
       //    and reclaims a ZOMBIE claim past this age — the SAME ceiling the lease sweep above uses.
       const plan = cron.planTick(getJobs(), nowMs, { defaultTz: defaultTz, maxRunMs: maxRunMs, heartbeatStaleMs: heartbeatStaleMs });
+      // Under a cap, oldest due work gets the next slot. Store order lets a recurring job
+      // become due again and repeatedly overtake deferred jobs at the end of the array.
+      // scheduledFor survives restart; stable ties preserve the existing order.
+      if (maxParallel > 0) plan.fire.sort((a, b) => a.scheduledFor - b.scheduledFor);
 
       // 2b. GLOBAL CONCURRENCY CAP (G4.4): partition plan.fire into the jobs we'll ATTEMPT this tick and the
       //     ones DEFERRED past the cap. A job already holding a lease is neither attempted nor deferred — it
