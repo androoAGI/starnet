@@ -15659,6 +15659,7 @@ async function runOnceCore(o) {
   // THIS SAME runOnce per worker; the roster supplies each worker's composed identity (system prompt + model).
   makeOrchestrationTools({
     runOnce, roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
+    coordinateResults: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface }),
     classes: SPECIALIST_CLASSES,   // Class Loadouts S1: the summon-tool class list, composed from the shared catalog (no hardcoded prose)
     selfSystem: system,   // team.spawn clones the LEAD's OWN base identity into each ephemeral subagent (Meeseeks)
     sessionContext: id => {
@@ -16947,7 +16948,7 @@ async function runOnceCore(o) {
   // channel tasks receive orchestration above; workers and disabled toolsets do not.
   if (isTask && resolved.tools.includes('team.dispatch')) {
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
-    if (agentId === 'agent') teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle simple work directly. '
+    if (require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })) teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle simple work directly. '
       + 'Use the agents the Commander has already created, choosing by their roles and instructions. '
       + 'Do not create a replacement crew or require a special General session. '
       + 'For independent or long-running work, inspect existing sessions, reuse the relevant thread or create a named working session, '

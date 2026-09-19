@@ -5,6 +5,11 @@
 // are adopted by the page using their stable IDs. No credentials are persisted.
 const { makeDomainStore } = require('./domain-store.js');
 
+function isCoordinatorRun(o) {
+  return o.agentId === 'agent' && !o.internal && !o.floorless
+    && ((o.surface === 'interactive' && o.lead === true) || o.syntheticTrigger === true);
+}
+
 function makeOverseer(deps) {
   const store = makeDomainStore({ fs: deps.fs, path: deps.path, file: deps.file,
     defaults: () => ({ threads: [], reviews: [] }),
@@ -103,4 +108,4 @@ function makeOverseer(deps) {
   }
   return { threads, resolve, create, collect, patchReview, withThread, snapshot, stopReviews, resumeReviews };
 }
-module.exports = { makeOverseer };
+module.exports = { makeOverseer, isCoordinatorRun };

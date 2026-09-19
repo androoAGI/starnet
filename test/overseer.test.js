@@ -3,10 +3,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { makeOverseer } = require('../sidecar/overseer.js');
+const { makeOverseer, isCoordinatorRun } = require('../sidecar/overseer.js');
 const { makeSubagentManager } = require('../sidecar/subagents.js');
 
 (async () => {
+  assert.equal(isCoordinatorRun({ agentId: 'agent', surface: 'interactive', lead: true }), true, 'COMMS orchestrator opts into automatic follow-through');
+  assert.equal(isCoordinatorRun({ agentId: 'custom_researcher', surface: 'interactive', lead: true }), false, 'specialists keep existing behavior');
+  assert.equal(isCoordinatorRun({ agentId: 'agent', surface: 'autonomous', lead: true }), false, 'scheduled work keeps existing behavior');
+  assert.equal(isCoordinatorRun({ agentId: 'agent', surface: 'interactive', lead: true, floorless: true }), false, 'channel approvals do not opt external conversations in');
+  assert.equal(isCoordinatorRun({ agentId: 'agent', surface: 'autonomous', lead: true, syntheticTrigger: true }), true, 'already-admitted orchestration can follow through');
+  assert.equal(isCoordinatorRun({ agentId: 'agent', surface: 'interactive', lead: true, internal: true }), false, 'internal helper requests do not coordinate the crew');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-overseer-'));
   let serial = 0;
   const saved = { generalId: 'home', workstreams: [{ id: 'home', title: null, agentId: 'agent' }], deletedIds: [] };
