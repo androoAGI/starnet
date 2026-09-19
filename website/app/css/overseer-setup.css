@@ -102,7 +102,7 @@
 #screen-connect .ov-connection :is(#key-block,#base-url-block) { margin-bottom:18px; }
 #screen-connect .codex-signin { border:1px solid var(--gd-edge); border-radius:9px; padding:16px; background:var(--ov-well); box-shadow:inset 0 1px 0 var(--gd-light); margin-bottom:20px; }
 #screen-connect .codex-status { font-size:16px; line-height:1.4; margin-bottom:12px; letter-spacing:0; color:var(--text); }
-#screen-connect .codex-code { padding:14px; margin:12px 0; font-size:24px; border:1px solid var(--gd-edge); border-radius:6px; background:var(--gd-face); }
+#screen-connect .codex-code { padding:14px; margin:12px 0; font-size:24px; border:1px solid var(--gd-edge); border-radius:6px; background:var(--gd-face); color:var(--ph-bright); }
 #screen-connect .codex-actions { display:flex; flex-wrap:wrap; gap:8px; }
 #screen-connect :is(.hint,.byok-note) { font-size:14px; line-height:1.45; letter-spacing:0; }
 #screen-connect .ov-model-lab { margin-top:24px; }
