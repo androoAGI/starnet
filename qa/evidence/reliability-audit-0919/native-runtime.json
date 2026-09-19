@@ -1,0 +1,17 @@
+{
+  "host": "Windows",
+  "test": "test/update-preparation.http.test.js",
+  "node24": {
+    "version": "24.19.0",
+    "attempts": ["test:http step 16/120", "direct test invocation"],
+    "assertions": "OK (9 assertions) on both attempts",
+    "exitCode": 3221226505,
+    "nativeError": "Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\\win\\async.c, line 94"
+  },
+  "node22": {
+    "version": "22.23.0",
+    "directTest": "OK (9 assertions), exit 0",
+    "baselineHttp": "119 suites passed"
+  },
+  "disposition": "Open validation-runtime finding; native shutdown cause not established. No installed-app failure inferred."
+}

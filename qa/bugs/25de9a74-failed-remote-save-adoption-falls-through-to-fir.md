@@ -27,4 +27,4 @@ Make localStorage.setItem throw while reconciling a valid remote. With no readab
 
 ## Verdict
 
-Read back the exact cached remote before migration; on failure restore the old cache and its original revision. No-local failure enters recovery. Source verification is separate from installed WebView quota/recovery acceptance, which remains unverified.
+Read back the exact cached remote before migration; on failure restore the old cache and its original revision. No-local failure enters recovery with a distinct SAVE-CACHE diagnosis. Live reload with unavailable browser storage shows that screen, and removing the fault restores the station. Source verification is separate from installed WebView quota/recovery acceptance, which remains unverified.

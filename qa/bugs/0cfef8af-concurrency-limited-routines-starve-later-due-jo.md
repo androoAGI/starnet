@@ -4,10 +4,10 @@ slug: concurrency-limited-routines-starve-later-due-jo
 title: Concurrency-limited routines starve later due jobs in store order
 surface: autonomy
 severity: P1
-status: open
+status: fixed
 found: 2026-09-19
 lane: reliability-audit-0919
-fix:
+fix: b651a8f5d
 origin: audit
 ---
 
@@ -27,4 +27,4 @@ Run `node scripts/qa/soak.mjs --minutes=5 --routines=10 --max-parallel=3 --resta
 
 ## Verdict
 
-Pending live post-fix soak. Due-time ordering needs no volatile cursor and preserves existing concurrency, lease, advance-before-run and misfire policies. This does not promise every occurrence executes when offered load exceeds configured capacity; configured skipping remains explicit telemetry.
+The repeated five-minute live soak PASS: 24 accounted occurrences, 17 fires, five already-running skips, two policy collapses, and zero lost/doubled/unexpected/off-schedule occurrences. All four ordinary fireable routines executed, including the two previously starved. Thirteen direct runs completed without error; restart preservation passed. Due-time ordering needs no volatile cursor and preserves existing concurrency, lease, advance-before-run and misfire policies. This does not promise every occurrence executes when offered load exceeds configured capacity; configured skipping remains explicit telemetry. Evidence: `qa/evidence/reliability-audit-0919/soak-after.json`.
