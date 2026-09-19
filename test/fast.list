@@ -828,3 +828,4 @@ test/industrial-shells.test.js
 test/refit-bake-reuse.test.js
 test/hallway-traffic.test.js
 test/cloudsave-timeout.test.js
+test/station-autosave.test.js

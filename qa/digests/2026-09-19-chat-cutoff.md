@@ -12,7 +12,7 @@ Desktop and website implementations match. No provider limits, shared event cont
 
 ## Verification
 
-- `npm run test:fast`: **819/819 PASS**, Node 24.19.0, unchanged 900-second gate. Log: owned worktree `.dogfood/chat-cutoff/fast-verified.log`.
+- `npm run test:fast`: **819/819 PASS before and after merge**, Node 24.19.0, unchanged 900-second gate. Logs: owned worktree `.dogfood/chat-cutoff/fast-verified.log` and `post-merge-fast.log`. Both exited 0.
 - `npm run qa:customer-journeys`: **36/36 PASS**.
 - New registered browser/COMMS regression: **188 assertions PASS** across both mirrors; the original harness failed 78 assertions in the initial 158-assertion before/after comparison.
 - Existing real-host recovery API: **37 assertions PASS**, including restart after an uncertain mutation, review-required refusal, and blocked replay of the mutation.
@@ -25,4 +25,6 @@ Before/after evidence: `qa/evidence/chat-cutoff-0919/investigation.json` and `ve
 
 ## Integration scope
 
-Owner authorized fix, sweep and merge. No installer rebuild, push, release or customer-recovery claim. The integration SHA and post-merge gate result are recorded in the operational `qa/STATUS.md` / `docs/NEXT.md` entry after the post-merge gate completes. Preserve the queued station-save lane and all unrelated operational edits.
+Merged into `feat/harness-backend` at `7f55d8809d641ca70710ff049462761aac400b79`; the merge tree exactly matches accepted lane `84a050149`. Post-merge full gate passed 819/819 at 2026-09-19 14:16 America/New_York. This receipt-only follow-up changes no application or test source. The serialized reservation is released after recording this receipt; station-save remains next in queue.
+
+Owner authorized fix, sweep and merge. No installer rebuild, push, release or customer-recovery claim. Unrelated operational edits are preserved.

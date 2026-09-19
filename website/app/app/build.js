@@ -305,8 +305,8 @@ const Build = (() => {
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
     if (typeof SFX !== 'undefined') SFX.close();
-    if (opts.persist) opts.persist();
-    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Station layout saved', 'good', undefined, { transient: true });
+    const saved = opts.persist ? opts.persist() : false;
+    if (saved && typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Station layout saved locally', 'good', undefined, { transient: true });
     if (opts.world && opts.world.refit) opts.world.refit();     // recenter the live world on the new build
     if (opts.world && opts.world.start) opts.world.start();     // resume the live sim with the new build
     if (opts.onClose) opts.onClose();

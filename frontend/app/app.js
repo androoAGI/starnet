@@ -1445,8 +1445,23 @@ const App = (() => {
     return { agentId: a.id, desk: deskWhere };
   }
 
+  let unsubscribeStationSave = null;
+  let stationSaveQueued = false;
+  function watchStationSave() {
+    if (unsubscribeStationSave) unsubscribeStationSave();
+    const watched = station;
+    unsubscribeStationSave = watched.onChange(() => {
+      if (stationSaveQueued) return;
+      stationSaveQueued = true;
+      // Coalesce the synchronous mutations of one gesture (e.g. place + assign a desk),
+      // but save before the next browser event. Do not wait for SAVE & EXIT or a chat turn.
+      queueMicrotask(() => { stationSaveQueued = false; persist(); });
+    });
+  }
+
+  let saveFailureNotified = false;
   function persist() {
-    if (!agent) return;
+    if (!agent) return false;
     // the save ROOT is ALWAYS the hero ('agent'), never the transiently-FOCUSED crew member — otherwise a
     // persist while a summoned agent is focused would overwrite the hero identity and corrupt resume.
     const hero = agents.get('agent') || agent;
@@ -1460,7 +1475,14 @@ const App = (() => {
     const doc = Save.write(Object.assign({ _saveDirty: true, _saveRevision: typeof CloudSave !== 'undefined' && CloudSave.revision ? CloudSave.revision() : 0, agent: hero, agents: roster.length > 1 ? roster.map(serializeAgentLite) : undefined, usage: Harness.totals(), prov, reasoningEffort, station: station ? station.serialize() : undefined, stationStats, profile, worksignal, dossier }, Workstreams.serialize()));
     if (doc && typeof CloudSave !== 'undefined') CloudSave.push(doc);   // durable write-through to the sidecar (debounced, best-effort)
     if (rosterPushFailed) pushRoster();   // a prior roster POST failed — retry it opportunistically on this persist
+    if (!doc) {
+      if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify('Could not save station changes. Keep this window open and free storage before trying again.', 'warn');
+      saveFailureNotified = true;
+      return false;
+    }
+    saveFailureNotified = false;
     if (typeof StationUI !== 'undefined') StationUI.flashSave();
+    return true;
   }
 
   /* ---------- connect screen ---------- */
@@ -2956,6 +2978,7 @@ const App = (() => {
     const hadStationId = !!(pendingStationDoc && pendingStationDoc.meta && pendingStationDoc.meta.createdAt);
     station = (pendingStationDoc && pendingStationDoc.rooms) ? WorldModel.deserialize(pendingStationDoc) : WorldModel.create(WorldModel.starterDoc());
     pendingStationDoc = null;
+    watchStationSave();
     // THE OVERSEER'S DESK IS A REAL PROP: materialize the starter workstation the world used to merely
     // DRAW (synthetic auto-desk) as a real hero-assigned desk in the doc, BEFORE the world derives its
     // floor — so bayObjects/REFIT/dossier see the same PC the player sees (kills the fresh-install
