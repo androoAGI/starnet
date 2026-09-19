@@ -62,10 +62,35 @@ const WorldRenderer = (() => {
     return !!(a && b && a.x + a.w + p >= b.x && a.x - p <= b.x + b.w &&
       a.y + a.h + p >= b.y && a.y - p <= b.y + b.h);
   }
+  /* 2.5D depth contract.
+     The world remains a fast 2D canvas, but drawable items may expose an optional depth/elevation
+     value. This lets tall props, raised surfaces and future vertical planes participate in one
+     deterministic compositor without changing the saved WorldModel. Existing items have no depth
+     field and therefore retain the exact legacy y-order.
+
+     Supported optional fields (highest priority first):
+       depthY / depth  — explicit projected depth supplied by the world layer
+       z / elevation   — vertical placement expressed as a small depth correction
+       y               — legacy footprint/contact line
+     height is intentionally NOT added to the sort key: height changes silhouette, not where an
+     object's footprint meets the ground. That distinction prevents tall props from incorrectly
+     jumping in front of agents merely because they are visually high.
+  */
+  function depthKey(item) {
+    if (!item) return 0;
+    const y = finite(item.y, 0);
+    const explicit = Number.isFinite(Number(item.depthY)) ? Number(item.depthY) :
+      Number.isFinite(Number(item.depth)) ? Number(item.depth) : null;
+    if (explicit != null) return explicit;
+    const z = Number.isFinite(Number(item.z)) ? Number(item.z) :
+      Number.isFinite(Number(item.elevation)) ? Number(item.elevation) : 0;
+    return y + z;
+  }
   function sortedItems(items) {
     // Explicit tie ordering preserves doc-order furniture and the bed/seat half-pixel keys.
+    // When 2.5D metadata is present, depthKey becomes the projected ground/depth coordinate.
     return (items || []).map((item, index) => ({ item, index }))
-      .sort((a, b) => finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
+      .sort((a, b) => depthKey(a.item) - depthKey(b.item) || finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
       .map(entry => entry.item);
   }
   function percentile(values, quantile) {
@@ -193,6 +218,6 @@ const WorldRenderer = (() => {
     }
     return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
-  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, sortedItems, percentile };
+  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, depthKey, sortedItems, percentile };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldRenderer;
