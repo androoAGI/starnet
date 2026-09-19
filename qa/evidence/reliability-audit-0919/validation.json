@@ -79,23 +79,23 @@
   "files": [
     {
       "path": "audit.log",
-      "sha256": "b6f96991fccd56bd1599fc120234f4fd37c26c470a6c709ba2df1d253dc25359"
+      "sha256": "42d82e208375d8ec367cd084e62056f2ec6c815c3d7db5637a1168af74f84fc3"
     },
     {
       "path": "customer-journeys.log",
-      "sha256": "c7bd458e77b128aadcd5a3fae67dc84906277a3bc692586875d5077c1b93c8e2"
+      "sha256": "9a6077f3752954c0c5df3c3ce81e31e0bce8fc919ea999c5dda55bfd12cf65a7"
     },
     {
       "path": "fast-locked.log",
-      "sha256": "7f9a9eb2cbdc712bf3f6b5cb881b979b3fbbcc25da476b34b049fea529e0eca9"
+      "sha256": "9018e622e2c669795790816b246ff0009a8496715323711a02afa8ee5b379d4e"
     },
     {
       "path": "http-combined.log",
-      "sha256": "ed97f59b33652965cd5f5a5e5d6b0e6ae14304235f7480b9e41b797fdd0dd255"
+      "sha256": "43f155b917ad05435d11ff511edd485ca64f03e5818a67f6ff1de3b6bb510adf"
     },
     {
       "path": "journeys-locked.log",
-      "sha256": "4474aee102a39fc205fe944d28283176cc7909d5dc0712f718c723c9f206a200"
+      "sha256": "73d1ed06cc7fa958f735e15987921d740188b7b84b11d7af8d8568507773d058"
     },
     {
       "path": "native-runtime.json",
@@ -107,7 +107,7 @@
     },
     {
       "path": "readiness-locked.log",
-      "sha256": "a175aafe9a43b1912dca14ad88d98d1624889fbf606913e952aece694b8b4980"
+      "sha256": "d7da393c34ca70d7a731d85c92d29b8b0eb573038eb78917731246a6a0b6ed27"
     },
     {
       "path": "save-adoption-before.log",
@@ -145,5 +145,6 @@
       "path": "soak-before.json",
       "sha256": "a0dc23cc87fe6c9e5a2e9196c59cc431289f10382b140cff40c96aba39a1a01b"
     }
-  ]
+  ],
+  "logNormalization": "Retained gate logs normalize CRLF to LF and remove trailing horizontal whitespace; original raw output remains under .dogfood/reliability-audit."
 }
