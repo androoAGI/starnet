@@ -11907,6 +11907,8 @@ const PropSprites = (() => {
     // G3b TROPHY CASE earned-trophy count (the world layer feeds this from the live trophy projection)
     setTrophyCount,
     setJourneyStage,
+    // 2.5D presentation metadata; does not affect saved world mechanics or occupancy.
+    depthProfile, PROP_2_5D,
     // tab/tier display names — shared with build.js (palette tabs) and propsearch.js (matching)
     TIER_LABEL, CAT_LABEL,
     // the STARTER shelf ids (build.js pins these above the SYSTEMS drawers; locked by prop-starter-shelf.test.js)
