@@ -4,10 +4,10 @@ slug: reopened-conversations-send-before-history-is-re
 title: Reopened conversations send before history is restored and hide late messages
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-19
 lane: session-reliability-0919
-fix:
+fix: 8b8bf9531
 origin: owner
 report: Owner requested systemic investigation of disappearing conversations and forgotten context on 2026-09-19
 affected: Reproduced seeded Chrome on 8e182efaf; reporter build unknown
@@ -37,7 +37,6 @@ History rendering incorrectly used the short-lived scroll-pin token as its async
 ## Regression
 
 Baseline live failure above. After repair, delayed messages render without another switch and the follow-up request includes the recovered destination. Registered coverage includes 48 controlled lifecycle sequences across desktop/website sources and a combined browser journey: delayed restore, send/switch, background delivery during typing, unavailable history, one explicit retry, stream interruption, failed durable write, acknowledged retry, cache loss and process restart. Tests use controlled upstream transport; no paid model or installed native shell is claimed.
-
 
 ## Sibling coverage
 
