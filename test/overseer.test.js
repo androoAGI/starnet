@@ -14,8 +14,10 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
     newId: () => 'thread_' + ++serial, sessions: () => saved, hasAgent: id => ['agent', 'researcher'].includes(id) };
   try {
     let manager = makeOverseer(deps);
-    const child = manager.create({ title: 'Research', agentId: 'researcher', parentStreamId: 'home', requestId: 'create_1' });
+    saved.workstreams[0].projectRoot = path.join(root, 'project-alpha');
+    const child = manager.create({ title: 'Research', agentId: 'researcher', parentStreamId: 'home', requestId: 'create_1', projectRoot: 'untrusted-model-root' });
     assert.equal(child.parentStreamId, 'home');
+    assert.equal(child.projectRoot, saved.workstreams[0].projectRoot, 'scope comes from the parent, never tool arguments');
     assert.equal(manager.create({ title: 'Research', parentStreamId: 'home', requestId: 'create_1' }).id, child.id);
     assert.throws(() => manager.create({ title: 'Research', parentStreamId: 'home' }), /already exists/);
     assert.throws(() => manager.create({ title: 'Other', parentStreamId: 'missing' }), /no such/);

@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "885390fafbb1ca9da7a4d2ec3df9ffc144fe28ae",
-    "pathSetSha256": "a11c67cfb53f07eaaf8784fa4174bea4635d53b5741259b6894e8b5cccf6eac8",
+    "sourceCommit": "2d9b6b5cd43664f5b395d3eff422199c3c4520ea",
+    "pathSetSha256": "baa6f6ba0fe5da81838a50f09a4c7f97680d5393f0adfd1700be34f4947eafdc",
     "files": [
       {
         "path": "INSTALL.md",
@@ -667,6 +667,11 @@
         "sha256": "f5737708bd2f63921c890a3191f136a0d72a4144631d849ca00ea79150b533bc"
       },
       {
+        "path": "frontend/app/overseer.js",
+        "bytes": 4547,
+        "sha256": "8f7b9e297a085e2071e63bd506c0fd00945c227e33f8e17fccb390c5f79abf35"
+      },
+      {
         "path": "frontend/app/permissions.js",
         "bytes": 11906,
         "sha256": "8ce0ac803a71cbaf1a3a1c741eca12600e266ca6b08ce679d6098e7ca0ee1e80"
@@ -1273,8 +1278,8 @@
       },
       {
         "path": "frontend/app/workstreams.js",
-        "bytes": 39657,
-        "sha256": "090650bdb958e7ccad3d3aa6278957debd2bfc6570e740dd0cf96b37e62d5814"
+        "bytes": 39737,
+        "sha256": "6260de0993f36d35273d3c050289b7c2fd58dc14a1530858adfc689bcb5b8c11"
       },
       {
         "path": "frontend/app/workview.js",
@@ -1358,8 +1363,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 401106,
-        "sha256": "7e2906bb72674b985b6bc21e5bdcaa4f47a1e2bbc3222dfed81be10ac624335f"
+        "bytes": 401414,
+        "sha256": "59781d37ab2e148e5987588eecba64561afd9944f5285a9363521290b511ad2d"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1568,8 +1573,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86317,
-        "sha256": "0b79e94893e8b9702f1c25d0a17c620e8c068769dad5a2dea09454d3865f077f"
+        "bytes": 86357,
+        "sha256": "73e8dc448ae7bdf1a354244404e20f2b8038addcd9712e0ef39d22b44510e437"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -1839,6 +1844,10 @@
         {
           "path": "README.md",
           "needle": "run **more, concurrently**"
+        },
+        {
+          "path": "frontend/app/overseer.js",
+          "needle": "Overseer · delegated work"
         }
       ],
       "authorityChecks": [
@@ -1851,6 +1860,16 @@
           "kind": "contains",
           "path": "sidecar/index.js",
           "needle": "MAX_CONCURRENT_AGENTS"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/overseer.js",
+          "needle": "async function withThread"
+        },
+        {
+          "kind": "contains",
+          "path": "test/e2e.overseer.test.js",
+          "needle": "automatic review never impersonates a Commander message"
         }
       ],
       "verdict": "SHIPPED",

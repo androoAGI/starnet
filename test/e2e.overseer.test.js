@@ -67,6 +67,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     snapshot = (await fixture.json('GET', '/api/overseer')).body;
     assert.equal(snapshot.reviews[1].status, 'interrupted', 'unknown review completion is never asserted or replayed');
     assert.equal(provider.reviews(), 2, 'uncertain review needs an explicit follow-up');
+    await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
+      messages: [{ role: 'user', content: 'Follow up in the existing research thread' }] });
+    const halted = await fixture.json('POST', '/api/halt', {});
+    assert.equal(halted.status, 200);
+    snapshot = (await fixture.json('GET', '/api/overseer')).body;
+    assert.equal(snapshot.paused, true, 'E-STOP durably pauses review admission');
+    assert.ok(snapshot.reviews.some(r => r.status === 'cancelled'), 'stopped worker cannot enqueue a new review');
+    await fixture.restart(); await sleep(2600);
+    snapshot = (await fixture.json('GET', '/api/overseer')).body;
+    assert.equal(snapshot.paused, true, 'E-STOP survives process restart');
+    assert.equal(provider.reviews(), 2, 'restart after stop never wakes cancelled reviews');
     console.log('e2e.overseer: headless create -> background dispatch -> automatic parent review -> restart PASS');
   } catch (e) { console.error(fixture.output().slice(-2500)); throw e; }
   finally { await fixture.dispose(); await new Promise(resolve => mock.close(resolve)); }
