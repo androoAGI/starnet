@@ -1,0 +1,76 @@
+{
+  "stalledReply": {
+    "outcome": false,
+    "aborted": true
+  },
+  "unprovenReplies": [
+    {
+      "body": "{}",
+      "confirmed": false
+    },
+    {
+      "body": "not-json",
+      "confirmed": false
+    },
+    {
+      "body": "{\"ok\":false,\"error\":\"disk full\"}",
+      "confirmed": false
+    },
+    {
+      "body": "{}",
+      "unknown": true,
+      "empty": false
+    },
+    {
+      "body": "{\"error\":\"unavailable\"}",
+      "unknown": true,
+      "empty": false
+    },
+    {
+      "body": "{\"save\":{\"broken\":true}}",
+      "unknown": true,
+      "empty": false
+    }
+  ],
+  "staleAdoption": {
+    "expected": 1,
+    "actual": 1
+  },
+  "primary": {
+    "status": 503,
+    "unreadable": true,
+    "empty": false
+  },
+  "browser": {
+    "unknown": true,
+    "empty": false,
+    "outcome": "unreadable"
+  },
+  "recoveryScreen": {
+    "active": true,
+    "text": "RECOVERY CODE: SAVE-READ · STATION FILE UNAVAILABLEthe station service is running, but could not read the saved station; your existing files are preserved. Send a screenshot of this code to support."
+  },
+  "retryResumedStation": true,
+  "cacheAdoption": {
+    "unknown": true,
+    "cacheUnchanged": true
+  },
+  "cacheRecoveryScreen": {
+    "active": true,
+    "text": "RECOVERY CODE: SAVE-CACHE · LOCAL RESTORE FAILEDthe saved station was received, but this window could not store or read it; the durable station is preserved. Send a screenshot of this code to support."
+  },
+  "primaryRecovered": "NOVA",
+  "backupRead": 503,
+  "backupWrite": {
+    "ok": false,
+    "stale": true,
+    "unreadable": true,
+    "updatedAt": 0
+  },
+  "afterRestart": {
+    "name": "RETAIN ME",
+    "recovery": "recovered"
+  },
+  "originalPrimaryRetained": true,
+  "exceptions": []
+}
