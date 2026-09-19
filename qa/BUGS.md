@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**12** open (open+claimed) of 194 total — 0 P0 · 1 P1 · 11 P2
+**11** open (open+claimed) of 194 total — 0 P0 · 1 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -233,7 +233,6 @@ User/owner reports: **94** · source fixed: **83** · installer verified: **6** 
 | P2 | open | providers | [Ollama run times out with no chat POST observed by reporter](bugs/5274c7b7-ollama-chat-request-not-observed.md) | release-0120-prep-0915 | — |
 | P2 | open | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
-| P2 | open | release | [Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership](bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md) | reliability-audit-0919 | — |
 | P2 | open | release | [Windows Node 24 HTTP test exits with a native libuv assertion after passing](bugs/6e29727c-windows-node-24-http-test-exits-with-a-native-li.md) | reliability-audit-0919 | — |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
@@ -258,6 +257,7 @@ User/owner reports: **94** · source fixed: **83** · installer verified: **6** 
 | P2 | fixed | release | [Hydration regression depends on host scheduling](bugs/4bc5d562-hydration-regression-depends-on-host-scheduling.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Linux AppImage staging includes incompatible musl Sharp binaries](bugs/694472bf-linux-appimage-staging-includes-incompatible-mus.md) | agent/release-0112-audit-0910 | bbbd7c13a |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
+| P2 | fixed | release | [Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership](bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md) | reliability-audit-0919 | b123e3ea3 |
 | P2 | fixed | release | [t5.1 prerequisite gate accepts T0–T4 verdicts with no installer-hash or freshness binding, though t3.2 already binds T0's recorded installer sha256 to the binar](bugs/4bd953e0-t5-1-prerequisite-gate-accepts-t0-t4-verdicts-wi.md) | sweep/release | b76e340c |
 | P2 | fixed | release | [Update canary uses obsolete saves and snapshots the startup WebView](bugs/050da842-update-canary-uses-obsolete-saves-and-snapshots.md) | agent/release-0112-audit-0910 | bed625bdd |
 | P2 | fixed | safecell | [A mid-run "Full access" click writes a per-agent '*' wildcard with no readout and no revoke anywhere, and the same wildcard is read by that agent's UNATTENDED r](bugs/13646d93-a-mid-run-full-access-click-writes-a-per-agent-w.md) | sweep/safecell | 226cec3c |
@@ -317,5 +317,5 @@ User/owner reports: **94** · source fixed: **83** · installer verified: **6** 
 | onboarding | 2 |
 | world | 0 |
 | voice | 0 |
-| release | 3 |
+| release | 2 |
 

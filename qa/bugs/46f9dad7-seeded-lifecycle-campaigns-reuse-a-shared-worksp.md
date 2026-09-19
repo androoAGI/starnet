@@ -4,11 +4,11 @@ slug: seeded-lifecycle-campaigns-reuse-a-shared-worksp
 title: Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-09-19
 lane: reliability-audit-0919
-fix:
-origin: unknown
+fix: b123e3ea3
+origin: audit
 ---
 
 # Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership
@@ -27,4 +27,4 @@ The first post-merge fast log stopped at step 776/829 in `test/session-reliabili
 
 ## Verdict
 
-Add explicit `--workspace` support requiring `--keep`, so the launcher cannot clear an explicitly selected directory. Session campaigns allocate a new workspace per invocation and retain it across their own restart. Seeded memory campaigns pass their fixture-owned workspace. Production ownership checks are unchanged. Closure requires the concurrent seed regression and full merge gates.
+Concurrent isolated seeded sidecars, independent saves, retained restart, invalid arguments, and session/memory live campaigns pass; production lease guard unchanged.
