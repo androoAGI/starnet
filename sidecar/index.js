@@ -15139,7 +15139,7 @@ async function runOnce(o) {
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
-      if (o.coordinatedSession && o.parentRunId && o.sessionPrompt) {
+      if (o.coordinatedSession && o.parentRunId && o.sessionPrompt && overseer.threads().length) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
