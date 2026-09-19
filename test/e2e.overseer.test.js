@@ -64,7 +64,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       }
     }
     const transcript = (await fixture.json('GET', '/api/transcript?stream=home&limit=100')).body.turns;
-    assert.equal(transcript.filter(m => m.role === 'user').length, 2, 'only the two actual user turns become Commander messages');
+    assert.equal(transcript.filter(m => m.role === 'user').length, 2, 'automatic review never impersonates a Commander message');
     const runs = (await fixture.json('GET', '/api/runs?agent=*&limit=30')).body.runs;
     assert.ok(runs.some(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')), 'review delivered to original conversation');
     assert.equal(runs.find(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')).deliveryPrompt, '', 'automatic review uses existing assistant delivery without a delegated-task marker');
