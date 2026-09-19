@@ -11018,7 +11018,9 @@ async function handleConnectorUpsert(req, res) {
   const url = String(body.url || (transport === 'http' ? (prev.url || '') : '')).trim();
   const command = String(body.command || (transport === 'stdio' ? (prev.command || '') : '')).trim();
   if (transport === 'http' && !url) return json(400, { error: 'a server URL is required' });
-  if (googleConnectorDeferred({ transport, url })) return json(503, { ok: false, saved: false, error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
+  const selectedFileToggle = googleClientConfig.isSelectedFiles(prev) && transport === 'http' && url === prev.url && oauth &&
+    Object.keys(body).every(k => ['id', 'transport', 'enabled'].includes(k));
+  if (!selectedFileToggle && googleConnectorDeferred({ transport, url })) return json(503, { ok: false, saved: false, error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
   if (transport === 'stdio' && !command) return json(400, { error: 'a stdio command is required' });
   const agentId = String(body.agentId || (transport === 'stdio' ? (prev.agentId || '') : '')).trim();
   const cwd = transport === 'stdio' ? String(Object.prototype.hasOwnProperty.call(body, 'cwd') ? body.cwd : (prev.cwd || '')).trim() : '';

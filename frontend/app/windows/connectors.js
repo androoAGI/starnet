@@ -838,7 +838,7 @@
             : 'open the browser OAuth sign-in">⏼ SIGN IN') + '</button>' : '') +
           (c.releaseDeferred ? '' :
           '<button class="bb xs" data-act="reload">↻ RELOAD</button>' +
-          '<button class="bb xs" data-act="edit">✎ EDIT</button>') +
+          (c.id === 'google-files' ? '' : '<button class="bb xs" data-act="edit">✎ EDIT</button>')) +
           '<button class="bb xs danger" data-act="remove">✕ REMOVE</button>' +
         '</div></div>';
     }
