@@ -1,0 +1,64 @@
+{
+  "source": "acbf3c225b8f628173ce24bd07e26c292d4a89cd",
+  "date": "2026-09-19",
+  "method": "Seeded real Chromium UI; controlled fetch-response injection; no customer inference or installer acceptance",
+  "ready": "screen-game",
+  "results": [
+    {
+      "scenario": "clean",
+      "text": "The answer is complete.",
+      "error": null,
+      "endReason": "done",
+      "finishReason": null,
+      "delivered": 1,
+      "visibleRunComplete": true,
+      "visibleCutShort": false,
+      "cutShortExplanation": false,
+      "persistedAssistant": [
+        "The answer is complete."
+      ]
+    },
+    {
+      "scenario": "length",
+      "text": "The answer stops in the middle of",
+      "error": null,
+      "endReason": "done",
+      "finishReason": "length",
+      "delivered": 0,
+      "visibleRunComplete": false,
+      "visibleCutShort": true,
+      "cutShortExplanation": true,
+      "persistedAssistant": [
+        "The answer stops in the middle of"
+      ]
+    },
+    {
+      "scenario": "eof",
+      "text": "The answer stops in the middle of",
+      "error": null,
+      "endReason": null,
+      "finishReason": null,
+      "delivered": 1,
+      "visibleRunComplete": true,
+      "visibleCutShort": false,
+      "cutShortExplanation": false,
+      "persistedAssistant": [
+        "The answer stops in the middle of"
+      ]
+    },
+    {
+      "scenario": "no-newline",
+      "text": "The answer stops in the middle of",
+      "error": null,
+      "endReason": null,
+      "finishReason": null,
+      "delivered": 1,
+      "visibleRunComplete": true,
+      "visibleCutShort": false,
+      "cutShortExplanation": false,
+      "persistedAssistant": [
+        "The answer stops in the middle of"
+      ]
+    }
+  ]
+}
