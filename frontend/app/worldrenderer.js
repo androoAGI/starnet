@@ -76,13 +76,13 @@ const WorldRenderer = (() => {
   function cameraReadout(input) {
     const {geo, viewport, subject, linked, paused} = input || {};
     const state = paused ? 'paused' : linked ? 'live' : 'offline';
-    let place = 'STATION VIEW';
+    let place = 'TJ OS ECOSYSTEM';
     if (geo && viewport) {
       const x = subject ? subject.px : viewport.x + viewport.w / 2;
       const y = subject ? subject.py : viewport.y + viewport.h / 2;
       const T = geo.TILE || 12, tx = Math.floor(x / T), ty = Math.floor(y / T);
       const id = tx >= 0 && ty >= 0 && tx < geo.COLS && ty < geo.ROWS ? geo.zoneGrid[ty * geo.COLS + tx] : null;
-      if (!subject && viewport.w >= geo.W * .8) place = 'STATION OVERVIEW';
+      if (!subject && viewport.w >= geo.W * .8) place = 'TJ OS ECOSYSTEM';
       else if (id != null && typeof geo.nameOf === 'function') place = geo.nameOf(id) || place;
       if (subject && subject.name) place += ' · ' + subject.name;
     }
