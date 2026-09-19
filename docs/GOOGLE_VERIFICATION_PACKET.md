@@ -96,3 +96,6 @@ The native credential changes require an installer containing the new shell and 
 together. Do not downgrade an encrypted workspace to an older sidecar that cannot read
 the envelope. Raw backup portability and key-loss recovery need explicit acceptance;
 the ciphertext intentionally cannot be unlocked with a new or missing OS keychain key.
+The running app decrypts connector settings in memory for the existing credential-redacted
+update backup. Standalone export without the unlocked app refuses the encrypted envelope
+instead of silently dropping its settings. Portable backups exclude OAuth grants as before.

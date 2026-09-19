@@ -8832,7 +8832,12 @@ const openaiCompat = makeOpenAiCompat({
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
 updatePreparation = makeUpdatePreparation({
-  fs: fs, path: path, recovery: stationRecovery, workspaceRoot: WORKSPACES,
+  fs: fs, path: path, recovery: Object.assign({}, stationRecovery, {
+    capture: options => stationRecovery.capture(Object.assign({}, options, { readConnectorState: () => {
+      if (connectorStorageError) throw new Error(connectorStorageError);
+      return connectorVault.load(CONNECTORS_STATE_FILE);
+    } }))
+  }), workspaceRoot: WORKSPACES,
   writeDurable: writeFileDurableRaw, now: () => Date.now(), newId: () => crypto.randomUUID(),
   onFreeze: () => { updateWritesFrozen = true; }, onThaw: () => { updateWritesFrozen = false; },
   liveRuns: () => runs.size,
