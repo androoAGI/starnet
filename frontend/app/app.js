@@ -3277,8 +3277,12 @@ const App = (() => {
       getExistingJobs: () => (typeof QuerySpine !== 'undefined' && QuerySpine.refresh ? QuerySpine.refresh('cron') : Promise.reject(new Error('cron query unavailable')))
         .then(q => (((q && q.hasData && q.data) || {}).jobs || []).map(x => x && x.name).filter(Boolean)).catch(() => []),
       // W6: surface the server's `duplicate` flag so the store retires a proposal the mint gate refused (rather than
-      // treating it as a plain success and re-offering). A non-JSON body degrades to { ok } exactly as before.
-      scheduleJob: (body) => fetch('/api/cron', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json().then(j => ({ ok: r.ok, duplicate: !!(j && j.duplicate) })).catch(() => ({ ok: r.ok }))).then(out => {
+      // treating it as a plain success and re-offering). Only an explicit persisted-job receipt confirms it.
+      scheduleJob: (body) => Harness.api.post('/api/cron', body).then(r => {
+        const j = r.j;
+        const ok = !!(r.ok && j && j.ok === true && !j.error && j.job && j.job.id);
+        return { ok, duplicate: ok && j.duplicate === true };
+      }).then(out => {
         if (out.ok && typeof QuerySpine !== 'undefined' && QuerySpine.invalidate) QuerySpine.invalidate('cron');
         return out;
       }).catch(() => ({ ok: false })),
@@ -3300,10 +3304,10 @@ const App = (() => {
         try { if (typeof TrustStore !== 'undefined' && TrustStore.onManualInitiative && typeof AutonomyStore !== 'undefined' && AutonomyStore.get) TrustStore.onManualInitiative((AutonomyStore.get() || {}).initiative); } catch (_) {}
       },
       api: {
-        load: () => fetch('/api/permissions', { cache: 'no-store' }).then(r => r.ok ? r.json() : { ok: false, reason: 'permissions service unavailable' }).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        grant: (key) => fetch('/api/permissions/grant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission grant failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        revoke: (key) => fetch('/api/permissions/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission revoke failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        bypass: (on) => fetch('/api/permissions/bypass', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on === true }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'bypass switch failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' }))
+        load: () => Harness.api.get('/api/permissions'),
+        grant: key => Harness.api.post('/api/permissions/grant', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission grant failed' }),
+        revoke: key => Harness.api.post('/api/permissions/revoke', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission revoke failed' }),
+        bypass: on => Harness.api.post('/api/permissions/bypass', { on: on === true }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'bypass switch failed' })
       }
     });
     // GROWTH Tier 3 — EARNED AUTONOMY (track record → trust): folds the SAME run outcomes xpstore folds into a

@@ -26,6 +26,7 @@ const PermissionsStore = (() => {
   let envFullAccess = false;
   let loaded = false;     // a successful load/refresh has happened at least once
   let error = '';         // last authority/mutation failure; never replace confirmed grants with guessed emptiness
+  let epoch = 0, revision = 0, readId = 0, mutationTail = null;
 
   const ready = () => typeof Permissions !== 'undefined';
   const posture = () => { try { return (deps.getPosture ? deps.getPosture() : null) || {}; } catch (_) { return {}; } };
@@ -43,10 +44,16 @@ const PermissionsStore = (() => {
 
   // pull the authoritative grant snapshot from the sidecar (token-gated). Failures leave the cache as-is.
   async function refresh() {
+    const owner = epoch;
+    while (owner === epoch && mutationTail) await mutationTail;
+    if (owner !== epoch) return snapshot();
+    const version = revision, id = ++readId;
+    const current = () => owner === epoch && version === revision && id === readId;
     if (deps.api && typeof deps.api.load === 'function') {
       try {
         const r = await deps.api.load();
-        if (!r || r.ok === false || !Array.isArray(r.grants)) {
+        if (!current()) return snapshot();
+        if (!r || r.ok === false || r.error || !Array.isArray(r.grants)) {
           error = failure(r, 'permissions service unavailable');
           return snapshot();
         }
@@ -57,9 +64,32 @@ const PermissionsStore = (() => {
         envFullAccess = !!(r && r.envFullAccess);
         loaded = true;
         error = '';
-      } catch (e) { error = String((e && e.message) || 'permissions service unavailable'); }
+      } catch (e) { if (current()) error = String((e && e.message) || 'permissions service unavailable'); }
     }
     return snapshot();
+  }
+
+  // Serialize all authority writes, not each control separately. Old GETs and prior init()
+  // callbacks cannot overwrite a newer decision. Missing acknowledgements prove no change.
+  function mutate(method, value, valid, apply, message) {
+    const owner = epoch, api = deps.api;
+    revision++;
+    const run = async () => {
+      if (owner !== epoch) return snapshot();
+      try {
+        if (!api || typeof api[method] !== 'function') throw new Error('permissions service unavailable');
+        const r = await api[method](value);
+        if (owner !== epoch) return snapshot();
+        if (!r || r.ok !== true || r.error || !valid(r)) { error = failure(r, message); return snapshot(); }
+        apply(r); error = '';
+      } catch (e) { if (owner === epoch) error = String((e && e.message) || message); }
+      return snapshot();
+    };
+    const task = mutationTail ? mutationTail.then(run) : run();
+    const tail = task.then(() => {}, () => {});
+    mutationTail = tail;
+    tail.then(() => { if (mutationTail === tail) mutationTail = null; });
+    return task;
   }
 
   // best-effort derive the CURRENT level from live posture + standing grants.
@@ -80,45 +110,27 @@ const PermissionsStore = (() => {
 
   // flip the master FULL BYPASS switch through the token-gated route. Server truth only: the cached flag
   // updates from the response, never optimistically — a torn persist reports ok:false with state unchanged.
-  async function setBypass(on) {
-    if (deps.api && typeof deps.api.bypass === 'function') {
-      try {
-        const r = await deps.api.bypass(on === true);
-        if (!r || r.ok === false) { error = failure(r, 'could not flip the bypass switch'); return snapshot(); }
-        masterBypass = !!r.masterBypass;
+  function setBypass(on) {
+    return mutate('bypass', on === true, r => r.masterBypass === (on === true), r => {
+        masterBypass = r.masterBypass;
         if (typeof r.envFullAccess === 'boolean') envFullAccess = r.envFullAccess;
-        error = '';
-      } catch (e) { error = String((e && e.message) || 'could not flip the bypass switch'); }
-    }
-    return snapshot();
+    }, 'could not confirm the bypass switch');
   }
 
   // grant / revoke ONE capability through the api; refresh the cache from the authoritative response. The grant
   // response may carry no meta (the sidecar snapshot does), so we re-read provenance on the next refresh; a grant
   // that DOES return meta updates it here so the "granted just now" line shows without a round-trip.
-  async function grant(key) {
-    if (deps.api && typeof deps.api.grant === 'function') {
-      try {
-        const r = await deps.api.grant(key);
-        if (!r || r.ok === false) { error = failure(r, 'could not confirm permission grant'); return snapshot(); }
-        if (Array.isArray(r.grants)) grants = norm(r.grants);
+  function grant(key) {
+    return mutate('grant', key, r => Array.isArray(r.grants) && norm(r.grants).includes(key), r => {
+        grants = norm(r.grants);
         if (r.meta) meta = normMeta(r.meta);
-        error = '';
-      } catch (e) { error = String((e && e.message) || 'could not confirm permission grant'); }
-    }
-    return snapshot();
+    }, 'could not confirm permission grant');
   }
-  async function revoke(key) {
-    if (deps.api && typeof deps.api.revoke === 'function') {
-      try {
-        const r = await deps.api.revoke(key);
-        if (!r || r.ok === false) { error = failure(r, 'could not confirm permission revoke'); return snapshot(); }
-        if (Array.isArray(r.grants)) grants = norm(r.grants);
+  function revoke(key) {
+    return mutate('revoke', key, r => Array.isArray(r.grants) && !norm(r.grants).includes(key), r => {
+        grants = norm(r.grants);
         if (r.meta) meta = normMeta(r.meta); else { const m = Object.assign({}, meta); delete m[key]; meta = m; }
-        error = '';
-      } catch (e) { error = String((e && e.message) || 'could not confirm permission revoke'); }
-    }
-    return snapshot();
+    }, 'could not confirm permission revoke');
   }
 
   // set the whole spectrum level: (1) the posture preset via AutonomyStore, (2) reconcile the curated grants.
@@ -135,6 +147,7 @@ const PermissionsStore = (() => {
 
   // opts: { api:{ load(), grant(key), revoke(key) }, getPosture(), applyPreset(id), load:bool }
   function init(opts) {
+    epoch++; revision++; readId++; mutationTail = null;
     deps = opts || {};
     grants = []; grantable = []; meta = {}; masterBypass = false; envFullAccess = false; loaded = false; error = '';
     if (deps.load !== false) { try { refresh(); } catch (_) {} }
