@@ -514,7 +514,8 @@ const rgh = mkt.slice(mkt.indexOf('function recipeGearHTML('), mkt.indexOf('func
 A.ok(/stationGearSet\(\)/.test(rgh), 'the gear block checks present/missing against the live station');
 A.ok(/function stationGearSet\(\)[\s\S]{0,200}World\.stationCaps/.test(mkt), 'stationGearSet reads World.stationCaps (the ACTUAL station props)');
 A.ok(/mkt-kit-missing/.test(rgh), 'missing gear is dimmed via the mkt-kit-missing state');
-A.ok(/function loadSkillCatalog\(\)/.test(mkt) && /fetch\('\/api\/skills'\)/.test(mkt),
+A.ok(/readCollection\('\/api\/skills', 'skills'\)/.test(A.fnBody(mkt, 'function loadSkillCatalog(')) &&
+  /Harness\.api\.get\(url\)/.test(A.fnBody(mkt, 'function readCollection(')),
   'skill names/descriptions come from the live /api/skills catalog (the SKILLS window\'s source)');
 A.ok(/function hydrateSkillRows\(\)/.test(mkt) && /hydrateSkillRows\(\)/.test(mkt.slice(mkt.indexOf('function renderDossier'))),
   'the dossier hydrates real skill names async once the catalog resolves');

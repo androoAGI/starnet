@@ -1137,8 +1137,7 @@ const Harness = (() => {
        del(path)           (the sidecar's {error} envelope), so callers can surface j.error; rejects
                            only on network failure or a non-JSON body. body defaults to {}.
      Streaming responses (/api/run, /api/cron/run) and Response-shape consumers must NOT use this. */
-  const api = {
-    get: async (path, options) => {
+  async function requestJson(path, init, options) {
       const controller = new AbortController();
       const signal = options && options.signal;
       const abort = () => controller.abort();
@@ -1146,15 +1145,24 @@ const Harness = (() => {
       let deadline;
       try {
         return await Promise.race([
-          fetch(path, { cache: 'no-store', signal: controller.signal }).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }),
-          new Promise((_, reject) => { deadline = setTimeout(() => { reject(new Error('The station took too long to respond. Please retry.')); abort(); }, 15000); })
+          fetch(path, Object.assign({ cache: 'no-store' }, init, { signal: controller.signal })).then(async r => {
+            if (!init && !r.ok) throw new Error('http ' + r.status);
+            const j = await r.json();
+            return init ? { ok: r.ok, status: r.status, j } : j;
+          }),
+          new Promise((_, reject) => { deadline = setTimeout(() => {
+            reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
+            abort();
+          }, (options && options.timeoutMs > 0) ? options.timeoutMs : init ? 60000 : 15000); })
         ]);
       } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
-    },
-    post: (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) })
-      .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j }))),
-    del: path => fetch(path, { method: 'DELETE' })
-      .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j })))
+  }
+  // Finite JSON exchanges only: include body parsing in the deadline, never replay writes.
+  // Mutations have a longer budget for connection setup and expose ambiguous completion honestly.
+  const api = {
+    get: (path, options) => requestJson(path, null, options),
+    post: (path, body, options) => requestJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) }, options),
+    del: (path, options) => requestJson(path, { method: 'DELETE' }, options)
   };
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND

@@ -232,7 +232,7 @@ async function main() {
     const store2 = makeDurableJsonStore({ fs, path: pathMod, fileFor, onCorrupt: () => { corruptFlagged++; } });
     const rk = store2.readKey('locked');
     A.eq(rk.status, 'unreadable', 'readKey surfaces unreadable');
-    A.ok(corruptFlagged >= 1, 'onCorrupt-style callback fired LOUDLY for an unreadable file');
+    A.eq(corruptFlagged, 0, 'unreadable files never enter a callback allowed to quarantine corrupt bytes');
     A.eq(store2.get('locked'), undefined, 'get() returns undefined for unreadable (never a fabricated empty)');
 
     // the load-bearing guarantee: update() REFUSES to write over an unreadable record (no from-empty clobber)

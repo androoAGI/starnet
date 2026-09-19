@@ -829,4 +829,11 @@ test/dossier-growth-live.test.js
 test/industrial-shells.test.js
 test/refit-bake-reuse.test.js
 test/hallway-traffic.test.js
+test/cloudsave-timeout.test.js
 test/station-autosave.test.js
+test/durable-store-faults.test.js
+test/permissions-authority.test.js
+test/api-json-lifecycle.test.js
+test/routine-acknowledgement.test.js
+test/marketplace-authority.test.js
+test/control-acknowledgements.test.js
