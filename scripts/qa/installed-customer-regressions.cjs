@@ -15,8 +15,12 @@ if (!process.env.EXE || canonical(process.execPath) !== canonical(path.join(inst
 }
 const hash = p => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const suite = process.argv[2];
-if (!['saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js'].includes(suite)) throw Error('Unknown installed scenario');
+if (!['saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js', 'session-reliability.e2e.test.js'].includes(suite)) throw Error('Unknown installed scenario');
 const files = ['sidecar/index.js', 'sidecar/loop.js', 'sidecar/tools/builtin/orchestration.js', 'sidecar/inputpolicy.js'];
+if (suite === 'session-reliability.e2e.test.js') {
+  files.push(...['chat','harness','workstreams','save','cloudsave','diagnostics'].map(name=>'frontend/app/'+name+'.js'));
+  process.env.STARNET_SESSION_INSTALLED_ROOT = installed;
+}
 const identities = {};
 for (const file of files) {
   const actual = hash(path.join(installed, file));
