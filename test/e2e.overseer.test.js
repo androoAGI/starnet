@@ -35,6 +35,12 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal(snapshot.reviews.length, 1, response.text);
     assert.equal(snapshot.reviews[0].status, 'done', JSON.stringify(snapshot.reviews));
     assert.equal(provider.reviews(), 1, 'the lead reviews automatically once');
+    assert.ok(snapshot.workers.length > 0);
+    for (const worker of snapshot.workers) {
+      for (const field of ['context', 'result', 'events', 'structuredResult', 'artifacts']) {
+        assert.equal(Object.hasOwn(worker, field), false, 'polling projection excludes heavy worker data: ' + field);
+      }
+    }
     const transcript = (await fixture.json('GET', '/api/transcript?stream=home&limit=100')).body.turns;
     assert.equal(transcript.filter(m => m.role === 'user').length, 1, 'automatic review never impersonates a Commander message');
     const runs = (await fixture.json('GET', '/api/runs?agent=*&limit=30')).body.runs;

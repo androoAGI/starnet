@@ -4,10 +4,51 @@
 const Overseer = (() => {
   let busy = false, panel, lastDeliveries = '', lastRendered = '';
   function open(id) { if (typeof App !== 'undefined' && App.openWorkstream) App.openWorkstream(id); }
+  function project(data, getThread) {
+    const reviews = new Map((data.reviews || []).map(r => [r.workerRunId, r]));
+    const byThread = new Map();
+    const workers = (data.workers || []).filter(w => w.parentStreamId && getThread(w.parentStreamId))
+      .slice().sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+    for (const w of workers) {
+      const key = w.streamId || w.id, previous = byThread.get(key);
+      if (!previous || (w.status === 'running' && previous.status !== 'running')) byThread.set(key, w);
+    }
+    return Array.from(byThread.values()).map(w => {
+      const review = reviews.get(w.runId), thread = getThread(w.streamId);
+      let status = 'Needs attention', group = 0, detail = 'Ask the overseer to check this attempt.';
+      if (w.status === 'running') { status = w.working ? 'Working' : 'Starting'; group = 1; detail = ''; }
+      else if (review && review.status === 'reviewing') { status = 'Reviewing result'; group = 1; detail = ''; }
+      else if (review && review.status === 'done') {
+        status = w.status === 'done' ? 'Reviewed' : 'Issue reported'; group = 2;
+        detail = w.status === 'done' ? '' : 'The overseer has reviewed this attempt. Open its conversation for the next step.';
+      } else if (review && review.status === 'cancelled') { status = 'Stopped'; detail = 'Ask the overseer when you want to continue.'; }
+      else if (review && review.status === 'interrupted') { status = 'Review interrupted'; detail = 'Ask the overseer to check the saved result before continuing.'; }
+      else if (review && review.status === 'superseded') { status = 'Earlier attempt'; group = 2; detail = ''; }
+      else if (review && review.error) { detail = review.error; }
+      else if (w.status === 'done') { status = data.paused ? 'Review paused' : 'Awaiting review'; group = data.paused ? 0 : 1; detail = data.paused ? 'Send the overseer a message when you want to continue.' : ''; }
+      else if (w.status === 'stale') detail = 'This attempt lost its connection. Ask the overseer to check what completed.';
+      else if (w.status === 'interrupted') detail = 'This attempt was interrupted. Ask the overseer when you want to continue.';
+      else if (w.status === 'error' || w.status === 'refused') detail = 'This attempt could not finish. The overseer can inspect the cause.';
+      return { key: w.streamId || w.id, status, group, detail,
+        title: thread ? thread.title : String(w.prompt || 'Delegated work').slice(0, 80),
+        id: thread ? thread.id : w.parentStreamId, parentId: w.parentStreamId };
+    }).sort((a, b) => a.group - b.group);
+  }
   async function refresh() {
     if (busy || typeof Workstreams === 'undefined' || !Workstreams.generalId()) return;
     busy = true;
     try {
+      if (!panel) {
+        const rail = document.getElementById('workstreams');
+        if (!rail) return;
+        panel = document.createElement('section'); panel.className = 'overseer-overview'; panel.setAttribute('aria-label', 'Overseer');
+        const home = document.createElement('button'); home.className = 'bb'; home.type = 'button';
+        home.textContent = 'Talk to overseer'; home.addEventListener('click', () => open(Workstreams.generalId())); panel.appendChild(home);
+        const notice = document.createElement('p'); notice.className = 'overseer-notice'; panel.appendChild(notice);
+        const details = document.createElement('details'); details.open = true;
+        const title = document.createElement('summary'); title.textContent = 'Delegated work'; details.appendChild(title);
+        const rows = document.createElement('div'); rows.className = 'overseer-rows'; details.appendChild(rows); panel.appendChild(details); rail.before(panel);
+      }
       const response = await fetch('/api/overseer');
       if (!response.ok) throw new Error('unavailable');
       const data = await response.json();
@@ -22,54 +63,38 @@ const Overseer = (() => {
       if ((adopted || deliveries !== lastDeliveries) && typeof StationCommands !== 'undefined') {
         await StationCommands.reconcile(); lastDeliveries = deliveries;
       }
-      if (!panel) {
-        const rail = document.getElementById('workstreams');
-        if (!rail) return;
-        panel = document.createElement('details'); panel.className = 'overseer-overview';
-        const title = document.createElement('summary'); title.textContent = 'Overseer · delegated work'; panel.appendChild(title);
-        const home = document.createElement('button'); home.className = 'bb'; home.type = 'button';
-        home.textContent = 'Talk to overseer'; home.addEventListener('click', () => open(Workstreams.generalId())); panel.appendChild(home);
-        const rows = document.createElement('div'); rows.className = 'overseer-rows'; panel.appendChild(rows); rail.before(panel);
-      }
       const rows = panel.querySelector('.overseer-rows');
-      const workers = (data.workers || []).filter(w => w.parentStreamId && Workstreams.get(w.parentStreamId));
-      const byThread = new Map();
-      for (const w of workers.slice().reverse()) {
-        const key = w.streamId || w.id, previous = byThread.get(key);
-        if (!previous || (w.status === 'running' && previous.status !== 'running')) byThread.set(key, w);
-      }
-      const items = [];
-      for (const w of Array.from(byThread.values()).slice(0, 20)) {
-        const review = (data.reviews || []).find(r => r.workerRunId === w.runId);
-        let status = w.status === 'running' ? (w.working ? 'Working' : 'Starting') : w.status;
-        if (w.status === 'done') status = review && review.status === 'done' ? 'Reviewed' : 'Awaiting review';
-        if (review && review.status === 'reviewing') status = 'Reviewing result';
-        if (review && review.status === 'interrupted') status = 'Review interrupted';
-        if (review && review.status === 'cancelled') status = 'Review stopped';
-        if (review && review.status === 'superseded') status = 'Newer attempt available';
-        if (review && review.status === 'pending' && review.error) status = 'Needs attention';
-        if (['stale', 'interrupted', 'error', 'refused'].includes(w.status)) status = 'Needs attention · ' + w.status;
-        const thread = Workstreams.get(w.streamId);
-        items.push({ text: status + ' · ' + (thread ? thread.title : String(w.prompt || '').slice(0, 80)),
-          title: review && review.error || '', id: thread ? thread.id : w.parentStreamId });
-      }
-      const rendered = JSON.stringify(items);
+      const all = project(data, id => Workstreams.get(id)), items = all.slice(0, 20);
+      const active = all.filter(item => item.group === 1).length, attention = all.filter(item => item.group === 0).length;
+      panel.querySelector('summary').textContent = 'Delegated work' + (active ? ' · ' + active + ' active' : '') + (attention ? ' · ' + attention + ' need attention' : '');
+      panel.querySelector('.overseer-notice').textContent = data.paused ? 'Automatic reviews paused. Message the overseer to continue.' : 'Results return to the conversation that requested them.';
+      const rendered = JSON.stringify([items, all.length]);
       if (rendered !== lastRendered) {
         rows.replaceChildren();
         for (const item of items) {
           const button = document.createElement('button'); button.type = 'button'; button.className = 'bb overseer-work';
-          button.textContent = item.text; button.title = item.title;
-          button.addEventListener('click', () => open(item.id)); rows.appendChild(button);
+          button.textContent = item.status + ' · ' + item.title;
+          button.addEventListener('click', () => open(item.id));
+          const row = document.createElement('div'); row.className = 'overseer-item'; row.dataset.state = String(item.group); row.appendChild(button);
+          if (item.detail) { const hint = document.createElement('p'); hint.textContent = item.detail; row.appendChild(hint); }
+          if (item.group !== 1) {
+            const result = document.createElement('button'); result.type = 'button'; result.className = 'bb';
+            result.textContent = item.group === 0 ? 'Ask overseer' : 'Open review';
+            result.addEventListener('click', () => open(item.parentId)); row.appendChild(result);
+          }
+          rows.appendChild(row);
         }
         if (!items.length) rows.textContent = 'Delegated work will appear here.';
+        if (all.length > items.length) { const more = document.createElement('p'); more.textContent = 'Showing 20 of ' + all.length + ' sessions. Find earlier work in the sessions list.'; rows.appendChild(more); }
         lastRendered = rendered;
       }
       panel.removeAttribute('data-unavailable');
     } catch (_) {
       lastRendered = '';
-      if (panel) { panel.setAttribute('data-unavailable', 'true'); panel.querySelector('.overseer-rows').textContent = 'Work status unavailable — reconnecting.'; }
+      if (panel) { panel.setAttribute('data-unavailable', 'true'); panel.querySelector('summary').textContent = 'Delegated work · unavailable'; panel.querySelector('.overseer-notice').textContent = 'Work status unavailable — reconnecting.'; panel.querySelector('.overseer-rows').replaceChildren(); }
     } finally { busy = false; }
   }
-  document.addEventListener('DOMContentLoaded', () => { setInterval(refresh, 2500); });
-  return { refresh };
+  if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => { refresh(); setInterval(refresh, 2500); });
+  return { refresh, project };
 })();
+if (typeof module !== 'undefined' && module.exports) module.exports = Overseer;

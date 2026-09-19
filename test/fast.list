@@ -838,3 +838,4 @@ test/api-json-lifecycle.test.js
 test/routine-acknowledgement.test.js
 test/marketplace-authority.test.js
 test/control-acknowledgements.test.js
+test/overseer-ui.test.js

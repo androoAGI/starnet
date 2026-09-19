@@ -2,6 +2,11 @@
 .overseer-overview summary { cursor: pointer; }
 .overseer-rows { display: grid; gap: 5px; margin-top: 6px; font-size: 12px; }
 .overseer-work { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.overseer-overview > .bb { width: 100%; }
+.overseer-notice, .overseer-item p { margin: 6px 0; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.overseer-item { padding: 6px 0; border-top: 1px solid var(--ph); }
+.overseer-item .overseer-work { display: block; width: 100%; }
+.overseer-item > .bb + .bb { margin-top: 5px; }
 /* STARNET — app.css : screens for the REAL harness (title · connect · game).
    Reuses the v7 phosphor/CRT design language from style.css (vars + body::before/after).
    No "web app" softness — 2px hard lines, inverted-block headers, heavy bloom. */

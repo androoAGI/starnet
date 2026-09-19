@@ -9223,7 +9223,10 @@ const ROUTES = [
   { m: 'POST', exact: '/api/permissions/bypass', h: handlePermissionsBypass },
   { m: 'GET', exact: '/api/projects', h: handleProjectsList },   // NS-5: the known blessed-project roots (autonomy surface)
   { m: 'GET', exact: '/api/overseer', h: (_req, res) => {
-    try { respondJson(res, 200, { ...overseer.snapshot(), workers: subagents.list() }); }
+    try { respondJson(res, 200, { ...overseer.snapshot(), workers: subagents.list().map(w => ({
+      id: w.id, runId: w.runId, parentStreamId: w.parentStreamId, streamId: w.streamId,
+      status: w.status, working: w.working, startedAt: w.startedAt, prompt: String(w.prompt || '').slice(0, 80)
+    })) }); }
     catch (e) { respondJson(res, 503, { error: e.message }); }
   } },
   { m: 'POST', exact: '/api/projects/bless', h: handleProjectBless },   // NS-5c: ADD a project (interactive-only, blesses through the same path-grant machinery)

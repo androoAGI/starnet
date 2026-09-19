@@ -2,7 +2,7 @@
 
 General is the home conversation. Ask the overseer for an outcome there; it can create a named working session, dispatch a specialist in the background, and review the result back in the originating conversation. Follow-ups can reuse the same working session and its durable history. The existing voice input remains attached to the selected conversation.
 
-Open **Overseer · delegated work** in the sessions rail to inspect a working session, or choose **Talk to overseer** to return to General. New sessions and completed reviews do not change the selected conversation or replace an unsent draft. The overview shows the latest attempt for each session, preferring a running attempt, and distinguishes starting, working, awaiting review, reviewed, stopped, and interrupted states.
+Choose **Talk to overseer** in the sessions rail to return to General. This button remains visible when **Delegated work** is collapsed. New sessions and completed reviews do not change the selected conversation or replace an unsent draft. The overview shows the latest attempt for each session, preferring a running attempt. Unresolved issues appear first with an explanation and **Ask overseer** action; completed reviews offer **Open review** to return to the originating conversation. Counts distinguish active work from attempts needing attention. A reviewed failure is labeled **Issue reported**, never successful work.
 
 ## Implementation
 

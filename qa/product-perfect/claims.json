@@ -1847,7 +1847,7 @@
         },
         {
           "path": "frontend/app/overseer.js",
-          "needle": "Overseer · delegated work"
+          "needle": "Talk to overseer"
         }
       ],
       "authorityChecks": [
