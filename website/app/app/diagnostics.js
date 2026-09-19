@@ -231,6 +231,12 @@
     return line ? text + '\npage errors:   ' + line : text;
   }
 
+  function withSessionContinuity(text) {
+    if (!text || typeof Chat === 'undefined' || !Chat.continuityDiagnostics) return text;
+    const events = Chat.continuityDiagnostics();
+    return text + '\nsession continuity (page-local identities; no message text): ' + JSON.stringify(events);
+  }
+
   function withPageScreen(text) {
     if (!text) return text;
     let screen = 'unknown';
@@ -251,7 +257,7 @@
     // Prefer the sidecar's full report; fall back to the page-side one rather than stranding the user.
     return fetchText()
       .then(text => text ? text : localReport(opts.context))
-      .then(text => text ? withPageErrors(text) : text)
+      .then(text => text ? withSessionContinuity(withPageErrors(text)) : text)
       .then(withPageScreen)
       .then(text => {
       if (!text) { if (wantNotify) notify('could not read diagnostics — is the app still running?', 'warn'); if (opts.onDone) opts.onDone(false, ''); return false; }
