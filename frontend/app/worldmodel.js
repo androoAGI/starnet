@@ -2633,7 +2633,27 @@ const WorldModel = (() => {
         { id: 'p' + doc._nid++, t: 'workbench', x: 3, y: 1, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'studio', x: 14, y: 8, w: 2, h: 2, block: true },
         { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 0, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false }
+        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false },
+
+        // TJ OS spatial dressing uses ONLY existing catalog props. These are cosmetic/furniture
+        // placements; they do not create capabilities, agent bindings, workflows, or fake activity.
+        { id: 'p' + doc._nid++, t: 'industrial_supplycart', x: 24, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 35, y: 1, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 24, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 35, y: 17, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: -18, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -8, y: 22, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: -18, y: 1, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_supplycart', x: -8, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 3, y: 17, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -18, y: -11, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -8, y: -11, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 60, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 60, y: 29, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: -38, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -27, y: 24, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_roundtable', x: 46, y: 32, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 2, y: 30, w: 3, h: 1, block: true }
       ];
       return doc;
     },
