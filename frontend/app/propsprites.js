@@ -11642,15 +11642,17 @@ const PropSprites = (() => {
     if ((mounted || f.mount) === 'surface') return;
     const s = spec(f.t); if (s && s.flat) return;
     const X = f.x * TILE, Y = f.y * TILE, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
+    const profile = depthProfile(f.t);
+    const physicalHeight = Math.max(H, Number(profile.height) || H);
     const mask=shadowMask(f);
     if(mask && typeof PropRemaster!=='undefined' && PropRemaster.isProjection() && (mounted||f.mount)!=='wall'){
       let contact;
       try{contact=contactShadow(mask,H);}catch(_){contactShadows.set(mask,null);} // optional grounding cannot hide the prop
       if(contact){ctx.save();ctx.globalAlpha*=Math.max(0,Math.min(.6,+IndustrialTextures.lighting.contact||0));ctx.imageSmoothingEnabled=true;
-        ctx.drawImage(contact,X-18,Y+H-3);ctx.restore();}
+        ctx.drawImage(contact,X-18,Y+physicalHeight-3);ctx.restore();}
     }
     if(mask&&ctx.transform) {
-      const projected=projectedShadow(mask,H);
+      const projected=projectedShadow(mask,physicalHeight);
       if(projected&&ctx.globalAlpha===1){
         const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection();
         try{ctx.drawImage(projected.cv,X+projected.x,Y+projected.y,projected.w,projected.h);}
@@ -11669,7 +11671,7 @@ const PropSprites = (() => {
       } finally {ctx.restore();}
       return;
     }
-    const reach = 3 + (SHADOW_TALL[f.t] || 0) + ((f.h || 1) >= 2 ? 2 : 0);
+    const reach = 3 + Math.round(physicalHeight / TILE) + (SHADOW_TALL[f.t] || 0) + ((f.h || 1) >= 2 ? 2 : 0);
     // three nested steps, each smaller and darker, spreading south-east from the footprint's lower half
     const steps = [[0, 0.09], [0.35, 0.11], [0.7, 0.14]];
     for (const [k, a] of steps) {
