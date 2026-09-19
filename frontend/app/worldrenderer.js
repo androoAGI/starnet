@@ -93,6 +93,18 @@ const WorldRenderer = (() => {
       .sort((a, b) => depthKey(a.item) - depthKey(b.item) || finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
       .map(entry => entry.item);
   }
+  /* Returns a deterministic vertical occlusion hint without changing the saved world.
+     Callers can use it when a renderer has separate ground/agent/prop passes. */
+  function verticalOcclusion(item) {
+    if (!item) return 0;
+    const h = Number.isFinite(Number(item.height)) ? Number(item.height) : 0;
+    const z = Number.isFinite(Number(item.z)) ? Number(item.z) :
+      Number.isFinite(Number(item.elevation)) ? Number(item.elevation) : 0;
+    return Math.max(0, h + z);
+  }
+  function compareDepth(a, b) {
+    return depthKey(a) - depthKey(b) || verticalOcclusion(a) - verticalOcclusion(b);
+  }
   function percentile(values, quantile) {
     if (!values.length) return null;
     const sorted = values.slice().sort((a, b) => a - b);
@@ -218,6 +230,6 @@ const WorldRenderer = (() => {
     }
     return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
-  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, depthKey, sortedItems, percentile };
+  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, depthKey, sortedItems, verticalOcclusion, compareDepth, percentile };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldRenderer;
