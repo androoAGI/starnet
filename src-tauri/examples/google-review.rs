@@ -36,10 +36,7 @@ fn main() -> Result<(), String> {
     eprintln!("Google-derived content outside connector credentials is not encrypted by this candidate. Use dedicated test data.");
     let status = std::process::Command::new(node)
         .current_dir(root)
-        // The existing test-only deferral injection changes this process only.
-        // Unlike google-signin-preload.cjs, it does NOT replace Google requests.
-        .arg("--require")
-        .arg(root.join("test/fixtures/google-future-release.cjs"))
+        // Use the shipping per-file scope boundary; broad Workspace stays deferred.
         .arg(root.join("dev/seed.js"))
         .arg("--keep")
         .env_remove("NODE_OPTIONS")
@@ -54,16 +51,6 @@ fn main() -> Result<(), String> {
         .env("STARNET_PORT", port.to_string())
         .env("SKYNET_DEFAULT_MODEL", "replay")
         .env("STARNET_DEFAULT_MODEL", "replay")
-        // dev/seed spawns index.js; inherit ONLY the explicit deferral preload.
-        .env(
-            "NODE_OPTIONS",
-            format!(
-                "--require=\"{}\"",
-                root.join("test/fixtures/google-future-release.cjs")
-                    .to_string_lossy()
-                    .replace('\\', "/")
-            ),
-        )
         .status()
         .map_err(|_| "Unable to launch review sidecar")?;
     if status.success() {

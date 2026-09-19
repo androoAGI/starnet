@@ -42,7 +42,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   };
   try {
     await fixture.start();
-    const cards = (await fixture.json('GET', '/api/connectors/catalog')).body.connectors.filter(c => c.googleApi);
+    const cards = (await fixture.json('GET', '/api/connectors/catalog')).body.connectors.filter(c => c.googleApi && c.id !== 'google-files');
     assert.equal(cards.length, 5); assert.ok(cards.every(c => c.signInAvailable));
     assert.ok(!JSON.stringify(cards).includes('123456-starnettest'));
     const first = await start();

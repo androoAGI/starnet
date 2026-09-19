@@ -4101,6 +4101,7 @@ let connectorOauth = connectorState.oauth;
    shared OAuth-client cache; old grants retain their own client for refresh. Legacy Web clients remain readable. */
 const GOOGLE_OAUTH_AS = 'https://accounts.google.com';
 const googleConnectorDeferred = cfg => googleClientConfig.RELEASE_DEFERRED && !!cfg &&
+  !(googleClientConfig.SELECTED_FILES_ENABLED && googleClientConfig.isSelectedFiles(cfg)) &&
   (cfg.googleApi || cfg.transport !== 'stdio' && googleClientConfig.isWorkspaceUrl(cfg.url));
 const GOOGLE_DESKTOP_CLIENT = googleClientConfig.loadDesktopClient({ env: process.env,
   readFile: () => fs.readFileSync(path.join(__dirname, 'mcp', 'google-client.json'), 'utf8') });
@@ -4341,6 +4342,7 @@ async function ensureConnectorOauthToken(id, force) {
   }
   const t = connectorOauth.byId[id];
   if (!t || !t.accessToken) return { token: '', refreshError: null };
+  if (id === 'google-files' && !googleClientConfig.fileScopeOnly(t.scope)) return { token: '', refreshError: { kind: 'invalid_grant', message: 'Select Google files again; this connection requires only per-file access.' } };
   if ((force === true || mcpOauth.needsRefresh(t.expiresAt, Date.now())) && t.refreshToken && t.tokenEndpoint) {
     const bo = connectorOauthRefreshBackoff.get(id);
     if (bo && bo.until > Date.now() && !connectorOauthRefreshInFlight.get(id)) {
@@ -4372,7 +4374,8 @@ async function ensureConnectorOauthToken(id, force) {
             || JSON.stringify(currentGrant || null) !== startedGrant) {
           return { token: (currentGrant && currentGrant.accessToken) || '', refreshError: null };
         }
-        const next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), id, Object.assign({}, cur, nt));
+        if (id === 'google-files' && !googleClientConfig.fileScopeOnly(nt.scope || cur.scope)) throw new Error('invalid_scope: selected files requires only per-file access');
+        const next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), id, Object.assign({}, cur, nt, id === 'google-files' ? { scope: nt.scope || cur.scope } : {}));
         if (!persistConnectorState(next.configs, next.oauth)) throw new Error('refreshed token could not be saved');
         adoptConnectorState(next);
         connectorOauthRefreshBackoff.delete(id);
@@ -10973,7 +10976,7 @@ function handleConnectorCatalog(req, res) {
     if (e.googleApi) {
       e.releaseDeferred = googleConnectorDeferred(e);
       if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(/^Planned for a later update\. /, '').replace(' Sign in with Google to connect your account.', '');
-      e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.needsClient;
+      e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
       if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleClientConfig.DEFERRED : googleClientConfig.UNAVAILABLE);
     }
   };
@@ -11193,6 +11196,7 @@ async function handleConnectorOauthStart(req, res) {
   if (target.error) return json(target.status || 400, { error: target.error });
   const entry = target.entry;
   if (connectorStorageError) return json(503, { error: connectorStorageError, code: 'connector_storage_locked', signInAvailable: false });
+  if (googleClientConfig.isSelectedFiles(entry) && !connectorVault.protected) return json(503, { error: 'Selected Google files requires encrypted credential storage in the StarNet desktop app.', code: 'connector_storage_required' });
   if (googleConnectorDeferred(entry)) return json(503, { error: googleClientConfig.DEFERRED, code: 'google_release_deferred', signInAvailable: false });
   const rawAttempt = String(body.attemptId || '').trim();
   const attemptId = /^[A-Za-z0-9_-]{8,80}$/.test(rawAttempt) ? rawAttempt : crypto.randomBytes(12).toString('hex');
@@ -11386,7 +11390,14 @@ async function handleConnectorOauthCallback(req, res) {
       scope: tok.scope, tokenType: tok.tokenType, clientId: pending.clientId, clientSecret: pending.clientSecret,
       tokenEndpointAuthMethod: pending.tokenEndpointAuthMethod, tokenEndpoint: pending.tokenEndpoint,
       authorizationServer: pending.authorizationServer, resource: pending.resource, at: Date.now() };
-    oauthEntry.account = await require('./mcp/account.js').readGoogleAccount({ authorizationServer: pending.authorizationServer,
+    if (pending.id === 'google-files' && !googleClientConfig.fileScopeOnly(tok.scope)) return page('Google permissions changed', 'This connection accepts only selected-file access. Your previous connection was kept.', false);
+    if (pending.id === 'google-files') {
+      const picked = String(q.get('picked_file_ids') || '').split(',');
+      if (picked.length > 100 || !picked.every(id => /^[A-Za-z0-9_-]{1,256}$/.test(id))) return page('No Google files selected', 'Choose files in Google’s picker and try again. Your previous connection was kept.', false);
+      oauthEntry.pickedFileIds = [...new Set(picked)];
+    }
+    // Picker permits drive.file alone; do not call userinfo or ask for identity scopes.
+    oauthEntry.account = pending.id === 'google-files' ? null : await require('./mcp/account.js').readGoogleAccount({ authorizationServer: pending.authorizationServer,
       tokenEndpoint: pending.tokenEndpoint, accessToken: tok.accessToken, fetchImpl: connectorOauthFetch, now: Date.now() });
     if (pending.googleApi && (connectorOauthPending.get(state) !== pending ||
         JSON.stringify(connectorConfigs.find(c => c && c.id === pending.id) || null) !== pending.originalConfig ||

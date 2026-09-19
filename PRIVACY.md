@@ -153,6 +153,10 @@ Protect and retain your OS credential store when restoring backups. This protect
 connector credentials, not the conversations, memories or exported files that may contain
 Google content; their storage is listed separately above. Google Workspace public
 activation remains deferred pending the remaining verification and data-handling work.
+The selected-file candidate requests only `drive.file` through Google's file picker,
+without email/profile, Gmail, Calendar or whole-Drive scopes. It can access files granted
+to StarNet and files it creates. This restriction does not mean file contents remain
+local: the model-provider, transcript, memory and artifact disclosures above still apply.
 
 If you instead run the bare sidecar directly (developer mode / `node sidecar/index.js` /
 tests), the OS keychain isn't reachable, so those bot tokens **fall back to a plaintext file**
