@@ -6294,7 +6294,9 @@ const World = (() => {
         // OCCUPIED BED: the base pass holds the quilt back so the sleeper can be drawn between the
         // frame and the covers (drawOver, below). Same copy-on-write idiom as the nameplate above.
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
-        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
+        const prop25 = (typeof PropSprites !== 'undefined' && PropSprites.depthProfile) ? PropSprites.depthProfile(dp.t) : null;
+        items.push({ y: sy, depthY: sy, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0,
+          kind: 'prop', propType: dp.t, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
           const lt = PropSprites.lightOf(dp, work, reduceMotion(), live);
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
@@ -6359,8 +6361,9 @@ const World = (() => {
        feet otherwise). Drawn through drawSleeper so the sprite is clipped to the mattress. */
     const bodyItem = (b, fallbackY) => {
       const bed = lyingBed(b);
-      return bed ? { y: (bed.y + (bed.h || 1)) * T + 0.5, draw: () => drawSleeper(now, b, bed) }
-                 : { y: fallbackY, draw: () => drawAgent(now, b) };
+      const y = bed ? (bed.y + (bed.h || 1)) * T + 0.5 : fallbackY;
+      return { y, depthY: y, height: 20, z: 0, kind: 'agent',
+        draw: () => bed ? drawSleeper(now, b, bed) : drawAgent(now, b) };
     };
     if (agent && !agent.unplaced) items.push(bodyItem(agent, rposY()));
     for (const b of crew) items.push(bodyItem(b, (b.seated ? b.seatPy : b.py)));   // the other agents, at their bays (seated → sort by the cushion pos like the hero's rposY, so a couch-lounging crew body tucks just behind the back-facing couch panel, head over the cap)
@@ -6388,7 +6391,7 @@ const World = (() => {
       .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
     reviewMark('shadows');
     if (sceneRenderer) {
-      sceneRenderer.drawEntities(ctx, items);
+      sceneRenderer.drawEntities(ctx, items, { twoPointFiveD: true });
     } else {
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.draw();
