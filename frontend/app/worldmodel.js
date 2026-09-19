@@ -390,7 +390,7 @@ const WorldModel = (() => {
   function freshDoc(createdAt) {
     const doc = {
       schema: 'starnet.station', version: 1, _nid: 1,
-      meta: { name: 'STARNET STATION', createdAt: createdAt || stationId(), tier: 0, spawnRoomId: null, trunkRoomId: null },
+      meta: { name: 'TJ OS ECOSYSTEM', createdAt: createdAt || stationId(), tier: 0, spawnRoomId: null, trunkRoomId: null },
       rooms: {}, order: [], props: [], belts: {}, edges: []
     };
     // seed the shabby starter HAB (18×11 floor — the v7 / world.js starter room), so a new
@@ -2524,7 +2524,7 @@ const WorldModel = (() => {
     else { const clean = {}; for (const k in doc.belts) { const d = doc.belts[k]; if (/^-?\d+,-?\d+$/.test(k) && (d === 'E' || d === 'W' || d === 'N' || d === 'S')) clean[k] = d; } doc.belts = clean; }
     if (!Array.isArray(doc.edges)) doc.edges = [];
     doc.edges = doc.edges.map(cleanPipelineEdge).filter(Boolean);
-    if (!doc.meta || typeof doc.meta !== 'object') doc.meta = { name: 'STARNET STATION', createdAt: 0, tier: 0, spawnRoomId: null };
+    if (!doc.meta || typeof doc.meta !== 'object') doc.meta = { name: 'TJ OS ECOSYSTEM', createdAt: 0, tier: 0, spawnRoomId: null };
     /* ONE-TIME, NON-DESTRUCTIVE BACKFILL of the station id (see freshDoc's note). A doc saved before
        station identity existed carries createdAt 0/absent; give it one now so its per-station latches
        stop colliding with every other station's. It must be SAVED on the same load that stamps it —
@@ -2554,10 +2554,14 @@ const WorldModel = (() => {
       const doc = freshDoc();
       const room = doc.rooms[doc.meta.spawnRoomId];
       room.rects = [{ x1: 0, y1: 0, x2: 17, y2: 10 }];
-      room.name = 'HOME';
-      room.floorMat = 'resin';
-      room.wallMat = 'panelled';
-      room.hullStyle = 'bone';
+      room.name = 'TJ CORE';
+      // The starter environment is now the first TJ OS facility: warm timber, practical
+      // interior cladding, and a natural shell. These are visual defaults only; all grants,
+      // props, paths, agent bindings and persistence remain unchanged.
+      room.floorMat = 'plank';
+      room.wallMat = 'wainscot';
+      room.hullMat = 'timber';
+      room.hullStyle = 'walnut';
       doc.props = [
         // The five essentials are real floor grants. Keep the desk unassigned so
         // ensureWorkstation adopts it for the new Commander on the normal boot path.
