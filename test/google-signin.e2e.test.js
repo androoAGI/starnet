@@ -105,6 +105,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     await fixture.restart();
     assert.equal(disk().oauth.byId.gmail, undefined);
     assert.ok(!disk().configs.some(c => c.id === 'gmail'));
+    const futureState = JSON.stringify({ ...disk(), version: 99 });
+    fs.writeFileSync(statePath, futureState);
+    await fixture.restart();
+    assert.match((await fixture.json('GET', '/api/connectors')).body.credentialStorage.error, /not recognized/);
+    assert.equal(fs.readFileSync(statePath, 'utf8'), futureState, 'unknown state version cannot be migrated over');
     assert.ok(!fixture.output().includes('GOOGLE_ACCESS_TEST') && !fixture.output().includes('GOOGLE_REFRESH_TEST'));
     console.log('google-signin.e2e: PASS (five services, native PKCE callback, partial/denied refresh consent, replay, cancellation during exchange, write failure, restart, refresh, revocation, removal, redaction)');
   } finally { await fixture.dispose(); }

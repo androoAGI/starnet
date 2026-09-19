@@ -4053,7 +4053,7 @@ function loadConnectorState() {
   let current = null, legacyConfigs = [], legacyOauth = {};
   try { current = connectorVault.load(CONNECTORS_STATE_FILE); }
   catch (_) { connectorStorageError = connectorVaultMod.UNAVAILABLE; console.error('[connectors] ' + connectorStorageError); return connectorStateMod.normalize(null); }
-  if (current && Array.isArray(current.configs) && current.oauth) {
+  if (current && current.version === 2 && Array.isArray(current.configs) && current.oauth) {
     const original = connectorStateMod.normalize(current);
     const moved = migrateConnectorCatalogKeyHeaders(original);
     if (!moved.changed) return original;
