@@ -130,10 +130,11 @@ always under the service name `ai.skynet.harness`.
 | ChatGPT / Codex sign-in token | `codex/tokens.json` | **Plaintext** JSON on disk |
 | Grok sign-in token | `grok/tokens.json` | **Plaintext** JSON on disk |
 | Kimi sign-in token | `kimi/tokens.json` | **Plaintext** JSON on disk |
+| Google and other connector credentials, account identity and configuration | `connectors/state.json` and its recovery copy | **AES-256-GCM encrypted on desktop**, with an encryption key in the OS keychain; bare sidecar development without a supplied key remains plaintext |
 | Channel message history (Discord/Telegram chats the bot saw) | `channels/*.history.json` | **Plaintext** JSON on disk |
 | Agent memory ledgers (accepted/declined memory proposals, dossiers, goals) | per-agent `*.json` | **Plaintext** JSON on disk |
 | Station state (widgets, sub-agents, routing, quests, XP) | various `*.json` | **Plaintext** JSON on disk |
-| Settings, roster, permissions, cron, connectors | various `*.json` | **Plaintext** JSON on disk |
+| Settings, roster, permissions, cron | various `*.json` | **Plaintext** JSON on disk |
 
 ### Secrets: keychain vs. plaintext — the honest picture
 
@@ -141,6 +142,17 @@ On the **desktop build**, your provider API keys and your Discord/Telegram bot t
 in the **OS keychain** (Windows Credential Manager, under service `ai.skynet.harness`), not in
 a plaintext file. When you upgrade from an older build, any bot token found in the old
 plaintext `channels/secrets.json` is migrated into the keychain and stripped from that file.
+
+Connector credentials use a separate encryption key under the same keychain service,
+account `connectors:encryption:v1`. Desktop startup encrypts and verifies both active
+and recovery copies before removing legacy connector credential files. If the keychain
+is locked or the original key is missing, StarNet preserves the encrypted files and
+reports that saved connections are unavailable; it does not replace them with empty data.
+Copies of those files alone cannot unlock connections on another OS account or computer.
+Protect and retain your OS credential store when restoring backups. This protects
+connector credentials, not the conversations, memories or exported files that may contain
+Google content; their storage is listed separately above. Google Workspace public
+activation remains deferred pending the remaining verification and data-handling work.
 
 If you instead run the bare sidecar directly (developer mode / `node sidecar/index.js` /
 tests), the OS keychain isn't reachable, so those bot tokens **fall back to a plaintext file**

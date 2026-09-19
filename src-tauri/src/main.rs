@@ -1813,6 +1813,17 @@ fn set_sidecar_branded_env<V: AsRef<OsStr>>(cmd: &mut Command, legacy_name: &str
 
 fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     let mut cmd = Command::new(node);
+    // Clear inherited material: only this OS account's verified keychain entry
+    // may unlock connector credentials. Missing/locked keychain fails closed.
+    cmd.env_remove("STARNET_CONNECTOR_ENCRYPTION_KEY");
+    match credentials::connector_encryption_key() {
+        Ok(key) => {
+            cmd.env("STARNET_CONNECTOR_ENCRYPTION_KEY", key);
+        }
+        Err(error) => {
+            eprintln!("[connectors] {error}");
+        }
+    }
     cmd.arg(entry)
         // The sidecar can load the native Windows desktop driver, but that alone grants nothing:
         // only a locally paired Telegram owner receives the per-run remote-owner lease. Ordinary

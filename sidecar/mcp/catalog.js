@@ -162,12 +162,14 @@
     { id: 'google-docs', name: 'Google Docs', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://docs.googleapis.com/v1/documents', googleApi: true, official: false, homepage: 'https://docs.google.com',
       aliases: ['google', 'google docs', 'docs', 'gsuite', 'g suite', 'google workspace'],
-      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.readonly']),
+      // This card accepts document IDs; Drive search/export belongs to the separate Drive card.
+      // drive.file supports the account probe without granting read access to the user's whole Drive.
+      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file']),
       blurb: 'Read, create, and edit Google Docs. Sign in with Google to connect your account.' },
     { id: 'google-sheets', name: 'Google Sheets', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://sheets.googleapis.com/v4/spreadsheets', googleApi: true, official: false, homepage: 'https://sheets.google.com',
       aliases: ['google', 'google sheets', 'sheets', 'spreadsheet', 'gsuite', 'g suite', 'google workspace'],
-      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.readonly']),
+      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']),
       blurb: 'Read, create, and edit Google Sheets. Sign in with Google to connect your account.' },
     { id: 'notion', name: 'Notion', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://mcp.notion.com/mcp', official: true, homepage: 'https://notion.so',
