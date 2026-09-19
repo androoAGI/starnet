@@ -39,8 +39,11 @@ A.ok(/__chatLinkStatusTimer/.test(chatSrc) && /setInterval\([\s\S]{0,120}?syncSt
 A.ok(/#chat-status\.status-down\s*\{[^}]*#ff6a4c/i.test(cssSrc), 'app.css paints status-down in the LINK DOWN fault palette');
 
 // ---- F1: the run routes' disconnect seam is the RESPONSE 'close' (req 'close' is dead after readBody) ----
-const resCloseAborts = (sidecarSrc.match(/res\.on\('close',\s*\(\)\s*=>\s*\{\s*ac\.abort\(\)/g) || []).length;
-A.ok(resCloseAborts >= 2, 'handleRun + handleCronRun abort on the RESPONSE close (got ' + resCloseAborts + ' sites)');
+const streamSrc = fs.readFileSync(path.join(__dirname, '../sidecar/remote-runtime.js'), 'utf8');
+const streamSites = (sidecarSrc.match(/remoteRuntime\.makeRunStream\(/g) || []).length;
+A.eq(streamSites, 2, 'handleRun and handleCronRun use the shared response-close lifecycle');
+A.ok(/res\.once\('close', detach\)/.test(streamSrc), 'shared stream listens to RESPONSE close');
+A.ok(/if \(!persistent\) controller\.abort\(\)/.test(streamSrc), 'local response closure still cancels; explicit remote ownership keeps work running');
 A.ok(/res\.on\('close',\s*onClose\)/.test(sidecarSrc), 'the nightshift beat route aborts on the RESPONSE close too');
 // the trap itself must not come back: no run route may attach its abort cleanup to req 'close'.
 A.ok(!/req\.on\('close',\s*\(\)\s*=>\s*\{\s*ac\.abort\(\)/.test(sidecarSrc), "no route attaches ac.abort() to req 'close' (fires at message completion on Node >=15 — a dead seam after readBody)");

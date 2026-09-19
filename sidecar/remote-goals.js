@@ -4,8 +4,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { swallow } = require('./failopen');
 const GoalLoop = require('../frontend/app/goalloop');
-function makeRemoteGoals({ root, run, now = Date.now }) {
+function makeRemoteGoals({ root, run, now }) {
   const dir = path.join(root, '.remote-goals');
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const records = new Map(), active = new Map();
@@ -60,7 +61,7 @@ function makeRemoteGoals({ root, run, now = Date.now }) {
     })();
     // Keep failures observable in status, never an unhandled rejection that kills
     // unrelated work. A disk failure cannot start another continuation.
-    promise.catch(() => {});
+    promise.catch(swallow('remote.goal.persist'));
     const owner = active.get(record.streamId); if (owner) owner.promise = promise;
   }
   function command({ streamId, agentId, kind = 'goal', text = '' }) {

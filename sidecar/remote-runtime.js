@@ -2,12 +2,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { note: failNote } = require('./failopen');
 const crypto = require('node:crypto');
 
 // The same pure Workstreams and station-command implementation used by the Mac,
 // evaluated without a DOM, browser, canvas, timers driving a world, or renderer.
 // Commands are serialized and commit through the existing revision-checked store.
-function makeHeadlessStation({ saveStore, roster, runs, activeRuns, degraded = () => false }) {
+function makeHeadlessStation({ saveStore, roster, runs, activeRuns, now, degraded = () => false }) {
   const workstreams = fs.readFileSync(path.join(__dirname, '../frontend/app/workstreams.js'), 'utf8');
   const commands = fs.readFileSync(path.join(__dirname, '../frontend/app/stationcommands.js'), 'utf8');
   let queue = Promise.resolve();
@@ -23,7 +24,7 @@ function makeHeadlessStation({ saveStore, roster, runs, activeRuns, degraded = (
         refreshRail() {},
         persist: () => {
           const slice = context.Workstreams.serialize();
-          const result = saveStore.save('agent', { ...current, ...JSON.parse(JSON.stringify(slice)), updatedAt: Date.now() }, { compareRevision: true });
+          const result = saveStore.save('agent', { ...current, ...JSON.parse(JSON.stringify(slice)), updatedAt: now() }, { compareRevision: true });
           if (!result.ok) throw new Error('Station changed concurrently; mutation was refused');
           current = saveStore.load('agent');
         }
@@ -87,7 +88,7 @@ function makeRunStream({ res, controller, persistent, emitRemote, redact, onDisc
 
 // Claim request IDs before execution. Never retain prompts or credentials here.
 // A crash leaves a claimed request fenced; explicit recovery creates a new ID.
-function makeRequestClaims(root) {
+function makeRequestClaims(root, now) {
   const dir = path.join(root, '.remote-requests');
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return {
@@ -99,10 +100,10 @@ function makeRequestClaims(root) {
       catch (e) {
         if (e.code !== 'EEXIST') throw e;
         let existing = null;
-        try { existing = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) {}
+        try { existing = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (error) { failNote('remote.claim.read', error); }
         return { ok: false, runId: existing?.runId || null };
       }
-      try { fs.writeFileSync(fd, JSON.stringify({ runId, createdAt: Date.now() })); fs.fsyncSync(fd); }
+      try { fs.writeFileSync(fd, JSON.stringify({ runId, createdAt: now() })); fs.fsyncSync(fd); }
       finally { fs.closeSync(fd); }
       const directory = fs.openSync(dir, 'r');
       try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }

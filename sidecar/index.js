@@ -3745,11 +3745,11 @@ const chanBus = { emit: (name, payload) => {
    agent, delegate). Rides the SAME SSE hub the HUD already listens on, so there is no second channel to keep
    alive. Fails visibly when no page is attached: see sidecar/station-bridge.js for why that matters. */
 const stationBridge = REMOTE_MODE
-  ? remoteRuntime.makeHeadlessStation({ saveStore, roster: () => agentRoster, runs: () => runStore.all(), activeRuns: () => runsMeta, degraded: () => workspaceDegraded })
+  ? remoteRuntime.makeHeadlessStation({ saveStore, roster: () => agentRoster, runs: () => runStore.all(), activeRuns: () => runsMeta, now: () => Date.now(), degraded: () => workspaceDegraded })
   : makeStationBridge({ emit: (name, payload) => { try { sse.broadcast(name, payload); } catch (_) {} } });
-const remoteRequests = REMOTE_MODE ? remoteRuntime.makeRequestClaims(WORKSPACES) : null;
+const remoteRequests = REMOTE_MODE ? remoteRuntime.makeRequestClaims(WORKSPACES, () => Date.now()) : null;
 const remotePrompts = new Map();
-const remoteGoals = REMOTE_MODE ? require('./remote-goals').makeRemoteGoals({ root: WORKSPACES, run: remoteGoalTurn }) : null;
+const remoteGoals = REMOTE_MODE ? require('./remote-goals').makeRemoteGoals({ root: WORKSPACES, run: remoteGoalTurn, now: () => Date.now() }) : null;
 
 const chanEmitValidated = makeEmitter(chanBus, e => console.warn('[channel-event]', e.kind, e.event, (e.errors || []).join(';')));
 const chanEmit = (name, payload) => { try { return chanEmitValidated(name, redact(payload)); } catch (_) {} };
@@ -11712,7 +11712,7 @@ async function remoteGoalTurn({ record, prompt, system, signal, judge }) {
   let runId = null, text = '', reason = 'error', cancelPromise;
   const cancel = () => { if (runId && !cancelPromise) cancelPromise = fetch('http://127.0.0.1:' + PORT + '/api/cancel', {
     method: 'POST', headers, body: JSON.stringify({ runId })
-  }).then(r => r.body?.cancel()).catch(() => {}); };
+  }).then(r => r.body?.cancel()).catch(swallow('remote.goal.cancel')); };
   signal.addEventListener('abort', cancel, { once: true });
   try {
     const response = await fetch('http://127.0.0.1:' + PORT + '/api/run', { method: 'POST', headers,

@@ -16,37 +16,37 @@ test('server goal completes multiple turns without a viewer and retains its verd
   const run = async ({ judge }) => judge
     ? { reason: 'done', text: JSON.stringify({ verdict: ++judges === 2 ? 'done' : 'continue', reason: 'mock verification' }) }
     : { runId: 'run-' + ++turns, text: 'Produced step ' + turns, reason: 'done' };
-  const driver = makeRemoteGoals({ root, run });
+  const driver = makeRemoteGoals({ root, now: () => 1000, run });
   try {
     assert.deepEqual(driver.list(), []);
     driver.command({ streamId: 'session', agentId: 'agent', text: 'Build two steps' });
     assert.throws(() => driver.command({ streamId: 'session', agentId: 'agent', text: 'Replace' }), /already owns/);
     await settled(driver);
     assert.equal(turns, 2); assert.equal(driver.list()[0].goal.status, 'done');
-    const reloaded = makeRemoteGoals({ root, run });
+    const reloaded = makeRemoteGoals({ root, now: () => 1000, run });
     assert.equal(reloaded.list()[0].goal.turnsUsed, 2); assert.equal(turns, 2);
   } finally { await driver.close(); fs.rmSync(root, { recursive: true, force: true }); }
 });
 test('pause cancels the active operation; restart never resumes uncertain work; corrupted storage is refused', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-goal-stop-'));
   let aborted = false;
-  const driver = makeRemoteGoals({ root, run: async ({ signal }) => new Promise(resolve => {
+  const driver = makeRemoteGoals({ root, now: () => 1000, run: async ({ signal }) => new Promise(resolve => {
     signal.addEventListener('abort', () => { aborted = true; resolve({ reason: 'stopped', text: '' }); }, { once: true });
   }) });
   try {
     driver.command({ streamId: 'session', agentId: 'agent', text: 'Wait' });
     let calls = 0;
-    const reloaded = makeRemoteGoals({ root, run: async () => { calls++; } });
+    const reloaded = makeRemoteGoals({ root, now: () => 1000, run: async () => { calls++; } });
     assert.equal(reloaded.list()[0].goal.status, 'paused'); assert.equal(calls, 0);
     await driver.stop('session'); assert.equal(aborted, true); assert.equal(driver.list()[0].goal.status, 'paused');
     fs.writeFileSync(path.join(root, '.remote-goals/session.json'), '{bad');
-    assert.throws(() => makeRemoteGoals({ root, run: async () => {} }));
+    assert.throws(() => makeRemoteGoals({ root, now: () => 1000, run: async () => {} }));
   } finally { await driver.close(); fs.rmSync(root, { recursive: true, force: true }); }
 });
 test('failed verdicts stop at the inherited parse budget; user criteria remain bounded', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-goal-budget-'));
   let turns = 0;
-  const driver = makeRemoteGoals({ root, run: async ({ judge }) => ({ reason: 'done', text: judge ? 'malformed' : 'step ' + ++turns }) });
+  const driver = makeRemoteGoals({ root, now: () => 1000, run: async ({ judge }) => ({ reason: 'done', text: judge ? 'malformed' : 'step ' + ++turns }) });
   try {
     driver.command({ streamId: 'session', agentId: 'agent', text: 'Work' }); await settled(driver);
     assert.equal(turns, 3); assert.equal(driver.list()[0].goal.status, 'paused');
@@ -58,7 +58,7 @@ test('failed verdicts stop at the inherited parse budget; user criteria remain b
 test('stopping the judge cannot queue another paid work turn', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-goal-judge-stop-'));
   let turns = 0;
-  const driver = makeRemoteGoals({ root, run: async ({ judge }) => judge ? { reason: 'stopped', text: '' } : { reason: 'done', text: 'step ' + ++turns } });
+  const driver = makeRemoteGoals({ root, now: () => 1000, run: async ({ judge }) => judge ? { reason: 'stopped', text: '' } : { reason: 'done', text: 'step ' + ++turns } });
   try {
     driver.command({ streamId: 'session', agentId: 'agent', text: 'Work' }); await settled(driver);
     assert.equal(turns, 1); assert.equal(driver.list()[0].goal.status, 'paused');

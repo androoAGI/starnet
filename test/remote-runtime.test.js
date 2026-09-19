@@ -30,11 +30,11 @@ test('request claims survive restart and fence duplicates and corrupt prior clai
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-claims-'));
   try {
     const id = 'request-1234567890';
-    assert.equal(makeRequestClaims(dir).claim(id, 'run-1').ok, true);
-    assert.deepEqual(makeRequestClaims(dir).claim(id, 'run-2'), { ok: false, runId: 'run-1' });
+    assert.equal(makeRequestClaims(dir, () => 1000).claim(id, 'run-1').ok, true);
+    assert.deepEqual(makeRequestClaims(dir, () => 1000).claim(id, 'run-2'), { ok: false, runId: 'run-1' });
     fs.writeFileSync(path.join(dir, '.remote-requests', id + '.json'), '');
-    assert.deepEqual(makeRequestClaims(dir).claim(id, 'run-3'), { ok: false, runId: null });
-    assert.throws(() => makeRequestClaims(dir).claim('../escape', 'bad'));
+    assert.deepEqual(makeRequestClaims(dir, () => 1000).claim(id, 'run-3'), { ok: false, runId: null });
+    assert.throws(() => makeRequestClaims(dir, () => 1000).claim('../escape', 'bad'));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 test('headless session creation, delegation delivery and read-back use the real revision-checked store', async () => {
@@ -42,7 +42,7 @@ test('headless session creation, delegation delivery and read-back use the real 
   try {
     const saveStore = makeSaveStore({ fs, pathMod: path, root: dir, clock: { now: Date.now } });
     const roster = () => new Map([['agent', { agentId: 'agent', name: 'LEAD' }], ['worker', { agentId: 'worker', name: 'WORKER' }]]);
-    const station = makeHeadlessStation({ saveStore, roster, runs: () => [], activeRuns: () => new Map() });
+    const station = makeHeadlessStation({ now: () => 1000, saveStore, roster, runs: () => [], activeRuns: () => new Map() });
     assert.equal((await station.request('station.sessions')).ok, false);
     saveStore.save('agent', { agent: { id: 'agent' }, version: 5, updatedAt: 1, workstreams: [], _saveRevision: 0 }, { compareRevision: true });
     const created = await Promise.all(['Research', 'Build'].map(title => station.request('station.new_session', { title, agentId: 'worker' })));
@@ -56,7 +56,7 @@ test('headless session creation, delegation delivery and read-back use the real 
     assert.equal((await station.request('station.new_session', { title: 'Research' })).ok, false);
     assert.equal((await station.request('station.switch_session', { session: 'Build' })).ok, false);
     assert.equal(saveStore.load('agent')._saveRevision, 4);
-    const restarted = makeHeadlessStation({ saveStore, roster, runs: () => [], activeRuns: () => new Map() });
+    const restarted = makeHeadlessStation({ now: () => 1000, saveStore, roster, runs: () => [], activeRuns: () => new Map() });
     assert.equal((await restarted.request('station.sessions')).result.count, 3);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
