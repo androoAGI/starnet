@@ -2653,7 +2653,15 @@ const WorldModel = (() => {
         { id: 'p' + doc._nid++, t: 'industrial_bench', x: -38, y: 17, w: 3, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'industrial_planter', x: -27, y: 24, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'industrial_roundtable', x: 46, y: 32, w: 2, h: 1, block: true },
-        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 2, y: 30, w: 3, h: 1, block: true }
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 2, y: 30, w: 3, h: 1, block: true },
+        // TJ COMMONS restaurant layer — existing leisure props only; no new runtime behavior is implied.
+        { id: 'p' + doc._nid++, t: 'bar', x: 5, y: 29, w: 4, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'dinertable', x: 10, y: 32, w: 3, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'dinerchair', x: 9, y: 34, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'dinerchair', x: 13, y: 34, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'booth', x: 2, y: 34, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'fishtank', x: 14, y: 29, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 36, w: 1, h: 1, block: false }
       ];
       return doc;
     },
