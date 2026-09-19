@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**7** open (open+claimed) of 173 total — 0 P0 · 1 P1 · 6 P2
+**7** open (open+claimed) of 174 total — 0 P0 · 1 P1 · 6 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **88** · source fixed: **80** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **85**.
+User/owner reports: **89** · source fixed: **81** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **86**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -62,6 +62,7 @@ User/owner reports: **88** · source fixed: **80** · installer verified: **6** 
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
 | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | backdrop-performance | fixed | verified | unconfirmed |
 | [Refit entry freezes the installed remastered station for roughly ten seconds](bugs/bf3be27e-refit-entry-freezes-the-installed-remastered-sta.md) | refit-entry-rendering | fixed | unverified | unconfirmed |
+| [Station design edits disappear when Build is interrupted](bugs/996e399b-station-design-edits-disappear-when-build-is-int.md) | station-design-persistence | fixed | unverified | unconfirmed |
 | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | durability-and-visibility | fixed | unverified | unconfirmed |
 | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | deployment-integrity | fixed | not-applicable | unconfirmed |
 | [Customer requests accounting for credits consumed during Mac boot trouble](bugs/abd75bb4-credit-usage-during-mac-boot-failure.md) | account-usage-correlation | open | unverified | unconfirmed |
@@ -203,6 +204,7 @@ User/owner reports: **88** · source fixed: **80** · installer verified: **6** 
 | P1 | fixed | world | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | agent/backdrop-performance-0910 | 2c041bbe69124eda1f60a6eb5a11cc44676028cb |
 | P1 | fixed | world | [Refit entry freezes the installed remastered station for roughly ten seconds](bugs/bf3be27e-refit-entry-freezes-the-installed-remastered-sta.md) | release-0120-prep-0915 | 15ac83ceb |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
+| P1 | fixed | world | [Station design edits disappear when Build is interrupted](bugs/996e399b-station-design-edits-disappear-when-build-is-int.md) | agent/station-save-0919 | fb02b1e7d |
 | P1 | fixed | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | 57112a690f8174f3ba3f3ac33fe786d07fa51c5d |
 | P1 | fixed | world | [Website station preview fails when hosting beacon is blocked](bugs/b3b8d28f-website-station-preview-fails-when-hosting-beaco.md) | website-station-boot-0905 | 27560918e |
 | P2 | open | autonomy | [Customer requests accounting for credits consumed during Mac boot trouble](bugs/abd75bb4-credit-usage-during-mac-boot-failure.md) | release-0120-prep-0915 | — |
