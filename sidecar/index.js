@@ -15139,7 +15139,7 @@ async function runOnce(o) {
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
-      if (o.parentRunId && o.sessionPrompt && overseer.threads().length) {
+      if (o.coordinatedSession && o.parentRunId && o.sessionPrompt) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
@@ -15670,7 +15670,7 @@ async function runOnceCore(o) {
     coordinateResults: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface }),
     classes: SPECIALIST_CLASSES,   // Class Loadouts S1: the summon-tool class list, composed from the shared catalog (no hardcoded prose)
     selfSystem: system,   // team.spawn clones the LEAD's OWN base identity into each ephemeral subagent (Meeseeks)
-    sessionContext: id => {
+    sessionContext: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface }) ? id => {
       // Older pages can resolve a session before their first durable save lands.
       // They have no server-owned history or project scope to inherit yet.
       if (!overseer.threads().length) return { messages: [], projectRoot: '' };
@@ -15678,7 +15678,7 @@ async function runOnceCore(o) {
       if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
       return { title: thread.title, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
         messages: transcriptStore.reconstruct(id, { limit: 80 }) };
-    },
+    } : undefined,
     taskContext: taskContextBlock,   // workers inherit settled task decisions without re-questioning the Commander
     getTaskContext: () => {
       const settled = taskBriefState ? commanderEvidenceContext(system || '', Object.assign({},taskContextInputs,{brief:taskBriefState.brief})) : taskContextBlock;

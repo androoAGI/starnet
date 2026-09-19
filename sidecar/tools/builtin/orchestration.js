@@ -475,6 +475,7 @@
               // transcript) and scopes its working memory to that stream. Absent -> undefined, byte-identical to
               // the pre-2026-07-30 call. This is the DURABLE half; deliverToSession is the visible one.
               streamId: job.streamId || undefined,
+              coordinatedSession: deps.coordinateResults === true,
               sessionTitle: job.streamId ? (job.sessionTitle || job.session || '') : undefined,
               sessionPrompt: job.streamId ? job.prompt : undefined,
               // Share the lead's consent broker so a worker's WRITES follow the lead's APPROVAL posture
@@ -906,6 +907,7 @@
             system: workerSystem((ident && ident.system) || ''),
             messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
             streamId: rec.streamId || undefined, sessionTitle: resumedSession && resumedSession.title,
+            coordinatedSession: !!rec.parentStreamId,
             sessionPrompt: rec.streamId ? rec.prompt : undefined,
             agentId: rec.agentId, isTask: true,
             emit: h.emit, signal: h.signal, runId: h.runId,

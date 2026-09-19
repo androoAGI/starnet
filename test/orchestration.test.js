@@ -817,6 +817,7 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
   const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'summarise X', session: 'research' }] }, leadCtx());
   A.eq(ro.calls.length, 1, 'the worker ran');
   A.eq(ro.calls[0].streamId, 'ws_r1', 'the named session resolves to its real id and rides into the run as streamId');
+  A.eq(ro.calls[0].coordinatedSession, false, 'legacy bridge dispatch does not require server-owned session metadata');
   A.eq(ro.calls[0].sessionTitle, 'research', 'the stable session name rides into the durable run row for missed-page replay');
   A.eq(ro.calls[0].sessionPrompt, 'summarise X', 'the delegated instruction rides into the durable delivery envelope');
   const row = JSON.parse(out.content)[0];
@@ -935,7 +936,7 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
   const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000);
-  A.ok(/station: overseerStation\(o.streamId, runId\)/.test(block), 'the run host injects durable session operations and the visual station bridge');
+  A.ok(/station: require\('\.\/overseer.js'\)\.isCoordinatorRun\([\s\S]*?\? overseerStation\(o.streamId, runId\) : stationBridge/.test(block), 'only coordinator runs receive durable session operations; other leads retain the visual bridge');
 }
 
 // the PAGE half exists and holds the line on both verbs
