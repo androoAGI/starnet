@@ -8,8 +8,8 @@ const WorldRenderer = (() => {
   const GENERATION = 'II';
   // Live-compared industrial finish: deep mids, readable cool/warm equipment,
   // crisp materials, and restrained tube texture without a lifted-black veil.
-  const PHOSPHOR = Object.freeze({ scan: .10, pitch: 1, fade: 0, curve: .04, vig: .16,
-    over: 1.08, dust: .35, aberr: 0, grain: .26, bloom: 0, sharpen: .28, film: .38 });
+  const PHOSPHOR = Object.freeze({ scan: .025, pitch: 1, fade: 0, curve: 0, vig: .06,
+    over: 1.02, dust: .08, aberr: 0, grain: .04, bloom: .08, sharpen: .28, film: .12 });
   // Five-tap local contrast, bounded by the existing neighbourhood. Flat light
   // gradients stay quiet; no bright/dark ringing is introduced beyond an edge.
   const DETAIL_GLSL = `
