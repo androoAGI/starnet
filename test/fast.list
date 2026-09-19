@@ -1,5 +1,6 @@
 # Fast test gate steps - run in order by scripts/run-fast-tests.mjs. One path per line.
 test/schema.test.js
+test/overseer.test.js
 test/chat-file-drop.test.js
 test/group-sessions.test.js
 test/group-message-attachments.test.js

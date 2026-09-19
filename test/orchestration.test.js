@@ -935,7 +935,7 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
   const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000);
-  A.ok(/station: stationBridge/.test(block), 'the run host injects the station bridge into makeOrchestrationTools');
+  A.ok(/station: overseerStation\(o.streamId, runId\)/.test(block), 'the run host injects durable session operations and the visual station bridge');
 }
 
 // the PAGE half exists and holds the line on both verbs
