@@ -29,3 +29,14 @@ for(const code of ['EACCES','EIO']) {
 assert.deepEqual(loadBounded({strict:true,fs:{readFileSync(){throw missing;}}},'ledger',100),[]);
 assert.throws(()=>loadBounded({strict:true,fs:{readFileSync(p){return p.endsWith('.1')?'x'.repeat(110)+'\n':'{}\n';}}},'ledger',100),/truncat/i);
 console.log('spend authority: unreadable history, configured scopes, opt-in policy, failed append, missing file and truncated history PASS');
+// Admission durability is independent of whether the Commander configured a quota.
+let starts=0, finishes=0;
+const journal=makeLedger({clock,nextId:()=> 'entry-'+finishes,io:{readAll:()=>[],append(){},beginRun(){starts++;},finishRun(){finishes++;}}});
+assert.equal(journal.beginRun('one','a'),true);assert.equal(journal.beginRun('one','a'),true);assert.equal(starts,1);
+journal.record({runId:'one',usd:0.1});assert.equal(finishes,1);assert.equal(journal.all()[0].entryId,'entry-0');
+const noReceipt=makeLedger({clock,io:{readAll:()=>[],append(){},beginRun(){throw Object.assign(Error('disk full'),{code:'ENOSPC'});}}});
+assert.equal(makeBudget({clock,ledger:noReceipt,caps:{}}).check('r','a',0).unknown,true,'paid dispatch requires a durable receipt even without a dollar quota');
+assert.equal(noReceipt.health().durable,false);
+const unicodeFs={readFileSync(p){return p.endsWith('.1')?'éé\n':'éé\n';}};
+assert.throws(()=>loadBounded({strict:true,fs:unicodeFs},'ledger',8),/truncat/i,'combined strict bound counts bytes');
+console.log('spend admission: receipt failure, repeated checks, independent settlement identity and Unicode bounds PASS');
