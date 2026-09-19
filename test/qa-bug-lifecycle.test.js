@@ -63,6 +63,8 @@ test('customer journey campaign cannot drift outside mandatory fast/http gates',
   const gates=new Set([...read('fast'),...read('http')]);
   const campaign=read('customer-journeys');
   assert.ok(campaign.length>0); assert.equal(new Set(campaign).size,campaign.length);
+  for (const suite of ['test/session-continuity.test.js','test/session-reliability.e2e.test.js']) assert.ok(campaign.includes(suite), suite+' is a required session release guarantee');
+  assert.match(fs.readFileSync(path.join(root,'.github/workflows/t0-clean-install-proof.yml'),'utf8'), /'session-reliability\.e2e\.test\.js'/, 'installed upgrade acceptance must run session continuity');
   for(const file of campaign) { assert.ok(gates.has(file),file+' must run in a mandatory gate'); assert.ok(fs.existsSync(path.join(root,file))); }
   for(const workflow of ['fast-gate.yml','release-train.yml']) {
     assert.match(fs.readFileSync(path.join(root,'.github/workflows',workflow),'utf8'),/^\s+run: npm run qa:customer-journeys\s*$/m,workflow+' must execute the customer campaign, not just register its tests');

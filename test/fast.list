@@ -775,6 +775,8 @@ test/work-rating-control.test.js
 
 test/session-focus-safety.test.js
 test/session-typing-safety.test.js
+test/session-continuity.test.js
+test/session-reliability.e2e.test.js
 
 test/harness-placement.test.js
 test/github-device.test.js
