@@ -36,7 +36,7 @@ Initial fast run stopped at 291/819 because the two modified frontend files no l
 
 Final `npm run test:fast` on source candidate `4d555826f`, Node 24.19.0: **819/819 PASS**, exit 0. Receipt: `.station-save-fast-final.log` in the owned worktree, ending `run-fast-tests: OK — 819 step(s) green`. Customer-journey receipt: `.station-save-journeys.log`, ending `run-test-list: OK — 36 step(s) green`. No test limits or assertions were relaxed. The final evidence commit changes documentation and the bug register only.
 
-No integration merge, installer rebuild or publication was performed. Installed Windows/macOS acceptance, abrupt operating-system/power-loss durability and the affected customer's recovery are unverified. Recovering an already-lost design requires examining that user's cache, prior layout backup and durable save/backup/conflict copies; none were supplied.
+At the initial fix checkpoint, no integration merge, installer rebuild or publication had been performed. The subsequent owner-requested merge is recorded below. Installed Windows/macOS acceptance, abrupt operating-system/power-loss durability and the affected customer's recovery are unverified. Recovering an already-lost design requires examining that user's cache, prior layout backup and durable save/backup/conflict copies; none were supplied.
 
 ## Owner-requested merge regression review
 
@@ -47,3 +47,9 @@ A live conversation draft remained intact and editable after a Build preset chan
 Integration was queued behind the existing chat-cutoff merge reservation. The isolated combined candidate contains both regression suites; its generated bug index was regenerated and validated, and its source audit retains both lanes' reviewed hashes. Final merge and gate receipts follow in the completed integration record.
 
 Combined pre-merge gate: 820/820 PASS, exit 0, receipt .station-save-combined-fast.log. Candidate 12eda36c2 contains the additional regression review. Sync 06bdb14cc retains integrated chat receipts and a diagnostic-process cleanup guard; git diff confirms no application, test or source-audit changes from the accepted combined candidate. JavaScript syntax and hotfile definition checks pass.
+
+## Completed integration
+
+Integrated into feat/harness-backend at 8e182efaf16ba1dd001296f2c885bae113528e88 from snapshot 7d144424ad8f4bd3bd0ccebbf8766205b35b9ddb. The integration tree exactly matched the accepted candidate. Post-merge npm run test:fast: **820/820 PASS**, exit 0; receipt .station-save-postmerge-fast.log. Post-merge npm run qa:customer-journeys: **36/36 PASS**, exit 0; receipt .station-save-postmerge-journeys.log. Both ran with Node 24.19.0 against the unchanged integrated source.
+
+Fresh live reload on the identical application source restored 2 rooms, 1 hall, 408 tiles and 12 objects; editor exit produced no error-level console entries. Earlier backend restart, disconnected-backend recovery, undo/redo, floor finish and chat-draft preservation checks remain applicable because application source is unchanged. No new regression was found in the tested scope; this is not a claim that all possible issues or power-loss scenarios have been ruled out. No installer rebuild, push or release publication was performed. Existing unrelated operational edits were preserved.
