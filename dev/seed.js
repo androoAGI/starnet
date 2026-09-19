@@ -25,7 +25,11 @@ const { spawn } = require('node:child_process');
 
 const REPO = path.resolve(__dirname, '..');
 const FIXTURE = path.join(__dirname, 'fixtures', 'seed-workspace');
-const SCRATCH = path.join(__dirname, '.scratch-workspace');
+const workspaceArg = process.argv.indexOf('--workspace');
+const workspaceValue = workspaceArg < 0 ? null : process.argv[workspaceArg + 1];
+if (workspaceArg >= 0 && (!workspaceValue || workspaceValue.startsWith('--'))) die('--workspace requires a directory');
+if (workspaceArg >= 0 && !process.argv.includes('--keep')) die('--workspace requires --keep; explicit workspaces are never cleared');
+const SCRATCH = workspaceValue ? path.resolve(workspaceValue) : path.join(__dirname, '.scratch-workspace');
 const ENV_DEV = path.join(__dirname, '.env.dev');
 const SIDECAR = path.join(REPO, 'sidecar', 'index.js');
 
