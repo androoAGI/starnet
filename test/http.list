@@ -124,3 +124,4 @@ test/save-unreadable.http.test.js
 test/durable-store-faults.http.test.js
 test/dev-seed-isolation.http.test.js
 test/spend-authority.http.test.js
+test/workspace-probe-errors.http.test.js
