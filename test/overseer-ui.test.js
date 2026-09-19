@@ -1,24 +1,34 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { project } = require('../frontend/app/overseer.js');
-const threads = { home: { id: 'home' }, research: { id: 'research', title: 'Research' }, other: { id: 'other', title: 'Other' } };
-const get = id => threads[id];
-const worker = (runId, status, startedAt, extra = {}) => ({ id: runId, runId, status, startedAt, parentStreamId: 'home', streamId: 'research', ...extra });
-let rows = project({ workers: [worker('old', 'error', 1), worker('new', 'done', 2)], reviews: [{ workerRunId: 'new', status: 'done' }] }, get);
-assert.equal(rows.length, 1);
-assert.equal(rows[0].status, 'Reviewed', 'latest result wins regardless of persisted record order');
-rows = project({ workers: [worker('active', 'running', 1), worker('done', 'done', 2)] }, get);
-assert.equal(rows[0].status, 'Starting', 'an unconfirmed active run stays visible without claiming work started');
-rows = project({ workers: [worker('active', 'running', 1, { working: true }), worker('bad', 'error', 2, { streamId: 'other' })] }, get);
-assert.equal(rows[0].title, 'Other', 'unresolved issues precede active work');
-assert.equal(rows[1].status, 'Working');
-rows = project({ workers: [worker('bad', 'error', 2)], reviews: [{ workerRunId: 'bad', status: 'done' }] }, get);
-assert.equal(rows[0].status, 'Issue reported', 'a reviewed failure is not an unresolved review or a successful worker');
-assert.equal(rows[0].parentId, 'home', 'review opens the originating conversation');
-rows = project({ paused: true, workers: [worker('done', 'done', 2)] }, get);
-assert.equal(rows[0].status, 'Review paused');
-rows = project({ workers: [worker('done', 'done', 2)], reviews: [{ workerRunId: 'done', status: 'pending', error: 'Connect the overseer provider.' }] }, get);
-assert.equal(rows[0].group, 0);
-assert.equal(rows[0].detail, 'Connect the overseer provider.', 'recovery reason is visible text');
-assert.deepEqual(project({ workers: [worker('gone', 'done', 1, { parentStreamId: 'deleted' })] }, get), []);
-console.log('overseer UI: truthful status, chronology, failure review and recovery routing PASS');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const path = require('node:path');
+(async () => {
+  const rows = new Map([['planning', {id:'planning'}]]);
+  let reconciled = 0, persisted = 0, timeout, fail = false, hang = false;
+  const data = {threads:[{id:'research',parentStreamId:'planning',agentId:'custom_researcher'}],workers:[{runId:'w1',status:'done'}],reviews:[{reviewRunId:'r1',status:'done'}]};
+  const context = {
+    module:{exports:{}}, console:{debug(){}}, AbortController,
+    setTimeout(fn){timeout=fn;return 1;}, clearTimeout(){},
+    document:{addEventListener(){}, createElement(){throw new Error('No additional UI permitted');}},
+    Workstreams:{generalId:()=> 'general',get:id=>rows.get(id),adopt:row=>{rows.set(row.id,row);return true;}},
+    App:{persist(){persisted++;},refreshRail(){},openWorkstream(){throw new Error('Must not move focus');}},
+    StationCommands:{async reconcile(){reconciled++;}},
+    fetch:async (_url,options)=>{
+      if(hang) return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('timeout'))));
+      if(fail) throw new Error('offline');
+      return {ok:true,json:async()=>data};
+    }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../frontend/app/overseer.js'),'utf8'),context);
+  const sync=context.module.exports;
+  await sync.refresh();
+  assert.equal(rows.get('research').agentId,'custom_researcher');
+  assert.equal(persisted,1);assert.equal(reconciled,1);
+  await sync.refresh();assert.equal(reconciled,1,'unchanged polling does not rebuild the transcript');
+  fail=true;await sync.refresh();fail=false;await sync.refresh();
+  assert.equal(reconciled,2,'reconnect reconciles even if worker state did not change');
+  hang=true;const pending=sync.refresh();timeout();await pending;hang=false;await sync.refresh();
+  assert.equal(reconciled,3,'a hung request times out and does not permanently block synchronization');
+  console.log('overseer sync: existing sessions, no added UI/focus changes, recovery and timeout PASS');
+})().catch(e=>{console.error(e);process.exitCode=1;});

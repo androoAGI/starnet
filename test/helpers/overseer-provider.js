@@ -22,6 +22,7 @@ async function startOverseerProvider(options = {}) {
     const crew = system.match(/^  - ([A-Za-z0-9_-]+) \(/m);
     const workerId = crew ? crew[1] : 'researcher';
     if (!parsed.tools || !parsed.tools.length) send({ content: 'Ready.' });
+    else if (String(user && user.content).includes('DIRECT_PROOF')) send({ content: 'Direct specialist answer.' });
     else if (String(user && user.content).startsWith('Review the background work')) { reviews++; send({ content: 'Reviewed findings: the worker returned two observations.' }); }
     else if (String(user && user.content).includes('WORKER_PROOF')) { await sleep(options.workerDelay || 800); send({ content: 'WORKER_FINDINGS: two verified observations.' }); }
     else if (/follow.up/i.test(String(user && user.content))) {

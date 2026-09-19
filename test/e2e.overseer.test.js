@@ -12,13 +12,16 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-local-proof', SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_FULL_ACCESS: '1' } });
   try {
     const seed = JSON.parse(fs.readFileSync(path.join(__dirname, '../dev/fixtures/seed-workspace/agent.save.json'), 'utf8'));
-    seed.doc.generalId = 'home'; seed.doc.activeId = 'home';
-    seed.doc.workstreams = [{ id: 'home', agentId: 'agent', title: null, history: [], kind: 'chat', lane: 'active' }];
+    seed.doc.generalId = 'general'; seed.doc.activeId = 'home';
+    seed.doc.workstreams = [
+      { id: 'general', agentId: 'agent', title: null, history: [], kind: 'chat', lane: 'active' },
+      { id: 'home', agentId: 'agent', title: 'Launch planning', history: [], kind: 'chat', lane: 'active' }
+    ];
     fs.writeFileSync(path.join(fixture.workspace, 'agent.save.json'), JSON.stringify(seed));
     await fixture.start();
     const roster = await fixture.json('POST', '/api/roster', { agents: [
       { agentId: 'agent', name: 'Overseer', model: 'test/model', provider: 'openrouter', system: 'You coordinate work.' },
-      { agentId: 'researcher', name: 'Researcher', model: 'test/model', provider: 'openrouter', system: 'You research.' }
+      { agentId: 'mira_custom', name: 'Mira', role: 'Research', model: 'test/model', provider: 'openrouter', system: 'MIRA_CUSTOM_PERSONA: You are the user-created research specialist.' }
     ] });
     assert.equal(roster.status, 200);
     const response = await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
@@ -35,6 +38,14 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal(snapshot.reviews.length, 1, response.text);
     assert.equal(snapshot.reviews[0].status, 'done', JSON.stringify(snapshot.reviews));
     assert.equal(provider.reviews(), 1, 'the lead reviews automatically once');
+    assert.equal(snapshot.threads.find(w => w.title === 'Research proof').agentId, 'mira_custom', 'delegate uses the user-created roster agent');
+    assert.ok(provider.requests.some(messages => messages.some(m => m.role === 'system' && /MIRA_CUSTOM_PERSONA/.test(m.content))), 'worker keeps its existing persona');
+    assert.equal((await fixture.json('GET', '/api/transcript?stream=general&limit=100')).body.turns.length, 0, 'General is not the required home or result destination');
+    await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'mira_custom', streamId: 'direct', isTask: true,
+      messages: [{ role: 'user', content: 'DIRECT_PROOF: answer me directly' }] });
+    const direct = provider.requests.find(messages => messages.some(m => m.role === 'user' && /DIRECT_PROOF/.test(m.content)));
+    assert.ok(direct);
+    assert.ok(!direct.some(m => m.role === 'system' && /Background results return here automatically/.test(m.content)), 'specialist conversation does not acquire orchestrator coordination instructions');
     assert.ok(snapshot.workers.length > 0);
     for (const worker of snapshot.workers) {
       for (const field of ['context', 'result', 'events', 'structuredResult', 'artifacts']) {
@@ -85,6 +96,9 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     snapshot = (await fixture.json('GET', '/api/overseer')).body;
     assert.equal(snapshot.paused, true, 'E-STOP survives process restart');
     assert.equal(provider.reviews(), 2, 'restart after stop never wakes cancelled reviews');
+    await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'mira_custom', streamId: 'direct', isTask: true,
+      messages: [{ role: 'user', content: 'DIRECT_PROOF: keep this specialist conversation separate' }] });
+    assert.equal((await fixture.json('GET', '/api/overseer')).body.paused, true, 'talking to a specialist cannot resume orchestrator reviews');
     console.log('e2e.overseer: headless create -> background dispatch -> automatic parent review -> restart PASS');
   } catch (e) { console.error(fixture.output().slice(-2500)); throw e; }
   finally { await fixture.dispose(); await new Promise(resolve => mock.close(resolve)); }

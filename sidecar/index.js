@@ -3949,6 +3949,11 @@ async function tickOverseer() {
   try {
     overseer.collect(subagents.list());
     for (const review of overseer.snapshot().reviews) {
+      if (review.agentId !== 'agent') {
+        if (review.status === 'pending' || review.status === 'reviewing') overseer.patchReview(review.id, {
+          status: 'cancelled', error: 'Automatic coordination belongs to the station orchestrator.' });
+        continue;
+      }
       if (review.status === 'reviewing') {
         const proof = runStore.all().find(r => r.runId === review.reviewRunId);
         overseer.patchReview(review.id, { status: proof && proof.reason === 'done' ? 'done' : 'interrupted',
@@ -14790,7 +14795,7 @@ async function handleRun(req, res) {
   // dressing — which buries a "reply with ONLY a 3-6 word title" instruction and makes models answer chattily),
   // and the away clock is never stamped for it: agent self-talk is not user presence (NS away-detection contract).
   const internal = !!(body && body.internal);
-  if (!internal) overseer.resumeReviews();
+  if (!internal && agentId === 'agent') overseer.resumeReviews();
   // …and the ONE exception to that bareness (rec perfection W2): a recommendation generator asks the model what
   // this Commander should do next, so it may request the same bounded evidence pack an ordinary task run gets.
   // Only meaningful alongside internal; runOnce ignores it otherwise.
@@ -16942,7 +16947,9 @@ async function runOnceCore(o) {
   // channel tasks receive orchestration above; workers and disabled toolsets do not.
   if (isTask && resolved.tools.includes('team.dispatch')) {
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
-    teamNote += '\nKeep this conversation as the Commander\'s home for the request. Handle simple work directly. '
+    if (agentId === 'agent') teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle simple work directly. '
+      + 'Use the agents the Commander has already created, choosing by their roles and instructions. '
+      + 'Do not create a replacement crew or require a special General session. '
       + 'For independent or long-running work, inspect existing sessions, reuse the relevant thread or create a named working session, '
       + 'then dispatch with background:true and its session id. Background results return here automatically for your review. '
       + 'Keep the Commander free to continue talking; never switch their focus just because you delegated. '

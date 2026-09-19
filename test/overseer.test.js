@@ -32,6 +32,7 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
       async () => ({ status: 'done', reason: 'done', result: 'Findings' }));
     await new Promise(resolve => setImmediate(resolve));
     manager.collect(workers.list()); manager.collect(workers.list());
+    manager.collect([{ ...workers.list()[0], id: 'specialist-work', runId: 'specialist-run', leadId: 'researcher' }]);
     assert.equal(manager.snapshot().reviews.length, 1, 'completion replay must not duplicate review');
     const review = manager.snapshot().reviews[0];
     assert.equal(review.childStreamId, child.id);

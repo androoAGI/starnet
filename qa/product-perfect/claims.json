@@ -1847,7 +1847,7 @@
         },
         {
           "path": "frontend/app/overseer.js",
-          "needle": "Talk to overseer"
+          "needle": "StationCommands.reconcile"
         }
       ],
       "authorityChecks": [

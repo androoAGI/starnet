@@ -62,7 +62,7 @@ function makeOverseer(deps) {
     return update(s => { s.threads.push(row); return row; });
   }
   function collect(workers) {
-    const fresh = workers.filter(w => valid(w.parentStreamId) && (w.completedAt || w.status === 'stale')
+    const fresh = workers.filter(w => w.leadId === 'agent' && valid(w.parentStreamId) && (w.completedAt || w.status === 'stale')
       && ['done', 'error', 'refused', 'interrupted', 'stale'].includes(w.status)
       && !state.reviews.some(r => r.id === w.runId + ':review'));
     if (!fresh.length) return;
