@@ -257,7 +257,8 @@
     // Prefer the sidecar's full report; fall back to the page-side one rather than stranding the user.
     return fetchText()
       .then(text => text ? text : localReport(opts.context))
-      .then(text => text ? withSessionContinuity(withPageErrors(text)) : text)
+      .then(text => text ? withPageErrors(text) : text)
+      .then(withSessionContinuity)
       .then(withPageScreen)
       .then(text => {
       if (!text) { if (wantNotify) notify('could not read diagnostics — is the app still running?', 'warn'); if (opts.onDone) opts.onDone(false, ''); return false; }
