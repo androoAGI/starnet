@@ -4667,13 +4667,16 @@ const App = (() => {
     const sub = el('unreachable-sub');
     if (sub) sub.textContent = reason === 'forbidden' ? 'station service refused this window (stale session) — a relaunch usually clears it' : 'station service not answering';
     if (sub && reason === 'unreadable') sub.textContent = 'saved station temporarily unreadable — retry without resetting';
+    if (sub && reason === 'cache') sub.textContent = 'saved station could not be restored into this window — retry without resetting';
     // Screenshot-readable diagnosis for a stranded beginner: support can distinguish an alive sidecar refusing
     // stale window auth from a fetch that died after the page loaded without asking for Terminal logs.
     const diagnosis = reason === 'forbidden'
       ? { code: 'SAVE-403 · STALE WINDOW SESSION', text: 'the station service is running, but it refused this app window' }
       : reason === 'unreadable'
         ? { code: 'SAVE-READ · STATION FILE UNAVAILABLE', text: 'the station service is running, but could not read the saved station; your existing files are preserved' }
-        : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
+        : reason === 'cache'
+          ? { code: 'SAVE-CACHE · LOCAL RESTORE FAILED', text: 'the saved station was received, but this window could not store or read it; the durable station is preserved' }
+          : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
     const code = el('unreachable-code');
     if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + diagnosis.text + '. Send a screenshot of this code to support.';
     const reportBtn = el('btn-unreachable-report'), reportHost = el('unreachable-report');
@@ -4716,8 +4719,9 @@ const App = (() => {
     const core = tauriCore();
     const BROWSER_HINT = 'the station service isn\'t answering. if you launched with `npm start`, check that terminal; otherwise open the desktop app.';
     if (!core) {
-      if (sub && reason !== 'forbidden' && reason !== 'unreadable') sub.textContent = 'station service not answering (browser mode)';
-      if (reason === 'unreadable') setStatus('Your save is untouched. Retry when the station file becomes readable.');
+      if (sub && reason !== 'forbidden' && reason !== 'unreadable' && reason !== 'cache') sub.textContent = 'station service not answering (browser mode)';
+      if (reason === 'cache') setStatus('Your durable save is untouched. Retry after browser storage becomes available.');
+      else if (reason === 'unreadable') setStatus('Your save is untouched. Retry when the station file becomes readable.');
       else setStatus(BROWSER_HINT);
     }
     probeDegraded().then(r => { if (r) setStatus(r); });   // a live-but-degraded sidecar names its reason before the first poll
@@ -4738,8 +4742,8 @@ const App = (() => {
         return;
       }
       const degraded = await probeDegraded();
-      const unreadable = r.reason === 'unreadable';
-      setStatus((degraded ? degraded + ' — ' : unreadable ? 'saved station still unreadable — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core || unreadable ? '' : ' ' + BROWSER_HINT));
+      const unreadable = r.reason === 'unreadable', cacheFailed = r.reason === 'cache';
+      setStatus((degraded ? degraded + ' — ' : unreadable ? 'saved station still unreadable — ' : cacheFailed ? 'local restore still unavailable — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core || unreadable || cacheFailed ? '' : ' ' + BROWSER_HINT));
       checking = false;
     };
     const btn = el('btn-unreachable-retry');

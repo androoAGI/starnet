@@ -102,6 +102,21 @@ try {
       finally {Storage.prototype.setItem=original;Save.load=load;}
     })()`);
     assert.equal(result.cacheAdoption.unknown, true); assert.equal(result.cacheAdoption.cacheUnchanged, true);
+    const injection = await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: `
+      const read=Storage.prototype.getItem, write=Storage.prototype.setItem;
+      Storage.prototype.getItem=function(k){return k==='starnet.save'?null:read.call(this,k);};
+      Storage.prototype.setItem=function(k,v){if(k==='starnet.save')throw new DOMException('quota','QuotaExceededError');return write.call(this,k,v);};
+    ` });
+    await cdp.send('Page.reload');
+    for (let i = 0; i < 30; i++) {
+      result.cacheRecoveryScreen = await evalJS(cdp, `({active:document.getElementById('screen-unreachable')?.classList.contains('active'),text:document.getElementById('unreachable-code')?.textContent})`).catch(() => ({}));
+      if (result.cacheRecoveryScreen.active) break;
+      await sleep(500);
+    }
+    assert.equal(result.cacheRecoveryScreen.active, true); assert.match(result.cacheRecoveryScreen.text, /SAVE-CACHE/);
+    await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injection.identifier });
+    await cdp.send('Page.reload');
+    assert.equal(await waitDevReady(cdp, evalJS, { url: fixture.baseUrl }), true);
   }
   result.primaryRecovered = (await fixture.json('GET', '/api/save')).body.save.agent.name;
   // A different record avoids any browser autosave interference during the backup-only case.

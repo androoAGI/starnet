@@ -326,7 +326,7 @@ const CloudSave = (() => {
       // We kept the old document, so keep its causal revision too. Giving it the remote
       // revision would let the next autosave overwrite newer durable edits without conflict.
       revision = num(local && local._saveRevision);
-      return isSave(local) ? local : unknownSentinel('unreachable');
+      return isSave(local) ? local : unknownSentinel('cache');
     }
     if (num(local.updatedAt) > num(remote.updatedAt)) push(local);   // local is ahead — let the server catch up
     return local;

@@ -18,7 +18,8 @@ A.ok(body.length > 2000, 'showSaveUnreachableGate body located (' + body.length 
 A.ok(body.includes("if you launched with `npm start`, check that terminal; otherwise open the desktop app."), 'browser-mode hint names npm start and the desktop app');
 A.ok(/const core = tauriCore\(\);/.test(body) && body.split('const core = tauriCore();').length === 2, 'the Tauri core is resolved exactly once, before the browser-mode branch');
 A.ok(/if \(!core\) \{[\s\S]*?setStatus\(BROWSER_HINT\);/.test(body), 'without a shell the initial status line IS the hint');
-A.ok(/retrying every 5s \(attempt ' \+ attempts \+ '\)\. Your save is untouched\.' \+ \(core \|\| unreadable \? '' : ' ' \+ BROWSER_HINT\)/.test(body), 'browser network failures retain the terminal hint; known file failures retain their specific diagnosis');
+A.ok(/retrying every 5s \(attempt ' \+ attempts \+ '\)\. Your save is untouched\.' \+ \(core \|\| unreadable \|\| cacheFailed \? '' : ' ' \+ BROWSER_HINT\)/.test(body), 'browser network failures retain the terminal hint; known file/cache failures retain their specific diagnosis');
+A.ok(body.includes('SAVE-CACHE · LOCAL RESTORE FAILED'), 'local cache failures have a distinct truthful recovery code');
 A.ok(body.includes('SAVE-READ · STATION FILE UNAVAILABLE') && body.includes("const unreadable = r.reason === 'unreadable'"), 'read failures retain a specific recovery code across retries');
 A.ok(body.includes("'station service not answering (browser mode)'"), 'subtitle states browser mode');
 

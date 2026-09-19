@@ -66,7 +66,9 @@ const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, age
   // A valid remote whose cache/migration adoption fails is still an existing station.
   nextPull = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ save: doc(200) }) });
   global.localStorage = { getItem() { return null; }, setItem() { throw new Error('quota exceeded'); }, removeItem() {} };
-  A.ok(CloudSave.isUnknownSentinel(await CloudSave.reconcile(null)), 'failed remote adoption cannot fall through to onboarding');
+  const cacheFailure = await CloudSave.reconcile(null);
+  A.ok(CloudSave.isUnknownSentinel(cacheFailure), 'failed remote adoption cannot fall through to onboarding');
+  A.eq(cacheFailure.reason, 'cache', 'cache failure does not falsely diagnose a disconnected server');
 
   const staleLocal = { ...doc(100), _saveRevision: 1 };
   const newerRemote = { ...doc(200), _saveRevision: 5 };
