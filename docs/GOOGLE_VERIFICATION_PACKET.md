@@ -3,6 +3,10 @@
 Prepared 2026-09-19 in `agent/google-oauth-audit-0919`. This is a review candidate,
 not a submitted or approved application. Public activation remains source-deferred.
 
+The subsequent [Selected Google files candidate](GOOGLE_SELECTED_FILES.md) implements
+a separate `drive.file`-only route. This packet's broad Workspace verification and
+deferred-release conditions still apply to the five original connectors.
+
 ## Console state and prepared fields
 
 Project `starnet-505202`; branding verified and published. Data access unverified.

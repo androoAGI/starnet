@@ -31,3 +31,17 @@ is asserted. The existing broad verification draft remains separate and unsubmit
 
 Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker
 (checked 2026-09-19; desktop Picker accepts only drive.file).
+
+## Verification record
+
+- Full fast suite: 819 steps green. Focused follow-up checks passed for status
+  redaction, toggles, refresh and broad-service deferral.
+- Full HTTP suite: 120 steps green, including the new selected-file lifecycle test.
+- Native Windows review launcher built successfully. No signed installer or Mac
+  acceptance is claimed.
+- Live seeded app, using synthetic Google endpoints: selected-file disclosure and
+  button displayed; callback connected 11 tools; restart recovered the encrypted
+  grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
+- Real Google Picker API is currently disabled in the Cloud project. Enabling it
+  is awaiting the user's terms confirmation. No personal files were read or edited.
+- Branch remains isolated and unmerged. Full public release readiness is not claimed.
