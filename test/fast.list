@@ -837,3 +837,7 @@ test/api-json-lifecycle.test.js
 test/routine-acknowledgement.test.js
 test/marketplace-authority.test.js
 test/control-acknowledgements.test.js
+test/spend-authority.test.js
+test/workspace-probe-errors.test.js
+test/cdp-lifecycle.test.js
+test/budget-authority-ui.test.js
