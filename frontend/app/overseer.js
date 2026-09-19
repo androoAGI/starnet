@@ -2,7 +2,7 @@
 
 // Backend delegation projection: arrival never changes the user's active thread.
 const Overseer = (() => {
-  let busy = false, panel, lastDeliveries = '';
+  let busy = false, panel, lastDeliveries = '', lastRendered = '';
   function open(id) { if (typeof App !== 'undefined' && App.openWorkstream) App.openWorkstream(id); }
   async function refresh() {
     if (busy || typeof Workstreams === 'undefined' || !Workstreams.generalId()) return;
@@ -31,9 +31,15 @@ const Overseer = (() => {
         home.textContent = 'Talk to overseer'; home.addEventListener('click', () => open(Workstreams.generalId())); panel.appendChild(home);
         const rows = document.createElement('div'); rows.className = 'overseer-rows'; panel.appendChild(rows); rail.before(panel);
       }
-      const rows = panel.querySelector('.overseer-rows'); rows.replaceChildren();
+      const rows = panel.querySelector('.overseer-rows');
       const workers = (data.workers || []).filter(w => w.parentStreamId && Workstreams.get(w.parentStreamId));
-      for (const w of workers.slice(-20).reverse()) {
+      const byThread = new Map();
+      for (const w of workers.slice().reverse()) {
+        const key = w.streamId || w.id, previous = byThread.get(key);
+        if (!previous || (w.status === 'running' && previous.status !== 'running')) byThread.set(key, w);
+      }
+      const items = [];
+      for (const w of Array.from(byThread.values()).slice(0, 20)) {
         const review = (data.reviews || []).find(r => r.workerRunId === w.runId);
         let status = w.status === 'running' ? (w.working ? 'Working' : 'Starting') : w.status;
         if (w.status === 'done') status = review && review.status === 'done' ? 'Reviewed' : 'Awaiting review';
@@ -43,15 +49,24 @@ const Overseer = (() => {
         if (review && review.status === 'superseded') status = 'Newer attempt available';
         if (review && review.status === 'pending' && review.error) status = 'Needs attention';
         if (['stale', 'interrupted', 'error', 'refused'].includes(w.status)) status = 'Needs attention · ' + w.status;
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'bb overseer-work';
         const thread = Workstreams.get(w.streamId);
-        button.textContent = status + ' · ' + (thread ? thread.title : String(w.prompt || '').slice(0, 80));
-        if (review && review.error) button.title = review.error;
-        button.addEventListener('click', () => open(thread ? thread.id : w.parentStreamId)); rows.appendChild(button);
+        items.push({ text: status + ' · ' + (thread ? thread.title : String(w.prompt || '').slice(0, 80)),
+          title: review && review.error || '', id: thread ? thread.id : w.parentStreamId });
       }
-      if (!workers.length) rows.textContent = 'Delegated work will appear here.';
+      const rendered = JSON.stringify(items);
+      if (rendered !== lastRendered) {
+        rows.replaceChildren();
+        for (const item of items) {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'bb overseer-work';
+          button.textContent = item.text; button.title = item.title;
+          button.addEventListener('click', () => open(item.id)); rows.appendChild(button);
+        }
+        if (!items.length) rows.textContent = 'Delegated work will appear here.';
+        lastRendered = rendered;
+      }
       panel.removeAttribute('data-unavailable');
     } catch (_) {
+      lastRendered = '';
       if (panel) { panel.setAttribute('data-unavailable', 'true'); panel.querySelector('.overseer-rows').textContent = 'Work status unavailable — reconnecting.'; }
     } finally { busy = false; }
   }
