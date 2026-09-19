@@ -57,7 +57,7 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   A.eq(healed.filter(x => x.role === 'assistant').map(x => x.content), ['report ready'], 'canonical merge drops blank tool envelopes and keeps the final prose');
   A.ok(!healed.some(x => x.transcriptPending), 'a recovered canonical reply clears the pending transcript marker');
   A.ok(/cronSession && !busy/.test(chat) && /transcriptPending: true/.test(chat), 'settled cron sessions retry and expose a truthful pending state when output is unavailable');
-  A.ok(/reconcileServerHistory\(activeWs, historyPin\)/.test(chat), 'every desktop load reconciles the canonical transcript');
+  A.ok(/loadServerHistory\(activeWs, historyPin\)/.test(A.fnBody(chat, 'function load(ws)')), 'every desktop load starts the owned canonical transcript read');
   A.eq(chat, mirror, 'website mirror carries the identical continuity behavior');
   A.ok(/\/api\/channels\/handoff/.test(index) && /\/api\/channels\/webhook\//.test(index), 'authenticated handoff and relay lifecycle routes are wired');
   A.report('cross-surface-continuity.test');

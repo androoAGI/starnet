@@ -1,0 +1,82 @@
+{
+  "id": "ws_mu8q0314leyt",
+  "neighbor": "ws_mu8q0314je5a",
+  "delayedVisible": false,
+  "beforeHistoryReady": 1,
+  "modelContext": false,
+  "promptLast": true,
+  "saved": true,
+  "history": [
+    {
+      "role": "user",
+      "content": "Remember the launch code: ORBIT-17"
+    },
+    {
+      "role": "assistant",
+      "content": "I have the launch code."
+    },
+    {
+      "role": "user",
+      "content": "The destination is Europa."
+    },
+    {
+      "role": "assistant",
+      "content": "Europa is the destination."
+    },
+    {
+      "role": "user",
+      "content": "Change destination to Titan."
+    },
+    {
+      "role": "assistant",
+      "content": "Titan is now the destination."
+    },
+    {
+      "role": "user",
+      "content": "What destination did we choose?"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    }
+  ],
+  "draft": "",
+  "restart": {
+    "exists": true,
+    "history": [
+      {
+        "role": "user",
+        "content": "Remember the launch code: ORBIT-17"
+      },
+      {
+        "role": "assistant",
+        "content": "I have the launch code."
+      },
+      {
+        "role": "user",
+        "content": "The destination is Europa."
+      },
+      {
+        "role": "assistant",
+        "content": "Europa is the destination."
+      },
+      {
+        "role": "user",
+        "content": "Change destination to Titan."
+      },
+      {
+        "role": "assistant",
+        "content": "Titan is now the destination."
+      },
+      {
+        "role": "user",
+        "content": "What destination did we choose?"
+      },
+      {
+        "role": "assistant",
+        "content": "Continuity checked."
+      }
+    ],
+    "visible": "COMMANDER\nRemember the launch code: ORBIT-17\n⧉\nNOVA\nI have the launch code.\n⧉\nCOMMANDER\nThe destination is Europa.\n⧉\nNOVA\nEuropa is the destination.\n⧉\nCOMMANDER\nChange destination to Titan.\n⧉\nNOVA\nTitan is now the destination.\n⧉\nCOMMANDER\n14:28\nWhat destination did we choose?\n⧉\nNOVA\n14:28\nContinuity checked.\n⧉"
+  }
+}
