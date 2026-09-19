@@ -1,0 +1,225 @@
+{
+  "sourceFix": "93a4ee64c",
+  "date": "2026-09-19",
+  "method": "Real dev-seeded Chromium COMMS, controlled browser fetch fault injection, no customer inference",
+  "scenarios": [
+    {
+      "scenario": "clean",
+      "error": null,
+      "endReason": "done",
+      "finishReason": null,
+      "delivered": 1,
+      "complete": true,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer is complete.",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    },
+    {
+      "scenario": "length",
+      "error": null,
+      "endReason": "done",
+      "finishReason": "length",
+      "delivered": 0,
+      "complete": false,
+      "cutShort": true,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    },
+    {
+      "scenario": "eof",
+      "error": "Reply stream disconnected before completion was confirmed.",
+      "endReason": null,
+      "finishReason": null,
+      "delivered": 0,
+      "complete": false,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again.",
+          "error": true
+        }
+      ],
+      "reloadError": true
+    },
+    {
+      "scenario": "no-newline",
+      "error": null,
+      "endReason": "done",
+      "finishReason": "length",
+      "delivered": 0,
+      "complete": false,
+      "cutShort": true,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    },
+    {
+      "scenario": "worker-only",
+      "error": "Reply stream disconnected before completion was confirmed.",
+      "endReason": null,
+      "finishReason": null,
+      "delivered": 0,
+      "complete": false,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again.",
+          "error": true
+        }
+      ],
+      "reloadError": true
+    },
+    {
+      "scenario": "reader-error",
+      "error": "network error: socket closed",
+      "endReason": null,
+      "finishReason": null,
+      "delivered": 0,
+      "complete": false,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again.",
+          "error": true
+        }
+      ],
+      "reloadError": true
+    },
+    {
+      "scenario": "cancelled",
+      "error": null,
+      "endReason": "cancelled",
+      "finishReason": null,
+      "delivered": 0,
+      "complete": false,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    },
+    {
+      "scenario": "policy",
+      "error": null,
+      "endReason": "done",
+      "finishReason": "content_filter",
+      "delivered": 0,
+      "complete": false,
+      "cutShort": true,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    },
+    {
+      "scenario": "after-end-error",
+      "error": null,
+      "endReason": "done",
+      "finishReason": null,
+      "delivered": 1,
+      "complete": true,
+      "cutShort": false,
+      "history": [
+        {
+          "role": "user",
+          "content": "Explain this",
+          "error": false
+        },
+        {
+          "role": "assistant",
+          "content": "The answer stops in the middle of",
+          "error": false
+        }
+      ],
+      "reloadError": false
+    }
+  ],
+  "checks": {
+    "streamRegression": 188,
+    "customerJourneys": 36,
+    "recoveryApi": 37
+  }
+}

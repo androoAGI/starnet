@@ -12,6 +12,7 @@ test/clock-rng.test.js
 test/context.test.js
 test/runtimeinfo.test.js
 test/harness-snapshot.test.js
+test/harness-stream-completion.test.js
 test/station-inspect.test.js
 test/diagnostics.test.js
 test/diagnostics-support-email.test.js

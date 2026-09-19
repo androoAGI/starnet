@@ -22,7 +22,6 @@ const ndjson = [
   { name: 'agent.run.end', payload: { runId: 'run-terminal', agentId: 'agent', reason: 'done', turns: 2, usd: 0 } }
 ].map(row => JSON.stringify(row)).join('\n') + '\n';
 
-let delivered = false;
 const sandbox = {
   console, TextDecoder, TextEncoder, AbortController, URL, Headers, setTimeout, clearTimeout,
   localStorage: {
@@ -37,11 +36,7 @@ sandbox.window = sandbox;
 sandbox.__STARNET_API_TOKEN__ = 'fixture-token';
 sandbox.fetch = async url => {
   if (String(url) !== '/api/run') throw new Error('unexpected fetch ' + url);
-  const bytes = new TextEncoder().encode(ndjson);
-  return {
-    ok: true,
-    body: { getReader: () => ({ read: async () => delivered ? { done: true } : (delivered = true, { done: false, value: bytes }) }) }
-  };
+  return new Response(ndjson, { headers: { 'Content-Type': 'application/x-ndjson' } });
 };
 vm.runInNewContext(source + '\n;globalThis.__Harness = Harness;', sandbox, { filename: 'frontend/app/harness.js' });
 
