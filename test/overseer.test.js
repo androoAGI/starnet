@@ -55,6 +55,15 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
     manager.resumeReviews();
     assert.equal(manager.snapshot().paused, false);
     assert.equal(manager.snapshot().reviews[0].status, 'cancelled', 'resuming does not replay cancelled work');
+    const failedDisk = new Proxy(fs, { get(target, key) {
+      if (key === 'writeSync') return () => { throw new Error('simulated full disk'); };
+      return target[key];
+    } });
+    const failedStop = makeOverseer({ ...deps, fs: failedDisk });
+    assert.throws(() => failedStop.stopReviews(), /simulated full disk/);
+    assert.equal(failedStop.snapshot().paused, true, 'a failed durable stop still blocks admission in memory');
+    assert.throws(() => failedStop.resumeReviews(), /simulated full disk/);
+    assert.equal(failedStop.snapshot().paused, true, 'a failed resume does not silently release the emergency stop');
     saved.deletedIds.push(child.id); saved.workstreams = saved.workstreams.filter(w => w.id !== child.id);
     assert.throws(() => manager.resolve(child.id), /no such/, 'deleted threads stay deleted');
     console.log('overseer: durable identity, deduplication, restart, rename, tombstones and turn serialization PASS');

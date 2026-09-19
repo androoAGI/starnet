@@ -71,6 +71,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       messages: [{ role: 'user', content: 'Follow up in the existing research thread' }] });
     const halted = await fixture.json('POST', '/api/halt', {});
     assert.equal(halted.status, 200);
+    assert.equal(halted.body.overseerHaltPersisted, true, 'halt response proves durable overseer stop');
     snapshot = (await fixture.json('GET', '/api/overseer')).body;
     assert.equal(snapshot.paused, true, 'E-STOP durably pauses review admission');
     assert.ok(snapshot.reviews.some(r => r.status === 'cancelled'), 'stopped worker cannot enqueue a new review');

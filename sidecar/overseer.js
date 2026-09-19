@@ -19,6 +19,7 @@ function makeOverseer(deps) {
   const loaded = store.load();
   if (!['ok', 'absent', 'recovered'].includes(loaded.status)) throw new Error('overseer state unavailable: ' + loaded.status);
   let state = loaded.value;
+  let emergencyPaused = false;
   const copy = value => JSON.parse(JSON.stringify(value));
   const commit = next => { store.save(next); state = next; };
   const update = fn => { const next = copy(state); const out = fn(next); commit(next); return copy(out); };
@@ -85,15 +86,21 @@ function makeOverseer(deps) {
     try { return await fn(); }
     finally { release(); if (locks.get(id) === tail) locks.delete(id); }
   }
-  function stopReviews() {
+  function stopReviews(workers) {
+    // Stop admission immediately even when the disk cannot accept a receipt.
+    emergencyPaused = true;
+    if (workers) collect(workers);
     update(s => { s.paused = true; for (const r of s.reviews) if (r.status === 'pending' || r.status === 'reviewing') {
       r.status = 'cancelled'; r.error = 'Stopped by the Commander.';
     } return null; });
   }
   function snapshot() { return { threads: threads().map(w => ({ id: w.id, title: w.title, agentId: w.agentId,
     parentStreamId: w.parentStreamId || '', projectRoot: w.projectRoot || null,
-    kind: w.kind, lane: w.lane, createdAt: w.createdAt })), reviews: copy(state.reviews), paused: !!state.paused }; }
-  function resumeReviews() { if (state.paused) update(s => { s.paused = false; return null; }); }
+    kind: w.kind, lane: w.lane, createdAt: w.createdAt })), reviews: copy(state.reviews), paused: emergencyPaused || !!state.paused }; }
+  function resumeReviews() {
+    if (state.paused || emergencyPaused) update(s => { s.paused = false; return null; });
+    emergencyPaused = false;
+  }
   return { threads, resolve, create, collect, patchReview, withThread, snapshot, stopReviews, resumeReviews };
 }
 module.exports = { makeOverseer };
