@@ -10,7 +10,7 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
   f.entry=path.join(f.workspace,'fault-host.cjs');
   fs.writeFileSync(f.entry,"const kill=process.kill;process.kill=function(pid,signal){if(signal===0)throw Object.assign(Error('probe unavailable'),{code:"+JSON.stringify(code)+"});return kill.call(process,pid,signal);};require("+JSON.stringify(path.resolve(__dirname,'../sidecar/index.js'))+");");
   const dispose=f.dispose.bind(f);let observed=false;
-  f.dispose=async()=>{if(!observed){assert.equal(fs.readFileSync(lock,'utf8'),raw,'uncertain process probe must preserve the actual owner');observed=true;}return dispose();};
+  f.dispose=async()=>{if(observed)return dispose();observed=true;try{assert.equal(fs.readFileSync(lock,'utf8'),raw,'uncertain process probe must preserve the actual owner');}finally{await dispose();}};
   try{await assert.rejects(f.start(),/WORKSPACE_BUSY/);assert.equal(observed,true);}
   finally{await f.dispose();}
  }
