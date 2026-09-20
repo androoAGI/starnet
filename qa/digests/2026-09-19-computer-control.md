@@ -84,8 +84,7 @@ it passed the focused run, three consecutive repeats, and the complete fast gate
 The original failed log remains `.qa_tmp/cua-integrated-candidate-fast.log`.
 
 No shared schema/event changes or credential migrations were introduced by this
-lane. Post-merge gate results will be appended after completion; source acceptance
-does not claim a published or rebuilt customer installer.
+lane. Source acceptance does not claim a published or rebuilt customer installer.
 
 Before integration the compare-and-merge guard detected another concurrent lane
 at `6d44812e0` (REFIT rendering). It was merged into this workspace with no product
@@ -95,6 +94,25 @@ exit 0 (`.qa_tmp/cua-refit-combined-fast.log` and
 `.qa_tmp/cua-refit-combined-http.log`). The later REFIT receipt at `f9da97542`
 changes only its own digest and is preserved. These complete results supersede
 the earlier candidate counts as the pre-merge acceptance.
+
+## Completed integration
+
+- Rollback snapshot: `f9da97542c2a57b1e6aa0e46f10b0541046aebce`.
+- Integration: `f6f0d0102388f9f1d0ce0fc38490a4ed221a97c6`,
+  `merge: native accessibility computer control`.
+- The integration tree exactly equals accepted candidate `dff9d1d9d`; no content
+  changes were introduced by the merge. Existing unrelated `docs/NEXT.md` and
+  `qa/STATUS.md` working changes were preserved.
+- Complete post-merge `npm run test:fast`: **839/839 PASS**, exit 0.
+  Log: `.qa_tmp/cua-postmerge-fast.log`.
+- Complete post-merge `npm run test:http`: **127/127 PASS**, exit 0.
+  Log: `.qa_tmp/cua-postmerge-http.log`.
+- Both ran from the owned workspace at the exact integration commit. No tests
+  were filtered, skipped, or weakened. Raw proof remains in the owned worktree.
+
+The merge reservation is released. This is source integration with Windows
+native/UI proof, not a new published installer, a general model benchmark, or
+universal background-input support.
 
 This proves the exercised Windows workflows and deterministic-provider plumbing;
 it is not a general model benchmark or a claim that every application supports
