@@ -87,6 +87,15 @@ No shared schema/event changes or credential migrations were introduced by this
 lane. Post-merge gate results will be appended after completion; source acceptance
 does not claim a published or rebuilt customer installer.
 
+Before integration the compare-and-merge guard detected another concurrent lane
+at `6d44812e0` (REFIT rendering). It was merged into this workspace with no product
+conflicts; the shared source fingerprint was regenerated without changing audit
+verdicts. Candidate `6961885fd` passed **839/839 fast** and **127/127 HTTP**, both
+exit 0 (`.qa_tmp/cua-refit-combined-fast.log` and
+`.qa_tmp/cua-refit-combined-http.log`). The later REFIT receipt at `f9da97542`
+changes only its own digest and is preserved. These complete results supersede
+the earlier candidate counts as the pre-merge acceptance.
+
 This proves the exercised Windows workflows and deterministic-provider plumbing;
 it is not a general model benchmark or a claim that every application supports
 background input. OS elevation and app accessibility limitations remain real.
