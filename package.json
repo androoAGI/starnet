@@ -2,7 +2,7 @@
   "name": "starnet-harness",
   "version": "0.12.3",
   "private": true,
-  "description": "A local-first, gamified desktop harness for building and running real AI-agent teams.",
+  "description": "TJ OS — a local-first desktop environment for building and running real AI-agent teams.",
   "license": "MIT",
   "author": "Andrew Sims",
   "repository": {
@@ -23,7 +23,6 @@
     "node": ">=18"
   },
   "scripts": {
-    "validate:raw": "node test/validate_map.js",
     "test:http": "node scripts/timeout.mjs --label test:http --timeout=1200000 -- npm run test:http:raw",
     "test:http:raw": "node scripts/run-test-list.mjs test/http.list",
     "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=900000 -- npm run test:fast:raw",
@@ -148,6 +147,7 @@
     "desktop:stage-frontend": "node scripts/stage-frontend-dist.mjs",
     "desktop:icon": "tauri icon src-tauri/icon-source.png",
     "release:preflight": "node scripts/release-preflight.mjs",
+    "tj-os:verify": "npm run qa:model && npm run qa:guardian && npm run test:fast",
     "release:ritual": "node scripts/release-ritual.mjs",
     "release:ritual:dry": "node scripts/release-ritual.mjs --dry-run",
     "release:bump": "node scripts/release-bump.mjs",

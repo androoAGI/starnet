@@ -1,0 +1,3 @@
+/* TJ OS ecosystem registry labels */
+.tj-eco-compass .tj-zone{display:inline-block;margin:.18rem .28rem}
+.tj-eco-compass .tj-zone[data-kind="meeting"],.tj-eco-compass .tj-zone[data-kind="commons"]{opacity:.92}

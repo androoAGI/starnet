@@ -8,7 +8,7 @@
 // hang forever. Driving Chrome over CDP and capturing on a timer is the proven unlock.
 //
 // Zero dependencies: Node 22 has global fetch + global WebSocket.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -16,13 +16,39 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const CHROME_CANDIDATES = [
   process.env.SKYNET_CHROME,
-  'C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe',
-  'C:/Users/andro/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  ...(process.platform === 'win32'
+    ? [
+        'C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe',
+        'C:/Users/andro/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe',
+        'C:/Program Files/Google/Chrome/Application/chrome.exe',
+        'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      ]
+    : [
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chrome',
+        '/usr/bin/chrome-headless-shell',
+      ]),
 ].filter(Boolean);
+
+function commandOnPath(names) {
+  const command = process.platform === 'win32' ? 'where' : 'which';
+  for (const name of names) {
+    const probe = spawnSync(command, [name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const resolved = String(probe.stdout || '').split(/\\r?\\n/).map(s => s.trim()).find(Boolean);
+    if (resolved && existsSync(resolved)) return resolved;
+  }
+  return null;
+}
 
 export function findChrome() {
   for (const c of CHROME_CANDIDATES) if (existsSync(c)) return c;
+  const discovered = commandOnPath(process.platform === 'win32'
+    ? ['chrome', 'chrome.exe', 'chromium', 'chromium.exe']
+    : ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable', 'chrome', 'chrome-headless-shell']);
+  if (discovered) return discovered;
   throw new Error('No Chrome/Chromium binary found. Set SKYNET_CHROME.');
 }
 
@@ -30,7 +56,7 @@ export function findChrome() {
 export function launchChrome({ cdpPort, win = '1440,900', profileDir }) {
   const chrome = findChrome();
   const proc = spawn(chrome, [
-    '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-address=127.0.0.1', '--no-first-run', '--no-default-browser-check',
     '--hide-scrollbars', '--mute-audio', `--remote-debugging-port=${cdpPort}`,
     `--window-size=${win}`, `--user-data-dir=${profileDir}`,
     'about:blank',
@@ -62,7 +88,7 @@ export class CDP {
 }
 
 export async function connectCDP(port) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 120; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/json/list`);
       const targets = await r.json();

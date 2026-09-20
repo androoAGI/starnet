@@ -1,0 +1,216 @@
+/*
+ * TJ OS VISUAL SYSTEM — Phase 1
+ * Visual-only layer. It deliberately sits above the legacy StarNet skin so
+ * existing DOM IDs, handlers, state and rendering contracts remain untouched.
+ */
+
+body.tj-os {
+  --tj-blue: #1599e8;
+  --tj-blue-bright: #55c7ff;
+  --tj-navy: #061525;
+  --tj-ink: #07111d;
+  --tj-panel: rgba(9, 24, 38, .88);
+  --tj-glass: rgba(13, 34, 51, .72);
+  --tj-line: rgba(94, 184, 230, .26);
+  --tj-warm: #d9b47b;
+  --tj-green: #78b879;
+  --tj-text: #e7f2f7;
+  --tj-muted: #9bb1bd;
+  --ph: var(--tj-blue);
+  --ph-bright: var(--tj-blue-bright);
+  --ph-dim: #277fae;
+  --ph-faint: #082236;
+  --ink: #06111b;
+  --ph-glow: rgba(21,153,232,.28);
+  --ph-glow2: rgba(21,153,232,.09);
+  --bg: #030a11;
+  --panel: var(--tj-panel);
+  --panel2: rgba(6,17,28,.94);
+  --text: var(--tj-text);
+  --gold: var(--tj-warm);
+  --gold-rgb: 217,180,123;
+  --ph-rgb: 21,153,232;
+  --ph-bright-rgb: 85,199,255;
+  --cam-grade: saturate(.98) contrast(1.04) brightness(1.02);
+  background:
+    radial-gradient(ellipse at 50% -15%, rgba(32,116,165,.20), transparent 48%),
+    linear-gradient(180deg,#061321 0%,#030a11 72%);
+  color: var(--tj-text);
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+
+/* The old phosphor scanline treatment is reduced to a restrained glass texture. */
+body.tj-os::after {
+  opacity: .16;
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(255,255,255,0) 0,
+      rgba(255,255,255,0) 2px,
+      rgba(255,255,255,.018) 3px,
+      rgba(0,0,0,.035) 4px);
+}
+
+/* Premium eco-industrial glass surfaces. */
+body.tj-os .panel,
+body.tj-os .window,
+body.tj-os .glass-panel,
+body.tj-os .ov-panel,
+body.tj-os .dock,
+body.tj-os #topbar,
+body.tj-os #left,
+body.tj-os #right,
+body.tj-os #bottom {
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.045),transparent 32%),
+    linear-gradient(180deg,rgba(15,42,61,.82),rgba(5,17,29,.94));
+  border-color: var(--tj-line);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07),
+    0 10px 30px rgba(0,0,0,.38);
+}
+
+/* Main chrome: dark architectural frame with TJ blue instrumentation. */
+body.tj-os #topbar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(85,199,255,.22);
+}
+
+body.tj-os #topbar .tb-stat.station,
+body.tj-os .tb-connection {
+  background: linear-gradient(145deg,rgba(19,51,71,.72),rgba(4,16,27,.9));
+  border-color: rgba(85,199,255,.24);
+}
+
+body.tj-os #topbar #tb-station .tb-val,
+body.tj-os #topbar #status-pill {
+  color: #dff6ff;
+}
+
+body.tj-os .bb,
+body.tj-os button,
+body.tj-os input,
+body.tj-os select,
+body.tj-os textarea {
+  border-radius: 6px;
+}
+
+body.tj-os button,
+body.tj-os .bb {
+  background:
+    linear-gradient(180deg,rgba(38,91,119,.42),rgba(7,25,40,.86));
+  border-color: rgba(85,199,255,.28);
+  color: #e4f5fb;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06),0 2px 7px rgba(0,0,0,.28);
+}
+
+body.tj-os button:hover,
+body.tj-os .bb:hover {
+  border-color: rgba(85,199,255,.65);
+  background: linear-gradient(180deg,rgba(38,105,140,.56),rgba(8,31,49,.9));
+}
+
+body.tj-os input,
+body.tj-os select,
+body.tj-os textarea {
+  background: rgba(2,13,23,.78);
+  border-color: rgba(94,184,230,.24);
+  color: var(--tj-text);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.42);
+}
+
+body.tj-os ::selection {
+  background: rgba(21,153,232,.32);
+  color: white;
+}
+
+/* Splash/boot: cinematic deep-blue identity rather than amber CRT. */
+body.tj-os #screen-boot,
+body.tj-os #screen-splash {
+  background:
+    radial-gradient(ellipse at 50% 15%,rgba(22,121,181,.24),transparent 46%),
+    linear-gradient(180deg,#041322,#01060b 82%);
+}
+
+body.tj-os .boot-mark {
+  color: #eefaff;
+  text-shadow: 0 0 22px rgba(21,153,232,.42);
+  letter-spacing: 5px;
+}
+
+body.tj-os .boot-line {
+  color: #83c7e8;
+}
+
+body.tj-os .sp-center {
+  filter: drop-shadow(0 18px 35px rgba(0,0,0,.5));
+}
+
+body.tj-os .sp-tag,
+body.tj-os .sp-stamp {
+  color: #86bdd5;
+}
+
+body.tj-os .sp-press {
+  border-color: rgba(85,199,255,.48);
+  color: #dff7ff;
+  background: rgba(5,26,42,.62);
+  box-shadow: 0 0 24px rgba(21,153,232,.12);
+}
+
+/* The central world becomes the hero: remove the old tube-heavy treatment. */
+body.tj-os #stage {
+  image-rendering: pixelated;
+  filter: saturate(.98) contrast(1.03) brightness(1.03);
+  box-shadow:
+    0 0 0 1px rgba(85,199,255,.12),
+    0 20px 50px rgba(0,0,0,.42);
+}
+
+body.tj-os .screen {
+  color: var(--tj-text);
+}
+
+/* Spatial-language accents: blue technology + warm natural materials. */
+body.tj-os .ui-overline,
+body.tj-os .comms-overline {
+  color: #77b7d2;
+}
+
+body.tj-os .ws-tab.on,
+body.tj-os #left .ws-tab.on {
+  color: #dff7ff;
+  background: rgba(21,153,232,.12);
+  box-shadow: inset 0 -2px 0 #2aa8eb;
+}
+
+body.tj-os #crew .crew-row.selected {
+  border-left-color: #2aa8eb;
+  background: rgba(21,153,232,.09);
+}
+
+body.tj-os .ws-attention {
+  color: #e8c98d;
+  border-color: rgba(217,180,123,.34);
+  background: rgba(217,180,123,.06);
+}
+
+/* World-mode information panels should feel like architectural plaques. */
+body.tj-os .world-label,
+body.tj-os .world-card,
+body.tj-os .world-tooltip {
+  background: rgba(5,18,29,.86);
+  border: 1px solid rgba(85,199,255,.24);
+  box-shadow: 0 8px 24px rgba(0,0,0,.38);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Respect reduced-motion without changing existing functionality. */
+@media (prefers-reduced-motion: reduce) {
+  body.tj-os *,
+  body.tj-os *::before,
+  body.tj-os *::after {
+    scroll-behavior: auto !important;
+  }
+}

@@ -8,8 +8,8 @@ const WorldRenderer = (() => {
   const GENERATION = 'II';
   // Live-compared industrial finish: deep mids, readable cool/warm equipment,
   // crisp materials, and restrained tube texture without a lifted-black veil.
-  const PHOSPHOR = Object.freeze({ scan: .10, pitch: 1, fade: 0, curve: .04, vig: .16,
-    over: 1.08, dust: .35, aberr: 0, grain: .26, bloom: 0, sharpen: .28, film: .38 });
+  const PHOSPHOR = Object.freeze({ scan: .025, pitch: 1, fade: 0, curve: 0, vig: .06,
+    over: 1.02, dust: .08, aberr: 0, grain: .04, bloom: .08, sharpen: .28, film: .12 });
   // Five-tap local contrast, bounded by the existing neighbourhood. Flat light
   // gradients stay quiet; no bright/dark ringing is introduced beyond an edge.
   const DETAIL_GLSL = `
@@ -62,11 +62,48 @@ const WorldRenderer = (() => {
     return !!(a && b && a.x + a.w + p >= b.x && a.x - p <= b.x + b.w &&
       a.y + a.h + p >= b.y && a.y - p <= b.y + b.h);
   }
+  /* 2.5D depth contract.
+     The world remains a fast 2D canvas, but drawable items may expose an optional depth/elevation
+     value. This lets tall props, raised surfaces and future vertical planes participate in one
+     deterministic compositor without changing the saved WorldModel. Existing items have no depth
+     field and therefore retain the exact legacy y-order.
+
+     Supported optional fields (highest priority first):
+       depthY / depth  — explicit projected depth supplied by the world layer
+       z / elevation   — vertical placement expressed as a small depth correction
+       y               — legacy footprint/contact line
+     height is intentionally NOT added to the sort key: height changes silhouette, not where an
+     object's footprint meets the ground. That distinction prevents tall props from incorrectly
+     jumping in front of agents merely because they are visually high.
+  */
+  function depthKey(item) {
+    if (!item) return 0;
+    const y = finite(item.y, 0);
+    const explicit = Number.isFinite(Number(item.depthY)) ? Number(item.depthY) :
+      Number.isFinite(Number(item.depth)) ? Number(item.depth) : null;
+    if (explicit != null) return explicit;
+    const z = Number.isFinite(Number(item.z)) ? Number(item.z) :
+      Number.isFinite(Number(item.elevation)) ? Number(item.elevation) : 0;
+    return y + z;
+  }
   function sortedItems(items) {
     // Explicit tie ordering preserves doc-order furniture and the bed/seat half-pixel keys.
+    // When 2.5D metadata is present, depthKey becomes the projected ground/depth coordinate.
     return (items || []).map((item, index) => ({ item, index }))
-      .sort((a, b) => finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
+      .sort((a, b) => depthKey(a.item) - depthKey(b.item) || finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
       .map(entry => entry.item);
+  }
+  /* Returns a deterministic vertical occlusion hint without changing the saved world.
+     Callers can use it when a renderer has separate ground/agent/prop passes. */
+  function verticalOcclusion(item) {
+    if (!item) return 0;
+    const h = Number.isFinite(Number(item.height)) ? Number(item.height) : 0;
+    const z = Number.isFinite(Number(item.z)) ? Number(item.z) :
+      Number.isFinite(Number(item.elevation)) ? Number(item.elevation) : 0;
+    return Math.max(0, h + z);
+  }
+  function compareDepth(a, b) {
+    return depthKey(a) - depthKey(b) || verticalOcclusion(a) - verticalOcclusion(b);
   }
   function percentile(values, quantile) {
     if (!values.length) return null;
@@ -76,13 +113,13 @@ const WorldRenderer = (() => {
   function cameraReadout(input) {
     const {geo, viewport, subject, linked, paused} = input || {};
     const state = paused ? 'paused' : linked ? 'live' : 'offline';
-    let place = 'STATION VIEW';
+    let place = 'TJ OS ECOSYSTEM';
     if (geo && viewport) {
       const x = subject ? subject.px : viewport.x + viewport.w / 2;
       const y = subject ? subject.py : viewport.y + viewport.h / 2;
       const T = geo.TILE || 12, tx = Math.floor(x / T), ty = Math.floor(y / T);
       const id = tx >= 0 && ty >= 0 && tx < geo.COLS && ty < geo.ROWS ? geo.zoneGrid[ty * geo.COLS + tx] : null;
-      if (!subject && viewport.w >= geo.W * .8) place = 'STATION OVERVIEW';
+      if (!subject && viewport.w >= geo.W * .8) place = 'TJ OS ECOSYSTEM';
       else if (id != null && typeof geo.nameOf === 'function') place = geo.nameOf(id) || place;
       if (subject && subject.name) place += ' · ' + subject.name;
     }
@@ -95,6 +132,7 @@ const WorldRenderer = (() => {
     let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null, presentationFixtures = [];
     let frames = 0, rebuilds = 0, entityCount = 0, lastStart = 0, startedAt = 0;
     let elapsed = [], durations = [], lightDurations = [], lightingMs = 0;
+    let depthPasses = 0, depthItems = 0, depthTallItems = 0, depthArchitectureItems = 0;
     const push = (array, value) => { array.push(value); if (array.length > FRAME_WINDOW) array.shift(); };
     const canLight = () => !classic && typeof WorldLight !== 'undefined';
     function begin(input) {
@@ -136,9 +174,25 @@ const WorldRenderer = (() => {
         ctx.drawImage(baked.baseCv, 0, 0);
       }
     }
-    function drawEntities(ctx, items) {
-      entityCount = (items || []).length;
-      for (const item of sortedItems(items)) item.draw(ctx);
+    function drawEntities(ctx, items, options) {
+      const list = items || [];
+      entityCount = list.length;
+      const opts = options || {};
+      // Default remains the established depth order. A caller that explicitly opts into
+      // the 2.5D compositor gets a stable depth/height pass without changing world data.
+      const ordered = opts.twoPointFiveD
+        ? list.map((item, index) => ({ item, index }))
+            .sort((a, b) => compareDepth(a.item, b.item) || finite(a.item.y, 0) - finite(b.item.y, 0) || a.index - b.index)
+            .map(entry => entry.item)
+        : sortedItems(list);
+      if (opts.twoPointFiveD) {
+        depthPasses++;
+        depthItems += ordered.length;
+        depthTallItems += ordered.reduce((n, item) => n + (verticalOcclusion(item) > 12 ? 1 : 0), 0);
+        depthArchitectureItems += ordered.reduce((n, item) => n + (item && (item.architectural || item.depthClass === 'architecture') ? 1 : 0), 0);
+      }
+      for (const item of ordered) item.draw(ctx);
+      return ordered.length;
     }
     function drawGrounding(ctx, bodies) {
       if (lighting && lighting.drawGrounding) lighting.drawGrounding(ctx, bodies || []);
@@ -179,6 +233,9 @@ const WorldRenderer = (() => {
         frameIntervalMedianMs: percentile(elapsed, .5), frameIntervalP95Ms: percentile(elapsed, .95),
         renderMedianMs: percentile(durations, .5), renderP95Ms: percentile(durations, .95),
         lightingMedianMs: percentile(lightDurations, .5), samples: durations.length,
+        twoPointFiveD: { passes: depthPasses, items: depthItems,
+          averageItems: depthPasses ? Math.round(depthItems / depthPasses) : 0,
+          tallItems: depthTallItems, architectureItems: depthArchitectureItems },
         viewport: frame ? visibleRect(frame) : null,
         appearance: {
           crew: typeof SPRITES !== 'undefined' && SPRITES.bodyAppearanceStats ? SPRITES.bodyAppearanceStats() : null,
@@ -193,6 +250,6 @@ const WorldRenderer = (() => {
     }
     return { begin, drawBase, prepareLight, sampleLight, drawEntities, drawGrounding, drawAtmosphere, drawLight, finish, stats, dispose };
   }
-  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, sortedItems, percentile };
+  return { GENERATION, PHOSPHOR, DETAIL_GLSL, sharpenSample, enabled: () => !classic, create, cameraReadout, visibleRect, intersects, depthKey, sortedItems, verticalOcclusion, compareDepth, percentile };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorldRenderer;

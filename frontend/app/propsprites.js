@@ -11443,6 +11443,22 @@ const PropSprites = (() => {
     commswall: 3, bigscreen: 3, calwall: 2, chartwall: 2, arc_indexwall: 2, weaponrack: 2, weaponrack_r: 2, shelf: 2, rack: 2,
     war_threatcore: 3, bridge_dispatch_pylon: 3, research_corelens: 3, research_trendpillar: 3, pub_outboundchute: 3,
     punchbag: 2, punchbag_r: 2, camerarig: 2, camerarig_r: 2, treasury_token_furnace: 3, monstera: 1, tv: 2, couch: 1 };
+  /* 2.5D physical profile contract. Presentation-only metadata shared by shadow/depth systems. */
+  const PROP_2_5D = {
+    arc_floorlight:{profile:'flat',height:0}, steamvent:{profile:'flat',height:0}, industrial_floorvent:{profile:'flat',height:0}, industrial_cabletray:{profile:'flat',height:0},
+    industrial_roundtable:{profile:'low',height:8,surface:true}, dinertable:{profile:'low',height:8,surface:true}, booth:{profile:'low',height:8,surface:true}, bar:{profile:'medium',height:16,surface:true}, dinerchair:{profile:'low',height:9}, fishtank:{profile:'medium',height:18},
+    desk:{profile:'low',height:12,surface:true}, desk2:{profile:'low',height:12,surface:true}, console:{profile:'low',height:12,surface:true}, consoleL:{profile:'low',height:12,surface:true}, pixelrig:{profile:'low',height:12,surface:true},
+    bench:{profile:'low',height:10}, workbench:{profile:'low',height:10}, industrial_bench:{profile:'low',height:10}, industrial_planter:{profile:'low',height:8}, industrial_toolcaddy:{profile:'low',height:6},
+    industrial_supplycart:{profile:'medium',height:14}, industrial_locker:{profile:'tall',height:24}, industrial_drawerbank:{profile:'medium',height:15}, industrial_partition:{profile:'tall',height:21}, industrial_servicecab:{profile:'tall',height:29}, industrial_wallpanel:{profile:'wall',height:25},
+    vault:{profile:'tall',height:24}, core:{profile:'tall',height:24}, connector_portal:{profile:'tall',height:24}, safe:{profile:'tall',height:24}, rack:{profile:'tall',height:24}, rackV:{profile:'tall',height:24}, shelf:{profile:'tall',height:24},
+    comms_beacon:{profile:'tall',height:24}, bridge_relaystack:{profile:'tall',height:24}, bigscreen:{profile:'wall',height:18}, commswall:{profile:'wall',height:19}, calwall:{profile:'wall',height:18}, chartwall:{profile:'wall',height:18}, arc_indexwall:{profile:'wall',height:18},
+    plant:{profile:'medium',height:14}, monstera:{profile:'medium',height:18}, tv:{profile:'medium',height:18}, couch:{profile:'medium',height:14}
+  };
+  function depthProfile(id) {
+    const p=PROP_2_5D[id]; if(p) return Object.assign({},p);
+    const h=SHADOW_TALL[id]||0;
+    return {profile:h>=3?'tall':h>0?'medium':'low',height:h?12+h*4:6};
+  }
   // Cache only silhouette geometry: work lights and animation never change the shadow.
   // A sheared, vertically compressed silhouette projects the standing sprite onto the deck.
   const shadowMasks = new Map();
@@ -11626,15 +11642,17 @@ const PropSprites = (() => {
     if ((mounted || f.mount) === 'surface') return;
     const s = spec(f.t); if (s && s.flat) return;
     const X = f.x * TILE, Y = f.y * TILE, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
+    const profile = depthProfile(f.t);
+    const physicalHeight = Math.max(H, Number(profile.height) || H);
     const mask=shadowMask(f);
     if(mask && typeof PropRemaster!=='undefined' && PropRemaster.isProjection() && (mounted||f.mount)!=='wall'){
       let contact;
       try{contact=contactShadow(mask,H);}catch(_){contactShadows.set(mask,null);} // optional grounding cannot hide the prop
       if(contact){ctx.save();ctx.globalAlpha*=Math.max(0,Math.min(.6,+IndustrialTextures.lighting.contact||0));ctx.imageSmoothingEnabled=true;
-        ctx.drawImage(contact,X-18,Y+H-3);ctx.restore();}
+        ctx.drawImage(contact,X-18,Y+physicalHeight-3);ctx.restore();}
     }
     if(mask&&ctx.transform) {
-      const projected=projectedShadow(mask,H);
+      const projected=projectedShadow(mask,physicalHeight);
       if(projected&&ctx.globalAlpha===1){
         const smooth=ctx.imageSmoothingEnabled;ctx.imageSmoothingEnabled=typeof PropRemaster!=='undefined'&&PropRemaster.isProjection();
         try{ctx.drawImage(projected.cv,X+projected.x,Y+projected.y,projected.w,projected.h);}
@@ -11653,7 +11671,7 @@ const PropSprites = (() => {
       } finally {ctx.restore();}
       return;
     }
-    const reach = 3 + (SHADOW_TALL[f.t] || 0) + ((f.h || 1) >= 2 ? 2 : 0);
+    const reach = 3 + Math.round(physicalHeight / TILE) + (SHADOW_TALL[f.t] || 0) + ((f.h || 1) >= 2 ? 2 : 0);
     // three nested steps, each smaller and darker, spreading south-east from the footprint's lower half
     const steps = [[0, 0.09], [0.35, 0.11], [0.7, 0.14]];
     for (const [k, a] of steps) {
@@ -11889,6 +11907,8 @@ const PropSprites = (() => {
     // G3b TROPHY CASE earned-trophy count (the world layer feeds this from the live trophy projection)
     setTrophyCount,
     setJourneyStage,
+    // 2.5D presentation metadata; does not affect saved world mechanics or occupancy.
+    depthProfile, PROP_2_5D,
     // tab/tier display names — shared with build.js (palette tabs) and propsearch.js (matching)
     TIER_LABEL, CAT_LABEL,
     // the STARTER shelf ids (build.js pins these above the SYSTEMS drawers; locked by prop-starter-shelf.test.js)

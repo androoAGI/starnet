@@ -6294,7 +6294,9 @@ const World = (() => {
         // OCCUPIED BED: the base pass holds the quilt back so the sleeper can be drawn between the
         // frame and the covers (drawOver, below). Same copy-on-write idiom as the nameplate above.
         if (sleeper) dp = Object.assign(dp === p ? Object.assign({}, p) : dp, { sleeper: true });
-        items.push({ y: sy, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
+        const prop25 = (typeof PropSprites !== 'undefined' && PropSprites.depthProfile) ? PropSprites.depthProfile(dp.t) : null;
+        items.push({ y: sy, depthY: sy, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0,
+          kind: 'prop', propType: dp.t, draw: () => { if (propOnScreen(dp)) drawLitProp(dp, work, live); } });
         if (PropSprites.lightOf) {
           const lt = PropSprites.lightOf(dp, work, reduceMotion(), live);
           if (lt) propLights.push(Object.assign({}, lt, { originX: (p.x + (p.w || 1) / 2) * T, originY: (p.y + (p.h || 1) / 2) * T }));
@@ -6307,10 +6309,10 @@ const World = (() => {
         // seat. `!p.r` guards every route below, including the side-seat one: a profile recliner is
         // never turned, so this costs it nothing.)
         if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide || remasteredCouch(p)))
-          items.push({ y: sitter.seatPy + 0.5, draw: () => PropSprites.drawSeatFront(dp) });
+          items.push({ y: sitter.seatPy + 0.5, depthY: sitter.seatPy + 0.5, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0, kind: 'prop-overlay', draw: () => PropSprites.drawSeatFront(dp) });
         // the COVERS, after the body (bodySortY puts a sleeper at sy + 0.5). Keyed off the same live
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.
-        if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, draw: () => PropSprites.drawOver(dp) });
+        if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, depthY: sy + 0.75, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0, kind: 'prop-overlay', draw: () => PropSprites.drawOver(dp) });
         // an ASSIGNED workstation is the hero's desk with another name: give it the same chair, in front,
         // y-sorted at the same fractional anchor as its agent so the body sits in it. Scoped
         // to assigned PCs so a decorative/unmanned console keeps its existing look and the chair only ever
@@ -6359,8 +6361,9 @@ const World = (() => {
        feet otherwise). Drawn through drawSleeper so the sprite is clipped to the mattress. */
     const bodyItem = (b, fallbackY) => {
       const bed = lyingBed(b);
-      return bed ? { y: (bed.y + (bed.h || 1)) * T + 0.5, draw: () => drawSleeper(now, b, bed) }
-                 : { y: fallbackY, draw: () => drawAgent(now, b) };
+      const y = bed ? (bed.y + (bed.h || 1)) * T + 0.5 : fallbackY;
+      return { y, depthY: y, height: 20, z: 0, kind: 'agent',
+        draw: () => bed ? drawSleeper(now, b, bed) : drawAgent(now, b) };
     };
     if (agent && !agent.unplaced) items.push(bodyItem(agent, rposY()));
     for (const b of crew) items.push(bodyItem(b, (b.seated ? b.seatPy : b.py)));   // the other agents, at their bays (seated → sort by the cushion pos like the hero's rposY, so a couch-lounging crew body tucks just behind the back-facing couch panel, head over the cap)
@@ -6370,7 +6373,9 @@ const World = (() => {
     for (const d of cache.doorOccluders || []) {
       if ((d.x + d.w) * scale + panX < 0 || d.x * scale + panX > cv.width ||
           (d.y + d.h) * scale + panY < 0 || d.y * scale + panY > cv.height) continue;
-      items.push({ y: d.sortY, draw: () => drawDoorSurface(ctx, d) });
+      items.push({ y: d.sortY, depthY: Number.isFinite(Number(d.depthY)) ? d.depthY : d.sortY,
+        height: Number.isFinite(Number(d.depthHeight)) ? d.depthHeight : 24, z: 1,
+        kind: 'architecture', architectural: true, draw: () => drawDoorSurface(ctx, d) });
     }
     // THE FLOOR PASS — every decal, in doc order, before anything that stands on the deck. This is what
     // lets a body walk across a rug: the rug is already down when the sorted items paint over it.
@@ -6388,7 +6393,7 @@ const World = (() => {
       .map(b => ({ x: bodyPosX(b), y: bodyPosY(b), width: 7, height: 20, opacity: .16 })));
     reviewMark('shadows');
     if (sceneRenderer) {
-      sceneRenderer.drawEntities(ctx, items);
+      sceneRenderer.drawEntities(ctx, items, { twoPointFiveD: true });
     } else {
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.draw();

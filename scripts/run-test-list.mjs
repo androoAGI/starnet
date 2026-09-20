@@ -26,7 +26,9 @@ export function runList(options) {
   const listFile = isAbsolute(opts.listFile) ? opts.listFile : join(ROOT, opts.listFile);
   const all = readSteps(listFile);
   const filters = Array.isArray(opts.filters) ? opts.filters.filter(Boolean) : [];
-  const steps = filters.length ? all.filter(step => filters.some(filter => step.includes(filter))) : all;
+  const exclude = Array.isArray(opts.exclude) ? opts.exclude.filter(Boolean) : [];
+  const filtered = filters.length ? all.filter(step => filters.some(filter => step.includes(filter))) : all;
+  const steps = exclude.length ? filtered.filter(step => !exclude.some(pattern => step.includes(pattern))) : filtered;
   if (filters.length && !steps.length) {
     console.error(label + ': no step in ' + listFile + ' matches ' + filters.join(', '));
     return 1;

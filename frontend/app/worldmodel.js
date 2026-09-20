@@ -310,14 +310,19 @@ const WorldModel = (() => {
      every station already built — floorMat is null on all of them — because the default deck is the
      one surface every player sees. `plate` stays in the palette, so the old look is still choosable
      and nothing is destroyed. It also means the Guardian goldens all shift. */
+  /* TJ OS default spatial palette.
+   * Explicitly painted rooms keep their saved appearance. These defaults only affect
+   * rooms that have not been given a custom floor/material, preserving existing state
+   * while shifting newly-rendered/default spaces toward the eco-industrial world direction.
+   */
   const ROOM_KINDS = {
-    hab:      { label: 'HAB',      floor: 'hull',     mat: 'spine' },
-    bridge:   { label: 'BRIDGE',   floor: 'cobalt',   mat: 'panel' },
-    lab:      { label: 'LAB',      floor: 'sterile',  mat: 'tile'  },
-    factory:  { label: 'FOUNDRY',  floor: 'rust',     mat: 'tread' },
-    quarters: { label: 'QUARTERS', floor: 'verdant',  mat: 'soft'  },
-    storage:  { label: 'STORAGE',  floor: 'rust',     mat: 'tread' },
-    corridor: { label: 'CORRIDOR', floor: 'corridor', mat: 'spine' },
+    hab:      { label: 'TJ CORE',   floor: 'oak',     mat: 'plank' },
+    bridge:   { label: 'TJ NETWORK', floor: 'ash',    mat: 'terrazzo' },
+    lab:      { label: 'TJ LABS',   floor: 'white',   mat: 'ceramic' },
+    factory:  { label: 'TJ FORGE',  floor: 'basalt',  mat: 'basalt' },
+    quarters: { label: 'TJ COMMONS', floor: 'meadow', mat: 'turf' },
+    storage:  { label: 'TJ VAULT',  floor: 'walnut',  mat: 'cargo' },
+    corridor: { label: 'CORRIDOR', floor: 'oak',     mat: 'parquet' },
   };
   // a room's effective deck material: explicit override, else the kind default, else plate.
   const matOfRoom = rm => (rm && FLOOR_MATERIALS[rm.floorMat]) ? rm.floorMat
@@ -385,20 +390,20 @@ const WorldModel = (() => {
   function freshDoc(createdAt) {
     const doc = {
       schema: 'starnet.station', version: 1, _nid: 1,
-      meta: { name: 'STARNET STATION', createdAt: createdAt || stationId(), tier: 0, spawnRoomId: null, trunkRoomId: null },
+      meta: { name: 'TJ OS ECOSYSTEM', createdAt: createdAt || stationId(), tier: 0, spawnRoomId: null, trunkRoomId: null },
       rooms: {}, order: [], props: [], belts: {}, edges: []
     };
-    // seed the shabby starter HAB (18×11 floor — the v7 / world.js starter room), so a new
+    // seed the TJ OS starter Core (18×11 floor — the v7 / world.js starter room), so a new
     // station is never empty and the builder has something to extend from.
     const id = 'r' + (doc._nid++);
     doc.rooms[id] = {
-      id, kind: 'hab', name: 'HAB-01',
+      id, kind: 'hab', name: 'TJ CORE',
       rects: [{ x1: 0, y1: 0, x2: 17, y2: 10 }],
-      floorStyle: 'hull', floorMat: null, wallStyle: null, wallMat: null, hullStyle: null, hullMat: null, tier: 0, floorPaint: {}
+      floorStyle: 'hull', floorMat: 'plank', wallStyle: null, wallMat: 'wainscot', hullStyle: 'walnut', hullMat: 'timber', tier: 0, floorPaint: {}
     };
     doc.order.push(id);
     doc.meta.spawnRoomId = id;
-    doc.meta.trunkRoomId = id;   // the starter HAB is the integration hub — it never seals
+    doc.meta.trunkRoomId = id;   // TJ Core is the integration hub — it never seals
     return doc;
   }
 
@@ -2519,7 +2524,7 @@ const WorldModel = (() => {
     else { const clean = {}; for (const k in doc.belts) { const d = doc.belts[k]; if (/^-?\d+,-?\d+$/.test(k) && (d === 'E' || d === 'W' || d === 'N' || d === 'S')) clean[k] = d; } doc.belts = clean; }
     if (!Array.isArray(doc.edges)) doc.edges = [];
     doc.edges = doc.edges.map(cleanPipelineEdge).filter(Boolean);
-    if (!doc.meta || typeof doc.meta !== 'object') doc.meta = { name: 'STARNET STATION', createdAt: 0, tier: 0, spawnRoomId: null };
+    if (!doc.meta || typeof doc.meta !== 'object') doc.meta = { name: 'TJ OS ECOSYSTEM', createdAt: 0, tier: 0, spawnRoomId: null };
     /* ONE-TIME, NON-DESTRUCTIVE BACKFILL of the station id (see freshDoc's note). A doc saved before
        station identity existed carries createdAt 0/absent; give it one now so its per-station latches
        stop colliding with every other station's. It must be SAVED on the same load that stamps it —
@@ -2549,10 +2554,73 @@ const WorldModel = (() => {
       const doc = freshDoc();
       const room = doc.rooms[doc.meta.spawnRoomId];
       room.rects = [{ x1: 0, y1: 0, x2: 17, y2: 10 }];
-      room.name = 'HOME';
-      room.floorMat = 'resin';
-      room.wallMat = 'panelled';
-      room.hullStyle = 'bone';
+      room.name = 'TJ CORE';
+      // The starter environment is now the first TJ OS facility: warm timber, practical
+      // interior cladding, and a natural shell. These are visual defaults only; all grants,
+      // props, paths, agent bindings and persistence remain unchanged.
+      room.floorMat = 'plank';
+      room.wallMat = 'wainscot';
+      room.hullMat = 'timber';
+      room.hullStyle = 'walnut';
+      /*
+       * TJ OS WORLD SEED
+       * Fresh worlds receive the spatial ecosystem below. Existing serialized worlds never pass
+       * through starterDoc(), so this cannot silently rewrite a user's saved station.
+       *
+       * This is deliberately composed from the existing WorldModel primitives/data shape:
+       * rooms are ordinary rooms/corridors, props remain ordinary props, and the runtime/pathing
+       * systems remain the same. No agent, pipeline, permission, persistence, or execution behavior
+       * is introduced here.
+       */
+      const seededRooms = [
+        // facilities
+        { id:'tj-forge', kind:'factory', name:'TJ FORGE', rect:[22,0,37,9], floorStyle:'rust', floorMat:'basalt', wallMat:'utility', hullStyle:'rust', hullMat:'heatsink' },
+        { id:'tj-labs', kind:'lab', name:'TJ LABS', rect:[22,15,37,24], floorStyle:'white', floorMat:'ceramic', wallMat:'acoustic', hullStyle:'white', hullMat:'curtain' },
+        { id:'tj-studio', kind:'hab', name:'TJ STUDIO', rect:[-20,15,-5,24], floorStyle:'orchid', floorMat:'plank', wallMat:'wainscot', hullStyle:'orchid', hullMat:'clapboard' },
+        { id:'tj-vault', kind:'storage', name:'TJ VAULT', rect:[-20,0,-5,9], floorStyle:'walnut', floorMat:'cargo', wallMat:'wainscot', hullStyle:'walnut', hullMat:'stone' },
+        { id:'tj-network', kind:'bridge', name:'TJ NETWORK', rect:[2,16,15,23], floorStyle:'teal', floorMat:'terrazzo', wallMat:'utility', hullStyle:'teal', hullMat:'thermal' },
+        { id:'tj-garden', kind:'quarters', name:'TJ GARDEN', rect:[-20,-12,-5,-5], floorStyle:'meadow', floorMat:'turf', wallMat:'hedge', hullStyle:'meadow', hullMat:'hedge' },
+        { id:'tj-observatory', kind:'bridge', name:'TJ OBSERVATORY', rect:[58,16,71,23], floorStyle:'indigo', floorMat:'terrazzo', wallMat:'acoustic', hullStyle:'indigo', hullMat:'curtain' },
+        { id:'tj-security', kind:'bridge', name:'TJ SECURITY', rect:[58,28,69,35], floorStyle:'cobalt', floorMat:'basalt', wallMat:'pressure', hullStyle:'cobalt', hullMat:'monocoque' },
+        { id:'tj-village', kind:'quarters', name:'AGENT VILLAGE', rect:[-40,15,-25,26], floorStyle:'fern', floorMat:'turf', wallMat:'hedge', hullStyle:'fern', hullMat:'timber' },
+        { id:'tj-meeting', kind:'hab', name:'TJ MEETING HALL', rect:[40,28,55,37], floorStyle:'ash', floorMat:'plank', wallMat:'acoustic', hullStyle:'ash', hullMat:'clapboard' },
+        { id:'tj-commons', kind:'quarters', name:'TJ COMMONS', rect:[0,28,17,37], floorStyle:'meadow', floorMat:'turf', wallMat:'hedge', hullStyle:'meadow', hullMat:'shingle' },
+
+        // circulation — ordinary corridor rooms so existing pathing/door logic owns navigation
+        { id:'tj-h-core-forge', kind:'corridor', name:'CORE → FORGE', rect:[18,4,21,6], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-vault', kind:'corridor', name:'CORE → VAULT', rect:[-4,4,-1,6], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-garden', kind:'corridor', name:'CORE → GARDEN', rect:[-4,-4,-1,3], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-core-network', kind:'corridor', name:'CORE → NETWORK', rect:[7,11,10,15], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-network-commons', kind:'corridor', name:'NETWORK → COMMONS', rect:[7,24,10,27], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-commons-meeting', kind:'corridor', name:'COMMONS → MEETING', rect:[18,32,39,34], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-meeting-security', kind:'corridor', name:'MEETING → SECURITY', rect:[56,32,57,34], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-security-observatory', kind:'corridor', name:'SECURITY → OBSERVATORY', rect:[63,24,66,27], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-forge-labs', kind:'corridor', name:'FORGE → LABS', rect:[28,10,31,14], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-vault-studio', kind:'corridor', name:'VAULT → STUDIO', rect:[-12,10,-9,14], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-studio-village', kind:'corridor', name:'STUDIO → VILLAGE', rect:[-24,19,-21,21], floorStyle:'oak', floorMat:'parquet' },
+        { id:'tj-h-labs-observatory', kind:'corridor', name:'LABS → OBSERVATORY', rect:[38,19,57,21], floorStyle:'oak', floorMat:'parquet' }
+      ];
+
+      for (const seed of seededRooms) {
+        const [x1,y1,x2,y2] = seed.rect;
+        const id = 'r' + doc._nid++;
+        doc.rooms[id] = {
+          id,
+          kind: seed.kind,
+          name: seed.name,
+          rects: [{x1,y1,x2,y2}],
+          floorStyle: seed.floorStyle,
+          floorMat: seed.floorMat,
+          wallStyle: null,
+          wallMat: seed.wallMat,
+          hullStyle: seed.hullStyle,
+          hullMat: seed.hullMat,
+          tier: 0,
+          floorPaint: {}
+        };
+        doc.order.push(id);
+      }
+
       doc.props = [
         // The five essentials are real floor grants. Keep the desk unassigned so
         // ensureWorkstation adopts it for the new Commander on the normal boot path.
@@ -2565,7 +2633,35 @@ const WorldModel = (() => {
         { id: 'p' + doc._nid++, t: 'workbench', x: 3, y: 1, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'studio', x: 14, y: 8, w: 2, h: 2, block: true },
         { id: 'p' + doc._nid++, t: 'plant', x: 0, y: 0, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false }
+        { id: 'p' + doc._nid++, t: 'plant', x: 17, y: 0, w: 1, h: 1, block: false },
+
+        // TJ OS spatial dressing uses ONLY existing catalog props. These are cosmetic/furniture
+        // placements; they do not create capabilities, agent bindings, workflows, or fake activity.
+        { id: 'p' + doc._nid++, t: 'industrial_supplycart', x: 24, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 35, y: 1, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 24, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 35, y: 17, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: -18, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -8, y: 22, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: -18, y: 1, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_supplycart', x: -8, y: 1, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 3, y: 17, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -18, y: -11, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -8, y: -11, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 60, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_servicecab', x: 60, y: 29, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: -38, y: 17, w: 3, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_planter', x: -27, y: 24, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_roundtable', x: 46, y: 32, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'industrial_bench', x: 2, y: 30, w: 3, h: 1, block: true },
+        // TJ COMMONS restaurant layer — existing leisure props only; no new runtime behavior is implied.
+        { id: 'p' + doc._nid++, t: 'bar', x: 5, y: 29, w: 4, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'dinertable', x: 10, y: 32, w: 3, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'dinerchair', x: 9, y: 34, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'dinerchair', x: 13, y: 34, w: 1, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'booth', x: 2, y: 34, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'fishtank', x: 14, y: 29, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 36, w: 1, h: 1, block: false }
       ];
       return doc;
     },

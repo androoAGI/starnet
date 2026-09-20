@@ -20,7 +20,7 @@ A.ok(native.includes('owner_pid_alive(owner_pid)'), 'a dead PID stamp cannot str
 A.ok(native.includes('MIGRATION_MARKER') && native.includes('acknowledged_roots'), 'the clean generation cannot resurrect legacy state on Mac or Windows relaunch');
 A.ok(html.includes('id="btn-unreachable-fresh"'), 'the unreachable screen exposes the escape');
 A.ok(html.includes('id="unreachable-code"') && html.includes('id="btn-unreachable-report"'), 'the unreachable screen exposes screenshot-readable and copyable diagnosis');
-A.ok(html.includes('does not remove your StarNet account link or purchased credits'), 'the screen explains the credit-preserving scope');
+A.ok(html.includes('does not remove your TJ OS account link or purchased credits'), 'the screen explains the credit-preserving scope');
 A.ok(app.includes('FreshStart.resetDesktop(core)'), 'the two-click UI calls the native transaction rather than dead sidecar HTTP');
 A.ok(app.includes("freshBtn.textContent = '✦ CONFIRM — START COMPLETELY FRESH'"), 'the destructive choice requires an explicit second click');
 A.ok(app.includes('browserResetBlocked = true'), 'an uncleared browser cache cannot silently repopulate the clean station');
