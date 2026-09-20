@@ -76,6 +76,7 @@
       // sessions attached to each project — a REAL stored link, never a guessed title match.
       projectRoot: opts.projectRoot != null ? String(opts.projectRoot) : null,
       parentStreamId: opts.parentStreamId ? String(opts.parentStreamId) : null,
+      projectHome: opts.projectHome === true,
       history: Array.isArray(opts.history) ? opts.history.slice() : [],
       runIds: Array.isArray(opts.runIds) ? opts.runIds.slice() : [],
       connectorHandoff: normalizeConnectorHandoff(opts.connectorHandoff),

@@ -848,3 +848,4 @@ test/budget-authority-ui.test.js
 test/staging-development-closure.test.js
 test/overseer-ui.test.js
 test/workspace-owner-election.test.js
+test/project-home-ui.test.js

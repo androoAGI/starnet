@@ -45,7 +45,8 @@
       displayPath: r.displayPath != null ? r.displayPath : r.root,
       grantedAt: r.grantedAt != null ? r.grantedAt : null,
       lastTouchedAt: r.lastTouchedAt != null ? r.lastTouchedAt : null,
-      isGitRepo: !!r.isGitRepo
+      isGitRepo: !!r.isGitRepo,
+      preferredAgents: Array.isArray(r.preferredAgents) ? r.preferredAgents.slice() : []
     });
 
     function snapshot() {
@@ -72,7 +73,9 @@
         displayPath: meta.displayPath != null ? String(meta.displayPath) : (prev && prev.displayPath != null ? prev.displayPath : key),
         grantedAt: prev && prev.grantedAt != null ? prev.grantedAt : (meta.grantedAt != null ? meta.grantedAt : at),
         lastTouchedAt: meta.lastTouchedAt != null ? meta.lastTouchedAt : at,
-        isGitRepo: meta.isGitRepo != null ? !!meta.isGitRepo : !!(prev && prev.isGitRepo)
+        isGitRepo: meta.isGitRepo != null ? !!meta.isGitRepo : !!(prev && prev.isGitRepo),
+        preferredAgents: Array.isArray(meta.preferredAgents) ? [...new Set(meta.preferredAgents.filter(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)))].slice(0, 80)
+          : (prev && Array.isArray(prev.preferredAgents) ? prev.preferredAgents.slice() : [])
       };
       const nextRecords = records.slice();
       if (i < 0) nextRecords.push(nextRow); else nextRecords[i] = nextRow;

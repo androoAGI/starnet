@@ -20,6 +20,15 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
     newId: () => 'thread_' + ++serial, sessions: () => saved, hasAgent: id => ['agent', 'researcher'].includes(id) };
   try {
     let manager = makeOverseer(deps);
+    const projectRoot = path.join(root, 'workspace-home');
+    assert.equal(manager.projectHome(projectRoot, 'Workspace', false), null, 'read does not create a conversation');
+    const project = manager.projectHome(projectRoot, 'Workspace', true);
+    assert.equal(manager.projectHome(projectRoot, 'Renamed folder', true).id, project.id, 'reopening reuses the project conversation');
+    manager = makeOverseer(deps);
+    assert.equal(manager.projectHome(projectRoot, 'Workspace', true).id, project.id, 'project identity survives restart');
+    assert.equal(manager.resolve(project.id).projectHome, true);
+    const otherProject = manager.projectHome(path.join(root, 'other-project'), 'Other project', true);
+    assert.notEqual(project.id, otherProject.id, 'different projects do not share conversation identity');
     saved.workstreams[0].projectRoot = path.join(root, 'project-alpha');
     const child = manager.create({ title: 'Research', agentId: 'researcher', parentStreamId: 'home', requestId: 'create_1', projectRoot: 'untrusted-model-root' });
     assert.equal(child.parentStreamId, 'home');

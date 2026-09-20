@@ -3489,7 +3489,7 @@ const App = (() => {
     { const tp = el('ws-tab-projects'); if (tp) tp.onclick = () => setRailView('projects'); }
     // the projects head action is contextual (see updateProjHeadAction): overview = bless a folder,
     // entered project = start a session anchored to it.
-    { const ap = el('ws-addproject'); if (ap) ap.onclick = () => { if (projScope) newSessionInProject(projScope); else beginAddProject(); }; }
+    { const ap = el('ws-addproject'); if (ap) ap.onclick = () => { beginAddProject(); }; }
     if (opts.awaitingPurpose && typeof Onboarding !== 'undefined') {
       // THE AWAKENING — a guided first meeting that authors identity/purpose/context/operating-manual.md
       // while the room rises from dark to first light. Replaces the old single "what is my purpose?" beat.
@@ -3814,6 +3814,7 @@ const App = (() => {
   // switching mid-run is fine now: each workstream keeps its own run-state in Channels (channels.js) and
   // Chat.load re-renders the in-flight stream on switch — the run you left keeps streaming in the background.
   function switchWorkstream(id) {
+    if (typeof ProjectHome !== 'undefined') ProjectHome.onSession(id);
     if (id === Workstreams.activeId()) return;
     const ws = Workstreams.switch(id); if (!ws) return;
     SFX.click();
@@ -4125,7 +4126,7 @@ const App = (() => {
   // a session in it (+ NEW) — one slot, two labelled truths, same as the reference harness's scoped "+".
   function updateProjHeadAction() {
     const b = el('ws-addproject'); if (!b) return;
-    if (projScope) {
+    if (projScope && typeof ProjectHome === 'undefined') {
       b.textContent = '+ NEW';
       b.disabled = !projScopeBlessed;
       b.title = projScopeBlessed ? 'start a new session in this project' : 're-add this project before starting new work';
@@ -4154,10 +4155,10 @@ const App = (() => {
       if (tp) { tp.classList.toggle('on', view === 'projects'); tp.setAttribute('aria-selected', view === 'projects'); } }
     closeProjectMenu();
     if (view === 'projects') { updateProjHeadAction(); renderProjects(); }
-    else { updateArchivedToggle(); }   // sessions view: ARCHIVED button re-asserts its own "≥1 archived" gate
+    else { if (typeof ProjectHome !== 'undefined') ProjectHome.close(); updateArchivedToggle(); }   // sessions view: ARCHIVED button re-asserts its own "≥1 archived" gate
   }
-  function enterProject(root, blessed) { setProjScope(root, blessed); SFX.click(); renderProjects(); }
-  function exitProjectScope() { setProjScope(null, false); SFX.click(); renderProjects(); }
+  function enterProject(root, blessed) { setProjScope(root, blessed); SFX.click(); renderProjects(); if (typeof ProjectHome !== 'undefined') ProjectHome.open(root); }
+  function exitProjectScope() { if (typeof ProjectHome !== 'undefined') ProjectHome.close(); setProjScope(null, false); SFX.click(); renderProjects(); }
   // the live dot class + git badge for one project row (pure read of the shaped row)
   function projDot(r) { return 'ws-dot ' + (!r.blessed ? 'proj-plain' : (r.isGitRepo ? 'proj-git' : 'proj-plain')); }
   function renderProjectRows(ul, rows) {
@@ -4168,7 +4169,7 @@ const App = (() => {
       if (!row) { setProjScope(null); return renderProjectsOverview(ul, rows); }
       projScopeBlessed = row.blessed === true;
       updateProjHeadAction();
-      return renderProjectEntered(ul, row);
+      return typeof ProjectHome !== 'undefined' ? renderProjectsOverview(ul, rows) : renderProjectEntered(ul, row);
     }
     renderProjectsOverview(ul, rows);
   }
@@ -4219,9 +4220,9 @@ const App = (() => {
     const activeId = Workstreams.activeId();
     ul.innerHTML = rows.map(r => {
       const tip = (r.blessed ? '' : 'REVOKED (trust withdrawn) — ') + 'click to open this project · right-click for actions';
-      const sess = projSessionsOf(r.root);
+      const sess = typeof ProjectHome !== 'undefined' ? [] : projSessionsOf(r.root);
       const extra = Math.max(0, sess.length - 3);
-      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
+      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + (projScope === r.root ? ' project-selected' : '') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + projDot(r) + '"></span>' +
         '<span class="proj-main">' +
           '<span class="proj-line">' +
@@ -4260,6 +4261,7 @@ const App = (() => {
     });
     ul.querySelectorAll('.proj-row').forEach(li => {
       const row = rows.find(x => x.root === li.dataset.root);
+      if (typeof ProjectHome !== 'undefined' && projScope === row.root) li.setAttribute('aria-current', 'page');
       li.onclick = () => enterProject(row.root, row.blessed);
       li.onkeydown = (e) => {
         if (e.target !== li) return;
@@ -4333,6 +4335,7 @@ const App = (() => {
   // + NEW inside an entered project: a fresh untitled session ANCHORED to the project (projectRoot rides every
   // run as the working folder; the title auto-mints from the first message, same as the sessions rail's + NEW).
   function newSessionInProject(root) {
+    if (typeof ProjectHome !== 'undefined') { enterProject(root, projScopeBlessed); return; }
     if (!root || !projScopeBlessed) return;
     const ws = Workstreams.startSession({ activate: false, projectRoot: root });
     if (!ws) return;
@@ -4366,7 +4369,7 @@ const App = (() => {
     let html = '';
     if (r.blessed) {
       if (!projScope || !(Projects.sameRoot && Projects.sameRoot(r.root, projScope))) html += item('open', 'Open project', '▸');
-      html += item('newsess', 'New session here', '+');
+      html += item('newsess', typeof ProjectHome !== 'undefined' ? 'Open project COMMS' : 'New session here', '▸');
     }
     html += (r.blessed ? '<div class="ws-menu-sep"></div>' : '') + item('remove', r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)', '✕', 'danger');
     menu.innerHTML = html;

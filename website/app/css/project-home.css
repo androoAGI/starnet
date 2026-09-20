@@ -1,0 +1,119 @@
+/* Project controls belong entirely to COMMS; the station layout is untouched. */
+#comms-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#chat-panel > h3 { gap:8px; }
+#chat-panel > h3 .h3-right { flex-shrink:0; }
+.project-home { flex:1 1 0; min-height:0; overflow:auto; color:var(--ph); font-family:inherit; padding:10px; }
+.project-home[hidden],.ph-actions[hidden],#chat-log[hidden],.ph-crew[hidden],.ph-history[hidden] { display:none !important; }
+.project-home * { box-sizing:border-box; }
+.ph-view-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:16px; padding-bottom:10px; border-bottom:1px solid color-mix(in srgb,var(--ph-dim) 50%,transparent); }
+.ph-view-title { font-size:14px; color:var(--ph-dim); }
+#comms-idbar.ph-project { flex-wrap:wrap; }
+body #chat-panel #comms-idbar.ph-project #gc-add-agents { display:none; }
+.ph-actions { display:flex; margin-left:auto; gap:5px; }
+.ph-actions .btn { color:var(--ph-dim); background:transparent; border:0; box-shadow:none; padding:6px 7px; min-height:28px; font:14px/1.2 'VT323',monospace; cursor:pointer; }
+.ph-actions .btn:hover,.ph-actions .btn[aria-pressed="true"] { color:var(--ph-bright); }
+.ph-actions .btn:focus-visible,.ph-inline:focus-visible { outline:1px solid var(--ph); outline-offset:2px; }
+.ph-updates { margin:8px 0; }
+.ph-updates:empty,.ph-inline-notice:empty { display:none; }
+.ph-inline { display:block; width:100%; text-align:left; font:14px/1.5 'VT323',monospace; color:var(--ph-dim); border:0; background:transparent; box-shadow:none; padding:6px 8px; cursor:pointer; overflow-wrap:anywhere; }
+.ph-inline::before { content:'↳ '; }
+.ph-inline[data-status="running"],.ph-inline[data-status="error"] { color:var(--ph); }
+.ph-inline:hover { color:var(--ph); }
+.ph-inline-notice { font-size:13px; color:var(--ph); padding:5px 8px; }
+.project-home .btn { font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--ph-dim); background:transparent; color:var(--ph); cursor:pointer; }
+.project-home .btn:hover { border-color:var(--ph); background:color-mix(in srgb,var(--ph) 8%,transparent); }
+.project-home .btn:disabled { opacity:.45; cursor:default; }
+.project-home :focus-visible { outline:2px solid var(--ph); outline-offset:2px; }
+.ph-notice:empty,.ph-tools:empty,.ph-directions:empty,.ph-receipt:empty { display:none; }
+.ph-notice { margin:0; padding:6px 10px; font-size:13px; }
+.ph-crew { padding:0; }
+.ph-crew p,.ph-empty { font-size:13px; line-height:1.4; opacity:.75; }
+.ph-crew-count { font-size:12px; opacity:.65; }
+.ph-crew-list { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.ph-crew-choice { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:15px; padding:8px 10px; border:1px solid var(--ph-dim); }
+.ph-crew-choice:has(input:checked) { background:color-mix(in srgb,var(--ph) 7%,transparent); border-color:var(--ph); }
+.ph-crew-choice input { accent-color:var(--ph); }
+.ph-crew-note { display:block; font-size:12px; margin-top:5px; }
+.ph-card { border-bottom:1px solid color-mix(in srgb,var(--ph-dim) 50%,transparent); }
+.ph-card > summary { display:grid; grid-template-columns:1fr auto; padding:12px 0; cursor:pointer; gap:6px 10px; }
+.ph-agent { font-size:13px; opacity:.7; }
+.ph-status { font-size:13px; color:var(--ph-dim); }
+.ph-task { grid-column:1/-1; font-size:16px; line-height:1.35; overflow-wrap:anywhere; }
+.ph-task::before { content:'▸ '; color:var(--ph-dim); }
+.ph-card[open] .ph-task::before { content:'▾ '; }
+.ph-card-body { padding:0 0 12px; }
+.ph-card-body p,.ph-result,.ph-directions { font:inherit; font-size:15px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.ph-card-body > p:first-child { opacity:.65; }
+.ph-card-body > [hidden] { display:none; }
+.ph-result { margin:2px 0 12px; }
+.project-home .ph-back { border:0; padding:4px 0; background:transparent; font-size:14px; }
+.ph-controls textarea { display:block; width:100%; resize:vertical; min-height:54px; margin:8px 0; background:transparent; border:1px solid var(--ph-dim); color:var(--ph); padding:6px; font:inherit; }
+.ph-controls .btn { margin:0 6px 6px 0; }
+.ph-receipt { opacity:.75; }
+.proj-row.project-selected { box-shadow:inset 2px 0 var(--ph); background:color-mix(in srgb,var(--ph) 7%,transparent); }
+
+/* Transcript navigation is meaningful only while the transcript is visible. */
+#chat-panel:has(> .project-home:not([hidden])) #comms-newpill { display:none; }
+
+/* Same material, controls and selection treatment as glass-comms.css. */
+body.glass-demo #chat-panel .project-home {
+  padding:10px 8px; background:transparent; color:var(--text); text-shadow:none;
+}
+body.glass-demo #chat-panel .ph-view-head {
+  margin-bottom:12px; padding-bottom:10px; border-color:var(--gd-comms-edge);
+}
+body.glass-demo #chat-panel .ph-view-title { color:var(--text); opacity:.7; letter-spacing:.5px; }
+body.glass-demo #chat-panel :is(.ph-actions .btn,.project-home .btn) {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:28px; padding:4px 8px; font:14px/1 'VT323',monospace; letter-spacing:.5px;
+  color:var(--ph-bright); background:rgba(var(--ph-rgb),.05); border:1px solid var(--gd-edge);
+  border-radius:3px; box-shadow:inset 0 1px 0 var(--gd-light); text-shadow:none;
+  transition:background-color var(--t-fast) var(--ease-soft),border-color var(--t-fast) var(--ease-soft),color var(--t-fast) var(--ease-soft);
+}
+body.glass-demo #chat-panel :is(.ph-actions .btn,.project-home .btn)::before,
+body.glass-demo #chat-panel :is(.ph-actions .btn,.project-home .btn)::after { content:none; }
+body.glass-demo #chat-panel :is(.ph-actions .btn,.project-home .btn):is(:hover,:focus-visible) {
+  border-color:rgba(var(--ph-rgb),.5); background:var(--gd-hover); color:var(--ph-bright);
+}
+body.glass-demo #chat-panel .ph-actions .btn[aria-pressed="true"] {
+  background:var(--gd-hover); border-color:var(--gd-edge);
+  box-shadow:inset 0 1px 0 var(--gd-light),inset 0 -2px 0 rgba(var(--ph-rgb),.65);
+}
+body.glass-demo #chat-panel .ph-inline {
+  margin:3px 0; padding:7px 9px; border:1px solid transparent; border-radius:3px;
+  color:var(--text); opacity:.8; background:linear-gradient(130deg,rgba(var(--ph-rgb),.025),transparent 70%);
+  box-shadow:none; text-shadow:none;
+}
+body.glass-demo #chat-panel .ph-inline:is(:hover,:focus-visible) {
+  opacity:1; color:var(--ph-bright); border-color:var(--gd-edge); background:var(--gd-hover); box-shadow:inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel .ph-inline[data-status="running"] { color:var(--ph-bright); opacity:1; }
+body.glass-demo #chat-panel .ph-inline[data-status="error"] { color:var(--bad); opacity:1; }
+body.glass-demo #chat-panel :is(.ph-card,.ph-crew-choice) {
+  margin:0 0 8px; border:1px solid var(--gd-edge); border-radius:4px;
+  background:var(--gd-face); box-shadow:inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel .ph-card > summary { padding:10px; border-radius:3px; }
+body.glass-demo #chat-panel .ph-card > summary:is(:hover,:focus-visible) { background:var(--gd-hover); }
+body.glass-demo #chat-panel .ph-card[open] > summary { border-bottom:1px solid var(--gd-comms-edge); }
+body.glass-demo #chat-panel .ph-card-body { padding:10px; }
+body.glass-demo #chat-panel .ph-agent { font-size:14px; color:var(--ph); opacity:1; letter-spacing:.5px; }
+body.glass-demo #chat-panel .ph-status { color:var(--text); opacity:.7; }
+body.glass-demo #chat-panel .ph-task { color:var(--ph-bright); font-weight:normal; }
+body.glass-demo #chat-panel .ph-result { margin:0; color:var(--text); font:16px/1.45 'VT323',monospace; }
+body.glass-demo #chat-panel .ph-crew-list { display:grid; gap:6px; }
+body.glass-demo #chat-panel .ph-crew-choice { margin:0; padding:10px; }
+body.glass-demo #chat-panel .ph-crew-choice:has(input:checked) {
+  background:var(--gd-hover); border-color:var(--gd-edge); color:var(--ph-bright); box-shadow:inset 2px 0 0 var(--ph),inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo #chat-panel .ph-controls textarea {
+  padding:9px; border:1px solid var(--gd-edge); border-radius:4px; background:var(--gd-face);
+  box-shadow:inset 0 1px 0 var(--gd-light); color:var(--text); font:16px/1.4 'VT323',monospace;
+}
+body.glass-demo #chat-panel .ph-controls textarea:focus { border-color:var(--ph); }
+body.glass-demo .proj-row.project-selected {
+  background:var(--gd-hover); border-color:var(--gd-edge); box-shadow:inset 2px 0 0 var(--ph),inset 0 1px 0 var(--gd-light);
+}
+@media(prefers-reduced-motion:reduce) {
+  body.glass-demo #chat-panel :is(.ph-actions .btn,.project-home .btn) { transition:none; }
+}

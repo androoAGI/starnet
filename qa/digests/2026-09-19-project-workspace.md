@@ -1,0 +1,75 @@
+# Project workspace verification — 2026-09-19
+
+Source candidate: 4f3f74799fb25e11b99ee43e07ad7996bce030ec. Surface lock: 61cea7ee4.
+Owned branch: agent/project-comms-0919.
+Preview: http://127.0.0.1:55715/ using dev/seed.js --keep and an isolated local test provider.
+
+## Delivered behavior
+- Projects remains a flat list of attached folders. Selecting a project opens its overview and stable existing COMMS workstream.
+- Preferred crew comes from existing station agents; preferences do not prohibit using other crew.
+- Background crew work appears as expandable activity, without requiring visible child sessions.
+- The existing worker manager owns execution, interruption, generation-checked steering and persistence. The existing orchestrator reviews returned work in the original project conversation.
+- The normal Sessions and station views remain available. Changing projects or viewing the station does not cancel work.
+
+## Focused verification
+- HTTP: stable project identity, separate project activity, existing crew persona, preferred crew in lead context, no extra child sessions, steering included in lead review, restart persistence, revoked access stays revoked, unknown roots rejected.
+- UI controller: polling preserves direction drafts, open details and unsaved crew preferences; polling never changes chat focus; late responses cannot reopen the previous project or a closed view; newest activity ordering is stable.
+- Existing projects-view: 78 assertions passed.
+- Existing orchestration integration test passed.
+- Customer journeys: 139/139 assertions passed.
+
+## Live app proof
+- Recruited MIRA through the existing recruitment interface, selected her as preferred crew, and saved preferences.
+- Opened a project and sent the task through normal COMMS. MIRA appeared in activity and NOVA's review returned to that conversation.
+- Sent a direction while work was live: UI reported queued, not applied.
+- Stopped a separate activity: UI reported Stop requested, then the durable activity became Stopped.
+- Completed-work race correctly rejected a late direction instead of reporting delivery.
+- Started Website Refresh work, switched to Launch Notes, and typed an unsent draft. The other worker completed without changing the selected project, its transcript, or the draft. Returning to Website Refresh showed its own result.
+- Reloaded/restarted the isolated preview, reopened projects, and observed saved conversations, crew preferences and recorded activity.
+- At 1280x720, project panel, activity entries, project list and COMMS all stayed within their horizontal bounds.
+
+## Boundaries
+The model responses are deterministic test-provider responses, not evidence of real-model delegation judgment. Voice and packaged installer acceptance were not exercised. This new project extension is an isolated review branch, not a release or deployment.
+
+## Verification chronology
+The first complete project HTTP run passed 124/124. The fast run caught a new empty error handler in project-context detection at step 752. It was corrected to distinguish an ordinary unsaved conversation from unavailable coordination state, reporting real failures through the existing fail-open diagnostic helper. The guard then passed all 156 assertions; the focused project HTTP and persistence checks passed, and all 80 remaining fast steps passed. Complete fast and HTTP manifests were restarted on the corrected immutable candidate; final receipts follow below.
+
+The final browser console had no errors. The preview was restarted on the corrected source and Website Refresh reopened with its saved crew preference, activity and conversation. Temporary technical project metadata was removed through the normal revoke/forget controls, leaving two named preview projects.
+
+## Final receipts
+- Corrected source: 4f3f74799fb25e11b99ee43e07ad7996bce030ec; audited candidate: 61cea7ee4.
+- Full fast manifest: **832/832 steps green**, exit 0. `node scripts/timeout.mjs --label project-fast-verified --timeout=1800000 -- npm run test:fast:raw`; `.project-verified-fast.log`. This is the canonical complete fast manifest with a 30-minute outer deadline; no tests or assertions were skipped.
+- HTTP: **all 124 manifest cases passed on the unchanged corrected candidate across a resumed run**. `.project-verified-http.log` passed steps 1–61, then the legacy workshop test hit its unchanged nine-second sidecar-startup confirmation timeout. The same test passed 86 assertions standalone (`.project-workshop-retry.log`). The canonical runner then executed steps 62–124 in manifest order, all **63/63 green**, exit 0 (`.project-verified-http-remainder.log`), including the workshop test again. No timeout or assertion was weakened. This is explicitly not represented as a single uninterrupted HTTP invocation.
+- Earlier complete HTTP invocation: 124/124 green before the diagnostic-only error-handler correction (`.project-final-http.log`).
+- Customer journeys: **139/139 assertions green**, exit 0 (`.project-journeys.log`).
+- Final live preview restarted on the corrected source. Browser console: no errors.
+
+The source worktree was clean after verification. This evidence-only commit adds no product changes. The project extension remains on its isolated branch for owner review; no merge, installer build, push or publication of this extension occurred.
+
+## COMMS-only correction (2026-09-19)
+
+Supersedes the world-covering project overview described above: user explicitly rejected that placement. Project controls now mount before the existing transcript inside chat-panel. A collapsed project/activity row opens bounded, scrollable crew and activity details. Removed stage attachment and world-hiding body hooks. Backend is unchanged.
+
+Verified live on the isolated preview at port 55715: station visible with controls collapsed and expanded; expanded content capped at 240px; world width remains 434px; composer remains visible; no horizontal overflow; preferred MIRA selection and completed activity result render; switching Launch-Notes and Website-Refresh restores each conversation; browser error log empty. Final preview left on Website-Refresh with controls collapsed.
+
+Checks: project-home-ui passes including new world isolation, transcript placement and collapsed-default assertions; projects-view 78, comms-responsive-text 5, control-floor-theming 181 assertions pass; syntax and diff whitespace checks pass. Source commit 569b7c053, audit 13ed72ebd. Full fast/HTTP receipts above predate this frontend correction; full merge gate has not been rerun for this revision. Project extension remains unmerged and pending UX review.
+
+## Conversation-first polish (2026-09-19)
+
+Supersedes the expandable project row. Project name now uses the existing COMMS title; Crew and Activity actions use the existing identity bar, replacing the group-conversation add control only in project mode. The normal conversation shows compact worker status/result links. Full activity and crew views temporarily replace the transcript, with a Conversation back action; composer and world remain available. Normal Sessions restores the original header and add-agents control. Inline polling only changes announcement text when its value changes.
+
+Live proof on isolated port 55715: preferred MIRA crew saved; result detail opens and returns; composer draft survives inspection; ordinary Sessions restores original controls; mock-provider delegation reached Working then Completed and returned its review to the same conversation. Narrow viewport and 1280x720 desktop had no horizontal overflow. At 1280x720 the world was 507x572, conversation 499x347, composer remained in bounds. Viewport override reset. Browser error log empty. Fixed transcript new-message navigation leaking into activity views. Preview remains on project conversation.
+
+Verification: syntax, whitespace, mirrors and focused project/COMMS/theming tests pass. Full fast manifest covered across two runs: first 292 steps passed in .project-integrated-fast.log; step 293 claims audit failed while late UI fixes changed its source snapshot. Current frozen-source diagnostic returned planning PASS with no reasons. Canonical runner resumed from step 293: .project-integrated-fast-remainder.log reports 540/540 green, exit 0, including claims audit 64 assertions and final project UI test. This is coverage of all 832 cases across runs, not one uninterrupted invocation. Last source 3db4fc67b, audit 884a604af. Backend unchanged; prior HTTP receipt retained. Project extension remains unmerged; UX acceptance and merge evaluation are separate.
+
+## Integration verification — 2026-09-20
+
+Owner approved the glass appearance and requested integration after complete verification. Synced current trunk de7f4456f into the isolated lane by merge, resolving the HTTP manifest as a union and regenerating the surface audit. Application source merged cleanly. Accepted product candidate and final integration: c4d6106fa6cc4fd77d71ee70048d11cdad29e5c4. Shared contracts and credential migration code have no project-lane changes relative to trunk.
+
+Fresh combined pre-integration gates both passed uninterrupted: fast 840/840 (.project-combined-fast.log), HTTP 128/128 (.project-combined-http.log), exit 0. Post-integration fast initially failed the evidence scanner because duplicate backup copies of existing operational notes included historical credential-shaped strings. Integration was rolled back with --keep; original dirty notes were checked byte-for-byte and preserved. Only the two lane-created duplicate backups were removed; no product source changed. Scanner then passed, and the complete clean retry passed fast 840/840 (.project-postmerge-fast-clean.log), exit 0.
+
+Post-integration HTTP passed steps 1–81, then cron.arm.test hit its existing nine-second boot timeout with no output. No test or timeout was changed. Canonical runner retried steps 82–128 against the unchanged candidate: all 47 passed, including cron.arm's 25 assertions and project-workspace restart/isolation coverage (.project-postmerge-http-tail.log), exit 0. This covers all 128 post-integration cases across the initial run and retry, not one uninterrupted post-integration invocation. Exact candidate was fast-forwarded back into trunk after clean verification.
+
+Live combined preview was restarted at port 55715. Existing project transcript, MIRA crew preference and activity persisted. New delegation ran while Launch-Notes was selected; completion left that project and its unsent draft in place. Browser console errors were empty. Earlier final-glass live check verified project control background/border/radius/inset highlight exactly matches existing glass COMMS controls, no horizontal overflow and world/composer visibility. Preview uses the isolated local replay provider; this does not certify every real provider, OS, installed desktop package or future change.
+
+Integration verified within this scope; zero-defect and global READY/PRODUCT PERFECT claims are not made. No installer build, push or publication. Preserve preview worktree and unrelated operational edits. Reservation released when the final receipt is applied to trunk.
