@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "fd526ffbe7f4bcd53578213cba285d07133dff82",
+    "sourceCommit": "2c8804eb0cbc07d9acc980054d9172121f7a6f26",
     "pathSetSha256": "baa6f6ba0fe5da81838a50f09a4c7f97680d5393f0adfd1700be34f4947eafdc",
     "files": [
       {
@@ -1053,8 +1053,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 736123,
-        "sha256": "5649ce6a9970d7746f856734bd10665890088fd92cfec9facfde1f5cdedccff9"
+        "bytes": 736802,
+        "sha256": "d899ece3c34aaca2ed1ffe339780670e52b5d17eacb6a8269b1ab012e8bde8da"
       },
       {
         "path": "frontend/app/study.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 136753,
-        "sha256": "86d2631ccab384445e58f8d3d75e6f7659f1d6254fcaf5a045d8aa440790e997"
+        "bytes": 132229,
+        "sha256": "10c24b617cb5e632b9b5d7acf8a0bb3da91339e99877cf7dcae0ae297dc2eabc"
       },
       {
         "path": "frontend/app/windows/logbook.js",

@@ -39,11 +39,13 @@ function tailLines(deps, file, maxBytes) {
       fd = fs.openSync(file, 'r');
       const size = fs.fstatSync(fd).size;
       const start = size > cap ? size - cap : 0;
+      if (deps.strict && start > 0) throw new Error('spend history truncated by read limit');
       const len = size - start;
       const buf = Buffer.allocUnsafe(len);
       let off = 0;
       while (off < len) {
         const n = fs.readSync(fd, buf, off, len - off, start + off);
+        if (deps.strict && n <= 0 && off < len) throw new Error('incomplete spend history read');
         if (n <= 0) break;
         off += n;
       }
@@ -52,6 +54,7 @@ function tailLines(deps, file, maxBytes) {
       return text.split('\n').filter(Boolean);
     } catch (e) {
       if (e && e.code === 'ENOENT') return [];
+      if (deps.strict) throw e;
       // fall through to the slow path on any other read error
     } finally { if (fd != null) { try { fs.closeSync(fd); } catch (_) {} } }
   }
@@ -59,9 +62,10 @@ function tailLines(deps, file, maxBytes) {
   // Slow path (in-memory fs / no positional read): full read, then tail in memory.
   let raw;
   try { raw = fs.readFileSync(file, 'utf8'); }
-  catch (e) { return []; }
+  catch (e) { if (deps.strict && (!e || e.code !== 'ENOENT')) throw e; return []; }
   if (raw == null) return [];
   let text = String(raw);
+  if (deps.strict && Buffer.byteLength(text, 'utf8') > cap) throw new Error('spend history truncated by read limit');
   if (text.length > cap) { const cut = text.slice(text.length - cap); const nl = cut.indexOf('\n'); text = nl >= 0 ? cut.slice(nl + 1) : ''; }
   return text.split('\n').filter(Boolean);
 }
@@ -74,7 +78,8 @@ function loadBounded(deps, file, maxBytes) {
   const all = prev.concat(cur);
   // keep only the newest lines that fit in the byte budget (cheap char-length proxy for bytes).
   let total = 0, keepFrom = all.length;
-  for (let i = all.length - 1; i >= 0; i--) { total += all[i].length + 1; if (total > cap) break; keepFrom = i; }
+  for (let i = all.length - 1; i >= 0; i--) { total += (deps.strict ? Buffer.byteLength(all[i], 'utf8') : all[i].length) + 1; if (total > cap) break; keepFrom = i; }
+  if (deps.strict && keepFrom > 0) throw new Error('spend history truncated by combined read limit');
   return all.slice(keepFrom);
 }
 

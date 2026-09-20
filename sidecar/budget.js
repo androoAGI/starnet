@@ -74,6 +74,10 @@
     const emitted = new Set();       // `${runId}:${scope}:${level}` already announced — de-dup PER RUN so each run's
                                      // own bus sees the crossing that affects it (cleared per run in clearLive).
 
+    function accounting() {
+      return ledger && typeof ledger.health === 'function' ? ledger.health() : { complete: true, durable: true };
+    }
+    function unknown() { const h = accounting(); return !h.complete || !h.durable; }
     function sumLive() { let t = 0; for (const v of live.values()) t += num(v); return t; }
     // live $ for ONE agent: sum the in-flight runs whose runId maps to that agentId (the calling run included).
     function sumLiveForAgent(agentId) {
@@ -115,6 +119,8 @@
       now = num(now) || clock.now();
       noteLive(runId, spentThisRun);
       if (runId != null && agentId != null && String(agentId) !== '') liveAgentOf.set(String(runId), String(agentId));
+      const governed = ['agent', 'day', 'global'].find(scope => capOf(baseCaps, scope) != null);
+      if (governed && unknown()) return { scope: governed, unknown: true, code: 'spend_history_unavailable' };
       const t = totals(now, agentId);
       const ev = evaluate(baseCaps, t, overrides);
       if (emit) {
@@ -130,12 +136,16 @@
         }
       }
       if (ev.blocked) { const s = ev.scopes[ev.blocked]; return { scope: ev.blocked, usd: s.usd, cap: s.cap }; }
+      if (runId != null && ledger && typeof ledger.beginRun === 'function' && !ledger.beginRun(runId, agentId)) {
+        return { unknown: true, code: 'spend_history_unavailable' };
+      }
       return null;
     }
 
     // one-click resume: grant another `amount` (default = the scope's base cap) of headroom for the rest of the
     // session, and let that scope warn again. Returns the new effective cap (or null if the scope is ungoverned).
     function resume(scope, amount, meta) {
+      if (unknown()) return null;
       if (SCOPES.indexOf(scope) < 0) return null;
       const base = capOf(baseCaps, scope);
       if (base == null) return null;
@@ -164,8 +174,8 @@
     function status(now) {
       now = num(now) || clock.now();
       const t = totals(now);
-      const mk = scope => { const base = capOf(baseCaps, scope); return base == null ? null : { usd: num(t[scope]), cap: base + num(overrides[scope]), base }; };
-      return { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global') };
+      const mk = scope => { const base = capOf(baseCaps, scope); return base == null ? null : { usd: unknown() ? null : num(t[scope]), cap: base + num(overrides[scope]), base }; };
+      return { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global'), accounting: accounting() };
     }
 
     return { check, resume, noteLive, clearLive, setCaps, status, caps() { return Object.assign({}, baseCaps); } };

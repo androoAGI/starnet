@@ -35,37 +35,43 @@
     const clock = opts.clock || { now() { return 0; } };
     const dayMs = opts.dayMs || DAY_MS;
 
-    // in-memory mirror of the on-disk log, loaded once. Append keeps it and disk in lockstep so
-    // queries are O(n) over RAM, never a re-read per question. A corrupt/missing file -> empty (fail-open;
-    // a budget can't read what was never written, so it degrades to "unspent", never crashes a run).
-    //
-    // DELIBERATELY NOT RAM-TRIMMED (unlike runstore/transcript): every query here AGGREGATES over the full
-    // `rows` — totalUsd()/usdForDay()/usdSince()/usdForAgent() sum arbitrary-ts predicate windows, and budget.js
-    // governs day/global spend pools off these sums. Splicing the oldest rows would silently UNDER-COUNT spend
-    // and hand a capped Commander unintended headroom — the exact "app lies about state" failure this hardening
-    // exists to prevent. The boot load is already bounded (readBoundedJsonl caps it at ~LOG_MAX_BYTES of the
-    // newest lines), and in-process growth over a single session is far below that cap, so RAM stays bounded
-    // WITHOUT trimming. If lifetime-accurate totals past the boot cap are ever needed, keep running totals on a
-    // rolled segment — do NOT trim these rows. (Documented in the Phase-5 report + docs/PERSISTENCE_HARDENING.md.)
+    // Keep complete history. Unreadable or truncated history is unknown, never fresh headroom.
+    // Failed writes stay unhealthy until restart reconciles durable settlement receipts.
     let rows = [];
-    try { const raw = io.readAll(); if (Array.isArray(raw)) rows = raw.filter(r => r && typeof r === 'object'); }
-    catch (e) { rows = []; }
+    let readError = null, writeError = null;
+    const pending = new Set();
+    try { const raw = io.readAll(); if (!Array.isArray(raw)) throw new Error('invalid ledger response'); rows = raw.filter(r => r && typeof r === 'object'); }
+    catch (e) { rows = []; readError = String((e && e.code) || 'ledger_read_failed'); }
+
+    function health() { return { complete: !readError, durable: !writeError, readError, writeError }; }
+    function beginRun(runId, agentId) {
+      const id = str(runId);
+      if (!id || pending.has(id) || typeof io.beginRun !== 'function') return true;
+      try { io.beginRun({ runId: id, agentId: str(agentId), ts: clock.now() }); pending.add(id); return true; }
+      catch (e) { writeError = String((e && e.code) || 'ledger_write_failed'); return false; }
+    }
+    function finishRun(entry) {
+      if (typeof io.finishRun !== 'function') return;
+      try { io.finishRun(entry); pending.delete(entry.runId); } catch (_) { /* durable ledger row proves settlement on next boot */ }
+    }
 
     function makeEntry(e) {
       e = e || {};
-      return {
+      const entry = {
         runId: str(e.runId), agentId: str(e.agentId),
         turns: num(e.turns), usd: num(e.usd), tokens: num(e.tokens),
         model: modelName(e.model),
         unmetered: !!e.unmetered,
         ts: num(e.ts) || clock.now()
       };
+      if (typeof opts.nextId === 'function') entry.entryId = str(opts.nextId());
+      return entry;
     }
 
     function record(e) {
       const entry = makeEntry(e);
       rows.push(entry);
-      try { io.append(entry); } catch (_) { /* persistence failure must never crash the run; RAM mirror still answers */ }
+      try { io.append(entry); finishRun(entry); } catch (e) { writeError = String((e && e.code) || 'ledger_write_failed'); }
       return entry;
     }
 
@@ -73,6 +79,7 @@
       const entry = makeEntry(e);
       io.append(entry);
       rows.push(entry);
+      finishRun(entry);
       return entry;
     }
 
@@ -91,6 +98,8 @@
     function sumAll(pred) { let t = 0; for (let i = 0; i < rows.length; i++) if (!pred || pred(rows[i])) t += num(rows[i].usd); return t; }
 
     return {
+      health,
+      beginRun,
       record,
       recordStrict,
       all() { return rows.map(r => Object.assign({}, r)); },

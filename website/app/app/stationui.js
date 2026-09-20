@@ -5342,9 +5342,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const inputOf = k => body.querySelector('#bg-' + k);
     // .msg is red by default; the `ok` modifier turns it gold. So a success passes ok=true, an error passes nothing.
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
+    let loaded = false;
+    const enable = value => { if (saveBtn) saveBtn.disabled = !value; if (resetBtn) resetBtn.disabled = !value; };
+    enable(false);
     // paint the inputs + spend readout + reset visibility from a /api/budget/status payload.
     const paint = (st) => {
-      const caps = (st && st.caps) || {};
+      if (!st || !st.caps || !BG_KEYS.every(k => typeof st.caps[k] === 'number' && Number.isFinite(st.caps[k]) && st.caps[k] >= 0)) throw new Error('invalid budget response');
+      loaded = true; enable(true);
+      const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
       BG_KEYS.forEach(k => {
@@ -5374,7 +5379,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
       const anySaved = BG_KEYS.some(k => Object.prototype.hasOwnProperty.call(saved, k));
       if (resetBtn) resetBtn.style.display = anySaved ? '' : 'none';
-      if (spendEl) {
+      if (spendEl && st.accounting && (!st.accounting.complete || !st.accounting.durable)) {
+        spendEl.textContent = 'Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.';
+      } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
         const runs = (st && typeof st.runs === 'number') ? st.runs : 0;
         spendEl.innerHTML = 'SPENT TODAY <b>' + today + '</b> &nbsp;·&nbsp; LIFETIME <b>' + life + '</b> <span class="dim">(' + runs + ' run' + (runs === 1 ? '' : 's') + ')</span>';
@@ -5417,9 +5424,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
     };
     const refresh = () => Harness.api.get('/api/budget/status').then(paint)
-      .catch(() => { if (spendEl) spendEl.textContent = 'spend unavailable'; });   // never paint an error body as $0 spend
+      .catch(() => { loaded = false; enable(false); if (spendEl) spendEl.textContent = 'spend unavailable'; });   // never paint an error body as $0 spend
     refresh();
     if (saveBtn) saveBtn.addEventListener('click', () => {
+      if (!loaded) return;
       const payload = {};
       for (const k of BG_KEYS) {
         const el = inputOf(k); if (!el) continue;
@@ -5438,6 +5446,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
     });
     if (resetBtn) resetBtn.addEventListener('click', () => {
+      if (!loaded) return;
       // clear every saved override -> each cap falls back to its env default, live.
       const payload = {}; BG_KEYS.forEach(k => { payload[k] = null; });
       setMsg('resetting…');

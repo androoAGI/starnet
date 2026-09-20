@@ -7,8 +7,8 @@ export function coerceTimeoutMs(value, fallback = DEFAULT_TIMEOUT_MS) {
   return Number.isFinite(n) && n > 0 ? Math.max(1000, Math.floor(n)) : fallback;
 }
 
-// Gate runners must allow the complete fast/HTTP 20-minute watchdog plus teardown.
-// Explicit runner overrides retain authority; other npm gates keep 15 minutes.
+// Full fast and HTTP gates have 20-minute child watchdogs. Outer runners allow
+// teardown headroom so they retain the child's final failure receipt.
 export function npmGateTimeoutMs(script, override) {
   return coerceTimeoutMs(override || (script === 'test:http' || script === 'test:fast' ? 1260000 : 900000));
 }

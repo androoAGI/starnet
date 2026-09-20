@@ -1006,6 +1006,10 @@
       // returns a block descriptor when a soft cap is reached (no resume headroom left) -> stop as 'budget'.
       if (budget) {
         const b = budget.check(spentUsd);
+        if (b && b.unknown) {
+          emit('agent.run.error', { agentId, runId, message: 'Spend history is unavailable or not durably saved. Restore the ledger and restart StarNet before continuing with spending limits.', transient: false });
+          return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
+        }
         if (b) return end('budget', { budgetScope: b.scope, budgetCapUsd: b.cap });
       }
       // COMPUTE GATE: a model turn needs a compute capability (a computer in the room).
