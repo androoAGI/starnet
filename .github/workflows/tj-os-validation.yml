@@ -56,7 +56,7 @@ jobs:
           echo "Fast tests: ${{ steps.fast.outcome }}"
           echo "Guardian QA: ${{ steps.guardian.outcome }}"
           echo "Desktop build: ${{ steps.desktop.outcome }}"
-          if [ "${{ steps.fast.outcome }}" != "success" ] ||              [ "${{ steps.guardian.outcome }}" != "success" ] ||              [ "${{ steps.desktop.outcome }}" != "success" ]; then
+          if [ "${{ steps.fast.outcome }}" != "success" ] || [ "${{ steps.guardian.outcome }}" != "success" ] || [ "${{ steps.desktop.outcome }}" != "success" ]; then
             echo "TJ OS validation has one or more failing gates."
             exit 1
           fi
