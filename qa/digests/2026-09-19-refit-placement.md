@@ -14,4 +14,10 @@ Final full `npm run test:fast`: **831/831 PASS**, exit 0, on unchanged candidate
 
 Earlier verification attempts are retained honestly: the first journey attempt hit a refused randomly allocated Windows port; an early gate found the stale source lock and a moving HEAD while proof work was committed; a subsequent audit process exited without an assertion and then passed independently (64 assertions); the continuation found the omitted website copy, which was synchronized before the final complete green gate. Raw logs remain under `.refit-proof/`. No failures were reported by the final 831-step run.
 
-No trunk merge, rebuilt installer, publication or customer-recovery claim. Browser profiles and raw timings remain in the owned `.refit-proof/` directory.
+## Owner-requested merge — 2026-09-20
+
+Integrated into `feat/harness-backend` at **`6d44812e05a9af664c87367e63db7589da4ef274`**. Combined candidate `c9e4399b6` passed full fast **837/837** and HTTP **126/126**. Documentation-only trunk updates were preserved in `724858e17`; application, tests and scripts remained byte-identical to the gated candidate. The integration tree exactly matched that accepted candidate. Existing uncommitted `docs/NEXT.md` and `qa/STATUS.md` edits were preserved byte-for-byte.
+
+Full post-merge `npm run test:fast` passed **837/837**, exit 0, on the immutable integration commit. The combined live campaign finished with 100 props and passed pointer preview/click agreement, ordinary/functional placement, move/rotate/mirror, collision, serialization, undo/redo, mixed floor plus prop changes, airlocks and reopening, with zero ordinary-placement environment bakes and no degraded layers. Raw receipts: `.refit-proof/merge-fast.log`, `merge-http.log`, `post-merge-fast.log`, and `merge-live/receipt.json`.
+
+Merge reservation released after the passing post-merge gate. No rebuilt installer, publication or customer-recovery claim. The isolated preview server was stopped; the owned worktree is retained for raw evidence.
