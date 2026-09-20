@@ -353,7 +353,7 @@ const StationBake = (() => {
                     so it gets its own knob rather than being deleted. Scales ONLY the seam/bevel
                     steps — per-plate tone, material dressing and wear are untouched.
                     0 = a genuinely seamless deck · 1 = the old hard v3 grid. */
-  const DEPTH = { wallShadow: 0.5, sheen: 0.14, cornerAO: 0.55, dither: 0.12, floorWear: 0.55, floorDetail: 1, wallDetail: 1, deckSeam: 0.38, poolAlbedo: 1, edgeAO: 1, southFoot: 0 };   // dither 0.15 was Andrew's 07-13 dial; 0.45 (2026-09-03 overhaul) makes the light read in the same stepped pixel idiom as the geometry now that the pools have real shape
+  const DEPTH = { wallShadow: 0.5, sheen: 0.14, cornerAO: 0.55, dither: 0.12, floorWear: 0.55, floorDetail: 1, wallDetail: 1, deckSeam: 0.38, poolAlbedo: 1, edgeAO: 1, southFoot: 0.22 }; // TJ OS 2.5D: a restrained south-foot contact band grounds the near wall without flattening the floor.   // dither 0.15 was Andrew's 07-13 dial; 0.45 (2026-09-03 overhaul) makes the light read in the same stepped pixel idiom as the geometry now that the pools have real shape
 
   /* ============================ THE EXTERIOR SHELL (HULL SKINS) ============================
      Everything you see of a room from OUTSIDE: the plate surrounding its footprint, the texture
