@@ -148,6 +148,7 @@
     "desktop:stage-frontend": "node scripts/stage-frontend-dist.mjs",
     "desktop:icon": "tauri icon src-tauri/icon-source.png",
     "release:preflight": "node scripts/release-preflight.mjs",
+    "tj-os:verify": "npm run validate:raw && npm run qa:model && npm run qa:guardian && npm run test:fast",
     "release:ritual": "node scripts/release-ritual.mjs",
     "release:ritual:dry": "node scripts/release-ritual.mjs --dry-run",
     "release:bump": "node scripts/release-bump.mjs",
