@@ -83,7 +83,9 @@ A.eq(agent.stats.xp, xpFromRatings, 'a completed run still mints NO XP — S3 ch
 const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
 const iTeam = src.indexOf("teamNote = '\\n\\n[ORCHESTRATION]");
 A.ok(iTeam > 0, 'sidecar/index.js still builds the [ORCHESTRATION] dispatch briefing');
-const teamBlock = src.slice(iTeam, iTeam + 2600);
+const teamEnd = src.indexOf('let skillBlock', iTeam);
+A.ok(teamEnd > iTeam, 'the dispatch briefing has a bounded end before installed skills');
+const teamBlock = src.slice(iTeam, teamEnd);
 A.ok(/ident && ident\.track/.test(teamBlock), 'each crew line reads that specialist\'s published track record');
 A.ok(/track \? ' \[' \+ track \+ '\]' : ''/.test(teamBlock), 'a specialist with no record gets NO bracket (byte-identical to the pre-S3 line)');
 A.ok(/anyTrack \?/.test(teamBlock), 'the explanatory legend appears only when at least one bracket is actually present');

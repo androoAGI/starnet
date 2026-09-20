@@ -12,7 +12,9 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
   const status = async value => {
     const r = await json('GET', '/api/halt');
     assert.equal(r.status, 200);
-    assert.deepEqual(Object.values(r.body.subsystems).map(s => s.halted), [value, value, value]);
+    assert.deepEqual(Object.keys(r.body.subsystems).sort(), ['cron', 'loops', 'nightshift', 'overseer']);
+    assert.deepEqual(Object.values(r.body.subsystems).map(s => s.halted), [value, value, value, value]);
+    assert.equal((await json('GET', '/api/overseer')).body.paused, value, 'coordinator halt matches the existing control');
     for (const route of ['/api/cron', '/api/nightshift/status', '/api/loops']) assert.equal((await json('GET', route)).body.halted, value, route);
   };
   try {
@@ -43,7 +45,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
     await host.restart();
     await status(false);
     // Each failed durable write leaves ONLY that subsystem halted, exposes its failure, and is retryable.
-    for (const [name, file] of [['cron', 'cron.halt.json'], ['nightshift', 'nightshift.state.json'], ['loops', 'loops.halt.json']]) {
+    for (const [name, file] of [['cron', 'cron.halt.json'], ['nightshift', 'nightshift.state.json'], ['loops', 'loops.halt.json'], ['overseer', 'overseer.json']]) {
       await json('POST', '/api/halt', {});
       const target = path.join(host.workspace, file), bytes = fs.readFileSync(target);
       fs.unlinkSync(target); fs.mkdirSync(target);
@@ -53,7 +55,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
         assert.equal(failed.body.ok, false);
         assert.ok(failed.body.errors[name]);
         assert.equal(failed.body.subsystems[name].halted, true);
-        for (const other of ['cron', 'nightshift', 'loops'].filter(k => k !== name)) assert.equal(failed.body.subsystems[other].halted, false);
+        for (const other of ['cron', 'nightshift', 'loops', 'overseer'].filter(k => k !== name)) assert.equal(failed.body.subsystems[other].halted, false);
       } finally { fs.rmdirSync(target); fs.writeFileSync(target, bytes); }
       assert.equal((await json('POST', '/api/halt/resume', { confirm: true })).body.ok, true);
       await status(false);
@@ -68,6 +70,6 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
     const cron = (await json('GET', '/api/cron')).body;
     assert.equal(cron.halted, false);
     assert.ok(cron.health.lastTickAt > 0, 'real scheduler tick resumed');
-    console.log('PASS emergency recovery: stop/restart/resume, three partial failures, permission preservation, real cron tick');
+    console.log('PASS emergency recovery: stop/restart/resume, four partial failures, permission preservation, real cron tick');
   } finally { await host.dispose(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

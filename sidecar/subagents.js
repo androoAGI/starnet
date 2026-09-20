@@ -97,6 +97,7 @@
         id: r.id, leadId: r.leadId, agentId: r.agentId, runId: r.runId, status: r.status, destination: r.destination || '',
         prompt: r.prompt, context: r.context || '', result: r.result || '', reason: r.reason || '', usd: r.usd || 0,
         projectRoot: r.projectRoot || '', workdir: r.workdir || '',
+        parentStreamId: r.parentStreamId || '', streamId: r.streamId || '',
         generation: Math.max(1, Math.floor(Number(r.generation) || 1)),
         resultSchema: r.resultSchema || null, structuredResult: r.structuredResult == null ? null : r.structuredResult,
         validation: r.validation || null, repairRunId: r.repairRunId || '',
@@ -104,6 +105,7 @@
         steerHistory: Array.isArray(r.steerHistory) ? r.steerHistory.slice(-40) : [],
         attempts: r.attempts || 0, startedAt: r.startedAt || 0, updatedAt: r.updatedAt || 0,
         completedAt: r.completedAt || 0, canInterrupt: !!controllers.get(r.id), canResume: !!r.canResume,
+        working: r.status === 'running' && !!controllers.get(r.id) && r.confirmedAt > 0,
         events: Array.isArray(r.events) ? r.events.slice(-50) : []
       };
     }
@@ -201,6 +203,8 @@
         context: String(meta.context != null ? meta.context : ((old && old.context) || '')).slice(0, 8000),
         projectRoot: String(meta.projectRoot != null ? meta.projectRoot : ((old && old.projectRoot) || '')).slice(0, 4096),
         workdir: String(meta.workdir != null ? meta.workdir : ((old && old.workdir) || '')).slice(0, 4096),
+        parentStreamId: String(meta.parentStreamId != null ? meta.parentStreamId : ((old && old.parentStreamId) || '')),
+        streamId: String(meta.streamId != null ? meta.streamId : ((old && old.streamId) || '')),
         status: 'running',
         reason: '',
         result: old && old.result ? old.result : '',
