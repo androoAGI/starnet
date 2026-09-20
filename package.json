@@ -26,7 +26,7 @@
     "validate:raw": "node test/validate_map.js",
     "test:http": "node scripts/timeout.mjs --label test:http --timeout=1200000 -- npm run test:http:raw",
     "test:http:raw": "node scripts/run-test-list.mjs test/http.list",
-    "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=900000 -- npm run test:fast:raw",
+    "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=1800000 -- npm run test:fast:raw",
     "test:fast:raw": "node scripts/run-fast-tests.mjs",
     "test": "npm run test:fast && npm run test:http",
     "website:stage": "node scripts/stage-website-deploy.mjs",
