@@ -17,7 +17,7 @@ const ProjectHome = (() => {
   function setup() {
     if (panel) return;
     panel = el('section', 'project-home'); panel.hidden = true; panel.setAttribute('aria-label', 'Project controls');
-    panel.innerHTML = '<div class="ph-view-head"><button class="btn ph-back">‹ Conversation</button><span class="ph-view-title"></span></div>' +
+    panel.innerHTML = '<div class="ph-view-head"><button class="btn ph-back">‹ Back to chat</button><span class="ph-view-title"></span></div>' +
       '<p class="ph-notice" role="status"></p><section class="ph-crew"><p>Preferred crew <span class="ph-crew-count"></span></p><p class="ph-help">The orchestrator can also bring in other station agents.</p><div class="ph-crew-list"></div><button class="btn ph-save">SAVE CREW</button><span class="ph-crew-note" role="status"></span></section>' +
       '<section class="ph-history"><p class="ph-empty">No delegated work yet.</p><div class="ph-activity"></div></section>';
     document.getElementById('chat-panel').insertBefore(panel, document.getElementById('chat-log'));
@@ -110,6 +110,9 @@ const ProjectHome = (() => {
       if (card.update.textContent !== updateText) card.update.textContent = updateText;
       card.node.dataset.status = worker.status;
       card.prompt.textContent = worker.prompt || '';
+      card.prompt.hidden = String(worker.prompt || '').replace(/\s+/g, ' ').length <= 140;
+      card.update.setAttribute('aria-label', updateText + ': ' + String(worker.prompt || 'Delegated work'));
+      card.update.dataset.status = worker.status;
       card.result.textContent = worker.result || (worker.status === 'running' ? 'Waiting for the agent’s result.' : 'No result was recorded.');
       card.tools.textContent = (worker.tools || []).length ? 'Tools used: ' + worker.tools.join(', ') : '';
       card.artifacts.textContent = (worker.artifacts || []).map(a => typeof a === 'string' ? a : a.path || a.name || a.title || '').filter(Boolean).map(a => 'Output: ' + a).join('\n');
