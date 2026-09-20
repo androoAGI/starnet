@@ -44,6 +44,7 @@ const { makeBrowserTools } = require('./tools/builtin/browser.js');
 const stationWebReader = makeWebReader({ env: process.env });
 const stationWebPoliteness = makePoliteScheduler({ now: () => Date.now() });
 const { makeComputerTools } = require('./tools/builtin/computer.js');
+const { makeCuaComputerTools } = require('./tools/builtin/cua-computer.js');
 const { makeDesktopTools } = require('./tools/builtin/desktop.js');
 const { makeHooks } = require('./hooks.js');                 // the hook spine: pre/post tool + llm, session, compress
 const { makeShellHooks } = require('./shellhooks.js');       // the Commander's shell scripts, on that spine
@@ -4412,6 +4413,12 @@ async function configureConnectorCfg(cfg, options) {
    toggle route refuses it). Same durable sibling-file idiom as connectors/cron (temp->fsync->rename + .bak).
    Lives in the PROTECTED WORKSPACES dir so the agent's own fs.* tools can't reach in and re-grant itself. */
 const TOOLSETS_FILE = path.join(WORKSPACES, 'toolsets.json');
+const computerRuns = new Set();
+const computerControl = require('./computer-control.js').makeComputerControl({
+  root: WORKSPACES, desktopShell: DESKTOP_SHELL,
+  load: file => loadResilient(file, 'computer-control'), save: saveResilient,
+  onChange: () => Promise.all([...computerRuns].map(run => run.close?.()))
+});
 const TOGGLEABLE_CAPS = toggleableCaps(CAP_REGISTRY);   // the only capIds a switch may target
 function loadToolsetState() {
   try {
@@ -9201,6 +9208,8 @@ const ROUTES = [
   { m: 'POST', exact: '/api/config/import', h: handleConfigImport },
   { m: 'POST', exact: '/api/config/reset', h: handleConfigReset },
   { m: 'GET', exact: '/api/runtime/agent', h: handleRuntimeAgent },   // what a LOCAL headless caller needs to drive /api/run (no secrets)
+  { m: 'GET', exact: '/api/computer-control', h: handleComputerControl },
+  { m: 'POST', exact: '/api/computer-control', h: handleComputerControl },
   { m: 'GET', exact: '/api/runtime/knobs', h: handleRuntimeKnobsGet },   // P1-9 advanced knobs
   { m: 'POST', exact: '/api/runtime/knobs', h: handleRuntimeKnobsSet },
   { m: 'POST', exact: '/api/auth/codex/start', h: handleCodexStart },
@@ -10688,6 +10697,18 @@ function handleRuntimeAgent(req, res) {
       agentId, name: (a && a.name) || agentId, model: (a && a.model) || null, provider: (a && a.provider) || null
     }))
   }));
+}
+async function handleComputerControl(req, res) {
+  const json = (code, value) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(value)); };
+  if (req.method === 'GET') return json(200, computerControl.status());
+  let body;
+  try { body = JSON.parse(await readBody(req, 4096)); } catch { return json(400, { error: 'bad json' }); }
+  try {
+    if (body?.action === 'install') return json(200, await computerControl.install({ repair: body.repair === true }));
+    if (body?.action === 'check') return json(200, await computerControl.check());
+    if (body?.action === 'select') return json(200, await computerControl.select(body.backend));
+    return json(400, { error: 'Unknown computer-control action' });
+  } catch (error) { return json(400, { error: error.message, ...computerControl.status() }); }
 }
 async function handleRuntimeKnobsSet(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -15092,8 +15113,7 @@ async function runOnce(o) {
   };
   // The desktop shell is the native host boundary. Only an adapter-minted, locally paired owner DM gets its
   // remote desktop lease; no prompt text, task flag, stored approval, or generic API caller can manufacture it.
-  const remoteDesktopAuthorized = ownerTrusted && DESKTOP_SHELL
-    && /^(1|true|yes|on|win32|windows)$/i.test(String(ENV('COMPUTER_DRIVER') || '').trim());
+  const remoteDesktopAuthorized = ownerTrusted && computerControl.available();
   // Per-agent Full Access is re-read on every authority and consent check. This is load-bearing for a run that
   // is already paused on its first permission card: selecting Full Access must suppress the next call in THIS
   // run, every later run/surface, and every run after restart. None of these switches mints the separate
@@ -15215,6 +15235,7 @@ async function runOnce(o) {
   // Per-run headless CDP session. Kept outside the try so the outer finally always closes it,
   // including provider refusal, abort, timeout, and thrown-tool paths.
   let runBrowser = null;
+  let runComputer = null;
   // Only user-facing callers with a stable conversation key receive the intent layer. Unattended cron/night-shift
   // work has nobody present to answer and therefore remains byte-for-byte on its existing execution path.
   let taskBrief = null;
@@ -15511,7 +15532,22 @@ async function runOnce(o) {
   makeVerifyTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() } }).register(registry);
   // Native driver registration is harmless by itself: the per-run remote-owner lease below is still required
   // at authority, capability, consent, and tool boundaries before any desktop action can reach Windows.
-  makeComputerTools({ allowPhysicalInput: DESKTOP_SHELL, imageWire }).register(registry);
+  if (computerControl.selection() === 'cua') {
+    runComputer = makeCuaComputerTools({
+      allowPhysicalInput: DESKTOP_SHELL, imageWire, signal,
+      binary: computerControl.binary(), isEnabled: () => computerControl.selection() === 'cua' && computerControl.available()
+    });
+  } else {
+    const native = require('./tools/builtin/win32desktop.js').makeWin32DesktopDriver();
+    const guard = fn => async (...args) => {
+      if (!computerControl.available() || computerControl.selection() !== 'win32') throw new Error('Computer backend changed or is unavailable; start a new run');
+      return fn(...args);
+    };
+    runComputer = makeComputerTools({ allowPhysicalInput: DESKTOP_SHELL, imageWire,
+      driver: native ? { perform: guard(native.perform), capture: guard(native.capture) } : undefined });
+  }
+  runComputer.register(registry);
+  computerRuns.add(runComputer);
   // team.dispatch (Stage 2 orchestrator): registered every run but only EXPOSED when an 'orchestrator' object is
   // in the room — conferred ONLY on the lead run (below), so a delegated worker can never re-delegate. It calls
   // THIS SAME runOnce per worker; the roster supplies each worker's composed identity (system prompt + model).
@@ -15848,8 +15884,7 @@ async function runOnce(o) {
   // TOOLSET kill-switch: a family the Commander switched OFF in the TOOLSETS console is dropped here, so the
   // next model turn reflects it live (no restart). compute is never in this set; MCP connectors are projected
   // below and keep their own per-connector enabled flag, so they are unaffected.
-  const nativeDesktopAvailable = DESKTOP_SHELL
-    && /^(1|true|yes|on|win32|windows)$/i.test(String(ENV('COMPUTER_DRIVER') || '').trim());
+  const nativeDesktopAvailable = computerControl.available();
   const realDesktopAuthority = remoteDesktopAuthorized || (unrestrictedHostNow() && nativeDesktopAvailable);
   let resolved = enforceSyntheticOnly(resolveTools(agentId, station, undefined, { disabledCaps: unrestrictedHostNow() ? new Set() : disabledCapsSet() }), realDesktopAuthority);
   if (Array.isArray(o.groupTools)) {
@@ -16716,6 +16751,7 @@ async function runOnce(o) {
   const hasBrowserTestTools = wireNames.indexOf('browser_test_navigate') >= 0;
   const hasNotebookWrite = wireNames.indexOf('notebook_write') >= 0;
   const hasScreenTools = wireNames.indexOf('desktop_open') >= 0 || wireNames.indexOf('computer_use') >= 0;
+  const hasBackgroundComputer = wireNames.indexOf('computer_use') >= 0 && computerControl.selection() === 'cua';
   const hasJukebox = wireNames.indexOf('spotify_play') >= 0;
   // TASK DOCTRINE (2026-07-08, ref-parity): the general operating loop every goliath harness prompt ships and
   // ours didn't — deliverable = proven outcome, quietest-path tool ladder, act→verify→iterate, honest escalation.
@@ -16727,8 +16763,9 @@ async function runOnce(o) {
     + (hasJukebox ? ' (e.g. spotify_play for Spotify)' : '') + ' — try it FIRST even if you are unsure it is connected; '
     + '(2) HEADLESS work' + (hasShellExec ? ' — shell_exec can drive installed apps invisibly (app URI schemes, app CLIs, PowerShell)' : '')
     + (hasBrowserTools ? (hasShellExec ? ', and browser_* handles the web unseen' : ' — browser_* handles the web unseen') : '') + '; '
+    + (hasBackgroundComputer ? 'For native apps, computer_use can discover exact windows and use background accessibility input without bringing them forward. Prefer its fresh element tokens and verify the result. ' : '')
     + (hasScreenTools
-      ? '(3) the VISIBLE screen (desktop_open, computer_use) ONLY when the Commander explicitly asked to see it on their screen or every quieter path failed — and tell them why you escalated. '
+      ? '(3) the VISIBLE screen (desktop_open, ' + (hasBackgroundComputer ? 'computer_use with explicit foreground delivery' : 'computer_use') + ') ONLY when the Commander explicitly asked to see it on their screen or every quieter path failed — and tell them why you escalated. '
       : '')
     + 'If a dedicated tool answers "not connected", immediately continue down this ladder with the next safe, already-authorized route. Do not ask merely because the fallback is louder. Ask only when that next route itself needs Commander authentication, exact consent, or a genuinely material choice. Mention connection setup only if it remains the final blocker after the alternatives are exhausted. '
     + 'After any action that changes the world, VERIFY it took effect with a read-back tool (e.g. now-playing after play, a listing after a write, a probe after a start) before reporting done. '
@@ -17622,6 +17659,8 @@ async function runOnce(o) {
     // A test browser must die with its run. Besides process hygiene, this guarantees that a
     // broken page cannot retain any browser-level state after the task finishes.
     if (runBrowser) { try { await runBrowser.session.close(); } catch (_) {} }
+    if (runComputer?.close) { try { await runComputer.close(); } catch (_) {} }
+    computerRuns.delete(runComputer);
     concurrencyGate.leave(agentId);   // release the admission slot on EVERY exit (normal, early-return, or throw)
     workspaceLease.release(agentId, runId);   // free (or withdraw the queued wait for) this run's workspace lease — same guarantee
 
