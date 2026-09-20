@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "569b7c05339ed780111608d404bc2a2019530831",
+    "sourceCommit": "1fd6c9f8de674217cd91f6ca789f8dd9e30f3bd5",
     "pathSetSha256": "624df0d0e5b2511e74e175d045f26a8fd916195933e6750693b47d486e2e7b31",
     "files": [
       {
@@ -723,8 +723,8 @@
       },
       {
         "path": "frontend/app/project-home.js",
-        "bytes": 10655,
-        "sha256": "3072f12a54cdf207a3b71920215c383ade078eb45f4b7d35be62fd3804f6a248"
+        "bytes": 12480,
+        "sha256": "fb81d644a6fd0e8afac10135029d242d91001f4072bfa1eaf5214c76b855a967"
       },
       {
         "path": "frontend/app/projection-audit-panel.js",
@@ -1448,8 +1448,8 @@
       },
       {
         "path": "frontend/css/project-home.css",
-        "bytes": 3115,
-        "sha256": "8f3ed012baf4c54ec73e46a804660af8d3e995f33215baea60ad6e8ec4beba2b"
+        "bytes": 3762,
+        "sha256": "cc2af7377cb9d94334b646d181cf94e3db3ddc0cc558b1a27d54e9ee0266b82e"
       },
       {
         "path": "frontend/css/quests.css",
@@ -1583,8 +1583,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86453,
-        "sha256": "63fcf2d0ed605570f3a5f1e56b142f7c4006906c513c1f470239c22048c9c053"
+        "bytes": 86483,
+        "sha256": "7d746ab84da172fc1adca5cedec6ca954a74c9f2028f62952e3a5ad8813d76dd"
       },
       {
         "path": "frontend/js/arcade.js",
