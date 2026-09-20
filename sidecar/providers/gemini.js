@@ -319,7 +319,7 @@
       let res;
       try { res = await requestWithRetry(req.model, body, req.signal); }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, firstByteMs: timeouts.firstByteMs() });
       const dec = new TextDecoder();
       let buf = '';
       const toolIndexOf = new Map();

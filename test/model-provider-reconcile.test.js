@@ -147,7 +147,7 @@ module.exports = (async () => {
     A.eq(seeded.applied.length, 0, provider + ' fallback never persists a cleared choice');
     A.ok(seeded.rows.some(m => m.id === 'offline-seed' && m.fallback), provider + ' preserves fallback provenance for display');
     const confirmed = await scenario('removed-model', [], null, null, { provider });
-    A.eq(confirmed.model, '', provider + ' confirmed empty catalog still clears a removed model');
+    A.eq(confirmed.model, provider === 'custom' ? 'removed-model' : '', provider + ' confirmed catalog preserves custom deployment IDs only');
   }
   await overlappingCatalogs();
   A.report('model-provider-reconcile.test');

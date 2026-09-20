@@ -810,6 +810,7 @@ body.crt-dull #chat-log, body.crt-dull .term-body, body.crt-dull #left, body.crt
 .term-body {
   padding: var(--s-3) var(--s-4); overflow-y: auto; position: relative; z-index: 5;
   flex: 1 1 auto; min-height: 0;
+  overflow-anchor: none;
   scrollbar-width: thin; scrollbar-color: var(--ph) transparent;
 }
 .term-body::-webkit-scrollbar { width: 6px; }

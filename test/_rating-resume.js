@@ -6,7 +6,8 @@ const vm = require('node:vm');
 const A = require('./_assert.js');
 module.exports = function resumeRatingFixture(saved) {
   const source = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
-  const body = A.fnBody(source, 'function resumeInto(');
+  const body = ['normalizeProviderId', 'savedProviderId', 'restoreSavedProvider', 'resumeInto']
+    .map(name => A.fnBody(source, 'function ' + name + '(')).join('\n');
   const agents = new Map();
   const noop = () => {};
   const context = {

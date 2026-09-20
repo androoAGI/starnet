@@ -72,7 +72,7 @@
 
   /* ---- autoplay: browsers block audio until a gesture, so arm on first input ---- */
   function arm() {
-    ['pointerdown', 'keydown', 'touchstart'].forEach(e => { try { window.removeEventListener(e, arm); } catch (_) { } });
+    // Keep a cheap gesture hook so audio resumes after sleep/device interruption too.
     SFX.boot();
   }
 

@@ -186,11 +186,12 @@
     let token = opts.token || '';   // mutable: a 401-triggered renew swaps in the fresh access_token
     const renew = (typeof opts.renewToken === 'function') ? opts.renewToken : null;
     const baseUrl = (opts.baseUrl || BASE).replace(/\/$/, '');
-    const reasoningEffort = normalizeCodexReasoningEffort(opts.reasoningEffort || DEFAULT_REASONING_EFFORT);
+    const normalizeEffort = typeof opts.normalizeReasoningEffort === 'function' ? opts.normalizeReasoningEffort : normalizeCodexReasoningEffort;
+    const reasoningEffort = normalizeEffort(opts.reasoningEffort || DEFAULT_REASONING_EFFORT);
 
     function buildBody(req) {
       const { instructions, rest } = extractInstructions(req.messages || []);
-      const effort = normalizeCodexReasoningEffort(req.reasoningEffort || reasoningEffort);
+      const effort = normalizeEffort(req.reasoningEffort || reasoningEffort);
       const body = {
         model: req.model || DEFAULT_MODEL,
         instructions: instructions || 'You are a helpful assistant.',
@@ -211,7 +212,7 @@
       let res;
       try { res = await requestWithRetry(body, req.signal); }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, firstByteMs: timeouts.firstByteMs() });
       const dec = new TextDecoder();
       let buf = '';
 

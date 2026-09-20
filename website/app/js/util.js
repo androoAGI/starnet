@@ -167,9 +167,9 @@ const SFX = {
   },
 
   boot() {
-    if (SFX.ctx) { try { if (SFX.ctx.state === 'suspended') SFX.ctx.resume(); } catch (e) { } return; }
+    if (SFX.ctx) { try { if (['suspended', 'interrupted'].includes(SFX.ctx.state)) SFX.ctx.resume().catch(() => {}); } catch (e) { } return; }
     try {
-      const c = new (window.AudioContext || window.webkitAudioContext)();
+      const c = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
       // master chain: gain -> gentle high-shelf cut (tames harsh harmonics) -> soft limiter -> out
       const master = c.createGain(); master.gain.value = 0.9;
       const tame = c.createBiquadFilter(); tame.type = 'highshelf'; tame.frequency.value = 5400; tame.gain.value = -9;
@@ -457,6 +457,7 @@ const SFX = {
     g.gain.setValueAtTime(Math.max(0.0002, v), t0 + a + h);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + a + h + r);
     osc.connect(g); g.connect(out);
+    osc.onended = () => { osc.disconnect(); g.disconnect(); };
     osc.start(t0); osc.stop(t0 + a + h + r + 0.05);
   },
   // a sharp filtered-noise INHALE — the newborn's first pull of air (uses the shared noise buffer).

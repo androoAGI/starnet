@@ -121,6 +121,7 @@ function fakeStack(tools) {
   A.ok(/cached:\s*\['var\(--gold\)', '◐ idle · starts on use'\]/.test(station),
     'cached stdio schemas render as idle/starts-on-use, never falsely connected or disabled');
   const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'app.css'), 'utf8');
+  const shellCss = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'style.css'), 'utf8');
   const idx = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'index.html'), 'utf8');
 
   // the panel is still reachable + Spotify (the pre-existing card) is untouched
@@ -215,6 +216,14 @@ function fakeStack(tools) {
   // the popup itself lives in the shared openSignIn helper, which stayed in stationui.js core (settings re-sign-in shares it)
   const stationCore = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
   A.ok(/openSignIn\(/.test(station) && /window\.open\(/.test(stationCore), 'sign-in opens the provider consent in a popup (via the shared openSignIn helper)');
+  A.ok(/function preserveScroll\(update\)/.test(stationCore) && /\.term-body, \.con-pane/.test(stationCore),
+    'shared async connector refreshes preserve the active pane scroll position');
+  A.ok(/focus\(\{ preventScroll: true \}\)/.test(stationCore) && !/setTimeout\(restore, 80\)/.test(stationCore),
+    'background pane rebuilds restore focus without stealing scroll and do not replay stale scroll coordinates after user input');
+  A.ok(/preserveScroll\(\(\) =>/.test(station) && /preserveScroll\(\(\) =>/.test(webStation),
+    'every connector build, including the mirrored web build, uses the shared preservation seam');
+  A.ok(/overflow-anchor:\s*none/.test(css) && /overflow-anchor:\s*none/.test(shellCss),
+    'browser scroll anchoring is disabled on the rebuilt panes so async rows cannot fight the user scroll');
   A.ok(/ccPending/.test(station), 'sign-in has a per-connector in-flight guard (no duplicate popups / concurrent pollers)');
   A.ok(/e\.authType === 'oauth'/.test(station), 'the UI gates on the authType tier from the catalog');
   const sidecar = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');

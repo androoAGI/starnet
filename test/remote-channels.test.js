@@ -1,0 +1,28 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const makeRemoteChannels = require('../frontend/app/remote-channels');
+const channelsPath = require.resolve('../frontend/app/channels');
+test('reopened COMMS follows server tokens, approvals and stop IDs without duplicating a local viewer', () => {
+  delete require.cache[channelsPath]; const channels = require(channelsPath);
+  let local = false, done = 0, time = 10;
+  const mirror = makeRemoteChannels({ channels, locallyDriven: () => local, changed() {}, settled: () => done++, now: () => time });
+  const p = { remoteStreamId: 'session', remoteLeadRunId: 'run', runId: 'run' };
+  mirror.snapshot({ ts: 10, runs: [{ streamId: 'session', runId: 'run', startedAt: 5 }], prompts: [] });
+  assert.equal(channels.runIdOf('session'), 'run'); assert.equal(channels.isBusy('session'), true);
+  mirror.event('agent.token', { ...p, delta: 'Live' });
+  assert.equal(channels.snapshot('session').acc, 'Live');
+  local = true; mirror.event('agent.token', { ...p, delta: 'duplicate' }); local = false;
+  assert.equal(channels.snapshot('session').acc, 'Live');
+  mirror.event('agent.token', { ...p, runId: 'child', delta: 'wrong speaker' });
+  assert.equal(channels.snapshot('session').acc, 'Live');
+  mirror.event('permission.prompt', { ...p, promptId: 'permit', tool: 'shell.exec' });
+  assert.equal(channels.pendingOf('session').promptId, 'permit');
+  time = 20; mirror.event('agent.run.end', p);
+  assert.equal(channels.isBusy('session'), false); assert.equal(done, 1);
+  mirror.snapshot({ ts: 15, runs: [{ streamId: 'session', runId: 'run' }] });
+  assert.equal(channels.isBusy('session'), false, 'an older snapshot cannot resurrect an ended run');
+  mirror.snapshot({ ts: 30, runs: [{ streamId: 'session', runId: 'next' }] });
+  assert.equal(channels.runIdOf('session'), 'next');
+  mirror.snapshot({ ts: 40, runs: [] }); assert.equal(channels.isBusy('session'), false);
+});

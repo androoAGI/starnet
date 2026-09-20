@@ -48,8 +48,9 @@ pub(crate) fn connector_encryption_key() -> Result<String, String> {
 fn valid_connector_key(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|c| c.is_ascii_hexdigit())
 }
-pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
+pub(crate) const KEYCHAIN_PROVIDERS: [&str; 14] = [
     "openrouter",
+    "gateway",
     "openai",
     "anthropic",
     "gemini",
@@ -71,7 +72,8 @@ pub(crate) const SIDECAR_CHANNEL_TOKEN_ENVS: [(&str, &str); 2] = [
     ("discord", "SKYNET_DISCORD_TOKEN"),
 ];
 
-pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
+pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 13] = [
+    ("gateway", "SKYNET_GATEWAY_KEY"),
     ("openai", "SKYNET_OPENAI_API_KEY"),
     ("anthropic", "SKYNET_ANTHROPIC_API_KEY"),
     ("gemini", "SKYNET_GEMINI_API_KEY"),
@@ -88,6 +90,7 @@ pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
 
 pub(crate) fn normalize_provider(provider: &str) -> &'static str {
     match provider.trim().to_ascii_lowercase().as_str() {
+        "gateway" | "levserver" => "gateway",
         "codex" | "openai-codex" => "codex",
         "openai" | "openai-api" => "openai",
         "anthropic" | "claude" => "anthropic",
@@ -462,6 +465,8 @@ mod tests {
     #[test]
     fn provider_aliases_normalize_to_runtime_ids() {
         let cases = [
+            ("gateway", "gateway"),
+            ("levserver", "gateway"),
             (" OpenAI-API ", "openai"),
             ("claude", "anthropic"),
             ("google-gemini", "gemini"),
@@ -480,6 +485,8 @@ mod tests {
 
     #[test]
     fn keychain_accounts_preserve_legacy_openrouter_slot() {
+        assert_eq!(keychain_account_for("gateway"), "provider:gateway");
+        assert!(SIDECAR_PROVIDER_KEY_ENVS.contains(&("gateway", "SKYNET_GATEWAY_KEY")));
         assert_eq!(keychain_account_for("openrouter"), "openrouter");
         assert_eq!(keychain_account_for("unknown"), "openrouter");
         assert_eq!(keychain_account_for("openai-api"), "provider:openai");

@@ -58,7 +58,11 @@
 .settings-console .key-row { padding: 14px; gap: 12px; border-radius: 9px; border-color: rgba(var(--ph-rgb), .2); box-shadow: none; }
 .settings-console .key-prov { font-size: 16px; }
 .settings-console .key-meta { font-size: 13px; line-height: 1.5; }
+.settings-console .key-mask { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.settings-console .key-meta { overflow-wrap: anywhere; }
 .settings-console .key-acts { display: flex; flex-wrap: wrap; gap: 7px; }
+/* Include the async account paragraph's margins in its reserved height. */
+.settings-console #credits-store { display: flow-root; }
 .settings-console .ns-grid { gap: 12px; }
 .settings-console .ns-cell { border-radius: 9px; padding: 14px; border-color: rgba(var(--ph-rgb), .16); background: rgba(0,0,0,.1); }
 .settings-console .ns-k { font-size: 12px; margin-bottom: 7px; }
@@ -134,5 +138,11 @@
   .settings-console .settings-group { padding:14px; }
   .settings-console :is(#budget-form,#tm-form,#adv-form) > .set-row { grid-template-columns:minmax(0,1fr); gap:6px; }
   .settings-console .set-slider { grid-template-columns:82px minmax(0,1fr) 40px; gap:8px; }
+}
+@container settings-pane (max-width:480px) {
+  .settings-console .key-row { display: grid; grid-template-columns: 9px minmax(0,1fr); align-items: start; }
+  .settings-console .key-row > .conn-dot { margin-top: 6px; }
+  .settings-console .key-acts { grid-column: 2; flex-direction: row; }
+  .settings-console .key-acts .bb { flex: 1 1 auto; white-space: normal; }
 }
 @media(prefers-reduced-motion:reduce) { .settings-console .prov-card[data-provider="starnet"]::before { animation:none; } }

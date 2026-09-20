@@ -7062,7 +7062,28 @@ const Chat = (() => {
   // /goal <text>            — set + kick off an autonomous loop toward <text> on this stream
   // /goal (or /goal status)  — show the loop status
   // /goal pause|resume|clear — control it
+  async function remoteGoalCommand(kind, args) {
+    if (!activeWs) return localLine('Open a session first.');
+    const streamId = activeWs.id, text = String(args || '').trim();
+    try {
+      if (!text || text.toLowerCase() === 'status') {
+        const r = await fetch('/api/remote/goals', { cache: 'no-store' });
+        if (!r.ok) throw new Error('Could not read the server goal');
+        const j = await r.json(), row = (j.goals || []).find(g => g.streamId === streamId);
+        return localLine(GoalLoop.statusLine(row?.goal));
+      }
+      App.persist();
+      const saved = await CloudSave.flushForUpdate();
+      if (!saved.ok) throw new Error('Wait for this session to finish saving before changing its goal');
+      const r = await fetch('/api/remote/goals', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamId, kind, text, requestId: crypto.randomUUID() }) });
+      const result = await r.json();
+      if (!r.ok) throw new Error(result.error || 'The server refused this goal');
+      localLine(GoalLoop.statusLine(result.goal?.goal) + ' · managed by your gateway');
+    } catch (e) { localLine(e.message); }
+  }
   function goalCommand(args) {
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__) return remoteGoalCommand('goal', args);
     const raw = String(args || '').trim();
     const low = raw.toLowerCase();
     if (typeof GoalLoop === 'undefined') return localLine('The goal loop is not available in this build.');
@@ -7095,6 +7116,7 @@ const Chat = (() => {
   // /subgoal <text>          — append a criterion the loop must ALSO satisfy before it's done
   // /subgoal (bare)          — list the criteria; /subgoal clear wipes them
   function subgoalCommand(args) {
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__) return remoteGoalCommand('subgoal', args);
     const raw = String(args || '').trim();
     const low = raw.toLowerCase();
     if (typeof GoalLoop === 'undefined') return localLine('The goal loop is not available in this build.');
@@ -7133,6 +7155,7 @@ const Chat = (() => {
   // Called after a set/resume and after each judged turn. Idempotent + safe when there's no active loop.
   const goalRetry = new Set();   // wsIds with a blocked-moment retry armed (one pending re-check per stream, never stacked)
   function kickGoal(ws) {
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__) return;
     const s = goalOf(ws);
     if (!s || !GoalLoop.isActive(s)) return;
     if (!isActiveWs(ws)) return;                 // the continuation drives the DISPLAYED stream (send()'s DOM writes)
@@ -7152,6 +7175,7 @@ const Chat = (() => {
   // PREEMPTS: it pauses the loop for this turn (their message wins) — we don't judge, we don't queue. reply is the
   // agent's last assistant text (what the judge evaluates).
   async function judgeGoalTurn(ws, reply, wasContinuation) {
+    if (typeof window !== 'undefined' && window.__STARNET_REMOTE__) return;
     const s = goalOf(ws);
     if (!s || !GoalLoop.isActive(s)) return;
     // a REAL user message mid-loop preempts: pause, judge nothing, queue nothing (they took over). Checked BEFORE
@@ -9123,11 +9147,33 @@ const Chat = (() => {
       && Channels.isBusy(activeWs.id) && Channels.runIdOf(activeWs.id) === origin.runId
       && !(input && input.value.trim()) && !pendingAtts.length;
   }
+  // A remote refresh is display-only. Never launch queued work or a goal as a
+  // side effect of receiving a newer server save, and never replace a draft.
+  function canRefreshRemote() {
+    return !(input && input.value.trim()) && !pendingAtts.length && !liveVoiceCall()
+      && !(activeWs && (Channels.isBusy(activeWs.id) || activeWs.conversationMode === 'group'));
+  }
+  function ownsRemoteTransport(id) { return aborters.has(id); }
+  function renderRemoteActivity() {
+    if (!activeWs || ownsRemoteTransport(activeWs.id) || activeWs.conversationMode === 'group') return;
+    if (log) log.innerHTML = '';
+    renderHistory(); replayChannel(); syncStatus();
+  }
+  function refreshRemoteTranscript() {
+    if (canRefreshRemote() && activeWs) return reconcileServerHistory(activeWs, historyPinPending);
+  }
+  function refreshRemoteHistory(ws) {
+    if (!canRefreshRemote()) return;
+    activeWs = ws;
+    if (log) log.innerHTML = '';
+    renderHistory(); replayChannel(); syncStatus(); renderIdBar();
+    reconcileServerHistory(ws, historyPinPending);
+  }
   // Read-only run metadata for advice stores and task attribution.
   function runMeta(id) { return (id && RUN_META.has(id)) ? RUN_META.get(id) : null; }
   // read-only: did this run do REAL work (>=1 successful tool call OR >=1 delivered product)? The same "real work
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
+  return { ownsRemoteTransport, renderRemoteActivity, canRefreshRemote, refreshRemoteTranscript, refreshRemoteHistory, init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
 })();

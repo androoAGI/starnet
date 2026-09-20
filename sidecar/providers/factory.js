@@ -11,14 +11,15 @@
       require('./openai-compatible.js'),
       require('./anthropic.js'),
       require('./gemini.js'),
-      require('./registry.js')
+      require('./registry.js'),
+      require('./responses-gateway.js')
     );
   } else {
     root.SK = root.SK || {};
     root.SK.providers = root.SK.providers || {};
     root.SK.providers.factory = factory(root.SK.providers.openrouter, root.SK.providers.codex, root.SK.providers.openaiCompatible, root.SK.providers.anthropic, root.SK.providers.gemini, root.SK.providers.registry);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (openrouter, codex, openaiCompatible, anthropic, gemini, registry) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (openrouter, codex, openaiCompatible, anthropic, gemini, registry, gateway) {
   'use strict';
 
   const PROVIDER_IDS = registry.providerIds();
@@ -98,6 +99,7 @@
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));
     if (rateLimits && typeof opts.fetch === 'function') opts = Object.assign({}, opts, { fetch: rateLimits.wrapFetch(id, opts.fetch) });
+    if (profile.adapter === 'responses-gateway') return gateway.makeResponsesGatewayProvider({ ...opts, baseUrl: opts.baseUrl || profile.baseUrl });
 
     if (profile.adapter === 'codex') {
       return codex.makeCodexProvider({

@@ -12,6 +12,9 @@ const SHIPPED_INPUTS: &[&str] = &[
     "frontend-dist",
     "../sidecar",
     "../shared",
+    "../remote",
+    "remote-deps",
+    "tauri.macos.conf.json",
     "src",
     "capabilities",
     "icons",
@@ -31,7 +34,7 @@ const SHIPPED_INPUTS: &[&str] = &[
 // roots whose Git-owned contents are packaged; include untracked additions when deciding whether
 // the source identity is dirty. Gitignored generated inputs (notably binaries/) remain governed by
 // the artifact hash rather than making every normal release build dirty.
-const SHIPPED_GIT_ROOTS: &[&str] = &["frontend", "sidecar", "shared", "src-tauri"];
+const SHIPPED_GIT_ROOTS: &[&str] = &["frontend", "sidecar", "shared", "remote", "src-tauri"];
 
 /// P1.5 (UPDATE_STATE_SAFETY_AUDIT): embed the git commit + dirty state at COMPILE TIME so every binary can say
 /// exactly which source it was built from. `git describe --always --dirty` yields e.g. `c160d905` (clean) or

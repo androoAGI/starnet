@@ -1130,7 +1130,7 @@
         let decision = providerRecovery({
           classification: cls, canCompress: !!(context && summarize), hasFallback: fbIndex < fallbacks.length,
           recoveriesUsed: recoveries, maxRecoveries, retriesUsed, maxRetries: MAX_STREAM_RETRIES,
-          preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, cancelled: !!signal.aborted
+          preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, firstByteTimeout: !!streamErr.firstByte, cancelled: !!signal.aborted
         });
         if (decision.action === 'compress') {
           // context_overflow: fold older turns away, then retry the turn. Only counts as recovery if it shrank.
@@ -1143,7 +1143,7 @@
           decision = providerRecovery({
             classification: cls, canCompress: false, hasFallback: fbIndex < fallbacks.length,
             recoveriesUsed: recoveries, maxRecoveries, retriesUsed, maxRetries: MAX_STREAM_RETRIES,
-            preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, cancelled: !!signal.aborted
+            preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, firstByteTimeout: !!streamErr.firstByte, cancelled: !!signal.aborted
           });
         }
         if (decision.action === 'fallback') {
@@ -1195,7 +1195,7 @@
           decision = providerRecovery({
             classification: cls, canCompress: false, hasFallback: false,
             recoveriesUsed: recoveries, maxRecoveries, retriesUsed, maxRetries: MAX_STREAM_RETRIES,
-            preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, cancelled: !!signal.aborted
+            preStreamRetriesExhausted: !!streamErr.preStreamRetriesExhausted, firstByteTimeout: !!streamErr.firstByte, cancelled: !!signal.aborted
           });
         }
         // A2: bounded SAME-provider retry for a retryable class that has no failover to take (e.g. `timeout`,
@@ -1220,7 +1220,9 @@
           if (signal.aborted) break;   // a cancel during the backoff ends cleanly below
           continue;
         }
-        fatal = cls;                                 // unrecoverable / chain exhausted / retries spent
+        fatal = decision.reason === 'provider_first_byte_timeout'
+          ? Object.assign({}, cls, { reason: decision.reason, retryable: false, message: 'the model provider accepted the request but did not start streaming a response — it may be out of usage or unavailable' })
+          : cls;                                     // unrecoverable / chain exhausted / retries spent
         break;
       }
       if (fatal) {

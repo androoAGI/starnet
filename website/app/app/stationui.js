@@ -186,6 +186,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       return false;
     }
   }
+  // A periodic whole-screen dim reads as a lost remote connection. Adopt the calm
+  // remote default once; the existing Appearance toggle remains an explicit opt-in.
+  if (window.__STARNET_REMOTE__ && store.settings.remoteDisplayVersion !== 1) {
+    store.settings.flicker = false;
+    store.settings.remoteDisplayVersion = 1;
+    save();
+  }
   const uid = p => p + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 
   // brief "✓ saved" flash for an instant-save section (theme/appearance/notifications) so every section answers
@@ -1140,14 +1147,43 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (r.checked != null) el.checked = r.checked;
           else if (r.value != null && el.value !== r.value) el.value = r.value;
           if (r.dirty != null && el.dataset) el.dataset.dirty = r.dirty;
-          if (r.focused) { el.focus(); if (r.selS != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(r.selS, r.selE == null ? r.selS : r.selE); }
+          if (r.focused) {
+            try { el.focus({ preventScroll: true }); }
+            catch (_) { try { el.focus(); } catch (_) {} }
+            if (r.selS != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(r.selS, r.selE == null ? r.selS : r.selE);
+          }
         } catch (_) { /* a rebuilt control that refuses restore is no worse than the old wipe */ }
+      }
+    };
+    const captureScroll = () => {
+      const rows = [];
+      for (const el of [body, ...body.querySelectorAll(key === 'settings' ? '.con-pane, .con-rail-list' : '*')]) {
+        if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) continue;
+        rows.push({ root: el === body, path: el === body ? null : ctrlPath(el), top: el.scrollTop, left: el.scrollLeft });
+      }
+      return rows;
+    };
+    const restoreScroll = (rows) => {
+      for (const r of rows || []) {
+        let el = r.root ? body : null;
+        if (!el) { try { el = ctrlFind(r.path); } catch (_) {} }
+        if (el) { el.scrollTop = r.top; el.scrollLeft = r.left; }
       }
     };
     w._render = (swap) => {
       const keep = swap === false ? captureForms() : null;   // background poke: preserve what the Commander typed
+      const keepScroll = swap === false ? captureScroll() : null;
+      // Account content is asynchronous. Replacing a tall result with its short loading
+      // placeholder clamps scrollTop before it can be restored, even within one frame.
+      const creditHeight = swap === false ? body.querySelector('#credits-store')?.offsetHeight : 0;
+      const disclosures = swap === false ? Array.from(body.querySelectorAll('details, .key-edit[id]'), el => ({ path: ctrlPath(el), hidden: el.hidden, open: el.open })) : [];
+      body.classList.toggle('term-live-refresh', swap === false);
       builder(body);
+      const creditHost = body.querySelector('#credits-store');
+      if (creditHost && creditHeight) creditHost.style.minHeight = creditHeight + 'px';
+      for (const row of disclosures) { const el = ctrlFind(row.path); if (el) { el.hidden = row.hidden; if (row.open != null) el.open = row.open; } }
       if (keep && keep.length) restoreForms(keep);
+      restoreScroll(keepScroll);
       // tab/section crossfade: fade the freshly-injected body in on RE-renders (tab swaps,
       // live refreshes) — not on the initial mount, which already plays the CRT power-on.
       if (swap) {
@@ -1174,7 +1210,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      panel the Commander is reading. */
   // swap=false → no crossfade AND form-state preservation: a background DATA poke repaints in place with
   // every in-progress field value, focus and selection carried across the rebuild (see w._render).
-  function rerender(key, swap) { if (open[key]) open[key]._render(swap !== false); }
+  function rerender(key, swap) { if (open[key]) open[key]._render(swap == null ? key !== 'settings' : swap !== false); }
   function syncBB() {
     document.querySelectorAll('.bb[data-term]').forEach(b => b.classList.toggle('active', !!open[b.dataset.term]));
   }
@@ -4101,6 +4137,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      the real Harness store; nothing here is simulated. Secrets are shown MASKED only — the
      full key is never written into the DOM (truthful-telemetry + don't-leak-the-key). */
   const PROVIDERS = [
+    { id: 'gateway', name: 'GATEWAY', endpoint: 'private model gateway', blurb: 'server-held credentials', live: true },
     // STARNET MANAGED is the one provider with no credential to paste and no account to sign into here: it
     // runs on the credits balance a linked station already has. It is also the one provider that must be able
     // to DISAPPEAR — see creditsProviderState() — because offering it on a station with no cloud configured
@@ -4209,7 +4246,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function scheduleSettingsRepaint() {
     if (settingsRepaintQueued || !open.settings) return;
     settingsRepaintQueued = true;
-    setTimeout(() => { settingsRepaintQueued = false; if (open.settings) rerender('settings'); }, SETTINGS_REPAINT_COALESCE_MS);
+    setTimeout(() => { settingsRepaintQueued = false; if (open.settings) rerender('settings', false); }, SETTINGS_REPAINT_COALESCE_MS);
   }
 
   // the REAL connected providers: OpenRouter from the BYOK store, Codex from sidecar OAuth status.
@@ -4302,6 +4339,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // honest one-liner for where a just-saved key was stored. Falls back to the neutral "on this machine" until the
   // probe answers, so we never assert keychain-vs-browser before we actually know it.
   function keyStoreClause() {
+    if (window.__STARNET_REMOTE__) return 'stored securely on your server';
     if (keychainModeKnown === true) return 'stored in your OS keychain';
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
@@ -4317,10 +4355,26 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       .catch(() => { providerHealth[provider] = null; })
       .finally(() => {
         delete providerProbePending[provider];
-        // Repaint only while Settings is still open. The cache prevents this repaint from starting a probe loop,
-        // and the coalescer folds several providers' probes finishing together into a single rebuild.
-        scheduleSettingsRepaint();
+        // A health reply changes labels, not the settings form. Keep the pane and its controls alive:
+        // rebuilding them reissues every settings request and destroys open editors while the user scrolls.
+        paintProviderHealth();
       });
+  }
+  function paintProviderHealth() {
+    const win = open.settings;
+    if (!win) return;
+    const template = document.createElement('div');
+    template.innerHTML = providersHtml();
+    preserveScroll(() => {
+      for (const fresh of template.querySelectorAll('.prov-card[data-provider]')) {
+        const card = win.querySelector('.prov-card[data-provider="' + fresh.dataset.provider + '"]');
+        if (!card) continue;
+        for (const selector of ['.prov-stat', '.prov-name']) {
+          const current = card.querySelector(selector), next = fresh.querySelector(selector);
+          if (current && next && current.innerHTML !== next.innerHTML) current.innerHTML = next.innerHTML;
+        }
+      }
+    });
   }
   function queueProviderHealthRefresh() {
     const h = H(); if (!h) return;
@@ -4446,6 +4500,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         (wantsOAuthSignin ? '<button class="bb sm prov-addkey" data-act="prov-oauth-signin" data-provider="' + esc(p.id) + '" aria-label="Sign in to ' + esc(p.name) + '" title="device-code sign-in — no API key needed">⏼ SIGN IN</button>' : '') +
         (wantsInline
           ? '<div class="key-edit prov-key-edit" id="prov-key-edit-' + esc(p.id) + '" hidden>' +
+            (p.id === 'custom' && !endpointConfigured
+              ? '<input type="url" class="key-input base-input" id="prov-base-in-custom" placeholder="https://api.z.ai/api/coding/paas/v4" aria-label="Custom OpenAI-compatible base URL" autocomplete="url" spellcheck="false">' +
+                '<span class="dim prov-base-hint">z.ai Coding Plan: https://api.z.ai/api/coding/paas/v4</span>'
+              : '') +
             '<input type="password" class="key-input" id="prov-key-in-' + esc(p.id) + '" placeholder="paste ' + esc(p.name) + ' key…" autocomplete="off" spellcheck="false">' +
             '<button class="bb sm" data-act="prov-add-save" data-provider="' + esc(p.id) + '">SAVE</button>' +
             '</div>'
@@ -4793,8 +4851,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           try { new URL(norm); } catch (_) { sfx('bad'); setMsg('that doesn\'t look like a URL', 'bad'); return; }
           if (inp) inp.value = norm;
           sfx('click');
-          setMsg('saved — probing endpoint…', '');
+          setMsg('saving endpoint…', '');
           Promise.resolve(h.setBaseUrl ? h.setBaseUrl(norm, row.provider) : null).then(() => {
+            setMsg('saved — probing endpoint…', '');
             invalidateProviderHealth(row.provider);
             // HONEST reachability check against the REAL endpoint — never claim connected without proof. probeProvider
             // round-trips /api/providers/probe; the same probe result feeds the provider card badge cache.
@@ -4824,11 +4883,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         } else if (act === 'rm') {
           // a KEYLESS custom row has no key to clear — its REMOVE disconnects the endpoint itself (setBaseUrl('')),
           // otherwise the armed confirm would "remove" nothing and the row would immortally re-render.
-          const keylessCustomRm = row.provider === 'custom' && !row.key && !!row.baseUrl;
+          const keylessCustomRm = row.provider === 'custom' && !row.key && !row.stored && !!row.baseUrl;
           if (b.dataset.armed) {
-            if (keylessCustomRm && h.setBaseUrl) { h.setBaseUrl('', 'custom'); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
-            else { if (h.setKey) h.setKey('', row.provider); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
-            invalidateProviderHealth(row.provider); if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); sfx('bad'); rerender('settings'); return;
+            b.disabled = true;
+            const removal = keylessCustomRm ? h.setBaseUrl('', 'custom') : h.setKey('', row.provider);
+            Promise.resolve(removal).then(() => {
+              notify(keylessCustomRm ? 'removed the custom endpoint — add it again anytime from the CUSTOM card'
+                : 'removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn');
+              invalidateProviderHealth(row.provider);
+              if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+              if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+              sfx('bad'); rerender('settings');
+            }).catch(error => { b.disabled = false; notify((error && error.message) || 'Could not remove the credential', 'bad'); });
+            return;
           }
           // Arm: make the destructive state impossible to miss — filled --bad button + pulse, red hairline on the row,
           // and an inline "click again to confirm" hint. Disarms after 5s, restoring the calm state.
@@ -4860,8 +4927,36 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const v = inp ? inp.value.trim() : '';
       if (!v) { sfx('bad'); if (inp) inp.focus(); return; }
       if (!h || !h.setKey) { sfx('bad'); return; }
+      // CUSTOM is an OpenAI-compatible adapter, not a provider with a discoverable default endpoint. On its
+      // first connection the endpoint lives beside the key; validate both together so a rejection preserves the
+      // prior credential and endpoint. Once saved, the existing STATION LINK editor remains the update path.
+      let baseUrlOverride;
+      if (provider === 'custom' && !(h.getBaseUrl && h.getBaseUrl(provider))) {
+        const baseInp = body.querySelector('#prov-base-in-custom');
+        const rawBase = baseInp ? baseInp.value.trim() : '';
+        if (!rawBase) {
+          notify('✕ enter the custom base URL first (for z.ai Coding Plan: https://api.z.ai/api/coding/paas/v4)', 'bad');
+          sfx('bad');
+          if (baseInp) baseInp.focus();
+          return;
+        }
+        try {
+          const parsed = new URL(rawBase);
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('unsupported URL scheme');
+          baseUrlOverride = rawBase.replace(/\/+$/, '');
+        } catch (_) {
+          notify('✕ that custom base URL does not look valid', 'bad');
+          sfx('bad');
+          if (baseInp) baseInp.focus();
+          return;
+        }
+      }
       // same proven-store contract as the key-list paths: success UI only after setKey resolves.
-      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+      Promise.resolve(h.validateAndSetKey
+        ? h.validateAndSetKey(v, provider, baseUrlOverride)
+        : baseUrlOverride
+          ? Promise.resolve(h.setBaseUrl(baseUrlOverride, provider)).then(() => h.setKey(v, provider))
+          : h.setKey(v, provider)).then(() => {
         invalidateProviderHealth(provider);
         notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
         if (typeof ModelDock !== 'undefined' && ModelDock.reconcile) ModelDock.reconcile().catch(() => ModelDock.reflect && ModelDock.reflect());
@@ -5046,6 +5141,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function wireCredits(body) {
     const host = body.querySelector('#credits-store');
     if (!host) return;
+    retainCreditsHeight(host);
     const generation = ++_creditsStoreGeneration;
     const current = () => generation === _creditsStoreGeneration && host.isConnected !== false;
     stopLinkPoll();        // any in-flight link poll from a prior render is stale now
@@ -5055,6 +5151,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       return Promise.resolve();
     }
     host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
+    retainCreditsHeight(host);
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
     return Harness.api.get('/api/credits').catch(error => {
@@ -5074,11 +5171,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               lk.reason === 'link_revoked'
                 ? 'This station’s previous link was removed from your account. Link it again to reconnect your balance.'
                 : '');
-            else if (lk && lk.available === false && lk.cloud === false && !_creditsUnlinkError) host.innerHTML = '';
+            else if (lk && lk.available === false && lk.cloud === false && !_creditsUnlinkError) { retainCreditsHeight(host); host.innerHTML = ''; }
             else renderCreditsUnavailable(body, host);
           });
       })
       .catch(() => { if (current()) renderCreditsUnavailable(body, host); });
+  }
+
+  // Keep the current reading position when a status reply is shorter than its
+  // placeholder or previous result. The reservation lasts only until Settings closes.
+  function retainCreditsHeight(host) {
+    host.style.minHeight = Math.max(host.offsetHeight, parseFloat(host.style.minHeight) || 0) + 'px';
   }
 
   function creditsUnlinkErrorMarkup() {
@@ -5087,6 +5190,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
 
   function renderCreditsUnavailable(body, host) {
+    retainCreditsHeight(host);
     host.innerHTML = '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
       creditsUnlinkErrorMarkup() +
       '<p class="set-about" role="alert">Could not check your account connection. Retry to load your balance or linking options.</p>' +
@@ -5132,6 +5236,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // The configured STORE: real balance + history + ADD CREDITS. When the station is configured via a LINKED
   // DEVICE (not operator env), also surface a small UNLINK affordance + the account id.
   function renderCreditsConfigured(body, host, j) {
+    retainCreditsHeight(host);
     const bal = (j.balanceUsd == null) ? '—' : fmtUsd(j.balanceUsd);
     const reach = j.reachable === false;
     const hist = Array.isArray(j.history) ? j.history : [];
@@ -5249,6 +5354,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   // The UNLINKED-but-linkable state: a LINK STATION card. Clicking begins the pairing dance.
   function renderCreditsLinkCard(body, host, note) {
+    retainCreditsHeight(host);
     host.innerHTML =
       '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
       creditsUnlinkErrorMarkup() +
@@ -6209,7 +6315,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<label class="set-row"><input type="checkbox" id="set-autostart" disabled> LAUNCH AT LOGIN <span class="dim">— ' + (lifecycleDesktop ? 'start StarNet automatically when you sign in' : 'desktop app only') + '</span></label>' +
       '<label class="set-row"><input type="checkbox" id="set-start-minimized" disabled> START MINIMIZED TO TRAY <span class="dim">— ' + (lifecycleDesktop ? 'begin each launch hidden; open from the tray icon' : 'desktop app only') + '</span></label>' +
       '<label class="set-row"><input type="checkbox" id="set-close-to-tray" disabled> CLOSE WINDOW TO TRAY <span class="dim">— ' + (lifecycleDesktop ? 'X hides StarNet; tray Quit stops it' : 'desktop app only') + '</span></label>' +
-      '<p class="set-about" id="lifecycle-desc">' + (lifecycleDesktop ? 'Checking what runs in the background…' : 'The desktop app can stay supervised in the system tray. This browser tab has no background process.') + '</p>' +
+      '<p class="set-about" id="lifecycle-desc">' + (window.__STARNET_REMOTE__ ? 'Your gateway keeps accepted tasks, workflows and goals running when you close this app. Use Stop to cancel work.' : lifecycleDesktop ? 'Checking what runs in the background…' : 'The desktop app can stay supervised in the system tray. This browser tab has no background process.') + '</p>' +
       // ADVANCED — env-only runtime knobs, now editable + persisted server-side (P1-9). PRECEDENCE is spelled out
       // in the card: an explicit environment variable ALWAYS wins over a value saved here (a deploy stays in control).
       '<h4 class="ms-h">Runtime limits <span class="dim">— optional ceilings and timeouts</span></h4>' +
@@ -6387,7 +6493,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     (() => {
       const was = creditsProv.state + ':' + creditsProv.balanceUsd + ':' + creditsProv.tier;
       refreshCreditsProvider().then(() => {
-        if (was !== creditsProv.state + ':' + creditsProv.balanceUsd + ':' + creditsProv.tier) rerender('settings');
+        if (was !== creditsProv.state + ':' + creditsProv.balanceUsd + ':' + creditsProv.tier) scheduleSettingsRepaint();
       }).catch(() => {});
     })();
     wireCredits(host);
@@ -9607,6 +9713,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireVerdict(nsNo, 'decline', 'warn');
   }
 
+  function preserveScroll(update) {
+    const rows = Array.from(document.querySelectorAll('.term-body, .con-pane'), el => ({ el, top: el.scrollTop, left: el.scrollLeft }));
+    update();
+    for (const { el, top, left } of rows) {
+      if (el.isConnected) { el.scrollTop = top; el.scrollLeft = left; }
+    }
+  }
+
   /* ============== lifecycle ============== */
   const BUILDERS = {
     agents:   ['AGENT DOSSIER',          buildAgents,    { console: true, className: 'dossier' }],
@@ -9660,7 +9774,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // shared window fragments (roster switcher for the per-agent windows; dossier memory loader)
     rosterSwitchHtml, wireRosterSwitch, loadMemoryCore, workshopCard, wireWorkshop,
     // workstream + persistence seams
-    WS, persistWS, save, consoleSection,
+    WS, persistWS, save, consoleSection, preserveScroll,
     // live core state (read-only views — never reassign through these)
     get present() { return present; },
     get sel() { return sel; },

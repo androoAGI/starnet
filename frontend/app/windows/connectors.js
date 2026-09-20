@@ -8,6 +8,7 @@
   const H = StationUI.h;
   const esc = H.esc, sfx = H.sfx, notify = H.notify, fmtRel = H.fmtRel;
   const mountConsole = H.mountConsole, openSignIn = H.openSignIn;
+  const preserveScroll = H.preserveScroll || (update => update());
 
   // CATALOG DEEP-LINK (tutorial lane 2, 2026-08-22): StationUI.connectorJump(id) opens ABILITIES on the CATALOG
   // rail and scrolls/flashes that connector's card (the same cc-jump flash the ▸ VIA action uses) — the
@@ -707,14 +708,16 @@
         const a = j.authority;
         tsAuthorityEl.textContent = a.name + ' · ' + a.approvalLabel + ' · ' + a.filesystemLabel + '. ' + a.revoke + ' Capability grants shown here; the current task, service connection and operating system can still limit execution.';
         const list = (j && j.toolsets) || [];
-        tsListEl.innerHTML = '<div class="ability-readout" aria-label="Selected agent toolset availability">' +
-          '<div><b>' + list.filter(t => t.available).length + '</b><span>AVAILABLE</span></div>' +
-          '<div><b>' + list.filter(t => tsAvailability(t) === 'NEEDS PROP').length + '</b><span>NEED A PROP</span></div>' +
-          '<div><b>' + list.filter(t => !t.available && tsAvailability(t) !== 'NEEDS PROP').length + '</b><span>UNAVAILABLE</span></div></div>' +
-          '<p class="ability-legend">AVAILABLE means this agent has the capability through equipment or access settings. Service connections and task permissions still apply.</p>' +
-          list.map(tsRowHTML).join('');
+        preserveScroll(() => {
+          tsListEl.innerHTML = '<div class="ability-readout" aria-label="Selected agent toolset availability">' +
+            '<div><b>' + list.filter(t => t.available).length + '</b><span>AVAILABLE</span></div>' +
+            '<div><b>' + list.filter(t => tsAvailability(t) === 'NEEDS PROP').length + '</b><span>NEED A PROP</span></div>' +
+            '<div><b>' + list.filter(t => !t.available && tsAvailability(t) !== 'NEEDS PROP').length + '</b><span>UNAVAILABLE</span></div></div>' +
+            '<p class="ability-legend">AVAILABLE means this agent has the capability through equipment or access settings. Service connections and task permissions still apply.</p>' +
+            list.map(tsRowHTML).join('');
+        });
         if (body.querySelector('#sp-connect')) setupSpotify(body);   // wire Spotify now the sp-* markup is in the JUKEBOX row
-      } catch (_) { if (request !== tsRequest) return; tsAuthorityEl.textContent = 'Effective authority unavailable.'; tsListEl.innerHTML = '<div class="mc-detail">Cannot read current capabilities. Reopen ABILITIES after reconnecting.</div>'; }
+      } catch (_) { if (request !== tsRequest) return; tsAuthorityEl.textContent = 'Effective authority unavailable.'; preserveScroll(() => { tsListEl.innerHTML = '<div class="mc-detail">Cannot read current capabilities. Reopen ABILITIES after reconnecting.</div>'; }); }
     }
     tsListEl.addEventListener('change', async ev => {
       const cb = ev.target.closest('input[data-ts-toggle]'); if (!cb) return;
@@ -913,32 +916,35 @@
         const deferred = list.filter(c => c.releaseDeferred);
         const attention = list.filter(c => !c.releaseDeferred && (c.state === 'error' || c.authRequired)).length;
         overview.textContent = list.length + ' service' + (list.length === 1 ? '' : 's') + ' · ' + connected + ' connected' + (deferred.length ? ' · ' + deferred.length + ' deferred' : '') + (attention ? ' · ' + attention + ' need attention' : '');
-        // A release-wide explanation belongs once above the list, not in every saved service.
-        notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
-          '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
-        if (storageError) {
-          overview.textContent = 'Saved services unavailable';
-          notices.innerHTML += '<div class="mc-notice"><b>Credential storage</b>' + esc(storageError) + '</div>';
-          listEl.innerHTML = '<div class="mc-detail">Your saved connections have not been erased. Unlock the credential store and restart StarNet.</div>';
-          return;
-        }
-        if (list.length) {
-          const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
-          listEl.innerHTML = list.map(row).join('');
-          listEl.querySelectorAll('.mc-inspect').forEach(el => { el.open = expanded.has(el.closest('.mc-row').dataset.id); });
-        }
-        else {
-          listEl.innerHTML = '<div class="empty-state"><span class="es-glyph">⧉</span>' +
-            '<b>NO CONNECTORS YET</b><span>Attach an MCP server to give your agents external tools — GitHub, Slack, a database.</span>' +
-            '<button class="es-cta" id="mc-empty-cta" type="button">+ ADD A CONNECTOR</button></div>';
-          const cta = listEl.querySelector('#mc-empty-cta');
-          if (cta) cta.addEventListener('click', () => { sfx('click'); const idf = body.querySelector('#mc-id'); if (idf) idf.focus(); });
-        }
+        preserveScroll(() => {
+          // A release-wide explanation belongs once above the list, not in every saved service.
+          notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
+            '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
+          if (storageError) {
+            overview.textContent = 'Saved services unavailable';
+            notices.innerHTML += '<div class="mc-notice"><b>Credential storage</b>' + esc(storageError) + '</div>';
+            listEl.innerHTML = '<div class="mc-detail">Your saved connections have not been erased. Unlock the credential store and restart StarNet.</div>';
+            return;
+          }
+          if (list.length) {
+            const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
+            listEl.innerHTML = list.map(row).join('');
+            listEl.querySelectorAll('.mc-inspect').forEach(el => { el.open = expanded.has(el.closest('.mc-row').dataset.id); });
+          }
+          else {
+            listEl.innerHTML = '<div class="empty-state"><span class="es-glyph">⧉</span>' +
+              '<b>NO CONNECTORS YET</b><span>Attach an MCP server to give your agents external tools — GitHub, Slack, a database.</span>' +
+              '<button class="es-cta" id="mc-empty-cta" type="button">+ ADD A CONNECTOR</button></div>';
+            const cta = listEl.querySelector('#mc-empty-cta');
+            if (cta) cta.addEventListener('click', () => { sfx('click'); const idf = body.querySelector('#mc-id'); if (idf) idf.focus(); });
+          }
+        });
+        if (storageError) return;
         wireRemoveButtons();
       } catch (_) {
         body.querySelector('#mc-overview').textContent = 'Service status unavailable';
         body.querySelector('#mc-notices').textContent = '';
-        listEl.innerHTML = '<div class="mc-detail">Could not read connections. Retry when the station is available.</div>';
+        preserveScroll(() => { listEl.innerHTML = '<div class="mc-detail">Could not read connections. Retry when the station is available.</div>'; });
       }
     }
     const postJSON = (path, payload) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1244,7 +1250,7 @@
           out.connectors.push.apply(out.connectors, g.connectors || []);
         }
         ccCache = groups.flatMap(g => g.connectors).concat([...ccAlternatives.values()]);
-        ccListEl.innerHTML = ccPopularGroups(groups).map(ccGroupHTML).join('') || '<div class="mc-detail">catalog is empty.</div>';
+        preserveScroll(() => { ccListEl.innerHTML = ccPopularGroups(groups).map(ccGroupHTML).join('') || '<div class="mc-detail">catalog is empty.</div>'; });
         ccApplyFilter();   // a refresh re-renders every card, so re-assert the active tier filter
         const search = body.querySelector('.con-search-in');
         if (search && search.value.trim()) search.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1254,7 +1260,7 @@
           if (card) { if (card.hidden) ccSetFilter('all'); ccFlash(card); }
           else { ccMsgEl.classList.remove('ok'); ccMsgEl.textContent = '✕ "' + jid + '" is not in the catalog'; }
         }
-      } catch (_) { ccListEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to browse the catalog.</div>'; }
+      } catch (_) { preserveScroll(() => { ccListEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to browse the catalog.</div>'; }); }
     }
     /* Tier filter. Hides cards, then hides any category group left with nothing visible — a category
        heading over an empty grid reads as a broken render. The per-group count re-states what is SHOWN
@@ -1589,7 +1595,7 @@
         const [cRes, gRes] = await Promise.all([readJSON('/api/connectors'), readJSON('/api/connectors/catalog')]);
         // The CONNECTORS read is what decides "you have none" — if it failed, say so instead of asserting zero.
         // The catalog is only display sugar (names); a failed catalog degrades labels, never the count.
-        if (!cRes.ok) { kyPlatEl.innerHTML = readFailLine(cRes, 'sidecar offline — start it to see connected platforms.'); return; }
+        if (!cRes.ok) { preserveScroll(() => { kyPlatEl.innerHTML = readFailLine(cRes, 'sidecar offline — start it to see connected platforms.'); }); return; }
         const cj = cRes.json, gj = gRes.json;
         const byId = {};
         for (const e of ((gj && gj.connectors) || [])) byId[e.id] = e;
@@ -1598,11 +1604,11 @@
         if (!keyed.length) {
           // The sentence named a destination and gave nothing to click — the same dead-end shape as the
           // inert toolset row. `data-ab-to` is the front door's own jump contract, handled by the router.
-          kyPlatEl.innerHTML = '<div class="mc-detail">No keyed platform connected yet — add one from the CATALOG (the entries marked <b style="color:var(--gold)">API key</b>). ' +
-            '<button type="button" class="bb xs" data-ab-to="catalog">⊞ OPEN CATALOG</button></div>';
+          preserveScroll(() => { kyPlatEl.innerHTML = '<div class="mc-detail">No keyed platform connected yet — add one from the CATALOG (the entries marked <b style="color:var(--gold)">API key</b>). ' +
+            '<button type="button" class="bb xs" data-ab-to="catalog">⊞ OPEN CATALOG</button></div>'; });
           return;
         }
-        kyPlatEl.innerHTML = keyed.map((c, i) => {
+        const keyedMarkup = keyed.map((c, i) => {
           const cat = byId[c.id];
           const b = c.state === 'up' ? ['var(--ok)', '● connected'] : (c.state === 'cached' ? ['var(--gold)', '◐ idle · starts on use'] : (c.state === 'error' ? ['var(--bad)', '✕ error'] : ['var(--ph-dim)', '○ ' + esc(c.state || 'off')]));
           return '<div class="mc-row" style="--ci:' + i + '">' +
@@ -1611,7 +1617,8 @@
             '<div class="mc-url dim"><span class="mc-tag">' + (c.hasHeaders && !c.hasToken ? 'header saved' : 'token saved') + '</span> managed in ' + (cat ? 'CATALOG' : 'MCP CONNECTORS') + '</div>' +
           '</div>';
         }).join('');
-      } catch (_) { kyPlatEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to see connected platforms.</div>'; }
+        preserveScroll(() => { kyPlatEl.innerHTML = keyedMarkup; });
+      } catch (_) { preserveScroll(() => { kyPlatEl.innerHTML = '<div class="mc-detail">sidecar offline — start it to see connected platforms.</div>'; }); }
     }
     // BOTTOM: the custom store. Checkbox = kill-switch (key stays saved, agents stop seeing it); ✕ deletes.
     function kyRow(k, i) {
@@ -1640,11 +1647,13 @@
       // same law as readJSON's banner above: an errored read must never render as a CONFIRMED
       // empty key list, and a refusal (403 plain-text) is not an offline station.
       const res = await readJSON('/api/servicekeys');
-      if (!res.ok) { kyListEl.innerHTML = readFailLine(res, 'sidecar offline — start it to manage keys.'); return; }
+      if (!res.ok) { preserveScroll(() => { kyListEl.innerHTML = readFailLine(res, 'sidecar offline — start it to manage keys.'); }); return; }
       const list = (res.json && res.json.keys) || [];
       const n = body.querySelector('#ky-mine-n'); if (n) n.textContent = String(list.length);
-      kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
-        : '<div class="mc-detail">No API keys connected yet — choose a platform in CATALOG, or add a custom key below.</div>';
+      preserveScroll(() => {
+        kyListEl.innerHTML = list.length ? list.map(kyRow).join('')
+          : '<div class="mc-detail">No API keys connected yet — choose a platform in CATALOG, or add a custom key below.</div>';
+      });
     }
     body.querySelector('#ky-add').addEventListener('click', async () => {
       const name = (kyNameEl.value || '').trim(), key = (kyKeyEl.value || '').trim(), docsUrl = (kyDocsEl.value || '').trim();

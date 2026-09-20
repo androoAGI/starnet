@@ -1,0 +1,21 @@
+# Existing invariants affected by remote lifecycle and station ownership.
+test/apiauth.test.js
+test/boot-security.test.js
+test/channels.sse.test.js
+test/consentwait.test.js
+test/consent.interactive.test.js
+test/station-bridge.test.js
+test/station-commands.test.js
+test/orchestration.test.js
+test/e2e.subagent-background.test.js
+test/cron.run-now.e2e.test.js
+test/run-recovery-continuation.test.js
+test/run-recovery.api.test.js
+test/cloudsave-concurrency.test.js
+test/cloudsave-refusal.test.js
+test/cloudsave-unknown.test.js
+test/cloudsave-unload.test.js
+test/cloudsavecore.test.js
+test/harness-internal.test.js
+test/harness-placement.test.js
+test/harness.cancel-truth.test.js

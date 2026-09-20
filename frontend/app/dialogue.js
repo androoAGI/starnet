@@ -250,7 +250,10 @@ const Dialogue = (() => {
       panel.classList.toggle('fnv-text-first', !!(cfg.allowCustom && cfg.customFirst));
       let settled = false;
       const finishPick = res => { if (settled) return; settled = true; pendingPick = null; clearKeys(); sfx('click'); resolve(res); };
-      typeInto(norm(cfg.lines), () => renderOptions(cfg, finishPick));
+      typeInto(norm(cfg.lines), () => {
+        renderOptions(cfg, finishPick);
+        if (cfg.draft && cfg.allowCustom && !cfg.customFirst) openCustom(cfg, finishPick);
+      });
     });
   }
 
@@ -260,6 +263,12 @@ const Dialogue = (() => {
   // answered in the obvious box. Option-only nodes (the fork, the mirror picks) return false: a typed sentence
   // can't safely map onto a fixed choice, so the caller keeps its options up. No pending node → false (no-op).
   let pendingPick = null;
+  if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('input', event => {
+    if (event.target?.id === 'chat-input' && pendingPick?.cfg?.allowCustom) {
+      pendingPick.cfg.draft = event.target.value;
+      pendingPick.cfg.onDraft?.(event.target.value);
+    }
+  });
   function answer(text) {
     if (!pendingPick || !pendingPick.cfg || !pendingPick.cfg.allowCustom) return false;
     const v = String(text == null ? '' : text).trim();
@@ -335,13 +344,13 @@ const Dialogue = (() => {
     inp.placeholder = cfg.customPlaceholder || 'type your answer…';
     inp.setAttribute('aria-label', 'Your answer');
     const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button';
-    inp.value = cfg.customValue || '';
+    inp.value = cfg.draft == null ? (cfg.customValue || '') : cfg.draft;
     send.textContent = cfg.submitLabel || 'Send →'; send.disabled = !inp.value.trim();
     const submit = () => {
       const value = inp.value.trim();
       if (value) finishPick({ value, label: value, custom: true });
     };
-    inp.addEventListener('input', () => { send.disabled = !inp.value.trim(); if (cfg.onCustomInput) cfg.onCustomInput(inp.value); });
+    inp.addEventListener('input', () => { send.disabled = !inp.value.trim(); cfg.draft = inp.value; cfg.onDraft?.(inp.value); if (cfg.onCustomInput) cfg.onCustomInput(inp.value); });
     inp.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
     });
@@ -379,6 +388,8 @@ const Dialogue = (() => {
     const wrap = document.createElement('div'); wrap.className = 'fnv-custom';
     const inp = document.createElement('textarea'); inp.rows = 3; inp.className = 'fnv-custom-in';
     inp.placeholder = cfg.customPlaceholder || 'type your answer…';
+    inp.value = cfg.draft == null ? (cfg.customValue || '') : cfg.draft;
+    inp.addEventListener('input', () => { cfg.draft = inp.value; cfg.onDraft?.(inp.value); cfg.onCustomInput?.(inp.value); });
     inp.setAttribute('aria-label', cfg.customPlaceholder || 'your answer');
     const send = document.createElement('button'); send.className = 'fnv-custom-send'; send.type = 'button'; send.textContent = 'Send →'; send.setAttribute('aria-label', 'Send answer');
     const back = document.createElement('button'); back.className = 'fnv-custom-back'; back.type = 'button'; back.textContent = '‹ back';
@@ -392,7 +403,7 @@ const Dialogue = (() => {
     send.onclick = submit;
     back.onclick = () => { clearKeys(); renderOptions(cfg, finishPick); };
     inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
       else if (e.key === 'Escape') { e.preventDefault(); back.onclick(); }
     });
     setTimeout(() => inp.focus(), 30);

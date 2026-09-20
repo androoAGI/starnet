@@ -194,8 +194,8 @@ function makeAcpClient(port, onPermission) {
     { when: 'read the project incident', tool: { name: 'fs.read', args: { path: 'incident.log' } } },
     { when: 'work slowly', hold: true }
   ]);
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-acp-'));
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-acp-project-'));
+  const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sk-acp-')));
+  const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'sk-acp-project-')));
   fs.writeFileSync(path.join(project, 'incident.log'), 'PROJECT_RELATIVE_ACP\n', 'utf8');
   const projectGrant = 'path:' + path.resolve(project);
   fs.writeFileSync(path.join(ws, 'permissions.allow.json'), JSON.stringify({ version: 1, allow: [projectGrant], meta: { [projectGrant]: { grantedAt: 1 } } }), 'utf8');

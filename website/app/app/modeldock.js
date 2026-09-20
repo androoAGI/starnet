@@ -56,7 +56,7 @@ const ModelDock = (() => {
     qwen: 'QWEN',
     cohere: 'COHERE'
   };
-  const PROVIDER_RANK = { starnet: -1, codex: 0, grok: 1, kimi: 2, openrouter: 3, openai: 4, anthropic: 5, gemini: 6, xai: 7, groq: 8, mistral: 9, deepseek: 10, together: 11, fireworks: 12, perplexity: 13, cerebras: 14, ollama: 15, custom: 16 };
+  const PROVIDER_RANK = { gateway: -2, starnet: -1, codex: 0, grok: 1, kimi: 2, openrouter: 3, openai: 4, anthropic: 5, gemini: 6, xai: 7, groq: 8, mistral: 9, deepseek: 10, together: 11, fireworks: 12, perplexity: 13, cerebras: 14, ollama: 15, custom: 16 };
 
   let opts = {};
   let wired = false;
@@ -85,6 +85,7 @@ const ModelDock = (() => {
   }
   function normalizeProvider(p) {
     p = String(p || 'openrouter').trim().toLowerCase();
+    if (p === 'gateway' || p === 'levserver') return 'gateway';
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
@@ -124,7 +125,7 @@ const ModelDock = (() => {
       med: 'medium', mid: 'medium', medium: 'medium',
       high: 'high',
       extra: 'xhigh', xtra: 'xhigh', extrahigh: 'xhigh', xhigh: 'xhigh',
-      max: 'max'
+      ultra: 'ultra', max: 'max'
     };
     return map[key] || 'medium';
   }
@@ -211,7 +212,7 @@ const ModelDock = (() => {
     // Preserve a saved current model only while the active catalog is unavailable. Once a successful catalog
     // says it is absent, reconcileCurrentModel() has either mapped it to a proven provider-native id or cleared
     // it. Re-inserting it here was the stale-model bug: a bare Anthropic id appeared selectable under STARNET.
-    if (current && isAgentModel({ id: current, provider: p }) && !list.some(m => m.id === current && normalizeProvider(m.provider) === p) && !(catalogState[p] && catalogState[p].confirmed)) {
+    if (current && isAgentModel({ id: current, provider: p }) && !list.some(m => m.id === current && normalizeProvider(m.provider) === p) && (p === 'custom' || !(catalogState[p] && catalogState[p].confirmed))) {
       list.unshift({ id: current, name: current, provider: p, fallback: true, unverifiedCurrent: true });
     }
     return list.filter(m => m && m.id && isAgentModel(m));
@@ -234,6 +235,8 @@ const ModelDock = (() => {
 
   function reconcileCurrentModel(p, list) {
     p = normalizeProvider(p);
+    // Custom servers may omit private deployments from /models. A user-entered ID stays authoritative.
+    if (p === 'custom') return;
     if (!(catalogState[p] && catalogState[p].confirmed)) return;
     const current = getModel();
     if (!current || (Array.isArray(list) && list.some(m => m && m.id === current))) return;
@@ -495,7 +498,7 @@ const ModelDock = (() => {
     renderList();
     // 'starnet' first: a linked station's own credits are the most direct way to run, and its catalog is
     // the whole managed lineup. providerEnabled() keeps it out of the list when no credits are configured.
-    const ids = ['starnet', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
+    const ids = ['gateway', 'starnet', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
     const active = provider();
     if (ids.indexOf(active) < 0) ids.unshift(active);
     const pending = ids.map(p => fetchProviderModels(p, force));
@@ -892,7 +895,7 @@ const ModelDock = (() => {
   // `ensure: { id, provider }` guarantees a specific model (e.g. an agent's own pin) is present even if the
   // provider is unconfigured, so the picker can always show + preselect it. Returns [{ id, name, provider, … }].
   async function computeCatalog(force, ensure) {
-    const ids = ['codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
+    const ids = ['gateway', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
     const active = provider();
     if (ids.indexOf(active) < 0) ids.unshift(active);
     const parts = await Promise.all(ids.map(p => fetchProviderModels(p, force).catch(() => [])));

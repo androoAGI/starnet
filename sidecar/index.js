@@ -330,6 +330,8 @@ function ENV(suffix) { const k = 'STARNET_' + suffix; return (k in process.env) 
 
 const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
+const REMOTE_MODE = ENV('REMOTE') === '1';
+const remoteRuntime = require('./remote-runtime.js');
 // DEV fast-path (the `npm run dev:seed` launcher sets this): when on, the served index.html carries a small
 // boot payload (window.__STARNET_DEV__ = {model, prov}) so a fresh browser origin auto-resumes the server-
 // seeded save with no connect screen / awakening. Holds NO secret — the API key stays in runtimeKey. Never
@@ -815,6 +817,8 @@ const processFault = makeProcessFaultHandler({
 process.on('uncaughtException', e => processFault.onUncaught(e));
 
 try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
+const remoteProviderStore = REMOTE_MODE ? require('./remote-provider-store').createRemoteProviderStore({ fs, path, dir: path.join(WORKSPACES, '.secrets'), aliases: { levserver: 'gateway' } }) : null;
+
 
 /* ---- P2 crash-safe persistence helpers for the single-file sibling stores (roster, dossier, channel
    secrets, codex tokens, connectors, allowlist, notebook, cron routines). Each of these was a plain
@@ -2101,6 +2105,8 @@ function providerRuntimeKey(provider, explicitKey) {
   if (id === 'starnet') return String(resolveCreditsConfig().apiKey || '').trim();
   const explicit = String(explicitKey || '').trim();
   if (explicit) return explicit;
+  const saved = remoteProviderStore && remoteProviderStore.get(id);
+  if (saved && Object.hasOwn(saved, 'key')) return saved.key;
   const runtime = String(runtimeKeys[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
@@ -2109,9 +2115,10 @@ function providerRuntimeKey(provider, explicitKey) {
 }
 function providerRuntimeKeyPool(provider, explicitPool) {
   const id = normalizeProvider(provider);
+  const saved = remoteProviderStore && remoteProviderStore.get(id);
   const source = Array.isArray(explicitPool)
     ? explicitPool
-    : (Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
+    : (saved && Object.hasOwn(saved, 'keyPool') ? saved.keyPool : Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
       ? runtimeKeyPools[id]
       : String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(','));
   return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
@@ -2129,6 +2136,8 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
   // BYOK endpoint must never redirect the device token away from that account's service.
   const explicit = String(explicitBaseUrl || '').trim();
   if (explicit) return explicit;
+  const saved = remoteProviderStore && remoteProviderStore.get(id);
+  if (saved && Object.hasOwn(saved, 'baseUrl')) return saved.baseUrl || (getProviderProfile(id) || {}).baseUrl || '';
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
@@ -3779,7 +3788,12 @@ const chanBus = { emit: (name, payload) => {
 /* THE STATION BRIDGE — how a sidecar tool asks the live page to do a page thing (open a session, switch
    agent, delegate). Rides the SAME SSE hub the HUD already listens on, so there is no second channel to keep
    alive. Fails visibly when no page is attached: see sidecar/station-bridge.js for why that matters. */
-const stationBridge = makeStationBridge({ emit: (name, payload) => { try { sse.broadcast(name, payload); } catch (_) {} } });
+const stationBridge = REMOTE_MODE
+  ? remoteRuntime.makeHeadlessStation({ saveStore, roster: () => agentRoster, runs: () => runStore.all(), activeRuns: () => runsMeta, now: () => Date.now(), degraded: () => workspaceDegraded })
+  : makeStationBridge({ emit: (name, payload) => { try { sse.broadcast(name, payload); } catch (_) {} } });
+const remoteRequests = REMOTE_MODE ? remoteRuntime.makeRequestClaims(WORKSPACES, () => Date.now()) : null;
+const remotePrompts = new Map();
+const remoteGoals = REMOTE_MODE ? require('./remote-goals').makeRemoteGoals({ root: WORKSPACES, run: remoteGoalTurn, now: () => Date.now() }) : null;
 
 const chanEmitValidated = makeEmitter(chanBus, e => console.warn('[channel-event]', e.kind, e.event, (e.errors || []).join(';')));
 const chanEmit = (name, payload) => { try { return chanEmitValidated(name, redact(payload)); } catch (_) {} };
@@ -8194,7 +8208,7 @@ function normalizeReasoningEffort(value) {
     med: 'medium', mid: 'medium', medium: 'medium',
     high: 'high',
     extra: 'xhigh', xtra: 'xhigh', extrahigh: 'xhigh', xhigh: 'xhigh',
-    max: 'max'
+    ultra: 'ultra', max: 'max'
   };
   return map[key] || 'medium';
 }
@@ -9424,6 +9438,7 @@ const ROUTES = [
   { m: 'GET', exact: '/api/providers', h: handleProviders },
   { m: 'POST', exact: '/api/providers/probe', h: handleProviderProbe },
   { m: 'POST', exact: '/api/providers/validate', h: handleProviderValidate },
+  { m: 'POST', exact: '/api/providers/config', h: handleRemoteProviderConfig },
   // /api/models/openrouter is served by this same prefix (id='openrouter'). handleProviderModels answers 200
   // with {models:[]} + error on any catalog failure, so it never throws into the central guard.
   { m: 'GET', qprefix: '/api/models/', h: handleProviderModels },
@@ -9476,6 +9491,8 @@ const ROUTES = [
   { m: 'POST', exact: '/api/widgets/configure', h: handleWidgetConfigure },
   { m: 'POST', exact: '/api/widgets/remove', h: handleWidgetRemove },
   { m: 'POST', exact: '/api/widgets/request', h: handleWidgetRequest },
+  { m: 'GET', exact: '/api/remote/goals', h: handleRemoteGoals },
+  { m: 'POST', exact: '/api/remote/goals', h: handleRemoteGoals },
   { m: 'GET', exact: '/api/state/snapshot', h: handleStateSnapshot },   // reconnect reconciliation (frontend lane consumes it)
   { m: 'GET', exact: '/api/agents/affinity', h: handleAgentAffinity },   // idle-life: the PROVEN social graph the world biases its social beats with
   { m: 'GET', exact: '/api/lifecycle/armed', h: handleLifecycleArmed },   // Lane 4D: tray supervisor's close-decision truth
@@ -11911,6 +11928,67 @@ function handleLifecycleArmed(req, res) {
   res.end(body);
 }
 
+// The remote goal driver uses the authenticated, existing run route, preserving
+// the same placed capabilities, consent waiters, cancellation and run journals.
+async function remoteGoalTurn({ record, prompt, system, signal, judge }) {
+  if (signal.aborted) throw new Error('Goal stopped');
+  const saved = saveStore.load('agent');
+  const session = (saved?.workstreams || []).find(w => w.id === record.streamId);
+  if (!session || (session.agentId || 'agent') !== record.agentId) throw new Error('Session is unavailable');
+  const cfg = channelRunConfigFor(record.agentId);
+  if (!cfg || cfg.ok === false) throw new Error('Agent is not configured');
+  const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': API_TOKEN };
+  let runId = null, text = '', reason = 'error', cancelPromise;
+  const cancel = () => { if (runId && !cancelPromise) cancelPromise = fetch('http://127.0.0.1:' + PORT + '/api/cancel', {
+    method: 'POST', headers, body: JSON.stringify({ runId })
+  }).then(r => r.body?.cancel()).catch(swallow('remote.goal.cancel')); };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    const response = await fetch('http://127.0.0.1:' + PORT + '/api/run', { method: 'POST', headers,
+      body: JSON.stringify({ requestId: crypto.randomUUID(), model: cfg.model, provider: cfg.provider,
+        reasoningEffort: cfg.reasoningEffort, system: judge ? system : cronSystemFor(record.agentId),
+        messages: [{ role: 'user', content: prompt }], agentId: record.agentId,
+        streamId: judge ? undefined : record.streamId, isTask: !judge, internal: !!judge,
+        remoteGoalRun: true }) });
+    if (!response.ok || !response.body) throw new Error('Goal run refused (' + response.status + ')');
+    const decoder = new TextDecoder(); let buffer = '';
+    for await (const chunk of response.body) {
+      buffer += decoder.decode(chunk, { stream: true });
+      if (buffer.length > 2 * 1024 * 1024) throw new Error('Goal event exceeded its limit');
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl); buffer = buffer.slice(nl + 1);
+        if (!line.trim()) continue;
+        const event = JSON.parse(line), p = event.payload || {};
+        if (event.name === 'agent.run.start' && !runId) { runId = p.runId; if (signal.aborted) cancel(); }
+        if (p.runId && runId && p.runId !== runId) continue;
+        if (event.name === 'agent.token') text = (text + (p.delta || '')).slice(-200000);
+        else if (event.name === 'agent.tool_call') text = '';
+        else if (event.name === 'agent.run.end') reason = p.reason;
+      }
+    }
+    const row = runStore.all().find(r => r.runId === runId);
+    // /api/transcript is already canonical and receives every turn before run
+    // end. Do not race a connected viewer's save with a second chat transcript.
+    return { text: row?.deliveryText || text, reason, runId, clarifying: row?.clarifying === true };
+  } finally { signal.removeEventListener('abort', cancel); await cancelPromise; }
+}
+async function handleRemoteGoals(req, res) {
+  if (!remoteGoals) return respondJson(res, 404, { error: 'Remote mode is disabled' });
+  if (req.method === 'GET') return respondJson(res, 200, { goals: remoteGoals.list() });
+  let body; try { body = JSON.parse(await readBody(req, 8192, res)); } catch (_) { return respondJson(res, 400, { error: 'Invalid goal request' }); }
+  try {
+    const saved = saveStore.load('agent');
+    const session = (saved?.workstreams || []).find(w => w.id === body.streamId);
+    if (!session) throw new Error('Save this session before starting its goal');
+    if (workspaceDegraded) throw new Error('Station storage requires recovery');
+    const claim = remoteRequests.claim(body.requestId, 'goal-' + crypto.randomUUID());
+    if (!claim.ok) return respondJson(res, 409, { error: 'This goal request was already accepted. Inspect its status before retrying.' });
+    const result = remoteGoals.command({ streamId: session.id, agentId: session.agentId || 'agent', kind: body.kind === 'subgoal' ? 'subgoal' : 'goal', text: body.text });
+    return respondJson(res, 200, { ok: true, goal: result });
+  } catch (e) { return respondJson(res, 400, { error: e.message }); }
+}
+
 /* GET /api/state/snapshot — a RECONNECTION snapshot for the frontend (Lane E). After the SSE bridge drops and
    reconnects, the app has no way to learn which runs/prompts were already in flight; it consumes this to rebuild
    its live-state maps and CLEAR anything not present here (so a RUN clock never runs forever). Plain HTTP (no new
@@ -11934,11 +12012,12 @@ function handleLifecycleArmed(req, res) {
    guessed. If a cheap source appears later, add a `tools:[{agentId,tool}]` field. */
 function handleStateSnapshot(req, res) {
   const out = { ts: Date.now(), runs: [], prompts: [], summons: [], queues: [] };
+  if (REMOTE_MODE) out.remote = { headless: true, persistentRuns: true, goals: remoteGoals.list(), saveRevision: Number((saveStore.load('agent') || {})._saveRevision) || 0 };
   const seenRunIds = new Set();
   try {
     for (const [runId, meta] of runsMeta) {
       seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: (meta && meta.source) || null });
+      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: (meta && meta.source) || null, ...(REMOTE_MODE ? { streamId: meta?.streamId || null } : {}) });
     }
   } catch (_) {}
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
@@ -11981,7 +12060,7 @@ function handleStateSnapshot(req, res) {
     for (const [runId, pending] of pendingByRun) {
       const meta = runsMeta.get(runId);
       const agentId = (meta && meta.agentId) || null;
-      for (const promptId of pending.keys()) out.prompts.push({ runId: runId, agentId: agentId, promptId: promptId });
+      for (const promptId of pending.keys()) out.prompts.push({ ...(remotePrompts.get(promptId) || {}), runId: runId, agentId: agentId, promptId: promptId });
     }
   } catch (_) {}
   try {
@@ -12403,10 +12482,8 @@ async function handleCronRun(req, res) {
   // firing a concurrent duplicate. Heartbeat renews off the tee below; the driver's stale sweep governs a
   // silent manual run by exactly the same rule as a scheduled one. Removed in the finally.
   cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false });
-  // res 'close', not req 'close' — same disconnect-detection law as handleRun: readBody() already consumed the
-  // request, so req 'close' has fired before this listener attaches and a dead watcher was never noticed (F1).
-  res.on('close', () => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });
-  const bus = { emit: (name, payload) => { try { res.write(JSON.stringify({ name, payload: redact(payload) }) + '\n'); } catch (_) {} } };
+  const bus = remoteRuntime.makeRunStream({ res, controller: ac, persistent: REMOTE_MODE, redact,
+    emitRemote: (name, payload) => sse.broadcast(name, payload), onDisconnect: () => kaOff() });
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
   // tee: stream every event to the watching browser AND capture the outcome so the last-run record is honest.
   const state = { buf: '', errMsg: null, reason: null, transient: false, usd: 0 };
@@ -12443,7 +12520,7 @@ async function handleCronRun(req, res) {
       // under the SAME per-run stream so the frontend cron-session (autosessions.js), which forms off the
       // identical cron.fire/cron.result events, can fetch the real output via /api/transcript?stream=cron-<runId>.
       // Per-run id keeps the seed empty (index.js reconstructs a stream only when messages<=1) — no behavior drift.
-      runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: true,
+      runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: !REMOTE_MODE,
       reflect: true,   // Run Now must match the scheduled fire's posture exactly, memory included (see the reflect note on /api/run)
       // Run Now must exercise the REAL unattended posture, grant included — otherwise "test it now" would
       // prove a capability set the scheduled fire does not get (the whole point of this route).
@@ -12515,7 +12592,7 @@ async function handleCronRun(req, res) {
                 system: cronSystemFor(h.agentId),
                 messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId,
-                surface: 'autonomous', trigger: 'schedule', broadcast: true, reflect: true,
+                surface: 'autonomous', trigger: 'schedule', broadcast: !REMOTE_MODE, reflect: true,
                 station: router.stationFor(h.agentId) || undefined,
                 /* GRANTS NEVER FLOW DOWN A LINE (2026-08-04): the unattended grant was approved for the
                    routine's OWN agent (stage one, above) — a downstream hop is a DIFFERENT agent, and a drawn
@@ -14972,6 +15049,14 @@ async function handleRun(req, res) {
   // record is intentionally one-way: losing this response may require another review, but retrying cannot run
   // the same continuation twice and duplicate an external effect.
   const runId = crypto.randomUUID();
+  if (REMOTE_MODE) {
+    try {
+      const claim = remoteRequests.claim(body.requestId, runId);
+      if (!claim.ok) return respondJson(res, 409, { error: 'This request was already accepted. Reconnect to inspect it; do not resend.', runId: claim.runId });
+    } catch (e) { return respondJson(res, 400, { error: e.message }); }
+  }
+  if (REMOTE_MODE && !internal && streamId && !body.remoteGoalRun && remoteGoals.owns(streamId)) await remoteGoals.stop(streamId);
+
   let recovery = null;
   if (body && body.recovery) {
     const accepted = consumeRunRecoveryContinuation(body.recovery, agentId, runId);
@@ -15007,11 +15092,18 @@ async function handleRun(req, res) {
   // claimed "something went wrong" about a run the harness was still driving (2026-07-14 adversarial sweep F1).
   // res 'close' fires when the response stream ends — premature on a dead client — and on normal end it's inert
   // here (runOnce's finally has already settled + deleted; the abort hits a spent controller).
-  res.on('close', () => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });
+  // In remote mode only explicit cancel/halt or runtime shutdown aborts work.
+  const persistent = REMOTE_MODE && !internal;
 
   // the "bus" writes one validated, REDACTED NDJSON line per event (key-shaped secrets are scrubbed even
   // if a tool ever echoes one back); makeEmitter validates against the frozen registry first.
-  const bus = { emit: (name, payload) => { try { res.write(JSON.stringify({ name, payload: redact(payload) }) + '\n'); } catch (_) {} } };
+  const bus = remoteRuntime.makeRunStream({ res, controller: ac, persistent, redact,
+    emitRemote: (name, payload) => {
+      if (name === 'permission.prompt') remotePrompts.set(payload.promptId, { ...payload, runId });
+      sse.broadcast(name, { ...payload, remoteStreamId: streamId || '', remoteLeadRunId: runId });
+    },
+    onDisconnect: () => { kaOff(); if (!persistent) { runs.delete(runId); runsMeta.delete(runId); } }
+  });
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
 
   // THE LIVE CONSENT CHANNEL: emit a permission.prompt down the NDJSON stream and return a Promise that the loop's
@@ -15131,6 +15223,8 @@ async function handleRun(req, res) {
       // Optional Commander-authored typed success contract. The host validates and evaluates it after the run;
       // it is never injected as model authority and cannot widen tools/permissions.
       postconditions: body && body.postconditions,
+      sessionTitle: persistent && streamId ? (((saveStore.load('agent') || {}).workstreams || []).find(w => w.id === streamId)?.title || 'General') : undefined,
+      sessionPrompt: persistent ? latestUserText(messages) : undefined,
       recipeId,        // provenance spine (lane A): rides to the durable run row so a rating can be attributed
       // DELIVERABLE ORGANIZATION: the project this run is scoped to rides to the durable run row, so the FILES the
       // run produces can be filed under the thing the Commander was working ON (not just under a runId). Recorded
@@ -15163,6 +15257,14 @@ async function handleRun(req, res) {
     if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');
     try { emit('agent.run.error', { agentId, runId, message: 'sidecar failure: ' + ((e && e.message) || e), transient: false }); } catch (_) {}
   } finally {
+    if (persistent && !bus.attached() && streamId) {
+      const row = runStore.all().find(r => r.runId === runId);
+      if (row?.deliveryText) await stationBridge.request('station.deliver', {
+        streamId, sessionTitle: row.sessionTitle, agentId, runId,
+        text: row.deliveryText, ts: row.ts
+      });
+    }
+    for (const [id, prompt] of remotePrompts) if (prompt.runId === runId) remotePrompts.delete(id);
     runs.delete(runId);
     runsMeta.delete(runId);
     if (!internal) noteUserActivity(Date.now());   // the away clock starts when the user's run ENDS, not when it started (a long run must not read as absence); self-talk never stamps it
@@ -18470,7 +18572,7 @@ async function handleNightshiftBeatNow(req, res) {
   const beatRunId = 'nsbeat-' + crypto.randomUUID();
   runs.set(beatRunId, ac);
   runsMeta.set(beatRunId, { agentId, startedAt: Date.now(), source: 'nightshift' });
-  const onClose = () => { try { ac.abort(); } catch (_) {} };
+  const onClose = () => { if (!REMOTE_MODE) { try { ac.abort(); } catch (_) {} } };
   // res 'close', not req 'close' — readBody() above consumed the request, so req 'close' already fired and a
   // req listener here never runs (the EL-11 note above was right about the intent but attached to the dead seam;
   // 2026-07-14 adversarial sweep F1). res 'close' is premature-disconnect-aware and inert after the finally below.
@@ -19025,6 +19127,7 @@ function saveNightshiftHalt(next) {
   nightshiftState = next;
 }
 function handleHalt(req, res) {
+  if (remoteGoals) remoteGoals.close().catch(e => console.warn('[remote-goals] halt persistence failed:', e.message));
   if (typeof groupSessions !== 'undefined') groupSessions.halt().catch(e => console.warn('[groups] halt persistence failed:', e.message));
   const tgInflight = (telegram && telegram.hub && telegram.hub._internals) ? telegram.hub._internals.inflight : null;
   const dcInflight = (discord && discord.hub && discord.hub._internals) ? discord.hub._internals.inflight : null;
@@ -19711,14 +19814,48 @@ function handleProviders(req, res) {
   const providers = listProviderProfiles().map(p => {
     const key = providerRuntimeKey(p.id, '');
     const baseUrl = providerRuntimeBaseUrl(p.id, '');
-    return Object.assign({}, p, { configured: providerHasCredential(p.id, key, baseUrl), currentBaseUrl: baseUrl || '' });
+    const configured = providerHasCredential(p.id, key, baseUrl);
+    const credentialStored = registryProviderUsesCodex(p.id) || registryProviderUsesDeviceOAuth(p.id) ? configured : !!key;
+    return Object.assign({}, p, { configured, currentBaseUrl: baseUrl || '', ...(REMOTE_MODE ? { credentialStored, alternateCount: providerRuntimeKeyPool(p.id).length } : {}) });
   });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // keychainMode: TRUE only under the real desktop shell, where BYOK keys live in the OS keychain (seeded via env
   // at spawn, updated live through /api/key) rather than the browser's local store. The Settings key-save
   // confirmation reads this so it names the ACTUAL store honestly (keychain vs this browser) — never claims
   // keychain when the key is in fact held in the browser (truthful-telemetry law).
-  res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL }));
+  res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL, ...(REMOTE_MODE ? { credentialStore: 'server', storageError: remoteProviderStore.error() } : {}) }));
+}
+
+// The regular authenticated API gate protects this remote-only route. Never expose the desktop IPC token.
+async function handleRemoteProviderConfig(req, res) {
+  const json = (code, value) => respondJson(res, code, value);
+  if (!remoteProviderStore) return json(404, { error: 'Remote provider storage is unavailable.' });
+  let body;
+  try { body = JSON.parse(await readBody(req, 1 << 16)); } catch (_) { return json(400, { error: 'Invalid provider configuration.' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'Invalid provider configuration.' });
+  const id = normalizeProviderIdFromRegistry(body.provider, '');
+  const profile = id && getProviderProfile(id);
+  if (!profile || registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id) || id === 'starnet') return json(400, { error: 'This provider uses a different credential store.' });
+  const patch = {};
+  for (const name of ['key', 'baseUrl']) {
+    if (!Object.hasOwn(body, name)) continue;
+    if (typeof body[name] !== 'string' || body[name].length > 8192) return json(400, { error: 'Invalid provider configuration.' });
+    patch[name] = body[name].trim();
+  }
+  if (patch.baseUrl) {
+    try { const url = new URL(patch.baseUrl); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(); }
+    catch (_) { return json(400, { error: 'Enter an HTTP or HTTPS API base URL without credentials, query or fragment.' }); }
+  }
+  if (Object.hasOwn(body, 'keyPool')) {
+    if (!Array.isArray(body.keyPool) || body.keyPool.length > 8 || body.keyPool.some(k => typeof k !== 'string' || k.length > 8192)) return json(400, { error: 'Invalid backup keys.' });
+    patch.keyPool = [...new Set(body.keyPool.map(k => k.trim()).filter(Boolean))];
+  }
+  if (!Object.keys(patch).length) return json(400, { error: 'No provider configuration supplied.' });
+  try { remoteProviderStore.update(id, patch, { migrate: body.migrate === true }); }
+  catch (_) { return json(503, { error: 'Provider save could not be confirmed. Reconnect and check provider settings before retrying.' }); }
+  const key = providerRuntimeKey(id, ''), baseUrl = providerRuntimeBaseUrl(id, '');
+  return json(200, { ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), credentialStored: !!key,
+    currentBaseUrl: baseUrl, alternateCount: providerRuntimeKeyPool(id).length });
 }
 
 // POST /api/providers/probe — a no-generation provider round-trip for truthful Settings telemetry. The supplied

@@ -85,6 +85,7 @@
     // a message that named the wrong component. `action: null` on purpose: a provider blip is usually transient,
     // so RETRY must stay the primary chip rather than a SETTINGS door that fixes nothing.
     provider_unreachable: { retryable: true, action: null, msg: "StarNet is running fine, but it couldn't reach the AI provider — that's usually your internet connection, a VPN or proxy, or the provider having a moment. Try again; if it keeps failing, switch provider or model in SETTINGS." },
+    provider_unresponsive: { retryable: false, action: 'settings', msg: "The AI provider accepted the request but never started replying — it may be out of usage or unavailable. Switch model/provider under SETTINGS → PROVIDERS." },
     /* A SPENT ALLOWANCE is not a busy moment. A ChatGPT-subscription weekly quota resets in DAYS, so offering
        "wait a few seconds and try again" made every retry doomed and told the user nothing they could act on.
        The copy names the meter that was actually spent — the ChatGPT subscription, NOT API billing — and the
@@ -243,6 +244,7 @@
 
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
+    if (/did not start streaming|first-byte timeout|no response bytes/.test(low)) return 'provider_unresponsive';
     // Harness pre-flight guards ("no API key set" / "no model selected"): a misconfig, not a fault — point at
     // Settings instead of offering a doomed retry. (Match before capdenied, which the em-dash-less strings miss.)
     if (/chatgpt.*sign-?in|sign-?in.*chatgpt|not signed in to chatgpt|codex_not_connected|codex auth|codex_auth|chatgpt subscription.*connect/.test(low)) return 'oauth';

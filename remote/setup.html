@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="setup-token" content="__SETUP_TOKEN__">
+  <title>Connect your station · StarNet</title>
+  <link rel="preload" href="/starnet/assets/fonts/vt323.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/starnet/css/style.css">
+  <link rel="stylesheet" href="/starnet/css/app.css">
+  <link rel="stylesheet" href="/starnet/css/motion.css">
+  <link rel="stylesheet" href="/starnet/css/interface.css">
+  <link rel="stylesheet" href="/starnet/css/glass-demo.css">
+  <link rel="stylesheet" href="/starnet/css/readability.css">
+  <link rel="stylesheet" href="/setup.css">
+  <script defer src="/setup.js"></script>
+</head>
+<body class="theme-amber glass-demo no-flicker">
+<section id="screen-remote-setup" class="screen active" aria-labelledby="setup-title">
+  <div class="panel connect-panel setup-console">
+    <span class="cc-bracket cc-tl" aria-hidden="true">┌</span><span class="cc-bracket cc-tr" aria-hidden="true">┐</span>
+    <span class="cc-bracket cc-bl" aria-hidden="true">└</span><span class="cc-bracket cc-br" aria-hidden="true">┘</span>
+    <header class="cc-console-head">
+      <div class="cc-titlebar">
+        <span class="logo-img" role="img" aria-label="StarNet"></span>
+        <span class="cc-tb-rule"></span><span class="cc-tb-mode">REMOTE UPLINK</span>
+        <button id="return" type="button" class="btn-sm" hidden>‹ RETURN TO STATION</button>
+      </div>
+      <div class="ov-title-row"><h2 id="setup-title">CONNECT YOUR STATION</h2></div>
+      <p class="ov-sub">Choose where your agent lives. Your files and provider keys stay on that computer.</p>
+    </header>
+
+    <div id="location-choice" class="ov-cfg" hidden>
+      <div class="ov-cards ov-approve" role="group" aria-label="Where your agent runs">
+        <button id="local" type="button" class="ov-card"><span class="ov-card-ic" aria-hidden="true">▣</span><span class="ov-card-nm">THIS COMPUTER</span><span class="hint">Run StarNet here, with your local files and apps.</span></button>
+        <button id="remote-choice" type="button" class="ov-card sel" aria-pressed="true"><span class="ov-card-ic" aria-hidden="true">⌁</span><span class="ov-card-nm">REMOTE UPLINK</span><span class="hint">Connect to another computer or your own gateway.</span><span class="ov-card-pick" aria-hidden="true">✓</span></button>
+      </div>
+    </div>
+    <form id="connection" class="setup-body">
+      <div class="ov-cfg">
+        <div class="ov-field">
+          <h3 class="ov-step" id="choice-label"><b>01</b> YOUR SERVER</h3>
+          <div id="choice" class="ov-cards ov-approve" role="group" aria-labelledby="choice-label">
+            <button type="button" class="ov-card sel" data-mode="new" aria-pressed="true">
+              <span class="ov-card-ic" aria-hidden="true">＋</span><span class="ov-card-nm">NEW SERVER</span>
+              <span class="hint">Install StarNet on a Linux machine.</span><span class="ov-card-pick" aria-hidden="true">✓</span>
+            </button>
+            <button type="button" class="ov-card" data-mode="existing" aria-pressed="false">
+              <span class="ov-card-ic" aria-hidden="true">⌁</span><span class="ov-card-nm">ALREADY INSTALLED</span>
+              <span class="hint">Connect to your running StarNet gateway.</span><span class="ov-card-pick" aria-hidden="true">✓</span>
+            </button>
+          </div>
+        </div>
+        <section class="ov-field" aria-labelledby="account-title">
+          <h3 class="ov-step" id="account-title"><b>02</b> STATION OWNER</h3>
+          <div class="codex-signin">
+            <p id="identity" class="codex-status">Sign in with the GitHub account that owns this station.</p>
+            <div class="codex-actions">
+              <button id="login" type="button" class="btn">⏼ SIGN IN WITH GITHUB ↗</button>
+              <button id="profile" type="button" class="btn-sm">↻ CHECK SIGN-IN</button>
+            </div>
+            <p class="hint">You sign in on this Mac. The server verifies your account. Add model provider keys inside your station after connecting.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="ov-cfg">
+        <h3 class="ov-step"><b>03</b> CONNECT</h3>
+        <div class="ov-field">
+          <label for="host">SSH ADDRESS</label>
+          <input id="host" name="host" placeholder="you@server.example.com or SSH alias" autocomplete="off" autocapitalize="none" spellcheck="false" required maxlength="318" aria-describedby="host-help">
+          <p id="host-help" class="hint">Use the address from your SSH client. Existing keys and aliases work here.</p>
+        </div>
+        <details class="ov-field">
+          <summary>CONNECTION OPTIONS</summary>
+          <div class="setup-ports">
+            <label>SSH PORT<input id="ssh-port" type="number" min="1" max="65535" placeholder="SSH config (usually 22)"></label>
+            <label>GATEWAY PORT<input id="gateway-port" type="number" min="1024" max="65535" value="18791"></label>
+          </div>
+        </details>
+        <button id="ssh" type="button" class="btn-sm">⌁ SET UP SSH ACCESS IN TERMINAL ↗</button>
+        <section id="install-panel" class="codex-signin">
+          <h4 class="ov-step">INSTALL ON YOUR SERVER</h4>
+          <p class="hint">Linux x86_64 or arm64 · systemd · SSH · root/sudo access.</p>
+          <p class="hint">Installs StarNet as a private background service, with its Node runtime and core dependencies included. A running station is detected before making changes.</p>
+          <button id="install" type="button" class="btn">＋ OPEN SERVER INSTALLER ↗</button>
+          <p class="hint">Terminal shows progress and asks for sudo when needed. Return here when it finishes, then test the connection.</p>
+        </section>
+      </div>
+    </form>
+
+    <footer class="connect-actions setup-footer">
+      <div class="setup-receipt"><p id="status" class="hint" role="status" aria-live="polite" aria-atomic="true"></p><p id="saved-note" class="hint">Private by default. Encrypted connections. No public gateway port needed.</p></div>
+      <div class="setup-actions">
+        <button id="cancel" type="button" class="btn-xl" hidden>CANCEL</button>
+        <button id="test" type="submit" form="connection" class="btn-xl">TEST &amp; SAVE ▸</button>
+        <button id="open" type="button" class="btn-xl" hidden>OPEN STATION ▸</button>
+      </div>
+    </footer>
+  </div>
+</section>
+</body>
+</html>

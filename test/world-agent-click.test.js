@@ -52,9 +52,10 @@ A.eq(readWorld('website/app'), worldSrc, 'website world.js mirrors the productio
 /* Curve regression: execute the real input conversion against independently projected
    visible points. CSS size/backing size, camera pan/zoom and both CRT presets vary. */
 const vm = require('node:vm');
-const mapping = ['toCanvas', 'uncurvePoint', 'curvePoint', 'toWorld', 'overAmt']
+const mapping = ['toCanvas', 'uncurvePoint', 'curvePoint', 'toWorld', 'overAmt', 'curveAmount']
   .map(name => A.fnBody(worldSrc, 'function ' + name + '(')).join('\n');
 const sandbox = {
+  window: {},
   CRT: { curve: .09, over: 1.2 },
   document: { body: { classList: { contains: () => false } } },
   cv: { width: 1600, height: 900, getBoundingClientRect: () => ({ left: 37, top: 83, width: 800, height: 450 }) },
@@ -78,6 +79,9 @@ A.eq(JSON.stringify(sandbox.uncurvePoint({x:120,y:170})), JSON.stringify({x:120,
 sandbox.document.body.classList.contains=()=>false;
 sandbox.CRT.curve=.04; sandbox.CRT.over=1;
 A.eq(sandbox.uncurvePoint({x:0,y:0}),null,'black CRT corner cannot select an invisible body');
+sandbox.window.__STARNET_NATIVE__ = true;
+A.eq(JSON.stringify(sandbox.uncurvePoint({x:120,y:170})), JSON.stringify({x:120,y:170}), 'native viewer hit testing matches the unwarped canvas');
+A.eq(JSON.stringify(sandbox.curvePoint({x:120,y:170})), JSON.stringify({x:120,y:170}), 'native viewer projection matches the unwarped canvas');
 A.ok(/uncurvePoint\(toCanvas\(ev\)\)/.test(worldSrc.slice(worldSrc.indexOf("cv.addEventListener('wheel'"),worldSrc.indexOf("cv.addEventListener('mousedown'"))), 'wheel anchors to the visible scene point');
 
 A.report('world-agent-click.test');

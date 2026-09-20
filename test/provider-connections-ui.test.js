@@ -20,6 +20,8 @@ const hostedProviders = ['xai', 'groq', 'mistral', 'deepseek', 'together', 'fire
 
 ok(!/Harness\.setKey\(\s*['"]{2}\s*\)/.test(app), 'Codex wake does not clear the OpenRouter BYOK slot');
 ok(/provider\s*!==\s*'codex'[\s\S]{0,80}reqBody\.key\s*=\s*key/.test(harness), 'browser BYOK key is sent only for key-backed provider runs');
+ok(/async\s+function\s+validateAndSetKey\(key, provider, baseUrlOverride\)/.test(harness), 'provider validation accepts a first-time custom endpoint');
+ok(/baseUrlOverride\s*==\s*null\s*\?\s*\(getBaseUrl\(p\)\s*\|\|\s*''\)/.test(harness), 'custom validation uses the supplied endpoint without overwriting the saved one first');
 
 ok(/fetch\('\/api\/auth\/codex\/status'/.test(station), 'Settings checks real Codex OAuth status');
 ok(/let\s+codexStatusKnown\s*=\s*null/.test(station), 'Codex OAuth status is independent from active provider selection');
@@ -27,6 +29,8 @@ ok(/if\s*\(active\s*!==\s*'openrouter'\)\s*addProvider\('openrouter'\)/.test(sta
 ok(/const\s+addProvider\s*=\s*active\s*===\s*'codex'\s*\?\s*'openrouter'\s*:\s*active/.test(station), 'Codex-active add-key row targets OpenRouter');
 ok(/id="key-in-new"/.test(station) && /data-act="add"/.test(station) && /data-provider=/.test(station), 'add-key controls carry their target provider');
 ok(/const\s+provider\s*=\s*b\.dataset\.provider\s*\|\|\s*activeProv\(\)/.test(station), 'add-key save writes to the row provider, not necessarily the active provider');
+ok(/prov-base-in-custom/.test(station) && /api\.z\.ai\/api\/coding\/paas\/v4/.test(station), 'first-time CUSTOM setup exposes the z.ai Coding Plan base URL');
+ok(/h\.validateAndSetKey\(v, provider, baseUrlOverride\)/.test(station), 'CUSTOM setup validates its endpoint and key together');
 
 for (const id of hostedProviders) {
   ok(index.includes('data-prov="' + id + '"'), id + ' appears in the connect provider picker');

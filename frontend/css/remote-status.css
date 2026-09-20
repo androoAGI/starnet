@@ -1,0 +1,30 @@
+/* Gateway composes the station's term, sn-menu, bb and term-x components.
+   Only placement and content layout live here. */
+#gateway-control { display: inline-flex; align-items: center; gap: var(--s-2); flex-shrink: 0; }
+#gateway-control[data-attention="true"] { color: var(--warn); }
+#gateway-control .conn-dot { background: var(--ok); }
+#gateway-control[data-attention="true"] .conn-dot { background: currentColor; }
+#remote-review.term {
+  position: fixed; inset: 0; margin: auto; transform: none; padding: 0; color: inherit;
+  width: 500px; min-width: 0; height: fit-content;
+  max-width: calc((100vw - 24px) * var(--sn-unzoom,1));
+  max-height: calc((100dvh - 24px) * var(--sn-unzoom,1));
+  animation: none;
+}
+#remote-review:not([open]) { display: none; }
+#remote-review::backdrop { background: rgba(0,0,0,.6); }
+#remote-review .term-head { cursor: default; }
+#remote-review .term-body { display: flex; flex-direction: column; gap: var(--s-3); }
+#remote-review [hidden] { display: none !important; }
+#remote-review :is(p,dl) { margin: 0; overflow-wrap: anywhere; }
+#remote-review .gateway-state { color: var(--ok); }
+#remote-review[data-connected="false"] .gateway-state { color: var(--warn); }
+#remote-review .gateway-facts { display: grid; grid-template-columns: auto minmax(0,1fr); gap: var(--s-2) var(--s-3); }
+#remote-review dd { margin: 0; overflow-wrap: anywhere; }
+#remote-review .gateway-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+#remote-review .gateway-actions .bb { white-space: normal; }
+#remote-review article { border-top: 1px solid var(--ph-faint); padding-block: var(--s-3); }
+#remote-review pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+#remote-review article .bb { margin: var(--s-2) var(--s-2) 0 0; }
+#remote-review details > p { margin-top: var(--s-2); }
+#gateway-announcement { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

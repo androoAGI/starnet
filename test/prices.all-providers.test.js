@@ -29,6 +29,7 @@ const { selectProvider } = require('../sidecar/providers/factory.js');
 
 // profiles that are metered (api_key) but price NOTHING by design — each needs a stated reason
 const UNPRICED_BY_DESIGN = {
+  gateway: 'user-supplied Responses endpoint: billing and model prices are unknown',
   perplexity: 'vendor publishes per-request search fees on top of tokens; a token rate alone would under-report',
   custom: 'a user-supplied endpoint: nothing is known about its billing',
   cerebras: 'console.groq-style catalog carries no pricing and the vendor page lists too few ids to table (2026-08-21)',

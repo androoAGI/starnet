@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../remote": "remote",
+      "remote-deps/bin/gh": "bin/gh",
+      "remote-deps/starnet-server.tar.gz": "starnet-server.tar.gz",
+      "remote-deps/BUILD.json": "REMOTE-BUILD.json",
+      "remote-deps/licenses": "remote-licenses"
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}

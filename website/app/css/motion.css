@@ -563,6 +563,8 @@ button:active {
    in place — replaying the entrance stagger on every rail refresh reads as a full-board flicker.
    Entrance motion belongs to user-initiated opens only. */
 .kb-live-refresh .kb-card, .kb-live-refresh .empty-state { animation: none; }
+.term-live-refresh .prov-card, .term-live-refresh .key-row,
+.term-live-refresh .cn-row, .term-live-refresh .notif-row { animation: none; }
 
 /* hover lift — transform + border brighten + glow. Scoped to the interactive
    cards (crew/agent/kanban/quest/perk rows); .mc-row etc. inherit the entrance

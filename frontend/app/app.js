@@ -745,6 +745,7 @@ const App = (() => {
   }
   function normalizeProviderId(provider) {
     const p = String(provider || 'openrouter').trim().toLowerCase();
+    if (p === 'gateway' || p === 'levserver') return 'gateway';
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
@@ -778,9 +779,21 @@ const App = (() => {
   function providerNeedsBaseUrl(provider) {
     return normalizeProviderId(provider) === 'custom';
   }
+  function savedProviderId(saved) {
+    const agentProvider = saved && saved.agent && saved.agent.provider;
+    const topLevelProvider = saved && saved.prov;
+    return normalizeProviderId(agentProvider || topLevelProvider || 'openrouter');
+  }
+  function restoreSavedProvider(saved) {
+    const provider = savedProviderId(saved);
+    if (saved && saved.agent) saved.agent.provider = provider;
+    if (saved) saved.prov = provider;
+    if (typeof Harness !== 'undefined' && Harness.setProv) Harness.setProv(provider);
+    return provider;
+  }
   function providerKeyPlaceholder(provider, configured) {
     const p = normalizeProviderId(provider);
-    if (configured) return 'stored locally - leave blank to keep';
+    if (configured) return provider === 'gateway' ? 'stored on your gateway - leave blank to keep' : 'stored locally - leave blank to keep';
     if (p === 'openai') return 'sk-...  -  platform.openai.com/api-keys';
     if (p === 'anthropic') return 'sk-ant-...  -  console.anthropic.com/settings/keys';
     if (p === 'gemini') return 'AIza...  -  aistudio.google.com/app/apikey';
@@ -1897,9 +1910,12 @@ const App = (() => {
     if (baseBlock) baseBlock.classList.toggle('hidden', !providerNeedsBaseUrl(pickedProvider));
     if (baseInput) {
       baseInput.value = (Harness.getBaseUrl && Harness.getBaseUrl(pickedProvider)) || '';
-      baseInput.onchange = () => {
-        if (Harness.setBaseUrl) Harness.setBaseUrl(baseInput.value.trim(), pickedProvider);
-        loadModels(pickedProvider);
+      baseInput.onchange = async () => {
+        const provider = pickedProvider;
+        try {
+          if (Harness.setBaseUrl) await Harness.setBaseUrl(baseInput.value.trim(), provider);
+          if (pickedProvider === provider) loadModels(provider);
+        } catch (error) { el('connect-msg').textContent = error.message || 'Could not save the endpoint.'; }
       };
       baseInput.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); onWake(); } };
     }
@@ -2651,9 +2667,9 @@ const App = (() => {
     if (Save.isFuture && Save.isFuture()) { showFutureSaveGate(Save.loadStatus().version); return; }
     const saved = Save.has() ? Save.load() : null;
     if (saved && saved.agent) {
-      if (saved.prov && Harness.setProv) Harness.setProv(saved.prov);
+      const provider = restoreSavedProvider(saved);
       if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
-      if (Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex') {
+      if (window.__STARNET_REMOTE__ || Harness.getKey(provider) || (Harness.configured && Harness.configured(provider)) || provider === 'codex') {
         resumingSaved = null; resumeInto(saved); return;
       }
       resumingSaved = saved;
@@ -2827,7 +2843,14 @@ const App = (() => {
     msg.textContent = '';
 
     wakeBtnBusy(true);   // COMMIT POINT: past every validation gate — show WAKING… and hold the latch through enterGame
-    if (resumingSaved) { const s = resumingSaved; resumingSaved = null; s.agent.model = model; resumeInto(s); return true; }
+    if (resumingSaved) {
+      const s = resumingSaved; resumingSaved = null;
+      const provider = normalizeProviderId(pickedProvider || (Harness.getProv && Harness.getProv()) || savedProviderId(s));
+      s.prov = provider;
+      s.agent.provider = provider;
+      s.agent.model = model;
+      resumeInto(s); return true;
+    }
 
     // LOCK DOWN before the NEW hero or any of its local stores are committed. A failed durable revoke rejects,
     // leaves the prior station intact, and keeps its confirmed grant visible instead of commissioning a fresh
@@ -2900,6 +2923,7 @@ const App = (() => {
 
   /* ---------- resume ---------- */
   function resumeInto(saved) {
+    const provider = restoreSavedProvider(saved);
     agent = saved.agent;
     // A legacy hero without createdAt already belongs to growth epoch 1 on the sidecar.
     // Resuming is not founding a new station: inventing a timestamp here rejects every crew rating
@@ -2913,9 +2937,8 @@ const App = (() => {
     registerHero(agent);                           // found the registry with the hero…
     rehydrateRoster(saved.agents);                 // …then restore any summoned crew (older saves: no-op)
     recomposeOrchestrators();                      // …and only NOW does the hero's YOUR CREW clause see them (composing above sees an empty registry)
-    if (saved.prov && Harness.setProv) Harness.setProv(saved.prov);   // keep the provider with the agent (codex vs openrouter)
     if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
-    if (!agent.provider && saved.prov) agent.provider = saved.prov;   // #4: older hero saves stored provider only at the top level — stamp it onto the hero object so focusAgent restores it
+    agent.provider = provider;                 // provider is part of the hero identity, not a stale global setting
     if (!agent.reasoningEffort && saved.reasoningEffort) agent.reasoningEffort = saved.reasoningEffort;
     Harness.setModel(agent.model || Harness.getModel());
     Harness.setTotals(saved.usage || { tokens: 0, cost: 0, calls: 0 });
@@ -3500,9 +3523,21 @@ const App = (() => {
         wake: !!opts.wake,
         persona: (typeof Personas !== 'undefined') ? Personas.get(agent.personaId) : null,   // the voice was chosen on the create screen — the awakening acknowledges it instead of re-asking
         specialty: opts.specialty || null,                   // (reserved) a pre-specced wake skips re-asking the mission; the orchestrator authors it live
+        agentId: agent.id + ":" + agent.createdAt,
+        progress: agent.onboardingProgress,
+        resumeState: {
+          purpose: agent.purpose,
+          hasSavedProfile: typeof DossierStore !== 'undefined' && Object.values(DossierStore.serialize()?.dims || {}).some(rows => Array.isArray(rows) && rows.some(row => row.text && row.weight !== 'seed'))
+        },
+        checkpoint: progress => {
+          if (!agent || agent.onboarded) return;
+          agent.onboardingProgress = progress;
+          persist();
+          if (typeof CloudSave !== 'undefined') CloudSave.flush({ force: true });
+        },
         commit: applyAgentConfig,                            // each answer folds a real doc into the live prompt + persists
         getSystem: () => agent ? agent.systemPrompt : '',    // Interview 2.0: the generated beats (wakemind.js) reason on the LIVE prompt (persona + dossier already folded in)
-        done: () => { if (agent) agent.onboarded = true; persist(); if (typeof KeyCTA !== 'undefined' && KeyCTA.arm) KeyCTA.arm(); },   // the awakening landed — mark onboarded so a later refresh resumes into the game, not back into the ceremony; arm the keyless-brain CTA (shows only if no key is truly stored)
+        done: () => { if (agent) { agent.onboarded = true; delete agent.onboardingProgress; } persist(); if (typeof KeyCTA !== 'undefined' && KeyCTA.arm) KeyCTA.arm(); },   // the awakening landed — mark onboarded so a later refresh resumes into the game, not back into the ceremony; arm the keyless-brain CTA (shows only if no key is truly stored)
         notify: (typeof StationUI !== 'undefined') ? StationUI.notify : null,
         // FIRST COMMAND — once the awakening lands, the agent itself teaches the Commander the one real loop (tutorial.js)
         taught: () => { if (typeof Tutorial !== 'undefined' && Tutorial.firstCommand) Tutorial.firstCommand({ name: agent.name }); }
@@ -5060,7 +5095,7 @@ const App = (() => {
   async function init() {
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
     if (typeof StationUI !== 'undefined') StationUI.init();   // applies saved theme/CRT settings, wires the bottom bar
-    if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: StationUI.rerender });
+    if (!window.__STARNET_REMOTE__ && typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: StationUI.rerender });
 
     /* EXTENSIONS AWAITING APPROVAL. Hooks and plugins are opt-in by design: an unapproved one is silently
        inert. That is the correct security posture and the worst possible UX if it is never surfaced — the
@@ -5158,7 +5193,7 @@ const App = (() => {
     }
     // restore the provider BEFORE the credential check so a codex agent (tokens server-side) jumps straight
     // in after a wipe/origin-reset instead of being misrouted to an OpenRouter key prompt.
-    if (saved && saved.prov && Harness.setProv) Harness.setProv(saved.prov);
+    const savedProvider = saved && saved.agent ? restoreSavedProvider(saved) : null;
     if (saved && saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
     if (saved && saved.agent) {
       // AUTO-RESUME: a saved station goes STRAIGHT back into the world when creds are available — an OpenRouter
@@ -5168,7 +5203,7 @@ const App = (() => {
       // and if that is slow/blocked, awaiting it here strands boot on the connect screen forever (the seeded DEV
       // shoot regression). The catalog is cosmetic for resume (dropdown/pricing/context gauge), so fire it in the
       // BACKGROUND and enter the station immediately — pricing fills in a beat later, the floor never waits.
-      const canResume = !!(Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex');
+      const canResume = !!(window.__STARNET_REMOTE__ || Harness.getKey(savedProvider) || (Harness.configured && Harness.configured(savedProvider)) || savedProvider === 'codex');
       if (canResume) {
         if (Harness.getProv && Harness.getProv() !== 'codex' && Harness.listModels) { Promise.resolve(Harness.listModels()).catch(() => {}); }
         resumeInto(saved); return;
@@ -5217,5 +5252,12 @@ const App = (() => {
     openRecipeLaunch: openRecipeLaunch,   // routine-nudge beat (lane D): accepting deep-links into the recipe's SCHEDULE IT form
     applyConfig: applyAgentConfig,
     setApproval: setAgentApproval,
-    setExecutionProfile: setAgentExecutionProfile };
+    setExecutionProfile: setAgentExecutionProfile,
+    refreshRemoteSessions: saved => {
+      if (!agent || !saved || !Array.isArray(saved.workstreams)) return;
+      const activeId = Workstreams.activeId();
+      const current = Workstreams.init({ ...saved, activeId });
+      if (current && typeof Chat !== 'undefined' && Chat.refreshRemoteHistory) Chat.refreshRemoteHistory(current);
+      renderRail();
+    } };
 })();

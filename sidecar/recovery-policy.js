@@ -13,6 +13,15 @@ function providerFailure(input) {
   const i = input || {};
   const cls = i.classification || {};
   if (i.cancelled) return { action: 'fail', reason: 'cancelled', retryable: false, delayMs: 0 };
+  // A response that produced no first byte is an admission failure, not a healthy long-running generation.
+  // Prefer the configured credential/model ladder, then fail immediately; repeating the same silent request
+  // six times is exactly the stranded loading state this policy is meant to prevent.
+  if (i.firstByteTimeout && cls.reason === 'timeout') {
+    if (i.hasFallback && finite(i.recoveriesUsed, 0) < finite(i.maxRecoveries, 0)) {
+      return { action: 'fallback', reason: 'provider_first_byte_timeout', retryable: true, delayMs: 0, rotate: true };
+    }
+    return { action: 'fail', reason: 'provider_first_byte_timeout', retryable: false, delayMs: 0 };
+  }
   if (cls.shouldCompress && i.canCompress && finite(i.recoveriesUsed, 0) < finite(i.maxRecoveries, 0)) {
     return { action: 'compress', reason: String(cls.reason || 'context_overflow'), retryable: true, delayMs: 0 };
   }

@@ -202,9 +202,14 @@ dev/.shots-toast/
 .worldshots/
 sidecar/mcp/google-client.json
 
+# Private build and verification artifacts
+/work/
 # Local generated minion sources, archive downloads and assembly reports.
 /dev/industrial-textures/minion-source/
 
 # Local shell material live-proof images and disposable browser profile.
 /.shell-proof/
+
+# Verified helper binaries and server installer bundled by the Mac desktop build.
+/src-tauri/remote-deps/
 /.local/google-review/

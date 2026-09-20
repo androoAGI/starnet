@@ -109,7 +109,7 @@ A.ok(/for path in SHIPPED_INPUTS[\s\S]*cargo:rerun-if-changed=\{path\}/.test(bui
 // `git describe --dirty` ignores untracked files. Lock the supplemental status check to the same
 // top-level Git roots that tauri.conf packages, so a newly added shipped file cannot claim clean provenance.
 const shippedGitRoots = rustStringArray('SHIPPED_GIT_ROOTS');
-A.eq(shippedGitRoots, ['frontend', 'sidecar', 'shared', 'src-tauri'],
+A.eq(shippedGitRoots, ['frontend', 'sidecar', 'shared', 'remote', 'src-tauri'],
   'dirty detection covers every Git-owned packaged root');
 A.ok(/"diff"[\s\S]{0,220}"--quiet"[\s\S]{0,220}"--ignore-cr-at-eol"[\s\S]{0,220}"HEAD"/.test(buildRs) && /diff\.args\(SHIPPED_GIT_ROOTS\)/.test(buildRs),
   'tracked dirty detection catches real shipped-input changes but ignores Tauri CR-only rewrites');

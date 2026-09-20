@@ -7,7 +7,7 @@ const start = src.indexOf('  let lastSaveOk = true;');
 const end = src.indexOf('  /* ---------- CUSTOM PHOSPHOR', start);
 let fail = true, writes = 0;
 const warnings = [];
-const ctx = vm.createContext({ KEY: 'settings', store: { theme: 'amber' },
+const ctx = vm.createContext({ window: {}, KEY: 'settings', store: { theme: 'amber' },
   localStorage: { setItem() { if (fail) throw new Error('quota'); writes++; } },
   notify: (...args) => warnings.push(args), clearTimeout() {}, setTimeout: () => 1 });
 vm.runInContext(src.slice(start, end) + '\nthis.api = { save, flashSaved };', ctx);
