@@ -46,3 +46,6 @@ body #chat-panel #comms-idbar.ph-project #gc-add-agents { display:none; }
 .ph-controls .btn { margin:0 6px 6px 0; }
 .ph-receipt { opacity:.75; }
 .proj-row.project-selected { box-shadow:inset 2px 0 var(--ph); background:color-mix(in srgb,var(--ph) 7%,transparent); }
+
+/* Transcript navigation is meaningful only while the transcript is visible. */
+#chat-panel:has(> .project-home:not([hidden])) #comms-newpill { display:none; }
