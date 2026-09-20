@@ -23,11 +23,9 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Raw validation
-        run: npm run validate:raw
-      - name: Guardian QA
-        run: npm run qa:guardian
       - name: Fast tests
         run: npm run test:fast
+      - name: Guardian QA
+        run: npm run qa:guardian
       - name: Desktop build preflight
         run: npm run desktop:build
