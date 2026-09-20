@@ -6309,10 +6309,10 @@ const World = (() => {
         // seat. `!p.r` guards every route below, including the side-seat one: a profile recliner is
         // never turned, so this costs it nothing.)
         if (sitter && PropSprites.drawSeatFront && !p.r && ((sitterUse && sitterUse.kind === 'seat') || sitterSide || remasteredCouch(p)))
-          items.push({ y: sitter.seatPy + 0.5, draw: () => PropSprites.drawSeatFront(dp) });
+          items.push({ y: sitter.seatPy + 0.5, depthY: sitter.seatPy + 0.5, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0, kind: 'prop-overlay', draw: () => PropSprites.drawSeatFront(dp) });
         // the COVERS, after the body (bodySortY puts a sleeper at sy + 0.5). Keyed off the same live
         // `sleeper` read as the base pass, so the quilt is never held back with nobody under it.
-        if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, draw: () => PropSprites.drawOver(dp) });
+        if (sleeper && PropSprites.drawOver) items.push({ y: sy + 0.75, depthY: sy + 0.75, height: prop25 ? prop25.height : 0, z: prop25 && prop25.surface ? 1 : 0, kind: 'prop-overlay', draw: () => PropSprites.drawOver(dp) });
         // an ASSIGNED workstation is the hero's desk with another name: give it the same chair, in front,
         // y-sorted at the same fractional anchor as its agent so the body sits in it. Scoped
         // to assigned PCs so a decorative/unmanned console keeps its existing look and the chair only ever
