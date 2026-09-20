@@ -59,7 +59,7 @@ new session. Mutations are never automatically replayed after ambiguous failure.
 Observe again before deciding to retry. A force-killed host cannot promise orderly
 cleanup; graceful shutdown and run cancellation are the supported cleanup paths.
 
-Advanced launch settings:
+Advanced direct-sidecar launch settings (the desktop host marker is still required):
 
 - `STARNET_COMPUTER_DRIVER=cua` pins CUA; `off` pins disabled.
 - Existing `1`/`win32` selection remains the default until changed in Abilities.
@@ -86,5 +86,7 @@ benchmark a general-purpose language model's planning ability.
 
 `node dev/computer-eval/runtime-smoke.js <binary>` checks two real independent
 sessions, cancellation, continued operation of the other session, and cleanup.
+`node dev/computer-eval/app-survival.js <binary>` verifies that a newly launched
+noninteractive fixture app survives driver cleanup, then stops that fixture itself.
 The earlier Hermes comparison and measurements are in
 [the evaluation report](COMPUTER_CONTROL_EVALUATION_2026-09-19.md).

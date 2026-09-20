@@ -1,9 +1,11 @@
 # Computer-control evaluation
 
-This is an opt-in development prototype, **not a shipped backend**. It evaluates
-Cua Driver through StarNet's existing MCP client and injected `computer.use`
-driver seam. Production registration, the public tool schema, and permissions are
-unchanged. No shared contract files are modified.
+The original `cua-driver.js` here remains a development prototype. It evaluates
+Cua Driver through StarNet's MCP client and injected `computer.use` driver seam.
+The separate production implementation and its setup are documented in
+[Computer Control](../../docs/COMPUTER_CONTROL.md). `production-smoke.js`,
+`runtime-smoke.js`, and `app-survival.js` exercise that production implementation.
+No shared contract files are modified.
 
 ## Reproduce
 
