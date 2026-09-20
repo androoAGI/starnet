@@ -16,24 +16,22 @@ const ProjectHome = (() => {
   }
   function setup() {
     if (panel) return;
-    panel = el('section', 'project-home'); panel.hidden = true; panel.setAttribute('aria-label', 'Project overview');
-    panel.innerHTML = '<header class="ph-header"><div><span class="ph-eyebrow">PROJECT</span><h1></h1><p class="ph-path"></p></div><button class="btn ph-station">VIEW STATION</button></header>' +
-      '<p class="ph-notice" role="status"></p><div class="ph-intro"><h2>One conversation. Your crew.</h2><p>Talk in COMMS to plan, delegate, and review this project. Crew activity stays here as you move around the station.</p></div>' +
-      '<details class="ph-crew"><summary>Preferred crew <span class="ph-crew-count"></span></summary><p>Choose who you want involved. The orchestrator can bring in other station agents when useful.</p><div class="ph-crew-list"></div><button class="btn ph-save">SAVE CREW</button><span class="ph-crew-note" role="status"></span></details>' +
-      '<div class="ph-activity-head"><h2>Activity</h2><span class="ph-count"></span></div><p class="ph-empty">No delegated work yet. Give the orchestrator a task in COMMS to get started.</p><div class="ph-activity"></div>';
-    document.getElementById('stage-wrap').appendChild(panel);
-    panel.querySelector('.ph-station').onclick = close;
+    panel = el('section', 'project-home'); panel.hidden = true; panel.setAttribute('aria-label', 'Project controls');
+    panel.innerHTML = '<details class="ph-drawer"><summary class="ph-bar"><span class="ph-name"></span><span class="ph-count"></span></summary><div class="ph-content">' +
+      '<p class="ph-path"></p><details class="ph-crew"><summary>Preferred crew <span class="ph-crew-count"></span></summary><p>Choose preferred agents. The orchestrator can involve other station agents when useful.</p><div class="ph-crew-list"></div><button class="btn ph-save">SAVE CREW</button><span class="ph-crew-note" role="status"></span></details>' +
+      '<h4 class="ph-activity-head">Activity</h4><p class="ph-empty">No delegated work yet. Ask the orchestrator to get started.</p><div class="ph-activity"></div></div></details><p class="ph-notice" role="status"></p>';
+    document.getElementById('chat-panel').insertBefore(panel, document.getElementById('chat-log'));
     panel.querySelector('.ph-save').onclick = saveCrew;
   }
   function notice(text) { panel.querySelector('.ph-notice').textContent = text; }
-  function close() { ++epoch; clearTimeout(timer); root = homeId = ''; if (panel) panel.hidden = true; document.body.classList.remove('project-open'); }
+  function close() { ++epoch; clearTimeout(timer); root = homeId = ''; if (panel) panel.hidden = true; }
   async function open(projectRoot) {
     setup(); clearTimeout(timer); const token = ++epoch; root = projectRoot; homeId = ''; crewDirty = false; cards.clear();
     panel.querySelector('.ph-activity').replaceChildren(); panel.querySelector('.ph-crew-list').replaceChildren();
-    panel.querySelector('.ph-crew-note').textContent = ''; panel.querySelector('.ph-crew').open = false;
-    panel.querySelector('h1').textContent = projectRoot.split(/[\\/]/).filter(Boolean).pop();
+    panel.querySelector('.ph-crew-note').textContent = ''; panel.querySelector('.ph-crew').open = false; panel.querySelector('.ph-drawer').open = false;
+    panel.querySelector('.ph-name').textContent = projectRoot.split(/[\\/]/).filter(Boolean).pop();
     panel.querySelector('.ph-path').textContent = projectRoot; panel.querySelector('.ph-count').textContent = '';
-    panel.querySelector('.ph-empty').hidden = true; panel.hidden = false; document.body.classList.add('project-open'); notice('Opening project…');
+    panel.querySelector('.ph-empty').hidden = true; panel.hidden = false; notice('Opening project…');
     try {
       let data;
       try { data = await request('/api/projects/workspace', { root: projectRoot }); }
@@ -49,7 +47,7 @@ const ProjectHome = (() => {
   }
   function render(data) {
     notice(data.project.blessed ? '' : 'Folder access is revoked. Re-add this folder before starting new work.');
-    panel.querySelector('h1').textContent = data.project.name || root.split(/[\\/]/).pop();
+    panel.querySelector('.ph-name').textContent = data.project.name || root.split(/[\\/]/).pop();
     const crewList = panel.querySelector('.ph-crew-list');
     const signature = JSON.stringify(data.crew.map(a => [a.id, a.name]));
     if (!crewDirty && crewList.dataset.signature !== signature + JSON.stringify(data.project.preferredAgents)) {
@@ -65,7 +63,7 @@ const ProjectHome = (() => {
     panel.querySelector('.ph-save').disabled = !data.project.blessed;
     panel.querySelector('.ph-crew-count').textContent = (data.project.preferredAgents || []).length ? '· ' + data.project.preferredAgents.length + ' selected' : '· Any station agent';
     const activity = data.activity || [], running = activity.filter(w => w.status === 'running').length;
-    panel.querySelector('.ph-count').textContent = running ? running + ' in progress' : activity.length ? activity.length + ' recorded' : '';
+    panel.querySelector('.ph-count').textContent = running ? running + ' in progress' : activity.length ? 'Activity · ' + activity.length : 'Crew & activity';
     panel.querySelector('.ph-empty').hidden = activity.length > 0;
     const live = new Set(activity.map(w => w.id));
     for (const [id, card] of cards) if (!live.has(id)) { card.node.remove(); cards.delete(id); }

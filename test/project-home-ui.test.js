@@ -30,15 +30,19 @@ class Element {
 }
 const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
 (async () => {
-  const stage = new Element('div'), body = new Element('body'), timers = new Map(), sessions = new Map();
+  const stage = new Element('div'), comms = new Element('aside'), log = new Element('div'), body = new Element('body'), timers = new Map(), sessions = new Map();
   let serial = 0, active = '', opens = 0, request;
   const data = root => ({ project: { root, blessed: true, preferredAgents: [] }, session: { id: root + '-home' }, crew: [{ id: 'agent', name: 'Lead' }, { id: 'mira', name: 'Mira' }], activity: [{ id: root + '-worker', agentId: 'mira', prompt: 'Research the project', status: 'running', working: true, canInterrupt: true, generation: 1 }] });
   request = async url => ({ ok: true, json: async () => data(url.includes('root=') ? decodeURIComponent(url.split('root=')[1]) : 'alpha') });
-  const ctx = vm.createContext({ console, AbortController, document: { body, createElement: t => new Element(t), getElementById: () => stage },
+  const ctx = vm.createContext({ console, AbortController, document: { body, createElement: t => new Element(t), getElementById: id => ({ 'stage-wrap': stage, 'chat-panel': comms, 'chat-log': log })[id] },
     setTimeout(fn, ms) { const id = ++serial; timers.set(id, { fn, ms }); return id; }, clearTimeout(id) { timers.delete(id); }, fetch: (...args) => request(...args),
     Workstreams: { get: id => sessions.get(id), adopt: row => sessions.set(row.id, row), activeId: () => active }, App: { persist() {}, openWorkstream(id) { active = id; opens++; } } });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../frontend/app/project-home.js'), 'utf8') + '\nthis.controller = ProjectHome;', ctx);
-  await ctx.controller.open('alpha'); const panel = stage.children[0];
+  comms.appendChild(log);
+  await ctx.controller.open('alpha'); const panel = comms.children[0];
+  assert.equal(stage.children.length, 0, 'project controls never enter the world view');
+  assert.equal(comms.children[1], log, 'project controls sit before the unchanged transcript');
+  assert.equal(panel.querySelector('.ph-drawer').open, false, 'project controls begin collapsed');
   assert.equal(active, 'alpha-home'); assert.equal(opens, 1);
   const card = panel.querySelector('.ph-card'); card.open = true;
   const draft = card.querySelector('textarea'); draft.value = 'My unsent direction';
