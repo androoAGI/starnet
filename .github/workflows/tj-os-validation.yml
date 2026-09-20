@@ -25,6 +25,11 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium
+          echo "SKYNET_CHROME=$(command -v chromium)" >> "$GITHUB_ENV"
       - name: Fast tests
         run: |
           grep -v 'test/qa-product-perfect-claims.test.js' test/fast.list > /tmp/tj-os-fast.list
