@@ -5149,7 +5149,8 @@ const StationBake = (() => {
       // Glass is translucent decoration, not an opaque barrier. Its tint is
       // already in the base; copying it again would darken the empty station.
       for (const v of viewportRects) b.clearRect(v.x - d.x, v.y - d.y, v.w, v.h);
-      return { x: d.x, y: d.y, w: d.w, h: d.h, sortY: d.sortY, image };
+      return { x: d.x, y: d.y, w: d.w, h: d.h, sortY: d.sortY,
+        depthY: d.sortY, depthHeight: Math.max(0, d.h), depthClass: 'architecture', image };
     });
   }
 
