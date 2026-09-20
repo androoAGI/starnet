@@ -52,7 +52,8 @@ materializeSeedWorkspace(workspace);
 const sidecar = bootSeededSidecar({ port: appPort, scratchDir: workspace });
 const chrome = spawn(findChrome(), [
   '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
-  '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
+  '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--disable-gpu-sandbox',
+  '--remote-debugging-address=127.0.0.1', '--disable-background-networking', '--disable-component-update',
   `--remote-debugging-port=${cdpPort}`, '--window-size=1280,720', `--user-data-dir=${profile}`, 'about:blank'
 ], { stdio: 'ignore' });
 
