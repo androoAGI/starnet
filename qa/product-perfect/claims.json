@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bb4eddd0360b284e918751019b63e66dfbdb0eea",
-    "pathSetSha256": "a11c67cfb53f07eaaf8784fa4174bea4635d53b5741259b6894e8b5cccf6eac8",
+    "sourceCommit": "418cfd42a4ce3a95d1d6b48b5351581efb13778e",
+    "pathSetSha256": "baa6f6ba0fe5da81838a50f09a4c7f97680d5393f0adfd1700be34f4947eafdc",
     "files": [
       {
         "path": "INSTALL.md",
@@ -28,8 +28,8 @@
       },
       {
         "path": "PRIVACY.md",
-        "bytes": 13829,
-        "sha256": "6974307f435a54716c1daa78c4dc2d05349dd96ade68c9a18224dcf5db65b65e"
+        "bytes": 12352,
+        "sha256": "cf4ebfca9b06017a2d0c26c6e41d6f39fac1032101b48bd874a028465051cb77"
       },
       {
         "path": "README.md",
@@ -667,6 +667,11 @@
         "sha256": "f5737708bd2f63921c890a3191f136a0d72a4144631d849ca00ea79150b533bc"
       },
       {
+        "path": "frontend/app/overseer.js",
+        "bytes": 1757,
+        "sha256": "6f6821febbec9655a1548c61db70bf4441a870ade138857e047a7b4d17adfb49"
+      },
+      {
         "path": "frontend/app/permissions.js",
         "bytes": 11906,
         "sha256": "8ce0ac803a71cbaf1a3a1c741eca12600e266ca6b08ce679d6098e7ca0ee1e80"
@@ -1198,8 +1203,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 132869,
-        "sha256": "0d8f09642603d2dc48bf6591372d16814330699988af774d8fa9a59eb8a7125f"
+        "bytes": 132229,
+        "sha256": "10c24b617cb5e632b9b5d7acf8a0bb3da91339e99877cf7dcae0ae297dc2eabc"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -1273,8 +1278,8 @@
       },
       {
         "path": "frontend/app/workstreams.js",
-        "bytes": 39657,
-        "sha256": "090650bdb958e7ccad3d3aa6278957debd2bfc6570e740dd0cf96b37e62d5814"
+        "bytes": 39737,
+        "sha256": "6260de0993f36d35273d3c050289b7c2fd58dc14a1530858adfc689bcb5b8c11"
       },
       {
         "path": "frontend/app/workview.js",
@@ -1568,8 +1573,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 86317,
-        "sha256": "0b79e94893e8b9702f1c25d0a17c620e8c068769dad5a2dea09454d3865f077f"
+        "bytes": 86357,
+        "sha256": "73e8dc448ae7bdf1a354244404e20f2b8038addcd9712e0ef39d22b44510e437"
       },
       {
         "path": "frontend/js/arcade.js",
@@ -1839,6 +1844,10 @@
         {
           "path": "README.md",
           "needle": "run **more, concurrently**"
+        },
+        {
+          "path": "frontend/app/overseer.js",
+          "needle": "StationCommands.reconcile"
         }
       ],
       "authorityChecks": [
@@ -1851,6 +1860,16 @@
           "kind": "contains",
           "path": "sidecar/index.js",
           "needle": "MAX_CONCURRENT_AGENTS"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/overseer.js",
+          "needle": "async function withThread"
+        },
+        {
+          "kind": "contains",
+          "path": "test/e2e.overseer.test.js",
+          "needle": "automatic review never impersonates a Commander message"
         }
       ],
       "verdict": "SHIPPED",
