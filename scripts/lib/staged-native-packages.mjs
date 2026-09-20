@@ -13,3 +13,11 @@ export function isUnusedMuslSharp(scope, name, platform) {
 export function isUnusedDesktopAccelerator(file, platform) {
   return platform === 'linux' && /[/\\]onnxruntime-node[/\\]bin[/\\]napi-v\d+[/\\]linux[/\\](?:x64|arm64)[/\\]libonnxruntime_providers_(?:cuda|tensorrt)\.so$/.test(file);
 }
+
+// The lockfile, not a growing list of package names, identifies development-only
+// packages. Shared production/dev dependencies have no dev:true flag and survive.
+export function isDevelopmentOnlyPackage(relativePath, packages) {
+  const key = String(relativePath).replace(/\\/g, '/');
+  const entry = packages && packages[key];
+  return !!(entry && entry.dev === true);
+}

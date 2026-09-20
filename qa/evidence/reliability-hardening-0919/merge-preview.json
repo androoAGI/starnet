@@ -1,0 +1,18 @@
+{
+  "scope": "Read-only merge preview, not integrated or runtime-tested combined code",
+  "ours": "829990719",
+  "incoming": "8931c6245",
+  "mergedIndexSha256": "b79f899dd7d0d31a145c3186ccbdd646d10db87a8248c4486603ad8925410c6e",
+  "syntax": "pass",
+  "singleDefinitions": {
+    "runOnce": 1,
+    "runOnceCore": 1,
+    "handleBudgetStatus": 1,
+    "spendPendingPath": 1
+  },
+  "budgetGuardInCore": true,
+  "conflicts": [
+    "test/fast.list",
+    "qa/product-perfect/claims.json"
+  ]
+}

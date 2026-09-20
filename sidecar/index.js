@@ -900,16 +900,51 @@ function rotateJsonl(file) { try { rotateIfLarge({ fs: fs }, file, LOG_MAX_BYTES
    unintended headroom after restart. The budget governs the soft cross-run pools; the host injects the wall clock
    at this composition boundary. */
 const LEDGER_FILE = path.join(WORKSPACES, 'ledger.jsonl');
+const SPEND_PENDING_DIR = path.join(WORKSPACES, '.spend-pending');
+function spendPendingPath(runId) { return path.join(SPEND_PENDING_DIR, crypto.createHash('sha256').update(String(runId)).digest('hex') + '.json'); }
 let ledgerAppendFails = 0;                 // consecutive ledger append failures; reset on any success
 const LEDGER_FAIL_ALERT = 5;               // after this many in a row, surface ONCE into the diagnostics ring
 const ledgerIo = {
   readAll() {
-    try { return readBoundedJsonl(LEDGER_FILE); } catch (e) { return []; }   // P3: bounded boot-load
+    const rows = loadBounded({ fs, strict: true }, LEDGER_FILE, LOG_MAX_BYTES).map(line => {
+      const row = JSON.parse(line);
+      if (!row || typeof row !== 'object' || Array.isArray(row) || typeof row.usd !== 'number' || !Number.isFinite(row.usd) || row.usd < 0) throw new Error('invalid spend history row');
+      return row;
+    });
+    let files;
+    try { files = fs.readdirSync(SPEND_PENDING_DIR); }
+    catch (e) { if (e.code === 'ENOENT') return rows; throw e; }
+    const settled = new Set(rows.map(row => row.runId));
+    const receipts = files.filter(name => name.endsWith('.json')).map(file => ({ file, receipt: JSON.parse(fs.readFileSync(path.join(SPEND_PENDING_DIR, file), 'utf8')) }));
+    // Settle completed entries before checking dispatch markers, independent of filesystem order.
+    receipts.sort((a, b) => Number(!!(b.receipt && b.receipt.entry)) - Number(!!(a.receipt && a.receipt.entry)));
+    for (const { file, receipt } of receipts) {
+      // A completed charge is journaled before append. Replay it exactly once after
+      // disk recovery; a dispatch-only receipt remains uncertain and is never guessed $0.
+      if (receipt && receipt.entry && receipt.entry.runId === receipt.runId &&
+          typeof receipt.entry.usd === 'number' && Number.isFinite(receipt.entry.usd) && receipt.entry.usd >= 0) {
+        const prior = rows.find(row => receipt.entry.entryId ? row.entryId === receipt.entry.entryId : JSON.stringify(row) === JSON.stringify(receipt.entry));
+        if (prior && JSON.stringify(prior) !== JSON.stringify(receipt.entry)) throw Object.assign(new Error('Spend settlement receipt conflicts with ledger'), { code: 'SPEND_RECEIPT_CONFLICT' });
+        if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); settled.add(receipt.runId); }
+      }
+      if (!receipt || !receipt.runId || !settled.has(receipt.runId)) throw Object.assign(new Error('An interrupted run has unsettled spend; reconcile its provider usage before continuing with spending limits.'), { code: 'UNSETTLED_SPEND' });
+      fs.unlinkSync(path.join(SPEND_PENDING_DIR, file));
+    }
+    return rows;
+  },
+  beginRun(receipt) {
+    fs.mkdirSync(SPEND_PENDING_DIR, { recursive: true });
+    writeFileDurable({ fs, path }, spendPendingPath(receipt.runId), JSON.stringify(receipt));
+  },
+  finishRun(entry) {
+    try { fs.unlinkSync(spendPendingPath('settlement:' + entry.entryId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    try { fs.unlinkSync(spendPendingPath(entry.runId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
   },
   append(entry) {
-    // open(O_APPEND) -> write -> fsync -> close, all fail-open: a persistence error must never crash the run
-    // (the in-memory ledger mirror still answers for this process's lifetime).
+    // Journal settlement before append. Failure marks accounting unhealthy and keeps the receipt for recovery.
     try {
+      fs.mkdirSync(SPEND_PENDING_DIR, { recursive: true });
+      writeFileDurable({ fs, path }, spendPendingPath('settlement:' + entry.entryId), JSON.stringify({ runId: entry.runId, entry }));
       appendJsonlDurable({ fs: fs, note: failNote }, LEDGER_FILE, entry);
       ledgerAppendFails = 0;   // a successful append clears the streak (transient blips don't accumulate)
     } catch (e) {
@@ -921,11 +956,12 @@ const ledgerIo = {
       if (ledgerAppendFails === LEDGER_FAIL_ALERT) {
         try { recordDiagError('ledger append failing (' + ledgerAppendFails + ' consecutive): spend is recorded in memory but not persisting to disk — restart would lose it. ' + ((e && e.message) || e)); } catch (_) {}
       }
+      throw e;
     }
-    rotateJsonl(LEDGER_FILE);   // P3: roll to <file>.1 once the live segment passes the cap (bounds disk)
+    // Never discard authoritative spend history. A read ceiling must report unknown, not erase old charges.
   }
 };
-const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() } });
+const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
 const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() } });
 /* ---- managed credits (config-gated). Shares the SAME spend ledger as the run finalizer, so a managed run's
    final truth lands in one place. INERT (configured() === false) unless CREDITS_URL is set — then admission can
@@ -10225,6 +10261,8 @@ async function handleRoutingSample(req, res) {
 /* ---- GET /api/budget/status — the live spend pools (day + global) vs their caps, plus session resume headroom.
    Read-only; safe to poll for the budget HUD. The ledger + in-flight tallies back it, so it survives restarts. ---- */
 function handleBudgetStatus(req, res) {
+  const accounting = ledger.health();
+  const known = accounting.complete && accounting.durable;
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   const now = Date.now();
   // caps: the EFFECTIVE (persisted-or-env) values the UI edits; `overrides` marks which were saved (vs env default),
@@ -10245,9 +10283,9 @@ function handleBudgetStatus(req, res) {
     saved: Object.assign({}, budgetOverrides),        // only the keys the user explicitly saved
     envDefaults: { perRun: BUDGET_CAPS.perRun, perAgent: BUDGET_CAPS.perAgent, perDay: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global },
     perRun: effectiveCaps.perRun,                     // back-compat: pre-existing flat field kept
-    spentToday: ledger.usdForDay(now),
-    lifetime: ledger.totalUsd(),
-    totalUsd: ledger.totalUsd(), runs: ledger.count()
+    spentToday: known ? ledger.usdForDay(now) : null,
+    lifetime: known ? ledger.totalUsd() : null,
+    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null
   })));
 }
 /* ---- GET /api/credits — the managed-credit STORE surface (balance + recent history + the external purchase URL).
@@ -14434,6 +14472,8 @@ const slashActions = slashActionsMod.makeSlashActions({
   // the browser-side counter could not see.
   budget: {
     snapshot: async (agentId) => {
+      const health = ledger.health();
+      if (!health.complete || !health.durable) return { ok: false, error: 'Spend history is unavailable or not durably saved.' };
       const t = Date.now();
       return {
         ok: true,

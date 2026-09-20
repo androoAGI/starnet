@@ -15,6 +15,7 @@
 // Usage:
 //   node scripts/uiplay.mjs --boot
 //   SKYNET_SHOT_PORT=8920 node scripts/uiplay.mjs --msg "say PONG only"
+import { connectCDP } from './lib/cdp.mjs';
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -38,27 +39,6 @@ const CHROME = [
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-class CDP {
-  constructor(ws) { this.ws = ws; this.id = 0; this.pending = new Map(); this.handlers = new Map();
-    ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
-      if (m.id && this.pending.has(m.id)) { const { resolve, reject } = this.pending.get(m.id); this.pending.delete(m.id); m.error ? reject(new Error(m.error.message)) : resolve(m.result); }
-      else if (m.method) (this.handlers.get(m.method) || []).forEach((h) => h(m.params)); });
-  }
-  send(method, params = {}) { const id = ++this.id; return new Promise((resolve, reject) => { this.pending.set(id, { resolve, reject }); this.ws.send(JSON.stringify({ id, method, params })); setTimeout(() => { if (this.pending.has(id)) { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); } }, 30000); }); }
-  on(method, fn) { if (!this.handlers.has(method)) this.handlers.set(method, []); this.handlers.get(method).push(fn); }
-}
-
-async function connectCDP(port) {
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(`http://127.0.0.1:${port}/json/list`); const targets = await r.json();
-      const page = targets.find((t) => t.type === 'page');
-      if (page?.webSocketDebuggerUrl) { const ws = new WebSocket(page.webSocketDebuggerUrl);
-        await new Promise((res, rej) => { ws.addEventListener('open', res, { once: true }); ws.addEventListener('error', rej, { once: true }); });
-        return new CDP(ws); }
-    } catch {} await sleep(250);
-  }
-  throw new Error('Could not connect to CDP on ' + port);
-}
 async function ev(cdp, expression) { const r = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error('eval: ' + (r.exceptionDetails.exception?.description || r.exceptionDetails.text)); return r.result?.value; }
 async function frame(cdp, name) { const r = await cdp.send('Page.captureScreenshot', { format: 'png' }); writeFileSync(join(OUT_DIR, name + '.png'), Buffer.from(r.data, 'base64')); }
 

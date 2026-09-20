@@ -1053,8 +1053,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 736123,
-        "sha256": "5649ce6a9970d7746f856734bd10665890088fd92cfec9facfde1f5cdedccff9"
+        "bytes": 736802,
+        "sha256": "d899ece3c34aaca2ed1ffe339780670e52b5d17eacb6a8269b1ab012e8bde8da"
       },
       {
         "path": "frontend/app/study.js",

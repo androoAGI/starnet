@@ -63,4 +63,29 @@ A.ok(/source_hash_after[\s\S]*?source_hash_before/.test(installedScript),
 A.ok(/quit_cleanly[\s\S]*?launch_with_finder[\s\S]*?restartSurvived/.test(installedScript),
   'installed verifier quits, relaunches through Finder, and records restart persistence');
 
+// Execute the actual receipt writer against XML/binary installed metadata. Never
+// infer the installed version from the verifier checkout or artifact filename.
+const receiptWriter = installedScript.match(/python3 - "\$receipt"[^\n]*<<'PY'\r?\n([\s\S]*?)\r?\nPY/)[1];
+const probe = `import tempfile, pathlib, plistlib, json, sys
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    app = root / 'StarNet.app'
+    (app / 'Contents').mkdir(parents=True)
+    dmg = root / 'misleading_0.10.0.dmg'
+    dmg.write_bytes(b'exact fixture bytes')
+    receipt = root / 'receipt.json'
+    for version, fmt in [('0.12.3', plistlib.FMT_XML), ('12.7.19', plistlib.FMT_BINARY), ('', plistlib.FMT_XML), (None, plistlib.FMT_BINARY)]:
+        receipt.unlink(missing_ok=True)
+        metadata = {} if version is None else {'CFBundleShortVersionString': version}
+        (app / 'Contents' / 'Info.plist').write_bytes(plistlib.dumps(metadata, fmt=fmt))
+        sys.argv = ['receipt', str(receipt), str(dmg), str(app), '8989', 'source-sha', 'true']
+        try:
+            exec(${JSON.stringify(receiptWriter)}, {})
+        except ValueError:
+            assert not version and not receipt.exists()
+        else:
+            assert version and json.loads(receipt.read_text())['upgrade']['to'] == version
+`;
+const result = require('child_process').spawnSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', probe], { encoding: 'utf8' });
+A.eq(result.status, 0, 'receipt uses actual installed XML/binary plist and rejects missing version: ' + result.stderr);
 A.report('desktop-build-macos-notarization.test');

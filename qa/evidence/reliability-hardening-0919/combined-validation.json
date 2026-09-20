@@ -1,0 +1,34 @@
+{
+  "combinedSourceCommit": "2c8804eb0cbc07d9acc980054d9172121f7a6f26",
+  "manifestCommit": "c71da2625",
+  "runtime": "v22.23.0",
+  "gates": {
+    "fastAttempt1": {
+      "exitCode": 124,
+      "lastLine": "[timeout] test:fast exceeded 1200000ms; terminating process tree.",
+      "logSha256": "159e2a81532d227348efe26fc2221d792eb29ab7f19d74690b0315eea9d2b882",
+      "logBytes": 51230
+    },
+    "http": {
+      "exitCode": 0,
+      "lastLine": "run-test-list: OK \u2014 125 step(s) green",
+      "logSha256": "9fd89eb6c5753827ad346a7691f39dd4da79a0a54066aea0b6eab8c2daeb7e2c",
+      "logBytes": 13399
+    },
+    "journeys": {
+      "exitCode": 0,
+      "lastLine": "JOURNEYS PASS \u2014 139/139 assertions passed \u2192 .dogfood/reliability-hardening/combined-journeys",
+      "logSha256": "55a03ee10e383ba6fac3ee11a068974bffb278d4fc32f040c8ba4585ece59060",
+      "logBytes": 13687
+    },
+    "fastRetry": {
+      "exitCode": 0,
+      "passed": 836,
+      "logSha256": "efae4d9daf64350be906a30932557ef4d61dcbf01de66efd0da95dd2d26128aa",
+      "logBytes": 66728
+    }
+  },
+  "receiptWriterFix": "2098a36f9",
+  "receiptWriterFocusedTest": "27 assertions pass; release trust 56 assertions pass",
+  "mergeStatus": "836 fast, 125 HTTP, 139 live assertions pass; newer Google trunk requires synchronization"
+}
