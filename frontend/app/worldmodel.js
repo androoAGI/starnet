@@ -2666,6 +2666,9 @@ const WorldModel = (() => {
         { id: 'p' + doc._nid++, t: 'dinerchair', x: 13, y: 34, w: 1, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'booth', x: 2, y: 34, w: 2, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'fishtank', x: 14, y: 29, w: 2, h: 1, block: true },
+        { id: 'p' + doc._nid++, t: 'quarters_minifridge', x: 2, y: 29, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'quarters_vending', x: 16, y: 31, w: 1, h: 2, block: true },
+        { id: 'p' + doc._nid++, t: 'stool', x: 9, y: 30, w: 1, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 36, w: 1, h: 1, block: false },
         { id: 'p' + doc._nid++, t: 'plant', x: 1, y: 28, w: 1, h: 1, block: false },
         { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 28, w: 1, h: 1, block: false }
