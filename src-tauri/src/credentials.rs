@@ -9,6 +9,45 @@ use std::path::Path;
 
 pub(crate) const KEYCHAIN_SERVICE: &str = "ai.skynet.harness";
 pub(crate) const KEYCHAIN_ACCOUNT: &str = "openrouter";
+
+/// Stable envelope-encryption key. Never replace an existing malformed/unreadable
+/// value: doing so would permanently strand the encrypted connector state.
+pub(crate) fn connector_encryption_key() -> Result<String, String> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, "connectors:encryption:v1")
+        .map_err(|_| "Connector credential store is unavailable".to_string())?;
+    match entry.get_password() {
+        Ok(value) => {
+            if valid_connector_key(&value) {
+                Ok(value)
+            } else {
+                Err("Connector encryption key is invalid; original key was preserved".into())
+            }
+        }
+        Err(keyring::Error::NoEntry) => {
+            // The first eight hex digits of each v4 UUID are 32 unmasked OS-CSPRNG
+            // bits. Eight independent UUIDs supply exactly 256 random key bits.
+            let value: String = (0..8)
+                .map(|_| uuid::Uuid::new_v4().simple().to_string()[..8].to_string())
+                .collect();
+            entry
+                .set_password(&value)
+                .map_err(|_| "Connector encryption key could not be saved".to_string())?;
+            let saved = entry
+                .get_password()
+                .map_err(|_| "Connector encryption key could not be verified".to_string())?;
+            if saved == value {
+                Ok(saved)
+            } else {
+                Err("Connector encryption key read-back failed".into())
+            }
+        }
+        Err(_) => Err("Connector credential store is locked or unavailable".into()),
+    }
+}
+
+fn valid_connector_key(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|c| c.is_ascii_hexdigit())
+}
 pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
     "openrouter",
     "openai",
@@ -401,6 +440,24 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn connector_key_requires_exact_256_bit_encoding() {
+        assert!(valid_connector_key(&"a1".repeat(32)));
+        assert!(!valid_connector_key(&"a1".repeat(31)));
+        assert!(!valid_connector_key(&"a1".repeat(33)));
+        assert!(!valid_connector_key(&"zz".repeat(32)));
+        assert!(!valid_connector_key(&format!("{}\n", "a1".repeat(32))));
+    }
+
+    #[test]
+    #[ignore = "Requires an unlocked native OS credential store; creates the persistent StarNet connector key if absent"]
+    fn connector_keychain_roundtrip() {
+        let first = connector_encryption_key().expect("native connector key available");
+        let second = connector_encryption_key().expect("native connector key readable again");
+        assert!(valid_connector_key(&first));
+        assert!(first == second, "native key must persist unchanged");
+    }
 
     #[test]
     fn provider_aliases_normalize_to_runtime_ids() {

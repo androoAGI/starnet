@@ -1,0 +1,12 @@
+AssertionError [ERR_ASSERTION]: resolved CDP requests must release timeout handles
+
+1 !== 0
+
+    at C:\Users\andro\gen-trees\reliability-audit-0919\test\cdp-lifecycle.test.js:14:49 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

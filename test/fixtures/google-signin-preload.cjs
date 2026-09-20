@@ -26,7 +26,7 @@ globalThis.fetch = async (raw, opts = {}) => {
     const form = new URLSearchParams(opts.body);
     const refreshing = form.get('grant_type') === 'refresh_token';
     const code = form.get('code') || '';
-    const product = code.split(':')[0] || 'gmail';
+    const product = code.split(':')[0] || (form.get('refresh_token') || '').split(':')[1] || 'gmail';
     if (refreshing) {
       fs.writeFileSync(marker('google-refreshed'), 'yes');
       if (fs.existsSync(marker('google-revoked'))) return json({ error: 'invalid_grant' }, 400);
@@ -44,7 +44,7 @@ globalThis.fetch = async (raw, opts = {}) => {
       }
     }
     return json({ access_token: refreshing ? 'GOOGLE_REFRESHED_TEST' : 'GOOGLE_ACCESS_TEST',
-      ...(code.includes('no-refresh') ? {} : { refresh_token: 'GOOGLE_REFRESH_TEST' }), token_type: 'Bearer', expires_in: 3600,
+      ...(code.includes('no-refresh') ? {} : { refresh_token: 'GOOGLE_REFRESH_TEST' + (product === 'google-files' ? ':google-files' : '') }), token_type: 'Bearer', expires_in: 3600,
       scope: code.includes('partial') ? 'openid' : (catalog.get(product)?.staticOauth.scopes || catalog.get('gmail').staticOauth.scopes).join(' ') });
   }
   if (url.hostname === 'openidconnect.googleapis.com') return json({ sub: 'synthetic-account', email: 'google-fixture@example.invalid', email_verified: true });

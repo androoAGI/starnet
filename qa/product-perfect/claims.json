@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b512f7bdb6fdaeeaed8d360d55032dc88d6a7666",
+    "sourceCommit": "6d93500e6d2d3692ebc75a4697949a20b66515a1",
     "pathSetSha256": "baa6f6ba0fe5da81838a50f09a4c7f97680d5393f0adfd1700be34f4947eafdc",
     "files": [
       {
@@ -28,8 +28,8 @@
       },
       {
         "path": "PRIVACY.md",
-        "bytes": 12352,
-        "sha256": "cf4ebfca9b06017a2d0c26c6e41d6f39fac1032101b48bd874a028465051cb77"
+        "bytes": 13829,
+        "sha256": "6974307f435a54716c1daa78c4dc2d05349dd96ade68c9a18224dcf5db65b65e"
       },
       {
         "path": "README.md",
@@ -313,8 +313,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 433868,
-        "sha256": "da9281372777f0392be8dd0e1cf6cca03dc1331d9acbb4adf1852381e2a71731"
+        "bytes": 433465,
+        "sha256": "95943da6dc34b21a66c5a4417995a985921915ca85633856b76f198c69744855"
       },
       {
         "path": "frontend/app/channels.js",
@@ -1053,8 +1053,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 736123,
-        "sha256": "5649ce6a9970d7746f856734bd10665890088fd92cfec9facfde1f5cdedccff9"
+        "bytes": 736802,
+        "sha256": "d899ece3c34aaca2ed1ffe339780670e52b5d17eacb6a8269b1ab012e8bde8da"
       },
       {
         "path": "frontend/app/study.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 132229,
-        "sha256": "10c24b617cb5e632b9b5d7acf8a0bb3da91339e99877cf7dcae0ae297dc2eabc"
+        "bytes": 132869,
+        "sha256": "0d8f09642603d2dc48bf6591372d16814330699988af774d8fa9a59eb8a7125f"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -1303,8 +1303,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 167862,
-        "sha256": "e911b468f87a54f497968dc49d7342375a1ad8bfa506bf71ecd68d35cc2075be"
+        "bytes": 167402,
+        "sha256": "854e7f7f2843f3374f50154a370c7e1ed66cf342891c217d5912f3f4d9682753"
       },
       {
         "path": "frontend/app/worldrenderer.js",

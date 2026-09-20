@@ -31,8 +31,9 @@ function defaultPidAlive(pid) {
   if (n === process.pid) return true;
   try { process.kill(n, 0); return true; }
   catch (e) {
-    if (e && e.code === 'EPERM') return true;
-    return false;
+    // Only ESRCH proves absence. Permission, resource and unsupported-probe errors
+    // leave ownership unknown and must never authorize another writer.
+    return !(e && e.code === 'ESRCH');
   }
 }
 

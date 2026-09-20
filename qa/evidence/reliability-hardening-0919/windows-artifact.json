@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a",
+  "buildRun": 35477408214,
+  "installer": "StarNet_0.12.3_x64-setup.exe",
+  "bytes": 640556504,
+  "sha256": "ff98fc80c455ace232b8a57ebc67800b19599696ff8dd886cc6d3b5585d7297e",
+  "authenticodeStatus": "Valid",
+  "scope": "Downloaded artifact identity and signature only; not installed acceptance",
+  "publisher": "Andrew Sims"
+}

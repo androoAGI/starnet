@@ -102,7 +102,7 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
   A.ok(/require\('\.\/budgetcaps\.js'\)/.test(idx), 'host uses the pure budgetcaps helper (single source of logic)');
   A.ok(/const budgetStore = makeDomainStore/.test(idx) && /budgetStore\.load\(\)\.value/.test(idx) && /budgetStore\.save\(budgetOverrides\)/.test(idx), 'caps persist via the normalized domain store (durable + .bak + read-back proof)');
   A.ok(/applyBudgetCaps/.test(idx) && /budget\.setCaps/.test(idx), 'saved caps apply LIVE to the governor (no restart)');
-  A.ok(/spentToday:\s*ledger\.usdForDay/.test(idx), 'status exposes spentToday from the real ledger read path');
+  A.ok(/spentToday:\s*known \? ledger\.usdForDay\(now\) : null/.test(idx), 'status exposes spentToday from the real ledger read path');
   A.ok(/lifetime:\s*ledger\.totalUsd/.test(idx), 'status exposes lifetime from the real ledger read path');
   // additive: the pre-existing flat perRun field is kept for back-compat
   A.ok(/perRun:\s*effectiveCaps\.perRun,\s*\/\/ back-compat/.test(idx), 'legacy flat perRun status field preserved');
