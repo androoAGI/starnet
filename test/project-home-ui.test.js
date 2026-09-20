@@ -73,6 +73,9 @@ const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(
   resolveAlpha({ ok: true, json: async () => data('alpha') }); await slow;
   assert.equal(active, 'beta-home', 'late project response cannot reopen the previous conversation');
   assert.equal(panel.querySelectorAll('input').length, 1, 'switching projects with identical crew choices preserves the controls');
+  request = async () => ({ ok: true, json: async () => ({ ...data('revoked'), project: { root: 'revoked', blessed: false }, session: null }) });
+  await ctx.controller.open('revoked');
+  assert.equal(title.textContent, 'beta', 'a revoked project without a conversation cannot relabel the previous conversation');
   request = async () => { throw new Error('offline'); };
   await ctx.controller.open('unavailable');
   assert.equal(title.textContent, 'beta', 'a failed project open must not relabel the previous conversation');

@@ -64,6 +64,7 @@ const ProjectHome = (() => {
       catch (error) { data = await request('/api/projects/workspace?root=' + encodeURIComponent(projectRoot)); if (data.project.blessed) throw error; }
       if (token !== epoch) return;
       homeId = data.session && data.session.id;
+      if (!homeId) throw new Error('No conversation is available for this project. Restore folder access before opening it.');
       if (homeId) {
         if (!Workstreams.get(homeId)) Workstreams.adopt({ ...data.session, revive: true });
         App.persist(); App.openWorkstream(homeId);
