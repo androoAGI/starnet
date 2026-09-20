@@ -4,10 +4,10 @@ slug: concurrent-stale-workspace-reclaimers-both-acqui
 title: Concurrent stale workspace reclaimers both acquire ownership
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-09-19
 lane: reliability-audit-0919
-fix:
+fix: d9f9b71f0
 origin: audit
 ---
 
