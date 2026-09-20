@@ -1,6 +1,6 @@
 # Reliability hardening — 2026-09-19
 
-Candidate source: `a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a` (spending repair `410252bbb`). This pass follows the earlier merged audit; it does not certify product perfection or close customer incidents without affected-system evidence.
+Integrated into local trunk at **`760426bc5`**. Private installer source: `a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a` (spending repair `410252bbb`). This pass follows the earlier merged audit; it does not certify product perfection or close customer incidents without affected-system evidence.
 
 ## Implemented
 
@@ -33,13 +33,13 @@ The initial full fast gate passed 833 steps. After the packaging repair, the upd
 5. **Real provider/connector acceptance.** Actual Ollama no-POST/zero-tool cases, Zoho authenticated bootstrap schema, and managed-provider/billing reports retain their existing evidence requirements. Controlled providers prove local behavior, not those customer accounts or models.
 6. **Guardian authority.** Unit and live CDP proof do not constitute a complete fresh scheduled Guardian cycle. The latest pre-candidate cycle (23:23Z, trunk 621bbf467) also failed a 9-second sidecar startup check, cross-origin browser navigation, CDP startup on port 9340 and the library-search journey assertion (138/139). These are not all explained by retained timers. Existing visual differences require review; no golden baseline or finding was dismissed to create green status. The Windows Node 24 native HTTP crash remains separate; gates use Node 22.
 
-No release was published. Integration remains gated by the combined checks below.
+No release was published. Source integration and its required gates are complete; this is not a READY or PRODUCT PERFECT verdict.
 
 ## Combined integration
 
 The preceding lane released its reservation at trunk `713951f89`. Merged it into this isolated branch at `2c8804eb0`, preserved incoming orchestration authority checks, and locked the combined source at `c71da2625`. Test lists contain 836 fast / 125 HTTP suites with no duplicate entries; shared event/schema contracts were unchanged. Mac receipt repair is `2098a36f9`.
 
-Combined HTTP passed **125/125**, and live journeys passed **139/139**. The first combined fast run hit its unchanged 20-minute limit without an assertion failure; its log is retained. Retained dependency-staging output was moved out of the evidence scan directory into `C:/Users/andro/AppData/Local/Temp/starnet-reliability-0919-staging`, preserving the build output and all receipts. The complete fast rerun passed **836/836** within the unchanged time limit. Trunk meanwhile advanced to `a8a41c990` with Google credential integration; this lane must synchronize and revalidate before merging. The integration tree has not received this lane yet.
+Combined HTTP passed **125/125**, and live journeys passed **139/139**. The first combined fast run hit its unchanged 20-minute limit without an assertion failure; its log is retained. Retained dependency-staging output was moved out of the evidence scan directory into `C:/Users/andro/AppData/Local/Temp/starnet-reliability-0919-staging`, preserving the build output and all receipts. The complete fast rerun passed **836/836** within the unchanged time limit. Trunk briefly advanced to `a8a41c990` with Google credential integration, then its lane rolled back to `713951f89`. This lane integrated only after verifying that restored base. No Google lane code was discarded or modified by this task.
 
 ## Installed acceptance results
 
@@ -50,3 +50,9 @@ Intel Mac acceptance retry [105995029124](https://github.com/androoAGI/starnet/a
 The original Intel receipt falsely says upgrade destination 0.10.0 because the verifier hard-coded that field. The original evidence is preserved unchanged. Fix `2098a36f9` reads the actual installed Info.plist and rejects missing version metadata; executable regression covers XML, binary, multiple versions and absent/empty values. It does not retroactively change the CI receipt or claim the corrected writer ran on that Mac.
 
 The tested private installers use source `a711f6ea2`, before the orchestration merge and receipt-writer fix. Their receipts prove those exact artifacts, not an installer rebuilt from the eventual combined trunk. Windows installer SHA-256 is `ff98fc80c455ace232b8a57ebc67800b19599696ff8dd886cc6d3b5585d7297e` (640,556,504 bytes, valid Authenticode, publisher Andrew Sims). No local user installation was replaced.
+
+## Final integration result
+
+**Merged at `760426bc5`; full post-merge fast 836/836 and HTTP 125/125 passed on Node 22.23.0.** The integration and verification worktrees had identical tree `54d2ab62c69e3a6d686be77c15869d4983b5ee1f`. Combined live browser journeys passed 139/139 before integration. `combined-validation.json` preserves successful pre/post receipts plus the first timed-out fast attempt; `combined-journeys-report.json` contains the actual combined UI assertions. Only evidence/report files change in the final receipt commit. Existing dirty operational notes were preserved.
+
+The register validates: 201 reports, 12 open, including the two P1 cases listed above. Five reproduced defects were repaired in this pass (spend authority, uncertain PID takeover, retained CDP timers, dev-only desktop dependencies, and the installed-version receipt); budget UI and Guardian deadline safeguards accompany them. Complete auxiliary-call accounting, atomic crash ownership, historical spend lineage, affected-customer acceptance, intermittent Mac trust lookup and a fresh complete Guardian cycle remain explicit follow-up work.

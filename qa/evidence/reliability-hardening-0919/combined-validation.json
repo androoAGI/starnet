@@ -26,9 +26,24 @@
       "passed": 836,
       "logSha256": "efae4d9daf64350be906a30932557ef4d61dcbf01de66efd0da95dd2d26128aa",
       "logBytes": 66728
+    },
+    "postMergeFast": {
+      "exitCode": 0,
+      "passed": 836,
+      "logSha256": "9adec87ed98433b988320914ee68266d53d9825982f9a7d5395791326b0b4a0f",
+      "logBytes": 66724
+    },
+    "postMergeHttp": {
+      "exitCode": 0,
+      "passed": 125,
+      "logSha256": "f60309108645df89c771df5f90f95915caab0d00866ee80e0ee2a25469bffe2b",
+      "logBytes": 13394
     }
   },
   "receiptWriterFix": "2098a36f9",
   "receiptWriterFocusedTest": "27 assertions pass; release trust 56 assertions pass",
-  "mergeStatus": "836 fast, 125 HTTP, 139 live assertions pass; newer Google trunk requires synchronization"
+  "mergeStatus": "integrated; exact-commit post-merge fast and HTTP pass",
+  "integratedCommit": "760426bc5f2e959fef065ed0058106a0786d2a05",
+  "integratedTree": "54d2ab62c69e3a6d686be77c15869d4983b5ee1f",
+  "verifiedAt": "2026-09-20T01:37:05.078154+00:00"
 }
