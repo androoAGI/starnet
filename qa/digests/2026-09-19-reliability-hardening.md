@@ -10,6 +10,8 @@ Candidate source: `a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a` (spending repair `4
 - Browser checks: completed/failed CDP requests clear timers, disconnects reject pending work promptly, and uiplay/refit use the shared implementation. Guardian's outer fast deadline now includes cleanup headroom beyond the inner gate.
 - Installed regression coverage: the disposable Windows acceptance workflow now runs spending fault/restart cases using the actual installed Node and source-identity-checked sidecar. No hosted-runner guard was bypassed, and the local installed application was not replaced.
 
+- Acceptance evidence: installed Mac upgrade receipts now read the destination version from the installed Info.plist rather than a hard-coded release number. Missing metadata fails receipt creation; executable regressions cover XML/binary plists, multiple versions and missing/empty values.
+
 - Desktop dependency closure: a private Linux build reproduced a development-only Canvas native binding leaking into the installer. Staging now excludes lockfile dev-only packages across fresh and warm outputs, preserving shared runtime and optional dependencies. This addresses the recurring native-package pattern beyond the previous Sharp-only filter.
 
 ## Evidence and validation
@@ -20,7 +22,7 @@ Focused unit tests cover read failures, configured scope variations, opt-in beha
 
 Live seeded browser proof saved a day limit of 2, restarted the sidecar with a deliberately corrupt isolated ledger, and observed unavailable spend with the limit preserved and a truthful save acknowledgement. The test used an owned scratch station, not customer state.
 
-The initial full fast gate passed 833 steps. After the packaging repair, the updated full gate has 834 steps. Final local gates pass: **834 fast steps, 124 HTTP steps, and 139/139 live browser journey assertions**. The packaging change did not change the sidecar/frontend source exercised by HTTP. Receipts and raw-log hashes are in `qa/evidence/reliability-hardening-0919/validation.json`. Installer acceptance remains pending. The initial private build 35476844504 reproduced the Linux packaging failure and was cancelled after preserving that evidence to avoid completing superseded installers. Replacement private installer run: https://github.com/androoAGI/starnet/actions/runs/35477408214 (`publish-test=false`, signed Mac acceptance required). Source-tree tests are not installed-app acceptance.
+The initial full fast gate passed 833 steps. After the packaging repair, the updated full gate has 834 steps. Final local gates pass: **834 fast steps, 124 HTTP steps, and 139/139 live browser journey assertions**. The packaging change did not change the sidecar/frontend source exercised by HTTP. Receipts and raw-log hashes are in `qa/evidence/reliability-hardening-0919/validation.json`. Private installed acceptance results are recorded below. The initial private build 35476844504 reproduced the Linux packaging failure and was cancelled after preserving that evidence to avoid completing superseded installers. Replacement private installer run: https://github.com/androoAGI/starnet/actions/runs/35477408214 (`publish-test=false`, signed Mac acceptance required). Source-tree tests are not installed-app acceptance.
 
 ## Prioritized unresolved work
 
@@ -31,19 +33,13 @@ The initial full fast gate passed 833 steps. After the packaging repair, the upd
 5. **Real provider/connector acceptance.** Actual Ollama no-POST/zero-tool cases, Zoho authenticated bootstrap schema, and managed-provider/billing reports retain their existing evidence requirements. Controlled providers prove local behavior, not those customer accounts or models.
 6. **Guardian authority.** Unit and live CDP proof do not constitute a complete fresh scheduled Guardian cycle. The latest pre-candidate cycle (23:23Z, trunk 621bbf467) also failed a 9-second sidecar startup check, cross-origin browser navigation, CDP startup on port 9340 and the library-search journey assertion (138/139). These are not all explained by retained timers. Existing visual differences require review; no golden baseline or finding was dismissed to create green status. The Windows Node 24 native HTTP crash remains separate; gates use Node 22.
 
-No release was published. The candidate remains on the isolated branch while verification is underway.
+No release was published. Integration remains gated by the combined checks below.
 
-## Integration and installer checkpoint
+## Combined integration
 
-The integration tree remains at `621bbf467`. Another active lane owns the Orchestrator COMMS merge reservation; its attempt at `14c77d667` was rolled back to that snapshot. This lane is queued and has not merged application code into trunk. The read-only merge preview against its candidate `8931c6245` found conflicts only in `test/fast.list` and `qa/product-perfect/claims.json`. Preserve the test union and the incoming orchestration authority checks, then regenerate the combined source manifest. The sidecar auto-merge still requires live combined validation; no shared event/schema changes were present.
+The preceding lane released its reservation at trunk `713951f89`. Merged it into this isolated branch at `2c8804eb0`, preserved incoming orchestration authority checks, and locked the combined source at `c71da2625`. Test lists contain 836 fast / 125 HTTP suites with no duplicate entries; shared event/schema contracts were unchanged. Mac receipt repair is `2098a36f9`.
 
-Private build `35477408214`: Windows, Linux and Apple Silicon build jobs passed; Intel Mac and final Mac acceptance remain pending at this checkpoint. Linux's reproduced AppImage failure is resolved by the production-dependency staging rule. The Windows installer is 640,556,504 bytes, SHA-256 `ff98fc80c455ace232b8a57ebc67800b19599696ff8dd886cc6d3b5585d7297e`, with valid Authenticode publisher Andrew Sims. See [artifact identity](../evidence/reliability-hardening-0919/windows-artifact.json). It has not been installed on the user's machine. Disposable Windows clean-install/upgrade acceptance must still run; the current workflow rejects an unfinished parent build run, even when its Windows job has completed.
-
-## Combined integration checkpoint
-
-The preceding integration released its reservation at trunk `713951f89`. Merged it into the isolated branch at `2c8804eb0`, preserving the orchestration authority checks and the union of 836 fast / 125 HTTP suites. Combined source manifest: `c71da2625`. Combined live journeys passed 139/139; full combined fast/HTTP gates remain in progress. Trunk has not yet received this lane.
-
-All four private installer builds and both Mac notarization jobs passed. However, the first clean Intel installed-app check failed: the copied app passed signature validation but Gatekeeper rejected it as Unnotarized Developer ID. Finder launch/recovery were not reached. See `mac-installed-attempt1.json`. The same artifact is being checked once more on a fresh runner without weakening acceptance. Windows clean-install/upgrade run `35479606762` uses the recorded SHA-256 and historical baseline v0.11.1. These installers predate the new orchestration merge; their evidence cannot certify the combined installer.
+Combined HTTP passed **125/125**, and live journeys passed **139/139**. The first combined fast run hit its unchanged 20-minute limit without an assertion failure; its log is retained. Retained dependency-staging output was moved out of the evidence scan directory into `C:/Users/andro/AppData/Local/Temp/starnet-reliability-0919-staging`, preserving the build output and all receipts. The complete fast rerun passed **836/836** within the unchanged time limit. Trunk meanwhile advanced to `a8a41c990` with Google credential integration; this lane must synchronize and revalidate before merging. The integration tree has not received this lane yet.
 
 ## Installed acceptance results
 
@@ -52,3 +48,5 @@ Windows run [35479606762](https://github.com/androoAGI/starnet/actions/runs/3547
 Intel Mac acceptance retry [105995029124](https://github.com/androoAGI/starnet/actions/runs/35477408214/job/105995029124) passed on the same artifact: SHA-256 `97668c40c4305167f384f3013fa44b3ff9f13c5f35c3557238a1d3bea173d03c`. Gatekeeper, Finder launch, sidecar boot, v0.9.0 station recovery/source preservation and restart all passed. Preserve attempt 1's Gatekeeper rejection as an intermittent trust-path finding; a retry pass does not explain its cause. Apple Silicon build/notarization passed but installed acceptance was not run there.
 
 The original Intel receipt falsely says upgrade destination 0.10.0 because the verifier hard-coded that field. The original evidence is preserved unchanged. Fix `2098a36f9` reads the actual installed Info.plist and rejects missing version metadata; executable regression covers XML, binary, multiple versions and absent/empty values. It does not retroactively change the CI receipt or claim the corrected writer ran on that Mac.
+
+The tested private installers use source `a711f6ea2`, before the orchestration merge and receipt-writer fix. Their receipts prove those exact artifacts, not an installer rebuilt from the eventual combined trunk. Windows installer SHA-256 is `ff98fc80c455ace232b8a57ebc67800b19599696ff8dd886cc6d3b5585d7297e` (640,556,504 bytes, valid Authenticode, publisher Andrew Sims). No local user installation was replaced.
