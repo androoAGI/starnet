@@ -110,7 +110,9 @@ fn sidecar_exit_is_intentional(code: Option<i32>) -> bool {
 /// Exponential backoff before the n-th consecutive crash respawn: 1s, 2s, 4s, 8s, 16s, 30s (cap).
 fn guardian_backoff(consecutive_crashes: u32) -> Duration {
     let n = consecutive_crashes.max(1) - 1;
-    let secs = 1u64.checked_shl(n.min(10)).unwrap_or(GUARDIAN_MAX_BACKOFF.as_secs());
+    let secs = 1u64
+        .checked_shl(n.min(10))
+        .unwrap_or(GUARDIAN_MAX_BACKOFF.as_secs());
     Duration::from_secs(secs).min(GUARDIAN_MAX_BACKOFF)
 }
 
@@ -1930,8 +1932,11 @@ fn spawn_sidecar(state: &AppState) -> bool {
                 if let Ok(mut guard) = state.sidecar.lock() {
                     *guard = Some(child);
                 }
-                let (listening, exited) =
-                    wait_for_port_or_exit(state.port, Duration::from_secs(25), Some(&state.sidecar));
+                let (listening, exited) = wait_for_port_or_exit(
+                    state.port,
+                    Duration::from_secs(25),
+                    Some(&state.sidecar),
+                );
                 log_startup(
                     &state.startup_log,
                     match exited {
@@ -2109,7 +2114,10 @@ fn spawn_guardian(app: AppHandle) {
                             first_crash_at = None;
                             next_attempt_at = None;
                             if let Ok(mut g) = st.guardian.lock() {
-                                if g.consecutive_crashes != 0 || g.halted || g.next_respawn_in_ms.is_some() {
+                                if g.consecutive_crashes != 0
+                                    || g.halted
+                                    || g.next_respawn_in_ms.is_some()
+                                {
                                     g.consecutive_crashes = 0;
                                     g.halted = false;
                                     g.next_respawn_in_ms = None;
@@ -2465,7 +2473,11 @@ fn decode_chunked_body(raw: &str) -> Option<String> {
             return None;
         }
         out.extend_from_slice(&bytes[start..end]);
-        pos = if bytes[end..].starts_with(b"\r\n") { end + 2 } else { end };
+        pos = if bytes[end..].starts_with(b"\r\n") {
+            end + 2
+        } else {
+            end
+        };
     }
 }
 
@@ -4393,7 +4405,8 @@ mod lifecycle_probe_tests {
     fn rejects_truncated_chunked_body() {
         // A read timeout can yield a partial chunk — that must classify Ambiguous (None), never
         // parse as a complete snapshot.
-        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"rea";
+        let raw =
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"rea";
         assert!(parse_lifecycle_response(raw).is_none());
         // ...and a body that never reaches the 0-terminator is equally incomplete.
         let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"reasons\":[]}\r\n";
