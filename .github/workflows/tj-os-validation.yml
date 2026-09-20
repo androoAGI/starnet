@@ -23,8 +23,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: World model QA
-        run: npm run qa:model
+      - name: Raw validation
+        run: npm run validate:raw
       - name: Guardian QA
         run: npm run qa:guardian
       - name: Fast tests
