@@ -1,0 +1,13 @@
+{
+  "runId": 35479606762,
+  "sourceCommit": "a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a",
+  "conclusion": "success",
+  "scope": "Clean disposable Windows machine; exact signed installer; controlled upstreams, not customer accounts",
+  "suites": [
+    "saved-provider-fallback.e2e.test.js",
+    "delegated-connectors.e2e.test.js",
+    "session-reliability.e2e.test.js",
+    "spend-authority.http.test.js"
+  ],
+  "logSha256": "747835a28853b0ac4bfb3a76b35f3395046754ec165c1f52f2bbebc57db0329e"
+}

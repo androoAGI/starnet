@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**12** open (open+claimed) of 200 total — 0 P0 · 2 P1 · 10 P2
+**12** open (open+claimed) of 201 total — 0 P0 · 2 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -262,6 +262,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | fixed | release | [Desktop overlay version disagrees with sidecar diagnostics](bugs/65587128-desktop-overlay-version-disagrees-with-sidecar-d.md) | agent/release-0112-audit-0910 | bed625bdd |
 | P2 | fixed | release | [HTTP gate watchdog expires before the full suite finishes](bugs/0c148510-http-gate-watchdog-expires-before-the-full-suite.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Hydration regression depends on host scheduling](bugs/4bc5d562-hydration-regression-depends-on-host-scheduling.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
+| P2 | fixed | release | [Installed Mac acceptance receipts hard-code destination version](bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md) | reliability-audit-0919 | 2098a36f9 |
 | P2 | fixed | release | [Linux AppImage staging includes incompatible musl Sharp binaries](bugs/694472bf-linux-appimage-staging-includes-incompatible-mus.md) | agent/release-0112-audit-0910 | bbbd7c13a |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
 | P2 | fixed | release | [Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership](bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md) | reliability-audit-0919 | b123e3ea3 |
