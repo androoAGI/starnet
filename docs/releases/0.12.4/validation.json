@@ -413,5 +413,12 @@
     "Raw gate logs and earlier failed attempts are retained; retries are not silently substituted for failures.",
     "The report is not release approval; final platform and installed acceptance remains required.",
     "September 20 follow-up: see BLOCKER_FOLLOWUP.md and keychain-windows-persistent.log. Product source unchanged; all 56 Windows Rust tests have passed across separate invocations."
-  ]
+  ],
+  "laterNativeAcceptance": {
+    "report": "NATIVE_RESULTS.md",
+    "candidate": "f27e70f76954456b359594bebb0128e16e81e16d",
+    "receipt": "../../../qa/evidence/release-audit-0124-native/ready.json",
+    "ready": true,
+    "scope": "candidate-bound engineering gate; see unperformed real-account and automatic public-update limits"
+  }
 }

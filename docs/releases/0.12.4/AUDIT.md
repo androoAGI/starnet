@@ -1,3 +1,9 @@
+# Latest native acceptance
+
+The later signed candidate passes the candidate-bound READY gate. See [NATIVE_RESULTS.md](NATIVE_RESULTS.md) for exact source, signed installation/upgrade evidence, owner-accepted Mac risk, and remaining real-account/automatic-update limits. The earlier audit below is retained with its original source scope.
+
+---
+
 # StarNet 0.12.4 release-readiness audit
 
 Status: **BLOCKED — not approved for release**. No tag, push, release, publication, updater pointer change, or installed-app replacement was performed by this audit.

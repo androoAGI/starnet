@@ -1,3 +1,9 @@
+# Latest result
+
+Signed-candidate acceptance has now completed within the scope recorded in [NATIVE_RESULTS.md](NATIVE_RESULTS.md). This earlier matrix remains the record of the broader requested coverage; unperformed real-account and platform journeys must not be inferred from the READY gate.
+
+---
+
 # Native acceptance still required for 0.12.4
 
 This is outstanding work, not a passing receipt. Product candidate: `0c5f0d54a73122105ace05f9ca4627b5a94bb774`. Nothing in this checklist authorizes publication or an updater-pointer change.

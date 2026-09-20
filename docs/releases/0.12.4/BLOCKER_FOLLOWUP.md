@@ -1,3 +1,9 @@
+# Later acceptance results
+
+The owner subsequently authorized public audit-branch upload and non-release CI. See [NATIVE_RESULTS.md](NATIVE_RESULTS.md) for the completed native acceptance and candidate-bound READY receipt. The earlier discovery and Windows keychain results below are historical.
+
+---
+
 # Native acceptance follow-up — September 20
 
 Product source remains `0c5f0d54a73122105ace05f9ca4627b5a94bb774`. No product files changed for this follow-up.
