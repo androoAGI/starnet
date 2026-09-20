@@ -246,6 +246,7 @@
         if (typeof c.tokenProvider === 'function') { const got = await resolveToken(c, false); if (got.token != null) liveToken = got.token; }
         if (!isCurrent()) { if (drained) closeResources(drained.client, drained.transport, 'reconnect'); return { ok: false, state: 'down', toolCount: 0, superseded: true }; }
         attempt.transport = makeTransport({
+          id: c.id,
           transport: c.transportKind,
           url: c.url,
           token: liveToken,

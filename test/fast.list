@@ -675,6 +675,7 @@ test/mcp.manager-race.test.js
 test/mcp.manager-auth-race.test.js
 test/mcp.orphan-recovery.test.js
 test/google-connector.test.js
+test/connector-vault.test.js
 test/mcp.catalog.test.js
 test/mcp.oauth.test.js
 test/connectorstate.test.js

@@ -14,7 +14,7 @@ const { RELEASE_DEFERRED, isWorkspaceUrl } = require('../sidecar/mcp/google-clie
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
     NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-deferred-network.cjs').replace(/\\/g, '/')
   } });
-  const configs = Object.entries(ENDPOINTS).map(([id, url]) => ({ id, url, transport: 'http', oauth: true, enabled: true }));
+  const configs = Object.entries(ENDPOINTS).filter(([id]) => id !== 'google-files').map(([id, url]) => ({ id, url, transport: 'http', oauth: true, enabled: true }));
   configs.push({ id: 'legacy-google', url: 'https://gmailmcp.googleapis.com/mcp/v1', transport: 'http', oauth: true, enabled: true });
   const state = { version: 2, configs, oauth: { clients: {}, byId: Object.fromEntries(configs.map(c => [c.id, {
     accessToken: 'DEFERRED_TEST_ACCESS', refreshToken: 'DEFERRED_TEST_REFRESH', expiresAt: 1,
@@ -25,11 +25,11 @@ const { RELEASE_DEFERRED, isWorkspaceUrl } = require('../sidecar/mcp/google-clie
   fs.writeFileSync(statePath, JSON.stringify(state));
   const check = async () => {
     const catalog = (await fixture.json('GET', '/api/connectors/catalog')).body;
-    const cards = catalog.connectors.filter(c => c.googleApi);
+    const cards = catalog.connectors.filter(c => c.googleApi && c.id !== 'google-files');
     assert.equal(cards.length, 5);
     assert.ok(cards.every(c => c.releaseDeferred && c.signInAvailable === false && /deferred/.test(c.signInMessage)));
     assert.ok(cards.every(c => c.blurb.split('Planned for a later update.').length === 2 && !c.blurb.includes('Sign in with Google')));
-    assert.ok(catalog.groups.flatMap(g => g.connectors).filter(c => c.googleApi).every(c => c.releaseDeferred));
+    assert.ok(catalog.groups.flatMap(g => g.connectors).filter(c => c.googleApi && c.id !== 'google-files').every(c => c.releaseDeferred));
     const rows = (await fixture.json('GET', '/api/connectors')).body.connectors;
     for (const cfg of configs) {
       const row = rows.find(c => c.id === cfg.id);
