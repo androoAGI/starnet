@@ -40,6 +40,21 @@ if(stage==='race'){process.stdout.write('ready\\n');const t=setInterval(()=>{if(
   assert.equal(first.ok, false); assert.equal(first.code, 'WORKSPACE_BUSY');
   b.release();
 
+  const recovery = require('../sidecar/workspace-recovery.js');
+  const recoveryRoot = path.join(sandbox, 'activation');
+  fs.mkdirSync(recoveryRoot);
+  const recoveryFs = Object.create(fs); let nested, visited = false;
+  recoveryFs.existsSync = file => {
+    if (file === recoveryRoot + '.recovery-request.json' && !visited) {
+      visited = true;
+      nested = recovery.applyPendingRecovery({ fs, path, workspaceRoot: recoveryRoot, now: Date.now });
+    }
+    return fs.existsSync(file);
+  };
+  recovery.applyPendingRecovery({ fs: recoveryFs, path, workspaceRoot: recoveryRoot, now: Date.now });
+  assert.equal(visited, true, 'entered actual recovery activation critical section');
+  assert.equal(nested.lockUnavailable, true, 'a second recovery cannot enter the active root-replacement section');
+
   for (const stage of ['pending', 'ticket', 'primary', 'readback', 'held']) {
     const root = path.join(sandbox, stage); fs.mkdirSync(root);
     const child = spawnSync(process.execPath, ['-e', childSource, modulePath, root, stage], { windowsHide: true, timeout: 10000 });
