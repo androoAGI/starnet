@@ -17829,7 +17829,7 @@ async function runOnceCore(o) {
     // A test browser must die with its run. Besides process hygiene, this guarantees that a
     // broken page cannot retain any browser-level state after the task finishes.
     if (runBrowser) { try { await runBrowser.session.close(); } catch (_) {} }
-    if (runComputer?.close) { try { await runComputer.close(); } catch (_) {} }
+    if (runComputer?.close) { try { await runComputer.close(); } catch (_) { failNote('computer.run.close', 'Native run cleanup failed'); } }
     computerRuns.delete(runComputer);
     concurrencyGate.leave(agentId);   // release the admission slot on EVERY exit (normal, early-return, or throw)
     workspaceLease.release(agentId, runId);   // free (or withdraw the queued wait for) this run's workspace lease — same guarantee

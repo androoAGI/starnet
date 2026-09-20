@@ -5,6 +5,7 @@
 const cp = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { makeMcpClient } = require('../../mcp/client.js');
+const { note: failNote } = require('../../failopen.js');
 
 function childEnv(source = process.env) {
   const env = {};
@@ -51,7 +52,10 @@ async function connect({ binary, signal, clock, timeoutMs = 20000 }) {
     closePromise = (async () => {
       // Graceful private-daemon shutdown also closes its UIA helper. This must
       // not close applications the Commander asked us to open.
-      try { await cli(['stop', '--socket', socket]); } catch {}
+      if (daemon) {
+        try { await cli(['stop', '--socket', socket]); }
+        catch { failNote('computer.runtime.stop', 'Private driver stop failed; terminating only owned processes'); }
+      }
       terminate();
       await Promise.all([...children].map(child => new Promise(resolve => {
         if (child.exitCode !== null) return resolve();
@@ -74,9 +78,11 @@ async function connect({ binary, signal, clock, timeoutMs = 20000 }) {
     for (;;) {
       if (closed || signal?.aborted) throw new Error('Computer control cancelled');
       if (failure) throw failure;
-      try { await cli(['status', '--socket', socket]); break; } catch {}
-      if (clock.now() >= deadline) throw new Error('Computer driver startup timed out');
-      await new Promise(resolve => setTimeout(resolve, 100));
+      try { await cli(['status', '--socket', socket]); break; }
+      catch {
+        if (clock.now() >= deadline) throw new Error('Computer driver startup timed out');
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
     if (closed) throw new Error('Computer control cancelled');
     proxy = launch(['mcp', '--embedded', '--socket', socket]);

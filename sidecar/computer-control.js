@@ -4,6 +4,7 @@ const path = require('node:path');
 const cp = require('node:child_process');
 const { createHash, randomUUID } = require('node:crypto');
 const { childEnv } = require('./tools/builtin/cua-runtime.js');
+const { note: failNote } = require('./failopen.js');
 const VERSION = '0.28.2';
 const SHA256 = '1f4bfceeab64cb7f56be7aad774c3dc2d2910d1427e4be1d79939c706e8029ba';
 const URL = 'https://github.com/trycua/cua/releases/download/cua-driver-rs-v' + VERSION + '/cua-driver-rs-' + VERSION + '-windows-x86_64-binary.zip';
@@ -115,7 +116,8 @@ function makeComputerControl(deps) {
         // The newly verified package is already live; a locked previous folder must
         // not turn successful installation into a false failure or delete the new copy.
         if (moved && path.dirname(backup) === root) {
-          try { fs.rmSync(backup, { recursive: true, force: true }); } catch {}
+          try { fs.rmSync(backup, { recursive: true, force: true }); }
+          catch { failNote('computer.install.previous_cleanup', 'Previous installation folder could not be removed'); }
         }
         return status();
       } finally {

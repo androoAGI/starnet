@@ -1,6 +1,7 @@
 'use strict';
 const contract = require('./cua-contract.json');
 const runtime = require('./cua-runtime.js');
+const { note: failNote } = require('../../failopen.js');
 const { _internals: policy } = require('./computer.js');
 
 // One instance per run, never shared across agents or authority domains.
@@ -16,7 +17,7 @@ function makeCuaComputerTools(deps) {
   async function close() {
     closed = true;
     lifetime.abort();
-    if (opening) { try { await opening; } catch {} }
+    if (opening) { try { await opening; } catch { failNote('computer.close.startup', 'Startup failed before cleanup'); } }
     await reset();
   }
   async function getConnection(callSignal) {
@@ -95,7 +96,9 @@ function makeCuaComputerTools(deps) {
           throw error;
         } finally { ctx?.signal?.removeEventListener('abort', cancelled); }
       });
-      tail = work.catch(() => {});
+      // The returned work promise reports errors to the registry. The queue only
+      // waits for settlement, and must advance after both success and refusal.
+      tail = Promise.allSettled([work]).then(() => undefined);
       return work;
     }
   };
