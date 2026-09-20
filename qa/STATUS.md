@@ -3037,3 +3037,5 @@ RELEASE 0.11.2 merge: agent/release-0112-finalprep-0911 -> bb9f0719d9d632575670b
 
 
 **2026-09-18 responsive COMMS:** agent/small-screen-0917 -> 80c9ea54f; pre/post fast 817/817 PASS, fresh live layout 20/20 PASS. Wider laptop COMMS, compact questions and Expand/Restore preserve panel preferences and drafts. See qa/digests/2026-09-18-small-screen-comms.md. Reservation released; unrelated operational edits preserved; no installer rebuild or publication.
+
+- 2026-09-20: `agent/google-oauth-merge-0920` -> trunk `3b15f522d`; pre/post fast 837 and HTTP 126 PASS; real selected Google files read/write/restart and Intel/Apple Silicon keychain CI PASS. Broad Google services remain deferred; no release published. [Receipt](digests/2026-09-20-google-selected-files.md).

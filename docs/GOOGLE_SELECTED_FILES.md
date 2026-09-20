@@ -1,9 +1,12 @@
 # Selected Google files
 
-Implementation candidate in `agent/google-oauth-merge-0920`. Real Google connection,
+Merged into `feat/harness-backend` at `3b15f522d`. Real Google connection,
 Windows native-keychain restart recovery, and Docs/Sheets read/write checks passed.
-Not yet merged or deployed. Native macOS keychain/migration CI passed on Intel and
+No release was published. Native macOS keychain/migration CI passed on Intel and
 Apple Silicon; signed-installer and physical-Mac acceptance remain separate.
+
+Final pre-merge and post-merge gates both passed: **837 fast steps and 126 HTTP
+steps**. See [merge receipt](../qa/digests/2026-09-20-google-selected-files.md).
 
 The original audit branch is preserved. The merge candidate includes accepted trunk
 `760426bc5`, including the coordinator and reliability updates. The earlier temporary
@@ -54,7 +57,8 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
   grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
 - Real Google Picker activation, consent, file selection, and callback completed.
   Only dedicated StarNet verification files were used for acceptance.
-- Branch remains isolated and unmerged. Full public release readiness is not claimed.
+- Initial acceptance was performed in isolation; the final merge is recorded above.
+  Full public release readiness is not claimed.
 - Synced trunk into this branch at merge `41f8bc76c`; the sole conflict was the
   release-surface hash ledger, resolved using trunk's verdicts and regenerated hashes.
   A second trunk sync is recorded at `3d516ffbb`, with combined hashes at `e151f09da`.
