@@ -1,5 +1,7 @@
 # StarNet v0.12.4 publication
 
+On 2026-09-20, the owner requested complete update notes. Both public release bodies and only the `notes` field of the public updater manifest were expanded to the [60-entry release notes](RELEASE_NOTES.md). Installer bytes, updater signatures, URLs, version, and publication date were unchanged. The publication-time manifest digest below is historical; the new manifest digest and live equality checks are recorded in [notes-update-verification.json](notes-update-verification.json). The shipped Update Center displays a 520-character preview, so the full-notes URL is included at the top.
+
 Published stable/latest on 2026-09-20 at 10:57:08 UTC after the owner's explicit instruction to publish. [Download the release](https://github.com/androoAGI/starnet-releases/releases/tag/v0.12.4).
 
 The immutable tag and binary source are `f00aa04dfceac4e0d1a3a1e95b7b8d24d55456d1`, fast-forward merged into `feat/harness-backend`. Later evidence/documentation commits are not binary source. Earlier audit and native-candidate reports retain their historical scope; their unpublished status does not describe this final release.
