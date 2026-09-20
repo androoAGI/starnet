@@ -2671,7 +2671,18 @@ const WorldModel = (() => {
         { id: 'p' + doc._nid++, t: 'stool', x: 9, y: 30, w: 1, h: 1, block: true },
         { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 36, w: 1, h: 1, block: false },
         { id: 'p' + doc._nid++, t: 'plant', x: 1, y: 28, w: 1, h: 1, block: false },
-        { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 28, w: 1, h: 1, block: false }
+        { id: 'p' + doc._nid++, t: 'plant', x: 16, y: 28, w: 1, h: 1, block: false },
+
+        // Eco-industrial landscape accents. Non-blocking: routing and occupancy stay authoritative.
+        { id: 'p' + doc._nid++, t: 'monstera', x: 34, y: 6, w: 2, h: 2, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 23, y: 22, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'monstera', x: -19, y: 21, w: 2, h: 2, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: -6, y: 6, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'monstera', x: -19, y: -7, w: 2, h: 2, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 15, y: 21, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: 68, y: 21, w: 1, h: 1, block: false },
+        { id: 'p' + doc._nid++, t: 'monstera', x: 66, y: 33, w: 2, h: 2, block: false },
+        { id: 'p' + doc._nid++, t: 'plant', x: -39, y: 24, w: 1, h: 1, block: false }
       ];
       return doc;
     },
