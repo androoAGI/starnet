@@ -16961,7 +16961,12 @@ async function runOnceCore(o) {
   // channel tasks receive orchestration above; workers and disabled toolsets do not.
   if (isTask && resolved.tools.includes('team.dispatch')) {
     let projectConversation = false;
-    try { projectConversation = !!(o.streamId && overseer.resolve(o.streamId).projectHome); } catch (_) {}
+    try { projectConversation = !!(o.streamId && overseer.resolve(o.streamId).projectHome); }
+    catch (error) {
+      // Ordinary unsaved conversations need not exist in the coordination store.
+      // Damaged/unavailable state is different: keep chat usable and report it.
+      if (error.message !== 'no such session') failNote('project.context', error);
+    }
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
     if (require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })) teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle simple work directly. '
       + 'Use the agents the Commander has already created, choosing by their roles and instructions. '
