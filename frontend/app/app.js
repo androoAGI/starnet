@@ -4261,6 +4261,7 @@ const App = (() => {
     });
     ul.querySelectorAll('.proj-row').forEach(li => {
       const row = rows.find(x => x.root === li.dataset.root);
+      if (typeof ProjectHome !== 'undefined' && projScope === row.root) li.setAttribute('aria-current', 'page');
       li.onclick = () => enterProject(row.root, row.blessed);
       li.onkeydown = (e) => {
         if (e.target !== li) return;

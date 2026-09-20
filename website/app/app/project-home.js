@@ -69,9 +69,13 @@ const ProjectHome = (() => {
     panel.querySelector('.ph-empty').hidden = activity.length > 0;
     const live = new Set(activity.map(w => w.id));
     for (const [id, card] of cards) if (!live.has(id)) { card.node.remove(); cards.delete(id); }
-    for (const worker of activity) {
+    for (const [index, worker] of activity.entries()) {
       let card = cards.get(worker.id);
-      if (!card) { card = createCard(worker.id); cards.set(worker.id, card); panel.querySelector('.ph-activity').appendChild(card.node); }
+      if (!card) {
+        card = createCard(worker.id); cards.set(worker.id, card);
+        const next = activity.slice(index + 1).map(w => cards.get(w.id)).find(Boolean);
+        panel.querySelector('.ph-activity').insertBefore(card.node, next ? next.node : null);
+      }
       card.worker = worker;
       card.title.textContent = String(worker.prompt || 'Delegated work').replace(/\s+/g, ' ').slice(0, 140);
       card.agent.textContent = (data.crew.find(a => a.id === worker.agentId) || {}).name || worker.agentId;
@@ -82,7 +86,7 @@ const ProjectHome = (() => {
       card.tools.textContent = (worker.tools || []).length ? 'Tools used: ' + worker.tools.join(', ') : '';
       card.artifacts.textContent = (worker.artifacts || []).map(a => typeof a === 'string' ? a : a.path || a.name || a.title || '').filter(Boolean).map(a => 'Output: ' + a).join('\n');
       card.directions.textContent = (worker.steerHistory || []).map(s => (s.status === 'applied' ? 'Direction applied: ' : 'Direction queued: ') + (s.text || '')).join('\n');
-      card.controls.hidden = !worker.canInterrupt; card.stop.disabled = card.send.disabled = !worker.canInterrupt;
+      card.controls.hidden = !worker.canInterrupt; card.stop.disabled = card.send.disabled = card.pending || !worker.canInterrupt;
     }
   }
   function createCard(id) {
@@ -94,14 +98,14 @@ const ProjectHome = (() => {
     const card = { node, title, agent, status, prompt, result, tools, artifacts, directions, controls, input, send, stop, receipt, worker: null };
     async function command(kind) {
       const token = epoch, worker = card.worker, text = input.value.trim(); if (kind === 'steer' && !text) { input.focus(); return; }
-      send.disabled = stop.disabled = true;
+      card.pending = true; send.disabled = stop.disabled = true;
       try {
         await request('/api/subagents/' + kind, { id, generation: worker.generation, ...(kind === 'steer' ? { text } : {}) });
         if (token !== epoch) return;
         receipt.textContent = kind === 'steer' ? 'Direction queued for this agent. It will also be included in the orchestrator’s review.' : 'Stop requested.';
         if (kind === 'steer' && input.value.trim() === text) input.value = '';
       } catch (error) { if (token === epoch) receipt.textContent = error.message; }
-      finally { if (token === epoch) send.disabled = stop.disabled = !card.worker.canInterrupt; }
+      finally { card.pending = false; if (token === epoch) send.disabled = stop.disabled = !card.worker.canInterrupt; }
     }
     send.onclick = () => command('steer'); stop.onclick = () => command('interrupt'); return card;
   }

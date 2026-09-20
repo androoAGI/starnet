@@ -8,6 +8,7 @@ class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.className = ''; this.value = ''; this.classList = { add() {}, remove() {} }; }
   append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
   appendChild(node) { this.append(node); return node; }
+  insertBefore(node, next) { node.parent = this; const index = this.children.indexOf(next); if (index < 0) this.children.push(node); else this.children.splice(index, 0, node); }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   remove() { this.parent.children = this.parent.children.filter(n => n !== this); }
   setAttribute() {}
@@ -47,6 +48,10 @@ const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(
   assert.equal(draft.value, 'My unsent direction'); assert.equal(card.open, true);
   assert.equal(panel.querySelector('input').checked, true, 'polling does not overwrite unsaved crew choice');
   assert.equal(opens, 1, 'polling never steals COMMS focus');
+  request = async () => ({ ok: true, json: async () => ({ ...data('alpha'), activity: [{ ...data('alpha').activity[0], id: 'newer-work' }, ...data('alpha').activity] }) });
+  await poll.fn();
+  assert.notEqual(panel.querySelectorAll('.ph-card')[0], card, 'new activity appears first consistently with reload order');
+  assert.equal(panel.querySelectorAll('.ph-card')[1], card, 'existing open activity keeps its DOM and draft');
   let resolveAlpha;
   request = (_url, opts) => JSON.parse(opts.body || '{}').root === 'alpha' ? new Promise(resolve => { resolveAlpha = resolve; }) : Promise.resolve({ ok: true, json: async () => data('beta') });
   const slow = ctx.controller.open('alpha'); await ctx.controller.open('beta');

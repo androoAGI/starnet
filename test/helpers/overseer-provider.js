@@ -23,7 +23,7 @@ async function startOverseerProvider(options = {}) {
     const workerId = crew ? crew[1] : 'researcher';
     if (!parsed.tools || !parsed.tools.length) send({ content: 'Ready.' });
     else if (String(user && user.content).includes('DIRECT_PROOF')) send({ content: 'Direct specialist answer.' });
-    else if (String(user && user.content).startsWith('Review the background work')) { reviews++; if (options.reviewDelay) await sleep(options.reviewDelay); send({ content: 'Reviewed findings: the worker returned two observations.' }); }
+    else if (String(user && user.content).startsWith('Review the background work')) { reviews++; if (options.reviewDelay) await sleep(options.reviewDelay); send({ content: /"status"\s*:\s*"interrupted"/.test(user.content) ? 'The crew’s work was stopped. I’ll wait for your next direction.' : 'Reviewed findings: the worker returned two observations.' }); }
     else if (String(user && user.content).includes('WORKER_PROOF')) { await sleep(options.workerDelay || 800); send({ content: 'WORKER_FINDINGS: two verified observations.' }); }
     else if (String(user && user.content).startsWith('Review the project brief and identify')) { await sleep(options.workerDelay || 800); send({ content: 'The project needs a clear audience and a small first milestone. Start with the core workflow, then test it with one user.' }); }
     else if (system.includes('[PROJECT WORKSPACE]')) {

@@ -82,7 +82,7 @@ function makeOverseer(deps) {
       return copy(existing);
     }
     if (!createIfMissing) return null;
-    const row = { id: deps.newId(), title, agentId: 'agent', projectRoot: root, projectHome: true,
+    const row = { id: deps.newId(), title, titleAuto: false, agentId: 'agent', projectRoot: root, projectHome: true,
       parentStreamId: '', kind: 'chat', lane: 'active', history: [], runIds: [], createdAt: deps.now(), lastActiveAt: deps.now() };
     return update(s => { s.threads.push(row); return row; });
   }
