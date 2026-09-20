@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "dc1257f03d0623354ba3099a7cc7ada37c9beb72",
+    "sourceCommit": "4c09cec32d2000892c56d4388dc6374beb04baf1",
     "pathSetSha256": "624df0d0e5b2511e74e175d045f26a8fd916195933e6750693b47d486e2e7b31",
     "files": [
       {
@@ -38,8 +38,8 @@
       },
       {
         "path": "RELEASE_NOTES.md",
-        "bytes": 1647,
-        "sha256": "7047413848acbed4756c1fe3eb48c4935dec69b9b2f9d51a666ac47642c4f549"
+        "bytes": 1839,
+        "sha256": "3f63ca854088fa8781559584ec42b383f64ebf3e49579d38f0792a9fe6d84841"
       },
       {
         "path": "TERMS.md",
@@ -723,8 +723,8 @@
       },
       {
         "path": "frontend/app/project-home.js",
-        "bytes": 12818,
-        "sha256": "166652bea74e35f56963ade9acdae726d3f209a120e8e7665a7a6261a9c62f33"
+        "bytes": 12945,
+        "sha256": "248875733cc8b4c355202e8cb96b24db22c77af6727add2796e8192c936dd604"
       },
       {
         "path": "frontend/app/projection-audit-panel.js",

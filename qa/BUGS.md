@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**11** open (open+claimed) of 203 total — 0 P0 · 1 P1 · 10 P2
+**11** open (open+claimed) of 204 total — 0 P0 · 1 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -198,6 +198,7 @@ User/owner reports: **96** · source fixed: **85** · installer verified: **6** 
 | P1 | fixed | sessions | [Interactive replies in scheduled conversations cannot be rated](bugs/09f0e9fa-interactive-replies-in-scheduled-conversations-c.md) | release-0120-prep-0915 | da0658486 |
 | P1 | fixed | sessions | [Malformed save acknowledgements claim durability and malformed reads claim an empty station](bugs/28dbd392-malformed-save-acknowledgements-claim-durability.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | agent/recall-report-0916 | 46c929a88 |
+| P1 | fixed | sessions | [Project reopening loses crew controls and can mislabel or steal conversation focus](bugs/629c9bd7-project-reopening-loses-crew-controls-and-can-mi.md) | release-audit-0124-0920 | 4c09cec32d2000892c56d4388dc6374beb04baf1 |
 | P1 | fixed | sessions | [Projects overview remains loading after a valid nonempty response](bugs/25120f27-projects-overview-remains-loading-after-a-valid.md) | projects-loading-0918 | fa3d96b12474612e5cc7a648c9b1685cfeef94e8 |
 | P1 | fixed | sessions | [Queued save acknowledgements leave browser revision stale](bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md) | release-0112-finalprep-0911 | 767a3592516edea1062d82855be2d21a8b4f7e16 |
 | P1 | fixed | sessions | [Reload duplicates combined assistant replies beside durable turns](bugs/ec226657-reload-duplicates-combined-assistant-replies-bes.md) | agent/release-0112-audit-0910 | a66fc5638 |
