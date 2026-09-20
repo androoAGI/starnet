@@ -42,7 +42,7 @@ const ProjectHome = (() => {
     panel.querySelector('.ph-notice').textContent = text;
     let note = updates.querySelector('.ph-inline-notice');
     if (!note) { note = el('p', 'ph-inline-notice'); note.setAttribute('role', 'status'); updates.appendChild(note); }
-    note.textContent = text;
+    if (note.textContent !== text) note.textContent = text;
   }
   function close() {
     ++epoch; clearTimeout(timer); root = homeId = '';
@@ -106,7 +106,8 @@ const ProjectHome = (() => {
       card.title.textContent = String(worker.prompt || 'Delegated work').replace(/\s+/g, ' ').slice(0, 140);
       card.agent.textContent = (data.crew.find(a => a.id === worker.agentId) || {}).name || worker.agentId;
       card.status.textContent = worker.status === 'running' ? (worker.working ? 'Working' : 'Starting') : ({ done: 'Completed', interrupted: 'Stopped', error: 'Needs attention' }[worker.status] || worker.status);
-      card.update.textContent = card.agent.textContent + ' · ' + card.status.textContent.toLowerCase() + ' · ' + (worker.status === 'running' ? 'View work' : 'View result');
+      const updateText = card.agent.textContent + ' · ' + card.status.textContent.toLowerCase() + ' · ' + (worker.status === 'running' ? 'View work' : 'View result');
+      if (card.update.textContent !== updateText) card.update.textContent = updateText;
       card.node.dataset.status = worker.status;
       card.prompt.textContent = worker.prompt || '';
       card.result.textContent = worker.result || (worker.status === 'running' ? 'Waiting for the agent’s result.' : 'No result was recorded.');
