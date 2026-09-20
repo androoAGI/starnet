@@ -14,7 +14,7 @@
     {id:'labs',name:'TJ LABS',kind:'research',purpose:'AI research, analysis, experiments and knowledge',visual:{kind:'research',floor:'sterile',wall:'acoustic',hull:'curtain',anchor:[22,15],size:[16,10]}},
     {id:'studio',name:'TJ STUDIO',kind:'creative',purpose:'design, writing, media and creative production',visual:{kind:'creative',floor:'orchid',wall:'wainscot',hull:'clapboard',anchor:[-20,15],size:[16,10]}},
     {id:'vault',name:'TJ VAULT',kind:'archive',purpose:'files, documents, archives, backups and protected data',visual:{kind:'archive',floor:'walnut',wall:'wainscot',hull:'stone',anchor:[-20,0],size:[16,10]}},
-    {id:'network',name:'TJ NETWORK',kind:'network',purpose:'APIs, integrations, communications and data exchange',visual:{kind:'network',floor:'teal',wall:'utility',hull:'thermal',anchor:[0,16],size:[14,8]}},
+    {id:'network',name:'TJ NETWORK',kind:'network',purpose:'APIs, integrations, communications and data exchange',visual:{kind:'network',floor:'teal',wall:'utility',hull:'thermal',anchor:[2,16],size:[14,8]}},
     {id:'garden',name:'TJ GARDEN',kind:'garden',purpose:'notes, ideas, personal knowledge and productivity',visual:{kind:'garden',floor:'meadow',wall:'hedge',hull:'hedge',anchor:[-20,-12],size:[16,8]}},
     {id:'observatory',name:'TJ OBSERVATORY',kind:'metrics',purpose:'analytics, trends, performance and ecosystem health',visual:{kind:'metrics',floor:'indigo',wall:'acoustic',hull:'curtain',anchor:[58,16],size:[14,8]}},
     {id:'security',name:'TJ SECURITY',kind:'security',purpose:'authentication, permissions, access control and security events',visual:{kind:'security',floor:'cobalt',wall:'pressure',hull:'monocoque',anchor:[58,28],size:[12,8]}},
@@ -53,7 +53,7 @@
   const byId=Object.freeze(ZONES.reduce((m,z)=>(m[z.id]=z,m),{}));
   function get(id){return byId[String(id||'').toLowerCase()]||null;}
   root.TJOS_ECOSYSTEM=Object.freeze({
-    version:3,
+    version:4,
     name:'TJ OS ECOSYSTEM',
     zones:ZONES,
     layout:WORLD_LAYOUT,
