@@ -16,11 +16,11 @@
     {id:'vault',name:'TJ VAULT',kind:'archive',purpose:'files, documents, archives, backups and protected data',visual:{kind:'archive',floor:'walnut',wall:'wainscot',hull:'stone',anchor:[-20,0],size:[16,10]}},
     {id:'network',name:'TJ NETWORK',kind:'network',purpose:'APIs, integrations, communications and data exchange',visual:{kind:'network',floor:'teal',wall:'utility',hull:'thermal',anchor:[0,16],size:[14,8]}},
     {id:'garden',name:'TJ GARDEN',kind:'garden',purpose:'notes, ideas, personal knowledge and productivity',visual:{kind:'garden',floor:'meadow',wall:'hedge',hull:'hedge',anchor:[-20,-12],size:[16,8]}},
-    {id:'observatory',name:'TJ OBSERVATORY',kind:'metrics',purpose:'analytics, trends, performance and ecosystem health',visual:{kind:'metrics',floor:'indigo',wall:'acoustic',hull:'curtain',anchor:[18,-12],size:[14,8]}},
-    {id:'security',name:'TJ SECURITY',kind:'security',purpose:'authentication, permissions, access control and security events',visual:{kind:'security',floor:'cobalt',wall:'pressure',hull:'monocoque',anchor:[38,14],size:[12,8]}},
-    {id:'village',name:'AGENT VILLAGE',kind:'agents',purpose:'persistent agent workstations, identity and status',visual:{kind:'agents',floor:'fern',wall:'hedge',hull:'timber',anchor:[-40,-4],size:[16,12]}},
-    {id:'meeting',name:'TJ MEETING HALL',kind:'meeting',purpose:'evidence-backed strategic collaboration and decisions',visual:{kind:'meeting',floor:'ash',wall:'acoustic',hull:'clapboard',anchor:[40,-6],size:[16,10]}},
-    {id:'commons',name:'TJ COMMONS',kind:'commons',purpose:'idle recovery, social space and agent restaurant',visual:{kind:'commons',floor:'meadow',wall:'hedge',hull:'shingle',anchor:[0,-16],size:[18,10]}}
+    {id:'observatory',name:'TJ OBSERVATORY',kind:'metrics',purpose:'analytics, trends, performance and ecosystem health',visual:{kind:'metrics',floor:'indigo',wall:'acoustic',hull:'curtain',anchor:[58,16],size:[14,8]}},
+    {id:'security',name:'TJ SECURITY',kind:'security',purpose:'authentication, permissions, access control and security events',visual:{kind:'security',floor:'cobalt',wall:'pressure',hull:'monocoque',anchor:[58,28],size:[12,8]}},
+    {id:'village',name:'AGENT VILLAGE',kind:'agents',purpose:'persistent agent workstations, identity and status',visual:{kind:'agents',floor:'fern',wall:'hedge',hull:'timber',anchor:[-40,15],size:[16,12]}},
+    {id:'meeting',name:'TJ MEETING HALL',kind:'meeting',purpose:'evidence-backed strategic collaboration and decisions',visual:{kind:'meeting',floor:'ash',wall:'acoustic',hull:'clapboard',anchor:[40,28],size:[16,10]}},
+    {id:'commons',name:'TJ COMMONS',kind:'commons',purpose:'idle recovery, social space and agent restaurant',visual:{kind:'commons',floor:'meadow',wall:'hedge',hull:'shingle',anchor:[0,28],size:[18,10]}}
   ]);
 
   /*
@@ -53,7 +53,7 @@
   const byId=Object.freeze(ZONES.reduce((m,z)=>(m[z.id]=z,m),{}));
   function get(id){return byId[String(id||'').toLowerCase()]||null;}
   root.TJOS_ECOSYSTEM=Object.freeze({
-    version:2,
+    version:3,
     name:'TJ OS ECOSYSTEM',
     zones:ZONES,
     layout:WORLD_LAYOUT,
