@@ -6373,8 +6373,9 @@ const World = (() => {
     for (const d of cache.doorOccluders || []) {
       if ((d.x + d.w) * scale + panX < 0 || d.x * scale + panX > cv.width ||
           (d.y + d.h) * scale + panY < 0 || d.y * scale + panY > cv.height) continue;
-      items.push({ y: d.sortY, depthY: d.sortY, height: 24, z: 1, kind: 'architecture',
-        architectural: true, draw: () => drawDoorSurface(ctx, d) });
+      items.push({ y: d.sortY, depthY: Number.isFinite(Number(d.depthY)) ? d.depthY : d.sortY,
+        height: Number.isFinite(Number(d.depthHeight)) ? d.depthHeight : 24, z: 1,
+        kind: 'architecture', architectural: true, draw: () => drawDoorSurface(ctx, d) });
     }
     // THE FLOOR PASS — every decal, in doc order, before anything that stands on the deck. This is what
     // lets a body walk across a rug: the rug is already down when the sorted items paint over it.
