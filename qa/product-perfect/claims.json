@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "988fe90caf561c4f7399aecd315ee8dc5f48a7e2",
+    "sourceCommit": "ba82163524120c58b021e46d0fc476922b218cab",
     "pathSetSha256": "baa6f6ba0fe5da81838a50f09a4c7f97680d5393f0adfd1700be34f4947eafdc",
     "files": [
       {
@@ -313,8 +313,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 433465,
-        "sha256": "95943da6dc34b21a66c5a4417995a985921915ca85633856b76f198c69744855"
+        "bytes": 433868,
+        "sha256": "da9281372777f0392be8dd0e1cf6cca03dc1331d9acbb4adf1852381e2a71731"
       },
       {
         "path": "frontend/app/channels.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 137393,
-        "sha256": "8d24498b793ff7cd019d62ffcf1d8b88a811015f74ef8b5d74a7f7291e08d41b"
+        "bytes": 132869,
+        "sha256": "0d8f09642603d2dc48bf6591372d16814330699988af774d8fa9a59eb8a7125f"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -1303,8 +1303,8 @@
       },
       {
         "path": "frontend/app/worldmodel.js",
-        "bytes": 167402,
-        "sha256": "854e7f7f2843f3374f50154a370c7e1ed66cf342891c217d5912f3f4d9682753"
+        "bytes": 167862,
+        "sha256": "e911b468f87a54f497968dc49d7342375a1ad8bfa506bf71ecd68d35cc2075be"
       },
       {
         "path": "frontend/app/worldrenderer.js",

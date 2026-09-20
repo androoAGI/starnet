@@ -1029,6 +1029,9 @@ const WorldModel = (() => {
       dropRoomIdx();   // the floor just moved — the tile->room index is the derived state that must not survive it
       const patch = { seq, dirtyRects: dirtyRects || [] };
       if (opts && opts.global) patch.global = true;
+      // Ordinary prop edits change navigation/routing and the live sprite pass,
+      // but not the baked deck, walls or room lights. Airlocks remain full edits.
+      if (opts && opts.staticBakeUnchanged) patch.staticBakeUnchanged = true;
       subs.forEach(fn => { try { fn(patch); } catch (e) { /* a listener must never break a mutation */ } });
       return patch;
     }
@@ -1381,7 +1384,7 @@ const WorldModel = (() => {
       applyJunctionCfg(prop, opts);   // a FILTER/MERGER carries its routes/def/bufferSize (inert on other props)
       if (cleanDoor(opts.door)) prop.door = opts.door;   // an AIRLOCK carries its seal state (inert on other props)
       doc.props.push(prop);
-      emit([{ x1: x, y1: y, x2: x + w - 1, y2: y + h - 1 }]);
+      emit([{ x1: x, y1: y, x2: x + w - 1, y2: y + h - 1 }], { staticBakeUnchanged: t !== 'airlock' });
       return { ok: true, id };
     }
 
@@ -1407,7 +1410,7 @@ const WorldModel = (() => {
       const nr = cleanRot((p.r | 0) + t);
       p.w = nw; p.h = nh;
       if (nr) p.r = nr; else delete p.r;                 // back to south = back to the default shape on disk
-      emit([before, propFootprint(p)]);
+      emit([before, propFootprint(p)], { staticBakeUnchanged: p.t !== 'airlock' });
       return { ok: true, r: nr };
     }
 
@@ -1425,7 +1428,7 @@ const WorldModel = (() => {
       if (!p) return fail('NOT_FOUND', 'no such prop');
       snapshot();
       if (p.m) delete p.m; else p.m = 1;
-      emit([propFootprint(p)]);
+      emit([propFootprint(p)], { staticBakeUnchanged: p.t !== 'airlock' });
       return { ok: true, m: p.m ? 1 : 0 };
     }
 
@@ -1435,7 +1438,7 @@ const WorldModel = (() => {
       snapshot();
       const p = doc.props[i];
       doc.props.splice(i, 1);
-      emit([propFootprint(p)]);
+      emit([propFootprint(p)], { staticBakeUnchanged: p.t !== 'airlock' });
       return { ok: true };
     }
 
@@ -1449,7 +1452,7 @@ const WorldModel = (() => {
       snapshot();
       const before = propFootprint(p);
       p.x = nx; p.y = ny;
-      emit([before, propFootprint(p)]);
+      emit([before, propFootprint(p)], { staticBakeUnchanged: p.t !== 'airlock' });
       return { ok: true };
     }
 
