@@ -27,7 +27,7 @@ function io(over) {
 }
 const step = (id) => GUARDIAN_STEPS.find(s => s.id === id);
 
-// The outer watchdog must not preempt the complete HTTP child gate.
+// The outer watchdog must not preempt either complete child gate.
 {
   const httpCommand = require('../package.json').scripts['test:http'];
   const childBudget = Number(/--timeout=(\d+)/.exec(httpCommand)[1]);

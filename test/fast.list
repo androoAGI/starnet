@@ -333,6 +333,8 @@ test/browser.attach.test.js
 test/browser.pie.test.js
 test/desktop.test.js
 test/computer.test.js
+test/cua-computer.test.js
+test/computer-control.test.js
 test/win32desktop.test.js
 test/inputpolicy.test.js
 test/image.test.js
