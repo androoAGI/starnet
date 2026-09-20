@@ -30,7 +30,7 @@ export function findChrome() {
 export function launchChrome({ cdpPort, win = '1440,900', profileDir }) {
   const chrome = findChrome();
   const proc = spawn(chrome, [
-    '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-address=127.0.0.1', '--no-first-run', '--no-default-browser-check',
     '--hide-scrollbars', '--mute-audio', `--remote-debugging-port=${cdpPort}`,
     `--window-size=${win}`, `--user-data-dir=${profileDir}`,
     'about:blank',
@@ -62,7 +62,7 @@ export class CDP {
 }
 
 export async function connectCDP(port) {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 120; i++) {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/json/list`);
       const targets = await r.json();
