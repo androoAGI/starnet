@@ -2,7 +2,7 @@
 
 // Projects own an existing COMMS workstream. Activity projects the existing worker ledger.
 const ProjectHome = (() => {
-  let panel, root = '', homeId = '', epoch = 0, timer, crewDirty = false;
+  let panel, updates, actions, root = '', homeId = '', epoch = 0, timer, crewDirty = false;
   const cards = new Map();
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   async function request(url, body) {
@@ -17,21 +17,46 @@ const ProjectHome = (() => {
   function setup() {
     if (panel) return;
     panel = el('section', 'project-home'); panel.hidden = true; panel.setAttribute('aria-label', 'Project controls');
-    panel.innerHTML = '<details class="ph-drawer"><summary class="ph-bar"><span class="ph-name"></span><span class="ph-count"></span></summary><div class="ph-content">' +
-      '<p class="ph-path"></p><details class="ph-crew"><summary>Preferred crew <span class="ph-crew-count"></span></summary><p>Choose preferred agents. The orchestrator can involve other station agents when useful.</p><div class="ph-crew-list"></div><button class="btn ph-save">SAVE CREW</button><span class="ph-crew-note" role="status"></span></details>' +
-      '<h4 class="ph-activity-head">Activity</h4><p class="ph-empty">No delegated work yet. Ask the orchestrator to get started.</p><div class="ph-activity"></div></div></details><p class="ph-notice" role="status"></p>';
+    panel.innerHTML = '<div class="ph-view-head"><button class="btn ph-back">‹ Conversation</button><span class="ph-view-title"></span></div>' +
+      '<p class="ph-notice" role="status"></p><section class="ph-crew"><p>Preferred crew <span class="ph-crew-count"></span></p><p class="ph-help">The orchestrator can also bring in other station agents.</p><div class="ph-crew-list"></div><button class="btn ph-save">SAVE CREW</button><span class="ph-crew-note" role="status"></span></section>' +
+      '<section class="ph-history"><p class="ph-empty">No delegated work yet.</p><div class="ph-activity"></div></section>';
     document.getElementById('chat-panel').insertBefore(panel, document.getElementById('chat-log'));
+    updates = el('div', 'ph-updates'); updates.setAttribute('aria-label', 'Agent updates');
+    actions = el('div', 'ph-actions'); actions.hidden = true;
+    const crew = el('button', 'btn ph-crew-toggle', 'CREW'), activity = el('button', 'btn ph-history-toggle', 'ACTIVITY');
+    crew.onclick = () => showView('crew'); activity.onclick = () => showView('activity');
+    actions.append(crew, activity); document.getElementById('comms-idbar').appendChild(actions);
+    panel.querySelector('.ph-back').onclick = () => { showView(''); activity.focus(); };
     panel.querySelector('.ph-save').onclick = saveCrew;
   }
-  function notice(text) { panel.querySelector('.ph-notice').textContent = text; }
-  function close() { ++epoch; clearTimeout(timer); root = homeId = ''; if (panel) panel.hidden = true; }
+  function showView(next) {
+    panel.hidden = !next;
+    document.getElementById('chat-log').hidden = !!next;
+    panel.querySelector('.ph-crew').hidden = next !== 'crew';
+    panel.querySelector('.ph-history').hidden = next !== 'activity';
+    panel.querySelector('.ph-view-title').textContent = next === 'crew' ? 'Project crew' : 'Activity';
+    actions.querySelector('.ph-crew-toggle').setAttribute('aria-pressed', String(next === 'crew'));
+    actions.querySelector('.ph-history-toggle').setAttribute('aria-pressed', String(next === 'activity'));
+  }
+  function notice(text) {
+    panel.querySelector('.ph-notice').textContent = text;
+    let note = updates.querySelector('.ph-inline-notice');
+    if (!note) { note = el('p', 'ph-inline-notice'); note.setAttribute('role', 'status'); updates.appendChild(note); }
+    note.textContent = text;
+  }
+  function close() {
+    ++epoch; clearTimeout(timer); root = homeId = '';
+    if (panel) { showView(''); actions.hidden = true; updates.remove(); }
+    document.getElementById('comms-title').textContent = '▮ COMMS';
+    document.getElementById('comms-idbar').classList.remove('ph-project');
+  }
   async function open(projectRoot) {
     setup(); clearTimeout(timer); const token = ++epoch; root = projectRoot; homeId = ''; crewDirty = false; cards.clear();
     panel.querySelector('.ph-activity').replaceChildren(); panel.querySelector('.ph-crew-list').replaceChildren();
-    panel.querySelector('.ph-crew-note').textContent = ''; panel.querySelector('.ph-crew').open = false; panel.querySelector('.ph-drawer').open = false;
-    panel.querySelector('.ph-name').textContent = projectRoot.split(/[\\/]/).filter(Boolean).pop();
-    panel.querySelector('.ph-path').textContent = projectRoot; panel.querySelector('.ph-count').textContent = '';
-    panel.querySelector('.ph-empty').hidden = true; panel.hidden = false; notice('Opening project…');
+    panel.querySelector('.ph-crew-note').textContent = ''; updates.replaceChildren(); showView(''); actions.hidden = false;
+    document.getElementById('comms-idbar').classList.add('ph-project');
+    document.getElementById('comms-title').textContent = projectRoot.split(/[\\/]/).filter(Boolean).pop();
+    document.getElementById('chat-log').appendChild(updates); notice('Opening project…');
     try {
       let data;
       try { data = await request('/api/projects/workspace', { root: projectRoot }); }
@@ -46,8 +71,10 @@ const ProjectHome = (() => {
     } catch (error) { if (token === epoch) notice('Could not open project. ' + error.message + ' Select the project to retry.'); }
   }
   function render(data) {
+    const log = document.getElementById('chat-log');
+    if (updates.parentNode !== log) log.appendChild(updates);
     notice(data.project.blessed ? '' : 'Folder access is revoked. Re-add this folder before starting new work.');
-    panel.querySelector('.ph-name').textContent = data.project.name || root.split(/[\\/]/).pop();
+    document.getElementById('comms-title').textContent = data.project.name || root.split(/[\\/]/).pop();
     const crewList = panel.querySelector('.ph-crew-list');
     const signature = JSON.stringify(data.crew.map(a => [a.id, a.name]));
     if (!crewDirty && crewList.dataset.signature !== signature + JSON.stringify(data.project.preferredAgents)) {
@@ -63,14 +90,15 @@ const ProjectHome = (() => {
     panel.querySelector('.ph-save').disabled = !data.project.blessed;
     panel.querySelector('.ph-crew-count').textContent = (data.project.preferredAgents || []).length ? '· ' + data.project.preferredAgents.length + ' selected' : '· Any station agent';
     const activity = data.activity || [], running = activity.filter(w => w.status === 'running').length;
-    panel.querySelector('.ph-count').textContent = running ? running + ' in progress' : activity.length ? 'Activity · ' + activity.length : 'Crew & activity';
+    actions.querySelector('.ph-history-toggle').textContent = running ? 'ACTIVITY · ' + running : 'ACTIVITY';
     panel.querySelector('.ph-empty').hidden = activity.length > 0;
     const live = new Set(activity.map(w => w.id));
-    for (const [id, card] of cards) if (!live.has(id)) { card.node.remove(); cards.delete(id); }
+    for (const [id, card] of cards) if (!live.has(id)) { card.node.remove(); card.update.remove(); cards.delete(id); }
     for (const [index, worker] of activity.entries()) {
       let card = cards.get(worker.id);
       if (!card) {
         card = createCard(worker.id); cards.set(worker.id, card);
+        updates.appendChild(card.update);
         const next = activity.slice(index + 1).map(w => cards.get(w.id)).find(Boolean);
         panel.querySelector('.ph-activity').insertBefore(card.node, next ? next.node : null);
       }
@@ -78,6 +106,7 @@ const ProjectHome = (() => {
       card.title.textContent = String(worker.prompt || 'Delegated work').replace(/\s+/g, ' ').slice(0, 140);
       card.agent.textContent = (data.crew.find(a => a.id === worker.agentId) || {}).name || worker.agentId;
       card.status.textContent = worker.status === 'running' ? (worker.working ? 'Working' : 'Starting') : ({ done: 'Completed', interrupted: 'Stopped', error: 'Needs attention' }[worker.status] || worker.status);
+      card.update.textContent = card.agent.textContent + ' · ' + card.status.textContent.toLowerCase() + ' · ' + (worker.status === 'running' ? 'View work' : 'View result');
       card.node.dataset.status = worker.status;
       card.prompt.textContent = worker.prompt || '';
       card.result.textContent = worker.result || (worker.status === 'running' ? 'Waiting for the agent’s result.' : 'No result was recorded.');
@@ -93,7 +122,9 @@ const ProjectHome = (() => {
     const input = el('textarea'); input.rows = 2; input.placeholder = 'Give this agent a direction…'; input.setAttribute('aria-label', 'Direction for this work');
     const send = el('button', 'btn', 'SEND DIRECTION'), stop = el('button', 'btn', 'STOP WORK'), receipt = el('p', 'ph-receipt'); receipt.setAttribute('role', 'status');
     summary.append(agent, status, title); controls.append(input, send, stop); body.append(prompt, result, tools, artifacts, directions, controls, receipt); node.append(summary, body);
-    const card = { node, title, agent, status, prompt, result, tools, artifacts, directions, controls, input, send, stop, receipt, worker: null };
+    const update = el('button', 'ph-inline');
+    update.onclick = () => { showView('activity'); node.open = true; node.scrollIntoView({ block: 'nearest' }); summary.focus(); };
+    const card = { node, update, title, agent, status, prompt, result, tools, artifacts, directions, controls, input, send, stop, receipt, worker: null };
     async function command(kind) {
       const token = epoch, worker = card.worker, text = input.value.trim(); if (kind === 'steer' && !text) { input.focus(); return; }
       card.pending = true; send.disabled = stop.disabled = true;
