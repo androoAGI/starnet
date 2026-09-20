@@ -30,3 +30,5 @@ jobs:
         run: npm run qa:guardian
       - name: Fast tests
         run: npm run test:fast
+      - name: Desktop build preflight
+        run: npm run desktop:build
