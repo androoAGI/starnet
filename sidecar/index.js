@@ -15534,7 +15534,7 @@ async function runOnce(o) {
   // at authority, capability, consent, and tool boundaries before any desktop action can reach Windows.
   if (computerControl.selection() === 'cua') {
     runComputer = makeCuaComputerTools({
-      allowPhysicalInput: DESKTOP_SHELL, imageWire, signal,
+      allowPhysicalInput: DESKTOP_SHELL, imageWire, signal, clock: { now: () => Date.now() },
       binary: computerControl.binary(), isEnabled: () => computerControl.selection() === 'cua' && computerControl.available()
     });
   } else {

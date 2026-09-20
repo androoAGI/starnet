@@ -8,8 +8,8 @@ const status = socket => new Promise(resolve => cp.execFile(binary, ['status', '
 (async () => {
   const ac = new AbortController(); let first, second;
   try {
-    first = await connect({ binary, signal: ac.signal });
-    second = await connect({ binary });
+    first = await connect({ binary, signal: ac.signal, clock: { now: () => Date.now() } });
+    second = await connect({ binary, clock: { now: () => Date.now() } });
     assert.notEqual(first.socket, second.socket); assert.notEqual(first.session, second.session);
     assert.equal((await first.call('list_windows')).isError, undefined);
     ac.abort(); await first.close();

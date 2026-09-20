@@ -19,7 +19,8 @@ function data(result) {
   const text = (result?.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
   try { return JSON.parse(text); } catch { return { text }; }
 }
-async function connect({ binary, signal, timeoutMs = 20000 }) {
+async function connect({ binary, signal, clock, timeoutMs = 20000 }) {
+  if (!clock || typeof clock.now !== 'function') throw new Error('Computer runtime requires a host clock');
   if (signal?.aborted) throw new Error('Computer control cancelled');
   const env = childEnv();
   const socket = '\\\\.\\pipe\\starnet-cua-' + randomUUID();
@@ -36,11 +37,9 @@ async function connect({ binary, signal, timeoutMs = 20000 }) {
   };
   function terminate() {
     for (const child of children) {
-      // The UIA helper is a descendant; kill only our own process tree.
-      if (process.platform === 'win32' && child.pid) {
-        const killer = cp.spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', env });
-        killer.on('error', () => child.kill());
-      } else child.kill();
+      // Never taskkill /T: apps opened for the user may be descendants. Only
+      // these directly spawned driver/proxy processes belong to this runtime.
+      child.kill();
     }
   }
   function close() {
@@ -48,12 +47,17 @@ async function connect({ binary, signal, timeoutMs = 20000 }) {
     closed = true;
     signal?.removeEventListener('abort', abort);
     client?.close('Computer control closed');
-    terminate();
-    closePromise = Promise.all([...children].map(child => new Promise(resolve => {
-      if (child.exitCode !== null) return resolve();
-      const timer = setTimeout(resolve, 1500);
-      child.once('exit', () => { clearTimeout(timer); resolve(); });
-    })));
+    closePromise = (async () => {
+      // Graceful private-daemon shutdown also closes its UIA helper. This must
+      // not close applications the Commander asked us to open.
+      try { await cli(['stop', '--socket', socket]); } catch {}
+      terminate();
+      await Promise.all([...children].map(child => new Promise(resolve => {
+        if (child.exitCode !== null) return resolve();
+        const timer = setTimeout(resolve, 1000);
+        child.once('exit', () => { clearTimeout(timer); resolve(); });
+      })));
+    })();
     return closePromise;
   }
   const abort = () => { void close(); };
@@ -65,12 +69,12 @@ async function connect({ binary, signal, timeoutMs = 20000 }) {
     if (closed || signal?.aborted) throw new Error('Computer control cancelled');
     daemon = launch(['serve', '--embedded', '--socket', socket, '--permission-mode', 'unrestricted', '--dangerously-bypass-approvals', '--no-overlay']);
     daemon.stdout.resume();
-    const deadline = Date.now() + timeoutMs;
+    const deadline = clock.now() + timeoutMs;
     for (;;) {
       if (closed || signal?.aborted) throw new Error('Computer control cancelled');
       if (failure) throw failure;
       try { await cli(['status', '--socket', socket]); break; } catch {}
-      if (Date.now() >= deadline) throw new Error('Computer driver startup timed out');
+      if (clock.now() >= deadline) throw new Error('Computer driver startup timed out');
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     if (closed) throw new Error('Computer control cancelled');

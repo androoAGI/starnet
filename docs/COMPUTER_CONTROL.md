@@ -52,7 +52,8 @@ can still prevent an operation.
 
 Each authorized run lazily owns a separate daemon, named pipe, MCP client, and
 session. Tool calls within a run are serialized. Completion, abort, tool transport
-failure, and backend changes close its owned process tree. Other runs' sessions
+failure, and backend changes close its private driver and proxy. Applications
+opened for the user are not terminated when a run finishes. Other runs' sessions
 are not stopped. An expired session is discarded; the next call can establish a
 new session. Mutations are never automatically replayed after ambiguous failure.
 Observe again before deciding to retry. A force-killed host cannot promise orderly

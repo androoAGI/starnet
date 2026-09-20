@@ -22,7 +22,7 @@ function makeCuaComputerTools(deps) {
   async function getConnection(callSignal) {
     if (closed || deps.signal?.aborted) throw new Error('Computer run has ended');
     if (!connection) {
-      opening = connect({ binary: deps.binary, signal: callSignal ? AbortSignal.any([signal, callSignal]) : signal });
+      opening = connect({ binary: deps.binary, clock: deps.clock, signal: callSignal ? AbortSignal.any([signal, callSignal]) : signal });
       try { connection = await opening; } finally { opening = null; }
       if (closed) { await reset(); throw new Error('Computer run has ended'); }
     }
