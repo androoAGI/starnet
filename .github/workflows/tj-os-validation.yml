@@ -1,0 +1,32 @@
+name: TJ OS Validation
+
+on:
+  push:
+    branches:
+      - tj-os-rebrand
+  pull_request:
+    branches:
+      - tj-os-rebrand
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Raw model validation
+        run: npm run validate:raw
+      - name: World model QA
+        run: npm run qa:model
+      - name: Guardian QA
+        run: npm run qa:guardian
+      - name: Fast tests
+        run: npm run test:fast
