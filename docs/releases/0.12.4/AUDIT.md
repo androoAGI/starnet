@@ -1,5 +1,7 @@
 # Latest native acceptance
 
+Final publication status and source-bound evidence: [PUBLICATION.md](PUBLICATION.md). The earlier reports below are historical.
+
 The later signed candidate passes the candidate-bound READY gate. See [NATIVE_RESULTS.md](NATIVE_RESULTS.md) for exact source, signed installation/upgrade evidence, owner-accepted Mac risk, and remaining real-account/automatic-update limits. The earlier audit below is retained with its original source scope.
 
 ---

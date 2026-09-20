@@ -1,0 +1,65 @@
+{
+  "source": "f00aa04dfceac4e0d1a3a1e95b7b8d24d55456d1",
+  "files": [
+    {
+      "name": "clean-install-proof.json",
+      "bytes": 1462,
+      "sha256": "658b9fbd9568f2349656d7ddfc5f0e03012fcbdbca8a453fa3df55bf51491db9"
+    },
+    {
+      "name": "cycle-summary.json",
+      "bytes": 1438,
+      "sha256": "947ff52e44ffe6eb7cec5768fff3ba1fa5f8da68b8fe226f29eade1367806d97"
+    },
+    {
+      "name": "latest.json",
+      "bytes": 4016,
+      "sha256": "8d9e464bddd445cb7292d027fd6edbb21f7d1605882a83672c64ab180d5cfd9f"
+    },
+    {
+      "name": "live-update-host.log",
+      "bytes": 2447,
+      "sha256": "470781e2c35ae2b33ceba86527fcc39078d94382b8c798b0032046b374949448"
+    },
+    {
+      "name": "packaged-lifecycle-receipt.json",
+      "bytes": 4127,
+      "sha256": "4f877e4e75ba9863a3896ca632c84ba252fa031e696aefdaee448d0f5911de92"
+    },
+    {
+      "name": "public-assets.json",
+      "bytes": 17586,
+      "sha256": "f634d8f1bb4412928f020cadfe181df69ce1ba877f3d5f2343dddf6630126aa6"
+    },
+    {
+      "name": "public-canary-run.json",
+      "bytes": 4369,
+      "sha256": "01eaf547c6f3ae642beff2a82ee097ca33b9e8519984a5dd861c778af6a0a189"
+    },
+    {
+      "name": "public-upgrade-continuity.json",
+      "bytes": 109798,
+      "sha256": "4e3538d6596cd1adb6029154210d8fcbc228369f0e2e74b1d18a6d20e41baf13"
+    },
+    {
+      "name": "ready-final-trunk.json",
+      "bytes": 2125,
+      "sha256": "939e0836f69685054b0c24ede9d7c14b3402d389b7bdae555851cdf17d8ae176"
+    },
+    {
+      "name": "release-train-final.json",
+      "bytes": 27766,
+      "sha256": "f9b7f8f929905b3ce323a4b92719d36a14f2d4588ff114b0d62fb0610d174450"
+    },
+    {
+      "name": "source-mirror-run.json",
+      "bytes": 2498,
+      "sha256": "357c003ae3f0fc957c039650c3dd218b4823518232c229b6c9ebdb69122e7f11"
+    },
+    {
+      "name": "source-mirror.json",
+      "bytes": 1677,
+      "sha256": "9865d058acbbf8b3fb2290340906dae1856be2a24595b3361bee2152b5ccdc10"
+    }
+  ]
+}

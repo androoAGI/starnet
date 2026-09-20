@@ -1,0 +1,80 @@
+{
+  "ready": true,
+  "reasons": [],
+  "failing": [],
+  "checks": [
+    {
+      "id": "ledger",
+      "label": "Ledger open P0/P1",
+      "ok": true,
+      "reason": "no open P0/P1 findings",
+      "receipt": {
+        "artifact": "qa/findings/ (via ledger.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 0 P1 · 0 P2"
+      }
+    },
+    {
+      "id": "bugs",
+      "label": "Bug register open P0/P1",
+      "ok": true,
+      "reason": "no open/claimed P0/P1 bugs",
+      "receipt": {
+        "artifact": "qa/bugs/ (via bugs.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 0 P1 · 10 P2"
+      }
+    },
+    {
+      "id": "guardian",
+      "label": "Green Guardian last cycle",
+      "ok": true,
+      "reason": "GREEN, 42m old, on current trunk (f00aa04d)",
+      "receipt": {
+        "artifact": "qa/guardian-last-cycle.json",
+        "stamp": "2026-09-20T09:14:14.479Z",
+        "value": "GREEN · ran[test-fast,http-e2e,saboteur,shoot,golden,audit,journeys] · @f00aa04d"
+      }
+    },
+    {
+      "id": "journeys",
+      "label": "Journey corps last run",
+      "ok": true,
+      "reason": "PASS, 42m old",
+      "receipt": {
+        "artifact": "qa/journeys-last-run.json",
+        "stamp": "2026-09-20T09:14:14.353Z",
+        "value": "PASS · 139/139 assertions"
+      }
+    },
+    {
+      "id": "beginner",
+      "label": "Beginner Run last result",
+      "ok": true,
+      "reason": "PASS, 41m old",
+      "receipt": {
+        "artifact": "qa/beginner-last-run.json",
+        "stamp": "2026-09-20T09:15:00.072Z",
+        "value": "PASS · ui-only · 45404ms"
+      }
+    },
+    {
+      "id": "installed",
+      "label": "Installed-exe smoke",
+      "ok": true,
+      "reason": "GREEN, 6m old",
+      "receipt": {
+        "artifact": "[object Object]",
+        "stamp": "2026-09-20T09:49:38.066Z",
+        "value": "GREEN · v0.12.4 · @f00aa04d · reproducible-source · desktop"
+      }
+    }
+  ],
+  "generatedAt": "2026-09-20T09:56:00.093Z",
+  "trunk": {
+    "branch": "feat/harness-backend",
+    "head": "f00aa04dfceac4e0d1a3a1e95b7b8d24d55456d1",
+    "guardianDrift": 0,
+    "driftError": null
+  }
+}

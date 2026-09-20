@@ -1,5 +1,7 @@
 # v0.12.4 signed-candidate acceptance
 
+Historical candidate report. The final release was subsequently published; see [PUBLICATION.md](PUBLICATION.md) for the immutable final source, exact release assets and post-publication checks.
+
 The release-readiness gate is **READY for the exact signed candidate `f27e70f76954456b359594bebb0128e16e81e16d`**, with all six checks passing. This is a candidate-bound engineering verdict, not publication approval or a claim of exhaustive real-account/platform coverage. No release, tag, or public updater change was made. The audit branch has not been merged into the integration branch.
 
 ## Verified
