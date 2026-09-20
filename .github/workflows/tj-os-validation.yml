@@ -30,11 +30,34 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y chromium
           echo "SKYNET_CHROME=$(command -v chromium)" >> "$GITHUB_ENV"
+          echo "Chromium: $(command -v chromium)"
+          chromium --version
+
       - name: Fast tests
+        id: fast
+        continue-on-error: true
         run: |
           grep -v 'test/qa-product-perfect-claims.test.js' test/fast.list > /tmp/tj-os-fast.list
           node scripts/run-test-list.mjs /tmp/tj-os-fast.list
+
       - name: Guardian QA
+        id: guardian
+        continue-on-error: true
         run: npm run qa:guardian
+
       - name: Desktop build preflight
+        id: desktop
+        continue-on-error: true
         run: npm run desktop:build
+
+      - name: Validation summary
+        if: always()
+        run: |
+          echo "Fast tests: ${{ steps.fast.outcome }}"
+          echo "Guardian QA: ${{ steps.guardian.outcome }}"
+          echo "Desktop build: ${{ steps.desktop.outcome }}"
+          if [ "${{ steps.fast.outcome }}" != "success" ] ||              [ "${{ steps.guardian.outcome }}" != "success" ] ||              [ "${{ steps.desktop.outcome }}" != "success" ]; then
+            echo "TJ OS validation has one or more failing gates."
+            exit 1
+          fi
+          echo "TJ OS validation: ALL GATES PASSED"
