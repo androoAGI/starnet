@@ -4,10 +4,10 @@ slug: invalid-connector-json-null-replaces-encrypted-r
 title: Invalid connector JSON null replaces encrypted recovery credentials at startup
 surface: channels
 severity: P1
-status: open
+status: fixed
 found: 2026-09-20
 lane: release-audit-0124-0920
-fix:
+fix: 42ad5937f
 origin: audit
 ---
 

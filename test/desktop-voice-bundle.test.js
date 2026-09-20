@@ -22,13 +22,13 @@ assert.equal(
   '^1.7.3',
   'the packaged sidecar carries an in-process Telegram Ogg/Opus decoder'
 );
-assert.equal(pkg.overrides && pkg.overrides.sharp, '0.35.3',
+assert.equal(pkg.overrides && pkg.overrides.sharp, '0.35.4',
   'both Transformers copies are forced onto the patched Sharp runtime');
 const lockedSharp = Object.entries(lock.packages || {})
   .filter(([name]) => /(?:^|\/)node_modules\/sharp$/.test(name))
   .map(([, meta]) => meta && meta.version);
-assert.ok(lockedSharp.length > 0 && lockedSharp.every(version => version === '0.35.3'),
-  'the lockfile cannot restore a vulnerable Sharp below 0.35');
+assert.ok(lockedSharp.length > 0 && lockedSharp.every(version => version === '0.35.4'),
+  'the lockfile cannot restore a Sharp runtime affected by GHSA-rgj7-g3m4-5g8c');
 
 assert.match(
   pkg.scripts['desktop:build'],

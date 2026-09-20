@@ -172,7 +172,7 @@
     "ogg-opus-decoder": "^1.7.3"
   },
   "overrides": {
-    "adm-zip": "0.6.0",
-    "sharp": "0.35.3"
+    "adm-zip": "0.6.1",
+    "sharp": "0.35.4"
   }
 }
