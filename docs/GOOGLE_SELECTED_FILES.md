@@ -1,13 +1,13 @@
 # Selected Google files
 
-Implementation candidate in `agent/google-oauth-audit-0919`. Real Google connection,
+Implementation candidate in `agent/google-oauth-merge-0920`. Real Google connection,
 Windows native-keychain restart recovery, and Docs/Sheets read/write checks passed.
 Not yet merged or deployed. Native macOS keychain/migration CI passed on Intel and
 Apple Silicon; signed-installer and physical-Mac acceptance remain separate.
 
-Current merge candidate: `agent/google-oauth-merge-0920`, based on accepted trunk
-`621bbf467`. The original branch is preserved. A concurrently rolled-back coordinator
-merge was excluded from both this candidate's source and ancestry before final gates.
+The original audit branch is preserved. The merge candidate includes accepted trunk
+`760426bc5`, including the coordinator and reliability updates. The earlier temporary
+coordinator rollback was respected; those changes were included only after acceptance.
 
 The new **Selected Google files** card uses Google's desktop Picker authorization
 flow: PKCE and state, `prompt=consent`, `trigger_onepick=true`, multiple Docs/Sheets,
@@ -47,8 +47,8 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
 - Full fast suite: 819 steps green. Focused follow-up checks passed for status
   redaction, toggles, refresh and broad-service deferral.
 - Full HTTP suite: 120 steps green, including the new selected-file lifecycle test.
-- Native Windows review launcher built successfully. No signed installer or Mac
-  acceptance is claimed.
+- Native Windows review launcher built successfully. No signed-installer acceptance
+  is claimed; native Mac keychain acceptance is recorded below.
 - Live seeded app, using synthetic Google endpoints: selected-file disclosure and
   button displayed; callback connected 11 tools; restart recovered the encrypted
   grant; the panel showed **1 connected · 5 deferred**; disable/re-enable worked.
@@ -91,3 +91,11 @@ Source: https://developers.google.com/workspace/drive/picker/guides/desktop-mobi
 - After syncing trunk for macOS CI, the real Windows preview was restarted on the
   combined source. Both previously written Doc and Sheet markers were read back and
   asserted again through real Google calls. No external model provider was used.
+- Combined source `01f13e470` passed native keychain/migration CI on both Intel and
+  Apple Silicon: https://github.com/androoAGI/starnet/actions/runs/35481435583.
+  The Windows native preview was restarted on that source, and exact Doc and Sheet
+  marker read-back passed again through the real Google API.
+- The first local merge was rolled back after the 15-minute fast-gate watchdog
+  expired; no assertion failed in that attempt. The accepted reliability update
+  supplies a 20-minute fast deadline with matching Guardian headroom. The temporary
+  30-minute candidate override was removed after the Guardian test rejected it.
