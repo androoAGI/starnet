@@ -52,10 +52,11 @@ const ProjectHome = (() => {
   }
   async function open(projectRoot) {
     setup(); clearTimeout(timer); const token = ++epoch; root = projectRoot; homeId = ''; crewDirty = false; cards.clear();
-    panel.querySelector('.ph-activity').replaceChildren(); panel.querySelector('.ph-crew-list').replaceChildren();
-    panel.querySelector('.ph-crew-note').textContent = ''; updates.replaceChildren(); showView(''); actions.hidden = false;
+    panel.querySelector('.ph-activity').replaceChildren();
+    const crewList = panel.querySelector('.ph-crew-list');
+    crewList.replaceChildren(); delete crewList.dataset.signature;
+    panel.querySelector('.ph-crew-note').textContent = ''; updates.replaceChildren(); showView(''); actions.hidden = true;
     document.getElementById('comms-idbar').classList.add('ph-project');
-    document.getElementById('comms-title').textContent = projectRoot.split(/[\\/]/).filter(Boolean).pop();
     document.getElementById('chat-log').appendChild(updates); notice('Opening project…');
     try {
       let data;
@@ -67,7 +68,7 @@ const ProjectHome = (() => {
         if (!Workstreams.get(homeId)) Workstreams.adopt({ ...data.session, revive: true });
         App.persist(); App.openWorkstream(homeId);
       }
-      render(data); poll(token);
+      actions.hidden = false; render(data); poll(token);
     } catch (error) { if (token === epoch) notice('Could not open project. ' + error.message + ' Select the project to retry.'); }
   }
   function render(data) {
@@ -158,5 +159,5 @@ const ProjectHome = (() => {
       if (token === epoch) poll(token);
     }, 2500);
   }
-  return { open, close, onSession: id => { if (root && homeId && id !== homeId) close(); } };
+  return { open, close, onSession: id => { if (root && id !== homeId) close(); } };
 })();
