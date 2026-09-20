@@ -4,7 +4,7 @@ slug: mac-boot-guard-reports-shared-specialty-catalog
 title: Mac boot guard reports shared specialty catalog load failure
 surface: onboarding
 severity: P1
-status: open
+status: wontfix
 found: 2026-09-11
 lane: release-0112-finalprep-0911
 fix:
@@ -36,6 +36,8 @@ Anchors: `frontend/index.html:850` builds the parser-ordered script URL from the
 September 11 installed Windows candidate `7f6c7b005`: SharedSpecialties was loaded, no boot-fatal element was present, and the script's actual loopback URL returned HTTP 200 with bytes matching the committed catalog (SHA-256 `b346c34841d2b2b75eb77dabd2e9c47049a85738a56e001d73eecd4933f41893`). Evidence is retained in the release preparation worktree `.dogfood/customer-execution/installed-catalog.json`. This does not establish Mac recovery.
 
 ## Verdict
+
+September 20 owner disposition for v0.12.4: accepted residual risk. The owner explicitly instructed proceeding with the normal update procedure without requiring an affected-customer Mac retest, stating that there are no current Mac-user issues. This changes release triage, not engineering evidence: the historical reports below remain retained, the source hardening remains included, and affected-machine recovery has not been observed. `wontfix` records this owner acceptance; it does not mean the original incident was reproduced, disproved, or verified fixed. Native CI acceptance continues independently. Reopen if a current affected installation reproduces the failure.
 
 September 18: REOPENED. New diagnostics explicitly show all five retries exhausted; the retry hardening did not resolve this report. Hardening commit 14c6a69a8 embeds the authoritative catalog in the staged desktop frontend and uses a same-origin static script tag. The engine startup/loopback request is removed from this boot-data path. Exhausted retries now report script load failure, not an unproven engine outage. A live fixture serving the actual staged bytes boots with SharedSpecialties loaded while the engine is unavailable and cross-origin scripts are denied; SHA-256 matches the shared authority. Packaging regression: test/mac-boot-compat.test.js. Full fast gate 818/818 and customer journeys 36/36 pass. See qa/digests/2026-09-18-mac-boot-compat.md. Keep this original incident open: its network failure cause, affected engine health and installed recovery remain unknown. The previous fixed verdict below describes retry-only hardening and is superseded by this entry.
 
