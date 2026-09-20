@@ -2,6 +2,18 @@ import { createHash } from 'node:crypto';
 
 export const RECEIPT_SCHEMA = 'starnet.update-canary-receipt.v1';
 
+// Legacy ordinary conversations gain these exact neutral defaults during hydration.
+// Keep non-default values and every other field, so lost relationships/content still fail.
+export function normalizeLegacyWorkstreamDefaults(streams) {
+  if (!Array.isArray(streams)) return streams;
+  return streams.map(stream => {
+    const result = structuredClone(stream);
+    if (result.parentStreamId === null) delete result.parentStreamId;
+    if (result.projectHome === false) delete result.projectHome;
+    return result;
+  });
+}
+
 export function stableJson(value) {
   if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
   if (value && typeof value === 'object') {

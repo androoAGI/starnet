@@ -10,6 +10,17 @@ const { spawnSync } = require('node:child_process');
 (async () => {
   const C = await import('../scripts/lib/update-continuity.mjs');
   const fixture = C.populatedFixture('nonce', 100);
+  const legacy = structuredClone(fixture.workstreams);
+  const hydrated = legacy.map(w => ({ ...w, parentStreamId: null, projectHome: false }));
+  A.eq(C.normalizeLegacyWorkstreamDefaults(hydrated), legacy, 'only neutral project defaults are equivalent to legacy absence');
+  A.eq(hydrated[0].projectHome, false, 'normalization leaves captured evidence unchanged');
+  for (const changed of [
+    { parentStreamId: 'real-parent' }, { projectHome: true },
+    { parentStreamId: '' }, { projectHome: 0 }, { history: [] }, { title: 'lost title' }
+  ]) {
+    const altered = [{ ...hydrated[0], ...changed }];
+    A.eq(C.stableJson(C.normalizeLegacyWorkstreamDefaults(altered)) === C.stableJson(legacy), false, 'semantic change is not hidden: ' + JSON.stringify(changed));
+  }
   const snapshot = { sentinel: { nonce: 'nonce', purpose: 'update-continuity' }, local: fixture, durable: Object.assign({}, fixture, { updatedAt: 200 }) };
   const receipt = C.buildReceipt({
     before: snapshot, after: snapshot,
