@@ -102,5 +102,11 @@ async function materials(){
   const air=Canvas.createCanvas(60,80);air.getContext('2d').fillRect(16,20,30,20);
   const noContact=scope.contact(air,12).getContext('2d').getImageData(0,0,64,7).data;
   assert(!noContact.some((v,i)=>i%4===3&&v),'raised artwork without feet cannot create floor contact');
+  // TJ Commons furniture has explicit physical depth instead of relying on fallback estimates.
+  const PropSprites=require('../frontend/app/propsprites.js');
+  assert.equal(PropSprites.depthProfile('bar').height,16,'Commons bar has explicit 2.5D height');
+  assert.equal(PropSprites.depthProfile('bar').surface,true,'Commons bar is a surface-mounted volume');
+  assert.equal(PropSprites.depthProfile('dinerchair').height,9,'diner chair has explicit low profile');
+  assert.equal(PropSprites.depthProfile('fishtank').height,18,'fish tank has explicit medium profile');
   console.log('PASS: overview filtering, close detail, stable alpha, cache invalidation, silhouette foot contact and open leg gaps.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
