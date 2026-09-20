@@ -15,8 +15,9 @@ function childEnv(source = process.env) {
   return env;
 }
 function data(result) {
-  if (result?.structuredContent) return result.structuredContent;
   const text = (result?.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
+  if (result?.structuredContent) return { ...result.structuredContent,
+    ...(result.isError && text ? { nativeMessage: text } : {}) };
   try { return JSON.parse(text); } catch { return { text }; }
 }
 async function connect({ binary, signal, clock, timeoutMs = 20000 }) {

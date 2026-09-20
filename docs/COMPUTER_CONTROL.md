@@ -88,5 +88,7 @@ benchmark a general-purpose language model's planning ability.
 sessions, cancellation, continued operation of the other session, and cleanup.
 `node dev/computer-eval/app-survival.js <binary>` verifies that a newly launched
 noninteractive fixture app survives driver cleanup, then stops that fixture itself.
+`node dev/computer-eval/session-recovery.js <binary>` expires a real private
+session and checks refusal, useful recovery guidance, and a fresh next connection.
 The earlier Hermes comparison and measurements are in
 [the evaluation report](COMPUTER_CONTROL_EVALUATION_2026-09-19.md).

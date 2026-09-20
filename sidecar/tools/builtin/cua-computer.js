@@ -62,11 +62,13 @@ function makeCuaComputerTools(deps) {
           const result = await conn.call(args.action, parameters);
           const state = runtime.data(result);
           // Expired sessions get a fresh transport on the NEXT call. Never replay a mutation.
-          if (result.isError && /session.{0,180}(ended|expired|revoked)/i.test(JSON.stringify(state))) await reset();
+          const expired = (result.isError || state.refusal) && /session.{0,180}(ended|expired|revoked)/i.test(JSON.stringify(state));
+          if (expired) await reset();
           // Registry turns thrown errors into tool errors; a returned isError field
           // would be discarded by its success normalization.
           if (result.isError || state.effect === 'refused' || state.refusal) {
-            const error = new Error(JSON.stringify({ backend: 'cua', operation: args.action, ...state }));
+            const error = new Error(JSON.stringify({ backend: 'cua', operation: args.action, ...state,
+              ...(expired ? { hostRecovery: 'StarNet discarded the expired session. Call get_window_state again to obtain fresh tokens before acting. No action was replayed.' } : {}) }));
             error.cuaRefusal = true;
             throw error;
           }

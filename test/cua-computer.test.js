@@ -39,7 +39,7 @@ test('forwards exact semantic target and preserves ambiguous effect', async () =
 });
 test('expired sessions are discarded without replaying a mutation', async () => {
   const f = fixture({ isError: true, structuredContent: { text: 'session starnet-test has ended' } });
-  await assert.rejects(f.useTool.run({ action: 'click', parameters: { pid: 1, window_id: 2, x: 3, y: 4 } }, FULL), /has ended/);
+  await assert.rejects(f.useTool.run({ action: 'click', parameters: { pid: 1, window_id: 2, x: 3, y: 4 } }, FULL), /get_window_state again/);
   assert.equal(f.calls.length, 1); assert.equal(f.closed, 1);
   await assert.rejects(f.useTool.run({ action: 'list_windows' }, FULL), /has ended/);
   assert.equal(f.opened, 2); await f.close();
@@ -70,6 +70,12 @@ test('logical refusal stays a tool error and session overrides are rejected', as
 test('transport receives no provider credentials or injected Node options', () => {
   const env = childEnv({ Path: 'system-path', OPENAI_API_KEY: 'secret', NODE_OPTIONS: '--require bad', STARNET_IPC_TOKEN: 'secret' });
   assert.deepEqual(env, { Path: 'system-path', CUA_DRIVER_RS_TELEMETRY_ENABLED: '0' });
+});
+test('generic structured native errors retain the actionable text diagnostic', () => {
+  const state = require('../sidecar/tools/builtin/cua-runtime').data({ isError: true,
+    structuredContent: { code: 'tool_invocation_failed', exit_code: 1 },
+    content: [{ type: 'text', text: 'session starnet-test has ended; start a new session' }] });
+  assert.equal(state.code, 'tool_invocation_failed'); assert.match(state.nativeMessage, /session.*ended/);
 });
 test('closed run cannot restart a private runtime', async () => {
   const f = fixture(); await f.close();
