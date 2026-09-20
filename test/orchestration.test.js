@@ -774,7 +774,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
   A.ok(/freeSlots: \(\) => \{ const m = concurrencyGate\.max\(\); return m > 0 \? Math\.max\(0, m - concurrencyGate\.active\(\)\) : null; \}/.test(src),
     'the run host wires concurrencyGate free capacity into makeOrchestrationTools');
-  A.ok(/now: \(\) => Date\.now\(\)/.test(src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000)),
+  A.ok(/now: \(\) => Date\.now\(\)/.test(src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')))),
     'the run host injects the real clock for the dispatch wall clock');
 }
 
@@ -817,6 +817,7 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
   const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'summarise X', session: 'research' }] }, leadCtx());
   A.eq(ro.calls.length, 1, 'the worker ran');
   A.eq(ro.calls[0].streamId, 'ws_r1', 'the named session resolves to its real id and rides into the run as streamId');
+  A.eq(ro.calls[0].coordinatedSession, false, 'legacy bridge dispatch does not require server-owned session metadata');
   A.eq(ro.calls[0].sessionTitle, 'research', 'the stable session name rides into the durable run row for missed-page replay');
   A.eq(ro.calls[0].sessionPrompt, 'summarise X', 'the delegated instruction rides into the durable delivery envelope');
   const row = JSON.parse(out.content)[0];
@@ -934,8 +935,8 @@ const leadCtx = () => ({ agentId: 'agent', emit: () => {} });
 // the run host wires the bridge in (the tool cannot reach the page by itself)
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-  const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('makeOrchestrationTools({') + 3000);
-  A.ok(/station: stationBridge/.test(block), 'the run host injects the station bridge into makeOrchestrationTools');
+  const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')));
+  A.ok(/station: require\('\.\/overseer.js'\)\.isCoordinatorRun\([\s\S]*?\? overseerStation\(o.streamId, runId\) : stationBridge/.test(block), 'only coordinator runs receive durable session operations; other leads retain the visual bridge');
 }
 
 // the PAGE half exists and holds the line on both verbs

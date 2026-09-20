@@ -348,7 +348,7 @@
       // user keeps the frictionless flow by choosing it. Lead-only conferral + budget caps + the concurrency
       // ceiling + autonomous workers (default-deny) all still stand underneath.
       name: 'team.dispatch', capability: 'orchestrator', scope: 'execute', requiresConsent: true,
-      description: 'Delegate subtasks to your specialist crew. Each worker runs its OWN real agent loop (live web search/read, files, memory) and returns its result for you to synthesize into the final answer. Address workers by the agentId listed under YOUR TEAM. Runs sequentially by default; pass parallel:true to run them at once. Pass background:true to start watchable workers and keep working. SESSIONS: pass `session` on a worker (the session\'s NAME, as the Commander says it) to make that subtask run in — and be filed under — that session instead of this one. Only pass it when the Commander named a session; a name that does not match one on this station is REFUSED, not guessed, and that worker does not run. FILES: each worker saves into its OWN private workspace — you cannot fs.read another agent\'s files, so never "verify" a worker\'s file with your own file tools (absence in YOUR workspace proves nothing). The result\'s artifacts list is the proof of what each worker saved, and the Commander is shown those files as cards automatically — reference them as "<workerId>\'s workspace: <path>".',
+      description: 'Delegate subtasks to your specialist crew. Each worker runs its OWN real agent loop (live web search/read, files, memory) and returns its result for you to synthesize into the final answer. Address workers by the agentId listed under YOUR TEAM. Runs sequentially by default; pass parallel:true to run them at once. Pass background:true to start watchable workers and keep working. SESSIONS: pass `session` on a worker (the session\'s NAME, as the Commander says it) to make that subtask run in — and be filed under — that session instead of this one. Use an existing relevant session or create a named working session first. A name that does not match one on this station is REFUSED, not guessed, and that worker does not run. FILES: each worker saves into its OWN private workspace — you cannot fs.read another agent\'s files, so never "verify" a worker\'s file with your own file tools (absence in YOUR workspace proves nothing). The result\'s artifacts list is the proof of what each worker saved, and the Commander is shown those files as cards automatically — reference them as "<workerId>\'s workspace: <path>".',
       schema: {
         type: 'object', required: ['workers'], properties: {
           workers: {
@@ -406,6 +406,13 @@
         // WHERE before WHO does the work: an unresolvable session marks its job failed here, so that worker is
         // never started in the wrong place (see resolveSessions). One bridge round-trip for the whole dispatch.
         await resolveSessions(jobs);
+        for (const job of jobs) {
+          if (job.streamId && ctx && job.streamId === ctx.streamId) job.error = 'Delegate into a separate working session, not the lead conversation.';
+          if (!job.error && job.streamId && typeof deps.sessionContext === 'function') {
+            try { job.sessionContext = deps.sessionContext(job.streamId); }
+            catch (e) { job.error = 'session context unavailable: ' + e.message; }
+          }
+        }
 
         const runWorker = async (job, o2) => {
           o2 = o2 || {};
@@ -447,17 +454,18 @@
           };
           let result;
           const contractedPrompt = openingMessage(job.prompt, job.context, job.resultSchema);
+          const previousMessages = job.sessionContext && job.sessionContext.messages || [];
           noteSessionActivity('station.dispatch_start', job, workerRunId);
           try {
             result = await runOnce({
-              ...projectOptions(ctx), ...connectorOptions(ctx),
+              ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx),
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
               // Class Loadouts S1: the WORKER runs at its OWN class-applied reasoning effort (roster record), not the
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
               reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
               model: wire.model,
               system: workerSystem((job.ident && job.ident.system) || ''),
-              messages: [{ role: 'user', content: contractedPrompt }],
+              messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
               agentId: job.agentId, isTask: true,
               emit: o2.emit || childEmit,      // lifecycle/cost ride the lead/global stream -> the floor lights the worker
               signal: ac ? ac.signal : parentSignal,   // own controller when this worker has a wall clock (see above)
@@ -467,6 +475,7 @@
               // transcript) and scopes its working memory to that stream. Absent -> undefined, byte-identical to
               // the pre-2026-07-30 call. This is the DURABLE half; deliverToSession is the visible one.
               streamId: job.streamId || undefined,
+              coordinatedSession: deps.coordinateResults === true,
               sessionTitle: job.streamId ? (job.sessionTitle || job.session || '') : undefined,
               sessionPrompt: job.streamId ? job.prompt : undefined,
               // Share the lead's consent broker so a worker's WRITES follow the lead's APPROVAL posture
@@ -502,7 +511,7 @@
             const repairRunId = newId();
             const repair = await runOnce({
               outputOnly: true,
-              ...projectOptions(ctx), ...connectorOptions(ctx),
+              ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx),
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
               reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
               model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
@@ -564,7 +573,7 @@
           if (!subagents || typeof subagents.start !== 'function') return { content: 'background subagents unavailable (no subagent manager)', summary: 'error' };
           const started = jobs.map(job => {
             if (job.error) return { agentId: job.agentId, reason: 'error', result: job.error };
-            return subagents.start({ ...projectOptions(ctx), leadId, agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema }, async (h) => {
+            return subagents.start({ ...projectOptions(job.sessionContext || ctx), leadId, parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', streamId: job.streamId || '', agentId: job.agentId, prompt: job.prompt, context: job.context, runId: newId(), resultSchema: job.resultSchema }, async (h) => {
               const r = await runWorker(job, { runId: h.runId, signal: h.signal, emit: h.emit, steer: h.steer });
               return { status: r.reason === 'done' ? 'done' : 'error', reason: r.reason, result: r.result, usd: r.usd || 0,
                 structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts };
@@ -772,7 +781,7 @@
             return { status: r.reason === 'done' ? 'done' : 'error', reason: r.reason, result: r.result, usd: r.usd,
               structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts };
           };
-          const view = subagents.start({ ...projectOptions(ctx), leadId, agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema }, runner);
+          const view = subagents.start({ ...projectOptions(ctx), leadId, parentStreamId: deps.coordinateResults === true && ctx && ctx.streamId !== 'global' ? ctx.streamId : '', agentId: ephemeralId, prompt: prompt, context: task.context, runId: newId(), resultSchema: task.resultSchema }, runner);
           return { label, view, done, started: true };
         };
 
@@ -879,6 +888,7 @@
     function resumeRunnerFor(ctx) {
       return async function (h) {
         const rec = h.record || {};
+        const resumedSession = rec.streamId && typeof deps.sessionContext === 'function' ? deps.sessionContext(rec.streamId) : null;
         const crew = roster() || new Map();
         const ident = crew.get(rec.agentId);
         if (!ident) return { status: 'error', reason: 'error', result: 'worker is no longer in the live roster', usd: 0 };
@@ -895,7 +905,10 @@
             reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,   // Class Loadouts S1: worker's own class effort (see runWorker)
             model: wire.model,
             system: workerSystem((ident && ident.system) || ''),
-            messages: [{ role: 'user', content: contractedPrompt }],
+            messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
+            streamId: rec.streamId || undefined, sessionTitle: resumedSession && resumedSession.title,
+            coordinatedSession: !!rec.parentStreamId,
+            sessionPrompt: rec.streamId ? rec.prompt : undefined,
             agentId: rec.agentId, isTask: true,
             emit: h.emit, signal: h.signal, runId: h.runId,
             parentRunId: ctx && ctx.runId,
