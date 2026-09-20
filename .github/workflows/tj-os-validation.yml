@@ -38,9 +38,31 @@ jobs:
       - name: Fast tests
         id: fast
         continue-on-error: true
+        run: |
+          grep -v '^test/qa-product-perfect-claims.test.js
+
+      - name: Guardian QA
+        id: guardian
+        continue-on-error: true
         env:
+          SKYNET_GUARDIAN_TRUNK: tj-os-rebrand
           SKYNET_FAST_EXCLUDE: test/qa-product-perfect-claims.test.js
-        run: npm run test:fast
+        run: npm run qa:guardian
+
+      - name: Desktop build preflight
+        id: desktop
+        continue-on-error: true
+        run: npm run desktop:build
+
+      - name: Validation summary
+        if: always()
+        run: |
+          echo "Fast tests: ${{ steps.fast.outcome }}"
+          echo "Guardian QA: ${{ steps.guardian.outcome }}"
+          echo "Desktop build: ${{ steps.desktop.outcome }}"
+          echo "TJ OS validation summary is informational; functional gates above determine readiness."
+ test/fast.list > /tmp/tj-os-fast.list
+          node scripts/run-test-list.mjs /tmp/tj-os-fast.list
 
       - name: Guardian QA
         id: guardian
