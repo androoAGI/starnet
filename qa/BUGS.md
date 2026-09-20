@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**12** open (open+claimed) of 201 total — 0 P0 · 2 P1 · 10 P2
+**12** open (open+claimed) of 202 total — 0 P0 · 2 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **95** · source fixed: **84** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **92**.
+User/owner reports: **96** · source fixed: **85** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **93**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -101,6 +101,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | [Quest log tiny text and undifferentiated card grid](bugs/74be01cc-quest-log-tiny-text-and-undifferentiated-card-gr.md) | quest-journal | fixed | unverified | unconfirmed |
 | [Raised room corners excluded from interior lighting](bugs/52397fc0-raised-room-corners-excluded-from-interior-light.md) | room-lighting | fixed | unverified | unconfirmed |
 | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | recipe-layout | fixed | unverified | unconfirmed |
+| [Refit object placement stalls while rebaking unchanged environment](bugs/e725e614-refit-object-placement-stalls-while-rebaking-unc.md) | refit-placement-performance | fixed | unverified | unconfirmed |
 | [Remastered prop selection outlines include transparent packing](bugs/30c44acc-remastered-prop-selection-outlines-include-trans.md) | prop-selection | fixed | unverified | unconfirmed |
 | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-traffic | fixed | unverified | unconfirmed |
 | [Room fixture grids flood edges and corners](bugs/b8594ab9-room-fixture-grids-flood-edges-and-corners.md) | room-lighting | fixed | unverified | unconfirmed |
@@ -301,6 +302,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | fixed | world | [Recipe Bay caches failed catalog reads as permanent empty successes](bugs/e60f28af-recipe-bay-caches-failed-catalog-reads-as-perman.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | world | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | release-0110 | fe5be77a9 |
 | P2 | fixed | world | [Recipe readiness includes disconnected and unauthorized connectors](bugs/759f281c-recipe-readiness-includes-disconnected-and-unaut.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P2 | fixed | world | [Refit object placement stalls while rebaking unchanged environment](bugs/e725e614-refit-object-placement-stalls-while-rebaking-unc.md) | refit-smooth-0919 | 0afbde0cf |
 | P2 | fixed | world | [Remastered prop selection outlines include transparent packing](bugs/30c44acc-remastered-prop-selection-outlines-include-trans.md) | prop-coordination-0914 | 8637c9d8d |
 | P2 | fixed | world | [Retired crew leave furniture reserved](bugs/f2bd926a-retired-crew-leave-furniture-reserved.md) | doorway-occlusion-0910 | 35d255dbd |
 | P2 | fixed | world | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-awareness-0917 | 54105ec6c |
