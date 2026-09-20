@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "1fd6c9f8de674217cd91f6ca789f8dd9e30f3bd5",
+    "sourceCommit": "8ca5e73ce4cc1c5e5089807db7eb3a13348faa85",
     "pathSetSha256": "624df0d0e5b2511e74e175d045f26a8fd916195933e6750693b47d486e2e7b31",
     "files": [
       {
@@ -1448,8 +1448,8 @@
       },
       {
         "path": "frontend/css/project-home.css",
-        "bytes": 3762,
-        "sha256": "cc2af7377cb9d94334b646d181cf94e3db3ddc0cc558b1a27d54e9ee0266b82e"
+        "bytes": 3923,
+        "sha256": "2b81c9d368c354dafe3c92cd6998d8209b9b5087c5bf9ec76ee47904493bd480"
       },
       {
         "path": "frontend/css/quests.css",
