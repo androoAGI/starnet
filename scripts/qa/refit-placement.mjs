@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { launchChrome, connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 
 const [url, output] = process.argv.slice(2);
+const populated = process.argv.includes('--populated');
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
 const out = path.resolve(output); fs.mkdirSync(out, {recursive:true});
 const {proc} = launchChrome({cdpPort:9396, profileDir:path.join(out,'chrome')});
@@ -21,6 +22,13 @@ try {
   // Keep the original seeded save separate; exercise a copy using the real model.
   await evalJS(c,`(()=>{
     const st=WorldModel.deserialize(Build.__test__.station().doc());
+    if (${populated}) {
+      for(const [x,y] of [[24,0],[0,24]]) {
+        if(!st.addRoom({kind:'hab',rect:{x1:x,y1:y,x2:x+23,y2:y+19}}).ok)throw Error('populate room');
+        for(let py=y+2;py<y+18;py+=3)for(let px=x+2;px<x+22;px+=3)
+          if(!st.addProp({t:'plant',x:px,y:py,w:1,h:1,block:false}).ok)throw Error('populate prop');
+      }
+    }
     World.stop();World.loadStation(st);World.rebake();
     Build.init({getStation:()=>st,persist:()=>{},world:World,agents:()=>App.agents()});
     Build.open();return true;
