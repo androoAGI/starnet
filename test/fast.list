@@ -847,3 +847,4 @@ test/cdp-lifecycle.test.js
 test/budget-authority-ui.test.js
 test/staging-development-closure.test.js
 test/overseer-ui.test.js
+test/workspace-owner-election.test.js

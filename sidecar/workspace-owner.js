@@ -14,10 +14,11 @@
    crash mid-write leaves an empty/torn file) is reclaimable by the same rule when its mtime predates boot.
    Within one boot, PID reuse can still cause a safe false-busy, never an unsafe double-writer.
 
-   The claim uses O_EXCL creation plus read-back verification. Crash recovery atomically renames a
-   proven-dead holder's file before attempting a fresh O_EXCL claim, so concurrent reclaimers still yield
-   exactly one owner. Release removes the file only when its nonce still matches this instance. */
+   Immutable, atomically published generation tickets serialize claims and crash recovery.
+   The compatibility claim retains O_EXCL creation and read-back verification; only the elected
+   holder may replace it. Release publishes its marker after the last primary-file operation. */
 'use strict';
+const { note: failNote } = require('./failopen.js');
 
 function defaultNonce() {
   try { return require('node:crypto').randomBytes(16).toString('hex'); }
@@ -86,6 +87,60 @@ function makeWorkspaceOwner(deps) {
   if (!path || typeof path.join !== 'function') throw new Error('workspace-owner: an injected path is required');
 
   let held = null;
+  let election = null;
+
+  // Immutable generations serialize ownership across crashes. A fully written
+  // ticket is published by atomic hard-link creation; a contender can only add
+  // the next generation after the latest holder is proven dead or has released.
+  // Never delete/reuse generations: that would recreate the stale-read ABA race.
+  function elect(root) {
+    const directory = path.join(root, filename + '.generations');
+    fs.mkdirSync(directory, { recursive: true });
+    const generations = fs.readdirSync(directory).filter(name => /^(0|[1-9][0-9]*)\.json$/.test(name))
+      .map(name => Number(name.slice(0, -5)));
+    if (generations.some(n => !Number.isSafeInteger(n))) throw new Error('invalid ownership generation');
+    const latest = generations.reduce((max, n) => Math.max(max, n), -1);
+    if (latest >= 0) {
+      const previous = path.join(directory, latest + '.json');
+      const holder = readHolder(previous);
+      if (!fs.existsSync(previous + '.released') && !holderDead(holder, previous)) return false;
+    }
+    if (!Number.isSafeInteger(latest + 1)) throw new Error('ownership generation exhausted');
+    const ticket = path.join(directory, (latest + 1) + '.json');
+    const temporary = path.join(directory, '.pending-' + pid + '-' + String(nonce()).replace(/[^a-zA-Z0-9_-]/g, '_'));
+    const raw = JSON.stringify({ version: 1, pid, nonce: String(nonce()), startedAt: Number(now()) || 0 });
+    let fd = null, temporaryOwned = false;
+    try {
+      fd = fs.openSync(temporary, 'wx');
+      temporaryOwned = true;
+      fs.writeSync(fd, raw);
+      if (typeof fs.fsyncSync === 'function') fs.fsyncSync(fd);
+      fs.closeSync(fd); fd = null;
+      // link never replaces an existing ticket, unlike rename on both platforms.
+      fs.linkSync(temporary, ticket);
+      election = ticket;
+      return true;
+    } catch (error) {
+      if (error && error.code === 'EEXIST') return false;
+      throw error;
+    } finally {
+      if (fd != null) { try { fs.closeSync(fd); } catch (error) { failNote('workspace.election.close', error); } }
+      // A failed publication leaves only our private temporary file. It is not
+      // authoritative and cannot block a subsequent recovery.
+      if (temporaryOwned) { try { fs.unlinkSync(temporary); } catch (error) { failNote('workspace.election.cleanup', error); } }
+    }
+  }
+
+  function releaseElection() {
+    if (!election) return;
+    const ticket = election;
+    // Empty marker creation is atomic; only this owner publishes its release,
+    // after its final primary-file operation. Failed release stays fail-closed.
+    const fd = fs.openSync(ticket + '.released', 'wx');
+    try { if (typeof fs.fsyncSync === 'function') fs.fsyncSync(fd); }
+    finally { fs.closeSync(fd); }
+    election = null;
+  }
 
   function readHolder(lockfile) {
     try {
@@ -109,20 +164,26 @@ function makeWorkspaceOwner(deps) {
       executable: (typeof process !== 'undefined' && process.execPath) ? String(process.execPath) : ''
     };
     const raw = JSON.stringify(claim);
+    const temporary = lockfile + '.tmp.' + pid + '.' + String(nonce()).replace(/[^a-zA-Z0-9_-]/g, '_');
     let fd = null;
+    let temporaryOwned = false;
     try {
-      fd = fs.openSync(lockfile, 'wx');
+      fd = fs.openSync(temporary, 'wx');
+      temporaryOwned = true;
       fs.writeSync(fd, raw);
       if (typeof fs.fsyncSync === 'function') fs.fsyncSync(fd);
+      fs.closeSync(fd); fd = null;
+      // Publishing complete bytes avoids a same-boot torn primary after a kill.
+      fs.linkSync(temporary, lockfile);
     } catch (e) {
       let cleanupError = null;
       if (fd != null) {
         try { fs.closeSync(fd); } catch (_) {}
-        try { fs.unlinkSync(lockfile); } catch (cleanup) { cleanupError = cleanup; }
       }
       return { ok: false, exists: !!(e && e.code === 'EEXIST'), error: e, cleanupError };
+    } finally {
+      if (temporaryOwned) { try { fs.unlinkSync(temporary); } catch (error) { failNote('workspace.claim.cleanup', error); } }
     }
-    try { fs.closeSync(fd); } catch (_) {}
     let back = '';
     try { back = String(fs.readFileSync(lockfile, 'utf8')); } catch (e) {
       let cleanupError = null;
@@ -147,6 +208,11 @@ function makeWorkspaceOwner(deps) {
     }
     try { fs.mkdirSync(resolved, { recursive: true }); }
     catch (e) { return { ok: false, code: 'WORKSPACE_OWNER_UNAVAILABLE', root: resolved, error: e }; }
+    try {
+      if (!elect(resolved)) return { ok: false, code: 'WORKSPACE_BUSY', root: resolved,
+        holder: readHolder(path.join(resolved, filename)) };
+    } catch (error) { return { ok: false, code: 'WORKSPACE_OWNER_UNAVAILABLE', root: resolved, error }; }
+    try {
     const lockfile = path.join(resolved, filename);
     let created = tryCreate(lockfile, resolved);
     if (created.ok) return created;
@@ -157,8 +223,8 @@ function makeWorkspaceOwner(deps) {
       return { ok: false, code: 'WORKSPACE_BUSY', root: resolved, lockfile: lockfile, holder: holder };
     }
 
-    // The stamped process is provably gone (PID dead, or the claim predates this boot). Rename is the atomic reclaim election; only its winner
-    // gets to create the replacement. A loser reports busy and retries on its next normal launch.
+    // This process holds the immutable election ticket. No other current host
+    // can rename this claim using stale evidence while its ticket remains live.
     const reclaim = lockfile + '.dead-' + pid + '-' + String(nonce());
     try { fs.renameSync(lockfile, reclaim); }
     catch (_) { return { ok: false, code: 'WORKSPACE_BUSY', root: resolved, lockfile: lockfile, holder: holder }; }
@@ -167,6 +233,9 @@ function makeWorkspaceOwner(deps) {
     if (created.ok) return created;
     return { ok: false, code: created.exists ? 'WORKSPACE_BUSY' : 'WORKSPACE_OWNER_UNAVAILABLE',
       root: resolved, lockfile: lockfile, holder: readHolder(lockfile), error: created.error };
+    } finally {
+      if (!held) { try { releaseElection(); } catch (error) { failNote('workspace.election.release', error); } }
+    }
   }
 
   function release() {
@@ -178,6 +247,7 @@ function makeWorkspaceOwner(deps) {
       fs.unlinkSync(mine.lockfile);
       return true;
     } catch (_) { return false; }
+    finally { try { releaseElection(); } catch (error) { failNote('workspace.election.release', error); } }
   }
 
   return { acquire: acquire, release: release, current: function () { return held && held.claim; } };

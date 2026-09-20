@@ -35,7 +35,7 @@ const SAFE_BROWSER_SECRET_KEYS = new Set([
 const BROWSER_SECRET_NAMESPACE = /^(?:starnet|skynet)\.(?:channels?|oauth|auth|credentials?|secrets?)(?:[._:-]|$)/i;
 const BROWSER_SECRET_SEGMENT = /(?:^|[._:-])(?:api[-_]?key|apikey|key|keys|token|tokens|secret|secrets|credential|credentials|password|passwd|pwd|authorization|bearer)(?:$|[._:-])/i;
 const SECRET_FIELD = /^(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|key|api[_-]?key|secret|client[_-]?secret|password|passwd|pwd|authorization|bearer|cookie|session)$/i;
-const EPHEMERAL_TOP = new Set(['.browser-profile']);
+const EPHEMERAL_TOP = new Set(['.browser-profile', '.starnet-workspace-owner.json.generations']);
 const EPHEMERAL_FILES = new Set(['cron.lock', 'proc-ledger.json', '.starnet-workspace-owner.json']);
 const SYSTEM_SECRET_TOP = new Set(['.secrets', 'codex', 'grok', 'kimi']);
 

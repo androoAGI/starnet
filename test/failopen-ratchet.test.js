@@ -232,7 +232,7 @@ const SYNC_BASELINE = {
   'update-preparation.js': 4,
   'workspace-lease.js': 2,
   'workspace-lineage.js': 1,
-  'workspace-owner.js': 3,
+  'workspace-owner.js': 2,
   'workspace-recovery.js': 9,
 };
 

@@ -23,7 +23,7 @@ const RECOVERY_LOCK_MAX_RUN_MS = 8 * 60 * 1000;   // diagnostic age only; recove
 const MAX_RECOVERY_FILE_BYTES = 256 * 1024 * 1024;         // one file over 256 MiB cannot be safely buffered
 const MAX_RECOVERY_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;   // 2 GiB aggregate source ceiling
 const SAVE_NAMES = ['agent.save.json', 'agent.save.json.bak'];
-const SKIP_TOP = new Set(['.browser-profile']);
+const SKIP_TOP = new Set(['.browser-profile', '.starnet-workspace-owner.json.generations']);
 const SKIP_FILES = new Set([
   '.starnet-workspace-owner.json', 'cron.lock', 'proc-ledger.json',
   '.migration-pending', '.migration-receipt.json', '.migrated'
