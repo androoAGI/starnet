@@ -325,6 +325,14 @@ const App = (() => {
       + 'Skynet agent, and not whatever those internal references happen to name. Do not guess at your own foundation '
       + 'from ambiguous signals in the environment; report only what you can actually verify, and say plainly when you are not sure.';
   }
+  // BREVITY (hard rule, 2026-09-20): the Commander's #1 complaint is walls of text in chat. This clause is
+  // derived fresh each compose like foundationClause, never stored in identity.md, so it can't be edited away.
+  // It caps CHAT replies only — a real work report still carries what the Commander needs to act on.
+  function brevityClause() {
+    return '\n\nREPLY LENGTH (hard rule): In chat, keep every reply short — a few sentences, never a wall of text. '
+      + 'Lead with the answer or the action; cut preamble, restating the question, and long lists. If the job genuinely '
+      + 'needs a long report, deliver the short version first and offer the detail on request. When in doubt, shorter.';
+  }
   // the orchestrator's CREW POSTURE — derived fresh each compose like approvalClause/foundationClause, never
   // stored in the editable identity.md (so it can't be edited away and never freezes stale). States only what
   // the harness can prove: the live roster the browser itself pushes to /api/roster (truthful-telemetry law).
@@ -356,6 +364,7 @@ const App = (() => {
     // FOUNDATION sits right after identity (before personality) — a constant system truth that grounds "what you are"
     // so the agent never mistakes StarNet's internal lineage for being some other agent. Kept out of the docs.
     p += foundationClause();
+    p += brevityClause();
     // personality sits AFTER identity (keeps the REAL-tools clause) and BEFORE purpose, so it colours the
     // agent's tone without ever displacing capability or the mission. Personas.compose folds the chosen
     // archetype + the Commander's fine-tune dials + their free-text voice note into one block. Default: professional.
