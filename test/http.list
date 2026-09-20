@@ -124,3 +124,4 @@ test/e2e.overseer.test.js
 test/save-unreadable.http.test.js
 test/durable-store-faults.http.test.js
 test/dev-seed-isolation.http.test.js
+test/project-workspace.http.test.js

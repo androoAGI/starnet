@@ -40,7 +40,7 @@ function makeOverseer(deps) {
     for (const w of state.threads) {
       if (deleted.has(w.id)) { rows.delete(w.id); continue; }
       const visible = rows.get(w.id);
-      rows.set(w.id, Object.assign({}, w, visible || {}, { parentStreamId: w.parentStreamId }));
+      rows.set(w.id, Object.assign({}, w, visible || {}, { parentStreamId: w.parentStreamId, projectHome: !!w.projectHome }));
     }
     return Array.from(rows.values()).filter(w => !w.archived).map(w => ({ ...w,
       title: w.title || (w.id === legacy.generalId ? 'General' : 'Untitled') }));
@@ -66,6 +66,24 @@ function makeOverseer(deps) {
     const row = { id: deps.newId(), title, agentId, parentStreamId: parent.id,
       projectRoot: parent.projectRoot || null, requestId: String(args.requestId || ''),
       kind: 'chat', lane: 'active', history: [], runIds: [], createdAt: deps.now(), lastActiveAt: deps.now() };
+    return update(s => { s.threads.push(row); return row; });
+  }
+  // One durable conversation per trusted project. Opening a project is an
+  // explicit user action; repeated opens reuse the same identity after restart.
+  function projectHome(root, title, createIfMissing) {
+    const candidates = threads().filter(w => w.projectRoot === root && w.agentId === 'agent' && !w.parentStreamId);
+    const existing = candidates.find(w => w.projectHome) || candidates[0];
+    if (existing) {
+      if (!existing.projectHome && createIfMissing) return update(s => {
+        let owned = s.threads.find(w => w.id === existing.id);
+        if (!owned) { owned = copy(existing); s.threads.push(owned); }
+        owned.projectHome = true; return owned;
+      });
+      return copy(existing);
+    }
+    if (!createIfMissing) return null;
+    const row = { id: deps.newId(), title, agentId: 'agent', projectRoot: root, projectHome: true,
+      parentStreamId: '', kind: 'chat', lane: 'active', history: [], runIds: [], createdAt: deps.now(), lastActiveAt: deps.now() };
     return update(s => { s.threads.push(row); return row; });
   }
   function freshReviews(workers) {
@@ -113,7 +131,7 @@ function makeOverseer(deps) {
   }
   function snapshot() { if (unavailable) return { threads: [], reviews: [], paused: true, error: unavailable };
     return { threads: threads().map(w => ({ id: w.id, title: w.title, agentId: w.agentId,
-    parentStreamId: w.parentStreamId || '', projectRoot: w.projectRoot || null,
+    parentStreamId: w.parentStreamId || '', projectRoot: w.projectRoot || null, projectHome: !!w.projectHome,
     kind: w.kind, lane: w.lane, createdAt: w.createdAt })), reviews: copy(state.reviews), paused: emergencyPaused || !!state.paused }; }
   function resumeReviews() {
     // A damaged optional coordination store must not prevent ordinary chat.
@@ -122,6 +140,6 @@ function makeOverseer(deps) {
     if (state.paused || emergencyPaused) update(s => { s.paused = false; return null; });
     emergencyPaused = false;
   }
-  return { threads, resolve, create, collect, patchReview, withThread, snapshot, stopReviews, resumeReviews };
+  return { threads, resolve, create, projectHome, collect, patchReview, withThread, snapshot, stopReviews, resumeReviews };
 }
 module.exports = { makeOverseer, isCoordinatorRun };

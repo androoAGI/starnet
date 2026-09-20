@@ -33,6 +33,12 @@ function fakeStore() {
   ok(p.grantedAt === 5000 && p.lastTouchedAt === 5000, 'grantedAt + lastTouchedAt stamped from the clock');
   ok(p.isGitRepo === true, 'isGitRepo metadata stored');
   ok(ps.has('C:/proj/a') === true, 'has() reports the tracked root');
+  ps.upsert('C:/proj/a', { preferredAgents: ['researcher', 'builder', 'researcher'] });
+  assert.deepEqual(ps.get('C:/proj/a').preferredAgents, ['researcher', 'builder']);
+  ps.upsert('C:/proj/a', { isGitRepo: true });
+  assert.deepEqual(ps.get('C:/proj/a').preferredAgents, ['researcher', 'builder'], 're-attaching preserves preferred crew');
+  ps.get('C:/proj/a').preferredAgents.push('outsider');
+  assert.deepEqual(ps.get('C:/proj/a').preferredAgents, ['researcher', 'builder'], 'readers cannot mutate preferences');
 }
 
 // --- upsert FAILS CLOSED when persist throws (nothing enters memory) ---
