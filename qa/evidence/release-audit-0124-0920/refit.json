@@ -1,0 +1,50 @@
+{
+  "pass": true,
+  "placements": [
+    {
+      "clickToTwoFramesMs": 228.59999999403954,
+      "cursorAndClickMs": 304
+    },
+    {
+      "clickToTwoFramesMs": 148.69999999552965,
+      "cursorAndClickMs": 230
+    },
+    {
+      "clickToTwoFramesMs": 156.60000000149012,
+      "cursorAndClickMs": 208.10000000149012
+    },
+    {
+      "clickToTwoFramesMs": 157.29999999701977,
+      "cursorAndClickMs": 198.59999999403954
+    },
+    {
+      "clickToTwoFramesMs": 192.09999999403954,
+      "cursorAndClickMs": 235
+    }
+  ],
+  "bakes": [
+    1116.3999999985099,
+    1161.1999999955297,
+    497.90000000596046,
+    449
+  ],
+  "degraded": [],
+  "sample": [
+    6,
+    2,
+    3,
+    255
+  ],
+  "props": 100,
+  "checks": [
+    "pointer preview and click",
+    "move rotate mirror",
+    "collision",
+    "serialization",
+    "undo redo",
+    "mixed floor and prop",
+    "airlock",
+    "reopen"
+  ],
+  "scope": "Isolated seeded Chromium; software rendering. No installed WebView or customer recovery claim."
+}

@@ -1,0 +1,87 @@
+{
+  "ready": false,
+  "reasons": [
+    "1. Bug register open P0/P1: 1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1",
+    "2. Green Guardian last cycle: no guardian cycle recorded — run `npm run qa:guardian`",
+    "3. Installed-exe smoke: installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)"
+  ],
+  "failing": [
+    "bugs",
+    "guardian",
+    "installed"
+  ],
+  "checks": [
+    {
+      "id": "ledger",
+      "label": "Ledger open P0/P1",
+      "ok": true,
+      "reason": "no open P0/P1 findings",
+      "receipt": {
+        "artifact": "qa/findings/ (via ledger.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 0 P1 · 0 P2"
+      }
+    },
+    {
+      "id": "bugs",
+      "label": "Bug register open P0/P1",
+      "ok": false,
+      "reason": "1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1",
+      "receipt": {
+        "artifact": "qa/bugs/ (via bugs.mjs)",
+        "stamp": "",
+        "value": "0 P0 · 1 P1 · 10 P2"
+      }
+    },
+    {
+      "id": "guardian",
+      "label": "Green Guardian last cycle",
+      "ok": false,
+      "reason": "no guardian cycle recorded — run `npm run qa:guardian`",
+      "receipt": {
+        "artifact": "qa/guardian-last-cycle.json",
+        "stamp": "",
+        "value": "MISSING"
+      }
+    },
+    {
+      "id": "journeys",
+      "label": "Journey corps last run",
+      "ok": true,
+      "reason": "PASS, 3m old",
+      "receipt": {
+        "artifact": "qa/journeys-last-run.json",
+        "stamp": "2026-09-20T05:04:24.086Z",
+        "value": "PASS · 139/139 assertions"
+      }
+    },
+    {
+      "id": "beginner",
+      "label": "Beginner Run last result",
+      "ok": true,
+      "reason": "PASS, 60s old",
+      "receipt": {
+        "artifact": "qa/beginner-last-run.json",
+        "stamp": "2026-09-20T05:05:55.764Z",
+        "value": "PASS · ui-only · 42973ms"
+      }
+    },
+    {
+      "id": "installed",
+      "label": "Installed-exe smoke",
+      "ok": false,
+      "reason": "installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)",
+      "receipt": {
+        "artifact": "qa/installed/last-smoke.json",
+        "stamp": "",
+        "value": "MISSING"
+      }
+    }
+  ],
+  "generatedAt": "2026-09-20T05:06:55.520Z",
+  "trunk": {
+    "branch": "agent/release-audit-0124-0920",
+    "head": "f4021a682b373ff02d2743f18b80a03cfc8b8d68",
+    "driftError": null
+  }
+}

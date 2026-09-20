@@ -1,0 +1,226 @@
+{
+  "productPerfect": false,
+  "verdict": "NOT PRODUCT PERFECT",
+  "currentWave": "W0",
+  "candidate": {
+    "sha": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+    "clean": false,
+    "dirtyPaths": [
+      "?? docs/releases/0.12.4/",
+      "?? qa/evidence/release-audit-0124-0920/"
+    ],
+    "operationalDirtyPaths": [
+      "M qa/STATUS.md"
+    ]
+  },
+  "manifestHash": "6c7c688ab57dd7035e55dcee26e926d43fc96f3787e58bdd74866dcf757473b5",
+  "authorities": {
+    "installed": {
+      "ok": false,
+      "status": "BLOCKED",
+      "reasons": [
+        "installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)"
+      ],
+      "check": {
+        "id": "installed",
+        "label": "Installed-exe smoke",
+        "ok": false,
+        "reason": "installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)",
+        "receipt": {
+          "artifact": "qa/installed/last-smoke.json",
+          "stamp": "",
+          "value": "MISSING"
+        }
+      },
+      "input": {
+        "missing": true
+      },
+      "receiptPath": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\qa\\installed\\last-smoke.json",
+      "candidateSha": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "candidateTree": "a029121297a2858e7bce0054e4848f988fa8a2d0"
+    },
+    "claimsPlanning": {
+      "ok": true,
+      "status": "PASS",
+      "reasons": []
+    },
+    "claimsTerminal": {
+      "ok": false,
+      "status": "BLOCKED",
+      "reasons": [
+        "claim byok-chatgpt-connect live proof is PENDING",
+        "claim channel-token-keychain live proof is PENDING",
+        "claim channel-token-keychain remains PARTIAL/FIX",
+        "claim comms-real-workflow live proof is PENDING",
+        "claim concurrent-agent-runs live proof is PENDING",
+        "claim crash-safe-forward-corrupt-recovery live proof is PENDING",
+        "claim crash-safe-forward-corrupt-recovery remains PARTIAL/COMPLETE",
+        "claim curated-mcp-auth-tiers live proof is PENDING",
+        "claim curated-mcp-auth-tiers remains EXPERIMENTAL/EXPERIMENTAL",
+        "claim first-boot-onboarding live proof is PENDING",
+        "claim free-no-markup-budget-caps live proof is PENDING",
+        "claim full-backup-export-restore live proof is PENDING",
+        "claim full-backup-export-restore remains PARTIAL/COMPLETE",
+        "claim hallway-authorized-handoff live proof is PENDING",
+        "claim hallway-authorized-handoff remains REFUTED/NARROW",
+        "claim jailed-open-deliverables live proof is PENDING",
+        "claim layout-is-workflow live proof is PENDING",
+        "claim layout-is-workflow remains PARTIAL/NARROW",
+        "claim learning-improves-over-time live proof is PENDING",
+        "claim learning-improves-over-time remains PARTIAL/COMPLETE",
+        "claim local-first-no-account live proof is PENDING",
+        "claim manual-mcp-connect live proof is PENDING",
+        "claim morning-report live proof is PENDING",
+        "claim night-patch-safe-branch live proof is PENDING",
+        "claim night-shift-away-work live proof is PENDING",
+        "claim no-analytics-telemetry live proof is PENDING",
+        "claim no-phone-home live proof is PENDING",
+        "claim no-phone-home remains REFUTED/NARROW",
+        "claim object-capability-grant live proof is PENDING",
+        "claim one-click-estop remains REFUTED/NARROW",
+        "claim one-click-mutation-approval live proof is PENDING",
+        "claim one-click-mutation-approval remains PARTIAL/NARROW",
+        "claim persisted-real-roster live proof is PENDING",
+        "claim post-onboarding-base-url live proof is PENDING",
+        "claim post-onboarding-base-url remains MISSING/FIX",
+        "claim project-bless-revoke live proof is PENDING",
+        "claim provider-catalog-custom live proof is PENDING",
+        "claim provider-catalog-custom remains PARTIAL/COMPLETE",
+        "claim room-capability-team live proof is PENDING",
+        "claim room-capability-team remains PARTIAL/NARROW",
+        "claim routines-visible-unattended live proof is PENDING",
+        "claim secrets-keychain-never-render live proof is PENDING",
+        "claim secrets-keychain-never-render remains PARTIAL/FIX",
+        "claim self-update-verified live proof is PENDING",
+        "claim self-update-verified remains PARTIAL/COMPLETE",
+        "claim slack-matrix-signal live proof is PENDING",
+        "claim slack-matrix-signal remains EXPERIMENTAL/EXPERIMENTAL",
+        "claim telegram-discord-messaging live proof is PENDING",
+        "claim three-platform-release-pipeline live proof is PENDING",
+        "claim three-platform-release-pipeline remains PARTIAL/COMPLETE",
+        "claim truthful-tools-cost-work live proof is PENDING",
+        "claim work-after-app-close live proof is PENDING",
+        "claim work-after-app-close remains SHIPPED/NARROW",
+        "wave verdict W2-channel-pairing remains PARTIAL/FIX",
+        "wave verdict W2-channel-token-keychain remains PARTIAL/FIX",
+        "wave verdict W2-link-junction-containment remains PARTIAL/FIX",
+        "wave verdict W2-scoped-url-capabilities remains MISSING/FIX",
+        "wave verdict W2-secret-free-child-env remains PARTIAL/FIX",
+        "wave verdict W2-zero-boot-egress remains MISSING/FIX",
+        "wave verdict W3-settings-base-url remains MISSING/FIX",
+        "wave verdict W3-settings-full-export remains PARTIAL/COMPLETE",
+        "wave verdict W3-unified-work-ledger remains PARTIAL/COMPLETE",
+        "wave verdict W4-run-mode-capability-matrix remains PARTIAL/COMPLETE",
+        "wave verdict W5-after-close-continuation remains SHIPPED/NARROW",
+        "wave verdict W5-rejected-idea-suppression remains PARTIAL/COMPLETE",
+        "wave verdict W5-unified-composer remains MISSING/COMPLETE",
+        "wave verdict W6-real-integration-lifecycle remains MISSING/COMPLETE"
+      ]
+    },
+    "ready": {
+      "ok": false,
+      "status": "DEFERRED",
+      "reasons": [
+        "ready authority is not inspected before W7"
+      ]
+    },
+    "ledger": {
+      "ok": false,
+      "status": "DEFERRED",
+      "reasons": [
+        "ledger authority is not inspected before W6"
+      ]
+    },
+    "atlas": {
+      "ok": false,
+      "status": "DEFERRED",
+      "reasons": [
+        "atlas authority is not inspected before W6"
+      ]
+    }
+  },
+  "waves": [
+    {
+      "id": "W0",
+      "name": "Claims and proof authority",
+      "status": "blocked",
+      "goal": "Define the finite product contract and make later green verdicts exact-build and candidate-bound.",
+      "reasons": [
+        "receipt missing or unreadable",
+        "installed: installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W1",
+      "name": "Installed first-user journey",
+      "status": "pending",
+      "goal": "Prove that a new user can reach one real useful result in the clean installed app without getting stranded or seeing false health.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W2",
+      "name": "Verdict-filtered security and authority",
+      "status": "pending",
+      "goal": "Close only the security, privacy, and capability escapes the W0 verdict proved open.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W3",
+      "name": "Last-mile UI and recovery",
+      "status": "pending",
+      "goal": "Unify existing work and recovery machinery into reachable, truthful user surfaces.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W4",
+      "name": "Capability enforcement decisions",
+      "status": "pending",
+      "goal": "Make the run-mode by capability contract explicit before changing the locked object-equals-capability promise.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W5",
+      "name": "Autonomy and lifecycle honesty",
+      "status": "pending",
+      "goal": "Unify adaptation without inventing background hosting or another user-understanding silo.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W6",
+      "name": "Integration and full behavioral proof",
+      "status": "pending",
+      "goal": "Prove every advertised integration, UI surface, and backend promise against the same installed candidate.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    },
+    {
+      "id": "W7",
+      "name": "Frozen product-validation candidate",
+      "status": "pending",
+      "goal": "Validate one immutable desktop candidate long enough to justify the PRODUCT PERFECT verdict.",
+      "reasons": [
+        "dependency not current and passing"
+      ],
+      "receipt": null
+    }
+  ],
+  "nextAction": "Run and repair W0 — Claims and proof authority: Define the finite product contract and make later green verdicts exact-build and candidate-bound."
+}

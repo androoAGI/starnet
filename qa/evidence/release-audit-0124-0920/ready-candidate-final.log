@@ -1,0 +1,35 @@
+NOT READY — 3 reasons
+
+  1. Bug register open P0/P1: 1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1
+  2. Green Guardian last cycle: no guardian cycle recorded — run `npm run qa:guardian`
+  3. Installed-exe smoke: installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)
+
+receipts:
+  [PASS] Ledger open P0/P1
+        artifact: qa/findings/ (via ledger.mjs)
+        value:    0 P0 · 0 P1 · 0 P2
+        → no open P0/P1 findings
+  [FAIL] Bug register open P0/P1
+        artifact: qa/bugs/ (via bugs.mjs)
+        value:    0 P0 · 1 P1 · 10 P2
+        → 1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1
+  [FAIL] Green Guardian last cycle
+        artifact: qa/guardian-last-cycle.json
+        value:    MISSING
+        → no guardian cycle recorded — run `npm run qa:guardian`
+  [PASS] Journey corps last run
+        artifact: qa/journeys-last-run.json
+        stamp:    2026-09-20T05:04:24.086Z
+        value:    PASS · 139/139 assertions
+        → PASS, 3m old
+  [PASS] Beginner Run last result
+        artifact: qa/beginner-last-run.json
+        stamp:    2026-09-20T05:05:55.764Z
+        value:    PASS · ui-only · 42973ms
+        → PASS, 60s old
+  [FAIL] Installed-exe smoke
+        artifact: qa/installed/last-smoke.json
+        value:    MISSING
+        → installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)
+
+trunk agent/release-audit-0124-0920 @ f4021a68 · generated 2026-09-20T05:06:55.294Z

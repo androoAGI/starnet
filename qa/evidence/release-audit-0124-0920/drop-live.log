@@ -1,0 +1,18 @@
+{
+  "baseline": false,
+  "transport": "Headless Chromium drag events; real sidecar uploads; local inference fixture",
+  "checks": [
+    "Transcript drop: two real files uploaded exactly once; exact bytes read back; image preview; draft preserved; overlay clears",
+    "Real composer sends both attachment references on the intended user turn (inference stubbed)",
+    "Picker and paste still upload once after session re-entry",
+    "Drop outside chat does not navigate or attach",
+    "Composer drop uploads once after re-entry; Send waits for the delayed upload and includes all three refs",
+    "Dropped oversized file uses the existing 8MB rejection and stages nothing"
+  ],
+  "overlay": {
+    "text": "Drop files to attach",
+    "pointerEvents": "none",
+    "background": "rgb(12, 7, 4)"
+  },
+  "pageErrors": []
+}

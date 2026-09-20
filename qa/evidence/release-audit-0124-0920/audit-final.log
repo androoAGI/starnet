@@ -1,0 +1,77 @@
+
+> starnet-harness@0.12.4 audit
+> node scripts/audit.mjs
+
+provider: deterministic audit mock on http://127.0.0.1:55209/api/v1
+sidecar: booting SEEDED SKYNET_DEV on :19729 (model=anthropic/claude-sonnet-4.6) ...
+sidecar: ready
+chrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe
+target: http://127.0.0.1:19729/
+floorReady=true testReady=true
+
+scenario: floor-rest
+  PASS  testapi/present  — v1
+  PASS  bodies/nonempty  — 1 bodies
+  PASS  floor/zoned-bodies-contained  — 1 bodies, none roaming outside its zone
+  PASS  floor/awareness-gaze-only  — 0 gaze calls (0 exercised), 0 movement mutations
+  PASS  truthful/stationLevel  — displayed=1 eq expected=1
+  PASS  log/frozen-bus  — 0 events captured
+
+scenario: task
+  PASS  task/sent  — sent
+  PASS  task/run-dispatched  — agent.run.* seen: agent.run.start, agent.run.end
+  PASS  task/run-lifecycle  — start=1 end=1 err=0
+  PASS  task/work-pose-engaged  — caught World activity=task
+
+scenario: hud-xp
+  PASS  hud-xp/hud-readable  — 1 HUD checks
+  PASS  hud-xp/stationLevel  — displayed=1 eq expected=1
+  PASS  hud-xp/floorstats-reduced  — runs=1 slag=0
+  PASS  hud-xp/floorstats-runs-match-log  — FloorStats.runs=1 == agent.run.start count=1
+  PASS  hud-xp/xp-reduced  — Xp.level=1 xp=0
+  PASS  hud-xp/commander-source-available  — backend Commander level=1
+  PASS  hud-xp/station-chip-matches-journey  — displayed COMMANDER="Lv 1" (lvl 1) vs backend level=1
+
+scenario: summon
+  PASS  summon/bay-open  — recruitment bay shown (opened:RECRUIT)
+  PASS  summon/body-spawned  — 1 → 2 (recruited:strategist)
+  PASS  summon/zoned-bodies-contained  — 2 bodies, none roaming outside its zone
+  PASS  summon/awareness-gaze-only  — 2 gaze calls (2 exercised), 0 movement mutations
+
+scenario: moat
+  PASS  moat/heroCaps-readable  — before=[cabinet, notebook, dish, workbench, studio]
+  PASS  moat/build-mode  — REFIT open + dev hook present
+  PASS  moat/strip-prop  — 1 workbench(es) removed via station.removeProp
+  PASS  moat/capability-offline  — after strip=[cabinet, notebook, dish, studio] (no workbench object ⇒ no terminal)
+  PASS  moat/place-prop  — workbench @ (2,0)
+  PASS  moat/capability-online  — after=[cabinet, notebook, dish, studio, workbench] (workbench ⇒ terminal)
+  PASS  moat/caps-well-formed  — every placed object maps to a known capability
+
+scenario: prop-place
+  PASS  prop-place/build-mode  — REFIT open
+  PASS  prop-place/canvas-reachable  — guide dismissed (0); topmost @centre = refit-canvas
+  PASS  prop-place/prop-selected  — tool=ok search=ok tile=ok
+  PASS  prop-place/mouse-placed-dish  — comms_dish 1 → 2 after real click (720,450) (1 pt)
+  PASS  prop-place/capability-persists  — after=[cabinet, notebook, dish, studio, workbench] (dish ⇒ web)
+
+scenario: conveyor
+  PASS  conveyor/module-present  — Conveyor global available
+  PASS  conveyor/crate-rode-belt  — a crate rode the TEST belt
+  PASS  conveyor/delivered-once  — delivered 1× (id=belt-1) @ 2,0
+  PASS  conveyor/belt-drains  — 0 boxes left on belt (drains to empty)
+  PASS  conveyor/merger-k-in-k-out  — merger emitted 2 deliveries for 2 inbound (K in = K out)
+  PASS  conveyor/merger-loses-nothing  — delivered=[m1,m2] fakeCombineFields=false
+  PASS  conveyor/merger-belt-drains  — 0 boxes left (both crates cross the junction, deliver and despawn)
+
+scenario: tool-run-with-approval (dedicated NON-full-access sidecar on :19731)
+  PASS  approval/in-game  — floor + testapi ready (non-full-access boot lands in-game)
+  PASS  approval/files-cap-owned  — cabinet pre-equipped heroCaps=[cabinet, notebook, dish, workbench, studio]
+  PASS  approval/directive-sent  — sent
+  PASS  approval/prompt-emitted  — permission.prompt fired on the run stream
+  PASS  approval/consent-row-rendered  — .consent control rendered in COMMS
+  PASS  approval/run-blocked-while-waiting  — agent.run.end seen=false; directive completions so far=2 (expect 2 while paused: settle+tool; 2 total incl. background)
+  PASS  approval/session-indicator  — {"approval":true,"label":"Approval needed"}
+  PASS  approval/approve-clicked  — approved
+  PASS  approval/run-resumes-on-approve  — agent.run.end after approve=true; directive completions now=5 (≥3 ⇒ settle + tool + post-approval round-trip)
+
+AUDIT PASS — 49/49 assertions passed → C:\Users\andro\gen-trees\release-audit-0124-0920\.uiaudit

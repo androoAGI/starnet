@@ -1,0 +1,416 @@
+{
+  "schema": 2,
+  "generatedAt": "2026-09-20T06:30:15.250Z",
+  "baseline": "3ba5b84922f3b62caa4e159999ef3acc82af2a3e",
+  "integrationInput": "d5045ac93",
+  "candidateSourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+  "releaseVerdict": "BLOCKED",
+  "published": false,
+  "integratedIntoTrunk": false,
+  "platform": {
+    "Caption": "Microsoft Windows 11 Home",
+    "Version": "10.0.26200",
+    "OSArchitecture": "64-bit"
+  },
+  "guardian": {
+    "stamp": "20260920-055927",
+    "sha": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+    "generatedAt": "2026-09-20T06:26:34.886Z",
+    "verdict": "green",
+    "red": [],
+    "blocked": [],
+    "ran": [
+      "test-fast",
+      "http-e2e",
+      "saboteur",
+      "shoot",
+      "golden",
+      "audit",
+      "journeys"
+    ],
+    "skipped": [],
+    "steps": [
+      {
+        "id": "test-fast",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 676049
+      },
+      {
+        "id": "http-e2e",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 790724
+      },
+      {
+        "id": "saboteur",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 16634
+      },
+      {
+        "id": "shoot",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 37440
+      },
+      {
+        "id": "golden",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 36959
+      },
+      {
+        "id": "audit",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 27762
+      },
+      {
+        "id": "journeys",
+        "exitCode": 0,
+        "blocked": false,
+        "timedOut": false,
+        "flaggedCount": 0,
+        "durationMs": 31177
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "npm run qa:customer-journeys",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/customer-journeys-combined.log",
+      "sha256": "5ee7bddd788026e2eee8f2a85486032dfdafef1aebe86ce6919f715365aab0fc",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run desktop:build -- --config .qa_tmp/release-0124/unsigned-build.json",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/desktop-build-final-combined.log",
+      "sha256": "fbb2229ebb2c8db7e63b3ea2bde964f283b1cb9e16c2330e8d59f3a669dc3578",
+      "status": "PASS"
+    },
+    {
+      "command": "cargo test --release --locked --manifest-path src-tauri/Cargo.toml",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/rust-tests-final-combined.log",
+      "sha256": "1b72b0c5949323fb607bdbf0680ba373584223d81ea882bb92268087078d4409",
+      "status": "PASS"
+    },
+    {
+      "command": "cargo test --release --locked --manifest-path src-tauri/Cargo.toml sidecar_reap_tests::reap_terminates_only_processes_from_the_exact_path -- --ignored --exact --nocapture",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/rust-reap-combined.log",
+      "sha256": "a5cb49ded2784de0c0b253ade39afab9367111e76b04dedfef376c87786e5b80",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run qa:beginner (UI-only boundary)",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/beginner-combined.log",
+      "sha256": "6805f5525350a60442043c59d3de2b6d090af47185fb29d290f22adab6e39184",
+      "status": "PASS"
+    },
+    {
+      "command": "node .qa_tmp/release-0124/native-audit.cjs",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/native-combined.log",
+      "sha256": "498b8e9d037c926f3a93bd9e268177ed904186242b6272074769da09daab27c0",
+      "status": "PASS"
+    },
+    {
+      "command": "node .qa_tmp/release-0124/project-entry-live.mjs --fixed",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/project-entry-live.log",
+      "sha256": "c9014a51444f67c4e29087cf08f6d081a6607f41bd829f2dbd1cb1beb0bb8d0f",
+      "status": "PASS"
+    },
+    {
+      "command": "node test/project-workspace.http.test.js",
+      "sourceCommit": "09133132cd70789b1599825377eed8f4502f0373",
+      "evidence": "qa/evidence/release-audit-0124-0920/project-http-combined.log",
+      "sha256": "1b466ce41ba9165020b4fab49e96e3e7f85da00c54fba876bef244ad83fb15df",
+      "status": "PASS"
+    },
+    {
+      "command": "bounded matching Playwright WebKit panel sweep on Windows",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/webkit-windows.log",
+      "sha256": "1b8fa9d08e16b13ebea0f7411eaa995b6c47c19931eda478dd9f365dd955877a",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run lint:evidence-secrets",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/evidence-lint-combined.log",
+      "sha256": "7096e64d3c465635a2497cab74c62cb754e8d540054d33374824d0deb2af0bef",
+      "status": "PASS"
+    },
+    {
+      "command": "node scripts/qa/product-perfect/claims.mjs",
+      "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "evidence": "qa/evidence/release-audit-0124-0920/claims-combined.log",
+      "sha256": "abcfd55b9e9fd882367b3504096ece639f5a9c4a5d5ae55e1422bba408c90d3d",
+      "status": "PASS"
+    }
+  ],
+  "syntax": {
+    "source": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+    "count": 183,
+    "errors": []
+  },
+  "npmAudit": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "artifacts": [
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\src-tauri\\target\\release\\skynet-desktop.exe",
+      "bytes": 274099712,
+      "sha256": "ebf07778b59a8beb415bce57203e647ff171251240d3a8e1ee68dd9a263fe392",
+      "signature": "NotSigned",
+      "productVersion": "0.12.4",
+      "fileVersion": "0.12.4"
+    },
+    {
+      "path": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\src-tauri\\target\\release\\bundle\\nsis\\StarNet_0.12.4_x64-setup.exe",
+      "bytes": 640515736,
+      "sha256": "0c755a955f309243eedc279e5bfc33e9860196c1b9eb9c6ea5c9adba0b01b568",
+      "signature": "NotSigned",
+      "productVersion": "0.12.4",
+      "fileVersion": "0.12.4"
+    }
+  ],
+  "bundledNodeVersion": "22.23.2",
+  "supplemental": {
+    "webKit": {
+      "platform": "Windows WebKit; NOT native macOS acceptance",
+      "browserVersion": "26.5",
+      "rows": [
+        {
+          "name": "ingame",
+          "result": "reset"
+        },
+        {
+          "name": "crew-agents",
+          "result": "opened:AGENTS:portrait-ready"
+        },
+        {
+          "name": "crew-recruit",
+          "result": "opened:RECRUIT"
+        },
+        {
+          "name": "crew-commander",
+          "result": "opened:COMMANDER"
+        },
+        {
+          "name": "work-tasks",
+          "result": "opened:TASKS"
+        },
+        {
+          "name": "work-deliverables",
+          "result": "opened:DELIVERABLES"
+        },
+        {
+          "name": "work-recipes",
+          "result": "opened:RECIPES"
+        },
+        {
+          "name": "work-automation",
+          "result": "opened:AUTOMATION"
+        },
+        {
+          "name": "work-quests",
+          "result": "opened:QUESTS:refresh-fixture-settled"
+        },
+        {
+          "name": "build-station",
+          "result": "opened:REFIT STATION"
+        },
+        {
+          "name": "build-connectors",
+          "result": "opened:ABILITIES"
+        },
+        {
+          "name": "sys-messaging",
+          "result": "opened:CHANNELS"
+        },
+        {
+          "name": "build-manual",
+          "result": "opened:FIELD MANUAL"
+        },
+        {
+          "name": "sys-settings",
+          "result": "opened:SETTINGS:provider-health-settled"
+        },
+        {
+          "name": "sys-updates",
+          "result": "opened:UPDATES"
+        },
+        {
+          "name": "sys-notifs",
+          "result": "opened:NOTIFS"
+        }
+      ],
+      "errors": []
+    },
+    "projectLive": {
+      "rows": [
+        {
+          "title": "beta",
+          "inputs": 1,
+          "notice": ""
+        },
+        {
+          "title": "alpha",
+          "inputs": 1,
+          "notice": ""
+        },
+        {
+          "title": "beta",
+          "inputs": 1,
+          "notice": ""
+        }
+      ],
+      "revoked": {
+        "before": {
+          "title": "beta",
+          "active": "ws_5835bb81a4e44a49b10bd1f6b8e98d2a"
+        },
+        "title": "beta",
+        "active": "ws_5835bb81a4e44a49b10bd1f6b8e98d2a",
+        "notice": "Could not open project. No conversation is available for this project. Restore folder access before opening it. Select the project to retry."
+      },
+      "faults": {
+        "before": {
+          "title": "beta",
+          "active": "ws_5835bb81a4e44a49b10bd1f6b8e98d2a"
+        },
+        "failed": {
+          "title": "beta",
+          "active": "ws_5835bb81a4e44a49b10bd1f6b8e98d2a",
+          "hidden": true
+        },
+        "selected": "ws_mu9eezw3cw92",
+        "after": "ws_mu9eezw3cw92"
+      },
+      "exceptions": []
+    }
+  },
+  "readiness": {
+    "ready": false,
+    "reasons": [
+      "1. Bug register open P0/P1: 1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1",
+      "2. Installed-exe smoke: installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)"
+    ],
+    "failing": [
+      "bugs",
+      "installed"
+    ],
+    "checks": [
+      {
+        "id": "ledger",
+        "label": "Ledger open P0/P1",
+        "ok": true,
+        "reason": "no open P0/P1 findings",
+        "receipt": {
+          "artifact": "qa/findings/ (via ledger.mjs)",
+          "stamp": "",
+          "value": "0 P0 · 0 P1 · 0 P2"
+        }
+      },
+      {
+        "id": "bugs",
+        "label": "Bug register open P0/P1",
+        "ok": false,
+        "reason": "1 open blocking bug (0 P0 · 1 P1) — qa/bugs must be clear of P0/P1",
+        "receipt": {
+          "artifact": "qa/bugs/ (via bugs.mjs)",
+          "stamp": "",
+          "value": "0 P0 · 1 P1 · 10 P2"
+        }
+      },
+      {
+        "id": "guardian",
+        "label": "Green Guardian last cycle",
+        "ok": true,
+        "reason": "GREEN, 77s old, on current trunk (0c5f0d54)",
+        "receipt": {
+          "artifact": "qa/guardian-last-cycle.json",
+          "stamp": "2026-09-20T06:26:34.887Z",
+          "value": "GREEN · ran[test-fast,http-e2e,saboteur,shoot,golden,audit,journeys] · @0c5f0d54"
+        }
+      },
+      {
+        "id": "journeys",
+        "label": "Journey corps last run",
+        "ok": true,
+        "reason": "PASS, 78s old",
+        "receipt": {
+          "artifact": "qa/journeys-last-run.json",
+          "stamp": "2026-09-20T06:26:34.756Z",
+          "value": "PASS · 139/139 assertions"
+        }
+      },
+      {
+        "id": "beginner",
+        "label": "Beginner Run last result",
+        "ok": true,
+        "reason": "PASS, 14m old",
+        "receipt": {
+          "artifact": "qa/beginner-last-run.json",
+          "stamp": "2026-09-20T06:14:17.957Z",
+          "value": "PASS · ui-only · 51122ms"
+        }
+      },
+      {
+        "id": "installed",
+        "label": "Installed-exe smoke",
+        "ok": false,
+        "reason": "installed app unverified — no installed-exe smoke stamp (the rc-soak runner has not written qa/installed/last-smoke.json)",
+        "receipt": {
+          "artifact": "qa/installed/last-smoke.json",
+          "stamp": "",
+          "value": "MISSING"
+        }
+      }
+    ],
+    "generatedAt": "2026-09-20T06:27:52.373Z",
+    "trunk": {
+      "branch": "agent/release-audit-0124-0920",
+      "head": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+      "guardianDrift": 0,
+      "driftError": null
+    }
+  },
+  "scope": {
+    "earlierSourceReceipt": "validation-earlier-source.json",
+    "generalTypeScriptOrEslintCommand": "not configured",
+    "nativeTypecheck": "Rust release compilation",
+    "persistentCredentialRoundtrip": "not executed",
+    "macOSNative": "not available",
+    "signedInstalledWindows": "not executed",
+    "realAccountOAuthAndBilling": "not established by controlled fixtures"
+  },
+  "notes": [
+    "Raw gate logs and earlier failed attempts are retained; retries are not silently substituted for failures.",
+    "The report is not release approval; final platform and installed acceptance remains required."
+  ]
+}

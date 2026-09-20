@@ -1,0 +1,283 @@
+{
+  "source": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+  "resolvedAt": "2026-09-20T06:26:37.101Z",
+  "report": {
+    "threshold": 1.5,
+    "flaggedCount": 0,
+    "flagged": [],
+    "excusedCount": 0,
+    "excused": []
+  },
+  "findings": [
+    {
+      "id": "16279c50-1789883884791",
+      "fingerprint": "16279c50",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `work-tasks` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.07 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\work-tasks.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "1db57b1d-1789883884791",
+      "fingerprint": "1db57b1d",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `work-recipes` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 6.53 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\work-recipes.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "22206b84-1789883884791",
+      "fingerprint": "22206b84",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `crew-recruit` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 6.19 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\crew-recruit.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "2a5f525c-1789883884791",
+      "fingerprint": "2a5f525c",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `crew-commander` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.8 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\crew-commander.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "4a695b73-1789883884791",
+      "fingerprint": "4a695b73",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `build-manual` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.84 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\build-manual.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "67007b89-1789883884791",
+      "fingerprint": "67007b89",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `build-connectors` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.83 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\build-connectors.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "96e0ae04-1789883884791",
+      "fingerprint": "96e0ae04",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `work-deliverables` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.9 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\work-deliverables.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "ad34f7bc-1789883884791",
+      "fingerprint": "ad34f7bc",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `sys-updates` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.12 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\sys-updates.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "b32814a0-1789883884791",
+      "fingerprint": "b32814a0",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `crew-agents` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 6.31 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\crew-agents.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "b70d2e71-1789883884791",
+      "fingerprint": "b70d2e71",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `work-automation` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.58 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\work-automation.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "c6e632d1-1789883884791",
+      "fingerprint": "c6e632d1",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `work-quests` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.53 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\work-quests.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "d32678ab-1789883884791",
+      "fingerprint": "d32678ab",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `sys-settings` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 6.85 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\sys-settings.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "e541755f-1789883884791",
+      "fingerprint": "e541755f",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `ingame` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 6.69 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\ingame.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "ed2c6bf9-1789883884791",
+      "fingerprint": "ed2c6bf9",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `sys-notifs` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.38 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\sys-notifs.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    },
+    {
+      "id": "f0c84356-1789883884791",
+      "fingerprint": "f0c84356",
+      "ts": 1789883884791,
+      "crew": "Green Guardian",
+      "severity": "P1",
+      "title": "Visual regression: frame `sys-messaging` changed beyond animation noise",
+      "detail": "trunk f4021a68 — mean-abs-diff 5.59 exceeds the golden threshold. The vision model should read ONLY this frame.",
+      "evidence": [
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden-frames\\sys-messaging.png",
+        "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.bugloops\\guardian-20260920-052814\\golden.log",
+        "qa/evidence/release-audit-0124-0920/guardian-golden.log",
+        "qa/evidence/release-audit-0124-0920/visual-review.json"
+      ],
+      "status": "fixed",
+      "routedTo": "",
+      "resolution": "Reviewed all 15 original flagged frames: intended responsive COMMS layout. Corrected premature OFFLINE canvas freezing and committed reviewed captured signatures in 7d97b2349, keeping threshold 1.5. Fresh immutable 0c5f0d54 Guardian golden pass has zero flags and zero excused frames. Original evidence retained; this is not native macOS acceptance."
+    }
+  ]
+}

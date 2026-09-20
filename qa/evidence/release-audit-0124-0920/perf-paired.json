@@ -1,0 +1,57 @@
+{
+  "note": "Controlled code comparison using identical synthetic state, Node and current dependencies; baseline source archived locally, not a historical installer benchmark.",
+  "results": [
+    {
+      "label": "v0.12.3",
+      "startupMs": 4801.9807,
+      "recoveryMedianMs": 143.34070000000065,
+      "recoveryTimesMs": [
+        136.15380000000005,
+        139.6927999999998,
+        143.34070000000065,
+        148.57840000000033,
+        631.4340999999995
+      ],
+      "responseBytes": 101190
+    },
+    {
+      "label": "candidate",
+      "startupMs": 882.1972999999998,
+      "recoveryMedianMs": 135.6239999999998,
+      "recoveryTimesMs": [
+        118.1213000000007,
+        120.89449999999852,
+        135.6239999999998,
+        136.28609999999935,
+        182.46209999999883
+      ],
+      "responseBytes": 101190
+    },
+    {
+      "label": "candidate",
+      "startupMs": 851.3317999999999,
+      "recoveryMedianMs": 111.0684999999994,
+      "recoveryTimesMs": [
+        105.07610000000022,
+        108.04650000000038,
+        111.0684999999994,
+        111.97679999999855,
+        178.85020000000077
+      ],
+      "responseBytes": 101190
+    },
+    {
+      "label": "v0.12.3",
+      "startupMs": 919.2253999999994,
+      "recoveryMedianMs": 116.84130000000187,
+      "recoveryTimesMs": [
+        113.70499999999993,
+        115.88650000000052,
+        116.84130000000187,
+        121.82569999999942,
+        191.30559999999969
+      ],
+      "responseBytes": 101190
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "reviewedAt": "2026-09-20T05:29:42.816Z",
+  "productSource": "f4021a682b373ff02d2743f18b80a03cfc8b8d68",
+  "captureFix": "wait for healthy SSE and two paints before freezing world",
+  "originalFlagged": 15,
+  "threshold": 1.5,
+  "review": "All 15 original flagged frames visually inspected. Intended responsive COMMS width narrows the station and panel viewport. No observed panel overflow or exceptions. Healthy-frame floor, agent dossier, automation and settings re-inspected after capture correction. Exact captured signatures adopted; no new unreviewed capture used for blessing.",
+  "frames": [
+    {
+      "name": "ingame",
+      "sha256": "6d754c78cb0ba316b24ea7e4745f84f8307894dabc32254f25fb067cf00ed6fb"
+    },
+    {
+      "name": "crew-agents",
+      "sha256": "8e0dea73c2de3e3816f4d5c7885605ff84d3c0770f0a583b3bfddffd1ee61722"
+    },
+    {
+      "name": "crew-recruit",
+      "sha256": "67f0e16bb2f65b0a602a06abac569e675cd88058750b812d0e82af69956cf8cc"
+    },
+    {
+      "name": "crew-commander",
+      "sha256": "14fe084a451797f219c7cd29c10deed327dab4531f679758133a74d8076cf8b6"
+    },
+    {
+      "name": "work-tasks",
+      "sha256": "8935a7222343902607d253f35577c2cdb8c8143b0bc60952dfc3b185ae24b537"
+    },
+    {
+      "name": "work-deliverables",
+      "sha256": "924c695ddbda20224f7c2d5bc507f327a04522871cd5aaf05a5dbb76753bdc09"
+    },
+    {
+      "name": "work-recipes",
+      "sha256": "b28a63d61f3647bf16cef45b8e6dbad81908318da92c0e059baea573e12b32c1"
+    },
+    {
+      "name": "work-automation",
+      "sha256": "5c8c67f42ae6decd2a81941b3201e1428153f210133718c29f7253361e9ef896"
+    },
+    {
+      "name": "work-quests",
+      "sha256": "07d6926b76237159a962dd190153648475a1a671b007eb46551c6b59e343b764"
+    },
+    {
+      "name": "build-station",
+      "sha256": "8f104ce550872857584ae09ade3872c03a848c396f73c0e486c1896830c0f872"
+    },
+    {
+      "name": "build-connectors",
+      "sha256": "986d69e636136fe01fb13a7a5e7b67bc83a49880c7a9d926a2701f77b70e0df7"
+    },
+    {
+      "name": "sys-messaging",
+      "sha256": "78239389b86df42bab8ebb2a43f43253a2034484f3e5542ef03587a9ee5b853a"
+    },
+    {
+      "name": "build-manual",
+      "sha256": "b01509d7cd7990d34964957c5578d103d0baa86f33fd9fc42c035f09a2fae27e"
+    },
+    {
+      "name": "sys-settings",
+      "sha256": "99f04e3b201e504d4a10cd1413f381abc73bac827db7326830be4cf7ae2893a0"
+    },
+    {
+      "name": "sys-updates",
+      "sha256": "5f2661d951981fe7db3eec2647a42154ec5359e43f18cf6e76f43da4ee446360"
+    },
+    {
+      "name": "sys-notifs",
+      "sha256": "7f973e8c2447ac5973f819390b98e85d0edb28c6442eaf2606edd0f614ed9ba3"
+    }
+  ]
+}

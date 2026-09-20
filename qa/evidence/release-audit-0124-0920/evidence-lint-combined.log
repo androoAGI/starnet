@@ -1,0 +1,5 @@
+
+> starnet-harness@0.12.4 lint:evidence-secrets
+> node scripts/lint-evidence-secrets.mjs
+
+lint-evidence-secrets: OK

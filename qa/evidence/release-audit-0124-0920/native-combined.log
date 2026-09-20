@@ -1,0 +1,4 @@
+PASS isolated CUA download, checksum, extraction and manifest verification
+PASS real CUA runtime: independent sessions, cancellation, continued second session, normal cleanup
+{"date":"2026-09-20T06:06:54.934Z","steps":10,"imageSeen":true,"diskVerified":true,"receipts":[{"step":1,"operation":"launch_app","effect":null},{"step":2,"operation":"get_window_state","effect":null},{"step":3,"operation":"type_text","effect":"confirmed"},{"step":4,"operation":"get_window_state","effect":null},{"step":5,"operation":"click","effect":"unverifiable"},{"step":6,"operation":"get_window_state","effect":null},{"step":7,"operation":"click","effect":"unverifiable"},{"step":8,"operation":"get_window_state","effect":null},{"step":9,"operation":"click","effect":"unverifiable"}],"eventTypes":["agent.run.start","cost.estimate","agent.cost","agent.tool_call","agent.tool_result","agent.token","agent.run.end"]}
+PASS current candidate Windows native computer workflow

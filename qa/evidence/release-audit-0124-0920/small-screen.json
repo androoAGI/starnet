@@ -1,0 +1,1023 @@
+{
+  "results": [
+    {
+      "w": 1366,
+      "h": 768,
+      "zoom": 1,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 835.921875,
+        "y": 84,
+        "width": 519.078125,
+        "height": 620,
+        "right": 1355,
+        "bottom": 704
+      },
+      "composer": {
+        "x": 844.921875,
+        "y": 602,
+        "width": 501.078125,
+        "height": 93,
+        "right": 1346,
+        "bottom": 695
+      },
+      "log": {
+        "x": 836.921875,
+        "y": 185.796875,
+        "width": 517.078125,
+        "height": 408.203125,
+        "right": 1354,
+        "bottom": 594
+      },
+      "button": {
+        "x": 1291.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1342,
+        "bottom": 115
+      },
+      "card": {
+        "x": 855.921875,
+        "y": 218.796875,
+        "width": 479.078125,
+        "height": 352.78125,
+        "right": 1335,
+        "bottom": 571.578125
+      },
+      "bodyWidth": 1366,
+      "viewport": 1366
+    },
+    {
+      "w": 1366,
+      "h": 768,
+      "zoom": 1,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 11,
+        "y": 84,
+        "width": 1344,
+        "height": 620,
+        "right": 1355,
+        "bottom": 704
+      },
+      "composer": {
+        "x": 20,
+        "y": 602,
+        "width": 1326,
+        "height": 93,
+        "right": 1346,
+        "bottom": 695
+      },
+      "log": {
+        "x": 12,
+        "y": 185.796875,
+        "width": 1342,
+        "height": 408.203125,
+        "right": 1354,
+        "bottom": 594
+      },
+      "button": {
+        "x": 1285.390625,
+        "y": 89,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1342,
+        "bottom": 115
+      },
+      "card": {
+        "x": 31,
+        "y": 218.796875,
+        "width": 1304,
+        "height": 352.78125,
+        "right": 1335,
+        "bottom": 571.578125
+      },
+      "bodyWidth": 1366,
+      "viewport": 1366
+    },
+    {
+      "w": 1366,
+      "h": 768,
+      "zoom": 1.45,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 835.921875,
+        "y": 84,
+        "width": 519.078125,
+        "height": 620,
+        "right": 1355,
+        "bottom": 704
+      },
+      "composer": {
+        "x": 848.515625,
+        "y": 557.921875,
+        "width": 493.890625,
+        "height": 133.484375,
+        "right": 1342.40625,
+        "bottom": 691.40625
+      },
+      "log": {
+        "x": 836.921875,
+        "y": 214,
+        "width": 517.078125,
+        "height": 332.328125,
+        "right": 1354,
+        "bottom": 546.328125
+      },
+      "button": {
+        "x": 1291.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1342,
+        "bottom": 115
+      },
+      "card": {
+        "x": 864.015625,
+        "y": 261.390625,
+        "width": 462.890625,
+        "height": 618.765625,
+        "right": 1326.90625,
+        "bottom": 880.15625
+      },
+      "bodyWidth": 1366,
+      "viewport": 1366
+    },
+    {
+      "w": 1366,
+      "h": 768,
+      "zoom": 1.45,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 11,
+        "y": 84,
+        "width": 1344,
+        "height": 600.203125,
+        "right": 1355,
+        "bottom": 684.203125
+      },
+      "composer": {
+        "x": 23.59375,
+        "y": 538.125,
+        "width": 1318.8125,
+        "height": 133.484375,
+        "right": 1342.40625,
+        "bottom": 671.609375
+      },
+      "log": {
+        "x": 12,
+        "y": 214,
+        "width": 1342,
+        "height": 312.53125,
+        "right": 1354,
+        "bottom": 526.53125
+      },
+      "button": {
+        "x": 1285.390625,
+        "y": 89,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1342,
+        "bottom": 115
+      },
+      "card": {
+        "x": 39.09375,
+        "y": 261.390625,
+        "width": 1287.8125,
+        "height": 509.609375,
+        "right": 1326.90625,
+        "bottom": 771
+      },
+      "bodyWidth": 1366,
+      "viewport": 1366
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "zoom": 1,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 782.609375,
+        "y": 84,
+        "width": 486.390625,
+        "height": 572,
+        "right": 1269,
+        "bottom": 656
+      },
+      "composer": {
+        "x": 791.609375,
+        "y": 528.90625,
+        "width": 468.390625,
+        "height": 118.09375,
+        "right": 1260,
+        "bottom": 647
+      },
+      "log": {
+        "x": 783.609375,
+        "y": 175.796875,
+        "width": 484.390625,
+        "height": 349.109375,
+        "right": 1268,
+        "bottom": 524.90625
+      },
+      "button": {
+        "x": 1205.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1256,
+        "bottom": 115
+      },
+      "card": {
+        "x": 801.609375,
+        "y": 205.796875,
+        "width": 448.390625,
+        "height": 352.78125,
+        "right": 1250,
+        "bottom": 558.578125
+      },
+      "bodyWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "zoom": 1,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 11,
+        "y": 62,
+        "width": 1258,
+        "height": 600,
+        "right": 1269,
+        "bottom": 662
+      },
+      "composer": {
+        "x": 20,
+        "y": 534.90625,
+        "width": 1240,
+        "height": 118.09375,
+        "right": 1260,
+        "bottom": 653
+      },
+      "log": {
+        "x": 12,
+        "y": 153.796875,
+        "width": 1256,
+        "height": 377.109375,
+        "right": 1268,
+        "bottom": 530.90625
+      },
+      "button": {
+        "x": 1199.390625,
+        "y": 67,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1256,
+        "bottom": 93
+      },
+      "card": {
+        "x": 30,
+        "y": 183.796875,
+        "width": 1220,
+        "height": 352.78125,
+        "right": 1250,
+        "bottom": 536.578125
+      },
+      "bodyWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "zoom": 1.45,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 782.609375,
+        "y": 84,
+        "width": 486.390625,
+        "height": 572,
+        "right": 1269,
+        "bottom": 656
+      },
+      "composer": {
+        "x": 795.203125,
+        "y": 473.578125,
+        "width": 461.203125,
+        "height": 169.828125,
+        "right": 1256.40625,
+        "bottom": 643.40625
+      },
+      "log": {
+        "x": 783.609375,
+        "y": 199.5,
+        "width": 484.390625,
+        "height": 268.28125,
+        "right": 1268,
+        "bottom": 467.78125
+      },
+      "button": {
+        "x": 1205.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1256,
+        "bottom": 115
+      },
+      "card": {
+        "x": 809.25,
+        "y": 242.53125,
+        "width": 433.109375,
+        "height": 618.765625,
+        "right": 1242.359375,
+        "bottom": 861.296875
+      },
+      "bodyWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "w": 1280,
+      "h": 720,
+      "zoom": 1.45,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 11,
+        "y": 62,
+        "width": 1258,
+        "height": 582.90625,
+        "right": 1269,
+        "bottom": 644.90625
+      },
+      "composer": {
+        "x": 23.59375,
+        "y": 462.484375,
+        "width": 1232.8125,
+        "height": 169.828125,
+        "right": 1256.40625,
+        "bottom": 632.3125
+      },
+      "log": {
+        "x": 12,
+        "y": 177.5,
+        "width": 1256,
+        "height": 279.1875,
+        "right": 1268,
+        "bottom": 456.6875
+      },
+      "button": {
+        "x": 1199.390625,
+        "y": 67,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1256,
+        "bottom": 93
+      },
+      "card": {
+        "x": 37.640625,
+        "y": 220.53125,
+        "width": 1204.71875,
+        "height": 509.609375,
+        "right": 1242.359375,
+        "bottom": 730.140625
+      },
+      "bodyWidth": 1280,
+      "viewport": 1280
+    },
+    {
+      "w": 1024,
+      "h": 600,
+      "zoom": 1,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 623.890625,
+        "y": 84,
+        "width": 389.109375,
+        "height": 452,
+        "right": 1013,
+        "bottom": 536
+      },
+      "composer": {
+        "x": 632.890625,
+        "y": 408.90625,
+        "width": 371.109375,
+        "height": 118.09375,
+        "right": 1004,
+        "bottom": 527
+      },
+      "log": {
+        "x": 624.890625,
+        "y": 175.796875,
+        "width": 387.109375,
+        "height": 229.109375,
+        "right": 1012,
+        "bottom": 404.90625
+      },
+      "button": {
+        "x": 949.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1000,
+        "bottom": 115
+      },
+      "card": {
+        "x": 642.890625,
+        "y": 205.796875,
+        "width": 351.109375,
+        "height": 379.78125,
+        "right": 994,
+        "bottom": 585.578125
+      },
+      "bodyWidth": 1024,
+      "viewport": 1024
+    },
+    {
+      "w": 1024,
+      "h": 600,
+      "zoom": 1,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 11,
+        "y": 62,
+        "width": 1002,
+        "height": 480,
+        "right": 1013,
+        "bottom": 542
+      },
+      "composer": {
+        "x": 20,
+        "y": 414.90625,
+        "width": 984,
+        "height": 118.09375,
+        "right": 1004,
+        "bottom": 533
+      },
+      "log": {
+        "x": 12,
+        "y": 153.796875,
+        "width": 1000,
+        "height": 257.109375,
+        "right": 1012,
+        "bottom": 410.90625
+      },
+      "button": {
+        "x": 943.390625,
+        "y": 67,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1000,
+        "bottom": 93
+      },
+      "card": {
+        "x": 30,
+        "y": 183.796875,
+        "width": 964,
+        "height": 352.78125,
+        "right": 994,
+        "bottom": 536.578125
+      },
+      "bodyWidth": 1024,
+      "viewport": 1024
+    },
+    {
+      "w": 1024,
+      "h": 600,
+      "zoom": 1.45,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 623.890625,
+        "y": 84,
+        "width": 389.109375,
+        "height": 452,
+        "right": 1013,
+        "bottom": 536
+      },
+      "composer": {
+        "x": 636.484375,
+        "y": 308.640625,
+        "width": 363.921875,
+        "height": 214.765625,
+        "right": 1000.40625,
+        "bottom": 523.40625
+      },
+      "log": {
+        "x": 624.890625,
+        "y": 199.5,
+        "width": 387.109375,
+        "height": 103.34375,
+        "right": 1012,
+        "bottom": 302.84375
+      },
+      "button": {
+        "x": 949.1875,
+        "y": 89,
+        "width": 50.8125,
+        "height": 26,
+        "right": 1000,
+        "bottom": 115
+      },
+      "card": {
+        "x": 650.53125,
+        "y": 242.53125,
+        "width": 335.828125,
+        "height": 678.34375,
+        "right": 986.359375,
+        "bottom": 920.875
+      },
+      "bodyWidth": 1024,
+      "viewport": 1024
+    },
+    {
+      "w": 1024,
+      "h": 600,
+      "zoom": 1.45,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 11,
+        "y": 62,
+        "width": 1002,
+        "height": 462.90625,
+        "right": 1013,
+        "bottom": 524.90625
+      },
+      "composer": {
+        "x": 23.59375,
+        "y": 342.484375,
+        "width": 976.8125,
+        "height": 169.828125,
+        "right": 1000.40625,
+        "bottom": 512.3125
+      },
+      "log": {
+        "x": 12,
+        "y": 177.5,
+        "width": 1000,
+        "height": 159.1875,
+        "right": 1012,
+        "bottom": 336.6875
+      },
+      "button": {
+        "x": 943.390625,
+        "y": 67,
+        "width": 56.609375,
+        "height": 26,
+        "right": 1000,
+        "bottom": 93
+      },
+      "card": {
+        "x": 37.640625,
+        "y": 220.53125,
+        "width": 948.71875,
+        "height": 509.609375,
+        "right": 986.359375,
+        "bottom": 730.140625
+      },
+      "bodyWidth": 1024,
+      "viewport": 1024
+    },
+    {
+      "w": 800,
+      "h": 600,
+      "zoom": 1,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 5,
+        "y": 131,
+        "width": 790,
+        "height": 395.375,
+        "right": 795,
+        "bottom": 526.375
+      },
+      "composer": {
+        "x": 14,
+        "y": 399.28125,
+        "width": 772,
+        "height": 118.09375,
+        "right": 786,
+        "bottom": 517.375
+      },
+      "log": {
+        "x": 6,
+        "y": 222.796875,
+        "width": 788,
+        "height": 172.484375,
+        "right": 794,
+        "bottom": 395.28125
+      },
+      "button": {
+        "x": 731.1875,
+        "y": 136,
+        "width": 50.8125,
+        "height": 26,
+        "right": 782,
+        "bottom": 162
+      },
+      "card": {
+        "x": 24,
+        "y": 252.796875,
+        "width": 752,
+        "height": 352.78125,
+        "right": 776,
+        "bottom": 605.578125
+      },
+      "bodyWidth": 800,
+      "viewport": 800
+    },
+    {
+      "w": 800,
+      "h": 600,
+      "zoom": 1,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 5,
+        "y": 53,
+        "width": 790,
+        "height": 473.375,
+        "right": 795,
+        "bottom": 526.375
+      },
+      "composer": {
+        "x": 14,
+        "y": 399.28125,
+        "width": 772,
+        "height": 118.09375,
+        "right": 786,
+        "bottom": 517.375
+      },
+      "log": {
+        "x": 6,
+        "y": 144.796875,
+        "width": 788,
+        "height": 250.484375,
+        "right": 794,
+        "bottom": 395.28125
+      },
+      "button": {
+        "x": 725.390625,
+        "y": 58,
+        "width": 56.609375,
+        "height": 26,
+        "right": 782,
+        "bottom": 84
+      },
+      "card": {
+        "x": 24,
+        "y": 174.796875,
+        "width": 752,
+        "height": 352.78125,
+        "right": 776,
+        "bottom": 527.578125
+      },
+      "bodyWidth": 800,
+      "viewport": 800
+    },
+    {
+      "w": 800,
+      "h": 600,
+      "zoom": 1.45,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 5,
+        "y": 131,
+        "width": 790,
+        "height": 395.375,
+        "right": 795,
+        "bottom": 526.375
+      },
+      "composer": {
+        "x": 17.59375,
+        "y": 343.953125,
+        "width": 764.8125,
+        "height": 169.828125,
+        "right": 782.40625,
+        "bottom": 513.78125
+      },
+      "log": {
+        "x": 6,
+        "y": 246.5,
+        "width": 788,
+        "height": 91.65625,
+        "right": 794,
+        "bottom": 338.15625
+      },
+      "button": {
+        "x": 731.1875,
+        "y": 136,
+        "width": 50.8125,
+        "height": 26,
+        "right": 782,
+        "bottom": 162
+      },
+      "card": {
+        "x": 31.640625,
+        "y": 289.53125,
+        "width": 736.71875,
+        "height": 509.609375,
+        "right": 768.359375,
+        "bottom": 799.140625
+      },
+      "bodyWidth": 800,
+      "viewport": 800
+    },
+    {
+      "w": 800,
+      "h": 600,
+      "zoom": 1.45,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 5,
+        "y": 53,
+        "width": 790,
+        "height": 473.375,
+        "right": 795,
+        "bottom": 526.375
+      },
+      "composer": {
+        "x": 17.59375,
+        "y": 343.953125,
+        "width": 764.8125,
+        "height": 169.828125,
+        "right": 782.40625,
+        "bottom": 513.78125
+      },
+      "log": {
+        "x": 6,
+        "y": 168.5,
+        "width": 788,
+        "height": 169.65625,
+        "right": 794,
+        "bottom": 338.15625
+      },
+      "button": {
+        "x": 725.390625,
+        "y": 58,
+        "width": 56.609375,
+        "height": 26,
+        "right": 782,
+        "bottom": 84
+      },
+      "card": {
+        "x": 31.640625,
+        "y": 211.53125,
+        "width": 736.71875,
+        "height": 509.609375,
+        "right": 768.359375,
+        "bottom": 721.140625
+      },
+      "bodyWidth": 800,
+      "viewport": 800
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "zoom": 1,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 5,
+        "y": 221.921875,
+        "width": 380,
+        "height": 543.078125,
+        "right": 385,
+        "bottom": 765
+      },
+      "composer": {
+        "x": 14,
+        "y": 663,
+        "width": 362,
+        "height": 93,
+        "right": 376,
+        "bottom": 756
+      },
+      "log": {
+        "x": 6,
+        "y": 323.71875,
+        "width": 378,
+        "height": 331.28125,
+        "right": 384,
+        "bottom": 655
+      },
+      "button": {
+        "x": 321.1875,
+        "y": 226.921875,
+        "width": 50.8125,
+        "height": 26,
+        "right": 372,
+        "bottom": 252.921875
+      },
+      "card": {
+        "x": 25,
+        "y": 356.71875,
+        "width": 340,
+        "height": 400.078125,
+        "right": 365,
+        "bottom": 756.796875
+      },
+      "bodyWidth": 390,
+      "viewport": 390
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "zoom": 1,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1,
+      "panel": {
+        "x": 5,
+        "y": 75,
+        "width": 380,
+        "height": 690,
+        "right": 385,
+        "bottom": 765
+      },
+      "composer": {
+        "x": 14,
+        "y": 663,
+        "width": 362,
+        "height": 93,
+        "right": 376,
+        "bottom": 756
+      },
+      "log": {
+        "x": 6,
+        "y": 176.796875,
+        "width": 378,
+        "height": 478.203125,
+        "right": 384,
+        "bottom": 655
+      },
+      "button": {
+        "x": 315.390625,
+        "y": 80,
+        "width": 56.609375,
+        "height": 26,
+        "right": 372,
+        "bottom": 106
+      },
+      "card": {
+        "x": 25,
+        "y": 209.796875,
+        "width": 340,
+        "height": 400.078125,
+        "right": 365,
+        "bottom": 609.875
+      },
+      "bodyWidth": 390,
+      "viewport": 390
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "zoom": 1.45,
+      "expanded": false,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 5,
+        "y": 221.921875,
+        "width": 380,
+        "height": 543.078125,
+        "right": 385,
+        "bottom": 765
+      },
+      "composer": {
+        "x": 17.59375,
+        "y": 618.921875,
+        "width": 354.8125,
+        "height": 133.484375,
+        "right": 372.40625,
+        "bottom": 752.40625
+      },
+      "log": {
+        "x": 6,
+        "y": 351.921875,
+        "width": 378,
+        "height": 255.40625,
+        "right": 384,
+        "bottom": 607.328125
+      },
+      "button": {
+        "x": 321.1875,
+        "y": 226.921875,
+        "width": 50.8125,
+        "height": 26,
+        "right": 372,
+        "bottom": 252.921875
+      },
+      "card": {
+        "x": 33.09375,
+        "y": 399.3125,
+        "width": 323.8125,
+        "height": 766.484375,
+        "right": 356.90625,
+        "bottom": 1165.796875
+      },
+      "bodyWidth": 390,
+      "viewport": 390
+    },
+    {
+      "w": 390,
+      "h": 844,
+      "zoom": 1.45,
+      "expanded": true,
+      "pass": true,
+      "actualZoom": 1.45,
+      "panel": {
+        "x": 5,
+        "y": 75,
+        "width": 380,
+        "height": 690,
+        "right": 385,
+        "bottom": 765
+      },
+      "composer": {
+        "x": 17.59375,
+        "y": 618.921875,
+        "width": 354.8125,
+        "height": 133.484375,
+        "right": 372.40625,
+        "bottom": 752.40625
+      },
+      "log": {
+        "x": 6,
+        "y": 205,
+        "width": 378,
+        "height": 402.328125,
+        "right": 384,
+        "bottom": 607.328125
+      },
+      "button": {
+        "x": 315.390625,
+        "y": 80,
+        "width": 56.609375,
+        "height": 26,
+        "right": 372,
+        "bottom": 106
+      },
+      "card": {
+        "x": 33.09375,
+        "y": 252.390625,
+        "width": 323.8125,
+        "height": 766.484375,
+        "right": 356.90625,
+        "bottom": 1018.875
+      },
+      "bodyWidth": 390,
+      "viewport": 390
+    }
+  ],
+  "baseline": {
+    "width": 360,
+    "cardHeight": 534.875
+  },
+  "after": {
+    "width": 486.390625,
+    "cardHeight": 352.78125
+  },
+  "answer": {
+    "text": "I’ll write a short free-text inventory",
+    "answered": true
+  },
+  "restore": {
+    "width": "420px",
+    "crewWidth": "250px",
+    "crewUnchanged": true,
+    "draft": "Unsent draft stays here",
+    "restored": true
+  }
+}

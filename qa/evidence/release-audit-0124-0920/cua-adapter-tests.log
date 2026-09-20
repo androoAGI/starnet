@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: process environment omits provider credentials and disables telemetry
+ok 1 - process environment omits provider credentials and disables telemetry
+  ---
+  duration_ms: 2.0485
+  type: 'test'
+  ...
+# Subtest: missing launcher authority cannot start a daemon
+ok 2 - missing launcher authority cannot start a daemon
+  ---
+  duration_ms: 0.8215
+  type: 'test'
+  ...
+# Subtest: logical MCP errors are not converted to successful actions
+ok 3 - logical MCP errors are not converted to successful actions
+  ---
+  duration_ms: 0.1576
+  type: 'test'
+  ...
+# Subtest: the existing StarNet context gate still blocks restricted runs
+ok 4 - the existing StarNet context gate still blocks restricted runs
+  ---
+  duration_ms: 0.4599
+  type: 'test'
+  ...
+# Subtest: snapshot tokens are forwarded once and exact window identity is retained
+ok 5 - snapshot tokens are forwarded once and exact window identity is retained
+  ---
+  duration_ms: 0.8795
+  type: 'test'
+  ...
+# Subtest: key and hotkey use distinct driver contracts
+ok 6 - key and hotkey use distinct driver contracts
+  ---
+  duration_ms: 0.1688
+  type: 'test'
+  ...
+# Subtest: refused structured results cannot become computer.use ok
+ok 7 - refused structured results cannot become computer.use ok
+  ---
+  duration_ms: 0.192
+  type: 'test'
+  ...
+# Subtest: screenshot metadata without pixels is not accepted as visual proof
+ok 8 - screenshot metadata without pixels is not accepted as visual proof
+  ---
+  duration_ms: 0.1356
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 123.6833
