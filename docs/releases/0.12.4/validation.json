@@ -404,13 +404,14 @@
     "earlierSourceReceipt": "validation-earlier-source.json",
     "generalTypeScriptOrEslintCommand": "not configured",
     "nativeTypecheck": "Rust release compilation",
-    "persistentCredentialRoundtrip": "not executed",
+    "persistentCredentialRoundtrip": "Windows production Rust roundtrip passed in two independent processes; macOS and installed migration/locked-store recovery remain outstanding",
     "macOSNative": "not available",
     "signedInstalledWindows": "not executed",
     "realAccountOAuthAndBilling": "not established by controlled fixtures"
   },
   "notes": [
     "Raw gate logs and earlier failed attempts are retained; retries are not silently substituted for failures.",
-    "The report is not release approval; final platform and installed acceptance remains required."
+    "The report is not release approval; final platform and installed acceptance remains required.",
+    "September 20 follow-up: see BLOCKER_FOLLOWUP.md and keychain-windows-persistent.log. Product source unchanged; all 56 Windows Rust tests have passed across separate invocations."
   ]
 }

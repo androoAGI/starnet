@@ -2,11 +2,6 @@
   "note": "Integrity manifest only; source scopes differ. Consult README.md and the validation receipt.",
   "files": [
     {
-      "name": "README.md",
-      "bytes": 2084,
-      "sha256": "38df2fbfa6b21608fd63385448fb3584b0cbc92a39e54af7a26df02d84e4a172"
-    },
-    {
       "name": "artifact-evidence-lint.log",
       "bytes": 27,
       "sha256": "22eb582a65ac7a7ad9106041a86363eb01a34c73c8b7d37d7169c2d7a11b6e25"
@@ -157,6 +152,11 @@
       "sha256": "a5b19f94af10c7e5fb3c1348868e9f419a521ade3ce159f00fc8444f3cda6222"
     },
     {
+      "name": "keychain-windows-persistent.log",
+      "bytes": 688,
+      "sha256": "e38664d6492b91cc401b1f9808c56283ab8deb1fdc6dcc4dc4f6eead5f93eefc"
+    },
+    {
       "name": "longhaul-repeat.json",
       "bytes": 2190,
       "sha256": "a1a8956180237c9a1126ae1e942b484ce7326d84162d765186ad0e06b6379af3"
@@ -225,6 +225,11 @@
       "name": "project-live.json",
       "bytes": 919,
       "sha256": "d4a69006189047c6a2b3a1f9d4d0bba6160d747d94b6bd8e4b7ab9dd511fa505"
+    },
+    {
+      "name": "README.md",
+      "bytes": 2335,
+      "sha256": "cc0db55edaa9e031c489db8b4bc6deeeaad50427b1df7df21c9165658ad54fb0"
     },
     {
       "name": "ready-candidate-final.json",
