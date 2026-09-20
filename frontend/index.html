@@ -189,7 +189,7 @@
               <!-- THE HERO IS THE TJ OS SUBSCRIPTION — the promoted easiest start. It ships HIDDEN and is
                    revealed only when the sidecar reports a real cloud seam (/api/credits linkable or configured):
                    the honesty law says a build with no cloud must not offer a subscription it cannot link
-                   (app.js revealStarnetGenesis, which also makes it the default pick on a fresh create).
+                   (app.js revealStarnetGenesis, which also makes TJ OS the default pick on a fresh create).
                    ChatGPT sign-in is no longer a hero — it lives inside the OPENAI chip below. -->
               <button class="prov prov-hero hidden" data-prov="starnet" aria-pressed="false">
                 <span class="prov-hero-row">
@@ -496,7 +496,7 @@
      beam is meant to run across the wordmark, not stop at its edges; see the z-index note in
      style.css. #logo-anchor below reserves its seat in the topbar; positionLogo() keeps them
      aligned, and app/logoclip.js clips the mark under any window it would otherwise cover. -->
-<!-- The mark is a <span> MASKED by starnet-wordmark.svg, not an <img> — that is what lets it take
+<!-- The TJ OS mark is a <span> MASKED by the legacy starnet-wordmark.svg compatibility asset, not an <img> — that is what lets it take
      var(--ph) per theme and stay crisp at any DPR / TEXT SIZE. The SVG is the master art's OWN
      letterforms traced out of its perceived-density field (dev/trace-logo.mjs), NOT a redraw; the
      title screen keeps the full-size master PNG, where the ASCII-digit texture actually reads. -->
@@ -672,7 +672,7 @@
         </div>
       </div>
       <button id="voice-toggle" class="voice-toggle" title="agent voice" aria-label="Agent voice" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.1h2.1L7.7 3.3v9.4L4.3 9.9H2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10.3 6a3.2 3.2 0 0 1 0 4"/><path d="M12.4 4a6.2 6.2 0 0 1 0 8"/></g></svg></button>
-      <button id="voice-live" class="voice-toggle voice-live" title="Local Live hands-free voice — local speech with your active Starnet agent" aria-label="Start Local Live hands-free voice" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.8" stroke-width="1.2"/><path d="M5.1 8h1.2m1.1-2.4v4.8M9.7 7v2m1.6-3.1v4.2" stroke-width="1.35" stroke-linecap="square"/></svg></button>
+      <button id="voice-live" class="voice-toggle voice-live" title="Local Live hands-free voice — local speech with your active TJ OS agent" aria-label="Start Local Live hands-free voice" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.8" stroke-width="1.2"/><path d="M5.1 8h1.2m1.1-2.4v4.8M9.7 7v2m1.6-3.1v4.2" stroke-width="1.35" stroke-linecap="square"/></svg></button>
       <button id="chat-mic" class="mic-btn" title="click to talk" aria-label="Click to talk" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.8" y="1.7" width="4.4" height="7.2" rx="2.2"/><path d="M3.7 7.5a4.3 4.3 0 0 0 8.6 0"/><path d="M8 11.8v2.4"/><path d="M5.4 14.2h5.2"/></svg></button>
       </div>
     </div>
@@ -767,7 +767,7 @@
 
 <script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
 <script src="app/legacymigrate.js"></script>
-<script src="app/glass-boot.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
+<script src="app/glass-boot.js"></script><!-- FIRST store-touching script: preserve legacy starnet.* localStorage compatibility before any store reads -->
 <script src="js/util.js"></script>
 <script src="app/asciifx.js"></script><!-- ASCII-motion kit (AsciiFX): decode/dissolve/typewriter primitives; must load before its consumers (chat.js, stationui.js) -->
 <script src="js/audio.js"></script>
