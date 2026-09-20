@@ -48,6 +48,10 @@ function makeConnectorVault({ fs, path, keyHex = '', required = false, writeDura
     catch (e) { if (e.code === 'ENOENT') return { absent: true }; throw new Error(UNAVAILABLE); }
     let parsed;
     try { parsed = JSON.parse(raw); } catch (_) { return { corrupt: true }; }
+    // Every supported current/legacy format is an object. JSON null is present
+    // data, never proof of an absent store: boot migration would otherwise seal
+    // an empty state over this file AND its last-good encrypted backup.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(UNAVAILABLE);
     return { value: decode(parsed), encrypted: parsed && parsed.format === FORMAT };
   }
   function load(file) {

@@ -49,6 +49,17 @@ try {
   fs.writeFileSync(file, '{');
   assert.deepEqual(make().load(file), state, 'torn JSON recovers encrypted backup');
   fs.writeFileSync(file, before);
+  for (const invalid of [null, [], false, 0, 'unexpected']) {
+    const bytes = JSON.stringify(invalid);
+    fs.writeFileSync(file, bytes);
+    const backup = fs.readFileSync(file + '.bak', 'utf8');
+    const invalidVault = make();
+    assert.throws(() => invalidVault.load(file), /locked/, 'present non-object state cannot authorize empty migration');
+    assert.throws(() => invalidVault.migrate(file, state, [legacy]), /locked/);
+    assert.equal(fs.readFileSync(file, 'utf8'), bytes, 'invalid authority is preserved');
+    assert.equal(fs.readFileSync(file + '.bak', 'utf8'), backup, 'last-good backup is preserved');
+  }
+  fs.writeFileSync(file, before);
   const lockedFs = Object.create(fs);
   lockedFs.readFileSync = (target, ...args) => { if (target === file) throw Object.assign(Error('busy'), { code: 'EACCES' }); return fs.readFileSync(target, ...args); };
   assert.throws(() => make({ fs: lockedFs }).load(file), /locked/, 'unreadable main cannot roll back to backup');
