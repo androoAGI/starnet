@@ -132,7 +132,7 @@ const WorldRenderer = (() => {
     let geometry = null, baked = null, lighting = null, frame = null, preparedLight = null, presentationFixtures = [];
     let frames = 0, rebuilds = 0, entityCount = 0, lastStart = 0, startedAt = 0;
     let elapsed = [], durations = [], lightDurations = [], lightingMs = 0;
-    let depthPasses = 0, depthItems = 0, depthTallItems = 0;
+    let depthPasses = 0, depthItems = 0, depthTallItems = 0, depthArchitectureItems = 0;
     const push = (array, value) => { array.push(value); if (array.length > FRAME_WINDOW) array.shift(); };
     const canLight = () => !classic && typeof WorldLight !== 'undefined';
     function begin(input) {
@@ -189,6 +189,7 @@ const WorldRenderer = (() => {
         depthPasses++;
         depthItems += ordered.length;
         depthTallItems += ordered.reduce((n, item) => n + (verticalOcclusion(item) > 12 ? 1 : 0), 0);
+        depthArchitectureItems += ordered.reduce((n, item) => n + (item && (item.architectural || item.depthClass === 'architecture') ? 1 : 0), 0);
       }
       for (const item of ordered) item.draw(ctx);
       return ordered.length;
@@ -234,7 +235,7 @@ const WorldRenderer = (() => {
         lightingMedianMs: percentile(lightDurations, .5), samples: durations.length,
         twoPointFiveD: { passes: depthPasses, items: depthItems,
           averageItems: depthPasses ? Math.round(depthItems / depthPasses) : 0,
-          tallItems: depthTallItems },
+          tallItems: depthTallItems, architectureItems: depthArchitectureItems },
         viewport: frame ? visibleRect(frame) : null,
         appearance: {
           crew: typeof SPRITES !== 'undefined' && SPRITES.bodyAppearanceStats ? SPRITES.bodyAppearanceStats() : null,
