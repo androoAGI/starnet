@@ -4,10 +4,10 @@ slug: browser-probe-request-timers-survive-completed-r
 title: Browser probe request timers survive completed requests
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-09-19
 lane: reliability-audit-0919
-fix:
+fix: 9cdfc0ba5
 origin: audit
 ---
 
@@ -27,4 +27,4 @@ Run `node test/cdp-lifecycle.test.js` for success, protocol rejection, send fail
 
 ## Verdict
 
-Candidate patch clears completed request timers, rejects disconnected pending work, and routes duplicated uiplay/refit request handling through the shared implementation. Full gates pending. Guardian visual diffs remain unresolved; no goldens were dismissed.
+Verified patch clears completed request timers, rejects disconnected pending work, and routes duplicated uiplay/refit request handling through the shared implementation. Full gates pass: 834 fast, 124 HTTP and 139 live journey assertions. Receipt: `qa/evidence/reliability-hardening-0919/validation.json`. Guardian visual diffs remain unresolved; no goldens were dismissed.

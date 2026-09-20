@@ -1,0 +1,34 @@
+# Reliability hardening — 2026-09-19
+
+Candidate source: `a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a` (spending repair `410252bbb`). This pass follows the earlier merged audit; it does not certify product perfection or close customer incidents without affected-system evidence.
+
+## Implemented
+
+- Spending authority: unreadable, corrupt, truncated or unsuccessfully persisted history no longer becomes fresh headroom for configured agent/day/global pools. Unknown totals are null, the budget UI says unavailable, and saved limits remain readable/editable. Failed initial reads cannot submit blank limits. Unlimited policy remains opt-in-free.
+- Crash accounting: a main metered run writes a dispatch receipt before proceeding. Completed ledger entries receive independent settlement identities, including multiple charges belonging to one parent run. Restart applies known settlements once, before reconciling dispatch markers, independent of directory order. Unsettled interrupted requests remain unknown. Authoritative history is no longer discarded by rolling rotation.
+- Ownership uncertainty: only ESRCH proves a process absent. Permission, I/O and unsupported-probe errors preserve ownership. This fixes one takeover path, not the concurrent recovery race below.
+- Browser checks: completed/failed CDP requests clear timers, disconnects reject pending work promptly, and uiplay/refit use the shared implementation. Guardian's outer fast deadline now includes cleanup headroom beyond the inner gate.
+- Installed regression coverage: the disposable Windows acceptance workflow now runs spending fault/restart cases using the actual installed Node and source-identity-checked sidecar. No hosted-runner guard was bypassed, and the local installed application was not replaced.
+
+- Desktop dependency closure: a private Linux build reproduced a development-only Canvas native binding leaking into the installer. Staging now excludes lockfile dev-only packages across fresh and warm outputs, preserving shared runtime and optional dependencies. This addresses the recurring native-package pattern beyond the previous Sharp-only filter.
+
+## Evidence and validation
+
+Evidence directory: [reliability-hardening-0919](../evidence/reliability-hardening-0919/).
+
+Focused unit tests cover read failures, configured scope variations, opt-in behavior, failed writes, strict bounded reads, unknown PID probes, CDP success/error/disconnect/send failure, and budget loading/error/malformed states. Real sidecar tests cover zero paid dispatch on unreadable history, failed append, restart settlement, repeated restart, multiple settlements sharing one parent, directory-order independence and unknown interrupted spend. A separate real-sidecar boot test preserves an existing owner across EACCES/EIO/ENOSYS.
+
+Live seeded browser proof saved a day limit of 2, restarted the sidecar with a deliberately corrupt isolated ledger, and observed unavailable spend with the limit preserved and a truthful save acknowledgement. The test used an owned scratch station, not customer state.
+
+The initial full fast gate passed 833 steps. After the packaging repair, the updated full gate has 834 steps. Final local gates pass: **834 fast steps, 124 HTTP steps, and 139/139 live browser journey assertions**. The packaging change did not change the sidecar/frontend source exercised by HTTP. Receipts and raw-log hashes are in `qa/evidence/reliability-hardening-0919/validation.json`. Installer acceptance remains pending. The initial private build 35476844504 reproduced the Linux packaging failure and was cancelled after preserving that evidence to avoid completing superseded installers. Replacement private installer run: https://github.com/androoAGI/starnet/actions/runs/35477408214 (`publish-test=false`, signed Mac acceptance required). Source-tree tests are not installed-app acceptance.
+
+## Prioritized unresolved work
+
+1. **P1 — concurrent workspace crash recovery (`c24336d5`).** Reproduced two successful owners on the real filesystem with a deterministic read/rename interleaving. A second reclaimer can rename a newly live holder using its stale read. The retained reproducer is `qa/evidence/reliability-hardening-0919/owner-race.cjs`. A safe fix needs an atomic OS ownership primitive or a recoverable election protocol with crash-at-every-step testing; a second read alone remains racy. Do not disable ownership checks or delete live locks.
+2. **P1 — affected Mac boot/install recovery.** Source and CI acceptance do not prove recovery on the reported machine. Preserve the existing catalog-boot case and its affected-artifact requirements.
+3. **High-impact spending follow-up.** The overnight verification report still requires its actual run/tool/usage ledger. Main-run receipts do not establish crash-complete accounting for every auxiliary/background model call, paid media integration or remote managed-credit settlement. Provider calls already dispatched can also incur charges before local usage arrives; these are soft observed-spend limits, not guaranteed preauthorized billing reservations. Do not infer a refund or customer incident closure from this fix.
+4. **Large/history-damaged ledgers.** The bounded reader now reports uncertainty instead of truncating silently. Lifetime checkpoints/streaming aggregation and reconciliation of historical segments already deleted by older versions still require a separate migration. An independent checkpoint is also needed to detect deletion or replacement with an older, syntactically valid ledger; this patch validates available history, not its complete historical lineage. Unknown interrupted charges need provider reconciliation; deleting receipts or resetting totals would manufacture headroom.
+5. **Real provider/connector acceptance.** Actual Ollama no-POST/zero-tool cases, Zoho authenticated bootstrap schema, and managed-provider/billing reports retain their existing evidence requirements. Controlled providers prove local behavior, not those customer accounts or models.
+6. **Guardian authority.** Unit and live CDP proof do not constitute a complete fresh scheduled Guardian cycle. The latest pre-candidate cycle (23:23Z, trunk 621bbf467) also failed a 9-second sidecar startup check, cross-origin browser navigation, CDP startup on port 9340 and the library-search journey assertion (138/139). These are not all explained by retained timers. Existing visual differences require review; no golden baseline or finding was dismissed to create green status. The Windows Node 24 native HTTP crash remains separate; gates use Node 22.
+
+No release was published. The candidate remains on the isolated branch while verification is underway.

@@ -1,0 +1,32 @@
+{
+  "sourceCommit": "a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a",
+  "checkedHead": "e7749b29dda0228dc6b058fc6501a70a43cbc79a",
+  "runtime": "v22.23.0",
+  "recordedAt": "2026-09-20T00:11:02.020095+00:00",
+  "gates": {
+    "fast": {
+      "exitCode": 0,
+      "passed": 834,
+      "lastLine": "run-fast-tests: OK \u2014 834 step(s) green",
+      "logSha256": "aff81eda02688fab46bb8cdb6733857423fb52a08bc9c2dfe25449a6e2ad7964",
+      "logBytes": 66847,
+      "localLog": "C:\\Users\\andro\\gen-trees\\reliability-audit-0919\\.dogfood\\reliability-hardening\\test-fast-final.log"
+    },
+    "http": {
+      "exitCode": 0,
+      "passed": 124,
+      "lastLine": "run-test-list: OK \u2014 124 step(s) green",
+      "logSha256": "a7229e21022665c8be3f44ad06ac4a58799967e133d69be1d5e898f5c3002675",
+      "logBytes": 13297,
+      "localLog": "C:\\Users\\andro\\gen-trees\\reliability-audit-0919\\.dogfood\\reliability-hardening\\test-http.log"
+    },
+    "journeys": {
+      "exitCode": 0,
+      "passed": 139,
+      "lastLine": "JOURNEYS PASS \u2014 139/139 assertions passed \u2192 C:\\Users\\andro\\gen-trees\\reliability-audit-0919\\.dogfood\\reliability-hardening\\journeys",
+      "logSha256": "29303e7a2bdc46ea092bacd88b4ffeb8cf11d26e7765260f643ae9a77d57a93d",
+      "logBytes": 13807,
+      "localLog": "C:\\Users\\andro\\gen-trees\\reliability-audit-0919\\.dogfood\\reliability-hardening\\journeys.log"
+    }
+  }
+}

@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**15** open (open+claimed) of 199 total — 0 P0 · 4 P1 · 11 P2
+**12** open (open+claimed) of 200 total — 0 P0 · 2 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -118,9 +118,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
 | P1 | open | onboarding | [Mac boot guard reports shared specialty catalog load failure](bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md) | release-0112-finalprep-0911 | — |
-| P1 | open | providers | [Unavailable spend history grants capped runs fresh headroom](bugs/1746d326-unavailable-spend-history-grants-capped-runs-fre.md) | reliability-audit-0919 | — |
 | P1 | open | sessions | [Concurrent stale workspace reclaimers both acquire ownership](bugs/c24336d5-concurrent-stale-workspace-reclaimers-both-acqui.md) | reliability-audit-0919 | — |
-| P1 | open | sessions | [Unknown PID probe errors authorize workspace takeover](bugs/7f19707e-unknown-pid-probe-errors-authorize-workspace-tak.md) | reliability-audit-0919 | — |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [Ambiguous permission and routine acknowledgements report unproven changes](bugs/95d13aaf-ambiguous-permission-and-routine-acknowledgement.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P1 | fixed | autonomy | [Concurrency-limited routines starve later due jobs in store order](bugs/0cfef8af-concurrency-limited-routines-starve-later-due-jo.md) | reliability-audit-0919 | b651a8f5d |
@@ -173,6 +171,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
+| P1 | fixed | providers | [Unavailable spend history grants capped runs fresh headroom](bugs/1746d326-unavailable-spend-history-grants-capped-runs-fre.md) | reliability-audit-0919 | 410252bbb |
 | P1 | fixed | release | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | agent/release-0120-prep-0915 | d1848af00 |
 | P1 | fixed | release | [Dismissed frame name suppresses unrelated visual changes](bugs/8993bb79-dismissed-frame-name-suppresses-unrelated-visual.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
 | P1 | fixed | release | [Filtered journey run can replace the full release journey receipt](bugs/3d9dce85-filtered-journey-run-can-replace-the-full-releas.md) | agent/release-ui-audit-0906 | 042394b7d |
@@ -208,6 +207,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P1 | fixed | sessions | [Stalled save responses permanently block the persistence queue](bugs/e6b19398-stalled-save-responses-permanently-block-the-per.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Startup history read failure skips away-work review recovery](bugs/6b655b46-startup-history-read-failure-skips-away-work-rev.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | sessions | [Temporarily unreadable durable records can be quarantined or overwritten](bugs/7aeb7f9f-temporarily-unreadable-durable-records-can-be-qu.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P1 | fixed | sessions | [Unknown PID probe errors authorize workspace takeover](bugs/7f19707e-unknown-pid-probe-errors-authorize-workspace-tak.md) | reliability-audit-0919 | 9cdfc0ba5 |
 | P1 | fixed | sessions | [Workshop reports a completed web tool when its entry file is missing](bugs/097269b5-workshop-reports-a-completed-web-tool-when-its-e.md) | agent/release-ui-audit-0906 | 44a8c3006 |
 | P1 | fixed | skills | [Campaign cards missing from browser element discovery](bugs/305a9e3d-campaign-cards-missing-from-browser-element-disc.md) | agent/browser-campaign-navigation-0912 | dcbc2b941 |
 | P1 | fixed | skills | [gate.verify()'s tamper branch re-enters decide(), which clears the tamper against the STALE stored contentDigest — one approval permanently blesses whatever is](bugs/76d5dc8a-gate-verify.md) | sweep/skills | 598ab4a4 |
@@ -236,7 +236,6 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | open | providers | [Managed Sonnet request still returns an uncorrelated HTTP 400](bugs/fd9c4b4d-managed-sonnet-400-unresolved.md) | reliability-followup | — |
 | P2 | open | providers | [Ollama run times out with no chat POST observed by reporter](bugs/5274c7b7-ollama-chat-request-not-observed.md) | release-0120-prep-0915 | — |
 | P2 | open | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | — |
-| P2 | open | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
 | P2 | open | release | [Windows Node 24 HTTP test exits with a native libuv assertion after passing](bugs/6e29727c-windows-node-24-http-test-exits-with-a-native-li.md) | reliability-audit-0919 | — |
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
@@ -258,6 +257,8 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | fixed | providers | [Secondary console layouts lose provider text and dropdown affordances at enlarged scale](bugs/6c91f5d9-secondary-console-layouts-lose-provider-text-and.md) | agent/interface-finish-0913 | 0054a3d7a |
 | P2 | fixed | providers | [The index.js summarize closure captures the pre-failover provider/model — after a credential rotation or provider fallback, two failed summaries flip compaction](bugs/cb8dc6c3-the-index-js-summarize-closure-captures-the-pre.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | providers | [The ledger's `unmetered` flag is a stamped verdict with zero readers — every ledger USD aggregate (/api/budget, day/global caps) counts subscription dollars tha](bugs/4007eb1f-the-ledger-s-unmetered-flag-is-a-stamped-verdict.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | 9cdfc0ba5 |
+| P2 | fixed | release | [Desktop bundles include development-only native dependencies](bugs/037ec5d2-desktop-bundles-include-development-only-native.md) | reliability-audit-0919 | a711f6ea2 |
 | P2 | fixed | release | [Desktop overlay version disagrees with sidecar diagnostics](bugs/65587128-desktop-overlay-version-disagrees-with-sidecar-d.md) | agent/release-0112-audit-0910 | bed625bdd |
 | P2 | fixed | release | [HTTP gate watchdog expires before the full suite finishes](bugs/0c148510-http-gate-watchdog-expires-before-the-full-suite.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Hydration regression depends on host scheduling](bugs/4bc5d562-hydration-regression-depends-on-host-scheduling.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
@@ -316,12 +317,12 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | --- | --- |
 | channels | 1 |
 | autonomy | 3 |
-| providers | 4 |
+| providers | 3 |
 | safecell | 0 |
-| sessions | 2 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 2 |
 | world | 0 |
 | voice | 0 |
-| release | 3 |
+| release | 2 |
 

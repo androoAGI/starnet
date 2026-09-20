@@ -1,1 +1,1 @@
-spend HTTP: unreadable history, zero paid dispatch, failed append, restart settlement, exact-once replay and uncertain crash receipt PASS
+spend HTTP: unreadable history, zero paid dispatch, failed append, restart settlement, exact-once replay uncertain receipt and real hard-crash recovery PASS

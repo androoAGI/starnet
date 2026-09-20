@@ -1,0 +1,1 @@
+workspace HTTP: real sidecar refuses uncertain PID probes and preserves the live owner PASS

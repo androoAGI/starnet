@@ -4,10 +4,10 @@ slug: unavailable-spend-history-grants-capped-runs-fre
 title: Unavailable spend history grants capped runs fresh headroom
 surface: providers
 severity: P1
-status: open
+status: fixed
 found: 2026-09-19
 lane: reliability-audit-0919
-fix:
+fix: 410252bbb
 origin: audit
 ---
 
@@ -27,4 +27,4 @@ Run `node test/spend-authority.test.js` and `node test/spend-authority.http.test
 
 ## Verdict
 
-Candidate patch preserves durable dispatch/settlement receipts, rejects unknown configured pools, reports null totals and preserves known caps. Full gates pending. Customer overnight-spend incident remains separately unresolved.
+Verified patch preserves durable dispatch/settlement receipts, rejects unknown configured pools, reports null totals and preserves known caps. Full gates pass: 834 fast, 124 HTTP and 139 live journey assertions. Receipt: `qa/evidence/reliability-hardening-0919/validation.json`. Customer overnight-spend incident remains separately unresolved.
