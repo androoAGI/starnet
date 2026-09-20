@@ -1,0 +1,6 @@
+[failopen] durable-store.unreadable (x1): injected EACCES
+[failopen] durable-store.unreadable (x2): injected EACCES
+[failopen] durable-store.unreadable (x3): injected EACCES
+[failopen] durable-store.unreadable (x4): injected EACCES
+[failopen] durable-store.unreadable (x5): injected EACCES
+durable-store faults: 122/122 checks passed

@@ -111,7 +111,9 @@ fn sidecar_exit_is_intentional(code: Option<i32>) -> bool {
 /// Exponential backoff before the n-th consecutive crash respawn: 1s, 2s, 4s, 8s, 16s, 30s (cap).
 fn guardian_backoff(consecutive_crashes: u32) -> Duration {
     let n = consecutive_crashes.max(1) - 1;
-    let secs = 1u64.checked_shl(n.min(10)).unwrap_or(GUARDIAN_MAX_BACKOFF.as_secs());
+    let secs = 1u64
+        .checked_shl(n.min(10))
+        .unwrap_or(GUARDIAN_MAX_BACKOFF.as_secs());
     Duration::from_secs(secs).min(GUARDIAN_MAX_BACKOFF)
 }
 
@@ -1814,6 +1816,17 @@ fn set_sidecar_branded_env<V: AsRef<OsStr>>(cmd: &mut Command, legacy_name: &str
 
 fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     let mut cmd = Command::new(node);
+    // Clear inherited material: only this OS account's verified keychain entry
+    // may unlock connector credentials. Missing/locked keychain fails closed.
+    cmd.env_remove("STARNET_CONNECTOR_ENCRYPTION_KEY");
+    match credentials::connector_encryption_key() {
+        Ok(key) => {
+            cmd.env("STARNET_CONNECTOR_ENCRYPTION_KEY", key);
+        }
+        Err(error) => {
+            eprintln!("[connectors] {error}");
+        }
+    }
     cmd.arg(entry)
         // The sidecar can load the native Windows desktop driver, but that alone grants nothing:
         // only a locally paired Telegram owner receives the per-run remote-owner lease. Ordinary
@@ -1920,8 +1933,11 @@ fn spawn_sidecar(state: &AppState) -> bool {
                 if let Ok(mut guard) = state.sidecar.lock() {
                     *guard = Some(child);
                 }
-                let (listening, exited) =
-                    wait_for_port_or_exit(state.port, Duration::from_secs(25), Some(&state.sidecar));
+                let (listening, exited) = wait_for_port_or_exit(
+                    state.port,
+                    Duration::from_secs(25),
+                    Some(&state.sidecar),
+                );
                 log_startup(
                     &state.startup_log,
                     match exited {
@@ -2099,7 +2115,10 @@ fn spawn_guardian(app: AppHandle) {
                             first_crash_at = None;
                             next_attempt_at = None;
                             if let Ok(mut g) = st.guardian.lock() {
-                                if g.consecutive_crashes != 0 || g.halted || g.next_respawn_in_ms.is_some() {
+                                if g.consecutive_crashes != 0
+                                    || g.halted
+                                    || g.next_respawn_in_ms.is_some()
+                                {
                                     g.consecutive_crashes = 0;
                                     g.halted = false;
                                     g.next_respawn_in_ms = None;
@@ -2455,7 +2474,11 @@ fn decode_chunked_body(raw: &str) -> Option<String> {
             return None;
         }
         out.extend_from_slice(&bytes[start..end]);
-        pos = if bytes[end..].starts_with(b"\r\n") { end + 2 } else { end };
+        pos = if bytes[end..].starts_with(b"\r\n") {
+            end + 2
+        } else {
+            end
+        };
     }
 }
 
@@ -3866,6 +3889,8 @@ fn build_main_window(app: &AppHandle, location_choice: &str) -> tauri::Result<ta
     let init = format!("{init}window.__STARNET_CUSTOM_CHROME__=1;");
 
     let main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(if location_choice == "local" { "index.html" } else { "station-host.html" }.into()))
+        // Let HTML5 file drops reach COMMS; native interception blocks them on Windows.
+        .disable_drag_drop_handler()
         .title("StarNet")
         .inner_size(1280.0, 832.0)
         .min_inner_size(960.0, 600.0)
@@ -4429,7 +4454,8 @@ mod lifecycle_probe_tests {
     fn rejects_truncated_chunked_body() {
         // A read timeout can yield a partial chunk — that must classify Ambiguous (None), never
         // parse as a complete snapshot.
-        let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"rea";
+        let raw =
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"rea";
         assert!(parse_lifecycle_response(raw).is_none());
         // ...and a body that never reaches the 0-terminator is equally incomplete.
         let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1c\r\n{\"armed\":false,\"reasons\":[]}\r\n";

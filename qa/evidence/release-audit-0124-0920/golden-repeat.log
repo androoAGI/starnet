@@ -1,0 +1,47 @@
+
+> starnet-harness@0.12.4 golden
+> node scripts/golden.mjs
+
+sidecar: booting SEEDED SKYNET_DEV on :19740 (model=anthropic/claude-sonnet-4.6) ...
+sidecar: ready
+chrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe
+target: http://127.0.0.1:19740/
+navigating + booting to the floor...
+  dev=true activeScreen=screen-game ready=true
+  ok   ingame           1113KB  reset
+  ok   crew-agents       908KB  opened:AGENTS:portrait-ready
+  ok   crew-recruit      842KB  opened:RECRUIT
+  ok   crew-commander    972KB  opened:COMMANDER
+  ok   work-tasks        890KB  opened:TASKS
+  ok   work-deliverables  925KB  opened:DELIVERABLES
+  ok   work-recipes      789KB  opened:RECIPES
+  ok   work-automation   929KB  opened:AUTOMATION
+  ok   work-quests       955KB  opened:QUESTS:refresh-fixture-settled
+  ok   build-station    1553KB  opened:REFIT STATION
+  ok   build-connectors  945KB  opened:ABILITIES
+  ok   sys-messaging     911KB  opened:CHANNELS
+  ok   build-manual      904KB  opened:FIELD MANUAL
+  ok   sys-settings      979KB  opened:SETTINGS:provider-health-settled
+  ok   sys-updates       877KB  opened:UPDATES
+  ok   sys-notifs        949KB  opened:NOTIFS
+
+DONE (all states ok) → C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden-repeat
+
+  ok      ingame           diff=0.11 (thr 1.5)
+  ok      crew-agents      diff=0.06 (thr 1.5)
+  ok      crew-recruit     diff=0.02 (thr 1.5)
+  ok      crew-commander   diff=0.06 (thr 1.5)
+  ok      work-tasks       diff=0.06 (thr 1.5)
+  ok      work-deliverables diff=0.06 (thr 1.5)
+  ok      work-recipes     diff=0.02 (thr 1.5)
+  ok      work-automation  diff=0.06 (thr 1.5)
+  ok      work-quests      diff=0.06 (thr 1.5)
+  ok      build-station    diff=0.00 (thr 1.5)
+  ok      build-connectors diff=0.05 (thr 1.5)
+  ok      sys-messaging    diff=0.05 (thr 1.5)
+  ok      build-manual     diff=0.04 (thr 1.5)
+  ok      sys-settings     diff=0.05 (thr 1.5)
+  ok      sys-updates      diff=0.05 (thr 1.5)
+  ok      sys-notifs       diff=0.05 (thr 1.5)
+
+GOLDEN PASS — no visual regressions (every frame within the animation-noise threshold)

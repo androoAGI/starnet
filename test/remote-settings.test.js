@@ -31,3 +31,25 @@ test('account refresh reserves the previous content height until Settings closes
   retain(host);
   assert.equal(host.style.minHeight, '320px', 'longer results can expand normally');
 });
+
+test('connector storage failure preserves scroll and never renders an empty connected-service list', async () => {
+  const connectors = fs.readFileSync(require('node:path').join(__dirname, '../frontend/app/windows/connectors.js'), 'utf8');
+  const refreshSource = fnBody(connectors.slice(connectors.indexOf('let lastList = [];')), 'async function refresh(');
+  const pane = { scrollTop: 1200 };
+  const overview = { textContent: '' }, notices = { innerHTML: '' };
+  let markup = '', wired = 0;
+  const listEl = { set innerHTML(value) { markup = value; pane.scrollTop = 0; } };
+  const refresh = Function('Harness', 'body', 'listEl', 'preserveScroll', 'esc', 'wireRemoveButtons', 'renderHandoffs',
+    'let lastList = []; ' + refreshSource + ';return refresh;')(
+    { api: { get: async () => ({ connectors: [], credentialStorage: { error: 'Locked <store>' } }) } },
+    { querySelector: selector => selector === '#mc-overview' ? overview : notices }, listEl,
+    fn => { const scroll = pane.scrollTop; fn(); pane.scrollTop = scroll; },
+    text => text.replaceAll('<', '&lt;').replaceAll('>', '&gt;'), () => wired++, () => {});
+  await refresh();
+  assert.equal(overview.textContent, 'Saved services unavailable');
+  assert.match(notices.innerHTML, /Locked &lt;store&gt;/);
+  assert.match(markup, /have not been erased/);
+  assert.doesNotMatch(markup, /NO CONNECTORS YET/);
+  assert.equal(pane.scrollTop, 1200);
+  assert.equal(wired, 0);
+});

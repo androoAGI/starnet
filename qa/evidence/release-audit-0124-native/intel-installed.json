@@ -1,0 +1,25 @@
+{
+  "schema": "starnet.intel-macos-installed-acceptance.v1",
+  "generatedAt": "2026-09-20T07:58:21.225994+00:00",
+  "machine": {
+    "architecture": "x86_64",
+    "runner": "macos-15-intel"
+  },
+  "artifact": {
+    "path": "StarNet_0.12.4_x64.dmg",
+    "sha256": "2b59ce4ee8f29bbd9aa7b46b89ccb9b5a8e1ce76eb36ca9079c29bc8c0a80d57",
+    "notarizedRequired": true
+  },
+  "install": {
+    "path": "/Applications/StarNet.app",
+    "finderLaunch": true,
+    "sidecarListening": true,
+    "portObserved": true
+  },
+  "upgrade": {
+    "from": "0.9.0",
+    "to": "0.12.4",
+    "sourcePreservedSha256": "203c6bf9b8f9893b0761dacacb3a143a476b6bd370d13fa261e6e0155ed56cc7",
+    "restartSurvived": true
+  }
+}

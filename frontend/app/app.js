@@ -1458,8 +1458,23 @@ const App = (() => {
     return { agentId: a.id, desk: deskWhere };
   }
 
+  let unsubscribeStationSave = null;
+  let stationSaveQueued = false;
+  function watchStationSave() {
+    if (unsubscribeStationSave) unsubscribeStationSave();
+    const watched = station;
+    unsubscribeStationSave = watched.onChange(() => {
+      if (stationSaveQueued) return;
+      stationSaveQueued = true;
+      // Coalesce the synchronous mutations of one gesture (e.g. place + assign a desk),
+      // but save before the next browser event. Do not wait for SAVE & EXIT or a chat turn.
+      queueMicrotask(() => { stationSaveQueued = false; persist(); });
+    });
+  }
+
+  let saveFailureNotified = false;
   function persist() {
-    if (!agent) return;
+    if (!agent) return false;
     // the save ROOT is ALWAYS the hero ('agent'), never the transiently-FOCUSED crew member — otherwise a
     // persist while a summoned agent is focused would overwrite the hero identity and corrupt resume.
     const hero = agents.get('agent') || agent;
@@ -1473,7 +1488,14 @@ const App = (() => {
     const doc = Save.write(Object.assign({ _saveDirty: true, _saveRevision: typeof CloudSave !== 'undefined' && CloudSave.revision ? CloudSave.revision() : 0, agent: hero, agents: roster.length > 1 ? roster.map(serializeAgentLite) : undefined, usage: Harness.totals(), prov, reasoningEffort, station: station ? station.serialize() : undefined, stationStats, profile, worksignal, dossier }, Workstreams.serialize()));
     if (doc && typeof CloudSave !== 'undefined') CloudSave.push(doc);   // durable write-through to the sidecar (debounced, best-effort)
     if (rosterPushFailed) pushRoster();   // a prior roster POST failed — retry it opportunistically on this persist
+    if (!doc) {
+      if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify('Could not save station changes. Keep this window open and free storage before trying again.', 'warn');
+      saveFailureNotified = true;
+      return false;
+    }
+    saveFailureNotified = false;
     if (typeof StationUI !== 'undefined') StationUI.flashSave();
+    return true;
   }
 
   /* ---------- connect screen ---------- */
@@ -2979,6 +3001,7 @@ const App = (() => {
     const hadStationId = !!(pendingStationDoc && pendingStationDoc.meta && pendingStationDoc.meta.createdAt);
     station = (pendingStationDoc && pendingStationDoc.rooms) ? WorldModel.deserialize(pendingStationDoc) : WorldModel.create(WorldModel.starterDoc());
     pendingStationDoc = null;
+    watchStationSave();
     // THE OVERSEER'S DESK IS A REAL PROP: materialize the starter workstation the world used to merely
     // DRAW (synthetic auto-desk) as a real hero-assigned desk in the doc, BEFORE the world derives its
     // floor — so bayObjects/REFIT/dossier see the same PC the player sees (kills the fresh-install
@@ -3277,8 +3300,12 @@ const App = (() => {
       getExistingJobs: () => (typeof QuerySpine !== 'undefined' && QuerySpine.refresh ? QuerySpine.refresh('cron') : Promise.reject(new Error('cron query unavailable')))
         .then(q => (((q && q.hasData && q.data) || {}).jobs || []).map(x => x && x.name).filter(Boolean)).catch(() => []),
       // W6: surface the server's `duplicate` flag so the store retires a proposal the mint gate refused (rather than
-      // treating it as a plain success and re-offering). A non-JSON body degrades to { ok } exactly as before.
-      scheduleJob: (body) => fetch('/api/cron', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json().then(j => ({ ok: r.ok, duplicate: !!(j && j.duplicate) })).catch(() => ({ ok: r.ok }))).then(out => {
+      // treating it as a plain success and re-offering). Only an explicit persisted-job receipt confirms it.
+      scheduleJob: (body) => Harness.api.post('/api/cron', body).then(r => {
+        const j = r.j;
+        const ok = !!(r.ok && j && j.ok === true && !j.error && j.job && j.job.id);
+        return { ok, duplicate: ok && j.duplicate === true };
+      }).then(out => {
         if (out.ok && typeof QuerySpine !== 'undefined' && QuerySpine.invalidate) QuerySpine.invalidate('cron');
         return out;
       }).catch(() => ({ ok: false })),
@@ -3300,10 +3327,10 @@ const App = (() => {
         try { if (typeof TrustStore !== 'undefined' && TrustStore.onManualInitiative && typeof AutonomyStore !== 'undefined' && AutonomyStore.get) TrustStore.onManualInitiative((AutonomyStore.get() || {}).initiative); } catch (_) {}
       },
       api: {
-        load: () => fetch('/api/permissions', { cache: 'no-store' }).then(r => r.ok ? r.json() : { ok: false, reason: 'permissions service unavailable' }).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        grant: (key) => fetch('/api/permissions/grant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission grant failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        revoke: (key) => fetch('/api/permissions/revoke', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'permission revoke failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' })),
-        bypass: (on) => fetch('/api/permissions/bypass', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on === true }) }).then(r => r.json().catch(() => ({})).then(j => r.ok ? j : Object.assign({}, j, { ok: false, reason: j.reason || 'bypass switch failed' }))).catch(() => ({ ok: false, reason: 'permissions service unavailable' }))
+        load: () => Harness.api.get('/api/permissions'),
+        grant: key => Harness.api.post('/api/permissions/grant', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission grant failed' }),
+        revoke: key => Harness.api.post('/api/permissions/revoke', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission revoke failed' }),
+        bypass: on => Harness.api.post('/api/permissions/bypass', { on: on === true }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'bypass switch failed' })
       }
     });
     // GROWTH Tier 3 — EARNED AUTONOMY (track record → trust): folds the SAME run outcomes xpstore folds into a
@@ -3485,7 +3512,7 @@ const App = (() => {
     { const tp = el('ws-tab-projects'); if (tp) tp.onclick = () => setRailView('projects'); }
     // the projects head action is contextual (see updateProjHeadAction): overview = bless a folder,
     // entered project = start a session anchored to it.
-    { const ap = el('ws-addproject'); if (ap) ap.onclick = () => { if (projScope) newSessionInProject(projScope); else beginAddProject(); }; }
+    { const ap = el('ws-addproject'); if (ap) ap.onclick = () => { beginAddProject(); }; }
     if (opts.awaitingPurpose && typeof Onboarding !== 'undefined') {
       // THE AWAKENING — a guided first meeting that authors identity/purpose/context/operating-manual.md
       // while the room rises from dark to first light. Replaces the old single "what is my purpose?" beat.
@@ -3822,6 +3849,7 @@ const App = (() => {
   // switching mid-run is fine now: each workstream keeps its own run-state in Channels (channels.js) and
   // Chat.load re-renders the in-flight stream on switch — the run you left keeps streaming in the background.
   function switchWorkstream(id) {
+    if (typeof ProjectHome !== 'undefined') ProjectHome.onSession(id);
     if (id === Workstreams.activeId()) return;
     const ws = Workstreams.switch(id); if (!ws) return;
     SFX.click();
@@ -4133,7 +4161,7 @@ const App = (() => {
   // a session in it (+ NEW) — one slot, two labelled truths, same as the reference harness's scoped "+".
   function updateProjHeadAction() {
     const b = el('ws-addproject'); if (!b) return;
-    if (projScope) {
+    if (projScope && typeof ProjectHome === 'undefined') {
       b.textContent = '+ NEW';
       b.disabled = !projScopeBlessed;
       b.title = projScopeBlessed ? 'start a new session in this project' : 're-add this project before starting new work';
@@ -4162,10 +4190,10 @@ const App = (() => {
       if (tp) { tp.classList.toggle('on', view === 'projects'); tp.setAttribute('aria-selected', view === 'projects'); } }
     closeProjectMenu();
     if (view === 'projects') { updateProjHeadAction(); renderProjects(); }
-    else { updateArchivedToggle(); }   // sessions view: ARCHIVED button re-asserts its own "≥1 archived" gate
+    else { if (typeof ProjectHome !== 'undefined') ProjectHome.close(); updateArchivedToggle(); }   // sessions view: ARCHIVED button re-asserts its own "≥1 archived" gate
   }
-  function enterProject(root, blessed) { setProjScope(root, blessed); SFX.click(); renderProjects(); }
-  function exitProjectScope() { setProjScope(null, false); SFX.click(); renderProjects(); }
+  function enterProject(root, blessed) { setProjScope(root, blessed); SFX.click(); renderProjects(); if (typeof ProjectHome !== 'undefined') ProjectHome.open(root); }
+  function exitProjectScope() { if (typeof ProjectHome !== 'undefined') ProjectHome.close(); setProjScope(null, false); SFX.click(); renderProjects(); }
   // the live dot class + git badge for one project row (pure read of the shaped row)
   function projDot(r) { return 'ws-dot ' + (!r.blessed ? 'proj-plain' : (r.isGitRepo ? 'proj-git' : 'proj-plain')); }
   function renderProjectRows(ul, rows) {
@@ -4176,7 +4204,7 @@ const App = (() => {
       if (!row) { setProjScope(null); return renderProjectsOverview(ul, rows); }
       projScopeBlessed = row.blessed === true;
       updateProjHeadAction();
-      return renderProjectEntered(ul, row);
+      return typeof ProjectHome !== 'undefined' ? renderProjectsOverview(ul, rows) : renderProjectEntered(ul, row);
     }
     renderProjectsOverview(ul, rows);
   }
@@ -4185,7 +4213,13 @@ const App = (() => {
       ul.innerHTML = '<li class="proj-empty" role="status">Could not load projects. Reload to reconnect.</li>';
       return;
     }
-    renderProjectRows(ul, lastConfirmedProjects);
+    try { renderProjectRows(ul, lastConfirmedProjects); }
+    catch (e) {
+      // A renderer failure must not throw again from the promise rejection handler.
+      console.error('[projects] could not render saved list', e);
+      ul.innerHTML = '<li class="proj-empty" role="status">Could not display projects. Reload to retry. Your saved data has not been changed.</li>';
+      return;
+    }
     const warning = document.createElement('li');
     warning.className = 'proj-empty';
     warning.setAttribute('role', 'status');
@@ -4201,8 +4235,8 @@ const App = (() => {
         if (railView !== 'projects') return;   // toggled away while the fetch was in flight
         if (!j || !Array.isArray(j.projects)) throw new Error('invalid projects response');
         const rows = (typeof Projects !== 'undefined') ? Projects.toRows(j.projects, Date.now()) : [];
-        lastConfirmedProjects = rows;
         renderProjectRows(ul, rows);
+        lastConfirmedProjects = rows;
       })
       .catch(() => { if (railView === 'projects') renderProjectsUnavailable(ul); });
   }
@@ -4221,9 +4255,9 @@ const App = (() => {
     const activeId = Workstreams.activeId();
     ul.innerHTML = rows.map(r => {
       const tip = (r.blessed ? '' : 'REVOKED (trust withdrawn) — ') + 'click to open this project · right-click for actions';
-      const sess = projSessionsOf(r.root);
+      const sess = typeof ProjectHome !== 'undefined' ? [] : projSessionsOf(r.root);
       const extra = Math.max(0, sess.length - 3);
-      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + (st.status ? ', ' + st.status : '') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
+      return '<li class="ws-row proj-row' + (r.blessed ? '' : ' proj-revoked') + (projScope === r.root ? ' project-selected' : '') + '" data-root="' + U.esc(r.root) + '" tabindex="0" role="button" aria-label="' + U.esc(r.name + ' project' + (r.blessed ? '' : ', access revoked') + '; Enter to open; Shift+F10 for actions') + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + projDot(r) + '"></span>' +
         '<span class="proj-main">' +
           '<span class="proj-line">' +
@@ -4262,6 +4296,7 @@ const App = (() => {
     });
     ul.querySelectorAll('.proj-row').forEach(li => {
       const row = rows.find(x => x.root === li.dataset.root);
+      if (typeof ProjectHome !== 'undefined' && projScope === row.root) li.setAttribute('aria-current', 'page');
       li.onclick = () => enterProject(row.root, row.blessed);
       li.onkeydown = (e) => {
         if (e.target !== li) return;
@@ -4335,6 +4370,7 @@ const App = (() => {
   // + NEW inside an entered project: a fresh untitled session ANCHORED to the project (projectRoot rides every
   // run as the working folder; the title auto-mints from the first message, same as the sessions rail's + NEW).
   function newSessionInProject(root) {
+    if (typeof ProjectHome !== 'undefined') { enterProject(root, projScopeBlessed); return; }
     if (!root || !projScopeBlessed) return;
     const ws = Workstreams.startSession({ activate: false, projectRoot: root });
     if (!ws) return;
@@ -4368,7 +4404,7 @@ const App = (() => {
     let html = '';
     if (r.blessed) {
       if (!projScope || !(Projects.sameRoot && Projects.sameRoot(r.root, projScope))) html += item('open', 'Open project', '▸');
-      html += item('newsess', 'New session here', '+');
+      html += item('newsess', typeof ProjectHome !== 'undefined' ? 'Open project COMMS' : 'New session here', '▸');
     }
     html += (r.blessed ? '<div class="ws-menu-sep"></div>' : '') + item('remove', r.blessed ? 'Remove (revoke trust)' : 'Forget (already revoked)', '✕', 'danger');
     menu.innerHTML = html;
@@ -4695,11 +4731,17 @@ const App = (() => {
     try { if (World && World.stop) World.stop(); } catch (_) {}
     const sub = el('unreachable-sub');
     if (sub) sub.textContent = reason === 'forbidden' ? 'station service refused this window (stale session) — a relaunch usually clears it' : 'station service not answering';
+    if (sub && reason === 'unreadable') sub.textContent = 'saved station temporarily unreadable — retry without resetting';
+    if (sub && reason === 'cache') sub.textContent = 'saved station could not be restored into this window — retry without resetting';
     // Screenshot-readable diagnosis for a stranded beginner: support can distinguish an alive sidecar refusing
     // stale window auth from a fetch that died after the page loaded without asking for Terminal logs.
     const diagnosis = reason === 'forbidden'
       ? { code: 'SAVE-403 · STALE WINDOW SESSION', text: 'the station service is running, but it refused this app window' }
-      : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
+      : reason === 'unreadable'
+        ? { code: 'SAVE-READ · STATION FILE UNAVAILABLE', text: 'the station service is running, but could not read the saved station; your existing files are preserved' }
+        : reason === 'cache'
+          ? { code: 'SAVE-CACHE · LOCAL RESTORE FAILED', text: 'the saved station was received, but this window could not store or read it; the durable station is preserved' }
+          : { code: 'SAVE-NET · SAVE REQUEST LOST', text: 'the app loaded, but its saved-station request did not return' };
     const code = el('unreachable-code');
     if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + diagnosis.text + '. Send a screenshot of this code to support.';
     const reportBtn = el('btn-unreachable-report'), reportHost = el('unreachable-report');
@@ -4742,8 +4784,10 @@ const App = (() => {
     const core = tauriCore();
     const BROWSER_HINT = 'the station service isn\'t answering. if you launched with `npm start`, check that terminal; otherwise open the desktop app.';
     if (!core) {
-      if (sub && reason !== 'forbidden') sub.textContent = 'station service not answering (browser mode)';
-      setStatus(BROWSER_HINT);
+      if (sub && reason !== 'forbidden' && reason !== 'unreadable' && reason !== 'cache') sub.textContent = 'station service not answering (browser mode)';
+      if (reason === 'cache') setStatus('Your durable save is untouched. Retry after browser storage becomes available.');
+      else if (reason === 'unreadable') setStatus('Your save is untouched. Retry when the station file becomes readable.');
+      else setStatus(BROWSER_HINT);
     }
     probeDegraded().then(r => { if (r) setStatus(r); });   // a live-but-degraded sidecar names its reason before the first poll
     const attempt = async () => {
@@ -4763,7 +4807,8 @@ const App = (() => {
         return;
       }
       const degraded = await probeDegraded();
-      setStatus((degraded ? degraded + ' — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core ? '' : ' ' + BROWSER_HINT));
+      const unreadable = r.reason === 'unreadable', cacheFailed = r.reason === 'cache';
+      setStatus((degraded ? degraded + ' — ' : unreadable ? 'saved station still unreadable — ' : cacheFailed ? 'local restore still unavailable — ' : 'still unreachable — ') + 'retrying every 5s (attempt ' + attempts + '). Your save is untouched.' + (core || unreadable || cacheFailed ? '' : ' ' + BROWSER_HINT));
       checking = false;
     };
     const btn = el('btn-unreachable-retry');

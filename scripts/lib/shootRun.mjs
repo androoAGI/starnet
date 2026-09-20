@@ -64,11 +64,24 @@ export async function runShoot({ port, cdpPort, outDir, win = '1440,900', only =
       // Golden/shoot frames are layout evidence, not samples of the idle-wander simulation. Freeze
       // the already-painted world once the floor is ready so translucent panels do not inherit a
       // different agent position from scheduler speed. Panel code can still repaint explicitly.
-      try { await evalJS(cdp, `(() => {
-        if (document.body) document.body.classList.add('no-flicker');
-        if (typeof World !== 'undefined' && World.stop) { World.stop(); return 'world-frozen'; }
-        return 'world-unavailable';
-      })()`); } catch {}
+      const frozen = await evalJS(cdp, `(async () => {
+        // Reaching the floor precedes the SSE recovery handshake. Freezing that first
+        // paint preserves OFFLINE telemetry even after the DOM uplink becomes healthy.
+        const deadline = performance.now() + 15000;
+        while (performance.now() < deadline) {
+          const link = typeof World !== 'undefined' && World.linkState ? World.linkState() : null;
+          if (link && link.bridged && !link.down && !link.paused) {
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (document.body) document.body.classList.add('no-flicker');
+            World.stop();
+            return 'world-frozen:live';
+          }
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return 'world-link-timeout';
+      })()`);
+      manifest.frozen = frozen;
+      if (frozen !== 'world-frozen:live') throw new Error('capture requires a live station before freezing: ' + frozen);
       // 4. Capture every state.
       const states = buildStates();
       for (const st of states) {

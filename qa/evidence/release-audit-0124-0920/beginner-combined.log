@@ -1,0 +1,17 @@
+
+> starnet-harness@0.12.4 qa:beginner
+> node scripts/qa/beginner-run.mjs
+
+[qa:beginner] mode=ui-only port=8950 run=.bugloops\beginner-2026-09-20T06-13-26
+[qa:beginner] temp workspace: C:\Users\andro\AppData\Local\Temp\starnet-beginner-ws-dSK6Vl\workspaces (empty → fresh connect screen; cleaned up after run)
+[qa:beginner] booting a FRESH (no dev-seed) sidecar on :8950 …
+[qa:beginner] boot ok — page up
+[qa:beginner] first-boot splash advanced with a real Enter keypress
+[qa:beginner] title ok — CREATE YOUR OVERSEER reached
+[qa:beginner] connect ok — OpenRouter selected and name/key/model entered
+[qa:beginner] create-agent ok — WAKE accepted, left the connect screen
+[qa:beginner] awakening ok — on the floor, ceremony live
+[qa:beginner] advanced 0 explicit dialogue read gate(s)
+[qa:beginner] first-directive ok — REACHED THE UI-ONLY LLM BOUNDARY (the awakening is client-scripted; the first real /api/run is the tutorial first-command, which needs a live model). Treating boundary as PASS.
+[qa:beginner] RUN PASS — total 51122ms across 6 steps
+[qa:beginner] STATUS.md Beginner Run row → PASS

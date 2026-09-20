@@ -6,8 +6,11 @@ enters a client ID, client secret, or API key. The default browser handles conse
 the desktop sidecar receives the loopback callback using state and PKCE S256.
 
 StarNet implements MCP tools locally over the stable Gmail, Drive, Calendar, Docs,
-and Sheets APIs. Account tokens stay in the existing protected connector store on
-the user's computer. Refresh and reconnect use the existing single-flight OAuth
+and Sheets APIs. In the desktop review candidate, the connector envelope and its
+recovery copy are encrypted with AES-256-GCM; the native shell obtains the key from
+the OS keychain. Bare-sidecar development without a key remains plaintext. This
+does not encrypt retained conversations, memories or exports, and does not establish
+Google policy approval. Refresh and reconnect use the existing single-flight OAuth
 lifecycle. Agent permission checks still apply to tools, including sending drafts.
 
 ## Publisher activation (once for StarNet)
@@ -52,6 +55,12 @@ grant access to Drive or another Google account. Each card can therefore use a
 different Google account. Simultaneous accounts within one service remain outside
 this change's scope.
 
+Docs and Sheets accept resource IDs and request their own product scope plus
+`drive.file` for the minimal account probe. They do not request `drive.readonly`:
+searching or exporting arbitrary existing Drive files belongs to the separately
+authorized Drive connector. Existing grants are not revoked by a scope reduction;
+users can revoke prior access in Google and reconnect for a fresh reduced grant.
+
 Gmail supports search, message/thread/attachment reading, draft creation and draft
 sending. Calendar is read-only. Drive supports metadata, file search, text exports
 and file metadata creation/update; `drive.file` limits which files StarNet can
@@ -67,3 +76,6 @@ Automated mocked-provider tests establish protocol and persistence behavior; the
 cannot establish Google approval or access by arbitrary public accounts. Until
 the publisher registration and real signed-installer acceptance are recorded,
 public Google sign-in remains unverified.
+
+Current preparation and outstanding release conditions are recorded in
+[GOOGLE_VERIFICATION_PACKET.md](GOOGLE_VERIFICATION_PACKET.md).

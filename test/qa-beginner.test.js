@@ -41,6 +41,8 @@ const clock = { now: () => clk };
 // ---- A5. production-mode lineage scanning is isolated from the operator's real OS profile ----
 {
   const env = isolatedOsDataEnv('C:\\qa-profile', require('node:path').win32);
+  A.eq(env.HOME, 'C:\\qa-profile\\Home', 'POSIX recovery candidates cannot escape the QA profile');
+  A.eq(env.USERPROFILE, 'C:\\qa-profile\\Home', 'Windows homedir recovery candidates stay isolated too');
   A.eq(env.LOCALAPPDATA, 'C:\\qa-profile\\Local', 'local app data points inside the QA profile');
   A.eq(env.APPDATA, 'C:\\qa-profile\\Roaming', 'roaming app data points inside the QA profile');
   A.eq(env.XDG_DATA_HOME, 'C:\\qa-profile\\Xdg', 'the cross-platform data root is isolated too');

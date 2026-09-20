@@ -1,0 +1,96 @@
+{
+  "schema": "starnet.longhaul-audit",
+  "version": 1,
+  "deterministicEpoch": 1710000000000,
+  "tempRoot": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.qa_tmp\\release-0124\\longhaul-workspace",
+  "kept": false,
+  "budgetsAt3000": {
+    "startupMs": 2500,
+    "rssBytes": 136314880,
+    "shutdownMs": 250,
+    "shellMs": 100,
+    "runsMs": 100,
+    "deliverablesMs": 150,
+    "recoveryMs": 150,
+    "recoveryResponseBytes": 131072,
+    "uiSearchMs": 50,
+    "uiSerializeMs": 75,
+    "transcriptSearchMs": 100,
+    "deliverableRecordMs": 100,
+    "backupBytes": 6815744,
+    "diskBytes": 31457280,
+    "corruptionRecoveryMs": 250,
+    "saveWriteFailures": 0
+  },
+  "results": [
+    {
+      "scale": 3000,
+      "counts": {
+        "conversations": 3000,
+        "transcriptTurns": 9000,
+        "runs": 3000,
+        "toolCalls": 3000,
+        "delegatedWorkers": 750,
+        "deliverablesInput": 3000,
+        "memories": 750,
+        "routines": 150,
+        "runJournals": 1500,
+        "failedOrInterruptedRuns": 690,
+        "checkpoints": 600
+      },
+      "generationMs": 58771.37,
+      "diskBytes": 20982252,
+      "diskFiles": 1566,
+      "saveBytes": 5330371,
+      "backupBytes": 5584624,
+      "ui": {
+        "initMs": 2.12,
+        "listMs": 0.16,
+        "searchMs": 2.38,
+        "serializeMs": 17.54
+      },
+      "transcriptSearchMs": 14.53,
+      "transcriptHits": 10,
+      "deliverables": {
+        "normalizedBeforeWrite": 3000,
+        "retainedAfterOneWrite": 3001,
+        "recordMs": 20.05
+      },
+      "corruptionRecoveryMs": 41.46,
+      "corruptionRecoveredAllConversations": true,
+      "sidecar": {
+        "startupMs": 5802.96,
+        "rssBytes": 112300032,
+        "shutdownMs": 20.64,
+        "shellMs": 15.58,
+        "runsMs": 8.73,
+        "deliverablesMs": 32.5,
+        "recoveryMs": 162.59,
+        "recoveryResponseBytes": 101190,
+        "saveWrite": {
+          "ms": 242.99,
+          "status": 200,
+          "ok": true,
+          "response": {
+            "ok": true,
+            "updatedAt": 1710180000001,
+            "revision": 1
+          }
+        },
+        "warnings": []
+      }
+    }
+  ],
+  "violations": [
+    {
+      "metric": "startupMs",
+      "actual": 5802.96,
+      "budget": 2500
+    },
+    {
+      "metric": "recoveryMs",
+      "actual": 162.59,
+      "budget": 150
+    }
+  ]
+}

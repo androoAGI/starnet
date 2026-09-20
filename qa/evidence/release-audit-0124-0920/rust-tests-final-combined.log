@@ -1,0 +1,64 @@
+   Compiling skynet-desktop v0.12.4 (C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri)
+    Finished `release` profile [optimized] target(s) in 2m 45s
+     Running unittests src\main.rs (src-tauri\target\release\deps\skynet_desktop-6a603a6d9fd9460e.exe)
+
+running 56 tests
+test credentials::tests::connector_keychain_roundtrip ... ignored, Requires an unlocked native OS credential store; creates the persistent StarNet connector key if absent
+test credentials::tests::channel_namespace_is_closed_and_env_mapping_is_stable ... ok
+test credentials::tests::connector_key_requires_exact_256_bit_encoding ... ok
+test credentials::tests::keychain_accounts_preserve_legacy_openrouter_slot ... ok
+test credentials::tests::provider_aliases_normalize_to_runtime_ids ... ok
+test credentials::tests::rollback_errors_never_hide_incomplete_restoration ... ok
+test guardian_cap_tests::backoff_doubles_from_one_second_and_caps_at_thirty ... ok
+test guardian_cap_tests::cap_is_reached_on_the_sixth_crash_inside_the_window ... ok
+test guardian_cap_tests::guardian_status_serializes_camel_case_for_the_frontend ... ok
+test guardian_cap_tests::intentional_exits_never_count_as_crashes ... ok
+test lifecycle_probe_tests::parses_nodes_chunked_200_snapshot ... ok
+test lifecycle_probe_tests::parses_chunked_snapshot_split_across_chunks ... ok
+test lifecycle_probe_tests::parses_valid_200_not_armed ... ok
+test lifecycle_probe_tests::parses_valid_200_snapshot_with_reasons ... ok
+test lifecycle_probe_tests::rejects_200_without_armed_field ... ok
+test lifecycle_probe_tests::rejects_missing_or_garbage_body ... ok
+test lifecycle_probe_tests::rejects_truncated_chunked_body ... ok
+test lifecycle_probe_tests::tolerates_missing_reasons ... ok
+test sidecar_ack_tests::parses_complete_http_status_after_arbitrary_headers ... ok
+test lifecycle_probe_tests::rejects_non_200_status ... ok
+test sidecar_reap_tests::bundled_absolute_path_is_reapable ... ok
+test sidecar_ack_tests::rejects_partial_or_malformed_acknowledgements ... ok
+test sidecar_reap_tests::desktop_owned_env_replaces_poisoned_brand_aliases ... ok
+test sidecar_reap_tests::dev_path_fallback_is_never_reapable ... ok
+test sidecar_reap_tests::reap_terminates_only_processes_from_the_exact_path ... ignored
+test sidecar_reap_tests::image_path_match_is_case_insensitive_but_exact ... ok
+test webview_cache_purge_tests::no_purge_when_exact_packaged_build_is_unchanged ... ok
+test webview_cache_purge_tests::honors_env_override_for_user_data_dir ... ok
+test webview_cache_purge_tests::purges_on_first_run_when_marker_missing ... ok
+test webview_cache_purge_tests::purges_when_packaged_build_changed ... ok
+test webview_cache_purge_tests::same_version_legacy_marker_forces_migration_purge ... ok
+test webview_cache_purge_tests::tolerates_whitespace_in_marker ... ok
+test window_visibility::tests::close_before_document_finishes_cancels_startup_reveal ... ok
+test window_visibility::tests::closed_tray_stays_hidden_through_reload ... ok
+test window_visibility::tests::initial_document_reveals_once ... ok
+test window_visibility::tests::start_minimized_never_auto_reveals ... ok
+test lifecycle_probe_tests::live_responder_classifies_armed ... ok
+test executable_identity_tests::hashes_exact_file_bytes_and_size ... ok
+test executable_identity_tests::refuses_empty_or_missing_files ... ok
+test webview_cache_purge_tests::purge_is_soft_when_default_dir_absent ... ok
+test artifact_open_tests::refuses_protected_and_executable_artifacts ... ok
+test lifecycle_preferences::tests::save_round_trips_both_choices ... ok
+test lifecycle_preferences::tests::missing_and_invalid_files_fail_to_opted_out_defaults ... ok
+test artifact_open_tests::resolves_only_existing_files_inside_the_owning_agent_workspace ... ok
+test fresh_start::tests::reclaims_a_stale_owner_after_the_recorded_process_is_gone ... ok
+test fresh_start::tests::refuses_to_move_a_station_owned_by_a_different_process ... ok
+test lifecycle_preferences::tests::valid_backup_recovers_a_corrupt_primary ... ok
+test webview_cache_purge_tests::purge_deletes_caches_but_preserves_user_state ... ok
+test workspace_migration_tests::distinct_valid_legacy_stations_wait_for_explicit_selection ... ok
+test workspace_migration_tests::invalid_semantic_state_never_activates ... ok
+test fresh_start::tests::quarantines_station_seals_migration_and_leaves_sibling_credentials_alone ... ok
+test workspace_migration_tests::one_valid_legacy_station_is_selected_without_merging_noise ... ok
+test workspace_migration_tests::verified_generation_preserves_prior_live_tree_as_rollback ... ok
+test workspace_migration_tests::failed_copy_leaves_migration_retryable ... ok
+test lifecycle_probe_tests::silent_listener_classifies_ambiguous_not_not_running ... ok
+test lifecycle_probe_tests::refused_connect_classifies_not_running ... ok
+
+test result: ok. 54 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 2.04s
+

@@ -2,6 +2,15 @@
 'use strict';
 
 const U = {
+  // Short, non-streaming request deadlines on older macOS WebKit. Keep the native
+  // implementation when present; never make API availability a boot requirement.
+  timeoutSignal(ms) {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+    if (!Number.isInteger(ms) || ms < 0 || ms > 2147483647) throw new RangeError('Invalid request timeout');
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), ms);
+    return controller.signal;
+  },
   rnd(a, b) { return a + Math.random() * (b - a); },
   irnd(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },

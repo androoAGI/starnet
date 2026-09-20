@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 3,
+  "stampIso": "2026-09-20T08:17:57.724Z",
+  "expectedHead": "f27e70f76954456b359594bebb0128e16e81e16d",
+  "expectedTree": "3b4594377e8b0fdb49a054e77ccc033e24df2a89",
+  "buildCommit": "f27e70f76954456b359594bebb0128e16e81e16d",
+  "sourceTree": "3b4594377e8b0fdb49a054e77ccc033e24df2a89",
+  "buildDescribe": "f27e70f7",
+  "buildDirty": false,
+  "buildKind": "reproducible-source",
+  "provenanceKind": "reproducible-source",
+  "officialEvidence": null,
+  "appVersion": "0.12.4",
+  "sidecarHarness": "f27e70f7",
+  "mode": "desktop",
+  "origin": "http://tauri.localhost",
+  "artifact": {
+    "path": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+    "sha256": "1dde97eada2339675c2ad696d9afc131cb3fec38a2f72825573a11774d8ef10c",
+    "size": 274118408
+  },
+  "runtimeExecutable": {
+    "sha256": "1dde97eada2339675c2ad696d9afc131cb3fec38a2f72825573a11774d8ef10c",
+    "size": 274118408
+  },
+  "result": "GREEN",
+  "evidence": [
+    {
+      "path": "qa/installed/smoke-2026-09-20T08-17-57-724Z/probe.json",
+      "sha256": "9608ed86c67519f76a01172ecbc6db058716e59cf5afc7a84468b1ad8fea2b75",
+      "size": 2170
+    }
+  ],
+  "notes": "appVersion=0.12.4 mode=desktop build=f27e70f76954 tree=3b4594377e8b kind=reproducible-source checks 9/9 pass"
+}

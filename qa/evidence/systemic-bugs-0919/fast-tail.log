@@ -1,0 +1,116 @@
+fail-open ratchet: OK (156 assertions)
+[failopen] ratchet.selftest.sync (x1): x
+frontend fetch-truth ratchet: OK (12 assertions)
+loop-verdict: OK (37 assertions)
+free-path-ollama: 49 assertions ok
+keycta-recovery: provider switch, empty model, relink, busy and focus transitions passed
+process-fault: OK (71 assertions)
+TAP version 13
+# Subtest: saved tier rows reconcile once with the active provider and survive reopening
+ok 1 - saved tier rows reconcile once with the active provider and survive reopening
+  ---
+  duration_ms: 3.4418
+  type: 'test'
+  ...
+# Subtest: catalog failure preserves saved pins without claiming absence; successful absence is labeled
+ok 2 - catalog failure preserves saved pins without claiming absence; successful absence is labeled
+  ---
+  duration_ms: 1.8678
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8.8187
+crash-ledger: OK (66 assertions)
+workview.test: OK (19 assertions)
+direct-work-launch: direct requests preserve text and avoid template attribution; busy launch creates no work
+first-value: assertions passed
+first-value: setup return, isolation, failed launch, successful launch cleanup passed
+effective-toolsets: OK (367 assertions)
+discovery-documents: extraction, freshness, durable shape, decline, bounds and junction checks passed
+value-loop-replay: assertions passed
+platform-handoff.test: passed (restart, task/agent binding, write scope, contention, cancellation, timeout)
+ease-of-use: grouping, persistence, search and effective access passed
+workflow-takeover: evidence, repetition, scope, outcomes, privacy, defer and duplicate scenarios passed
+workflow-takeover-ui: one beat, review, defer, double-click, pause, stale refusal and reset passed
+[taskbrief] brief_ask rejected: Call brief.update to incorporate the entire latest answer before choosing a follow-up.
+[taskbrief] brief_ask rejected: The Commander delegated the remaining choices. Update your understanding and proceed with reversible assumptions.
+task-conversation: whole-answer extraction, grounded updates, adaptive sample, delegation, stale state and restart passed
+task-conversation-ui: optional shortcuts, full text, failed-send retry, delegation and folded receipt passed
+PASS emergency control: hydrated recovery, explicit action, read-back, partial failure and offline truth
+work-rating-control.test: OK (5 assertions)
+session-focus-safety.test: OK
+session-typing-safety.test: PASS (desktop and website, delivery/attach/return, drafts/focus/uploads, delayed continuation and explicit navigation)
+harness-placement: OK (explicit empty, populated, omitted and legacy workbench requests)
+github-device: polling, slowdown, single-flight, cancellation, stale-config, expiry, denial, refresh error and secret redaction passed
+onboarding-refresh: OK (quick setup, exact answers, posture, deferred profile and cancellation)
+tutorial-platform-guide: OK (routing, replay, collapse and truthful progress)
+openai-outcomes: all 8 terminal scenarios passed across sync, stream and run status; synchronous throw passed
+[failopen] api.request.progress (x1): closed listener
+request-reservations: concurrent replay, canonical order, conflict, principal isolation, restart, orphan and corrupt-store checks passed
+result-contract: six positive/negative schema pairs, whole-JSON parsing, remote/cyclic refs, unsafe pattern and unsupported format checks passed
+result-contract: propertyNames, schema dependencies and additionalItems safety traversal passed
+openai-formats: valid repair, failed repair, exact usage, tool-free repair flag and pre-dispatch format rejection passed
+auth rotation: old waiter denied before result delivery; stale credential denied; new principal executes independently
+world-seat-recovery: OK (82 assertions)
+world-lifecycle: OK (17 assertions)
+world-crew-approval: OK (17 assertions)
+world-movement-continuity: OK (15 assertions)
+save-concurrency: stale edits, durable recovery, replay, old clients and restart PASS
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+[cloudsave] durable mirror has not synced; retrying with backoff. Local cache is intact.
+cloudsave-concurrency: two clients, conflict export, update refusal, offline restart and queued cache acknowledgements PASS
+sprite-direction-details: OK (56 assertions)
+chat-history-reconcile.test: OK (13 assertions)
+prop-industrial-remaster (160 props): OK (1413 assertions)
+industrialtextures: OK (398 public-contract assertions; synthetic canvas assets, live artwork not assessed)
+world-texture-ready: OK (69 assertions)
+qa-claims-blob-batch: OK (25 assertions)
+qa-claims-search-batch: binary scope, Unicode folding, exact locators, immutable caching and read failures PASS
+workstation-screen-state: OK (538 assertions)
+prop-remaster-contract: OK (726 assertions)
+authored prop content: OK (104 assertions)
+authored-prop-motion.test: OK (57 assertions)
+authored-machine-config.test: OK (23 assertions)
+authored service content: OK (186 assertions)
+coordinated-prop-recipes.test: OK (603 assertions; 136 actual PNG views mapped)
+routing-label-layout: overview aggregation, truthful counts, selection details, bounded pan/zoom and collisions PASS
+PASS: 159 placements, supported directions, proper desk2 footprints, preserved anchors, surface support and circulation; invalid layouts rejected.
+PASS: study tone preserves alpha, black outlines, luminance order, hue order and cached frames.
+PASS: opt-in isolation, 37 selected skins, native standing height, authored sitting and walking tracks.
+PASS projection effects: 160 types/184 views, image bindings, source hashes, idle/occupied/work/scan/connection/result/count truth, crop mapping, reduced motion, frame bounds, context restore, bounded preparation.
+PASS: 184 runtime alpha crops match source hashes and every nontransparent pixel.
+{"types":160,"supportedDirections":208,"roomsChecked":76,"mountedCases":38,"savedState":"untouched"}
+PASS: overview filtering, close detail, stable alpha, cache invalidation, silhouette foot contact and open leg gaps.
+station-templates: seven layouts, classic/remastered catalogs, approved home, cozy and creative conveyor routing, clear entrances, prop access, ownership, undo/redo and persistence PASS
+PASS: pack-scoped physical resize, saved centre/contact, freed tiles, undo/redo, reload, custom saves and alpha picking.
+PASS: selection follows visible alpha, translated/mounted art, cached measurement and unavailable-art fallback.
+PASS: legacy multi-room save retains room, placement, routing and agent assignment metadata with an idempotent remaster load.
+arrival: timeline, rendering, skip, cancellation, reduced motion, and interview lighting passed
+arrival: OK (0 assertions)
+genesis-wake-credential: OK (16 assertions)
+dossier-growth-live.test: OK (10 assertions)
+industrial-shells: loader, shells, floors and walls, paint, relief, cache, failure isolation, classic PASS
+refit-bake-reuse: same-save handoff, invalidation, entry/reopen and cold fallback PASS
+hallway-traffic: OK (27 assertions)
+cloudsave timeout: stalled headers/body, abort, late acknowledgement and retry PASS
+station-autosave: edits, undo/redo, presets, coalescing, reentry and storage failure PASS
+[failopen] durable-store.unreadable (x1): injected EACCES
+[failopen] durable-store.unreadable (x2): injected EACCES
+[failopen] durable-store.unreadable (x3): injected EACCES
+[failopen] durable-store.unreadable (x4): injected EACCES
+[failopen] durable-store.unreadable (x5): injected EACCES
+durable-store faults: 122/122 checks passed
+permissions authority: 79/79 checks passed
+JSON API lifecycle: 53/53 checks passed
+routine acknowledgements: malformed, refusal, missing identity, duplicate and verified create PASS
+marketplace authority: 68/68 checks passed
+control acknowledgements: 55/55 checks passed
+run-test-list: OK — 77 step(s) green

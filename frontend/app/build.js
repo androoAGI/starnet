@@ -6,7 +6,7 @@
    and an in-fiction toolbar — PLACE ROOM · HALLWAY · SURFACE · MOVE · DELETE · UNDO.
 
    It reads + mutates the canonical WorldModel station (the single source of truth) and
-   re-bakes via StationBake on every change, then persists through the injected save hook.
+   re-bakes the environment when changed, then persists through the injected save hook.
    See frontend/app/BUILDER.md for the contract. */
 'use strict';
 
@@ -95,6 +95,7 @@ const Build = (() => {
   let cache = null, cacheGeo = null, bakeDirty = true, bakeDirtyRects = null, bakeDirtyRectsGlobal = false, bakeVisibleOnly = false, valPlan = null, valLive = null;   // valPlan = live RoutingPlan (cost-safety ghosts); valLive = energized-belt tile set
   const sceneRenderer = typeof WorldRenderer !== 'undefined' ? WorldRenderer.create() : null;
   let planDirty = true;   // routing-plan cache flag: set by EDITS (station.onChange / open), never by pure pans — see rebake()
+  let projectionDirty = false;
   const flashes = [];   // {rects, t0, bad} place/delete confirmations
   // short human labels for the routing-validation overlay (cost-safety: surfaced before any paid run)
   // every label NAMES THE FIX, in words (mirrors world.js NAG_LABEL — keep the two in sync)
@@ -244,7 +245,8 @@ const Build = (() => {
     document.body.classList.add('refit-on');
     updateSafetyClearance();
     unsub = station.onChange(p => {
-      bakeDirty = true; planDirty = true;   // a real floor edit — the compiled plan is stale
+      projectionDirty = true;
+      planDirty = true;   // every edit refreshes navigation, routing and sprite state
       clearLineFields();   // …and so is every cached "where can this blueprint go" answer
       bumpGeo();           // …and every per-edit derived memo (bounds / belts / bayObjects / mounts / the readout census)
       /* A GLOBAL EDIT CANNOT BE INVALIDATED BY A RECTANGLE. The bake is cached in CHUNKS here, and
@@ -254,15 +256,19 @@ const Build = (() => {
          the same frame cannot re-narrow it. See the note on emit({global}) in worldmodel. */
       // ...and clear the pan-only flag, or a global edit arriving right after a pan would be
       // swallowed by `onlyMissingVisible` (which skips the dirty list entirely).
-      if (p && p.global) { bakeDirtyRectsGlobal = true; bakeVisibleOnly = false; }
-      const rects = p && p.dirtyRects;
-      bakeDirtyRects = bakeDirtyRects && rects ? bakeDirtyRects.concat(rects) : (rects || bakeDirtyRects);
-      if (bakeDirtyRectsGlobal) bakeDirtyRects = null;
+      if (!p || !p.staticBakeUnchanged || p.global) {
+        bakeDirty = true; bakeVisibleOnly = false;
+        if (p && p.global) bakeDirtyRectsGlobal = true;
+        const rects = p && p.dirtyRects;
+        bakeDirtyRects = bakeDirtyRects && rects ? bakeDirtyRects.concat(rects) : (rects || bakeDirtyRects);
+        if (bakeDirtyRectsGlobal) bakeDirtyRects = null;
+      }
       updateUndoRedo();
       renderSelection();
       if (tool === 'prop') renderEquipmentInfo();
     });
     const worldBake = opts.world && opts.world.refitBake && opts.world.refitBake(station);
+    projectionDirty = false;
     cache = worldBake ? worldBake.cache : null;
     cacheGeo = worldBake ? worldBake.geo : null;
     bakeDirty = !worldBake; bakeDirtyRects = null; bakeDirtyRectsGlobal = false; bakeVisibleOnly = false; planDirty = true;
@@ -305,8 +311,8 @@ const Build = (() => {
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
     if (typeof SFX !== 'undefined') SFX.close();
-    if (opts.persist) opts.persist();
-    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Station layout saved', 'good', undefined, { transient: true });
+    const saved = opts.persist ? opts.persist() : false;
+    if (saved && typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Station layout saved locally', 'good', undefined, { transient: true });
     if (opts.world && opts.world.refit) opts.world.refit();     // recenter the live world on the new build
     if (opts.world && opts.world.start) opts.world.start();     // resume the live sim with the new build
     if (opts.onClose) opts.onClose();
@@ -4766,8 +4772,10 @@ const Build = (() => {
 
   /* ---------- render loop ---------- */
   function rebake() {
+    // Prop-only edits still replace geometry: collision, mounts and capability
+    // routing must see the new objects even when the environment pixels survive.
+    if (bakeDirty || !cache || projectionDirty) cacheGeo = station.projectGeometry();
     if (bakeDirty || !cache) {
-      cacheGeo = station.projectGeometry();
       const visibleRect = visibleBakeRect(cacheGeo);
       cache = StationBake.bakeIncremental
         ? StationBake.bakeIncremental(cacheGeo, cache, bakeDirtyRects, { visibleRect, maxRetainedChunks: MAX_REFIT_CHUNKS, onlyMissingVisible: bakeVisibleOnly })
@@ -4804,6 +4812,7 @@ const Build = (() => {
       // ghost projection (Phase 3): same plan, same components, same frame rebase as everything above
       if (ghost) ghost.setContext({ plan: valPlan, comps: valComps, offset: (cacheGeo && cacheGeo.origin) || { tx: 0, ty: 0 } });
     }
+    projectionDirty = false;
     bakeDirty = false; bakeDirtyRects = null; bakeDirtyRectsGlobal = false; bakeVisibleOnly = false;
   }
 

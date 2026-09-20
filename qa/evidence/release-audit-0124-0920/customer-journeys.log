@@ -1,0 +1,435 @@
+
+> starnet-harness@0.12.4 qa:customer-journeys
+> node scripts/timeout.mjs --label qa:customer-journeys --timeout=900000 -- node scripts/run-test-list.mjs test/customer-journeys.list
+
+TAP version 13
+# Subtest: customer journey: connect, select, tool, output, restart and repeat on all primary adapters
+ok 1 - customer journey: connect, select, tool, output, restart and repeat on all primary adapters
+  ---
+  duration_ms: 5620.3583
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7108.7301
+TAP version 13
+# Subtest: sample uses each dock provider and saved model without environment defaults, including restart
+ok 1 - sample uses each dock provider and saved model without environment defaults, including restart
+  ---
+  duration_ms: 2594.5599
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4093.349
+sidecar.http.test: OK (504 assertions)
+provider-recovery.e2e: OK (15 assertions)
+codex-status.e2e.test: OK (13 assertions)
+provider.codex.pairing.test: OK (18 assertions)
+provider.gemini.test: OK (47 assertions)
+provider.openrouter.test: OK (89 assertions)
+provider.openai-compatible.test: OK (104 assertions)
+e2e.dispatch-session.test: OK (31 assertions)
+e2e.worker-access.test: OK (5 assertions)
+  · supersede race did not fire this run; #2 still delivered its real answer (invariant holds)
+channels.telegram.e2e.test: OK (82 assertions)
+cron.run-now.e2e.test: OK (35 assertions)
+cron.session-transcript.e2e.test: OK (10 assertions)
+routing.persist.e2e: OK (44 assertions)
+station-recovery.e2e.test: OK (23 assertions)
+TAP version 13
+# Subtest: unlink wins over an unfinished pairing response and survives restart
+ok 1 - unlink wins over an unfinished pairing response and survives restart
+  ---
+  duration_ms: 1499.1499
+  type: 'test'
+  ...
+# Subtest: unlink wins over an unfinished keychain-recovery response and survives restart
+ok 2 - unlink wins over an unfinished keychain-recovery response and survives restart
+  ---
+  duration_ms: 1484.2795
+  type: 'test'
+  ...
+# Subtest: an old account response cannot return its zero balance after unlink
+ok 3 - an old account response cannot return its zero balance after unlink
+  ---
+  duration_ms: 762.2233
+  type: 'test'
+  ...
+# Subtest: funded link diagnostics survive restart without exposing account or token
+ok 4 - funded link diagnostics survive restart without exposing account or token
+  ---
+  duration_ms: 2271.1964
+  type: 'test'
+  ...
+# Subtest: a late first-link balance check cannot clear a newer funded link
+ok 5 - a late first-link balance check cannot clear a newer funded link
+  ---
+  duration_ms: 1577.7715
+  type: 'test'
+  ...
+# Subtest: managed HTTP 400 keeps local, relay and upstream correlation through restart
+ok 6 - managed HTTP 400 keeps local, relay and upstream correlation through restart
+  ---
+  duration_ms: 2294.922
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11386.1348
+credits-link.test: OK (95 assertions)
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status ?); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+[credits] debit POST failed (status 500); invalidating cached balance -> next managed run fail-closes until refresh reconciles
+credits.test: OK (113 assertions)
+TAP version 13
+# Subtest: saved tier rows reconcile once with the active provider and survive reopening
+ok 1 - saved tier rows reconcile once with the active provider and survive reopening
+  ---
+  duration_ms: 3.3184
+  type: 'test'
+  ...
+# Subtest: catalog failure preserves saved pins without claiming absence; successful absence is labeled
+ok 2 - catalog failure preserves saved pins without claiming absence; successful absence is labeled
+  ---
+  duration_ms: 2.0582
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9.8231
+model-provider-reconcile.test: OK (69 assertions)
+genesis-starnet-link.test.js OK - 47 assertions
+friendlyerror.test: OK (229 assertions)
+errorclass.test: OK (215 assertions)
+connectors-ui: OK (149 assertions)
+mcp.transport.test: OK (100 assertions)
+e2e.mcp-session-expiry: OK (17 assertions)
+connector-oauth-refresh-race.e2e.test: OK (5 assertions)
+TAP version 13
+# Subtest: source fix cannot be closed without the four sibling dimensions and regression evidence
+ok 1 - source fix cannot be closed without the four sibling dimensions and regression evidence
+  ---
+  duration_ms: 4.2064
+  type: 'test'
+  ...
+# Subtest: installer and customer claims require independent evidence and survive later updates
+ok 2 - installer and customer claims require independent evidence and survive later updates
+  ---
+  duration_ms: 0.7035
+  type: 'test'
+  ...
+# Subtest: missing axis, fabricated coverage, and empty exemptions fail closed
+ok 3 - missing axis, fabricated coverage, and empty exemptions fail closed
+  ---
+  duration_ms: 0.4781
+  type: 'test'
+  ...
+# Subtest: legacy records remain valid without inventing historical recovery
+ok 4 - legacy records remain valid without inventing historical recovery
+  ---
+  duration_ms: 0.1156
+  type: 'test'
+  ...
+# Subtest: covered regression must exist in its declared exercised gate
+ok 5 - covered regression must exist in its declared exercised gate
+  ---
+  duration_ms: 15.2485
+  type: 'test'
+  ...
+# Subtest: customer journey campaign cannot drift outside mandatory fast/http gates
+ok 6 - customer journey campaign cannot drift outside mandatory fast/http gates
+  ---
+  duration_ms: 28.0972
+  type: 'test'
+  ...
+# Subtest: related fix prose cannot promote an unresolved customer report in reconciliation
+ok 7 - related fix prose cannot promote an unresolved customer report in reconciliation
+  ---
+  duration_ms: 0.9227
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 56.6845
+PASS emergency recovery: stop/restart/resume, four partial failures, permission preservation, real cron tick
+growth-rating-upgrade.e2e: OK (57 assertions)
+TAP version 13
+Managed image proof: credits-only PNG saved and served; restart passed; exact image debit $0.025; 402/503/no-image never done. Cloud=false
+# Subtest: managed images: saved credits route generates, bills, survives restart and fails honestly
+ok 1 - managed images: saved credits route generates, bills, survives restart and fails honestly
+  ---
+  duration_ms: 3771.8326
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5254.9534
+session-focus-safety.test: OK
+session-typing-safety.test: PASS (desktop and website, delivery/attach/return, drafts/focus/uploads, delayed continuation and explicit navigation)
+session-continuity (48 lifecycle sequences, both shipped trees): OK (48 assertions)
+{
+  "id": "ws_mu9cc0ppfxyk",
+  "neighbor": "ws_mu9cc0pq8p68",
+  "delayedVisible": true,
+  "beforeHistoryReady": 0,
+  "modelContext": true,
+  "promptLast": true,
+  "draftProtected": true,
+  "focusProtected": true,
+  "unavailableProtected": true,
+  "retryOnce": true,
+  "partialProtected": true,
+  "failedSave": false,
+  "localRetained": true,
+  "saved": true,
+  "diagnostics": [
+    {
+      "at": 1789879990003,
+      "session": 1,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879990004,
+      "session": 1,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879991968,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879992004,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879992094,
+      "session": 1,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879993278,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879993319,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879993320,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879993320,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879993328,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879993533,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879993534,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789879993696,
+      "session": 3,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879993962,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879993972,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879993974,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879993975,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879994011,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879994011,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789879994015,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789879994030,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879994033,
+      "session": 2,
+      "event": "history-unavailable"
+    },
+    {
+      "at": 1789879994033,
+      "session": 2,
+      "event": "send-held-history-unavailable"
+    },
+    {
+      "at": 1789879994090,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789879994133,
+      "session": 3,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879994133,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789879994133,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789879994154,
+      "session": 2,
+      "event": "send-history-ready"
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Remember the launch code: ORBIT-17"
+    },
+    {
+      "role": "assistant",
+      "content": "I have the launch code."
+    },
+    {
+      "role": "user",
+      "content": "The destination is Europa."
+    },
+    {
+      "role": "assistant",
+      "content": "Europa is the destination."
+    },
+    {
+      "role": "user",
+      "content": "Change destination to Titan."
+    },
+    {
+      "role": "assistant",
+      "content": "Titan is now the destination."
+    },
+    {
+      "role": "user",
+      "content": "What destination did we choose?"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Stay bound to A while I read B"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Preserve this message through a failed restore"
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns."
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Retain a partial reply"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again."
+    }
+  ],
+  "draft": ""
+}
+session-reliability: PASS (delayed restore, context, durable save, process restart)
+tool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)
+memory-corrections.http.test: PASS (real writes, scoped recall, reviewed updates, restart, stale review, stops, save receipts)
+run-test-list: OK — 38 step(s) green

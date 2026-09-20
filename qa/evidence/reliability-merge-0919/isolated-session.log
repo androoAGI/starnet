@@ -1,0 +1,226 @@
+{
+  "id": "ws_mu8vo2y97wqf",
+  "neighbor": "ws_mu8vo2y9fvds",
+  "delayedVisible": true,
+  "beforeHistoryReady": 0,
+  "modelContext": true,
+  "promptLast": true,
+  "draftProtected": true,
+  "focusProtected": true,
+  "unavailableProtected": true,
+  "retryOnce": true,
+  "partialProtected": true,
+  "failedSave": false,
+  "localRetained": true,
+  "saved": true,
+  "diagnostics": [
+    {
+      "at": 1789852000686,
+      "session": 1,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852000687,
+      "session": 1,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852001266,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852001274,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852001388,
+      "session": 1,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852001620,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852001793,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852001794,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852001794,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852001801,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852001974,
+      "session": 3,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852002014,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852002014,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789852002398,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852002409,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852002413,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852002413,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852002456,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852002456,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789852002461,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789852002474,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852002477,
+      "session": 2,
+      "event": "history-unavailable"
+    },
+    {
+      "at": 1789852002477,
+      "session": 2,
+      "event": "send-held-history-unavailable"
+    },
+    {
+      "at": 1789852002533,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789852002586,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789852002586,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789852002602,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789852002613,
+      "session": 3,
+      "event": "history-loaded"
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Remember the launch code: ORBIT-17"
+    },
+    {
+      "role": "assistant",
+      "content": "I have the launch code."
+    },
+    {
+      "role": "user",
+      "content": "The destination is Europa."
+    },
+    {
+      "role": "assistant",
+      "content": "Europa is the destination."
+    },
+    {
+      "role": "user",
+      "content": "Change destination to Titan."
+    },
+    {
+      "role": "assistant",
+      "content": "Titan is now the destination."
+    },
+    {
+      "role": "user",
+      "content": "What destination did we choose?"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Stay bound to A while I read B"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Preserve this message through a failed restore"
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns."
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Retain a partial reply"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again."
+    }
+  ],
+  "draft": ""
+}
+session-reliability: PASS (delayed restore, context, durable save, process restart)

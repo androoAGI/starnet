@@ -144,6 +144,10 @@ try {
   console.log('stationbake.connections: '+result.checks+' real Canvas assertions passed; '+JSON.stringify(result.changes));
 } catch (error) { failed = true; console.error(error.stack || error); }
 finally {
+  // Let Chrome close its child processes and profile handles before the forced
+  // parent-process fallback; killing only the parent can leave Windows logs open.
+  try { if (cdp) await Promise.race([cdp.send('Browser.close'), sleep(2000)]); }
+  catch { console.warn('stationbake.connections: browser close interrupted; using process cleanup'); }
   try { cdp?.ws.close(); } catch {} await stop(chrome);
   if (profile) {
     const rel = relative(resolve(tmpdir()), resolve(profile));

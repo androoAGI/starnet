@@ -125,6 +125,8 @@ export function isolatedOsDataEnv(root, pathMod = path) {
   const base = String(root || '').trim();
   if (!base) return {};
   return {
+    HOME: pathMod.join(base, 'Home'),
+    USERPROFILE: pathMod.join(base, 'Home'),
     LOCALAPPDATA: pathMod.join(base, 'Local'),
     APPDATA: pathMod.join(base, 'Roaming'),
     XDG_DATA_HOME: pathMod.join(base, 'Xdg'),
@@ -366,7 +368,11 @@ if (INVOKED_DIRECTLY) (async () => {
 
   // temp workspace lives OUTSIDE the repo (OS temp) so it can never be swept into a commit and never
   // touches the real user workspace. Empty → the connect screen shows.
-  const TEMP_WS = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-beginner-ws-'));
+  // Recovery also inspects a workspace's sibling update-snapshots directory.
+  // Own the parent, so unrelated campaigns in the OS temp root are not lineage.
+  const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-beginner-ws-'));
+  const TEMP_WS = path.join(TEMP_ROOT, 'workspaces');
+  fs.mkdirSync(TEMP_WS);
   const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-beginner-profile-'));
   const OS_DATA_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-beginner-osdata-'));
   const OS_DATA_ENV = isolatedOsDataEnv(OS_DATA_ROOT, path);
@@ -422,7 +428,7 @@ if (INVOKED_DIRECTLY) (async () => {
     try { sidecar?.kill('SIGKILL'); } catch {}
     try { uiOnlyProvider?.server.close(); } catch {}
     if (!KEEP) {
-      try { fs.rmSync(TEMP_WS, { recursive: true, force: true }); } catch {}
+      try { fs.rmSync(TEMP_ROOT, { recursive: true, force: true }); } catch {}
       try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch {}
       try { fs.rmSync(OS_DATA_ROOT, { recursive: true, force: true }); } catch {}
     }
@@ -669,6 +675,10 @@ if (INVOKED_DIRECTLY) (async () => {
     await shoot('title');
     if (!onConnect.ok) {
       const screen = await evalJS(cdp, activeScreen).catch(() => '?');
+      if (screen === 'screen-lineage') {
+        const lineage = await evalJS(cdp, `(async () => { const r = await fetch('/api/lineage'); return await r.json(); })()`).catch(() => null);
+        fs.writeFileSync(path.join(RUN_DIR, 'unexpected-lineage.json'), JSON.stringify(lineage, null, 2) + '\n');
+      }
       await fail('title', STEP_DEFS[1].label, 'never reached CREATE YOUR OVERSEER (active screen=' + screen + ', name/key/model/wake controls not all present) — ' + onConnect.reason);
       throw new Error('title-failed');
     }

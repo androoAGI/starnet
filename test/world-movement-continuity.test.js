@@ -26,7 +26,7 @@ for(const name of ['tick','crewEngineStep']) {
  r.step(16,2300);A.ok(b.px>0,name+' resumes the committed route after the hold');
 }
 const seatFn=fn('stepCrewToSeat');
-const seatStep=Function(`const CORNER_LOOK=2.5,seatFoot=s=>({x:30,y:0}),canRoundCorner=()=>true;
+const seatStep=Function(`const CORNER_LOOK=2.5,seatFoot=s=>({x:30,y:0}),canRoundCorner=()=>true,stepTraffic=()=>false;
 const crewNextWaypoint=b=>{b.target=b.pathPts[b.pathIdx++]},stepGait=(b,dx,dy,d,sp,last,dt)=>Math.min(d,sp*dt/1000);
 ${seatFn};return stepCrewToSeat;`)();
 const worker={px:0,py:0,target:{x:1,y:0},pathPts:[{x:1,y:0},{x:30,y:0}],pathIdx:1,pauseUntil:9999};seatStep(worker,{},16,1000);

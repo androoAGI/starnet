@@ -1,0 +1,150 @@
+{
+  "schema": "starnet.reliability-audit.v1",
+  "createdAt": "2026-09-19T18:27:13.822Z",
+  "sourceCandidate": "43a59104e3c2c472cb3405780d56e5ab46ca9e43",
+  "branch": "agent/reliability-audit-0919",
+  "incorporatedTrunk": "7f55d8809",
+  "observedCurrentTrunk": "8e182efaf16ba1dd001296f2c885bae113528e88",
+  "runtime": {
+    "canonicalGates": "v22.23.0",
+    "platform": "win32"
+  },
+  "gates": [
+    {
+      "command": "npm run test:fast",
+      "result": "PASS",
+      "steps": 820,
+      "log": "fast-locked.log",
+      "source": "43a59104e3c2c472cb3405780d56e5ab46ca9e43"
+    },
+    {
+      "command": "npm run test:http",
+      "result": "PASS",
+      "steps": 120,
+      "log": "http-combined.log",
+      "startedAtSource": "9dfedb18f4b7b31f241909b46d41fcfd9af2e5c9",
+      "qualification": "Backend and HTTP manifest unchanged through final candidate."
+    },
+    {
+      "command": "npm run qa:journeys",
+      "result": "PASS",
+      "assertions": 139,
+      "log": "journeys-locked.log",
+      "source": "43a59104e3c2c472cb3405780d56e5ab46ca9e43"
+    }
+  ],
+  "supportingEvidence": [
+    {
+      "kind": "live seeded-browser behavior audit",
+      "assertions": 49,
+      "result": "PASS",
+      "log": "audit.log"
+    },
+    {
+      "kind": "customer-journey campaign with simulated upstreams",
+      "suites": 36,
+      "result": "PASS",
+      "log": "customer-journeys.log"
+    },
+    {
+      "kind": "live panel sweep",
+      "states": 16,
+      "result": "PASS",
+      "log": "panels-live.json"
+    },
+    {
+      "kind": "live save fault injection and recovery",
+      "result": "PASS",
+      "log": "save-final-candidate.log"
+    },
+    {
+      "kind": "five-minute capped scheduler/restart/outage probe",
+      "result": "PASS",
+      "log": "soak-after.json"
+    }
+  ],
+  "readiness": {
+    "result": "NOT READY",
+    "reasons": 5,
+    "log": "readiness-locked.log"
+  },
+  "limitations": [
+    "Supporting campaigns ran during the audit, not all on the final source commit; final fast and HTTP gates cover their constituent source regressions.",
+    "No exact-installer, affected Mac, real paid upstream/account, physical input or multi-hour acceptance claim.",
+    "Final save proof originalPrimaryRetained:false includes legitimate recovered browser autosaves; fault-time file byte preservation is asserted independently by save-unreadable.http.test.js.",
+    "Intermediate mixed-HEAD fast run failed one authority assertion; frozen rerun passed all 64 authority assertions.",
+    "Windows Node 24 native libuv crash remains open; canonical gates use Node 22.23.0.",
+    "Newer trunk must be synchronized and combined gates repeated before integration."
+  ],
+  "files": [
+    {
+      "path": "audit.log",
+      "sha256": "42d82e208375d8ec367cd084e62056f2ec6c815c3d7db5637a1168af74f84fc3"
+    },
+    {
+      "path": "customer-journeys.log",
+      "sha256": "9a6077f3752954c0c5df3c3ce81e31e0bce8fc919ea999c5dda55bfd12cf65a7"
+    },
+    {
+      "path": "fast-locked.log",
+      "sha256": "9018e622e2c669795790816b246ff0009a8496715323711a02afa8ee5b379d4e"
+    },
+    {
+      "path": "http-combined.log",
+      "sha256": "43f155b917ad05435d11ff511edd485ca64f03e5818a67f6ff1de3b6bb510adf"
+    },
+    {
+      "path": "journeys-locked.log",
+      "sha256": "73d1ed06cc7fa958f735e15987921d740188b7b84b11d7af8d8568507773d058"
+    },
+    {
+      "path": "native-runtime.json",
+      "sha256": "99d390e103e976e9cd8fd6333b289e959fcad9276c5285773fe61671cec5bef3"
+    },
+    {
+      "path": "panels-live.json",
+      "sha256": "4f560680aeb59eeb55fa1af8cd8e64a4a95a85385c5a2b1b1cb290ed1d38d28a"
+    },
+    {
+      "path": "readiness-locked.log",
+      "sha256": "d7da393c34ca70d7a731d85c92d29b8b0eb573038eb78917731246a6a0b6ed27"
+    },
+    {
+      "path": "save-adoption-before.log",
+      "sha256": "1f61fb80e25da6bdaa9684d580113658b45d3cc58649ae5d0b993c04b63139d9"
+    },
+    {
+      "path": "save-candidate.log",
+      "sha256": "c0ee0c0a0e0dc494ff151daeb367af294de702fab64af98215af91d74f9a6c38"
+    },
+    {
+      "path": "save-complete-live.log",
+      "sha256": "477d3921cb4f50f1d675087472b223551128ba01e16935b54fcf504001f9e8e8"
+    },
+    {
+      "path": "save-final-candidate.log",
+      "sha256": "75bfba69b57c4b7fedfd6193bd5eb855fd4c6ef1c2e3b8c7d04232c4065ec5c3"
+    },
+    {
+      "path": "save-live-before.log",
+      "sha256": "c655367d8031df5e3ddde047bdc7d59254c5c9402d3cf0c410502e4db6f43623"
+    },
+    {
+      "path": "save-reply-before.log",
+      "sha256": "441107e7ac7a7675aac326a646c67c511178f0daadec9cf6c031b166c5890d67"
+    },
+    {
+      "path": "save-timeout-before.log",
+      "sha256": "3d949d3fb7a8df04b3c0cec11e076293370b41f5eef101e1f2e93187eb4da310"
+    },
+    {
+      "path": "soak-after.json",
+      "sha256": "734ac4d321c3277768005657102d276416a697660665fae104d4c7897aaa61b3"
+    },
+    {
+      "path": "soak-before.json",
+      "sha256": "a0dc23cc87fe6c9e5a2e9196c59cc431289f10382b140cff40c96aba39a1a01b"
+    }
+  ],
+  "logNormalization": "Retained gate logs normalize CRLF to LF and remove trailing horizontal whitespace; original raw output remains under .dogfood/reliability-audit."
+}

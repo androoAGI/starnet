@@ -852,14 +852,9 @@
 <script src="app/projects.js"></script>
 <script src="app/channels.js"></script>
 <script src="app/personas.js"></script>
-<script>
-/* Class Loadouts S1: the SHARED specialty catalog (loadout data) — MUST load before app/specialties.js,
-   which wraps it. In the browser the page is same-origin with the sidecar's /shared/*.js allowlist; in the
-   DESKTOP shell the page is served from the Tauri app origin where /shared/ doesn't exist, so the tag must
-   point at the sidecar explicitly (window.__STARNET_API__, injected by the shell before any page script).
-   document.write during parse keeps the load order guarantee a static tag had. */
-document.write('<script src="' + ((window.__STARNET_API__ || '') + '/shared/specialties.js') + '"><\/script>');
-</script>
+<!-- Desktop staging embeds the authoritative catalog; demo boot must use the same
+     same-origin dependency and parser order as the main station entry point. -->
+<script src="/shared/specialties.js"></script>
 <script src="app/specialties.js"></script>
 <script src="app/recipe-catalog/core.js"></script><!-- Recipe Marketplace R1: the DATA catalog of built-in recipes — MUST load before recipe-catalog/index.js (persona files register here too) -->
 <script src="app/recipe-catalog/dev.js"></script><!-- R4 persona catalogs — pure data, load before the aggregator -->

@@ -5448,9 +5448,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const inputOf = k => body.querySelector('#bg-' + k);
     // .msg is red by default; the `ok` modifier turns it gold. So a success passes ok=true, an error passes nothing.
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
+    let loaded = false;
+    const enable = value => { if (saveBtn) saveBtn.disabled = !value; if (resetBtn) resetBtn.disabled = !value; };
+    enable(false);
     // paint the inputs + spend readout + reset visibility from a /api/budget/status payload.
     const paint = (st) => {
-      const caps = (st && st.caps) || {};
+      if (!st || !st.caps || !BG_KEYS.every(k => typeof st.caps[k] === 'number' && Number.isFinite(st.caps[k]) && st.caps[k] >= 0)) throw new Error('invalid budget response');
+      loaded = true; enable(true);
+      const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
       BG_KEYS.forEach(k => {
@@ -5480,7 +5485,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
       const anySaved = BG_KEYS.some(k => Object.prototype.hasOwnProperty.call(saved, k));
       if (resetBtn) resetBtn.style.display = anySaved ? '' : 'none';
-      if (spendEl) {
+      if (spendEl && st.accounting && (!st.accounting.complete || !st.accounting.durable)) {
+        spendEl.textContent = 'Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.';
+      } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
         const runs = (st && typeof st.runs === 'number') ? st.runs : 0;
         spendEl.innerHTML = 'SPENT TODAY <b>' + today + '</b> &nbsp;·&nbsp; LIFETIME <b>' + life + '</b> <span class="dim">(' + runs + ' run' + (runs === 1 ? '' : 's') + ')</span>';
@@ -5523,9 +5530,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
     };
     const refresh = () => Harness.api.get('/api/budget/status').then(paint)
-      .catch(() => { if (spendEl) spendEl.textContent = 'spend unavailable'; });   // never paint an error body as $0 spend
+      .catch(() => { loaded = false; enable(false); if (spendEl) spendEl.textContent = 'spend unavailable'; });   // never paint an error body as $0 spend
     refresh();
     if (saveBtn) saveBtn.addEventListener('click', () => {
+      if (!loaded) return;
       const payload = {};
       for (const k of BG_KEYS) {
         const el = inputOf(k); if (!el) continue;
@@ -5544,6 +5552,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
     });
     if (resetBtn) resetBtn.addEventListener('click', () => {
+      if (!loaded) return;
       // clear every saved override -> each cap falls back to its env default, live.
       const payload = {}; BG_KEYS.forEach(k => { payload[k] = null; });
       setMsg('resetting…');
@@ -7224,8 +7233,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (policySave) policySave.addEventListener('click', () => {
           const input = policyHost.querySelector('#exec-idle-min');
           policySave.disabled = true;
-          Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number(input && input.value) }).then(j => {
-            notify(j && j.ok ? 'idle-cell cleanup policy saved' : ((j && j.error) || 'could not save cleanup policy'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/policy', { idleCleanupMinutes: Number(input && input.value) }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'idle-cell cleanup policy saved' : ((j && j.error) || 'could not save cleanup policy'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save cleanup policy', 'bad'); refreshExecutionProfiles(); });
         });
@@ -7461,27 +7471,34 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
           button.disabled = true;
           const payload = { agentId: box.getAttribute('data-exec-agent'), host: (box.querySelector('[data-ssh-host]') || {}).value || '', user: (box.querySelector('[data-ssh-user]') || {}).value || '', port: Number((box.querySelector('[data-ssh-port]') || {}).value || 22), remoteRoot: (box.querySelector('[data-ssh-root]') || {}).value || '/workspace' };
-          Harness.api.post('/api/execution/ssh', payload).then(j => {
-            notify(j && j.ready ? 'SSH target saved and ready' : (j && j.saved ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), j && j.ready ? 'good' : 'bad');
+          Harness.api.post('/api/execution/ssh', payload).then(r => {
+            const j = r.j, ready = r.ok && j && j.ok === true && j.ready === true;
+            notify(ready ? 'SSH target saved and ready' : (r.ok && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save SSH target', 'bad'); refreshExecutionProfiles(); });
         }));
         crewList.querySelectorAll('[data-ssh-sync]').forEach(button => button.addEventListener('click', () => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
           button.disabled = true;
-          Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('data-exec-agent'), direction: button.getAttribute('data-ssh-sync') }).then(j => {
-            notify(j && j.ok ? 'workspace ' + button.getAttribute('data-ssh-sync') + ' complete' : ((j && j.error) || 'workspace sync failed'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/sync', { agentId: box.getAttribute('data-exec-agent'), direction: button.getAttribute('data-ssh-sync') }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'workspace ' + button.getAttribute('data-ssh-sync') + ' complete' : ((j && j.error) || 'workspace sync failed'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('workspace sync failed', 'bad'); refreshExecutionProfiles(); });
         }));
         crewList.querySelectorAll('[data-ssh-clear]').forEach(button => ArmConfirm.wire(button, { armedLabel: 'SURE? CLEAR TARGET', restLabel: 'CLEAR TARGET', timeoutMs: 4000, onConfirm: () => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
-          Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('data-exec-agent'), clear: true }).then(() => { notify('SSH target cleared', 'good'); refreshExecutionProfiles(); }).catch(() => { notify('could not clear SSH target', 'bad'); refreshExecutionProfiles(); });
+          Harness.api.post('/api/execution/ssh', { agentId: box.getAttribute('data-exec-agent'), clear: true }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true && j.saved === true;
+            notify(ok ? 'SSH target cleared' : ((j && j.error) || 'could not clear SSH target'), ok ? 'good' : 'bad');
+            refreshExecutionProfiles();
+          }).catch(() => { notify('could not clear SSH target', 'bad'); refreshExecutionProfiles(); });
         } }));
         crewList.querySelectorAll('[data-cell-stop]').forEach(button => button.addEventListener('click', () => {
           button.disabled = true;
-          Harness.api.post('/api/execution/cleanup', { agentId: button.getAttribute('data-cell-stop') }).then(j => {
-            notify(j && j.ok ? 'idle Safe Cell stopped — container preserved' : ((j && (j.reason || j.error)) || 'cell is active or unavailable'), j && j.ok ? 'good' : 'bad');
+          Harness.api.post('/api/execution/cleanup', { agentId: button.getAttribute('data-cell-stop') }).then(r => {
+            const j = r.j, ok = r.ok && j && j.ok === true;
+            notify(ok ? 'idle Safe Cell stopped — container preserved' : ((j && (j.reason || j.error)) || 'cell is active or unavailable'), ok ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not stop Safe Cell', 'bad'); refreshExecutionProfiles(); });
         }));

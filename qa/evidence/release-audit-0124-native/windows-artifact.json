@@ -1,0 +1,11 @@
+{
+  "sha256": "b05d359fccfb0f619a294a1c0eb1609d773227c4138b4fa7d42fc2a33840cbe4",
+  "updaterSignatureVerified": true,
+  "authenticode": "Valid",
+  "artifact": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.qa_tmp\\release-0124\\signed-native\\release\\bundle\\nsis\\StarNet_0.12.4_x64-setup.exe",
+  "publishAuthorized": false,
+  "candidate": "f27e70f76954456b359594bebb0128e16e81e16d",
+  "bytes": 640524832,
+  "buildRun": "35496956454",
+  "signer": "CN=Andrew Sims, O=Andrew Sims, L=Boca Raton, S=fl, C=US"
+}

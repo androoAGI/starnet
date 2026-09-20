@@ -51,10 +51,11 @@ const catalog = require('../sidecar/mcp/catalog.js');
     const defs = await client.listTools();
     assert.equal(defs.length, TOOLS[product].length);
     for (const def of defs) {
-      const args = def.name === 'batch_update' ? product === 'google-docs' ? { documentId: 'document-1', requests: [{ insertText: { text: 'hi', endOfSegmentLocation: {} } }] } : { spreadsheetId: 'sheet-1', requests: [{ addSheet: { properties: { title: 'New' } } }] } : examples[def.name];
+      const name = def.name.replace(/^(docs_|sheets_)/, '');
+      const args = name === 'batch_update' ? product === 'google-docs' || def.name.startsWith('docs_') ? { documentId: 'document-1', requests: [{ insertText: { text: 'hi', endOfSegmentLocation: {} } }] } : { spreadsheetId: 'sheet-1', requests: [{ addSheet: { properties: { title: 'New' } } }] } : examples[name];
       const response = await client.callTool(def.name, args);
       assert.equal(response.isError, false);
-      assert.ok(calls.at(-1).target.startsWith(url));
+      assert.ok(calls.at(-1).target.startsWith(product === 'google-files' ? ENDPOINTS[def.name.startsWith('docs_') ? 'google-docs' : def.name.startsWith('sheets_') ? 'google-sheets' : 'google-drive'] : url));
       if (def.name === 'write_values') assert.equal(new URL(calls.at(-1).target).searchParams.get('valueInputOption'), 'RAW');
       if (def.name === 'search_messages') assert.equal(new URL(calls.at(-1).target).searchParams.get('pageToken'), 'next&evil=1');
       exercised++;
@@ -99,9 +100,9 @@ const catalog = require('../sidecar/mcp/catalog.js');
     });
     const staged = path.join(stageRoot, 'sidecar/mcp/google-client.json');
     fs.writeFileSync(staged, JSON.stringify(installed));
-    assert.equal(stage(JSON.stringify(installed)).status, 0, 'deferred release succeeds even with inherited publisher configuration');
-    assert.equal(fs.existsSync(staged), false, 'deferred release removes stale staged registration');
-    assert.equal(stage('').status, 0, 'deferred release does not require Google registration');
+    assert.equal(stage(JSON.stringify(installed)).status, 0, 'selected files stages registration while broad access stays deferred');
+    assert.equal(fs.existsSync(staged), true);
+    assert.equal(stage('').status, 1, 'selected files release requires publisher registration');
     // Verify the future enabled build still enforces its registration contract.
     const clientModule = path.join(stageRoot, 'sidecar/mcp/google-client.js');
     fs.writeFileSync(clientModule, fs.readFileSync(clientModule, 'utf8').replace('const RELEASE_DEFERRED = true;', 'const RELEASE_DEFERRED = false;'));

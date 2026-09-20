@@ -556,7 +556,19 @@ const Chat = (() => {
   }
   function renderMarkdown(raw) {
     const lines=String(raw).split('\n');
-    const cells=line=>line.trim().replace(/^\|/,'').replace(/\|$/,'').split(/(?<!\\)\|/).map(s=>s.trim().replace(/\\\|/g,'|'));
+    // Older macOS WebKit cannot PARSE lookbehind, even in a function not yet called.
+    // Consume escaped pipes before splitting; retain the existing immediate-backslash semantics.
+    const cells = line => {
+      const text = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+      const result = []; let cell = '';
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\\' && text[i + 1] === '|') { cell += '|'; i++; }
+        else if (text[i] === '|') { result.push(cell.trim()); cell = ''; }
+        else cell += text[i];
+      }
+      result.push(cell.trim());
+      return result;
+    };
     const listMatch=line=>/^([ \t]*)([-*+][ \t]+|\d+[.)][ \t]+)(.*)$/.exec(line);
     function blocks(from,to,depth) {
       const parts=[];let i=from;
@@ -885,6 +897,7 @@ const Chat = (() => {
     return 'file';
   }
   function wireComposerAttachments() {
+    wireChatDropTarget();
     const btn = el('chat-attach');
     if (btn) btn.onclick = () => { if (attachInput) attachInput.click(); };   // property assignments are idempotent — safe to re-run
     if (attachInput) attachInput.onchange = () => { handleFiles(attachInput.files); attachInput.value = ''; };
@@ -898,15 +911,65 @@ const Chat = (() => {
       const items = ev.clipboardData && ev.clipboardData.files;
       if (items && items.length) { ev.preventDefault(); handleFiles(items); }
     });
-    // DRAG-DROP onto the whole composer. preventDefault on dragover is what enables the drop.
-    const row = el('chat-inputrow');
-    if (row) {
-      const show = e => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; row.classList.add('attach-dragover'); };
-      row.addEventListener('dragenter', show);
-      row.addEventListener('dragover', show);
-      row.addEventListener('dragleave', e => { if (e.target === row) row.classList.remove('attach-dragover'); });
-      row.addEventListener('drop', e => { e.preventDefault(); row.classList.remove('attach-dragover'); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
-    }
+  }
+  function wireChatDropTarget() {
+    const panel = el('chat-panel');
+    if (!panel) return;
+    if (panel.__resetFileDrop) { panel.__resetFileDrop(); return; }
+    const hint = document.createElement('div');
+    hint.className = 'chat-drop-hint'; hint.hidden = true;
+    hint.textContent = 'Drop files to attach';
+    hint.setAttribute('role', 'status');
+    panel.appendChild(hint);
+    let depth = 0;
+    const reset = () => { depth = 0; hint.hidden = true; panel.classList.remove('attach-dragover'); };
+    panel.__resetFileDrop = reset;
+    // During dragover browsers protect file bytes; inspect types, not just files.length.
+    const hasFiles = e => !!(e.dataTransfer && (
+      Array.from(e.dataTransfer.types || []).includes('Files') ||
+      Array.from(e.dataTransfer.items || []).some(item => item.kind === 'file') ||
+      (e.dataTransfer.files && e.dataTransfer.files.length)));
+    const available = () => !!(activeWs && input && !input.disabled);
+    const show = e => {
+      if (!hasFiles(e) || !available()) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'copy';
+      hint.hidden = false; panel.classList.add('attach-dragover');
+    };
+    panel.addEventListener('dragenter', e => { if (hasFiles(e) && available()) { depth++; show(e); } });
+    panel.addEventListener('dragover', show);
+    panel.addEventListener('dragleave', e => {
+      depth = Math.max(0, depth - 1);
+      if (e.relatedTarget && panel.contains(e.relatedTarget)) return;
+      if (!depth || (e.relatedTarget && !panel.contains(e.relatedTarget))) reset();
+    });
+    panel.addEventListener('drop', e => {
+      reset();
+      if (!hasFiles(e)) return; // Text and links retain normal editing behavior.
+      e.preventDefault();
+      if (!available()) return;
+      const items = Array.from(e.dataTransfer.items || []).filter(item => item.kind === 'file');
+      let directories = false;
+      const files = items.length ? items.flatMap(item => {
+        const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+        if (entry && entry.isDirectory) { directories = true; return []; }
+        const file = item.getAsFile(); return file ? [file] : [];
+      }) : Array.from(e.dataTransfer.files || []);
+      if (directories && typeof StationUI !== 'undefined' && StationUI.notify) {
+        StationUI.notify('Drop individual files; folders cannot be attached.', 'warn');
+      }
+      if (files.length) { handleFiles(files); input.focus({ preventScroll: true }); }
+    });
+    // A missed file drop must never navigate away from the station. Capture does not
+    // stop propagation, so other file targets can still handle their own drops.
+    document.addEventListener('dragover', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (!panel.contains(e.target) || !available()) { e.dataTransfer.dropEffect = 'none'; reset(); }
+    }, true);
+    document.addEventListener('drop', e => { if (hasFiles(e)) e.preventDefault(); reset(); }, true);
+    document.addEventListener('dragend', reset, true);
+    document.addEventListener('dragleave', e => { if (!e.relatedTarget && (e.target === document || e.target === document.documentElement)) reset(); }, true);
+    window.addEventListener('blur', reset);
   }
   const ATTACH_VIDEO_EXT = { mp4: 1, mov: 1, webm: 1, m4v: 1, mkv: 1, avi: 1, ogv: 1 };
   function isVideoFile(f) {
@@ -1276,7 +1339,51 @@ const Chat = (() => {
     return merged;
   }
 
-  async function reconcileServerHistory(ws, loadToken) {
+  // One owner per session read. Scroll pin lifetime is not history-load lifetime:
+  // the pin settles after a frame, while a transcript may arrive seconds later.
+  const historyLoads = new WeakMap();
+  const continuityEvents = [];
+  const continuitySessions = new WeakMap();
+  let continuitySessionSeq = 0;
+  function noteContinuity(ws, event) {
+    if (!ws) return;
+    if (!continuitySessions.has(ws)) continuitySessions.set(ws, ++continuitySessionSeq);
+    // Page-local numeric identities only: never titles, messages, paths or credentials.
+    continuityEvents.push({ at: Date.now(), session: continuitySessions.get(ws), event });
+    if (continuityEvents.length > 64) continuityEvents.shift();
+  }
+  function continuityDiagnostics() { return continuityEvents.map(e => ({ ...e })); }
+  function loadServerHistory(ws, loadToken) {
+    if (!ws || !ws.id) return Promise.resolve(false);
+    const read = { history: ws.history, promise: null };
+    historyLoads.set(ws, read);
+    noteContinuity(ws, 'history-loading');
+    read.promise = reconcileServerHistory(ws, loadToken, read);
+    return read.promise;
+  }
+
+  async function ensureHistoryReady(ws, signal) {
+    let read = historyLoads.get(ws);
+    if (!read || !read.promise) { loadServerHistory(ws, historyPinSeq); read = historyLoads.get(ws); }
+    let ready = await read.promise;
+    // A second open can supersede the request while this turn waits. Follow the
+    // latest owner, never admit inference on a previous visit's settled promise.
+    while (historyLoads.get(ws) !== read) {
+      if (signal.aborted) throw new Error('Conversation changed before sending.');
+      read = historyLoads.get(ws);
+      ready = await read.promise;
+    }
+    if (!ready) {
+      if (historyLoads.get(ws) === read) read.promise = null;
+      noteContinuity(ws, 'send-held-history-unavailable');
+      throw Object.assign(new Error('Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
+    }
+    if (signal.aborted || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)) throw new Error('Conversation changed before sending.');
+    noteContinuity(ws, 'send-history-ready');
+    return read;
+  }
+
+  async function reconcileServerHistory(ws, loadToken, read) {
     if (!ws || !ws.id) return;
     const cronSession = String(ws.id).indexOf('cron-') === 0;
     let busy = false;
@@ -1284,17 +1391,26 @@ const Chat = (() => {
     const waits = cronSession && !busy ? [120, 400] : [];
     let turns = [], reachable = false;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store' });
+        const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store', signal: controller.signal });
         if (r.ok) {
           const j = (await r.json()) || {};
-          turns = Array.isArray(j.turns) ? j.turns : [];
+          if (!Array.isArray(j.turns)) break; // malformed is unknown, never an empty transcript
+          turns = j.turns;
           reachable = true;
           if (!cronSession || turns.some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim())) break;
         }
       } catch (_) { /* retry the bounded cron persistence window below */ }
+      finally { clearTimeout(timeout); }
       if (attempt < waits.length) await new Promise(resolve => setTimeout(resolve, waits[attempt]));
     }
+    // A superseded read, removed session or deliberate clear cannot write back.
+    if (historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
+      || (read.history.length && !ws.history.length)) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
+    if (!reachable && !cronSession) return false;
     const next = mergeCanonicalHistory(ws.history, turns);
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
@@ -1306,13 +1422,16 @@ const Chat = (() => {
         ? '⚠ output has not arrived yet — StarNet will retry automatically when this session opens'
         : '⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens'
     });
-    if (JSON.stringify(next) === JSON.stringify(ws.history || [])) return;
+    if (JSON.stringify(next) === JSON.stringify(ws.history || [])) return reachable;
     ws.history = next;
+    read.repaint = true;
     try { if (typeof App !== 'undefined' && App.persist) App.persist(); } catch (_) {}
-    if (!activeWs || activeWs.id !== ws.id || historyPinPending !== loadToken) return;
+    if (!activeWs || activeWs.id !== ws.id || historyPinSeq !== loadToken || Channels.isBusy(ws.id)) return reachable;
     if (log) log.innerHTML = '';
     renderHistory(); replayChannel(); syncStatus(); maybeEmptyState();
+    read.repaint = false;
     pinLoadedHistoryAfterLayout(loadToken);
+    return reachable;
   }
 
   // swap the rendered conversation to a workstream (its history). Used on enter/resume and when the
@@ -1329,6 +1448,7 @@ const Chat = (() => {
     const nextWs = ws || (typeof Workstreams !== 'undefined' ? Workstreams.active() : null);
     if (activeWs?.id !== nextWs?.id) focusVersion++;
     activeWs = nextWs;
+    noteContinuity(activeWs, 'session-selected');
     if (activeWs && activeWs.conversationMode === 'group' && typeof GroupChat !== 'undefined') {
       loadGroupConversation(activeWs);
       return; // Group history/recovery is backend-owned; never auto-resume it through the direct-run path.
@@ -1354,6 +1474,7 @@ const Chat = (() => {
     syncStatus();      // also paints the Stop control + this stream's queued pills (updateControls)
     maybeEmptyState();   // brand-new / empty + idle stream → a one-line hint instead of a blank void
     maybeDeskPrompt();   // …and if this stream's agent still has nowhere to sit, the required next step + its door
+    loadServerHistory(activeWs, historyPin);
     if (activeWs) flushQueued(activeWs.id);   // returned to an idle stream that has a queued follow-up → send it now
     // GOAL LOOP: returned to an idle stream with an ACTIVE standing goal (its moment was blocked / it was
     // backgrounded mid-loop) → continue it. kickGoal no-ops when busy/blocked/paused, so this is always safe.
@@ -1372,7 +1493,6 @@ const Chat = (() => {
       try { WorkshopStore.presentFor(activeWs.id).catch(() => {}); } catch (_) {}
     }
     pinLoadedHistoryAfterLayout(historyPin);
-    reconcileServerHistory(activeWs, historyPin);
     // Reconcile a run that died while this page was closed or the sidecar restarted. Only the server's durable
     // safe verdict can start work; uncertain mutations remain paused and visible.
     if (activeWs) { const w = activeWs; setTimeout(() => { if (isActiveWs(w)) recoverSafeRun(w, true); }, 0); }
@@ -8423,6 +8543,14 @@ const Chat = (() => {
       if (src.slice(spokenIdx).trim()) speechTimer = setTimeout(() => pushSpeech(false), 0);
     };
     try {
+      // Capture the session, admit its turn, then wait for that session's restore
+      // before constructing model context. A focus change cannot retarget this send.
+      const historyRead = await ensureHistoryReady(ws, ac.signal);
+      if (historyRead.repaint && isActiveWs(ws)) {
+        if (log) log.innerHTML = '';
+        renderHistory(); syncStatus();
+        activeLiveRow = streamingAgent(); historyRead.repaint = false;
+      }
       const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd } = await Harness.chat({
         system: sys, messages: historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         taskAction: taskAction || undefined,
@@ -8694,11 +8822,15 @@ const Chat = (() => {
         if (typeof Harness !== 'undefined' && Harness.pingEngine) {
           try { engineAlive = await Harness.pingEngine(); } catch (_) { engineAlive = null; }
         }
-        const v = (typeof Friendly !== 'undefined')
+        const v = e && e.code === 'HISTORY_UNAVAILABLE'
+          ? { userMessage: e.message, retryable: true, action: null, raw: e.message }
+          : (typeof Friendly !== 'undefined')
           ? Friendly.friendlyError(aborted ? new Error('connection dropped mid-reply') : e, null, { engineAlive: engineAlive })
           : { userMessage: aborted ? 'Lost the connection — try again.' : (e.message || String(e)), retryable: true, action: null, raw: (e && e.message) || String(e) };
         if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.error(v.userMessage, v.raw); resolvePresence(ws, { error: true }); }
         ws.history.push({ role: 'assistant', content: '⚠ ' + v.userMessage, error: true, ts: Date.now() });   // keep a readable trace of the failure
+        if (v.kind === 'network' && thisRunId) { interruptedStreams.add(ws.id); armReconnectWatch(); }
+        if (thisRunId && typeof Workstreams !== 'undefined' && Workstreams.noteRunEnd) Workstreams.noteRunEnd(ws.id, thisRunId, false);
         if (isActiveWs(ws)) offerRetry(v);   // RETRY: context-aware recovery chip (a dropped connection is retryable)
       }
       // a THROWN teardown (abort/cancel/disconnect/network drop) means agent.run.end was LOST on the bus, so the
@@ -9043,5 +9175,5 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { ownsRemoteTransport, renderRemoteActivity, canRefreshRemote, refreshRemoteTranscript, refreshRemoteHistory, init, load, send, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
+  return { ownsRemoteTransport, renderRemoteActivity, canRefreshRemote, refreshRemoteTranscript, refreshRemoteHistory, init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk };
 })();

@@ -26,6 +26,13 @@ const CloudSave = require('../frontend/app/cloudsave.js');
 const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, agent: { id: 'agent', name: 'NOVA' } });
 
 (async () => {
+  // An HTTP 200 is only transport success. An absent/malformed acknowledgement proves no save.
+  for (const body of [null, {}, { error: 'disk full' }, { ok: 'yes' }]) {
+    responses.push({ status: 200, body });
+    CloudSave.push(doc(1));
+    A.eq(await CloudSave.flush({ force: true }), false, 'unproven acknowledgement stays pending');
+    A.eq(CloudSave.health().lastPushOkAt, 0, 'unproven acknowledgement never claims durability');
+  }
   // ---- 1. degraded refusal: HTTP 200 { ok:false, degraded:true } must NOT stamp health OK ----
   responses.push({ status: 200, body: { ok: false, error: 'workspace written by newer StarNet', degraded: true } });
   CloudSave.push(doc(10));
@@ -55,12 +62,12 @@ const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, age
   A.ok(h.lastPushOkAt > 0, 'success stamps lastPushOkAt');
   A.eq(h.degraded, false, 'success proves the workspace accepts writes');
 
-  // ---- 4. a non-JSON 200 (older sidecar / dev shim) still counts as landed — no false alarm ----
+  // ---- 4. a non-JSON 200 cannot prove durable persistence ----
   responses.push({ status: 200, body: undefined });
   global.fetch = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new Error('no body')) });
   CloudSave.push(doc(40));
   const landed4 = await CloudSave.flush({ force: true });
-  A.eq(landed4, true, 'a non-JSON 200 keeps the old trust (backward compatible with older sidecars)');
+  A.eq(landed4, false, 'a non-JSON 200 retains the snapshot for a confirmed retry');
 
   // ---- 5. HTTP-level failure still fails (pre-existing behavior preserved) ----
   global.fetch = () => Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ error: 'EPERM' }) });

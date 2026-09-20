@@ -7,7 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
-import { populatedFixture, continuityProjection, stableJson } from '../lib/update-continuity.mjs';
+import { populatedFixture, continuityProjection, stableJson, normalizeLegacyWorkstreamDefaults } from '../lib/update-continuity.mjs';
 const { bootToken } = createRequire(import.meta.url)('../../test/_httpToken.js');
 
 if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true' || process.env.RUNNER_ENVIRONMENT !== 'github-hosted') {
@@ -93,6 +93,7 @@ function fixtureState(state) {
     // that derived prompt on boot using the new harness instructions; the underlying docs still compare.
     if (typeof save?.agent?.docs?.identity !== 'string') throw new Error('Fixture identity documents missing');
     delete save.agent.systemPrompt;
+    save.workstreams = normalizeLegacyWorkstreamDefaults(save.workstreams);
     for (const agent of save.agents || []) {
       // The public fixture omitted personaId. Current roster hydration explicitly records its existing
       // default as "composed". Permit exactly this additive default, not an arbitrary persona change.
@@ -212,7 +213,7 @@ try {
   const after = await snapshot();
   receipt.afterState = continuityProjection(after);
   if (!await evalJS(cdp, "__TAURI__.core.invoke('harness_has_provider_key',{provider:'openrouter'})")) throw new Error('Synthetic key did not survive candidate install');
-  receipt.expectedMigrationFields = ['local/durable.agent.systemPrompt (regenerated from preserved identity documents)', 'local/durable.agents[].personaId (missing/composed default for this fixture)'];
+  receipt.expectedMigrationFields = ['local/durable.agent.systemPrompt (regenerated from preserved identity documents)', 'local/durable.agents[].personaId (missing/composed default for this fixture)', 'local/durable.workstreams[].parentStreamId (missing/null)', 'local/durable.workstreams[].projectHome (missing/false)'];
   const projection = stableJson(fixtureState(continuityProjection(before)));
   if (projection !== stableJson(fixtureState(continuityProjection(after)))) throw new Error('State changed across public-to-candidate reinstall');
   receipt.checks.statePreservedAcrossInstall = true;

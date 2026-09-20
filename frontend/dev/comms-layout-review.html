@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StarNet — small-screen preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0811;color:#e8dff5;font:14px system-ui}header{padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #554167}strong{margin-right:auto}button,select{font:inherit;color:inherit;background:#251b31;border:1px solid #6e5384;border-radius:5px;padding:7px 10px;cursor:pointer}button[aria-pressed=true]{background:#563375;border-color:#bf91e5}p{margin:0;padding:10px 20px;color:#b9aac8;font-size:12px}main{overflow:auto;padding:10px}iframe{display:block;border:1px solid #554167;margin:0 auto;width:100%;height:720px;background:#07050c}
+</style>
+<header><strong>StarNet · small-screen preview</strong><button id="after" aria-pressed="true">Updated</button><button id="before" aria-pressed="false">Before</button><select id="size" aria-label="Preview window size"><option value="fit">Fit this panel</option><option value="1280,720">1280 × 720</option><option value="1024,600">1024 × 600</option><option value="800,600">800 × 600</option></select><select id="text" aria-label="Text size"><option value="100">Standard text</option><option value="145">Huge text</option></select><button id="reset">Reset sample</button></header>
+<p>Live app layout with a sample question. Try EXPAND / RESTORE in COMMS. Sample-card answers stay in this preview; they do not call a model.</p>
+<main><iframe id="app" src="/" title="Live StarNet layout preview"></iframe></main>
+<script>
+const frame=document.getElementById('app');let updated=true,ready=false;
+const run=source=>frame.contentWindow.eval(source);
+function apply(){if(!ready)return;run(`document.querySelector('link[href="css/comms-layout.css"]').disabled=${!updated};document.getElementById('comms-expand').hidden=${!updated};if(!${updated}&&document.getElementById('screen-game').classList.contains('comms-expanded'))document.getElementById('comms-expand').click();`);document.getElementById('after').setAttribute('aria-pressed',updated);document.getElementById('before').setAttribute('aria-pressed',!updated);}
+function sample(){run(`(() => {const log=document.getElementById('chat-log');log.replaceChildren();const row=document.createElement('div');row.className='cmsg agent nudge';const body=document.createElement('div');body.className='body';row.append(body);log.append(row);TaskConversation.mount(body,{question:'What should I include in your inventory?',reason:'A few details will help me create a useful first draft.',options:["I’ll write a short free-text inventory",'Give me a quick fill-in template']},async()=>true);log.scrollTop=0;document.getElementById('nav-coach-x')?.click();document.getElementById('toast-stack')?.remove();})()`);}
+function textSize(){if(ready)run(`StationUI.openTerm('settings');document.querySelector('[data-ts="${Number(document.getElementById('text').value)}"]').click();StationUI.closeTerm('settings');`);}
+const timer=setInterval(()=>{try{if(run(`!!window.__STARNET_DEV__ && document.getElementById('screen-game').classList.contains('active')`)){clearInterval(timer);ready=true;textSize();sample();apply();}}catch{}},500);
+document.getElementById('after').onclick=()=>{updated=true;apply();};document.getElementById('before').onclick=()=>{updated=false;apply();};document.getElementById('reset').onclick=()=>{if(ready)sample();};document.getElementById('text').onchange=textSize;
+document.getElementById('size').onchange=e=>{const [w,h]=e.target.value.split(',');frame.style.width=w==='fit'?'100%':w+'px';frame.style.height=w==='fit'?'720px':h+'px';};
+</script></html>

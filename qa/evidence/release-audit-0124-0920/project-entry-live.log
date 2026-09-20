@@ -1,0 +1,4 @@
+project entry {"clicked":"C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-sidecar-HNdgf0\\beta"}
+project entry {"clicked":"C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-sidecar-HNdgf0\\alpha"}
+project entry {"clicked":"C:\\Users\\andro\\AppData\\Local\\Temp\\starnet-sidecar-HNdgf0\\beta"}
+{"rows":[{"title":"beta","inputs":1,"notice":""},{"title":"alpha","inputs":1,"notice":""},{"title":"beta","inputs":1,"notice":""}],"revoked":{"before":{"title":"beta","active":"ws_5835bb81a4e44a49b10bd1f6b8e98d2a"},"title":"beta","active":"ws_5835bb81a4e44a49b10bd1f6b8e98d2a","notice":"Could not open project. No conversation is available for this project. Restore folder access before opening it. Select the project to retry."},"faults":{"before":{"title":"beta","active":"ws_5835bb81a4e44a49b10bd1f6b8e98d2a"},"failed":{"title":"beta","active":"ws_5835bb81a4e44a49b10bd1f6b8e98d2a","hidden":true},"selected":"ws_mu9eezw3cw92","after":"ws_mu9eezw3cw92"},"exceptions":[]}

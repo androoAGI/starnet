@@ -8,3 +8,9 @@ Scope: offer a single-app macOS remote viewer and private Linux runtime to upstr
 - [x] Publish [draft PR #21](https://github.com/androoAGI/starnet/pull/21) against the official default branch.
 
 Implementation contracts and extension points are in [the maintainer guide](docs/remote/MAINTAINER_GUIDE.md). Reproduction and manual acceptance are in [testing](docs/remote/TESTING.md). The draft PR is the review record; it is not a release approval.
+
+## PR #21 integration refresh — 2026-09-20
+
+- [ ] Resolve conflicts against current upstream while retaining remote behavior and upstream fixes.
+- [ ] Validate remote, integration, native and contribution gates; record concrete limits.
+- [ ] Refresh the source manifest and PR validation notes, then push the contribution branch.

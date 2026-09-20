@@ -1,0 +1,18 @@
+[
+  {
+    "path": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\src-tauri\\target\\release\\skynet-desktop.exe",
+    "bytes": 274099712,
+    "sha256": "ebf07778b59a8beb415bce57203e647ff171251240d3a8e1ee68dd9a263fe392",
+    "signature": "NotSigned",
+    "productVersion": "0.12.4",
+    "fileVersion": "0.12.4"
+  },
+  {
+    "path": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\src-tauri\\target\\release\\bundle\\nsis\\StarNet_0.12.4_x64-setup.exe",
+    "bytes": 640515736,
+    "sha256": "0c755a955f309243eedc279e5bfc33e9860196c1b9eb9c6ea5c9adba0b01b568",
+    "signature": "NotSigned",
+    "productVersion": "0.12.4",
+    "fileVersion": "0.12.4"
+  }
+]

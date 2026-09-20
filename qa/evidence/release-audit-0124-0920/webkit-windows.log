@@ -1,0 +1,21 @@
+browser 26.5
+navigate http://127.0.0.1:53536
+loaded
+floor ready
+open ingame
+open crew-agents
+open crew-recruit
+open crew-commander
+open work-tasks
+open work-deliverables
+open work-recipes
+open work-automation
+open work-quests
+open build-station
+open build-connectors
+open sys-messaging
+open build-manual
+open sys-settings
+open sys-updates
+open sys-notifs
+{"platform":"Windows WebKit; NOT native macOS acceptance","browserVersion":"26.5","rows":[{"name":"ingame","result":"reset"},{"name":"crew-agents","result":"opened:AGENTS:portrait-ready"},{"name":"crew-recruit","result":"opened:RECRUIT"},{"name":"crew-commander","result":"opened:COMMANDER"},{"name":"work-tasks","result":"opened:TASKS"},{"name":"work-deliverables","result":"opened:DELIVERABLES"},{"name":"work-recipes","result":"opened:RECIPES"},{"name":"work-automation","result":"opened:AUTOMATION"},{"name":"work-quests","result":"opened:QUESTS:refresh-fixture-settled"},{"name":"build-station","result":"opened:REFIT STATION"},{"name":"build-connectors","result":"opened:ABILITIES"},{"name":"sys-messaging","result":"opened:CHANNELS"},{"name":"build-manual","result":"opened:FIELD MANUAL"},{"name":"sys-settings","result":"opened:SETTINGS:provider-health-settled"},{"name":"sys-updates","result":"opened:UPDATES"},{"name":"sys-notifs","result":"opened:NOTIFS"}],"errors":[]}

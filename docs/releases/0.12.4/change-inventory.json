@@ -1,0 +1,3438 @@
+{
+  "baseline": "3ba5b84922f3b62caa4e159999ef3acc82af2a3e",
+  "sourceCommit": "0c5f0d54a73122105ace05f9ca4627b5a94bb774",
+  "pathCount": 399,
+  "note": "Complete changed-path inventory, not a claim that every path has independent live proof.",
+  "testManifests": [
+    {
+      "path": "test/fast.list",
+      "steps": [
+        "test/schema.test.js",
+        "test/overseer.test.js",
+        "test/chat-file-drop.test.js",
+        "test/group-sessions.test.js",
+        "test/group-message-attachments.test.js",
+        "test/bay-name-legibility.test.js",
+        "test/group-sessions.edge.test.js",
+        "test/group-chat-picker.test.js",
+        "test/contract.test.js",
+        "test/events-contract.test.js",
+        "test/clock-rng.test.js",
+        "test/context.test.js",
+        "test/runtimeinfo.test.js",
+        "test/harness-snapshot.test.js",
+        "test/harness-stream-completion.test.js",
+        "test/station-inspect.test.js",
+        "test/diagnostics.test.js",
+        "test/diagnostics-support-email.test.js",
+        "test/diagnostics-build.test.js",
+        "test/diagnostics-dead-engine.test.js",
+        "test/bootguard.test.js",
+        "test/mac-boot-compat.test.js",
+        "test/live-doctor.test.js",
+        "test/live-doctor-ui.test.js",
+        "test/report-0110-regressions.test.js",
+        "test/outbound-failure-diagnosability.test.js",
+        "test/reflect.test.js",
+        "test/memory-corrections.test.js",
+        "test/memcore.test.js",
+        "test/cost.test.js",
+        "test/spend.test.js",
+        "test/ledger.test.js",
+        "test/logbound.test.js",
+        "test/budget.test.js",
+        "test/budget-caps.test.js",
+        "test/fallback-chain.test.js",
+        "test/configexport.test.js",
+        "test/harness-import.test.js",
+        "test/settings-p1-backend.test.js",
+        "test/concurrency.test.js",
+        "test/workspace-lease.test.js",
+        "test/workspace-owner.test.js",
+        "test/workspace-safety.test.js",
+        "test/workspace-recovery.test.js",
+        "test/workspace-lineage.test.js",
+        "test/agent-lifecycle.test.js",
+        "test/durable-store.test.js",
+        "test/domain-store.test.js",
+        "test/provider-runtime.test.js",
+        "test/run-execution-state.test.js",
+        "test/tool-progress-guard.test.js",
+        "test/tool-dispatch-boundary.test.js",
+        "test/completion-evidence.test.js",
+        "test/task-postconditions.test.js",
+        "test/connector-readback.test.js",
+        "test/recipe-drift.test.js",
+        "test/task-postconditions-ui.test.js",
+        "test/recovery-policy.test.js",
+        "test/tool-recovery.test.js",
+        "test/run-journal-disk-boundary.test.js",
+        "test/todo.durability.test.js",
+        "test/halt.test.js",
+        "test/readbody.test.js",
+        "test/file-response.test.js",
+        "test/test-list-runner.test.js",
+        "test/runroute.test.js",
+        "test/checkpoint.test.js",
+        "test/checkpoint-default-on.test.js",
+        "test/module-scope-shadowing.test.js",
+        "test/source-text-integrity.test.js",
+        "test/verify.test.js",
+        "test/lsp-edit-feedback.test.js",
+        "test/provider.replay.test.js",
+        "test/agent-eval.test.js",
+        "test/eval-campaign-preflight.test.js",
+        "test/eval-soak-receipt.test.js",
+        "test/eval-same-model-receipt.test.js",
+        "test/eval-acp-client.test.js",
+        "test/eval-fixture-host.test.mjs",
+        "test/eval-installed-performance.test.js",
+        "test/eval-installed-provider-soak.test.js",
+        "test/eval-parity-offline.test.js",
+        "test/overnight-reliability-runner.test.js",
+        "test/provider.openrouter.test.js",
+        "test/provider.openai-compatible.test.js",
+        "test/realtime-voice.test.js",
+        "test/native-stt.test.js",
+        "test/local-voice.test.js",
+        "test/media-service.test.js",
+        "test/desktop-voice-bundle.test.js",
+        "test/transcript.compaction.e2e.test.js",
+        "test/provider.anthropic.test.js",
+        "test/prices.live.test.js",
+        "test/provider.gemini.test.js",
+        "test/provider.toolschema.test.js",
+        "test/provider.prices.test.js",
+        "test/prices.all-providers.test.js",
+        "test/provider.timeouts.test.js",
+        "test/provider.registry.test.js",
+        "test/ratelimits.test.js",
+        "test/provider.codex-auth.test.js",
+        "test/purge-leaked-codex-tokens.test.js",
+        "test/provider.oauth-device.test.js",
+        "test/codex-auth-state.test.js",
+        "test/provider.codex.test.js",
+        "test/provider.codex.pairing.test.js",
+        "test/credpool.test.js",
+        "test/credrotate.test.js",
+        "test/sanitize.test.js",
+        "test/errorclass.test.js",
+        "test/billing.test.js",
+        "test/credits.test.js",
+        "test/credits-link.test.js",
+        "test/credits-store-recovery.test.js",
+        "test/friendlyerror.test.js",
+        "test/codexsignin.test.js",
+        "test/oauthsignin.test.js",
+        "test/hooks.test.js",
+        "test/shellhooks.test.js",
+        "test/hooks.wiring.test.js",
+        "test/plugins.test.js",
+        "test/loop.replay.test.js",
+        "test/loop.steer.test.js",
+        "test/loop.verify-on-stop.test.js",
+        "test/loop.acceptance-on-stop.test.js",
+        "test/loop.parallel-tools.test.js",
+        "test/loop.tool-images.test.js",
+        "test/loop.media-cost.test.js",
+        "test/loop.turn-budget.test.js",
+        "test/loop.provider-recovery.test.js",
+        "test/loop.failure-recovery.test.js",
+        "test/loop.stop-means-stop.test.js",
+        "test/output-continuation.test.js",
+        "test/compaction.test.js",
+        "test/compaction-summarizer.test.js",
+        "test/loopguard.test.js",
+        "test/loopguard.dispatch.test.js",
+        "test/continuation-guard.test.js",
+        "test/text-toolcall-markup.test.js",
+        "test/model-conformance.test.js",
+        "test/iteration-budget.test.js",
+        "test/updatecore.test.js",
+        "test/quitguard.test.js",
+        "test/desktop-lifecycle-preferences.test.js",
+        "test/desktop-installed-cdp-forwarding.test.js",
+        "test/cloudsavecore.test.js",
+        "test/cloudsave-refusal.test.js",
+        "test/cloudsave-unknown.test.js",
+        "test/freshstart.test.js",
+        "test/unreachable-browser-mode.test.js",
+        "test/harness.cancel-truth.test.js",
+        "test/desktop-fresh-start-contract.test.js",
+        "test/cloudsave-unload.test.js",
+        "test/fullscreen.test.js",
+        "test/titlebar.test.js",
+        "test/logo-occlusion.test.js",
+        "test/keepawake.test.js",
+        "test/grace.test.js",
+        "test/shell-session.test.js",
+        "test/shell-bg.test.js",
+        "test/shell-bg-io.test.js",
+        "test/shell-visible-window.test.js",
+        "test/shell-input-isolation.test.js",
+        "test/shell-machine-state.test.js",
+        "test/procledger.test.js",
+        "test/inputguard.test.js",
+        "test/timeout.test.js",
+        "test/phase4.evidence.test.js",
+        "test/phase5.evidence.test.js",
+        "test/phase5.runner.test.js",
+        "test/t0-clean-install.test.js",
+        "test/packaged-lifecycle.test.js",
+        "test/soak.test.js",
+        "test/desktop-workspace-migration.test.js",
+        "test/t1-signing.test.js",
+        "test/t2-state-safety.test.js",
+        "test/upgrade-085-090.test.js",
+        "test/t3-release-smoke.test.js",
+        "test/t4-update-delivery.test.js",
+        "test/installer-upgrade-resilience.test.js",
+        "test/t5-public-distribution.test.js",
+        "test/minisign-verify.test.js",
+        "test/release-assemble-manifest.test.js",
+        "test/verify-update-host.test.js",
+        "test/replacement-sweep.test.js",
+        "test/lint-evidence-secrets.test.js",
+        "scripts/lint-evidence-secrets.mjs",
+        "test/environment.test.js",
+        "test/servicekeys.test.js",
+        "test/servicekeys.env.test.js",
+        "test/web-request.test.js",
+        "test/servicekeys-catalog.test.js",
+        "test/tools.test.js",
+        "test/capgate.test.js",
+        "test/capdrift.test.js",
+        "test/capsummary.test.js",
+        "test/boot-security.test.js",
+        "test/sidecar-fixture.test.js",
+        "test/sidecar.security.test.js",
+        "test/tauri.hardening.test.js",
+        "test/finish-line-doctrine.test.js",
+        "test/manual.test.js",
+        "test/permissions.test.js",
+        "test/workshop-permissions.test.js",
+        "test/master-bypass.test.js",
+        "test/workshop-store.test.js",
+        "test/workshop-undo.e2e.test.js",
+        "test/workshop-implement.e2e.test.js",
+        "test/implement-contract.test.js",
+        "test/workshop-visibility.test.js",
+        "test/workshop-resolution.test.js",
+        "test/workshop-toggle-ui.test.js",
+        "test/quest-store.test.js",
+        "test/journey-store.test.js",
+        "test/journey.test.js",
+        "test/journeystore.test.js",
+        "test/journey-wiring.test.js",
+        "test/commander-progression-ui.test.js",
+        "test/testapi-commander-hud.test.js",
+        "test/questinject.test.js",
+        "test/quests-tool.test.js",
+        "test/questsweeps.test.js",
+        "test/questrefresh.test.js",
+        "test/threads-store.test.js",
+        "test/threadmine.test.js",
+        "test/declinedindex.test.js",
+        "test/recommendation-ledger.test.js",
+        "test/recommendation-eval.test.js",
+        "test/personalization-store.test.js",
+        "test/recruiterstore-readiness.test.js",
+        "test/auxgovernor.test.js",
+        "test/failreview.test.js",
+        "test/threadstore.test.js",
+        "test/autopilot-threads.test.js",
+        "test/autopilot-focus.test.js",
+        "test/apiauth.test.js",
+        "test/notebook.test.js",
+        "test/skills.test.js",
+        "test/skill-exchange.test.js",
+        "test/abilities.skills-lane.test.js",
+        "test/skills.library.test.js",
+        "test/skills.gate.test.js",
+        "test/skills.review-approval.test.js",
+        "test/slash.test.js",
+        "test/slash-actions.test.js",
+        "test/slash.parity.test.js",
+        "test/usercommands.test.js",
+        "test/slash.palette.test.js",
+        "test/slash.config.test.js",
+        "test/voice.button.test.js",
+        "test/voice-live-ui.test.js",
+        "test/voice-flow.test.js",
+        "test/voice-stream.test.js",
+        "test/voice.draftguard.test.js",
+        "test/save.test.js",
+        "test/saveversion.test.js",
+        "test/backup-secrets.test.js",
+        "test/schema-stamp.test.js",
+        "test/rename-migrate.test.js",
+        "test/update-state-parity.test.js",
+        "test/update-continuity.test.js",
+        "test/update-preparation.test.js",
+        "test/updates-install.test.js",
+        "test/roster-clause.test.js",
+        "test/agent-config-target.test.js",
+        "test/notebookrestore.test.js",
+        "test/runstore.test.js",
+        "test/run-journal.test.js",
+        "test/run-recovery-continuation.test.js",
+        "test/run-recovery-ui.test.js",
+        "test/run-journal.loop.test.js",
+        "test/longhaul-retention.test.js",
+        "test/autonomy-ledger.test.js",
+        "test/artifacts.test.js",
+        "test/deliverable-store.test.js",
+        "test/idempotency-ledger.test.js",
+        "test/deliverable-provenance.test.js",
+        "test/deliverable-note.test.js",
+        "test/deliverables-ui.test.js",
+        "test/deliverables-open.test.js",
+        "test/work-recap.test.js",
+        "test/qa-ledger.test.js",
+        "test/qa-saboteur.test.js",
+        "test/qa-bugs.test.js",
+        "test/qa-bug-lifecycle.test.js",
+        "test/qa-bugs-register.test.js",
+        "test/ledger-reconcile.test.js",
+        "test/qa-guardian.test.js",
+        "test/qa-message-content.test.js",
+        "test/qa-closer.test.js",
+        "test/qa-ready.test.js",
+        "test/qa-product-perfect.test.js",
+        "test/qa-product-perfect-claims.test.js",
+        "test/qa-claims-streaming.test.js",
+        "test/website-pricing-hold.test.js",
+        "test/website-docs-navigation.test.js",
+        "test/genesis-starnet-link.test.js",
+        "test/qa-product-perfect-provenance.test.js",
+        "test/qa-cartographer.test.js",
+        "test/golden.test.js",
+        "test/audit-gaze-proof.test.js",
+        "test/qa-beginner.test.js",
+        "test/qa-installed-first-run.test.js",
+        "test/qa-installed-link-transport.test.js",
+        "test/qa-janitor.test.js",
+        "test/qa-evidence-sweep.test.js",
+        "test/qa-installed-smoke.test.js",
+        "test/transcript.test.js",
+        "test/transcript-history-v2.test.js",
+        "test/recall.test.js",
+        "test/fs.jail.test.js",
+        "test/fs-mutation-receipts.test.js",
+        "test/fs.patch.test.js",
+        "test/fs.stale-write.test.js",
+        "test/docextract.test.js",
+        "test/imagewire.test.js",
+        "test/web.ssrf.test.js",
+        "test/web.search.test.js",
+        "test/web.politeness.test.js",
+        "test/web.fence.test.js",
+        "test/web.fetch-jina.test.js",
+        "test/web.calm.test.js",
+        "test/web.reach.test.js",
+        "test/browser.test.js",
+        "test/browser.desktop-login-journey.test.js",
+        "test/browser.login-seed.test.js",
+        "test/browser.reach-measure.test.js",
+        "test/browser.tool-parity.test.js",
+        "test/browser.wait-recovery.test.js",
+        "test/browser.download-receipt.test.js",
+        "test/browser.attach.test.js",
+        "test/browser.pie.test.js",
+        "test/desktop.test.js",
+        "test/computer.test.js",
+        "test/cua-computer.test.js",
+        "test/computer-control.test.js",
+        "test/win32desktop.test.js",
+        "test/inputpolicy.test.js",
+        "test/image.test.js",
+        "test/image-task.test.js",
+        "test/voice-tool.test.js",
+        "test/connectors-tool.test.js",
+        "test/attachments.test.js",
+        "test/spotify.pkce.test.js",
+        "test/spotify.store.test.js",
+        "test/spotify.tools.test.js",
+        "test/classify.test.js",
+        "test/specialties.test.js",
+        "test/profile.test.js",
+        "test/worksignal.test.js",
+        "test/worksignalstore.test.js",
+        "test/recruiter.test.js",
+        "test/topicmatch.test.js",
+        "test/prospect.test.js",
+        "test/interests.test.js",
+        "test/scout.test.js",
+        "test/dossier.test.js",
+        "test/understanding.test.js",
+        "test/fork.test.js",
+        "test/taskintent.test.js",
+        "test/taskbrief.clarify.test.js",
+        "test/understandingstore.test.js",
+        "test/study.test.js",
+        "test/goals.test.js",
+        "test/goalstore.test.js",
+        "test/trust.test.js",
+        "test/truststore.test.js",
+        "test/goalloop.test.js",
+        "test/interview.test.js",
+        "test/onboarding.test.js",
+        "test/onboard-fresh-launcher.test.js",
+        "test/codex-configured.test.js",
+        "test/crt-glprobe.test.js",
+        "test/crt-context-loss.e2e.test.mjs",
+        "test/dialogue.test.js",
+        "test/wakemind.test.js",
+        "test/curiosity.test.js",
+        "test/verdictfollowup.test.js",
+        "test/verdictreview.test.js",
+        "test/skill-goldens.test.js",
+        "test/eval-skills-runner.test.js",
+        "test/dossierinject.test.js",
+        "test/recipes.test.js",
+        "test/recipes.sop.test.js",
+        "test/recipefit.test.js",
+        "test/loop-templates.test.js",
+        "test/launchmemory.test.js",
+        "test/starters.test.js",
+        "test/starterstore.test.js",
+        "test/routinenudgestore.test.js",
+        "test/bottlestore.test.js",
+        "test/bottle-wiring.test.js",
+        "test/resummonstore.test.js",
+        "test/pitch.test.js",
+        "test/pitchstore.test.js",
+        "test/suggeststore.test.js",
+        "test/beat-coordination.test.js",
+        "test/beatcard.test.js",
+        "test/recommend.test.js",
+        "test/rec-truth-consistency.test.js",
+        "test/rec-one-memory.test.js",
+        "test/rec-evidence.test.js",
+        "test/recquality.test.js",
+        "test/recqualitystore.test.js",
+        "test/quests.test.js",
+        "test/queststore.test.js",
+        "test/queststate.test.js",
+        "test/queststatestore.test.js",
+        "test/stationquests.test.js",
+        "test/stationqueststore.test.js",
+        "test/workquests.test.js",
+        "test/workqueststore.test.js",
+        "test/maintquests.test.js",
+        "test/maintqueststore.test.js",
+        "test/questledgerstore.test.js",
+        "test/kitout.test.js",
+        "test/coach-dodge.test.js",
+        "test/tutorial-connect-beat.test.js",
+        "test/tutorial-equipped-station.test.js",
+        "test/field-manual-accessibility.test.js",
+        "test/class-loadouts.test.js",
+        "test/intent-offer.test.js",
+        "test/seeds.test.js",
+        "test/seedstore.test.js",
+        "test/autonomy.test.js",
+        "test/autonomystore.test.js",
+        "test/autonomy-ui.test.js",
+        "test/autojobs.test.js",
+        "test/autojobstore.test.js",
+        "test/autojobs-ui.test.js",
+        "test/autopilot.test.js",
+        "test/autopilotstore.test.js",
+        "test/nightshift.test.js",
+        "test/nightshift-driver.test.js",
+        "test/contextpack.test.js",
+        "test/nightreport.test.js",
+        "test/autonomy-write.test.js",
+        "test/autonotify.test.js",
+        "test/permgrants.test.js",
+        "test/projects-store.test.js",
+        "test/projectbless.test.js",
+        "test/folderpick.test.js",
+        "test/pathtrust.test.js",
+        "test/nightfocus.test.js",
+        "test/nightpatch.test.js",
+        "test/projectscan.test.js",
+        "test/discovery.test.js",
+        "test/outcomes.test.js",
+        "test/project-discovery.test.js",
+        "test/permpanel.test.js",
+        "test/permissionsstore.test.js",
+        "test/permissions-ui.test.js",
+        "test/theme-custom-phosphor.test.js",
+        "test/panel-brightness.test.js",
+        "test/simulation-lighting.test.js",
+        "test/room-lighting-settings.test.js",
+        "test/window-minimize.test.js",
+        "test/nightshift-steer-ui.test.js",
+        "test/world-agent-click.test.js",
+        "test/worldrenderer.test.js",
+        "test/world-sharpen.test.mjs",
+        "test/world-immersion-characters.test.js",
+        "test/prop-light-response.test.js",
+        "test/worldsurface.test.js",
+        "test/worldlight.test.js",
+        "test/worldlight-receiver.test.mjs",
+        "test/state-truth-overlap.test.js",
+        "test/world-setskin.test.js",
+        "test/capprop-map.contract.test.js",
+        "test/dock-terms-open.test.js",
+        "test/settings-p1-ui.test.js",
+        "test/dossier-persona-ui.test.js",
+        "test/settings-codex-row.test.js",
+        "test/settings-oauth-rows.test.js",
+        "test/genesis-oauth-providers.test.js",
+        "test/genesis-phosphor-accessibility.test.js",
+        "test/provider-oauth-parity.test.js",
+        "test/personality-no-sample.test.js",
+        "test/modelpicker.test.js",
+        "test/model-provider-reconcile.test.js",
+        "test/model-catalog-truth.test.js",
+        "test/agent-model-select.test.js",
+        "test/model-reasoning-presets.test.js",
+        "test/provider-connections-ui.test.js",
+        "test/newhero-reset.test.js",
+        "test/harness-internal.test.js",
+        "test/chat-runmeta.test.js",
+        "test/chat-stopped-retry.test.js",
+        "test/retry-user-transcript.http.test.js",
+        "test/comms-history-pin.test.js",
+        "test/comms-deliverable-replay.test.js",
+        "test/composer-paste-limit.test.js",
+        "test/chat-linkify.test.js",
+        "test/chat-code-copy.test.js",
+        "test/mint.test.js",
+        "test/ctxgauge.test.js",
+        "test/ctx-model-catalog.test.js",
+        "test/ctx-conversation-scope.test.js",
+        "test/floorstats.test.js",
+        "test/insights.test.js",
+        "test/slaglog.test.js",
+        "test/xp.test.js",
+        "test/xp-crewsplit.test.js",
+        "test/xpstore.test.js",
+        "test/growthratings.test.js",
+        "test/xp-upgrade.test.js",
+        "test/dossier-reliability.test.js",
+        "test/roster-track.test.js",
+        "test/chat-prompt-diet.test.js",
+        "test/returns.test.js",
+        "test/outbox-window.test.js",
+        "test/quest-log-window.test.js",
+        "test/personas-fun-five.test.js",
+        "test/pride.test.js",
+        "test/seedcredit.test.js",
+        "test/seedreuse.test.js",
+        "test/seedreusestore.test.js",
+        "test/trophies.test.js",
+        "test/confbeats.test.js",
+        "test/cron.test.js",
+        "test/cron-human.test.js",
+        "test/cron-store.test.js",
+        "test/mint-ledger.test.js",
+        "test/cron.dispatch.test.js",
+        "test/cron.chain.test.js",
+        "test/cron.tick.test.js",
+        "test/cron.hardening.test.js",
+        "test/cron.dst.test.js",
+        "test/cron.durability.test.js",
+        "test/cron.lock.test.js",
+        "test/cron-session-hydration.test.js",
+        "test/loopjob.test.js",
+        "test/loopjob-check.test.js",
+        "test/loopjob-driver.test.js",
+        "test/model-loop-control.test.js",
+        "test/loop-review-controls.test.js",
+        "test/routine-origin-race.test.js",
+        "test/returnstore-recovery.test.js",
+        "test/settings-save-failure.test.js",
+        "test/loop-tools.test.js",
+        "test/loopgit.test.js",
+        "test/cron.oneshot.test.js",
+        "test/cron.run-now.test.js",
+        "test/tool-withheld-message.test.js",
+        "test/cron-guard.test.js",
+        "test/untrusted-taint.test.js",
+        "test/routine-tools.test.js",
+        "test/comms-tools.test.js",
+        "test/acp-core.test.js",
+        "test/workstreams.test.js",
+        "test/workstreams.search-perf.test.js",
+        "test/session-power-tools.test.js",
+        "test/session-creation.test.js",
+        "test/projects-view.test.js",
+        "test/prepare-node.test.js",
+        "test/summon.id.test.js",
+        "test/summon-desk-prompt.test.js",
+        "test/recruit-identity-ui.test.js",
+        "test/subagents.test.js",
+        "test/orchestration.test.js",
+        "test/domain-terminal.test.js",
+        "test/worker-iteration-cap.test.js",
+        "test/channels.test.js",
+        "test/comms-presence.test.js",
+        "test/comms-busy-age.test.js",
+        "test/comms-link-honesty.test.js",
+        "test/app-boot-provider-truth.test.js",
+        "test/steer-idle-honesty.test.js",
+        "test/model-ack-honesty.test.js",
+        "test/toolprops.test.js",
+        "test/worldmodel.test.js",
+        "test/path-smoothing.test.js",
+        "test/run-truth.test.js",
+        "test/station-authority.test.js",
+        "test/zones.test.js",
+        "test/idle-life-regressions.test.js",
+        "test/social-border.test.js",
+        "test/social-trio.test.js",
+        "test/sightline.test.js",
+        "test/agent-affinity.test.js",
+        "test/agent-affinity-weight.test.js",
+        "test/station-gathering.test.js",
+        "test/crew-containment.test.js",
+        "test/prop-awareness.test.js",
+        "test/chat-stare-throttle.test.js",
+        "test/talk-turn.test.js",
+        "test/glyph-speech.test.js",
+        "test/g1bprops.test.js",
+        "test/g3btrophy.test.js",
+        "test/stationbake.chunk.test.js",
+        "test/stationbake.materials.test.js",
+        "test/stationbake.seam.test.js",
+        "test/stationbake.connections.test.mjs",
+        "test/stationbake.hull.test.js",
+        "test/canvas-loss-recovery.test.js",
+        "test/stage-context-loss.test.js",
+        "test/conveyor.test.js",
+        "test/pipeline.test.js",
+        "test/pipeline.join-loop.test.js",
+        "test/blueprints.test.js",
+        "test/guidedline.test.js",
+        "test/ghostline.test.js",
+        "test/routing.b5.test.js",
+        "test/routing-nag-parity.test.js",
+        "test/crate-honesty.test.js",
+        "test/plan-poster.test.js",
+        "test/chain.test.js",
+        "test/chain.join-loop.test.js",
+        "test/chain.limits.test.js",
+        "test/refit-card-stack.test.js",
+        "test/refit-flow-polish.test.js",
+        "test/refit-junction-cards.test.js",
+        "test/refit-footprint.test.js",
+        "test/refit-run-gate.test.js",
+        "test/step-brief.test.js",
+        "test/propanchor.test.js",
+        "test/prop-mount.test.js",
+        "test/prop-flat-decal.test.js",
+        "test/bed-sleep.test.js",
+        "test/prop-render-smoke.test.js",
+        "test/proprotate.test.js",
+        "test/recliner-side-seat.test.js",
+        "test/sprite-sit-facing.test.js",
+        "test/prop-search.test.js",
+        "test/prop-starter-shelf.test.js",
+        "test/waitanchor.test.js",
+        "test/harness.integration.test.js",
+        "test/toolsearch.test.js",
+        "test/consent.interactive.test.js",
+        "test/consentwait.test.js",
+        "test/consent-visibility.test.js",
+        "test/session-indicators.test.js",
+        "test/estop-persistence-ui.test.js",
+        "test/channels.adapter.test.js",
+        "test/channels.proxy-fetch.test.js",
+        "test/channels.owner-pairing.test.js",
+        "test/channels.telegram.pairing-ux.test.js",
+        "test/channels.telegram.test.js",
+        "test/channels.telegram.format.test.js",
+        "test/channels.telegram.context.test.js",
+        "test/channels.telegram.media.test.js",
+        "test/channels.telegram.groups.test.js",
+        "test/channels.telegram.threads.test.js",
+        "test/channels.telegram.updates.test.js",
+        "test/channels.telegram.stream.test.js",
+        "test/channels.discord.test.js",
+        "test/channels.discord-gateway.test.js",
+        "test/channels.slack.test.js",
+        "test/channels.matrix.test.js",
+        "test/channels.signal.test.js",
+        "test/channels.generic-wire.test.js",
+        "test/channels.registry.test.js",
+        "test/channels.store.test.js",
+        "test/channels.durability.test.js",
+        "test/channels.webhook-durability.test.js",
+        "test/channels.secrets.test.js",
+        "test/channels.setup-guide.test.js",
+        "test/channels.hub.test.js",
+        "test/channels.workline-transcript.test.js",
+        "test/cross-surface-continuity.test.js",
+        "test/channels.outbox.test.js",
+        "test/channels.commands.test.js",
+        "test/channels.parity.test.js",
+        "test/channels.buttons.test.js",
+        "test/channels.sse.test.js",
+        "test/channels.replay.test.js",
+        "test/browser-workflow.test.js",
+        "test/mcp.client.test.js",
+        "test/mcp.resources-prompts.test.js",
+        "test/mcp.transport.test.js",
+        "test/mcp.stdio.test.js",
+        "test/mcp.schema-lifecycle.test.js",
+        "test/mcp.manager-race.test.js",
+        "test/mcp.manager-auth-race.test.js",
+        "test/mcp.orphan-recovery.test.js",
+        "test/google-connector.test.js",
+        "test/connector-vault.test.js",
+        "test/mcp.catalog.test.js",
+        "test/mcp.oauth.test.js",
+        "test/connectorstate.test.js",
+        "test/connector-reliability-wiring.test.js",
+        "test/mcp-serve.test.js",
+        "test/connectors-ui.test.js",
+        "test/connector-required.test.js",
+        "test/toolsets.test.js",
+        "test/commander-dossier-css.test.js",
+        "test/comms-responsive-text.test.js",
+        "test/readability.test.js",
+        "test/dossier-skin-accessibility.test.js",
+        "test/control-floor-theming.test.js",
+        "test/crew-rail-fit.test.js",
+        "test/brand-wordmark-mask.test.js",
+        "test/personalization-authority-wiring.test.js",
+        "test/sprite-loading.test.js",
+        "test/textsize-screen-space.test.js",
+        "test/mobile-control-reachability.test.js",
+        "test/station-tooltip.test.js",
+        "test/toast-live-region.test.js",
+        "test/toast-seat.test.js",
+        "test/channels.discord-wire.test.js",
+        "test/queryspine.test.js",
+        "test/queryspine-wiring.test.js",
+        "test/widgets.test.js",
+        "test/widgetfeed.test.js",
+        "test/terminal-resize.test.js",
+        "test/glass-interactions.test.js",
+        "test/backdrop-preview.test.js",
+        "test/backdrop-bake.test.js",
+        "test/glass-comms.test.cjs",
+        "test/glass-approval.test.cjs",
+        "test/model-subscription.test.cjs",
+        "test/terminal-position.test.js",
+        "test/poweruser-shell-repairs.test.js",
+        "test/terminal-sessions.test.js",
+        "test/terminal-tools.test.js",
+        "test/terminal-output-boundary.test.js",
+        "test/release-bump.test.js",
+        "test/release-cut.test.js",
+        "test/release-preflight.test.js",
+        "test/release-ritual.test.js",
+        "test/release-installer-selection.test.mjs",
+        "test/opensource-readiness.test.js",
+        "test/source-release-mirror.test.js",
+        "test/release-train-chrome-warmup.test.js",
+        "test/release-train-provenance.test.js",
+        "test/frontend-dist-staging.test.js",
+        "test/desktop-build-macos-notarization.test.js",
+        "test/desktop-artifact-open.test.js",
+        "test/release-train-macos-trust.test.js",
+        "test/release-train-windows-trust.test.js",
+        "test/release-contract-docs.test.js",
+        "test/website-deploy-staging.test.js",
+        "test/website-app-sync.test.js",
+        "test/website-live-preview.test.js",
+        "test/font.law.test.js",
+        "test/sprite-assets.test.js",
+        "test/sprite-walk-motion.test.js",
+        "test/sprite-detached-prop.test.js",
+        "test/lint-gate-can-fail.js",
+        "test/lint-emits.js",
+        "test/lint-determinism.js",
+        "test/station-bridge.test.js",
+        "test/station-commands.test.js",
+        "test/station-tools.test.js",
+        "test/code-mode.test.js",
+        "test/output-artifacts.test.js",
+        "test/station-recovery.test.js",
+        "test/station-recovery-cli.test.js",
+        "test/execution-profiles.test.js",
+        "test/execution-settings.test.js",
+        "test/execution-router.test.js",
+        "test/sandbox-no-silent-fallback.test.js",
+        "test/execution-profiles-ui.test.js",
+        "test/failopen.test.js",
+        "test/failopen-ratchet.test.js",
+        "test/frontend-fetch-truth-ratchet.test.js",
+        "test/loop-verdict.test.js",
+        "test/free-path-ollama.test.js",
+        "test/keycta-recovery.test.js",
+        "test/process-fault.test.js",
+        "test/tier-model-catalog.test.js",
+        "test/crash-ledger.test.js",
+        "test/workview.test.js",
+        "test/direct-work-launch.test.js",
+        "test/first-value.test.js",
+        "test/effective-toolsets.test.js",
+        "test/discovery-documents.test.js",
+        "test/value-loop-replay.test.mjs",
+        "test/platform-handoff.test.js",
+        "test/ease-of-use.test.js",
+        "test/workflow-takeover.test.js",
+        "test/workflow-takeover-ui.test.js",
+        "test/task-conversation.test.js",
+        "test/task-conversation-ui.test.js",
+        "test/emergency-control.test.js",
+        "test/work-rating-control.test.js",
+        "test/session-focus-safety.test.js",
+        "test/session-typing-safety.test.js",
+        "test/session-continuity.test.js",
+        "test/session-reliability.e2e.test.js",
+        "test/harness-placement.test.js",
+        "test/github-device.test.js",
+        "test/onboarding-refresh.test.js",
+        "test/tutorial-platform-guide.test.js",
+        "test/openai-outcomes.test.js",
+        "test/request-reservations.test.js",
+        "test/result-contract.test.js",
+        "test/openai-formats.test.js",
+        "test/request-auth-rotation.test.js",
+        "test/world-seat-recovery.test.js",
+        "test/world-lifecycle.test.js",
+        "test/world-crew-approval.test.js",
+        "test/world-movement-continuity.test.js",
+        "test/save-concurrency.test.js",
+        "test/cloudsave-concurrency.test.js",
+        "test/sprite-direction-details.test.js",
+        "test/chat-history-reconcile.test.js",
+        "test/prop-industrial-remaster.test.js",
+        "test/industrialtextures.test.js",
+        "test/world-texture-ready.test.js",
+        "test/qa-claims-blob-batch.test.js",
+        "test/qa-claims-search-batch.test.js",
+        "test/workstation-screen-state.test.js",
+        "test/prop-remaster-contract.test.js",
+        "test/authored-prop-content.test.js",
+        "test/authored-prop-motion.test.js",
+        "test/authored-machine-config.test.js",
+        "test/authored-service-content.test.js",
+        "test/coordinated-prop-recipes.test.js",
+        "test/routing-label-layout.test.js",
+        "test/prop-layout-polish.test.js",
+        "test/skin-study-tone.test.js",
+        "test/skin-study-preview.test.js",
+        "test/projection-prop-effects.test.js",
+        "test/projection-load-geometry.test.js",
+        "dev/industrial-textures/prop-catalog-review.test.cjs",
+        "test/projection-depth-rendering.test.js",
+        "test/station-templates.test.js",
+        "test/remaster-physical-fit.test.js",
+        "test/arrival.test.js",
+        "test/genesis-wake-credential.test.js",
+        "test/dossier-growth-live.test.js",
+        "test/industrial-shells.test.js",
+        "test/refit-bake-reuse.test.js",
+        "test/hallway-traffic.test.js",
+        "test/cloudsave-timeout.test.js",
+        "test/station-autosave.test.js",
+        "test/durable-store-faults.test.js",
+        "test/permissions-authority.test.js",
+        "test/api-json-lifecycle.test.js",
+        "test/routine-acknowledgement.test.js",
+        "test/marketplace-authority.test.js",
+        "test/control-acknowledgements.test.js",
+        "test/spend-authority.test.js",
+        "test/workspace-probe-errors.test.js",
+        "test/cdp-lifecycle.test.js",
+        "test/budget-authority-ui.test.js",
+        "test/staging-development-closure.test.js",
+        "test/overseer-ui.test.js",
+        "test/workspace-owner-election.test.js",
+        "test/project-home-ui.test.js"
+      ]
+    },
+    {
+      "path": "test/http.list",
+      "steps": [
+        "test/provider-recovery.e2e.test.js",
+        "test/computer-control.http.test.js",
+        "test/memory-corrections.http.test.js",
+        "test/seam-audit-recovery.http.test.js",
+        "test/customer-journey.e2e.test.js",
+        "test/group-sessions.http.test.js",
+        "test/tool-model-fallback.e2e.test.js",
+        "test/sidecar.http.test.js",
+        "test/channels.replay.e2e.test.js",
+        "test/config-permissions-import.e2e.test.js",
+        "test/connector-security.e2e.test.js",
+        "test/connector-oauth-refresh-race.e2e.test.js",
+        "test/github-device.http.test.js",
+        "test/workspace-owner.e2e.test.js",
+        "test/workspace-lineage.http.test.js",
+        "test/lineage-stationless-halt.http.test.js",
+        "test/update-preparation.http.test.js",
+        "test/codex-status.e2e.test.js",
+        "test/oauth-status.e2e.test.js",
+        "test/roster-envelope.http.test.js",
+        "test/full-access.e2e.test.js",
+        "test/output-recovery.e2e.test.js",
+        "test/project-root.e2e.test.js",
+        "test/live-doctor.e2e.test.js",
+        "test/report-0110.e2e.test.js",
+        "test/scout.http.test.js",
+        "test/discovery.http.test.js",
+        "test/outcomes.http.test.js",
+        "test/scout.e2e.test.js",
+        "test/auxbudget.e2e.test.js",
+        "test/auxmodel.e2e.test.js",
+        "test/failreview.e2e.test.js",
+        "test/questrefresh.e2e.test.js",
+        "test/e2e.run.test.js",
+        "test/image-task.e2e.test.js",
+        "test/e2e.workspace-lease.test.js",
+        "test/e2e.attachments.test.js",
+        "test/e2e.summon.test.js",
+        "test/e2e.dispatch-session.test.js",
+        "test/e2e.worker-access.test.js",
+        "test/e2e.pathtrust.test.js",
+        "test/e2e.subagent-background.test.js",
+        "test/google-signin.e2e.test.js",
+        "test/google-files.e2e.test.js",
+        "test/google-release-deferred.e2e.test.js",
+        "test/e2e.mcp-connector.test.js",
+        "test/e2e.mcp-session-expiry.test.js",
+        "test/e2e.idempotency.test.js",
+        "test/e2e.acceptance-nudge.test.js",
+        "test/e2e.connector-readback.test.js",
+        "test/recipe-drift.http.test.js",
+        "test/cron.api.test.js",
+        "test/cron.run-now.e2e.test.js",
+        "test/cron.degraded.e2e.test.js",
+        "test/routing.chain-seam.e2e.test.js",
+        "test/routine-manage.e2e.test.js",
+        "test/comms-send.e2e.test.js",
+        "test/acp.e2e.test.js",
+        "test/autonomy-ledger.e2e.test.js",
+        "test/loops.e2e.test.js",
+        "test/loops-check.e2e.test.js",
+        "test/loops-git.e2e.test.js",
+        "test/loops-endurance.e2e.test.js",
+        "test/workshop.e2e.test.js",
+        "test/nightshift-act.e2e.test.js",
+        "test/nightshift-grant.e2e.test.js",
+        "test/nightshift-contextpack.e2e.test.js",
+        "test/nightshift-focus.e2e.test.js",
+        "test/nightshift-halt.e2e.test.js",
+        "test/nightshift-beat-halt.e2e.test.js",
+        "test/nightshift-budget.e2e.test.js",
+        "test/nightshift-presence.e2e.test.js",
+        "test/nightshift-floor-visibility.e2e.test.js",
+        "test/threads.e2e.test.js",
+        "test/cron.session-transcript.e2e.test.js",
+        "test/channels.telegram.e2e.test.js",
+        "test/channels.telegram.connect-pairing.e2e.test.js",
+        "test/channels.telegram.multibot.e2e.test.js",
+        "test/channels.telegram.botchain.e2e.test.js",
+        "test/channels.telegram.buttons.e2e.test.js",
+        "test/webhook-replay.e2e.test.js",
+        "test/cron.arm.test.js",
+        "test/lifecycle-armed.http.test.js",
+        "test/checkpoint-store.test.js",
+        "test/shell.test.js",
+        "test/shell.process-tree.test.js",
+        "test/verify.run.test.js",
+        "test/browser.gauntlet.e2e.test.js",
+        "test/servicekeys.http.test.js",
+        "test/servicekeys.shell.e2e.test.js",
+        "test/skills.gate.http.test.js",
+        "test/skill-exchange.http.test.js",
+        "test/skills.gate.prompt.e2e.test.js",
+        "test/roster-track.e2e.test.js",
+        "test/chat-prompt-diet.e2e.test.js",
+        "test/casual-response-safety.e2e.test.js",
+        "test/routes-coverage.http.test.js",
+        "test/atlas-events.emit.e2e.test.js",
+        "test/openai-compat.e2e.test.js",
+        "test/station-recovery.e2e.test.js",
+        "test/paid-link-lifecycle.e2e.test.js",
+        "test/routing.persist.e2e.test.js",
+        "test/run-recovery.api.test.js",
+        "test/routing.sample.e2e.test.js",
+        "test/routing.sample-provider.e2e.test.js",
+        "test/station-template-example.e2e.test.js",
+        "test/route-honesty.e2e.test.js",
+        "test/effective-toolsets.e2e.test.js",
+        "test/discovery-documents.http.test.js",
+        "test/workflow-takeover.http.test.js",
+        "test/task-conversation.http.test.js",
+        "test/emergency-recovery.http.test.js",
+        "test/growth-rating-upgrade.e2e.test.js",
+        "test/managed-image.e2e.test.js",
+        "test/managed-endpoint.e2e.test.js",
+        "test/tool-projection.e2e.test.js",
+        "test/request-idempotency.e2e.test.js",
+        "test/output-only-repair.e2e.test.js",
+        "test/saved-provider-fallback.e2e.test.js",
+        "test/delegated-connectors.e2e.test.js",
+        "test/prompt-cache-prefix.e2e.test.js",
+        "test/e2e.overseer.test.js",
+        "test/save-unreadable.http.test.js",
+        "test/durable-store-faults.http.test.js",
+        "test/dev-seed-isolation.http.test.js",
+        "test/spend-authority.http.test.js",
+        "test/workspace-probe-errors.http.test.js",
+        "test/connector-vault-invalid.http.test.js",
+        "test/project-workspace.http.test.js"
+      ]
+    },
+    {
+      "path": "test/customer-journeys.list",
+      "steps": [
+        "test/customer-journey.e2e.test.js",
+        "test/routing.sample-provider.e2e.test.js",
+        "test/sidecar.http.test.js",
+        "test/provider-recovery.e2e.test.js",
+        "test/codex-status.e2e.test.js",
+        "test/provider.codex.pairing.test.js",
+        "test/provider.gemini.test.js",
+        "test/provider.openrouter.test.js",
+        "test/provider.openai-compatible.test.js",
+        "test/e2e.dispatch-session.test.js",
+        "test/e2e.worker-access.test.js",
+        "test/channels.telegram.e2e.test.js",
+        "test/cron.run-now.e2e.test.js",
+        "test/cron.session-transcript.e2e.test.js",
+        "test/routing.persist.e2e.test.js",
+        "test/station-recovery.e2e.test.js",
+        "test/paid-link-lifecycle.e2e.test.js",
+        "test/credits-link.test.js",
+        "test/credits.test.js",
+        "test/tier-model-catalog.test.js",
+        "test/model-provider-reconcile.test.js",
+        "test/genesis-starnet-link.test.js",
+        "test/friendlyerror.test.js",
+        "test/errorclass.test.js",
+        "test/connectors-ui.test.js",
+        "test/mcp.transport.test.js",
+        "test/e2e.mcp-session-expiry.test.js",
+        "test/connector-oauth-refresh-race.e2e.test.js",
+        "test/qa-bug-lifecycle.test.js",
+        "test/emergency-recovery.http.test.js",
+        "test/growth-rating-upgrade.e2e.test.js",
+        "test/managed-image.e2e.test.js",
+        "test/session-focus-safety.test.js",
+        "test/session-typing-safety.test.js",
+        "test/session-continuity.test.js",
+        "test/session-reliability.e2e.test.js",
+        "test/tool-projection.e2e.test.js",
+        "test/memory-corrections.http.test.js"
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "path": ".github/workflows/connector-keychain-acceptance.yml",
+      "category": "build-and-validation",
+      "sha256": "094ae66412540213148915395bfa4944a24c6b48068336c4018a9d50861c393d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": ".github/workflows/t0-clean-install-proof.yml",
+      "category": "build-and-validation",
+      "sha256": "b387395d0795ae388c29dca74ab221a7430ddfa45483729812c03c70507244fd",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": ".gitignore",
+      "category": "release-metadata",
+      "sha256": "5e7daad181fe57aaf00c5731a282aa8cc87ffed40bbf27bd8d8b10dc7b697bb4",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "PRIVACY.md",
+      "category": "documentation",
+      "sha256": "6974307f435a54716c1daa78c4dc2d05349dd96ade68c9a18224dcf5db65b65e",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "RELEASE_NOTES.md",
+      "category": "documentation",
+      "sha256": "3f63ca854088fa8781559584ec42b383f64ebf3e49579d38f0792a9fe6d84841",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/README.md",
+      "category": "documentation",
+      "sha256": "5bea08eb008ff8c7f955a28dd5ccd9f2e72347bdfedefecb9544f89e45b2b5d6",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/adapter.test.js",
+      "category": "build-and-validation",
+      "sha256": "53eb2d5b7de021746db278365afc8b977ad6f31de224f19b6a6b8264b005e035",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/app-survival.js",
+      "category": "build-and-validation",
+      "sha256": "b4e018b8228e4f05709bf6f2bfc97f5447601fe7cc24412002dcd63bb064f476",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/browser-export.js",
+      "category": "build-and-validation",
+      "sha256": "3d5cdf5288d57d847fd7a078bc8dd048fcdf8d2ca9181a3a479cf37826fe5888",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/cua-driver.js",
+      "category": "build-and-validation",
+      "sha256": "1725167b7891d1894ad11839d341ba3c2c3242ca652705726ee19c0f90531ad5",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/live-loop.js",
+      "category": "build-and-validation",
+      "sha256": "1416feedeecd9d51b9ef40eff76536fef2a8af4c7d8bd488b288ad0b1ff8a175",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/notepad-workflow.js",
+      "category": "build-and-validation",
+      "sha256": "6c2c2f96f80a2bbba2a4b045108176aabe0e4bf89153caa9b6d3da57453844f2",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/production-smoke.js",
+      "category": "build-and-validation",
+      "sha256": "e34fa16b430f1b7e66f58c62e9bd64320f250fd206f60ce1de03b33c667bcd58",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/results/production-windows-2026-09-19.json",
+      "category": "build-and-validation",
+      "sha256": "0569227a0904c65fce6a77aacea4d52bcf17395243bb1861d45c4ed5ca780780",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/results/windows-2026-09-19.json",
+      "category": "build-and-validation",
+      "sha256": "ed34cb328b08ccfce4971a1f40959882f6244314176eaf2ea285a0ac9dd564a1",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/runtime-smoke.js",
+      "category": "build-and-validation",
+      "sha256": "b75034f7d58e373c61edaa9c3a00072c8e606cf8681c503cfa4cd9f7333b5033",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/computer-eval/session-recovery.js",
+      "category": "build-and-validation",
+      "sha256": "abde6575abb127eea2938832f876c938aa2302ec3c49c0c39b336cce3518dbd1",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/hallway-traffic.mjs",
+      "category": "build-and-validation",
+      "sha256": "f161c1b8ff0cbcb491b28e046776b27ae96dc8f885ca43ce93edae0938f7a6cc",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/overseer-preview.cjs",
+      "category": "build-and-validation",
+      "sha256": "e6626e8403c74a70111d60a0f5d3c032f24fbf95014f61a9920bedd798305ce6",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/project-preview.cjs",
+      "category": "build-and-validation",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "56b2712d4aafe09d38daa92e6a7bfc283593e4686ff79b78848c60d5fc458cd4"
+    },
+    {
+      "path": "dev/reliability-panels-proof.mjs",
+      "category": "build-and-validation",
+      "sha256": "5cf4b925b78ce57219f98c33f07924f9fff660a2c61f08087d14eddf778e80f8",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/reliability-save-proof.mjs",
+      "category": "build-and-validation",
+      "sha256": "cc4adb5f51c975eb2c0e783943b4131d9aa163b32d95748c26a8eb282928272a",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/seed.js",
+      "category": "build-and-validation",
+      "sha256": "165de2fcef17062c55f4f398d5aba1acd7d3b7807b20ffee44250b209d7899ff",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "dev/systemic-bugs-proof.mjs",
+      "category": "build-and-validation",
+      "sha256": "12f4fc96898e2f5aa320ca9fe5394802884d7b4ee23e91ab23b1cc18a83752c1",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/COMPUTER_CONTROL.md",
+      "category": "documentation",
+      "sha256": "dd9284fcb4df449923f4b8052f710d77602748c4add1b3d0aeeb8142d4dfc73f",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/COMPUTER_CONTROL_EVALUATION_2026-09-19.md",
+      "category": "documentation",
+      "sha256": "f2aa12e3123d585f7637d039267f4432466e132f35714e10bf435dabbb0aa44e",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/GOOGLE_OAUTH_STATUS_2026-09-19.md",
+      "category": "documentation",
+      "sha256": "4e40fa69014a1287ddf51659b78aef2e0306746fa1050b2fae84e4286923265c",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/GOOGLE_SELECTED_FILES.md",
+      "category": "documentation",
+      "sha256": "74d0f38f7305d4f6b69252a2b52dba359f26c9a8bc5d06075d4578acf4999152",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/GOOGLE_SIGN_IN.md",
+      "category": "documentation",
+      "sha256": "ff0373b3f60508fc510c92b93116b315012436c3502bbdba580ff6e3c489c533",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/GOOGLE_VERIFICATION_PACKET.md",
+      "category": "documentation",
+      "sha256": "3e8b49f4153154ab9a02a3b7630e9d9701e0123521bdf861b406f73b6f8a67de",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/NEXT.md",
+      "category": "documentation",
+      "sha256": "e325c51e5237b9fdbf11eaf7c144b09f5dfa981fcda424d898d3dcc820eeefa9",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/OVERSEER_HOME.md",
+      "category": "documentation",
+      "sha256": "4ef5af22d4a417bf7f104a0df56a89e11fac5eec9b860664d9ed7a1d2d58af1a",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "docs/SMALL_SCREEN_PREVIEW.md",
+      "category": "documentation",
+      "sha256": "372e210355436cbd0143acd36b0803cf32dc7e343cc6c8822e4da2af74844666",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/agent-station-demo.html",
+      "category": "frontend",
+      "sha256": "080c1018e3efbd468eafa1553b37dea42fa11c44456a8f49999e1a7c45b355f3",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/app.js",
+      "category": "frontend",
+      "sha256": "6e2e5362154271d4eb9ab2dc19c23ad99d9ca8b2d22d08edf1e261ac32fe295c",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/autojobstore.js",
+      "category": "frontend",
+      "sha256": "8a0d090f468aa58049d7303ae1b8eae8792c645d505ddf6a7f2afcfe9de20360",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/bootguard.js",
+      "category": "frontend",
+      "sha256": "d1af306b7527f7f17580765ada49514235ed69e7a2ed720b4c0c477073d6ec6f",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/build.js",
+      "category": "frontend",
+      "sha256": "da9281372777f0392be8dd0e1cf6cca03dc1331d9acbb4adf1852381e2a71731",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/chat.js",
+      "category": "frontend",
+      "sha256": "398ab607eeeabd50fbe0dee6e0ed18bf02c33ad034ac73f8112e76c01cc822ba",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/chatresize.js",
+      "category": "frontend",
+      "sha256": "993a3f9d21c8950aa37996dc10ccbd905a3aafdab94b3bf622d650f2ad9d0934",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/cloudsave.js",
+      "category": "frontend",
+      "sha256": "b013c908d464c49f1220775cfb547a5855d6040ee74c3b1a588fddd1ba6e0088",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/diagnostics.js",
+      "category": "frontend",
+      "sha256": "9f14a986b92e960f42d2f11b442e71d2aaf519816721e956ad57a603820c01ce",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/emergency-control.js",
+      "category": "frontend",
+      "sha256": "d8a8ddfa769f2dd95526590d95591d3b31b66aa3c78d02fe50bd6eaf7b55e98d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/harness.js",
+      "category": "frontend",
+      "sha256": "bdd1f46f527f2dd11d76d86c04c656044ad55f9eef2730188f83cc18b71d69fe",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/marketplace.js",
+      "category": "frontend",
+      "sha256": "082a7c77da177200a78b8423c869c7308935715565d37279a9a9ac986494fb4d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/overseer.js",
+      "category": "frontend",
+      "sha256": "6f6821febbec9655a1548c61db70bf4441a870ade138857e047a7b4d17adfb49",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/permissionsstore.js",
+      "category": "frontend",
+      "sha256": "fd14692a5aa1b95328ddd031b40f2feecd286287b9b8c99555a2cb8158dfd867",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/project-home.js",
+      "category": "frontend",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "248875733cc8b4c355202e8cb96b24db22c77af6727add2796e8192c936dd604"
+    },
+    {
+      "path": "frontend/app/stationui.js",
+      "category": "frontend",
+      "sha256": "d899ece3c34aaca2ed1ffe339780670e52b5d17eacb6a8269b1ab012e8bde8da",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/widgets.js",
+      "category": "frontend",
+      "sha256": "66c0b8502858198a2b2f6f1a76e796a979bfade433d62d4c5f3bd02418ed53ae",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/windows/connectors.js",
+      "category": "frontend",
+      "sha256": "8d24498b793ff7cd019d62ffcf1d8b88a811015f74ef8b5d74a7f7291e08d41b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/windows/messaging.js",
+      "category": "frontend",
+      "sha256": "94a7d7efe8e53f377dc259d8f9d7da755f7351d08c34bd0290381df550cb8b08",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/workstreams.js",
+      "category": "frontend",
+      "sha256": "31fcb6b2c70c7956fc84c2088d4d59c92940da26afe52267ca7ed5b6fbad3f09",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/world.js",
+      "category": "frontend",
+      "sha256": "6fe9f101e8650294412f68f66deb925a8127c72a2fc3122000318d6bb022e4c2",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/app/worldmodel.js",
+      "category": "frontend",
+      "sha256": "e911b468f87a54f497968dc49d7342375a1ad8bfa506bf71ecd68d35cc2075be",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/css/comms-layout.css",
+      "category": "frontend",
+      "sha256": "c851e19dee7b24fd513d67fa19133f8f6278d6bc9e9d2ace7c2efb1b75b49ffd",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/css/comms.css",
+      "category": "frontend",
+      "sha256": "7cc22462d3a002111dbb3bce45de269e18283894ea727180e1233ba22748784c",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/css/overseer-setup.css",
+      "category": "frontend",
+      "sha256": "7595ba6ad5b5e1f7572896935ab02d86b0ea8c39b49b7998fca7ce3922f8432d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/css/project-home.css",
+      "category": "frontend",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "e0ae555d5bc6b7e83895fa15a5ba476a8bffe2cb390e22810f88d63abb9e44e5"
+    },
+    {
+      "path": "frontend/dev/comms-layout-review.html",
+      "category": "frontend",
+      "sha256": "828bcee0a99f604673805c94eb926748c6928057fd610f9b63fa06ee64a4ccab",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/index.html",
+      "category": "frontend",
+      "sha256": "7d746ab84da172fc1adca5cedec6ca954a74c9f2028f62952e3a5ad8813d76dd",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "frontend/js/util.js",
+      "category": "frontend",
+      "sha256": "aded27c358c42bffd6e1ee2db2ae44bd8b89ee01e8c71ec0d76e72a030d85424",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "package-lock.json",
+      "category": "release-metadata",
+      "sha256": "a7fe244ff58b0e70e293db28d2ec4dea134f6720ea744454868e3c15c91dde4b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "package.json",
+      "category": "release-metadata",
+      "sha256": "32624d226b458745f86dc3b0c60b14b409673d079c77384721cf7dba71ccd4c5",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "qa/BUGS.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4b7170aab96c6316bf65664bb0bfbc24d8bb2c2472da269aa4c72d5820f675ce",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/SESSION_RELIABILITY.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "bff448161d11aeff28431213521914f812f3f255c4308ff388cd51cd2c8d979f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/STATUS.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "fb2701548da56c83f077240f939ef66ddd20f7a8fd375fa3c9da7ad4729e5476",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/037ec5d2-desktop-bundles-include-development-only-native.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f9fb9ecb415f66da6aae74a726d732e3ab7ba69a3ef2f5913e321b7183a494ab",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/0428b50d-invalid-connector-json-null-replaces-encrypted-r.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "affd9fd9776feed522868e0da5fcb40083767d7a1110fa159adc4ebebc74006f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/0cfef8af-concurrency-limited-routines-starve-later-due-jo.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "aa580f2bd49539070b67881100bd5d83f457fa723144d837e78e7c2a14de456c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/1746d326-unavailable-spend-history-grants-capped-runs-fre.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "00b5ea8497855f1aa4082c84b4e3a05ed6d9344753f255966a515fecbba3b6af",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/1b9af0d7-execution-and-disconnect-controls-confuse-transp.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "18e0722e17294e8f7d4a021bdd3eb69bd98690373fef633d9bec962235f219c4",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/2426399e-reopened-conversations-send-before-history-is-re.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "aa8b2279455a68ee9335b0db8101db434ac126a64fdd42573610d40eb79288cf",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/25120f27-projects-overview-remains-loading-after-a-valid.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6f924ec6986c0988dda058d4c67cb93e79e9d5c9dbb79c265d669038f89a8e8e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/25de9a74-failed-remote-save-adoption-falls-through-to-fir.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "5555b52ebd3d87eb13d2eceba1d9e2d9862bda7f40287b0058bf9a79e93a428e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/28dbd392-malformed-save-acknowledgements-claim-durability.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b2829b6de9033f71339f40ef3ccfd6572b162072ed25e6066c46dc53a67524be",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "482469e814d06382f1bd9d37e3271f2778cbb3160981e01a8abc3fa25313fa50",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "37a5b348212bc21746727c58c42dc53feb521cf59d9aeaf2e6838df81048da40",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/34c58f4f-unreadable-station-save-is-reported-empty-and-it.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "fcf7a23f2df2fb782a9fb181c9909478cb7281ee1e65d3eae7a7697150090670",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/38aad6db-stalled-finite-json-mutations-never-release-thei.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8ca697760cf309fa7130ae22edfe5f92fa167f3c342b964d7f43721cbcd0be76",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "e6fe7d5a54664f29772adccc430ef5f839a070e8f891d2499150a319ccded612",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6cfbe161302730f2ffe8f9560a5eccef038099e3d912d3b427543a1884a6ca26",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/5308fc67-older-mac-webkit-cannot-initialize-chat-and-widg.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d0f88a1dddda6fcf57577c256aec464c701f170eb7b93e5d12c02e823af72177",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/54564ff9-zoho-mail-bootstrap-tool-reportedly-requires-und.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "5f1001912555863d50a5843abc653c5c58c910d6ef968aba2a376629efc6ca8f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/629c9bd7-project-reopening-loses-crew-controls-and-can-mi.md",
+      "category": "prior-evidence-and-triage",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "5df1e8005cf8d4cc25c1d19ba7aa8af3302677657ee6536eeea41f9a8590a559"
+    },
+    {
+      "path": "qa/bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "564eaba09d801ea5f166dfa47ebce41bb62a680cdc8acd4b036aaf94177e2332",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/6e29727c-windows-node-24-http-test-exits-with-a-native-li.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "07842ecf25cd758f2ee49ff35a596e5aea24b70f650d51e5a210f751583fc1db",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7fce3ec083cc0d220776a3e36d02fff8273abfc4291d176d3815eaf2353a3402",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/759f281c-recipe-readiness-includes-disconnected-and-unaut.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6860ce8618890e6f28cd5032fb528afde673ce5f9a2cc4ffbc796b1d0d2ca0d3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/7aeb7f9f-temporarily-unreadable-durable-records-can-be-qu.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3290db742c379cbb9e99e2f092d129baad0f30102b7f6de3c390b0a560ef08a8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/7f19707e-unknown-pid-probe-errors-authorize-workspace-tak.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "15c6e3905460f0e6aeb3d93089541d424153ae46d7be3bb9240fbb62df1c07ca",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4882f541f57847a6a27c676c926b4663da0ee6f5d8a1fa832dad62bb4bb1543c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/83c34908-backup-write-failure-is-swallowed-before-replaci.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6c58fd4d1161cd61dea81d616947db79510045cee80c0a682d3321a21a2e91de",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/95d13aaf-ambiguous-permission-and-routine-acknowledgement.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "30b019d0fb95ea4f3d7de24b87a36f0233369f866fb49c6e50453377569954bd",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/996e399b-station-design-edits-disappear-when-build-is-int.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a5be66a84855d450162dc66e1f016cf08d59b2d7982cc3a0905c5d4876155f5d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/9f67d884-conversation-crowded-on-short-laptop-windows.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7619eda2d902d5cacac3fa566fb98a1b5618a28827f9a277a2de3b38fa893e4a",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/b48aa05d-files-dropped-onto-chat-do-not-attach-in-the-des.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f7653cdbcd533ee7a7ef9c54535dc1eeb6df00c1482c2e9f62ae9de5f332951f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/c24336d5-concurrent-stale-workspace-reclaimers-both-acqui.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c409c93db73e606822bacb6bcfdbe8062a4ed56c188f620761a8307aaefcf99c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/c9929ae3-onboarding-sign-in-codes-have-dark-text-on-dark.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ece0671c4a3e67dad02063799621c7a2bcafeb571bc463e951f0a17a06478491",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/dde8e66f-late-permission-responses-replace-newer-authorit.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3cf226e10c21cb4269c1f848eb03f9aa115e3443ae4c72e60f65b3f1d3c71be7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/e60f28af-recipe-bay-caches-failed-catalog-reads-as-perman.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "aecbbb951f19fcd38a325e09a199419b4db5cedfcd24b27ab5c4824e5b4aa098",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/e6b19398-stalled-save-responses-permanently-block-the-per.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "0e82ce4ce87808bca4275d7e38486dc678c3a7dc44c59cbb1ca02166f584ad09",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/e725e614-refit-object-placement-stalls-while-rebaking-unc.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "0e45e1ad02db4653c69e0f6184e2a77a9aacb71705a4834dc702fb1712efc123",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/bugs/f8d479d9-repeated-project-verification-reportedly-consume.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "837f828a0b6d07fad64145e2c264a44c8ce2830335b8e635c105fdb7123250eb",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-18-hallway-traffic.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "2541c0e52826f6c48e77423116f19479bf94e1b9a62b683e34a6842d019a946c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-18-mac-boot-compat.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d3b1934649574ecaf4e900eaf3fd0881da4a0fbb82da19a4c6e6ebef6d4682a7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-18-projects-loading.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ba2583b1a03bd9a0c6ab2adcecad994d132dd059e6469f4aea99c1dbe609eeb0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-18-small-screen-comms.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "9d2f3cf5b6e93b1de3b568a5bb3878a078dfb617f4bdd89cc30a32d98bd8369e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-chat-cutoff.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a45e5cf174a74b87b5f79b6d46bf79d79cbb5b6c2e4910e6b4d180425425bed1",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-computer-control.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a8e513e47ef32934ebf5852e7465a5b28ea0e87ea83dc669f7d6aed9649f684b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-onboarding-contrast.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "dfc4497639df5fb9be72ab2b84ea175ffc1a592f6d93b6682977edd3c672c849",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-orchestrator-comms.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8f537eb73305497e7f7585d95e1cb62431e282db37ca32f976cc270c6e096513",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-orchestrator-merge.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "2e836f6b421d112314f533f8a76da63cb40c844414a406a5251e586938ccabf2",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-orchestrator-sweep.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c0fa1a32104e54015960791e3cc9337aaa2c9c5b73ce6e7b401c98236afd533e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-overseer-home.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "eea4e0c6c686686281f48b079e9a5e1196ddda08b666d3097a52ed78c0d39504",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-project-workspace.md",
+      "category": "prior-evidence-and-triage",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "5f5d669d34e6a86f542a0d4ca33988be9f04e8d4ea28283a744df16393105e81"
+    },
+    {
+      "path": "qa/digests/2026-09-19-refit-placement.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ec61b06f3fa19825f96780357ccd00d98d5b22f26b26c11a85a439159fe7bbbf",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-reliability-audit.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "574094578f3fce3763eb2da232a64a80a2d0d7716fad6124cd482776498fef6d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-reliability-hardening.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f06b695788bc4ce28847525f52ebf25e437f69e93f79c5d7cc75fee4c75d80be",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-reliability-merge.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c28ba756377e0af502c6056d2d04a19cb476b890e2889b143f5ef4b21711c1be",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-session-reliability.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f9e1305247784cfc476bb733abb2942a80b59396529baf8ee2a28dce3296b6cd",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-station-autosave.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "09b2f62d4d76d9e13876e9ed475211a32e816d9e9e1f36c5d74700495d8e9d3e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-19-systemic-bug-analysis.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8711d89784dbd9858411ae60ca39f4db76dcaf6b8237b8f684a975c7ad6064d7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/digests/2026-09-20-google-selected-files.md",
+      "category": "prior-evidence-and-triage",
+      "sha256": "5c0b10d78b1f44ca27ffedf8811b623e1878995c6fb00bbbcf148976773fc88d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/chat-cutoff-0919/investigation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a26841f755c049eb78b4959c4ba9688b847a881b9a30d0a1ea22d826924f8f62",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/chat-cutoff-0919/verification.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d4b2e5fdc2f34aab909fcb5f2bfd64d000526a3ebd14111b68e71cd7add58ed5",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/hallway-awareness-0917/after.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3ea7959df52ab48823c593644705bace4f20e59491dbc5af2eb396ab6c704674",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/hallway-awareness-0917/before.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "13c39d9ad2e63df7b1ba8c955ce46c8527b9d37503e9010c70f042bbd7aabcdf",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/audit.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "42d82e208375d8ec367cd084e62056f2ec6c815c3d7db5637a1168af74f84fc3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/customer-journeys.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "9a6077f3752954c0c5df3c3ce81e31e0bce8fc919ea999c5dda55bfd12cf65a7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/fast-locked.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "9018e622e2c669795790816b246ff0009a8496715323711a02afa8ee5b379d4e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/http-combined.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "43f155b917ad05435d11ff511edd485ca64f03e5818a67f6ff1de3b6bb510adf",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/journeys-locked.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "73d1ed06cc7fa958f735e15987921d740188b7b84b11d7af8d8568507773d058",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/native-runtime.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "99d390e103e976e9cd8fd6333b289e959fcad9276c5285773fe61671cec5bef3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/panels-live.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4f560680aeb59eeb55fa1af8cd8e64a4a95a85385c5a2b1b1cb290ed1d38d28a",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/readiness-locked.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d7da393c34ca70d7a731d85c92d29b8b0eb573038eb78917731246a6a0b6ed27",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-adoption-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "1f61fb80e25da6bdaa9684d580113658b45d3cc58649ae5d0b993c04b63139d9",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-candidate.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c0ee0c0a0e0dc494ff151daeb367af294de702fab64af98215af91d74f9a6c38",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-complete-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "477d3921cb4f50f1d675087472b223551128ba01e16935b54fcf504001f9e8e8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-final-candidate.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "75bfba69b57c4b7fedfd6193bd5eb855fd4c6ef1c2e3b8c7d04232c4065ec5c3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-live-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c655367d8031df5e3ddde047bdc7d59254c5c9402d3cf0c410502e4db6f43623",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-reply-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "441107e7ac7a7675aac326a646c67c511178f0daadec9cf6c031b166c5890d67",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/save-timeout-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3d949d3fb7a8df04b3c0cec11e076293370b41f5eef101e1f2e93187eb4da310",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/soak-after.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "734ac4d321c3277768005657102d276416a697660665fae104d4c7897aaa61b3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/soak-before.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a0dc23cc87fe6c9e5a2e9196c59cc431289f10382b140cff40c96aba39a1a01b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-audit-0919/validation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3fd79479379e65057c1447f4134d5085cdd0595f9e4699cd87711fe0e55e31e3",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/cdp-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "09d2af85100158746e59d506bce7ec1da308ceaf4bf218730fb943852d43bf20",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/combined-journeys-report.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8738f6bcb9d755e0f43c22c10b42765d394839f7a5b3a8053417be543228d246",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/combined-validation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b9b4c9287cc2cd5dd5528f2cdd510c2290903f0057bd4227ee5a94856f462f40",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/guardian-before.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "03ba9bbca245a8072ae505ce0a250ab7c47df4c393e387fad5625616b62d5738",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/candidate-lifecycle.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7d3efbd16f04cf70f06c90814dce69aa4cd3882b00af410f066890f2b3bf565e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/clean-install-proof.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "04ec8c20915d336b242f0ce82dd436481b23f6810d1fbf7df27606ecddc86564",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/public-upgrade-continuity.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "bd7d834b3dcece6d2cad9050bfe4d94c96425c22be651c7387d1df8f58ccda4e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/run.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f10cd2664cf30eac13da506b12ed10c6cdbc45096f484e027718d46cb925f897",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/session-continuity.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8a68879f0515f2b2d802f852723f4e5fa169d8258eb8d5cdf1e74ef8c2748f22",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/installed-windows/spend-authority.http.test.js.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "1bfc39d1ca667d6080224117c8f874d682029e866ba2693e06a7ca0650e6520c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/intel-macos-installed-acceptance.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ddd8c4e8a7580642957bc2126b16440e56d4112fbea21a0b1b90e019a11a0233",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/journeys-report.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4a4ff89582ed8f6d14bb172ffcd6b89dbb57f12ee4951e3d95ba8d2c3316f4d0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/live-budget-unknown.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "56518dc0c1a2f80644cd8fb7452de57ca77477cf0c44baa43b5f167b9128ad8b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/live-budget.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b9038caf5f692c55dc2c8442d7eaa431d6f6f956d53c6ce4e7cc3a628cefdbb0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/mac-installed-attempt1.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "60467a0cf27013ae04574100271df200092f678bab1ca26ab94d50dcf0773227",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/merge-preview.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "790c16288d8047b5f56e45a5cd890ef2c49b9b5d58a0e288f6dfcc559654ff88",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/owner-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "10925e0053360a5d9b8b54092c4bf9d27f55c10913b1a70dc464b5af1682db20",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/owner-http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "01afef38d300e9fcc49f75d9c11ab17f2e62360843834de0d5507f86227f5ccb",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/owner-race.cjs",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d793823503db7c33d9cc7ee5b39cbac01234654f7b8ff0b0b6cf245bcdc975ae",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/spend-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "092f83c95e34b6a29cb4a55819a60331e4c7e18881a7f687d5d79f19403125fa",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/spend-http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "06c1e49cc49e649a102231c7825ea9187edc2fa69be16c7fac87138782e0cf62",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/validation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b850978fc6947e838215d5a314b3657bae5aed0843e26deb7ce25b0e42039a79",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-hardening-0919/windows-artifact.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "92388e3f63ba17cb7f435a77c98a1213c10dff47898508303440396a4ac04449",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/composition.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "86644ad1e014ad129264c6381342b5b573981a9b8224e7c7b5b74f50e0234e87",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/customer-journeys.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "230fc372c3a4a95b0369109be57ae8026b160185987a33263e1231771f6b5d23",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/first-integration.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7be735e1f78f69c94466910255cae05e9671ae267c956399c5d018bec34d79dc",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/first-post-fast-failed.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3c5db90ce604ade70f4f613520af2f64aa57d676a30c2564353035c283d27ba8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/first-post-http-pass.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "cb6f697028d6fe274f44aa06686141f816e67fa2b14c8e1173e10fdd6cc42d24",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/first-pre-fast-pass.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "13f3ff6c6f864760c4e0d082cbf910878c4fd88a189a4f19b22762a598b66f32",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/first-pre-http-pass.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b611cae3d264acc5643bbd0c0df4fc1baab80c87353d7158e7f1bf279ae3ae9d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/guardian-context.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7dd676e5d569902c5989df5b8e44fdeba4ba2f3e769cada4615a597682586ae5",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/integration.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "52ab9328a45ac963a0966716c20003a2e6f5834a09ea9968c4ebc7d37dca9f81",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/isolated-memory.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ed8b54b4ff4f34a922e40609e6a173b894f457919070c49bd75f0d255da60c1d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/isolated-session.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "94206f97f12a2ebc427a5d577343226caf280ef6563f9da8ce735b37272f0ea1",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/journeys.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "166374420b7c9ddf7961fbae7d1cf45b9dc78b1ea5457568b734f2ddbdb4cbd6",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-fast.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d86fceb69b31831b3f95125be3e395a7eee8a5a812dbfcec31b2f4ffaefbf92e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "85b258995e33b71fe3c5eb91d39ebe792f731d0ea85a7207cfee9e36da9f9131",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-save-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "1b02cf12342b2dc2d9d7edefcdf7e30268817023cfbfb2efd213448f53e7ba1e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-save.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "9df27cba24161a5af6c139cf48618ba8851065bafdabfe134753f8db0a944b07",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-session-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b1701af30dd06cc7d539083d72e341890c0d651a23cc9fa9bf638494c7243d7f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-session.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3586a568d45ca15f11a4f70d5295dbfc9558ecbd88b65209956bf10c5c47552a",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-systemic-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d1f00e7b53d1d8f9c55c36f0657cc93a8c216793ddfebf8c4d3e21d1879206a8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/post-systemic.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d1f00e7b53d1d8f9c55c36f0657cc93a8c216793ddfebf8c4d3e21d1879206a8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-fast-backup-scan-failed.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3c49e4ec4f3cea64c356d19c9dc7c6a1639f209ef709751f84ef376559bc2ae8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-fast.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "08cf6aed258db1b917c70ca26a0a3420607289dafd8e1aaac94e44287b8becfa",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a192974662e9f9ec0f1499eb4c2df870159c320ffdfdaaf364c45955b6e0f9ac",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-save.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4e741a242aa88e12fd13252bfb6a9bc1814dad2efdca3539ce8e874c6ed02194",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-session.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "2ae6231316ce85fc4cafdff319670de67642dc27296d064392ded506271b913b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/pre-systemic.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "410ae1653aaed92e3d689796b162669d23d42f1a528980ecd70aeb851b1eaef5",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/rollback.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b2e86270b384cb3668c3bc8790d5c6f025aa92fa81e9c354d151f0cd0efe74cd",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/save-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "550d8a337e26f86b667f9085664011667914494f1d7fefb37423d074e2b0bbe8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/seed-isolation.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "0583b41b7e94d5d0dd83df3f8c32e4c72190c514b9d6994d0b93bc5b1d5fc6d8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/session-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8f7af23799c952a6f2b975f88a6af4f93df81bed923f65d82ba19010626cdff6",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/systemic-live.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "410ae1653aaed92e3d689796b162669d23d42f1a528980ecd70aeb851b1eaef5",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/reliability-merge-0919/validation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "7f4f91dd13811c2206aa86d9f5f4f3487b43769e54c4b49909980a5c94c1b984",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/session-reliability-0919/baseline.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "ab5781bfffc7ff7230d556ec6b08fc2b12d145d5bd46bb72cbe3d1bc6895d0d0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/session-reliability-0919/verification.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6b2b96e2c9b8affe5426d2aeeb9d8b8754ceafafe908b18d17f8a0b3f8ca910e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/api-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "093b1de23b3f0760711b213a1fe2415d5f698d587c86b10389c8eab8a561e232",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-after.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8ad05b49d3380286182ca667285e08e8787c7148f3663b348443bd1591588cc1",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-before.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "19551d6334f1160da07c59169ef058385752269e8998d576b74bced3001e3d54",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-controls.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8ad05b49d3380286182ca667285e08e8787c7148f3663b348443bd1591588cc1",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-timeouts.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f7d2e8171c168c04d81db6daf76ba0af7750367b62348c5b20704e0c3ece656b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-timeouts.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4063d0f04ca833c075c0204f62862566099bc863153c3ab82ffbe5cb2f762c0f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/browser-timeouts.mjs",
+      "category": "prior-evidence-and-triage",
+      "sha256": "1a4b24de8a32329dd9cc020458001c0c3bf38a8db6a13203eb412d62d7eedd96",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/controls-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "6199a36a3020a0867100f1469a7283937bc7afab0a1282234ab9c278b8a05e2c",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/durable-after.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "e23d5bd126566a50a5d948306854a103cc49e8fea0748ec72643bc1c6ead23d4",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/durable-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a9883b8cb50fac2a187ae68d424920435750c8c44dd5e85c4690918af2daa984",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/durable-http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "0a66098b4e0020eefb9e026a88c39b3e6950e157a46e0a0d43b9eb2bcb86beed",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/external-intake.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "452cfa2f9d4cb2aed81fd3e133cd050810bdce5301dbab6412132f5a49bf73a6",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast-complete.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "3dd531be04bd8527c81df76172f4e2d2d8665672876d77578eff3b1f98ee05e0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast-final.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "fc260268d9e3fb323d3e82816b6bf83e3ed33e278871a9fb2cd6f4de3c0d8f1e",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast-pass.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d1b40fad1b32c5141976352d2b98444381615c14fc53e8cbf8cf2ade90202138",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast-tail.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "f375e286369672dee15a846d43d115608e2f736526b45cada029aa4d9626169d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast-verified.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "48df869fcb256d516a4951e1aa50d87c4e9230e5d3a822894a163e64a58ad64f",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/fast.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "17f7d2f563417435cb8d452e7cb5248c02dfa890c1908763677dbe6f6766ae02",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/focused-final.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "a577fbdfd3403a16af7a56ac2ea051d99622aca53dd0c69195e07a9586f809f8",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/http-final.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "1ce4e6da08aa6a4e9e587088ea0968538167f744045085da3cab2004d2b6c3c7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/http.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "b4948df89d767fdf37a0df337a3d59a1fa7e33318dbc1912680b59d1737b8a7b",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/intake-wire-probe.cjs",
+      "category": "prior-evidence-and-triage",
+      "sha256": "cc602fcf2d19a11da5b4c4dcf8dfbb623652741a6ed6c79ad3171fb7be693ea0",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/intake-wire-probe.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8edb3748c321e8f377e0ae1e33a217bc42c6b07152cf1d0c6541137a6fea1e2d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/journeys.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "fe1a0402c538cf3a3b47f55353e22d940e5e697fc4572a90f5e88cb8baee594a",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/marketplace-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "092eb1f47f6b1c180afea636883e56d09e0b4d3d8cc68f09e8449465947bd8a7",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/paid-link-retry.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8a1a90707f4ab9898d85a058d24be1a3ce7ffaa24bbc6d5c9c2e775c3ec7cf8a",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/permissions-before.log",
+      "category": "prior-evidence-and-triage",
+      "sha256": "c35279c376f10feabb2463ab4bd979cd64657db6b2e41830cdbc71eaebf2c785",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/report-patterns.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "d425e45fe52b9a6cea18a92e39461adbba1d94a2ac7d2680a9389f1d48b674f5",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/evidence/systemic-bugs-0919/validation.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "8dedf2d04669a7fcd5dc88ce16cdf70978abaf8f9b4933a4f12c6439f42de33d",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "qa/product-perfect/claims.json",
+      "category": "prior-evidence-and-triage",
+      "sha256": "4d38c59216c3450530ea055b4a2324ac1b77cad1c65b1ef8cf837acac654b0cd",
+      "coverage": "historical; not candidate acceptance"
+    },
+    {
+      "path": "scripts/check-small-screen.mjs",
+      "category": "build-and-validation",
+      "sha256": "2408d9a26a9be82a9b3477a6f5b078ec458ade52118bbe62fe25253a99cd0684",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/goldens.json",
+      "category": "build-and-validation",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "09933df2219e9dccb047709732461873845af9eeed5aa5454a2ea4aa3a5b83eb"
+    },
+    {
+      "path": "scripts/lib/cdp.mjs",
+      "category": "build-and-validation",
+      "sha256": "8331cf5128493ced3187e1794590ede4ba183aa52c7bab259c724a0385c2f1a0",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/lib/run-command.mjs",
+      "category": "build-and-validation",
+      "sha256": "f7ad0021791679fe90c5ed7e31a89a62a85b5a78773cbd035595a6f982bdd398",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/lib/shootRun.mjs",
+      "category": "build-and-validation",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "34c49fcc25650dcee33e1bf96547d7537b8e8be167eed67205722110f92aa214"
+    },
+    {
+      "path": "scripts/lib/staged-native-packages.mjs",
+      "category": "build-and-validation",
+      "sha256": "57572e65c071fe020ded2aa8d7034111780cb2d28ec6ad2487c2156f91e084b6",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/beginner-run.mjs",
+      "category": "build-and-validation",
+      "sha256": "c6836f15f375a704bb6e03863e95f4ab4d891a1da29dad52a434765759d6d2e4",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/chat-cutoff-investigate.mjs",
+      "category": "build-and-validation",
+      "sha256": "26a2a1bc7bc263f4d77f2557b40dab2bb27cadbd7d7a1945a6d4f7b77cde9c32",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/chat-drop-live.cjs",
+      "category": "build-and-validation",
+      "sha256": "0dc21d52e4913d63dfba3650eb2961c131173e9d4169b98088f41fa3197ddfe9",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/installed-customer-regressions.cjs",
+      "category": "build-and-validation",
+      "sha256": "05d919f9569daed86e1001d8a9e0ed02d32fe653edd6b368708cc7fe90415bd1",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/refit-entry.mjs",
+      "category": "build-and-validation",
+      "sha256": "c1c009810d8e296977151e8b1b26bdf573ec968128d8928b77523aadb00c1996",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/refit-placement.mjs",
+      "category": "build-and-validation",
+      "sha256": "da25be075f1604178c5bac0bd544cf8870720e1c198bff871b7c2eed6fa12ce2",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/qa/session-reliability.mjs",
+      "category": "build-and-validation",
+      "sha256": "16a69302db2580cd445813f6a948bc1b0a04dff3ed4ebc198a67bc6bd6ae8bd1",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/stage-frontend-dist.mjs",
+      "category": "build-and-validation",
+      "sha256": "6499086b20cefd9857b131190f9ee608097c11c5e7f6da85a641fc4a7c59cffa",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/stage-google-client.mjs",
+      "category": "build-and-validation",
+      "sha256": "0e155a00a84f20eb509985b981883d07107288a80b06d884adf0bfc48df71707",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/stage-voice-deps.mjs",
+      "category": "build-and-validation",
+      "sha256": "5a27457301fbf15f05179188dbef75a63da2fc2f8f1ecbc0ace2be234cf43697",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/uiplay.mjs",
+      "category": "build-and-validation",
+      "sha256": "ad5e409457086a3a9441852926602739d60afbf724d41a083a3b09a39b488cfc",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "scripts/verify-macos-intel-installed.sh",
+      "category": "build-and-validation",
+      "sha256": "66199c3b074990a5f47d78b51087094889fe5a43334698928a49aedfee897011",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/budget.js",
+      "category": "backend",
+      "sha256": "81d4be8c3455903588a8b2b6769736a077548a5ca58d729eab83b1b1e3adcf69",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/computer-control.js",
+      "category": "backend",
+      "sha256": "f77a7bb3bd361aaf1f600d6d1fad8e3e72d3bc25161e9803a328c95f2f6dd910",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/connector-vault.js",
+      "category": "backend",
+      "sha256": "1d6f49a2801af143e18cce936714cf12167c55ac14f32a83faefdbe1da81b84d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/cron-driver.js",
+      "category": "backend",
+      "sha256": "64885cdc9c19fc6325b1d3fe3e4c7ff4f405ce81a977c41404ec94b376a5f776",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/cron-lock.js",
+      "category": "backend",
+      "sha256": "27796048af7ba729b4c3fe497a6c718f10edadc05d4f61e32af591c7036cd24c",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/durable-store.js",
+      "category": "backend",
+      "sha256": "a81be4870ab28ee1a1724d684bffbaef96c829793b2c91e92e482cb387a72277",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/index.js",
+      "category": "backend",
+      "sha256": "6acfb858452c1530ddeb20d9ea42eaa39e4eba27bbea59a7c0fbf57890cc2d6b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/ledger.js",
+      "category": "backend",
+      "sha256": "7c2a3809e55c0d5d99b5ba667177caffb19f37a125d8bb83d4493dac48c10bcb",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/logbound.js",
+      "category": "backend",
+      "sha256": "93b5ce2e40ad763b5188f6162afccb477c91eb55e319377ab233f14db0d7cb2b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/loop.js",
+      "category": "backend",
+      "sha256": "0488be7bb9ec9a3fab102ae33941acb45d3bd313d3fb52c6e4a68c6d30c9c014",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/mcp/catalog.js",
+      "category": "backend",
+      "sha256": "9780fcfa92f95d01de951420c8956f95db49346d2a926aeffc50ae430f887556",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/mcp/google-client.js",
+      "category": "backend",
+      "sha256": "d5d7fe59176df9170b2e1a7ea981d12e621a747dbae543fc960ccee555989911",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/mcp/manager.js",
+      "category": "backend",
+      "sha256": "90c860d83e335ab503fa5924382ae58ec44e0b909f11c2c6ab2dcd758d6fef60",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/mcp/transport.google.js",
+      "category": "backend",
+      "sha256": "933fc68514154e07dad5b108eb974304c19f4ccdf85336a64b09a165fab891c3",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/overseer.js",
+      "category": "backend",
+      "sha256": "3ae1df40d47aaff58c58fb9df7d09d6d7f6384daff2e282ac911ee2b53fd2ac9",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/projects-store.js",
+      "category": "backend",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "0c77b4ca9286a9e2102d9a0f8a646e088dbd3fa9bb2658cf72bc315e638860ff"
+    },
+    {
+      "path": "sidecar/savestore.js",
+      "category": "backend",
+      "sha256": "140ac822d5e87e90b74b911ee129a4ed4f3fa874c176e1fb7f39751caac5679f",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/station-recovery.js",
+      "category": "backend",
+      "sha256": "9cb99af1f2efa3a78396cb595636b4875ebfb58ef595a480c860603793d38d35",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/subagents.js",
+      "category": "backend",
+      "sha256": "29359a4bf60ff2469781f895cdd5ffa556d592d82b67be21d2b6683be35e7559",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/CUA-LICENSE.txt",
+      "category": "backend",
+      "sha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/computer.js",
+      "category": "backend",
+      "sha256": "61d1e157ff48ca30210498bd273bbd698b6709d524d2eeefb0740fa0b877cdd5",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/cua-computer.js",
+      "category": "backend",
+      "sha256": "391abd911aeb0c1c64f26746e84f9e1e0727af41741adc1fd84458d67a9e9580",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/cua-contract.json",
+      "category": "backend",
+      "sha256": "a0d6f0f8268643efec925dc0d2736acd532e7463cff1c01161ee2bef1b393d19",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/cua-runtime.js",
+      "category": "backend",
+      "sha256": "d2022fc7325e0bf3c39e4c1f9e82cc8250f70f9f458e91ddfccba50775f20ee9",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/tools/builtin/orchestration.js",
+      "category": "backend",
+      "sha256": "eb52fcf508bdefc9392a74efd927f4d68fe9cf1ca1020dce7b69d963228dc42c",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/workspace-owner.js",
+      "category": "backend",
+      "sha256": "e14337fc53d8997abae887cf60220206b4a0a73d310350a833ce84b49caa5282",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "sidecar/workspace-recovery.js",
+      "category": "backend",
+      "sha256": "cd53b70ce5341c6543b8a9277284785f32303cfa566dfc8b17379e45e0d5414d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/Cargo.lock",
+      "category": "desktop",
+      "sha256": "ea3d879e6441dcc51b33b72eed6d67224ff49cdf66213d4b9f9bffbd5c939424",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/Cargo.toml",
+      "category": "desktop",
+      "sha256": "a35c0d4ad8b9da0cad7556dfd34fcf5be765856dc89230e04467cd1e2e29852f",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/examples/google-review.rs",
+      "category": "desktop",
+      "sha256": "1495cf05e8d26ba5419c7b59df7bf341147726251cc19501f5344a030b94058b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/src/credentials.rs",
+      "category": "desktop",
+      "sha256": "ceb57b496250ee90ceb43c554cebb9c7ed661b55f4f8b2e3b644c91fee5f5e0d",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/src/main.rs",
+      "category": "desktop",
+      "sha256": "4917cef247bb47476dede161cca5b031a220aba3feadf47e9584ce3bb3713d8e",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "src-tauri/tauri.conf.json",
+      "category": "desktop",
+      "sha256": "cc783c7aa84b29b7e53df3c0f1b485edfb7755845e5c69a322f9639ecc652b8b",
+      "coverage": "change mapped; behavior and acceptance limits in AUDIT.md"
+    },
+    {
+      "path": "test/api-json-lifecycle.test.js",
+      "category": "regression-test",
+      "sha256": "f57bc4722053be1faf6e1847c6f3ab694db00b9598b33aaba6b57ef88232f69d",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/bootguard.test.js",
+      "category": "regression-test",
+      "sha256": "e3e3b5978e35111ba18ddaf4c564263a5197658fe19ef9c6ce3b279c10e9965c",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/budget-authority-ui.test.js",
+      "category": "regression-test",
+      "sha256": "0e0cbc86a2d8868d680c4cadac5255ca706d7ec19bdf19a7a4a18cbaf3dd62a5",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/budget-caps.test.js",
+      "category": "regression-test",
+      "sha256": "e5c7d46752520dccf26686d9e05de01979a7d8dfe4afea7215f239b919aa7497",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cdp-lifecycle.test.js",
+      "category": "regression-test",
+      "sha256": "08a6cedf9176f846c7a2ebc6d842f879f4d1e971582f5a68d9fb082571d83771",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/chat-code-copy.test.js",
+      "category": "regression-test",
+      "sha256": "da9dbd1ecc7444e98e1c2f439cef22aba7ab03b5cd22b4d44dcfdb3d2b4780fd",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/chat-file-drop.test.js",
+      "category": "regression-test",
+      "sha256": "cd6582cf8e42a14c9036a08c401834861a81d6114b7b5e176b1c12ef727be01f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/chat-history-reconcile.test.js",
+      "category": "regression-test",
+      "sha256": "dd15697b8f5db4ba15dc6e40827a3f8164eda05f4be6666ec8c1e276297b3cd9",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/class-loadouts.test.js",
+      "category": "regression-test",
+      "sha256": "33db81b9b78c4ceb8fa9cfc5c3ce746c5de052e3d579479464eeb71226677853",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cloudsave-refusal.test.js",
+      "category": "regression-test",
+      "sha256": "72e0eed757f0efb98910019cafd6b45175d168021a161d285036db5325e19973",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cloudsave-timeout.test.js",
+      "category": "regression-test",
+      "sha256": "de81c1338207916636df03f3a7fe3fea9f73f9e85f1e2af110b8a547a084bb33",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cloudsave-unknown.test.js",
+      "category": "regression-test",
+      "sha256": "9def83ad5856b415d2e0d9648bdbad16f7ad6bd49310e13421eb53ec2b5377b4",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cloudsave-unload.test.js",
+      "category": "regression-test",
+      "sha256": "6fd9e14f3e8c64bd129d86cce17289988343faad7fdd5e3b549c9d2d3d79c65f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/computer-control.http.test.js",
+      "category": "regression-test",
+      "sha256": "f75b733a631a102ec296ee5cdd5a4d2560015b883d5ed0e3286ad9ba34d06c38",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/computer-control.test.js",
+      "category": "regression-test",
+      "sha256": "d51ba3958479dc1728b39ba74d66cb3014adbc4179cd5b1cc3e10b5bebe5200d",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/connector-vault-invalid.http.test.js",
+      "category": "regression-test",
+      "sha256": "b58cc773ec281de5a616ebbbbe5f333827732c7421234f46b9c0b283fcba8d46",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/connector-vault.test.js",
+      "category": "regression-test",
+      "sha256": "dd60871af603c1f640b8f88a868dd222615431238f84f5381b317519dc54b4ab",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/control-acknowledgements.test.js",
+      "category": "regression-test",
+      "sha256": "8dd9c929c2627d5fd2218efbdcfbe56569d83d136b671a167005c84788bdbc06",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cron.tick.test.js",
+      "category": "regression-test",
+      "sha256": "11c19dbc5bf006c4115385fabbcf08f7f6218ac26f09db6c70ba20d9f7211da8",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cross-surface-continuity.test.js",
+      "category": "regression-test",
+      "sha256": "463df91576d653e6771f573d14a88b8755a6dbd0454d8e252962956d4b27609d",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/cua-computer.test.js",
+      "category": "regression-test",
+      "sha256": "3cc454c483992abde7f913f7d0501c35556b60349657c5d5b81e0a26f2a4e058",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/customer-journeys.list",
+      "category": "regression-test",
+      "sha256": "769357a167b5a83773cdd730b31ae44f65a85e0de6498bf06669545c7d74cfd8",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/desktop-build-macos-notarization.test.js",
+      "category": "regression-test",
+      "sha256": "36707629c5893bc05844791b90f20043897af32c700ce14b4662b0a51b08b5fd",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/desktop-voice-bundle.test.js",
+      "category": "regression-test",
+      "sha256": "cc9b185aa8c3fd22ec33acdc89a52edf8833fc6de0e730427100732342d81d2b",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/dev-seed-isolation.http.test.js",
+      "category": "regression-test",
+      "sha256": "ecfbe70373c341fb6bd5160fc8892b7facf14f024f6fe952bd1e19e7fb4612db",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/durable-store-faults.http.test.js",
+      "category": "regression-test",
+      "sha256": "10c7262097978817773235d82d4d85b74eb77e8388d6c36c419c5be142a12f47",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/durable-store-faults.test.js",
+      "category": "regression-test",
+      "sha256": "b06789bd1926364f2ad9108897b6c76b3c23c77be05b051c8d0b91bc4ba9fd14",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/durable-store.test.js",
+      "category": "regression-test",
+      "sha256": "88aea47503c0b5fd6edce8d47010bb11150c9043290e198d47905de58b11c755",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/e2e.overseer.test.js",
+      "category": "regression-test",
+      "sha256": "032925616d638e9e9de7ac47a74d3c1c5e30ef1d205db69aff610a745aa1ec68",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/emergency-control.test.js",
+      "category": "regression-test",
+      "sha256": "db025e00b92b0880896a76841ff694966b373dedeed98c2fea7057b755b23e10",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/emergency-recovery.http.test.js",
+      "category": "regression-test",
+      "sha256": "a762f4a88b4d6d8c67601974034945849f605542e8e14846d5e6b263a3bbbe16",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/failopen-ratchet.test.js",
+      "category": "regression-test",
+      "sha256": "6b776bac16997a16634d4d7401907efa6699bfdfe74208706a34f52dd060a9ce",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/fast.list",
+      "category": "regression-test",
+      "sha256": "910ea3b9093fd9b65817be08300ae80eb24f5a8c392b97a02583548648017f2b",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/fixtures/google-files-preload.cjs",
+      "category": "regression-test",
+      "sha256": "04b31c4ec3b135ad96e338af8f2636e52c718da724a0bd217884916f437da1da",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/fixtures/google-signin-preload.cjs",
+      "category": "regression-test",
+      "sha256": "cafd0fdbf9a62f2d6566a752a422e5f4d9cda8aa83e3df4df45d64ba414c5dc8",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/google-connector.test.js",
+      "category": "regression-test",
+      "sha256": "7d82a670acd9fc07b1c1e8f83e001895203462a563ad9b40bb33c66c7418dc39",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/google-files.e2e.test.js",
+      "category": "regression-test",
+      "sha256": "fee7e717d96a08cac5e68d6cf16cc5361077016f18d668271b66a72a1801d196",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/google-release-deferred.e2e.test.js",
+      "category": "regression-test",
+      "sha256": "5f4ce0633eabc9edcfb997ef966b2e069019d5d8329431d3f7c703d95565ef70",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/google-signin.e2e.test.js",
+      "category": "regression-test",
+      "sha256": "e83ecd9b29063ccb8dc05fa09c5d3bcacf0ff94aa24b6d1982cb6e2a81d74f4c",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/hallway-traffic.test.js",
+      "category": "regression-test",
+      "sha256": "9ffc7ae28de09172c2e68e20f1b1b001e42cd2bbbae7bcff46aebf0afb3faccc",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/harness-stream-completion.test.js",
+      "category": "regression-test",
+      "sha256": "86d3c090fd67a01b352bff51402e5e63ad04ac6e8c131f93a5b01ee8c5547cae",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/helpers/overseer-provider.js",
+      "category": "regression-test",
+      "sha256": "528beef81677f2450bc49362a3ec51553a83b2d9ec8bbdf17f0ea38b1eac3eb8",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/helpers/save-read-fault-host.cjs",
+      "category": "regression-test",
+      "sha256": "8f05856f203ec5597949142bb259d77445bbae1af655bf1ad12bfbbe1b20b143",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/helpers/spend-fault-host.cjs",
+      "category": "regression-test",
+      "sha256": "3369b08c93375d2648aceac960fe2cd13a359bc561bf3256bdaa0acc10330e50",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/http.list",
+      "category": "regression-test",
+      "sha256": "26da6c5bd6a1ba83d557dda205c6988632ec2e8c01ee19cf9efb3cc6a21580b3",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/mac-boot-compat.test.js",
+      "category": "regression-test",
+      "sha256": "6efc05b7a6ff335bdf05756fba688de4c7de7eddd17e18f686b37448e01cb28d",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/marketplace-authority.test.js",
+      "category": "regression-test",
+      "sha256": "6e4eab9fb8e25d7d309b0bcca59ffd1de0654f5de999a2cadfceb398d42b5dc3",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/memory-corrections.http.test.js",
+      "category": "regression-test",
+      "sha256": "9d72c7965571eb74a8b723bbdc38948fe9fa74579901ab331e5bb61c78dc54dc",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/native-connector-keychain/.gitignore",
+      "category": "regression-test",
+      "sha256": "306fd52e74fca6746e12acc750f232de15e71da917756a1270d74c91f5eb7368",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/native-connector-keychain/Cargo.lock",
+      "category": "regression-test",
+      "sha256": "9d45b0790da52b01d7df1b361b936bb95925c2213bd0a24c8705b7fe67bd76c8",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/native-connector-keychain/Cargo.toml",
+      "category": "regression-test",
+      "sha256": "f0e5a7c5a9c4f2cc5566a009c088d1d6b2da80a33d96186fcddefbddb82c8743",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/native-connector-keychain/src/main.rs",
+      "category": "regression-test",
+      "sha256": "615d71e8da29337b414ca1adefce77d95a31f62efce3629d6c5b8120b01b3a12",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/native-connector-keychain/vault-check.cjs",
+      "category": "regression-test",
+      "sha256": "9b88e1fc02cff3ba635f05d2b101fac8161a19191eaf8e2b1e703d2ba99a9a27",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/orchestration.test.js",
+      "category": "regression-test",
+      "sha256": "6d333bde61fe46204dd8f37918af9a63010d377bd4a3d236992508d13f388d89",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/overseer-ui.test.js",
+      "category": "regression-test",
+      "sha256": "97a20f8dfd63248009767f50991ac664fa23d5f0862b068e04e07e906d591d61",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/overseer.test.js",
+      "category": "regression-test",
+      "sha256": "c6d978fc61d4bc7248d97a51ceace04186821919c32ae8114596510672a76bd5",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/path-smoothing.test.js",
+      "category": "regression-test",
+      "sha256": "39e0818d9153aeac6edf88ca22bebbc45cda0e657614e91a9edb2a96f0baf24f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/permissions-authority.test.js",
+      "category": "regression-test",
+      "sha256": "3ee3fd1f4318617554ce1d4b940b3ab9d2bf1bc8d0e7f29ba8b381787963ab29",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/project-home-ui.test.js",
+      "category": "regression-test",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "eaa224006d2ffcd844419a708c85a3147a32c607307fe1b46e7571ee2f0e7ff5"
+    },
+    {
+      "path": "test/project-workspace.http.test.js",
+      "category": "regression-test",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "ebb16cd7cee854fe28927e878370514856b85b5d2cf1cfaa989e9960a26a54ef"
+    },
+    {
+      "path": "test/projects-store.test.js",
+      "category": "regression-test",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "d9d653439779397394b58296a7d8eb9603a7e4d667a9c8ded94d402851eca80e"
+    },
+    {
+      "path": "test/projects-view.test.js",
+      "category": "regression-test",
+      "sha256": "a66d3ea9ca847311d9206c7f0150e98dda4191fc03161e9cff7ad3a6cea526db",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/qa-beginner.test.js",
+      "category": "regression-test",
+      "sha256": "f1e5050dc97eb398c6d7b9249f5811acbd60f96f0e78e8bb23d245a1258e5654",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/qa-bug-lifecycle.test.js",
+      "category": "regression-test",
+      "sha256": "24441aa7901f2f51a98a19a8d81ff349fb3e241a60d7dbf68914c1b43782dd81",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/qa-guardian.test.js",
+      "category": "regression-test",
+      "sha256": "002f02a44f8805861005325da38c5487ca04bbeecedd47050f33249d9cf7109e",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/rec-truth-consistency.test.js",
+      "category": "regression-test",
+      "sha256": "151420d82b4cab7540489784539c613a9c17a2df74399774c76ab5a5a83d2cd1",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/refit-bake-reuse.test.js",
+      "category": "regression-test",
+      "sha256": "9d2795fd9d8f1b60c8e60247f442324d05f984f56e3112a278d13da3904e0f7e",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/roster-track.test.js",
+      "category": "regression-test",
+      "sha256": "8f3aee2a42fa07973b7acdd14d50d65f63b0e5c691884fd42f815373bc8e312e",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/routine-acknowledgement.test.js",
+      "category": "regression-test",
+      "sha256": "3a68020dd6babfaa215093d41f11394940e0cb504e3db4e4fdd0a38c71d65421",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/save-unreadable.http.test.js",
+      "category": "regression-test",
+      "sha256": "9c1b89a2911872088cd51a1857cb96439d7311f1843c9445518929e87bd07c44",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/save.test.js",
+      "category": "regression-test",
+      "sha256": "58951d6472e731814880aa57a0f326d42f8cd5a16e9b7675da5a3b5926bac740",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/session-continuity.test.js",
+      "category": "regression-test",
+      "sha256": "10536d1a4b6e07dec18600e6443c9df79d0d3c4d1f06b0aabcc644e65397f588",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/session-reliability.e2e.test.js",
+      "category": "regression-test",
+      "sha256": "a81210956d43fc30e4498762f9c9aab1b530b5f743d4c2fb1907286835f09a25",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/spend-authority.http.test.js",
+      "category": "regression-test",
+      "sha256": "72c5016b2809eb6c8fc251d77f4059b7f4899409f6b05ceaec60bc1ed00af10f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/spend-authority.test.js",
+      "category": "regression-test",
+      "sha256": "c5ebd413d5d992dd43516cfc76f2b87cb22aef38acf025dbefbe360cf84a60d9",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/staging-development-closure.test.js",
+      "category": "regression-test",
+      "sha256": "b020b9007e3bac650c6b0a41d11adbb6b90e8713312c59bc8535084bba881776",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/station-autosave.test.js",
+      "category": "regression-test",
+      "sha256": "8dd15b100eec35228f8ab81e1d9a218629f0624e7c40b10ff3fae5e01741b885",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/stationbake.connections.test.mjs",
+      "category": "regression-test",
+      "sha256": "f980b56d1565b5a8fed14cb49bc2e162e3a9aad39661e51f55a4377d765d4b57",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/terminal-output-boundary.test.js",
+      "category": "regression-test",
+      "sha256": "2844f1f73c701360d9c036a51006c4c2bf2da74a3515b2034769c57abf2ed850",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/unreachable-browser-mode.test.js",
+      "category": "regression-test",
+      "sha256": "b24ff167c4a983a0f1b0cb7177b77513c3b2b613318403da85474a242a35f6a6",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/update-preparation.test.js",
+      "category": "regression-test",
+      "sha256": "7784a129556ba22c4a2db686905fa92f5ee978030c69e98c27011a4d04387c0f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/workspace-owner-election.test.js",
+      "category": "regression-test",
+      "sha256": "8d4bc94d6fb08eb4a2cd3d87bd17450077d49c0f71bc29bb1f152561728d64c5",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/workspace-probe-errors.http.test.js",
+      "category": "regression-test",
+      "sha256": "5f09501eee8773d5de23bf2605c9f6f889bf8215a8546fa7daa89ffcd100acd1",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/workspace-probe-errors.test.js",
+      "category": "regression-test",
+      "sha256": "57f9c484ade2cb8f47918c3e22dcf62ca0907ff6b6c2e8fd32590e4a01d27f80",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/world-movement-continuity.test.js",
+      "category": "regression-test",
+      "sha256": "22c37f67848d8ecba8c9e61d27e4de5032f5dd67e0b401d10f0c6e3f6b7d2abb",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "test/world-seat-recovery.test.js",
+      "category": "regression-test",
+      "sha256": "f9f0c6a4d003e9e93fb61a2edaea4277b66335fc3f35b6cf3fc01718aa264d5f",
+      "coverage": "manifest or targeted test execution; see validation receipt"
+    },
+    {
+      "path": "website/app/agent-station-demo.html",
+      "category": "frontend-mirror",
+      "sha256": "080c1018e3efbd468eafa1553b37dea42fa11c44456a8f49999e1a7c45b355f3",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/app.js",
+      "category": "frontend-mirror",
+      "sha256": "6e2e5362154271d4eb9ab2dc19c23ad99d9ca8b2d22d08edf1e261ac32fe295c",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/autojobstore.js",
+      "category": "frontend-mirror",
+      "sha256": "8a0d090f468aa58049d7303ae1b8eae8792c645d505ddf6a7f2afcfe9de20360",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/bootguard.js",
+      "category": "frontend-mirror",
+      "sha256": "d1af306b7527f7f17580765ada49514235ed69e7a2ed720b4c0c477073d6ec6f",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/build.js",
+      "category": "frontend-mirror",
+      "sha256": "da9281372777f0392be8dd0e1cf6cca03dc1331d9acbb4adf1852381e2a71731",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/chat.js",
+      "category": "frontend-mirror",
+      "sha256": "398ab607eeeabd50fbe0dee6e0ed18bf02c33ad034ac73f8112e76c01cc822ba",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/chatresize.js",
+      "category": "frontend-mirror",
+      "sha256": "993a3f9d21c8950aa37996dc10ccbd905a3aafdab94b3bf622d650f2ad9d0934",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/cloudsave.js",
+      "category": "frontend-mirror",
+      "sha256": "b013c908d464c49f1220775cfb547a5855d6040ee74c3b1a588fddd1ba6e0088",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/diagnostics.js",
+      "category": "frontend-mirror",
+      "sha256": "9f14a986b92e960f42d2f11b442e71d2aaf519816721e956ad57a603820c01ce",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/emergency-control.js",
+      "category": "frontend-mirror",
+      "sha256": "d8a8ddfa769f2dd95526590d95591d3b31b66aa3c78d02fe50bd6eaf7b55e98d",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/harness.js",
+      "category": "frontend-mirror",
+      "sha256": "bdd1f46f527f2dd11d76d86c04c656044ad55f9eef2730188f83cc18b71d69fe",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/marketplace.js",
+      "category": "frontend-mirror",
+      "sha256": "082a7c77da177200a78b8423c869c7308935715565d37279a9a9ac986494fb4d",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/overseer.js",
+      "category": "frontend-mirror",
+      "sha256": "6f6821febbec9655a1548c61db70bf4441a870ade138857e047a7b4d17adfb49",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/permissionsstore.js",
+      "category": "frontend-mirror",
+      "sha256": "fd14692a5aa1b95328ddd031b40f2feecd286287b9b8c99555a2cb8158dfd867",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/project-home.js",
+      "category": "frontend-mirror",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "248875733cc8b4c355202e8cb96b24db22c77af6727add2796e8192c936dd604"
+    },
+    {
+      "path": "website/app/app/stationui.js",
+      "category": "frontend-mirror",
+      "sha256": "d899ece3c34aaca2ed1ffe339780670e52b5d17eacb6a8269b1ab012e8bde8da",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/widgets.js",
+      "category": "frontend-mirror",
+      "sha256": "66c0b8502858198a2b2f6f1a76e796a979bfade433d62d4c5f3bd02418ed53ae",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/windows/connectors.js",
+      "category": "frontend-mirror",
+      "sha256": "8d24498b793ff7cd019d62ffcf1d8b88a811015f74ef8b5d74a7f7291e08d41b",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/windows/messaging.js",
+      "category": "frontend-mirror",
+      "sha256": "94a7d7efe8e53f377dc259d8f9d7da755f7351d08c34bd0290381df550cb8b08",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/workstreams.js",
+      "category": "frontend-mirror",
+      "sha256": "31fcb6b2c70c7956fc84c2088d4d59c92940da26afe52267ca7ed5b6fbad3f09",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/world.js",
+      "category": "frontend-mirror",
+      "sha256": "6fe9f101e8650294412f68f66deb925a8127c72a2fc3122000318d6bb022e4c2",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/app/worldmodel.js",
+      "category": "frontend-mirror",
+      "sha256": "e911b468f87a54f497968dc49d7342375a1ad8bfa506bf71ecd68d35cc2075be",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/css/comms-layout.css",
+      "category": "frontend-mirror",
+      "sha256": "c851e19dee7b24fd513d67fa19133f8f6278d6bc9e9d2ace7c2efb1b75b49ffd",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/css/comms.css",
+      "category": "frontend-mirror",
+      "sha256": "7cc22462d3a002111dbb3bce45de269e18283894ea727180e1233ba22748784c",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/css/overseer-setup.css",
+      "category": "frontend-mirror",
+      "sha256": "7595ba6ad5b5e1f7572896935ab02d86b0ea8c39b49b7998fca7ce3922f8432d",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/css/project-home.css",
+      "category": "frontend-mirror",
+      "coverage": "Reviewed in combined release audit; independent live proof is scoped in AUDIT.md.",
+      "sha256": "e0ae555d5bc6b7e83895fa15a5ba476a8bffe2cb390e22810f88d63abb9e44e5"
+    },
+    {
+      "path": "website/app/dev/comms-layout-review.html",
+      "category": "frontend-mirror",
+      "sha256": "828bcee0a99f604673805c94eb926748c6928057fd610f9b63fa06ee64a4ccab",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/index.html",
+      "category": "frontend-mirror",
+      "sha256": "d88aa40457ca1c32f7c2db9defb736c5c98d50f26e4e0b4a88419fcd5275e29a",
+      "coverage": "byte parity with frontend required"
+    },
+    {
+      "path": "website/app/js/util.js",
+      "category": "frontend-mirror",
+      "sha256": "aded27c358c42bffd6e1ee2db2ae44bd8b89ee01e8c71ec0d76e72a030d85424",
+      "coverage": "byte parity with frontend required"
+    }
+  ],
+  "categoryCounts": {
+    "build-and-validation": 38,
+    "release-metadata": 3,
+    "documentation": 12,
+    "frontend": 29,
+    "prior-evidence-and-triage": 169,
+    "backend": 27,
+    "desktop": 6,
+    "regression-test": 86,
+    "frontend-mirror": 29
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "stamp": "20260920-052814",
+  "sha": "f4021a682b373ff02d2743f18b80a03cfc8b8d68",
+  "generatedAt": "2026-09-20T05:59:26.923Z",
+  "verdict": "red",
+  "red": [
+    "golden"
+  ],
+  "blocked": [],
+  "ran": [
+    "test-fast",
+    "http-e2e",
+    "saboteur",
+    "shoot",
+    "golden",
+    "audit",
+    "journeys"
+  ],
+  "skipped": [],
+  "steps": [
+    {
+      "id": "test-fast",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 765857
+    },
+    {
+      "id": "http-e2e",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 826697
+    },
+    {
+      "id": "saboteur",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 17854
+    },
+    {
+      "id": "shoot",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 39911
+    },
+    {
+      "id": "golden",
+      "exitCode": 3,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 15,
+      "durationMs": 38632
+    },
+    {
+      "id": "audit",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 38113
+    },
+    {
+      "id": "journeys",
+      "exitCode": 0,
+      "blocked": false,
+      "timedOut": false,
+      "flaggedCount": 0,
+      "durationMs": 42339
+    }
+  ]
+}

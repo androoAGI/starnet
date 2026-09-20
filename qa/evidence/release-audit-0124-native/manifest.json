@@ -1,0 +1,130 @@
+{
+  "candidate": "f27e70f76954456b359594bebb0128e16e81e16d",
+  "files": [
+    {
+      "name": "README.md",
+      "bytes": 578,
+      "sha256": "51abfa44d211be8b0988876fa1f8380ec41817863a986c1cf1c8a5e5f1b0d5fc"
+    },
+    {
+      "name": "beginner.json",
+      "bytes": 188,
+      "sha256": "128cca904cfec3366a8a581cae51b6f282b8b2d59d51ca58a0b34cc5f5e916ea"
+    },
+    {
+      "name": "customer-journeys.log",
+      "bytes": 12416,
+      "sha256": "57608a4dd48dc27aa230cd383f88f4bc89d0e96361907b1cacdaf8ad5dad4fd5"
+    },
+    {
+      "name": "delegated-connectors.e2e.test.js.log",
+      "bytes": 827,
+      "sha256": "484d2d9ffd1e802adb342c37b1f62c02af0f92c82bf08c33e82c0956976ff0ca"
+    },
+    {
+      "name": "desktop-build.json",
+      "bytes": 19695,
+      "sha256": "5ba3b4f099d6e6af9b5654952a3507a2eb1a93318c9c9e1653e771a73977e11c"
+    },
+    {
+      "name": "fast-verifier.log",
+      "bytes": 71016,
+      "sha256": "ae33b5a8025126b3c83e85f1023380b1bb276dee24156eaa80dbbf14839eae8e"
+    },
+    {
+      "name": "guardian-summary.json",
+      "bytes": 1438,
+      "sha256": "8b754a0674b018f79a8a31aed66baada6d050222c06953cab85cf39527affe65"
+    },
+    {
+      "name": "guardian.json",
+      "bytes": 1024,
+      "sha256": "07f1ef740829d33d33ae19cd2511008c10a8e61083616c82e618113357fd03a5"
+    },
+    {
+      "name": "installed-receipt-import.json",
+      "bytes": 641,
+      "sha256": "8c9d4ec537dc87fcb79fea3895e2de358b7042ee411e27915556bdf22e834ecd"
+    },
+    {
+      "name": "installed-smoke-original.json",
+      "bytes": 1286,
+      "sha256": "18703d6fc7d759d7778bc9d3eee2860a6a01553bbb2b7a703b7e33217b279ebf"
+    },
+    {
+      "name": "installed-smoke-probe.json",
+      "bytes": 2170,
+      "sha256": "9608ed86c67519f76a01172ecbc6db058716e59cf5afc7a84468b1ad8fea2b75"
+    },
+    {
+      "name": "intel-installed.json",
+      "bytes": 695,
+      "sha256": "0a6b19ce0e8acc3b6d4d4f079d5bc758bf25e7772381133de3144db1742f4f30"
+    },
+    {
+      "name": "journeys.json",
+      "bytes": 213,
+      "sha256": "d9ca4abf95cea3f8a734e2c9c80981834d75a748695a8e8aca579512f7df266a"
+    },
+    {
+      "name": "mac-keychain.json",
+      "bytes": 4814,
+      "sha256": "a3942fa637328d274435ec23ce49e94f9dc6ad85be6b5e096e47227bd74deaa5"
+    },
+    {
+      "name": "mac-keychain.log",
+      "bytes": 164496,
+      "sha256": "bf2fd375c36df6997460754066eb433e920bc39a55ea4ecd69e45a8831b7ff8d"
+    },
+    {
+      "name": "ready.json",
+      "bytes": 2145,
+      "sha256": "89ba8fb0a3816fbb4e27176343dc174269ae909e2b73029ab4af60080113a4bc"
+    },
+    {
+      "name": "saved-provider-fallback.e2e.test.js.log",
+      "bytes": 847,
+      "sha256": "1cb96bde66b314b5a8f34ab7d79f5fd69c9c2adb6c4c887f69a11270e61fac6f"
+    },
+    {
+      "name": "session-reliability.e2e.test.js.log",
+      "bytes": 6237,
+      "sha256": "4b66aec95175882b554e24431fd7cb1e49bbf2e596a623d78580b99a500894a4"
+    },
+    {
+      "name": "spend-authority.http.test.js.log",
+      "bytes": 1143,
+      "sha256": "c876eb9320882965a697ed571b354ca91060faeea827ede891c19562973208e6"
+    },
+    {
+      "name": "windows-acceptance-run.json",
+      "bytes": 3611,
+      "sha256": "e8374f54e1f2cfeb9a1d14fcdcd3a20d7ea5455541b7a6391ba8e1f0e8ef833b"
+    },
+    {
+      "name": "windows-artifact.json",
+      "bytes": 529,
+      "sha256": "1e8e8049da9549eddb15e172bcfdb66cf2582e514e7eacdb08bb325c91973849"
+    },
+    {
+      "name": "windows-clean-install.json",
+      "bytes": 1509,
+      "sha256": "1272228774cd088590ae5878539dfb0658370bd6276b72b4d7bd402ff410b520"
+    },
+    {
+      "name": "windows-lifecycle.json",
+      "bytes": 3781,
+      "sha256": "fd4cfe37aaf2f869fcd5da21e311bd38ef50e377f0ef1a3796e3aedf2e528995"
+    },
+    {
+      "name": "windows-upgrade-original-failure.json",
+      "bytes": 72781,
+      "sha256": "1c464e22815834e994b63962e41ea256576ec8c1b6d9cb7b136895e89337cb50"
+    },
+    {
+      "name": "windows-upgrade-passed.json",
+      "bytes": 109537,
+      "sha256": "2c84828f0f2c13ada8f2b191bf4f682239adc33c559efb79056c8cfd9cb4f780"
+    }
+  ]
+}

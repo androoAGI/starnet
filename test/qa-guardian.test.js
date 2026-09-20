@@ -27,12 +27,14 @@ function io(over) {
 }
 const step = (id) => GUARDIAN_STEPS.find(s => s.id === id);
 
-// The outer watchdog must not preempt the complete HTTP child gate.
+// The outer watchdog must not preempt either complete child gate.
 {
   const httpCommand = require('../package.json').scripts['test:http'];
   const childBudget = Number(/--timeout=(\d+)/.exec(httpCommand)[1]);
   A.ok(guardianStepTimeoutMs(step('http-e2e')) > childBudget, 'Guardian HTTP deadline includes child watchdog headroom');
-  A.eq(guardianStepTimeoutMs(step('test-fast')), 900000, 'other Guardian steps retain their normal deadline');
+  const fastBudget = Number(/--timeout=(\d+)/.exec(require('../package.json').scripts['test:fast'])[1]);
+  A.ok(guardianStepTimeoutMs(step('test-fast')) > fastBudget, 'Guardian fast deadline includes child watchdog headroom');
+  A.eq(guardianStepTimeoutMs(step('audit')), 900000, 'other Guardian steps retain their normal deadline');
   A.eq(guardianStepTimeoutMs(step('http-e2e'), '45000'), 45000, 'explicit operator deadline overrides HTTP default');
 }
 

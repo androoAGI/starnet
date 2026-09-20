@@ -11,6 +11,7 @@ const fsNative = require('node:fs');
 const osNative = require('node:os');
 const pathNative = require('node:path');
 const { makeCronLock } = require('./cron-lock.js');   // O_EXCL + pid:nonce + stale-break advisory lock (G4.3 primitive)
+const { makeWorkspaceOwner } = require('./workspace-owner.js');
 
 const REQUEST_VERSION = 1;
 // Recovery activation runs BEFORE the workspace owner claim (it renames the workspace itself, so the
@@ -23,7 +24,7 @@ const RECOVERY_LOCK_MAX_RUN_MS = 8 * 60 * 1000;   // diagnostic age only; recove
 const MAX_RECOVERY_FILE_BYTES = 256 * 1024 * 1024;         // one file over 256 MiB cannot be safely buffered
 const MAX_RECOVERY_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;   // 2 GiB aggregate source ceiling
 const SAVE_NAMES = ['agent.save.json', 'agent.save.json.bak'];
-const SKIP_TOP = new Set(['.browser-profile']);
+const SKIP_TOP = new Set(['.browser-profile', '.starnet-workspace-owner.json.generations']);
 const SKIP_FILES = new Set([
   '.starnet-workspace-owner.json', 'cron.lock', 'proc-ledger.json',
   '.migration-pending', '.migration-receipt.json', '.migrated'
@@ -328,7 +329,18 @@ function applyPendingRecovery(opts) {
     bootedAt: o.lockBootedAt,
     reclaimByAge: false
   });
-  const attempt = lock.withLock(function () { return applyPendingRecoveryLocked(o); });
+  // Recovery precedes workspace ownership and can replace the whole directory.
+  // Elect outside that directory so its legacy advisory lock cannot be stolen
+  // by a delayed stale reclaimer while another process is copying/activating.
+  const election = makeWorkspaceOwner({ fs, path, now, pid: o.lockPid,
+    nonce: o.lockNonce, pidAlive: o.lockPidAlive, bootedAt: o.lockBootedAt,
+    filename: path.basename(current) + '.recovery-owner.json' });
+  const elected = election.acquire(path.dirname(current));
+  let attempt = { ran: false };
+  if (elected.ok) {
+    try { attempt = lock.withLock(function () { return applyPendingRecoveryLocked(o); }); }
+    finally { election.release(); }
+  }
   if (!attempt.ran) {
     return {
       ok: false, applied: false, lockUnavailable: true, code: 'RECOVERY_LOCK_UNAVAILABLE',

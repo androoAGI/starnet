@@ -147,7 +147,7 @@ const SYNC_BASELINE = {
   'cron-lock.js': 4,   // AUDITED — 4 left: fd close / unlink / release teardown
   'deliverable-store.js': 3,   // AUDITED — 3 left: journal absent on first load, fd close in finally, stat size default
   'domain-store.js': 1,
-  'durable-store.js': 4,   // AUDITED — 4 left: .bak of a corrupt main / first-write no-op / mkdir before a write that fails loudly itself (x2)
+  'durable-store.js': 3,   // AUDITED — corrupt-primary parse probe / mkdir before a write that fails loudly itself (x2); backup failures now propagate
   'durable-write.js': 3,
   'edgetts.js': 3,
   'environment.js': 15,
@@ -158,7 +158,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 369,
+  'index.js': 366,
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)
@@ -232,7 +232,7 @@ const SYNC_BASELINE = {
   'update-preparation.js': 4,
   'workspace-lease.js': 2,
   'workspace-lineage.js': 1,
-  'workspace-owner.js': 3,
+  'workspace-owner.js': 2,
   'workspace-recovery.js': 9,
 };
 

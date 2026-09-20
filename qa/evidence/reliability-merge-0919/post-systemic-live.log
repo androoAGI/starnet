@@ -1,0 +1,29 @@
+{
+  "staleRead": {
+    "cached": false,
+    "actual": false
+  },
+  "malformedBypass": {
+    "cached": true,
+    "error": "could not confirm the bypass switch",
+    "actual": true
+  },
+  "routine": {
+    "accepted": {
+      "ok": false,
+      "duplicate": false,
+      "disarmed": null
+    },
+    "preserved": true,
+    "actual": false
+  },
+  "catalog": {
+    "firstCalls": 4,
+    "afterRecoveryCalls": 5,
+    "panelPresent": true
+  },
+  "execution": {
+    "refusal": "✓MODEL UNAVAILABLEtest/model is not in the OPENROUTER catalog — pick a model to continue17:23✗AUDIT durable write refused17:23"
+  },
+  "exceptions": []
+}

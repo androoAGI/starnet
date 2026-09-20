@@ -1,0 +1,36 @@
+
+> starnet-harness@0.12.4 desktop:build
+> node scripts/prepare-node.mjs && node scripts/stage-voice-deps.mjs && node scripts/stage-frontend-dist.mjs && tauri build --config .qa_tmp/release-0124/unsigned-build.json
+
+[prepare-node] C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\binaries\node-x86_64-pc-windows-msvc.exe already present; skipping (set SKYNET_BUNDLE_FORCE=1 to re-fetch)
+stage-voice-deps: 61 top-level trees -> C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\voice-deps\node_modules
+  source node_modules : 895.7 MB
+  after dev-tree drop : 844.6 MB
+  after platform prune: 519.2 MB  (freed 325.3 MB of foreign binaries)
+  after browser/map cut: 276.8 MB  (freed 242.4 MB more)
+  kept native         : kokoro-js\node_modules\onnxruntime-node\bin\napi-v3\win32\x64
+  kept native         : onnxruntime-node\bin\napi-v6\win32\x64
+stage-frontend-dist: 13865 file(s) / 284.4 MB staged → C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\frontend-dist
+  dropped review/source art: 669 file(s) / 951.4 MB
+    - assets/industrial/batch03  290.2 MB
+    - assets/industrial/props-v3  233.4 MB
+    - assets/industrial/batch02  114.4 MB
+    - assets/industrial/props-v2  88.5 MB
+    - assets/industrial/parallel-0914  33.3 MB
+    - assets/industrial/scale-calibration  25.7 MB
+    - assets/industrial/capability-refresh  20.5 MB
+    - assets/industrial/capability-v2  20.0 MB
+    - assets/industrial/camera-audit  12.0 MB
+    - assets/industrial/catalog-command  10.8 MB
+    - assets/industrial/tactical-table-polish  10.5 MB
+    - assets/industrial/dispatch-polish  10.4 MB
+        Info Looking up installed tauri packages to check mismatched versions...
+   Compiling skynet-desktop v0.12.4 (C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri)
+    Finished `release` profile [optimized] target(s) in 7m 18s
+       Built application at: C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\target\release\skynet-desktop.exe
+        Info Patching C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\target\release\skynet-desktop.exe with bundle type information: nsis
+        Info Target: x64
+     Running makensis to produce C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\target\release\bundle\nsis\StarNet_0.12.4_x64-setup.exe
+    Finished 1 bundle at:
+        C:\Users\andro\gen-trees\release-audit-0124-0920\src-tauri\target\release\bundle\nsis\StarNet_0.12.4_x64-setup.exe
+

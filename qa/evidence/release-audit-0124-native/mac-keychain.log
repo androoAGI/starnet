@@ -1,0 +1,1168 @@
+macos-keychain (macos-latest)	Set up job	﻿2026-09-20T07:24:39.6839220Z Current runner version: '2.337.0'
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6860780Z ##[group]Runner Image Provisioner
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6861380Z Hosted Compute Agent
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6861790Z Version: 20260828.587
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6862220Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6862770Z Build Date: 2026-08-28T16:44:25Z
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6863240Z Worker ID: {73bd4963-1f22-47ec-b68e-25fd3060d3ae}
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6863780Z Azure Region: westus
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6864220Z ##[endgroup]
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6865250Z ##[group]Operating System
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6865650Z macOS
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6866040Z 26.6.2
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6866400Z 25G83
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6868020Z ##[endgroup]
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6869260Z ##[group]Runner Image
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6870380Z Image: macos-26-arm64
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6871390Z Version: 20260907.0351.1
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6873440Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6876570Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6878450Z ##[endgroup]
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6880650Z ##[group]GITHUB_TOKEN Permissions
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6882330Z Contents: read
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6882720Z Metadata: read
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6883090Z ##[endgroup]
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6884760Z Secret source: Actions
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6885350Z Cache mode: write
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.6885810Z Prepare workflow directory
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.7313980Z Prepare all required actions
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.7368860Z Getting action download info
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:39.8902000Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:40.2758150Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:40.4206360Z Download action repository 'dtolnay/rust-toolchain@stable' (SHA:6bed0761d98439e5a578e2877258200ad565ba87)
+macos-keychain (macos-latest)	Set up job	2026-09-20T07:24:40.9647660Z Complete job name: macos-keychain (macos-latest)
+macos-keychain (macos-latest)	Run actions/checkout@v4	﻿2026-09-20T07:24:41.0146350Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0157470Z ##[group]Run actions/checkout@v4
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0158040Z with:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0158460Z   repository: androoAGI/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0162390Z   token: ***
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0162790Z   ssh-strict: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0163110Z   ssh-user: git
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0163450Z   persist-credentials: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0164610Z   clean: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0165390Z   sparse-checkout-cone-mode: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0165810Z   fetch-depth: 1
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0166130Z   fetch-tags: false
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0166460Z   show-progress: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0167040Z   lfs: false
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0167430Z   submodules: false
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0167800Z   set-safe-directory: true
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0168940Z   allow-unsafe-pr-checkout: false
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0170710Z env:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0171160Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.0171540Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.3640310Z Syncing repository: androoAGI/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.3644280Z ##[group]Getting Git version info
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.3645920Z Working directory is '/Users/runner/work/starnet/starnet'
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.3648690Z [command]/opt/homebrew/bin/git version
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4189820Z git version 2.55.0
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4204560Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4215470Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/07a3b47a-814a-4a23-b877-1eea4b8a5f95/.gitconfig'
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4225290Z Temporarily overriding HOME='/Users/runner/work/_temp/07a3b47a-814a-4a23-b877-1eea4b8a5f95' before making global git config changes
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4229950Z Adding repository directory to the temporary git global config as a safe directory
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4232740Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/starnet/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4352410Z Deleting the contents of '/Users/runner/work/starnet/starnet'
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4355960Z ##[group]Initializing the repository
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4359430Z [command]/opt/homebrew/bin/git init /Users/runner/work/starnet/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4701290Z hint: Using 'master' as the name for the initial branch. This default branch name
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4703650Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4705940Z hint: to use in all of your new repositories, which will suppress this warning,
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4706810Z hint: call:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4707420Z hint:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4707950Z hint: 	git config --global init.defaultBranch <name>
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4708610Z hint:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4709260Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4713140Z hint: 'development'. The just-created branch can be renamed via this command:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4714020Z hint:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4714540Z hint: 	git branch -m <name>
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4715100Z hint:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4715780Z hint: Disable this message with "git config set advice.defaultBranchName false"
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4716860Z Initialized empty Git repository in /Users/runner/work/starnet/starnet/.git/
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4718870Z [command]/opt/homebrew/bin/git remote add origin https://github.com/androoAGI/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4858430Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4859350Z ##[group]Disabling automatic garbage collection
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4860320Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4943310Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4944300Z ##[group]Setting up auth
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.4945180Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.5028540Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.6165190Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.6237840Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.7175790Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.8095770Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.9171450Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.9470720Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.9480810Z ##[group]Fetching the repository
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:24:41.9482630Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +c7d042dec22556519c2f52eed2e01e13429714dd:refs/remotes/origin/agent/release-audit-0124-0920
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6315030Z From https://github.com/androoAGI/starnet
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6317580Z  * [new ref]           c7d042dec22556519c2f52eed2e01e13429714dd -> origin/agent/release-audit-0124-0920
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6336850Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6338940Z ##[group]Determining the checkout info
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6342250Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6354720Z [command]/opt/homebrew/bin/git sparse-checkout disable
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6449450Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6552290Z ##[group]Checking out the ref
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:20.6562740Z [command]/opt/homebrew/bin/git checkout --progress --force -B agent/release-audit-0124-0920 refs/remotes/origin/agent/release-audit-0124-0920
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:22.6996320Z Updating files:   2% (925/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:23.2736140Z Updating files:   2% (1127/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:23.6991360Z Updating files:   3% (1296/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:24.7082270Z Updating files:   3% (1446/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:24.8198260Z Updating files:   3% (1657/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.4293530Z Updating files:   4% (1727/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.5465890Z Updating files:   5% (2159/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.6301910Z Updating files:   6% (2591/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.6996770Z Updating files:   7% (3022/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.6999550Z Updating files:   7% (3443/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.7877740Z Updating files:   8% (3454/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.8532570Z Updating files:   9% (3886/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.9252570Z Updating files:  10% (4317/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:25.9951330Z Updating files:  11% (4749/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.0778690Z Updating files:  12% (5181/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.1579190Z Updating files:  13% (5612/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.2573900Z Updating files:  14% (6044/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.3171770Z Updating files:  15% (6476/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.3887850Z Updating files:  16% (6908/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.4667590Z Updating files:  17% (7339/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.5879920Z Updating files:  18% (7771/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:26.7053000Z Updating files:  19% (8203/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:27.7051380Z Updating files:  19% (8299/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:28.7035840Z Updating files:  19% (8359/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:29.6992310Z Updating files:  19% (8418/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:30.4953300Z Updating files:  19% (8489/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:30.7026980Z Updating files:  20% (8634/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:31.6990580Z Updating files:  20% (8718/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:32.3855040Z Updating files:  20% (8960/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:32.7046210Z Updating files:  21% (9066/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:33.6869400Z Updating files:  21% (9121/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:33.6970310Z Updating files:  22% (9498/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:33.7573830Z Updating files:  22% (9568/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:33.8488290Z Updating files:  23% (9929/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:33.9027120Z Updating files:  24% (10361/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.0527730Z Updating files:  25% (10793/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.1254230Z Updating files:  26% (11224/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.1889500Z Updating files:  27% (11656/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.2464140Z Updating files:  28% (12088/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.2841770Z Updating files:  29% (12520/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.3389910Z Updating files:  30% (12951/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.3880330Z Updating files:  31% (13383/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.4561700Z Updating files:  32% (13815/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.5085060Z Updating files:  33% (14246/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.5566970Z Updating files:  34% (14678/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.6164820Z Updating files:  35% (15110/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.6799750Z Updating files:  36% (15541/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.6969810Z Updating files:  37% (15973/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.7442250Z Updating files:  37% (16069/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.8110080Z Updating files:  38% (16405/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.8767040Z Updating files:  39% (16836/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:34.9624060Z Updating files:  40% (17268/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.0521250Z Updating files:  41% (17700/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.1770340Z Updating files:  42% (18131/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.2596340Z Updating files:  43% (18563/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.3214520Z Updating files:  44% (18995/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.4999990Z Updating files:  45% (19427/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.6969130Z Updating files:  46% (19858/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.7054570Z Updating files:  46% (20275/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.7666770Z Updating files:  47% (20290/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.8488640Z Updating files:  48% (20722/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:35.9418670Z Updating files:  49% (21153/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.0879800Z Updating files:  50% (21585/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.1860230Z Updating files:  51% (22017/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.2726630Z Updating files:  52% (22448/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.3749050Z Updating files:  53% (22880/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.4524120Z Updating files:  54% (23312/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.5297420Z Updating files:  55% (23743/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.7009120Z Updating files:  56% (24175/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.7677290Z Updating files:  56% (24434/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.8607610Z Updating files:  57% (24607/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:36.9270680Z Updating files:  58% (25039/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:37.0123730Z Updating files:  59% (25470/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:37.4158190Z Updating files:  60% (25902/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:37.6971010Z Updating files:  61% (26334/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:37.7095190Z Updating files:  61% (26692/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:37.8913610Z Updating files:  62% (26765/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.0000370Z Updating files:  63% (27197/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.0828520Z Updating files:  64% (27629/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.2019540Z Updating files:  65% (28060/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.3515370Z Updating files:  66% (28492/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.4944290Z Updating files:  67% (28924/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.6228180Z Updating files:  68% (29355/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.6971090Z Updating files:  69% (29787/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.7750470Z Updating files:  69% (30072/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:38.8901860Z Updating files:  70% (30219/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.0013140Z Updating files:  71% (30650/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.0855780Z Updating files:  72% (31082/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.1870070Z Updating files:  73% (31514/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.3612750Z Updating files:  74% (31946/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.4821340Z Updating files:  75% (32377/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.6111630Z Updating files:  76% (32809/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.6972010Z Updating files:  77% (33241/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.7097130Z Updating files:  77% (33596/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.8246140Z Updating files:  78% (33672/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:39.9245220Z Updating files:  79% (34104/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:40.6971850Z Updating files:  80% (34536/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:41.0386900Z Updating files:  80% (34898/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:41.6974320Z Updating files:  81% (34967/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:41.7839460Z Updating files:  81% (35364/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:42.7025580Z Updating files:  82% (35399/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:42.7938290Z Updating files:  82% (35680/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:42.9026400Z Updating files:  83% (35831/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.0140570Z Updating files:  84% (36262/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.0964360Z Updating files:  85% (36694/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.2713020Z Updating files:  86% (37126/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.3584930Z Updating files:  87% (37558/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.4455250Z Updating files:  88% (37989/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.5849300Z Updating files:  89% (38421/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.6225060Z Updating files:  90% (38853/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.7074350Z Updating files:  91% (39284/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.7263900Z Updating files:  91% (39624/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.8025810Z Updating files:  92% (39716/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.8763770Z Updating files:  93% (40148/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:43.9477490Z Updating files:  94% (40579/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.0244210Z Updating files:  95% (41011/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.1416980Z Updating files:  96% (41443/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.2541270Z Updating files:  97% (41874/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.3802750Z Updating files:  98% (42306/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.4427630Z Updating files:  99% (42738/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.4430460Z Updating files: 100% (43169/43169)
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.4431910Z Updating files: 100% (43169/43169), done.
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.4962980Z Switched to a new branch 'agent/release-audit-0124-0920'
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.4969330Z branch 'agent/release-audit-0124-0920' set up to track 'origin/agent/release-audit-0124-0920'.
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.5029380Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.5286550Z [command]/opt/homebrew/bin/git log -1 --format=%H
+macos-keychain (macos-latest)	Run actions/checkout@v4	2026-09-20T07:25:44.5464340Z c7d042dec22556519c2f52eed2e01e13429714dd
+macos-keychain (macos-latest)	Run actions/setup-node@v4	﻿2026-09-20T07:25:44.5948680Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5950030Z ##[group]Run actions/setup-node@v4
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5950290Z with:
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5950480Z   node-version: 22
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5950680Z   always-auth: false
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5950900Z   check-latest: false
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5952790Z   token: ***
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5952930Z env:
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5953140Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.5953380Z ##[endgroup]
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.7955330Z Found in cache @ /Users/runner/hostedtoolcache/node/22.23.2/arm64
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.7959480Z (node:3031) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.7960780Z ##[group]Environment details
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:44.7961300Z (Use `node --trace-deprecation ...` to show where the warning was created)
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:45.4736150Z node: v22.23.2
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:45.4752910Z npm: 10.9.8
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:45.4755670Z yarn: 1.22.22
+macos-keychain (macos-latest)	Run actions/setup-node@v4	2026-09-20T07:25:45.4757680Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	﻿2026-09-20T07:25:45.4987010Z ##[group]Run dtolnay/rust-toolchain@stable
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.4987270Z with:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.4987450Z   toolchain: stable
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.4987640Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.4987830Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.4988040Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5042710Z ##[start-action display=Parse toolchain version;id=__dtolnay_rust-toolchain.parse]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5087180Z ##[group]Run if [[ -z $toolchain ]]; then
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5087510Z ^[[36;1mif [[ -z $toolchain ]]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5087960Z ^[[36;1m  # GitHub does not enforce `required: true` inputs itself. https://github.com/actions/runner/issues/1070^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5088430Z ^[[36;1m  echo "'toolchain' is a required input" >&2^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5088680Z ^[[36;1m  exit 1^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5088970Z ^[[36;1melif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5089350Z ^[[36;1m  if [[ macOS == macOS ]]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5104600Z ^[[36;1m    echo "toolchain=1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5105290Z ^[[36;1m  else^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5105610Z ^[[36;1m    echo "toolchain=1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5106000Z ^[[36;1m  fi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5106230Z ^[[36;1melif [[ $toolchain =~ ^stable' 'minus' '[0-9]+' 'releases?$ ]]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5106760Z ^[[36;1m  echo "toolchain=1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5107140Z ^[[36;1melif [[ $toolchain =~ ^1\.[0-9]+$ ]]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5107560Z ^[[36;1m  echo "toolchain=1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5107950Z ^[[36;1melse^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5108140Z ^[[36;1m  echo "toolchain=$toolchain" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5108370Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5338160Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5338440Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5338610Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5338790Z   toolchain: stable
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5338950Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5640140Z ##[end-action id=__dtolnay_rust-toolchain.parse;outcome=success;conclusion=success;duration_ms=59]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5645250Z ##[start-action display=Construct rustup command line;id=__dtolnay_rust-toolchain.flags]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5663650Z ##[group]Run echo "targets=$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5664200Z ^[[36;1mecho "targets=$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5664730Z ^[[36;1mecho "components=$(for c in ${components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5665120Z ^[[36;1mecho "downgrade=" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5696810Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5697110Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5697280Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5697520Z   targets: 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5697660Z   components: 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5697860Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5896220Z ##[end-action id=__dtolnay_rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=24]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5898280Z ##[start-action display=Set $CARGO_HOME;id=__dtolnay_rust-toolchain.__run]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5917640Z ##[group]Run echo CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5918100Z ^[[36;1mecho CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5949210Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5949470Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5949640Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.5949840Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6174400Z ##[end-action id=__dtolnay_rust-toolchain.__run;outcome=success;conclusion=success;duration_ms=27]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6180390Z ##[start-action display=Install rustup if needed;id=__dtolnay_rust-toolchain.__run_2]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6206390Z ##[group]Run if ! command -v rustup &>/dev/null; then
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6206720Z ^[[36;1mif ! command -v rustup &>/dev/null; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6207340Z ^[[36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6207970Z ^[[36;1m  echo "$CARGO_HOME/bin" >> $GITHUB_PATH^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6208200Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6241310Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6241600Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6241820Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6242100Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6242370Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6439140Z ##[end-action id=__dtolnay_rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=25]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6441340Z ##[start-action display=Install rustup if needed on windows;id=__dtolnay_rust-toolchain.__run_3]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6447670Z ##[end-action id=__dtolnay_rust-toolchain.__run_3;outcome=skipped;conclusion=skipped;duration_ms=0]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6456940Z ##[start-action display=rustup toolchain install stable;id=__dtolnay_rust-toolchain.__run_4]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6477180Z ##[group]Run rustup toolchain install stable --profile minimal --no-self-update
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6477720Z ^[[36;1mrustup toolchain install stable --profile minimal --no-self-update^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6511530Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6511880Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6512080Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6512380Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6512600Z   RUSTUP_PERMIT_COPY_RENAME: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:45.6512800Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.0107840Z info: syncing channel updates for stable-aarch64-apple-darwin
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1129530Z 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1296560Z info: self-update is disabled for this build of rustup
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1297920Z   stable-aarch64-apple-darwin unchanged - rustc 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1299580Z info: any updates to rustup will need to be fetched with your system package manager
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1303960Z 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1325540Z ##[end-action id=__dtolnay_rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=486]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1331840Z ##[start-action display=rustup default stable;id=__dtolnay_rust-toolchain.__run_5]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1351270Z ##[group]Run rustup default stable
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1351520Z ^[[36;1mrustup default stable^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1383120Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1383410Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1383580Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1383830Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1384060Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1683700Z info: using existing install for stable-aarch64-apple-darwin
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1736760Z info: default toolchain set to stable-aarch64-apple-darwin
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1737580Z 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1908560Z   stable-aarch64-apple-darwin unchanged - rustc 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1923790Z 
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1952810Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=62]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1955280Z ##[start-action display=Create cachekey;id=__dtolnay_rust-toolchain.rustc-version]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1992340Z ##[group]Run DATE=$(rustc +stable --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1994400Z ^[[36;1mDATE=$(rustc +stable --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1995470Z ^[[36;1mHASH=$(rustc +stable --version --verbose | sed -ne 's/^commit-hash: //p')^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.1995890Z ^[[36;1mecho "cachekey=$(echo $DATE$HASH | head -c12)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.2027720Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.2028000Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.2028170Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.2028400Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.2028600Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3161500Z ##[end-action id=__dtolnay_rust-toolchain.rustc-version;outcome=success;conclusion=success;duration_ms=120]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3166200Z ##[start-action display=Disable incremental compilation;id=__dtolnay_rust-toolchain.__run_6]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3210200Z ##[group]Run if [ -z "${CARGO_INCREMENTAL+set}" ]; then
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3211050Z ^[[36;1mif [ -z "${CARGO_INCREMENTAL+set}" ]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3211810Z ^[[36;1m  echo CARGO_INCREMENTAL=0 >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3212440Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3272930Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3273200Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3273380Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3273590Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3273800Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3512660Z ##[end-action id=__dtolnay_rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=34]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3515100Z ##[start-action display=Enable colors in Cargo output;id=__dtolnay_rust-toolchain.__run_7]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3533280Z ##[group]Run if [ -z "${CARGO_TERM_COLOR+set}" ]; then
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3533710Z ^[[36;1mif [ -z "${CARGO_TERM_COLOR+set}" ]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3534040Z ^[[36;1m  echo CARGO_TERM_COLOR=always >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3534280Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3571800Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3572100Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3572290Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3572600Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3572810Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3573010Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3840530Z ##[end-action id=__dtolnay_rust-toolchain.__run_7;outcome=success;conclusion=success;duration_ms=32]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3842820Z ##[start-action display=Enable Cargo sparse registry;id=__dtolnay_rust-toolchain.__run_8]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3861470Z ##[group]Run # implemented in 1.66, stabilized in 1.68, made default in 1.70
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3862300Z ^[[36;1m# implemented in 1.66, stabilized in 1.68, made default in 1.70^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3862970Z ^[[36;1mif [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol ]; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3863580Z ^[[36;1m  if rustc +stable --version --verbose | grep -q '^release: 1\.6[89]\.'; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3864240Z ^[[36;1m    touch "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3864770Z ^[[36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3865190Z ^[[36;1m  elif rustc +stable --version --verbose | grep -q '^release: 1\.6[67]\.'; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3865670Z ^[[36;1m    touch "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3866110Z ^[[36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3866400Z ^[[36;1m  fi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3866560Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3900210Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3900480Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3900680Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3900890Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3901100Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3901280Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.3901470Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4753410Z ##[end-action id=__dtolnay_rust-toolchain.__run_8;outcome=success;conclusion=success;duration_ms=90]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4759270Z ##[start-action display=Work around spurious network errors in curl 8.0;id=__dtolnay_rust-toolchain.__run_9]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4791600Z ##[group]Run # https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4792290Z ^[[36;1m# https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4792840Z ^[[36;1mif rustc +stable --version --verbose | grep -q '^release: 1\.7[01]\.'; then^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4793200Z ^[[36;1m  echo CARGO_HTTP_MULTIPLEXING=false >> $GITHUB_ENV^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4793450Z ^[[36;1mfi^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4825540Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4825860Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4826020Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4826260Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4826490Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4826730Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.4826950Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5304210Z ##[end-action id=__dtolnay_rust-toolchain.__run_9;outcome=success;conclusion=success;duration_ms=54]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5307630Z ##[start-action display=rustc +stable --version --verbose;id=__dtolnay_rust-toolchain.__run_10]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5325280Z ##[group]Run rustc +stable --version --verbose
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5325580Z ^[[36;1mrustc +stable --version --verbose^[[0m
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5356960Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5357250Z env:
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5357430Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5357660Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5357860Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5358060Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5358240Z ##[endgroup]
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5812540Z rustc 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5813580Z binary: rustc
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5814570Z commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5815410Z commit-date: 2026-09-01
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5816550Z host: aarch64-apple-darwin
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5817250Z release: 1.98.1
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5817960Z LLVM version: 22.1.8
+macos-keychain (macos-latest)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:25:46.5834730Z ##[end-action id=__dtolnay_rust-toolchain.__run_10;outcome=success;conclusion=success;duration_ms=52]
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	﻿2026-09-20T07:25:46.5896840Z ##[group]Run cargo build --locked --manifest-path test/native-connector-keychain/Cargo.toml
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5897640Z ^[[36;1mcargo build --locked --manifest-path test/native-connector-keychain/Cargo.toml^[[0m
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5931090Z shell: /bin/bash -e {0}
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5931310Z env:
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5931530Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5931750Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5931960Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5932150Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.5932350Z ##[endgroup]
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:46.8697360Z ^[[1m^[[92m    Updating^[[0m crates.io index
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.0499770Z ^[[1m^[[92m Downloading^[[0m crates ...
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.0791350Z ^[[1m^[[92m  Downloaded^[[0m core-foundation v0.10.1
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.0955270Z ^[[1m^[[92m  Downloaded^[[0m cfg-if v1.0.5
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1025950Z ^[[1m^[[92m  Downloaded^[[0m itoa v1.0.18
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1090250Z ^[[1m^[[92m  Downloaded^[[0m serde_core v1.0.229
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1161080Z ^[[1m^[[92m  Downloaded^[[0m bitflags v2.13.2
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1644920Z ^[[1m^[[92m  Downloaded^[[0m security-framework-sys v2.17.0
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1746450Z ^[[1m^[[92m  Downloaded^[[0m getrandom v0.4.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1850980Z ^[[1m^[[92m  Downloaded^[[0m zmij v1.0.23
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1900950Z ^[[1m^[[92m  Downloaded^[[0m core-foundation-sys v0.8.7
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.1992880Z ^[[1m^[[92m  Downloaded^[[0m log v0.4.34
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2054850Z ^[[1m^[[92m  Downloaded^[[0m keyring v3.6.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2184690Z ^[[1m^[[92m  Downloaded^[[0m security-framework v3.7.0
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2269240Z ^[[1m^[[92m  Downloaded^[[0m memchr v2.8.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2417060Z ^[[1m^[[92m  Downloaded^[[0m uuid v1.23.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2502870Z ^[[1m^[[92m  Downloaded^[[0m serde_json v1.0.150
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.2746970Z ^[[1m^[[92m  Downloaded^[[0m libc v0.2.189
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.4466550Z ^[[1m^[[92m   Compiling^[[0m libc v0.2.189
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.4478100Z ^[[1m^[[92m   Compiling^[[0m core-foundation-sys v0.8.7
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:47.4490690Z ^[[1m^[[92m   Compiling^[[0m getrandom v0.4.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:48.0562860Z ^[[1m^[[92m   Compiling^[[0m zmij v1.0.23
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:53.2099780Z ^[[1m^[[92m   Compiling^[[0m serde_core v1.0.229
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:53.2837970Z ^[[1m^[[92m   Compiling^[[0m serde_json v1.0.150
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:53.4539400Z ^[[1m^[[92m   Compiling^[[0m cfg-if v1.0.5
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:53.4913960Z ^[[1m^[[92m   Compiling^[[0m bitflags v2.13.2
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:53.8180800Z ^[[1m^[[92m   Compiling^[[0m core-foundation v0.10.1
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:54.1067160Z ^[[1m^[[92m   Compiling^[[0m security-framework-sys v2.17.0
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:54.2456160Z ^[[1m^[[92m   Compiling^[[0m security-framework v3.7.0
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:54.2934750Z ^[[1m^[[92m   Compiling^[[0m memchr v2.8.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:54.7438430Z ^[[1m^[[92m   Compiling^[[0m log v0.4.34
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:54.8908600Z ^[[1m^[[92m   Compiling^[[0m itoa v1.0.18
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:55.0257780Z ^[[1m^[[92m   Compiling^[[0m uuid v1.23.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:55.4093540Z ^[[1m^[[92m   Compiling^[[0m keyring v3.6.3
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:56.1217630Z ^[[1m^[[92m   Compiling^[[0m starnet-connector-keychain-acceptance v0.1.0 (/Users/runner/work/starnet/starnet/test/native-connector-keychain)
+macos-keychain (macos-latest)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:25:56.3553410Z ^[[1m^[[92m    Finished^[[0m `dev` profile [unoptimized + debuginfo] target(s) in 9.69s
+macos-keychain (macos-latest)	Configure disposable keychain	﻿2026-09-20T07:25:56.3747930Z ##[group]Run keychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3748490Z ^[[36;1mkeychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3749040Z ^[[36;1msecurity create-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3749470Z ^[[36;1msecurity set-keychain-settings -lut 21600 "$keychain"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3749830Z ^[[36;1msecurity list-keychains -d user -s "$keychain"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3750120Z ^[[36;1msecurity default-keychain -d user -s "$keychain"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3750620Z ^[[36;1msecurity unlock-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3791540Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3791950Z env:
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3792250Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3793000Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3793330Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3793660Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Configure disposable keychain	2026-09-20T07:25:56.3793920Z ##[endgroup]
+macos-keychain (macos-latest)	Native migration and process restart recovery	﻿2026-09-20T07:25:56.5376700Z ##[group]Run binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5377590Z ^[[36;1mbinary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance^[[0m
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5378110Z ^[[36;1m"$binary" migrate^[[0m
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5378380Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5378680Z ^[[36;1m"$binary" malformed^[[0m
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5378930Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5429810Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5430720Z env:
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5431510Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5432250Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5432930Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5433790Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.5434280Z ##[endgroup]
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.7436470Z PASS native-key vault migrate: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.7950830Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.8196750Z PASS malformed key preserved; original key restored
+macos-keychain (macos-latest)	Native migration and process restart recovery	2026-09-20T07:25:56.8619440Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-latest)	Locked keychain and recovery	﻿2026-09-20T07:25:56.8716100Z ##[group]Run binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8716920Z ^[[36;1mbinary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8717440Z ^[[36;1mkeychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8717800Z ^[[36;1msecurity lock-keychain "$keychain"^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8718180Z ^[[36;1m"$binary" unavailable^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8718510Z ^[[36;1msecurity unlock-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8718880Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8750280Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8750720Z env:
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8750960Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8751270Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8763890Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8764180Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.8764370Z ##[endgroup]
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:56.9337650Z PASS locked keychain fails closed
+macos-keychain (macos-latest)	Locked keychain and recovery	2026-09-20T07:25:57.4080900Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-latest)	Vault fault and removal regressions	﻿2026-09-20T07:25:57.4221420Z ##[group]Run node test/connector-vault.test.js
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4223780Z ^[[36;1mnode test/connector-vault.test.js^[[0m
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4263910Z shell: /bin/bash -e {0}
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4264210Z env:
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4264400Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4264620Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4264840Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4265020Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.4265230Z ##[endgroup]
+macos-keychain (macos-latest)	Vault fault and removal regressions	2026-09-20T07:25:57.5493500Z connector-vault: PASS (AES-GCM, restart, tampering, missing/wrong key, migration failure, recovery, removal, no plaintext fallback)
+macos-keychain (macos-latest)	Post Run actions/setup-node@v4	﻿2026-09-20T07:25:57.5642430Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-latest)	Post Run actions/setup-node@v4	2026-09-20T07:25:57.5643500Z Post job cleanup.
+macos-keychain (macos-latest)	Post Run actions/setup-node@v4	2026-09-20T07:25:57.7593190Z (node:3427) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+macos-keychain (macos-latest)	Post Run actions/setup-node@v4	2026-09-20T07:25:57.7611360Z (Use `node --trace-deprecation ...` to show where the warning was created)
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	﻿2026-09-20T07:25:57.7721240Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.7722840Z Post job cleanup.
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8599900Z [command]/opt/homebrew/bin/git version
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8743650Z git version 2.55.0
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8763860Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/28ac417b-5e7c-422f-bfba-5f7d782365e4/.gitconfig'
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8772320Z Temporarily overriding HOME='/Users/runner/work/_temp/28ac417b-5e7c-422f-bfba-5f7d782365e4' before making global git config changes
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8774760Z Adding repository directory to the temporary git global config as a safe directory
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8777080Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/starnet/starnet
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8855000Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:57.8927270Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.0156050Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.0220260Z http.https://github.com/.extraheader
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.0228850Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.0305750Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.1794230Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+macos-keychain (macos-latest)	Post Run actions/checkout@v4	2026-09-20T07:25:58.2098020Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+macos-keychain (macos-latest)	Complete job	﻿2026-09-20T07:25:58.3912960Z Cleaning up orphan processes
+macos-keychain (macos-latest)	Complete job	2026-09-20T07:25:59.0288730Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-15-intel)	Set up job	﻿2026-09-20T07:23:58.1845950Z Current runner version: '2.337.0'
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1908030Z ##[group]Runner Image Provisioner
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1910920Z Hosted Compute Agent
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1912670Z Version: 20260819.586
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1913970Z Commit: 3cc4a88dfa507ef76119ad1bb3eccc6378bb2b76
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1915530Z Build Date: 2026-08-18T23:20:18Z
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1917050Z Worker ID: {65f38952-c6bf-4018-8893-5df0328e2d82}
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1918820Z Azure Region: westus
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1919810Z ##[endgroup]
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1925750Z ##[group]Operating System
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1927240Z macOS
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1928500Z 15.7.9
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1929640Z 24G830
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1930640Z ##[endgroup]
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1932030Z ##[group]Runner Image
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1933570Z Image: macos-15
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1934910Z Version: 20260824.0482.1
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1937950Z Included Software: https://github.com/actions/runner-images/blob/macos-15/20260824.0482/images/macos/macos-15-Readme.md
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1942800Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15%2F20260824.0482
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1945950Z ##[endgroup]
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1949630Z ##[group]GITHUB_TOKEN Permissions
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1955030Z Contents: read
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1956470Z Metadata: read
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1958040Z ##[endgroup]
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1963710Z Secret source: Actions
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1966100Z Cache mode: write
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.1967780Z Prepare workflow directory
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.3071020Z Prepare all required actions
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.3170510Z Getting action download info
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:58.8208640Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:59.4153070Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:23:59.8395130Z Download action repository 'dtolnay/rust-toolchain@stable' (SHA:6bed0761d98439e5a578e2877258200ad565ba87)
+macos-keychain (macos-15-intel)	Set up job	2026-09-20T07:24:00.6561560Z Complete job name: macos-keychain (macos-15-intel)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	﻿2026-09-20T07:24:01.0896270Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.0942970Z ##[group]Run actions/checkout@v4
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.0947230Z with:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.0949770Z   repository: androoAGI/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1167310Z   token: ***
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1170290Z   ssh-strict: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1172980Z   ssh-user: git
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1175470Z   persist-credentials: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1178220Z   clean: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1180380Z   sparse-checkout-cone-mode: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1183420Z   fetch-depth: 1
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1185780Z   fetch-tags: false
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1188330Z   show-progress: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1191420Z   lfs: false
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1193850Z   submodules: false
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1196630Z   set-safe-directory: true
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1199520Z   allow-unsafe-pr-checkout: false
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1204280Z env:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1206930Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:01.1210770Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.1561000Z Syncing repository: androoAGI/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.1569630Z ##[group]Getting Git version info
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.1574260Z Working directory is '/Users/runner/work/starnet/starnet'
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.1582050Z [command]/usr/local/bin/git version
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2207320Z git version 2.55.0
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2278010Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2304460Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/ff9f0ceb-68e5-4799-833d-6fb5abf139aa/.gitconfig'
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2340250Z Temporarily overriding HOME='/Users/runner/work/_temp/ff9f0ceb-68e5-4799-833d-6fb5abf139aa' before making global git config changes
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2352970Z Adding repository directory to the temporary git global config as a safe directory
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2361550Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/starnet/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2628630Z Deleting the contents of '/Users/runner/work/starnet/starnet'
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2643080Z ##[group]Initializing the repository
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.2654400Z [command]/usr/local/bin/git init /Users/runner/work/starnet/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3356060Z hint: Using 'master' as the name for the initial branch. This default branch name
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3369940Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3378030Z hint: to use in all of your new repositories, which will suppress this warning,
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3383660Z hint: call:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3386450Z hint:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3390050Z hint: 	git config --global init.defaultBranch <name>
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3394260Z hint:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3398400Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3405220Z hint: 'development'. The just-created branch can be renamed via this command:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3413220Z hint:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3417840Z hint: 	git branch -m <name>
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3422570Z hint:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3427440Z hint: Disable this message with "git config set advice.defaultBranchName false"
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3435030Z Initialized empty Git repository in /Users/runner/work/starnet/starnet/.git/
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3446480Z [command]/usr/local/bin/git remote add origin https://github.com/androoAGI/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3703400Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3708480Z ##[group]Disabling automatic garbage collection
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3713340Z [command]/usr/local/bin/git config --local gc.auto 0
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3917790Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3922630Z ##[group]Setting up auth
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.3933610Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.4151100Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.7417340Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:02.7613410Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.2414970Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.4677260Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.4781780Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.4805810Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.4810920Z ##[group]Fetching the repository
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:03.4819560Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +c7d042dec22556519c2f52eed2e01e13429714dd:refs/remotes/origin/agent/release-audit-0124-0920
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4769940Z From https://github.com/androoAGI/starnet
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4773800Z  * [new ref]           c7d042dec22556519c2f52eed2e01e13429714dd -> origin/agent/release-audit-0124-0920
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4780630Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4784190Z ##[group]Determining the checkout info
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4787270Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.4799700Z [command]/usr/local/bin/git sparse-checkout disable
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.5022110Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.5200990Z ##[group]Checking out the ref
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:50.5212230Z [command]/usr/local/bin/git checkout --progress --force -B agent/release-audit-0124-0920 refs/remotes/origin/agent/release-audit-0124-0920
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:52.7292000Z Updating files:   1% (731/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:52.8046500Z Updating files:   1% (828/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:53.8546650Z Updating files:   2% (864/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:54.6632430Z Updating files:   2% (1035/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:54.6924020Z Updating files:   3% (1296/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:55.7374070Z Updating files:   3% (1324/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:56.4037660Z Updating files:   3% (1585/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:56.6960450Z Updating files:   4% (1727/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:57.3898410Z Updating files:   4% (1848/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:57.6918280Z Updating files:   5% (2159/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:57.7271920Z Updating files:   6% (2591/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:58.1003620Z Updating files:   6% (2613/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:58.6033960Z Updating files:   7% (3022/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:58.7676360Z Updating files:   8% (3454/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:59.0057010Z Updating files:   8% (3627/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:59.4038720Z Updating files:   9% (3886/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:59.6942890Z Updating files:  10% (4317/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:24:59.7946380Z Updating files:  10% (4585/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:00.3648950Z Updating files:  11% (4749/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:00.7040590Z Updating files:  12% (5181/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:01.1019370Z Updating files:  12% (5472/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:01.7469910Z Updating files:  13% (5612/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:01.8033700Z Updating files:  13% (6002/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:02.3069790Z Updating files:  14% (6044/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:02.7519070Z Updating files:  15% (6476/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:02.8490110Z Updating files:  15% (6731/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:03.0491750Z Updating files:  16% (6908/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:03.3673360Z Updating files:  17% (7339/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:03.5997270Z Updating files:  18% (7771/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:03.6917250Z Updating files:  19% (8203/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:04.6922230Z Updating files:  19% (8251/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:05.7024940Z Updating files:  19% (8419/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:06.6912670Z Updating files:  19% (8526/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:06.9081160Z Updating files:  19% (8578/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:07.8297650Z Updating files:  20% (8634/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:08.7186300Z Updating files:  20% (8724/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:09.7064870Z Updating files:  20% (8761/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:10.8203080Z Updating files:  20% (8944/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:12.2484200Z Updating files:  20% (8969/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:12.7018960Z Updating files:  20% (8984/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:13.7157250Z Updating files:  20% (9013/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:14.7429700Z Updating files:  20% (9039/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:14.9058740Z Updating files:  20% (9050/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:15.9108340Z Updating files:  21% (9066/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:16.9647440Z Updating files:  21% (9098/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:17.7523230Z Updating files:  21% (9121/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:18.7073470Z Updating files:  21% (9150/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:19.4556570Z Updating files:  21% (9194/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:19.6655270Z Updating files:  22% (9498/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:19.6910490Z Updating files:  23% (9929/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:19.8779470Z Updating files:  23% (9980/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:20.1073010Z Updating files:  24% (10361/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:20.7615060Z Updating files:  25% (10793/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:20.8799770Z Updating files:  25% (11085/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.0855340Z Updating files:  26% (11224/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.2879830Z Updating files:  27% (11656/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.4791130Z Updating files:  28% (12088/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.6670700Z Updating files:  29% (12520/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.6915150Z Updating files:  30% (12951/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:21.9092050Z Updating files:  30% (13005/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:22.1459350Z Updating files:  31% (13383/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:22.3358920Z Updating files:  32% (13815/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:22.5331700Z Updating files:  33% (14246/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:22.7066700Z Updating files:  34% (14678/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:22.8221900Z Updating files:  34% (14903/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:23.0076450Z Updating files:  35% (15110/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:23.2526580Z Updating files:  36% (15541/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:23.4460980Z Updating files:  37% (15973/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:23.6924180Z Updating files:  38% (16405/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:23.7541780Z Updating files:  38% (16743/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:24.7238670Z Updating files:  39% (16836/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:24.8241690Z Updating files:  39% (17145/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:25.3390370Z Updating files:  40% (17268/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:25.5764260Z Updating files:  41% (17700/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:25.6928140Z Updating files:  42% (18131/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:26.0864470Z Updating files:  42% (18208/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:26.3500830Z Updating files:  43% (18563/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:26.5549040Z Updating files:  44% (18995/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:26.6935190Z Updating files:  45% (19427/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:26.9368790Z Updating files:  45% (19712/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:27.2711180Z Updating files:  46% (19858/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:27.4675550Z Updating files:  47% (20290/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:27.6929730Z Updating files:  48% (20722/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:27.7123610Z Updating files:  48% (21120/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:27.9848110Z Updating files:  49% (21153/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:28.4225260Z Updating files:  50% (21585/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:28.7135980Z Updating files:  51% (22017/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:28.7978800Z Updating files:  51% (22276/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:29.0361540Z Updating files:  52% (22448/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:29.4181480Z Updating files:  53% (22880/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:29.6305160Z Updating files:  54% (23312/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:29.6915020Z Updating files:  55% (23743/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:29.8466660Z Updating files:  55% (23866/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:30.7346220Z Updating files:  56% (24175/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:30.9201220Z Updating files:  56% (24449/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:31.1068370Z Updating files:  57% (24607/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:31.3038200Z Updating files:  58% (25039/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:31.4954510Z Updating files:  59% (25470/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:31.6949530Z Updating files:  60% (25902/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:32.3202020Z Updating files:  60% (26043/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:32.8686230Z Updating files:  61% (26334/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:33.6930360Z Updating files:  61% (26447/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:34.0402210Z Updating files:  61% (26620/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:34.3028910Z Updating files:  62% (26765/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:34.6236190Z Updating files:  63% (27197/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:34.6912420Z Updating files:  64% (27629/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:34.9439790Z Updating files:  64% (27767/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:35.2410530Z Updating files:  65% (28060/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:35.4733970Z Updating files:  66% (28492/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:35.6916380Z Updating files:  67% (28924/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:35.6967130Z Updating files:  67% (29346/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:35.9697760Z Updating files:  68% (29355/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:36.2706650Z Updating files:  69% (29787/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:36.4786000Z Updating files:  70% (30219/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:36.7421160Z Updating files:  71% (30650/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:36.7435960Z Updating files:  71% (31026/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:36.9200550Z Updating files:  72% (31082/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:37.1075010Z Updating files:  73% (31514/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:37.3546580Z Updating files:  74% (31946/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:37.6592130Z Updating files:  75% (32377/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:37.6943890Z Updating files:  76% (32809/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:37.8268350Z Updating files:  76% (32973/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:38.1400180Z Updating files:  77% (33241/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:38.3682130Z Updating files:  78% (33672/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:38.6397260Z Updating files:  79% (34104/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:38.6950330Z Updating files:  80% (34536/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:39.7943600Z Updating files:  80% (34626/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:41.2992350Z Updating files:  80% (34767/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:41.6978980Z Updating files:  80% (34800/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:42.7229680Z Updating files:  80% (34810/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:43.7135050Z Updating files:  80% (34827/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:44.8068350Z Updating files:  80% (34854/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:45.9123990Z Updating files:  80% (34880/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:46.6981770Z Updating files:  80% (34928/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:47.7641760Z Updating files:  80% (34945/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:47.8112260Z Updating files:  80% (34960/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:48.7262920Z Updating files:  81% (34967/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:49.7395630Z Updating files:  81% (35031/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:50.7648690Z Updating files:  81% (35162/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:51.5528610Z Updating files:  81% (35205/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:51.6982850Z Updating files:  82% (35399/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:52.7144160Z Updating files:  82% (35414/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:53.7036930Z Updating files:  82% (35453/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:54.8084200Z Updating files:  82% (35502/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:55.8940800Z Updating files:  82% (35532/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:57.3431240Z Updating files:  82% (35556/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:57.7051120Z Updating files:  82% (35573/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:58.7010850Z Updating files:  82% (35588/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:59.5911580Z Updating files:  82% (35641/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:59.7061690Z Updating files:  83% (35831/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:25:59.9210630Z Updating files:  83% (35883/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:00.3995370Z Updating files:  84% (36262/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:00.7008440Z Updating files:  85% (36694/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:00.9006980Z Updating files:  85% (36923/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:01.1198640Z Updating files:  86% (37126/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:01.5857050Z Updating files:  87% (37558/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:01.6910700Z Updating files:  88% (37989/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:01.8086420Z Updating files:  88% (38209/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.0168990Z Updating files:  89% (38421/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.1988480Z Updating files:  90% (38853/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.3783090Z Updating files:  91% (39284/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.6808300Z Updating files:  92% (39716/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.7840570Z Updating files:  93% (40148/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:02.8434080Z Updating files:  93% (40247/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:03.0391200Z Updating files:  94% (40579/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:03.2360670Z Updating files:  95% (41011/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:03.4259170Z Updating files:  96% (41443/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:03.7448000Z Updating files:  97% (41874/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:03.7712620Z Updating files:  97% (42254/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.0473880Z Updating files:  98% (42306/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.2614750Z Updating files:  99% (42738/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.2616940Z Updating files: 100% (43169/43169)
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.2617990Z Updating files: 100% (43169/43169), done.
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.3670180Z Switched to a new branch 'agent/release-audit-0124-0920'
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.3689540Z branch 'agent/release-audit-0124-0920' set up to track 'origin/agent/release-audit-0124-0920'.
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.4436620Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.4986310Z [command]/usr/local/bin/git log -1 --format=%H
+macos-keychain (macos-15-intel)	Run actions/checkout@v4	2026-09-20T07:26:04.5516620Z c7d042dec22556519c2f52eed2e01e13429714dd
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	﻿2026-09-20T07:26:04.6914130Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6921340Z ##[group]Run actions/setup-node@v4
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6922260Z with:
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6922870Z   node-version: 22
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6923920Z   always-auth: false
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6925470Z   check-latest: false
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6936320Z   token: ***
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6937790Z env:
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6939280Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:04.6942050Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:05.3290170Z Found in cache @ /Users/runner/hostedtoolcache/node/22.23.2/x64
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:05.3306760Z (node:22437) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:05.3311200Z (Use `node --trace-deprecation ...` to show where the warning was created)
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:05.3314350Z ##[group]Environment details
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:08.3950060Z node: v22.23.2
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:08.3981630Z npm: 10.9.8
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:08.3991930Z yarn: 1.22.22
+macos-keychain (macos-15-intel)	Run actions/setup-node@v4	2026-09-20T07:26:08.4000170Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	﻿2026-09-20T07:26:08.5448190Z ##[group]Run dtolnay/rust-toolchain@stable
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5449990Z with:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5451570Z   toolchain: stable
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5452280Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5453060Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5454210Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5693280Z ##[start-action display=Parse toolchain version;id=__dtolnay_rust-toolchain.parse]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5888430Z ##[group]Run if [[ -z $toolchain ]]; then
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5889590Z ^[[36;1mif [[ -z $toolchain ]]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5891450Z ^[[36;1m  # GitHub does not enforce `required: true` inputs itself. https://github.com/actions/runner/issues/1070^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5893400Z ^[[36;1m  echo "'toolchain' is a required input" >&2^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5894410Z ^[[36;1m  exit 1^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5895810Z ^[[36;1melif [[ $toolchain =~ ^stable' '[0-9]+' '(year|month|week|day)s?' 'ago$ ]]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5897290Z ^[[36;1m  if [[ macOS == macOS ]]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5899270Z ^[[36;1m    echo "toolchain=1.$((($(date -v-$(sed 's/stable \([0-9]*\) \(.\).*/\1\2/' <<< $toolchain) +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5903110Z ^[[36;1m  else^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5904570Z ^[[36;1m    echo "toolchain=1.$((($(date --date "${toolchain#stable }" +%s)/60/60/24-16569)/7/6))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5906620Z ^[[36;1m  fi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5908370Z ^[[36;1melif [[ $toolchain =~ ^stable' 'minus' '[0-9]+' 'releases?$ ]]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5910300Z ^[[36;1m  echo "toolchain=1.$((($(date +%s)/60/60/24-16569)/7/6-${toolchain//[^0-9]/}))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5911970Z ^[[36;1melif [[ $toolchain =~ ^1\.[0-9]+$ ]]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5914600Z ^[[36;1m  echo "toolchain=1.$((i=${toolchain#1.}, c=($(date +%s)/60/60/24-16569)/7/6, i+9*i*(10*i<=c)+90*i*(100*i<=c)))" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5916730Z ^[[36;1melse^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5917780Z ^[[36;1m  echo "toolchain=$toolchain" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.5919190Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.6261940Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.6263280Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.6263940Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.6264980Z   toolchain: stable
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.6265940Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8127560Z ##[end-action id=__dtolnay_rust-toolchain.parse;outcome=success;conclusion=success;duration_ms=242]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8150200Z ##[start-action display=Construct rustup command line;id=__dtolnay_rust-toolchain.flags]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8220860Z ##[group]Run echo "targets=$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8223250Z ^[[36;1mecho "targets=$(for t in ${targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8225360Z ^[[36;1mecho "components=$(for c in ${components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8227150Z ^[[36;1mecho "downgrade=" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8365200Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8366410Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8367180Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8368130Z   targets: 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8368860Z   components: 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:08.8369660Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0143030Z ##[end-action id=__dtolnay_rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=198]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0153010Z ##[start-action display=Set $CARGO_HOME;id=__dtolnay_rust-toolchain.__run]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0613480Z ##[group]Run echo CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0614830Z ^[[36;1mecho CARGO_HOME=${CARGO_HOME:-"$HOME/.cargo"} >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0732610Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0733740Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0734400Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.0735230Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1053280Z ##[end-action id=__dtolnay_rust-toolchain.__run;outcome=success;conclusion=success;duration_ms=89]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1063230Z ##[start-action display=Install rustup if needed;id=__dtolnay_rust-toolchain.__run_2]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1143390Z ##[group]Run if ! command -v rustup &>/dev/null; then
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1144470Z ^[[36;1mif ! command -v rustup &>/dev/null; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1146660Z ^[[36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused --location --silent --show-error --fail https://sh.rustup.rs | sh -s -- --default-toolchain none -y^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1148630Z ^[[36;1m  echo "$CARGO_HOME/bin" >> $GITHUB_PATH^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1149400Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1290870Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1291700Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1292300Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1292970Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.1293650Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2132240Z ##[end-action id=__dtolnay_rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=106]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2141750Z ##[start-action display=Install rustup if needed on windows;id=__dtolnay_rust-toolchain.__run_3]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2162480Z ##[end-action id=__dtolnay_rust-toolchain.__run_3;outcome=skipped;conclusion=skipped;duration_ms=0]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2205570Z ##[start-action display=rustup toolchain install stable;id=__dtolnay_rust-toolchain.__run_4]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2683920Z ##[group]Run rustup toolchain install stable --profile minimal --no-self-update
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2685910Z ^[[36;1mrustup toolchain install stable --profile minimal --no-self-update^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2856310Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2857480Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2858210Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2859190Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2860130Z   RUSTUP_PERMIT_COPY_RENAME: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:09.2861050Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.1525520Z info: syncing channel updates for stable-x86_64-apple-darwin
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.4518400Z info: latest update on 2026-09-03 for version 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.4922110Z info: removing previous version of component clippy
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.4999250Z info: removing previous version of component rustfmt
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.5059150Z info: removing previous version of component cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.5333070Z info: removing previous version of component rust-std
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.5613640Z info: removing previous version of component rustc
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:10.6024760Z info: downloading 5 components
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.3802570Z 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.4468230Z info: self-update is disabled for this build of rustup
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.4471130Z   stable-x86_64-apple-darwin updated - rustc 1.98.1 (48a229cea 2026-09-01) (from rustc 1.98.0 (88d9e12ae 2026-08-18))
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.4538040Z info: any updates to rustup will need to be fetched with your system package manager
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.4539780Z 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.4905540Z ##[end-action id=__dtolnay_rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=23269]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5117730Z ##[start-action display=rustup default stable;id=__dtolnay_rust-toolchain.__run_5]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5190240Z ##[group]Run rustup default stable
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5192690Z ^[[36;1mrustup default stable^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5346330Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5347630Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5348520Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5349580Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.5350550Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.6153420Z info: using existing install for stable-x86_64-apple-darwin
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.6247340Z info: default toolchain set to stable-x86_64-apple-darwin
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.6248620Z 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.6973250Z   stable-x86_64-apple-darwin unchanged - rustc 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7027420Z 
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7063020Z ##[end-action id=__dtolnay_rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=194]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7072400Z ##[start-action display=Create cachekey;id=__dtolnay_rust-toolchain.rustc-version]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7152390Z ##[group]Run DATE=$(rustc +stable --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7155260Z ^[[36;1mDATE=$(rustc +stable --version --verbose | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7157240Z ^[[36;1mHASH=$(rustc +stable --version --verbose | sed -ne 's/^commit-hash: //p')^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7159990Z ^[[36;1mecho "cachekey=$(echo $DATE$HASH | head -c12)" >> $GITHUB_OUTPUT^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7304350Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7305610Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7306420Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7307500Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:32.7308510Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0191940Z ##[end-action id=__dtolnay_rust-toolchain.rustc-version;outcome=success;conclusion=success;duration_ms=311]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0199960Z ##[start-action display=Disable incremental compilation;id=__dtolnay_rust-toolchain.__run_6]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0264320Z ##[group]Run if [ -z "${CARGO_INCREMENTAL+set}" ]; then
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0265870Z ^[[36;1mif [ -z "${CARGO_INCREMENTAL+set}" ]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0267130Z ^[[36;1m  echo CARGO_INCREMENTAL=0 >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0268210Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0362100Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0362990Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0363540Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0364250Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0365060Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0785150Z ##[end-action id=__dtolnay_rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=58]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0793810Z ##[start-action display=Enable colors in Cargo output;id=__dtolnay_rust-toolchain.__run_7]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0857230Z ##[group]Run if [ -z "${CARGO_TERM_COLOR+set}" ]; then
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0858730Z ^[[36;1mif [ -z "${CARGO_TERM_COLOR+set}" ]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0860010Z ^[[36;1m  echo CARGO_TERM_COLOR=always >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.0861250Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1039750Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1041030Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1042010Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1043480Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1044440Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1045240Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1450520Z ##[end-action id=__dtolnay_rust-toolchain.__run_7;outcome=success;conclusion=success;duration_ms=65]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1458630Z ##[start-action display=Enable Cargo sparse registry;id=__dtolnay_rust-toolchain.__run_8]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1529070Z ##[group]Run # implemented in 1.66, stabilized in 1.68, made default in 1.70
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1531030Z ^[[36;1m# implemented in 1.66, stabilized in 1.68, made default in 1.70^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1533730Z ^[[36;1mif [ -z "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL+set}" -o -f "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol ]; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1537650Z ^[[36;1m  if rustc +stable --version --verbose | grep -q '^release: 1\.6[89]\.'; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1539900Z ^[[36;1m    touch "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1542190Z ^[[36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1544090Z ^[[36;1m  elif rustc +stable --version --verbose | grep -q '^release: 1\.6[67]\.'; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1546240Z ^[[36;1m    touch "/Users/runner/work/_temp"/.implicit_cargo_registries_crates_io_protocol || true^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1549250Z ^[[36;1m    echo CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1550580Z ^[[36;1m  fi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1551390Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1695830Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1696800Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1697370Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1698100Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1698840Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1699610Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.1700530Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4384530Z ##[end-action id=__dtolnay_rust-toolchain.__run_8;outcome=success;conclusion=success;duration_ms=292]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4393770Z ##[start-action display=Work around spurious network errors in curl 8.0;id=__dtolnay_rust-toolchain.__run_9]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4465290Z ##[group]Run # https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4468140Z ^[[36;1m# https://rust-lang.zulipchat.com/#narrow/stream/246057-t-cargo/topic/timeout.20investigation^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4470560Z ^[[36;1mif rustc +stable --version --verbose | grep -q '^release: 1\.7[01]\.'; then^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4472360Z ^[[36;1m  echo CARGO_HTTP_MULTIPLEXING=false >> $GITHUB_ENV^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4473550Z ^[[36;1mfi^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4618840Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4620540Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4621490Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4622680Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4623880Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4624750Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.4625630Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6123380Z ##[end-action id=__dtolnay_rust-toolchain.__run_9;outcome=success;conclusion=success;duration_ms=172]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6135900Z ##[start-action display=rustc +stable --version --verbose;id=__dtolnay_rust-toolchain.__run_10]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6200200Z ##[group]Run rustc +stable --version --verbose
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6201640Z ^[[36;1mrustc +stable --version --verbose^[[0m
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6345680Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6347700Z env:
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6349290Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6350440Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6351430Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6352500Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.6353410Z ##[endgroup]
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.7872860Z rustc 1.98.1 (48a229cea 2026-09-01)
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.7918710Z binary: rustc
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.7980040Z commit-hash: 48a229ceaefd4985c50990b14116b6d856af0985
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.8072440Z commit-date: 2026-09-01
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.8129810Z host: x86_64-apple-darwin
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.8167410Z release: 1.98.1
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.8186040Z LLVM version: 22.1.8
+macos-keychain (macos-15-intel)	Run dtolnay/rust-toolchain@stable	2026-09-20T07:26:33.8232850Z ##[end-action id=__dtolnay_rust-toolchain.__run_10;outcome=success;conclusion=success;duration_ms=209]
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	﻿2026-09-20T07:26:33.8411160Z ##[group]Run cargo build --locked --manifest-path test/native-connector-keychain/Cargo.toml
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8413880Z ^[[36;1mcargo build --locked --manifest-path test/native-connector-keychain/Cargo.toml^[[0m
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8567950Z shell: /bin/bash -e {0}
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8568940Z env:
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8569770Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8572120Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8573170Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8574150Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:33.8575050Z ##[endgroup]
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.2480080Z ^[[1m^[[92m    Updating^[[0m crates.io index
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.6442780Z ^[[1m^[[92m Downloading^[[0m crates ...
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7186990Z ^[[1m^[[92m  Downloaded^[[0m cfg-if v1.0.5
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7367310Z ^[[1m^[[92m  Downloaded^[[0m getrandom v0.4.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7546880Z ^[[1m^[[92m  Downloaded^[[0m itoa v1.0.18
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7645430Z ^[[1m^[[92m  Downloaded^[[0m keyring v3.6.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7773750Z ^[[1m^[[92m  Downloaded^[[0m bitflags v2.13.2
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.7875890Z ^[[1m^[[92m  Downloaded^[[0m core-foundation v0.10.1
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.8103340Z ^[[1m^[[92m  Downloaded^[[0m core-foundation-sys v0.8.7
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.8383680Z ^[[1m^[[92m  Downloaded^[[0m log v0.4.34
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.8981490Z ^[[1m^[[92m  Downloaded^[[0m security-framework-sys v2.17.0
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.9839640Z ^[[1m^[[92m  Downloaded^[[0m zmij v1.0.23
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:34.9922460Z ^[[1m^[[92m  Downloaded^[[0m serde_core v1.0.229
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.0118760Z ^[[1m^[[92m  Downloaded^[[0m uuid v1.23.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.0336680Z ^[[1m^[[92m  Downloaded^[[0m security-framework v3.7.0
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.0771510Z ^[[1m^[[92m  Downloaded^[[0m memchr v2.8.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.1365880Z ^[[1m^[[92m  Downloaded^[[0m serde_json v1.0.150
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.1789400Z ^[[1m^[[92m  Downloaded^[[0m libc v0.2.189
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.7986620Z ^[[1m^[[92m   Compiling^[[0m libc v0.2.189
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.9004940Z ^[[1m^[[92m   Compiling^[[0m core-foundation-sys v0.8.7
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:35.9007050Z ^[[1m^[[92m   Compiling^[[0m getrandom v0.4.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:36.0007310Z ^[[1m^[[92m   Compiling^[[0m serde_core v1.0.229
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:36.7364190Z ^[[1m^[[92m   Compiling^[[0m zmij v1.0.23
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:51.9181640Z ^[[1m^[[92m   Compiling^[[0m serde_json v1.0.150
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:52.0188780Z ^[[1m^[[92m   Compiling^[[0m cfg-if v1.0.5
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:52.1192900Z ^[[1m^[[92m   Compiling^[[0m bitflags v2.13.2
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:52.6624540Z ^[[1m^[[92m   Compiling^[[0m itoa v1.0.18
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:53.3607680Z ^[[1m^[[92m   Compiling^[[0m log v0.4.34
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:53.6702890Z ^[[1m^[[92m   Compiling^[[0m memchr v2.8.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:54.6455280Z ^[[1m^[[92m   Compiling^[[0m core-foundation v0.10.1
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:54.9733230Z ^[[1m^[[92m   Compiling^[[0m security-framework-sys v2.17.0
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:55.8966850Z ^[[1m^[[92m   Compiling^[[0m uuid v1.23.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:26:56.7446370Z ^[[1m^[[92m   Compiling^[[0m security-framework v3.7.0
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:27:02.1878460Z ^[[1m^[[92m   Compiling^[[0m keyring v3.6.3
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:27:08.4233320Z ^[[1m^[[92m   Compiling^[[0m starnet-connector-keychain-acceptance v0.1.0 (/Users/runner/work/starnet/starnet/test/native-connector-keychain)
+macos-keychain (macos-15-intel)	Compile production credential code in lightweight acceptance harness	2026-09-20T07:27:09.3664070Z ^[[1m^[[92m    Finished^[[0m `dev` profile [unoptimized + debuginfo] target(s) in 35.38s
+macos-keychain (macos-15-intel)	Configure disposable keychain	﻿2026-09-20T07:27:09.4197600Z ##[group]Run keychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4199680Z ^[[36;1mkeychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4201400Z ^[[36;1msecurity create-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4203750Z ^[[36;1msecurity set-keychain-settings -lut 21600 "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4208700Z ^[[36;1msecurity list-keychains -d user -s "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4210240Z ^[[36;1msecurity default-keychain -d user -s "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4211820Z ^[[36;1msecurity unlock-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4363220Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4365010Z env:
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4365830Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4366850Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4367880Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4368740Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Configure disposable keychain	2026-09-20T07:27:09.4369640Z ##[endgroup]
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	﻿2026-09-20T07:27:09.7020810Z ##[group]Run binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7029190Z ^[[36;1mbinary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance^[[0m
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7031170Z ^[[36;1m"$binary" migrate^[[0m
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7032110Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7032990Z ^[[36;1m"$binary" malformed^[[0m
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7034050Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7166250Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7167450Z env:
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7168360Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7169290Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7170280Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7171080Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:09.7172030Z ##[endgroup]
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:10.2617930Z PASS native-key vault migrate: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:10.4675610Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:10.5554020Z PASS malformed key preserved; original key restored
+macos-keychain (macos-15-intel)	Native migration and process restart recovery	2026-09-20T07:27:10.7355540Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-15-intel)	Locked keychain and recovery	﻿2026-09-20T07:27:10.7835660Z ##[group]Run binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7838770Z ^[[36;1mbinary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7842310Z ^[[36;1mkeychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7843730Z ^[[36;1msecurity lock-keychain "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7844790Z ^[[36;1m"$binary" unavailable^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7845970Z ^[[36;1msecurity unlock-keychain -p synthetic-ci-only "$keychain"^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7847310Z ^[[36;1m"$binary" recover^[[0m
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7992740Z shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7994000Z env:
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7994770Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7995720Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7996610Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7997470Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.7998340Z ##[endgroup]
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:10.9449570Z PASS locked keychain fails closed
+macos-keychain (macos-15-intel)	Locked keychain and recovery	2026-09-20T07:27:11.1624130Z PASS native-key vault recover: encrypted main/backup, exact recovery, failed writes preserve originals
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	﻿2026-09-20T07:27:11.1916540Z ##[group]Run node test/connector-vault.test.js
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.1918020Z ^[[36;1mnode test/connector-vault.test.js^[[0m
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2059920Z shell: /bin/bash -e {0}
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2060890Z env:
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2061730Z   STARNET_DISPOSABLE_KEYCHAIN: 1
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2062770Z   CARGO_HOME: /Users/runner/.cargo
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2063820Z   CARGO_INCREMENTAL: 0
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2064690Z   CARGO_TERM_COLOR: always
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.2065740Z ##[endgroup]
+macos-keychain (macos-15-intel)	Vault fault and removal regressions	2026-09-20T07:27:11.4841180Z connector-vault: PASS (AES-GCM, restart, tampering, missing/wrong key, migration failure, recovery, removal, no plaintext fallback)
+macos-keychain (macos-15-intel)	Post Run actions/setup-node@v4	﻿2026-09-20T07:27:11.5254290Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-15-intel)	Post Run actions/setup-node@v4	2026-09-20T07:27:11.5259610Z Post job cleanup.
+macos-keychain (macos-15-intel)	Post Run actions/setup-node@v4	2026-09-20T07:27:12.0082710Z (node:23955) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+macos-keychain (macos-15-intel)	Post Run actions/setup-node@v4	2026-09-20T07:27:12.0162930Z (Use `node --trace-deprecation ...` to show where the warning was created)
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	﻿2026-09-20T07:27:12.0697410Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.0703380Z Post job cleanup.
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.3935500Z [command]/usr/local/bin/git version
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4013250Z git version 2.55.0
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4297460Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/ac411d3a-5ceb-4464-b385-30ce62951b29/.gitconfig'
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4592210Z Temporarily overriding HOME='/Users/runner/work/_temp/ac411d3a-5ceb-4464-b385-30ce62951b29' before making global git config changes
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4597540Z Adding repository directory to the temporary git global config as a safe directory
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4602250Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/starnet/starnet
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4616720Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.4645290Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.7848930Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.7909040Z http.https://github.com/.extraheader
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.7934040Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:12.8260510Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:13.1710600Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+macos-keychain (macos-15-intel)	Post Run actions/checkout@v4	2026-09-20T07:27:13.2343810Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+macos-keychain (macos-15-intel)	Complete job	﻿2026-09-20T07:27:13.5233910Z Cleaning up orphan processes
+macos-keychain (macos-15-intel)	Complete job	2026-09-20T07:27:14.2262380Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,62 @@
+
+> starnet-harness@0.12.4 golden
+> node scripts/golden.mjs
+
+sidecar: booting SEEDED SKYNET_DEV on :19740 (model=anthropic/claude-sonnet-4.6) ...
+sidecar: ready
+chrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe
+target: http://127.0.0.1:19740/
+navigating + booting to the floor...
+  dev=true activeScreen=screen-game ready=true
+  ok   ingame           1085KB  reset
+  ok   crew-agents       903KB  opened:AGENTS:portrait-ready
+  ok   crew-recruit      842KB  opened:RECRUIT
+  ok   crew-commander    968KB  opened:COMMANDER
+  ok   work-tasks        885KB  opened:TASKS
+  ok   work-deliverables  920KB  opened:DELIVERABLES
+  ok   work-recipes      788KB  opened:RECIPES
+  ok   work-automation   924KB  opened:AUTOMATION
+  ok   work-quests       949KB  opened:QUESTS:refresh-fixture-settled
+  ok   build-station    1554KB  opened:REFIT STATION
+  ok   build-connectors  945KB  opened:ABILITIES
+  ok   sys-messaging     911KB  opened:CHANNELS
+  ok   build-manual      904KB  opened:FIELD MANUAL
+  ok   sys-settings      979KB  opened:SETTINGS:provider-health-settled
+  ok   sys-updates       877KB  opened:UPDATES
+  ok   sys-notifs        948KB  opened:NOTIFS
+
+DONE (all states ok) → C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden
+
+  CHANGED ingame           diff=6.67 (thr 1.5)
+  CHANGED crew-agents      diff=6.31 (thr 1.5)
+  CHANGED crew-recruit     diff=6.19 (thr 1.5)
+  CHANGED crew-commander   diff=5.81 (thr 1.5)
+  CHANGED work-tasks       diff=5.07 (thr 1.5)
+  CHANGED work-deliverables diff=5.90 (thr 1.5)
+  CHANGED work-recipes     diff=6.53 (thr 1.5)
+  CHANGED work-automation  diff=5.58 (thr 1.5)
+  CHANGED work-quests      diff=5.54 (thr 1.5)
+  ok      build-station    diff=0.05 (thr 1.5)
+  CHANGED build-connectors diff=5.83 (thr 1.5)
+  CHANGED sys-messaging    diff=5.60 (thr 1.5)
+  CHANGED build-manual     diff=5.84 (thr 1.5)
+  CHANGED sys-settings     diff=6.86 (thr 1.5)
+  CHANGED sys-updates      diff=5.12 (thr 1.5)
+  CHANGED sys-notifs       diff=5.38 (thr 1.5)
+
+15 frame(s) CHANGED beyond animation noise — the vision model should read ONLY these:
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\ingame.png  diff=6.67
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\crew-agents.png  diff=6.31
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\crew-recruit.png  diff=6.19
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\crew-commander.png  diff=5.81
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\work-tasks.png  diff=5.07
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\work-deliverables.png  diff=5.9
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\work-recipes.png  diff=6.53
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\work-automation.png  diff=5.58
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\work-quests.png  diff=5.54
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\build-connectors.png  diff=5.83
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\sys-messaging.png  diff=5.6
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\build-manual.png  diff=5.84
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\sys-settings.png  diff=6.86
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\sys-updates.png  diff=5.12
+  C:\Users\andro\gen-trees\release-audit-0124-0920\.qa_tmp\release-0124\golden\sys-notifs.png  diff=5.38

@@ -1,0 +1,17 @@
+{
+  "rejectedMerge": "95983cdb64a4b18b769b96effce349f07528d373",
+  "restoredTrunk": "5bb28bb833469b5b9e7a7dd7cf8573b098a90a50",
+  "command": "git reset --merge",
+  "reason": "Preserve unrelated dirty operational notes while restoring the verified trunk snapshot",
+  "failedStep": 776,
+  "failedSuite": "test/session-reliability.e2e.test.js",
+  "safetyCode": "WORKSPACE_BUSY",
+  "observedHolder": {
+    "pid": 39976,
+    "parent": 5064,
+    "process": "npm-cli.js run test:fast:raw"
+  },
+  "scope": "Shared dev/.scratch-workspace reused by automated campaigns; production guard correctly refused ownership uncertainty",
+  "fix": "b123e3ea3",
+  "bug": "46f9dad7"
+}

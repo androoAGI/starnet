@@ -57,22 +57,28 @@ function walk(dir, rel, onFile) {
   }
 }
 
-export function plan(src = SRC) {
+export function plan(src = SRC, shared = join(ROOT, 'shared')) {
+  const catalog = join(shared, 'specialties.js');
+  if (!existsSync(catalog) || !statSync(catalog).isFile()) throw new Error('shared specialty catalog missing: ' + catalog);
   const kept = { files: 0, bytes: 0 }, dropped = { files: 0, bytes: 0, dirs: new Map() };
   walk(src, '', (rel, size) => {
+    if (rel === 'shared/specialties.js') return; // staging replaces any stale copy with the authority
     if (shouldStage(rel)) { kept.files++; kept.bytes += size; return; }
     dropped.files++; dropped.bytes += size;
     const dir = rel.split('/').slice(0, 3).join('/');
     dropped.dirs.set(dir, (dropped.dirs.get(dir) || 0) + size);
   });
+  kept.files++; kept.bytes += statSync(catalog).size;
   return { kept, dropped };
 }
 
-export function stage({ src = SRC, dest = DEST, log = console.log } = {}) {
+export function stage({ src = SRC, dest = DEST, shared = join(ROOT, 'shared'), log = console.log } = {}) {
   if (!existsSync(src)) throw new Error('frontend source missing: ' + src);
+  const catalog = join(shared, 'specialties.js');
   for (const dir of KEEP_INDUSTRIAL) {
     if (!existsSync(join(src, 'assets', 'industrial', dir))) throw new Error('runtime asset folder missing from frontend/assets/industrial: ' + dir);
   }
+  const p = plan(src, shared); // dry-run and build share the same preflight and exact byte accounting
   rmSync(dest, { recursive: true, force: true });
   mkdirSync(dirname(dest), { recursive: true });
   cpSync(src, dest, {
@@ -86,7 +92,10 @@ export function stage({ src = SRC, dest = DEST, log = console.log } = {}) {
       return shouldStage(statSync(s).isDirectory() ? posix + '/' : posix);
     }
   });
-  const p = plan(src);
+  // Boot data is embedded alongside the page, not fetched from the engine port.
+  // Copy from the shared authority on EVERY build; do not maintain a second catalog.
+  mkdirSync(join(dest, 'shared'), { recursive: true });
+  cpSync(catalog, join(dest, 'shared', 'specialties.js'));
   const mb = (b) => (b / 1048576).toFixed(1) + ' MB';
   log('stage-frontend-dist: ' + p.kept.files + ' file(s) / ' + mb(p.kept.bytes) + ' staged → ' + dest);
   log('  dropped review/source art: ' + p.dropped.files + ' file(s) / ' + mb(p.dropped.bytes));

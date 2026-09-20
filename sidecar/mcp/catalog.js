@@ -144,6 +144,14 @@
        The panel renders it as a live "VIA <name>" jump to that card instead of a mute disabled button. */
     /* StarNet implements MCP tools locally over stable Google APIs. The publisher supplies
        an installed-app OAuth registration; customers never configure a Google Cloud project. */
+    { id: 'google-files', name: 'Selected Google files', category: 'Productivity', authType: 'oauth', transport: 'http',
+      url: 'https://www.googleapis.com/drive/v3#selected-files', googleApi: true, official: false, homepage: 'https://drive.google.com',
+      aliases: ['google', 'google docs', 'google sheets', 'google drive', 'selected files'],
+      staticOauth: Object.assign(GOOGLE_OAUTH([]), {
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
+        extraAuthParams: { access_type: 'offline', prompt: 'consent', trigger_onepick: 'true', include_granted_scopes: 'false', allow_multiple: 'true', mimetypes: 'application/vnd.google-apps.document,application/vnd.google-apps.spreadsheet' }
+      }),
+      blurb: 'Choose Google Docs and Sheets in Google’s file picker. Agents can read and edit files you grant to StarNet and create new ones. Other Drive files, Gmail and Calendar are not included.' },
     { id: 'gmail', name: 'Gmail', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://gmail.googleapis.com/gmail/v1/users/me', googleApi: true, official: false, homepage: 'https://mail.google.com',
       aliases: ['google', 'gmail', 'google mail', 'email', 'gsuite', 'g suite', 'google workspace'],
@@ -162,12 +170,14 @@
     { id: 'google-docs', name: 'Google Docs', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://docs.googleapis.com/v1/documents', googleApi: true, official: false, homepage: 'https://docs.google.com',
       aliases: ['google', 'google docs', 'docs', 'gsuite', 'g suite', 'google workspace'],
-      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.readonly']),
+      // This card accepts document IDs; Drive search/export belongs to the separate Drive card.
+      // drive.file supports the account probe without granting read access to the user's whole Drive.
+      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/drive.file']),
       blurb: 'Read, create, and edit Google Docs. Sign in with Google to connect your account.' },
     { id: 'google-sheets', name: 'Google Sheets', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://sheets.googleapis.com/v4/spreadsheets', googleApi: true, official: false, homepage: 'https://sheets.google.com',
       aliases: ['google', 'google sheets', 'sheets', 'spreadsheet', 'gsuite', 'g suite', 'google workspace'],
-      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.readonly']),
+      staticOauth: GOOGLE_OAUTH(['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']),
       blurb: 'Read, create, and edit Google Sheets. Sign in with Google to connect your account.' },
     { id: 'notion', name: 'Notion', category: 'Productivity', authType: 'oauth', transport: 'http',
       url: 'https://mcp.notion.com/mcp', official: true, homepage: 'https://notion.so',

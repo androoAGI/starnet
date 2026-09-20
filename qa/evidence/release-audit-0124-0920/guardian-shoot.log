@@ -1,0 +1,28 @@
+
+> starnet-harness@0.12.4 shoot
+> node scripts/shoot.mjs
+
+sidecar: booting SEEDED SKYNET_DEV on :8940 (model=anthropic/claude-sonnet-4.6) ...
+sidecar: ready
+chrome: C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe
+target: http://127.0.0.1:8940/
+navigating + booting to the floor...
+  dev=true activeScreen=screen-game ready=true
+  ok   ingame           1108KB  reset
+  ok   crew-agents       907KB  opened:AGENTS:portrait-ready
+  ok   crew-recruit      841KB  opened:RECRUIT
+  ok   crew-commander    971KB  opened:COMMANDER
+  ok   work-tasks        889KB  opened:TASKS
+  ok   work-deliverables  924KB  opened:DELIVERABLES
+  ok   work-recipes      788KB  opened:RECIPES
+  ok   work-automation   928KB  opened:AUTOMATION
+  ok   work-quests       953KB  opened:QUESTS:refresh-fixture-settled
+  ok   build-station    1553KB  opened:REFIT STATION
+  ok   build-connectors  945KB  opened:ABILITIES
+  ok   sys-messaging     911KB  opened:CHANNELS
+  ok   build-manual      903KB  opened:FIELD MANUAL
+  ok   sys-settings      978KB  opened:SETTINGS:provider-health-settled
+  ok   sys-updates       877KB  opened:UPDATES
+  ok   sys-notifs        948KB  opened:NOTIFS
+
+DONE (all states ok) → C:\Users\andro\gen-trees\_qa-guardian-release-audit-0124-0920\.uishots

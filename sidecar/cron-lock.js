@@ -63,8 +63,7 @@ function defaultPidAlive(pid) {
   if (typeof process.pid === 'number' && n === process.pid) return true;   // our own pid is obviously alive
   try { process.kill(n, 0); return true; }                        // signal 0 = existence probe; no throw -> alive
   catch (e) {
-    if (e && e.code === 'EPERM') return true;                     // exists but not ours -> alive (guard EPERM)
-    return false;                                                 // ESRCH (or anything else) -> not alive -> reclaimable
+    return !(e && e.code === 'ESRCH');                          // only absence proves death; unknown errors stay busy
   }
 }
 

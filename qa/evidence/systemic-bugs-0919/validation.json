@@ -1,0 +1,107 @@
+{
+  "schema": "starnet.systemic-bug-validation.v1",
+  "sourceFix": "8eb87b0d3",
+  "lockedHead": "ff8c5b709c6b5b204e73a86f090d8c789036175f",
+  "runtime": "v22.23.0",
+  "platform": "win32",
+  "fast": {
+    "status": "pass",
+    "steps": 827
+  },
+  "http": {
+    "status": "pass",
+    "steps": 121
+  },
+  "focused": {
+    "status": "pass",
+    "suites": 21
+  },
+  "journeys": {
+    "status": "pass",
+    "assertions": 139
+  },
+  "durableRestarts": 4,
+  "browser": {
+    "status": "pass",
+    "cases": [
+      "stale permission read",
+      "ambiguous bypass acknowledgement",
+      "routine refusal preserves proposal",
+      "Recipe Bay catalog retry",
+      "visible execution policy refusal",
+      "six finite API header/body deadline cases"
+    ],
+    "exceptions": 0
+  },
+  "intakeProbe": {
+    "status": "pass",
+    "assertions": 18,
+    "actualExternalProviders": false
+  },
+  "reports": {
+    "historical": 181,
+    "newFixed": 8,
+    "newUnresolved": 3,
+    "total": 192,
+    "open": 11
+  },
+  "sourceHashes": {
+    "sidecar/durable-store.js": "a81be4870ab28ee1a1724d684bffbaef96c829793b2c91e92e482cb387a72277",
+    "frontend/app/app.js": "0c1c26b05a9400ddd2d571b75848fec6e77dec18443b8e93b7fce4749a8773f4",
+    "frontend/app/autojobstore.js": "8a0d090f468aa58049d7303ae1b8eae8792c645d505ddf6a7f2afcfe9de20360",
+    "frontend/app/harness.js": "bdd1f46f527f2dd11d76d86c04c656044ad55f9eef2730188f83cc18b71d69fe",
+    "frontend/app/marketplace.js": "082a7c77da177200a78b8423c869c7308935715565d37279a9a9ac986494fb4d",
+    "frontend/app/permissionsstore.js": "fd14692a5aa1b95328ddd031b40f2feecd286287b9b8c99555a2cb8158dfd867",
+    "frontend/app/stationui.js": "5649ce6a9970d7746f856734bd10665890088fd92cfec9facfde1f5cdedccff9",
+    "frontend/app/windows/messaging.js": "94a7d7efe8e53f377dc259d8f9d7da755f7351d08c34bd0290381df550cb8b08",
+    "test/durable-store-faults.test.js": "b06789bd1926364f2ad9108897b6c76b3c23c77be05b051c8d0b91bc4ba9fd14",
+    "test/durable-store-faults.http.test.js": "10c7262097978817773235d82d4d85b74eb77e8388d6c36c419c5be142a12f47",
+    "test/permissions-authority.test.js": "3ee3fd1f4318617554ce1d4b940b3ab9d2bf1bc8d0e7f29ba8b381787963ab29",
+    "test/api-json-lifecycle.test.js": "f57bc4722053be1faf6e1847c6f3ab694db00b9598b33aaba6b57ef88232f69d",
+    "test/routine-acknowledgement.test.js": "3a68020dd6babfaa215093d41f11394940e0cb504e3db4e4fdd0a38c71d65421",
+    "test/marketplace-authority.test.js": "6e4eab9fb8e25d7d309b0bcca59ffd1de0654f5de999a2cadfceb398d42b5dc3",
+    "test/control-acknowledgements.test.js": "8dd9c929c2627d5fd2218efbdcfbe56569d83d136b671a167005c84788bdbc06",
+    "test/rec-truth-consistency.test.js": "151420d82b4cab7540489784539c613a9c17a2df74399774c76ab5a5a83d2cd1",
+    "test/class-loadouts.test.js": "33db81b9b78c4ceb8fa9cfc5c3ce746c5de052e3d579479464eeb71226677853",
+    "test/failopen-ratchet.test.js": "8d636f22d53162b7d9293a81b0a9a55630ade8f058cb2f4e2a19953b80dfb5ce",
+    "dev/systemic-bugs-proof.mjs": "12f4fc96898e2f5aa320ca9fe5394802884d7b4ee23e91ab23b1cc18a83752c1"
+  },
+  "artifacts": {
+    "api-before.log": "093b1de23b3f0760711b213a1fe2415d5f698d587c86b10389c8eab8a561e232",
+    "browser-after.json": "8ad05b49d3380286182ca667285e08e8787c7148f3663b348443bd1591588cc1",
+    "browser-before.json": "19551d6334f1160da07c59169ef058385752269e8998d576b74bced3001e3d54",
+    "browser-controls.log": "8ad05b49d3380286182ca667285e08e8787c7148f3663b348443bd1591588cc1",
+    "browser-timeouts.json": "f7d2e8171c168c04d81db6daf76ba0af7750367b62348c5b20704e0c3ece656b",
+    "browser-timeouts.log": "4063d0f04ca833c075c0204f62862566099bc863153c3ab82ffbe5cb2f762c0f",
+    "browser-timeouts.mjs": "1a4b24de8a32329dd9cc020458001c0c3bf38a8db6a13203eb412d62d7eedd96",
+    "controls-before.log": "6199a36a3020a0867100f1469a7283937bc7afab0a1282234ab9c278b8a05e2c",
+    "durable-after.log": "e23d5bd126566a50a5d948306854a103cc49e8fea0748ec72643bc1c6ead23d4",
+    "durable-before.log": "a9883b8cb50fac2a187ae68d424920435750c8c44dd5e85c4690918af2daa984",
+    "durable-http.log": "0a66098b4e0020eefb9e026a88c39b3e6950e157a46e0a0d43b9eb2bcb86beed",
+    "external-intake.json": "452cfa2f9d4cb2aed81fd3e133cd050810bdce5301dbab6412132f5a49bf73a6",
+    "fast-complete.log": "3dd531be04bd8527c81df76172f4e2d2d8665672876d77578eff3b1f98ee05e0",
+    "fast-final.log": "fc260268d9e3fb323d3e82816b6bf83e3ed33e278871a9fb2cd6f4de3c0d8f1e",
+    "fast-pass.log": "d1b40fad1b32c5141976352d2b98444381615c14fc53e8cbf8cf2ade90202138",
+    "fast-tail.log": "f375e286369672dee15a846d43d115608e2f736526b45cada029aa4d9626169d",
+    "fast-verified.log": "48df869fcb256d516a4951e1aa50d87c4e9230e5d3a822894a163e64a58ad64f",
+    "fast.log": "17f7d2f563417435cb8d452e7cb5248c02dfa890c1908763677dbe6f6766ae02",
+    "focused-final.log": "a577fbdfd3403a16af7a56ac2ea051d99622aca53dd0c69195e07a9586f809f8",
+    "http-final.log": "1ce4e6da08aa6a4e9e587088ea0968538167f744045085da3cab2004d2b6c3c7",
+    "http.log": "b4948df89d767fdf37a0df337a3d59a1fa7e33318dbc1912680b59d1737b8a7b",
+    "intake-wire-probe.cjs": "cc602fcf2d19a11da5b4c4dcf8dfbb623652741a6ed6c79ad3171fb7be693ea0",
+    "intake-wire-probe.log": "8edb3748c321e8f377e0ae1e33a217bc42c6b07152cf1d0c6541137a6fea1e2d",
+    "journeys.log": "fe1a0402c538cf3a3b47f55353e22d940e5e697fc4572a90f5e88cb8baee594a",
+    "marketplace-before.log": "092eb1f47f6b1c180afea636883e56d09e0b4d3d8cc68f09e8449465947bd8a7",
+    "paid-link-retry.log": "8a1a90707f4ab9898d85a058d24be1a3ce7ffaa24bbc6d5c9c2e775c3ec7cf8a",
+    "permissions-before.log": "c35279c376f10feabb2463ab4bd979cd64657db6b2e41830cdbc71eaebf2c785",
+    "report-patterns.json": "d425e45fe52b9a6cea18a92e39461adbba1d94a2ac7d2680a9389f1d48b674f5"
+  },
+  "limitations": [
+    "Windows Node 22 and local controlled provider transport",
+    "No installer publication or physical Mac acceptance",
+    "No live paid-provider, SSH host or customer-account recovery",
+    "Initial paid-link HTTP restart ownership refusal retained; isolated retry passed",
+    "Initial fast run needed collection-reader test dependency repair; next run needed generated index refresh",
+    "Only the representative execution policy handler was clicked in the browser; other controls have module coverage"
+  ]
+}

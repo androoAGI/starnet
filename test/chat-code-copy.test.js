@@ -47,6 +47,14 @@ A.ok(/\.md-copy\.copy-failed/.test(css), 'clipboard failure has a visible state'
 
 
 const report=renderMarkdown('# Result\n\n| Task | Status |\n|---|---|\n| Save | PASS |\n\n1. Inspect\n   - Keep receipt\n2. Retry\n\n> Incomplete\n\n[Evidence](https://example.com/evidence)');
+// A literal lookbehind makes the ENTIRE Chat module unparseable in older WebKit.
+A.ok(!src.includes('(?<!') && !src.includes('(?<='), 'Chat has no lookbehind syntax boot dependency');
+for (const row of ['| a\\|b | c |', 'a\\|b | c']) {
+  const table = renderMarkdown('| First | Second |\n|---|---|\n' + row);
+  A.ok(table.includes('<td>a|b</td><td>c</td>'), 'escaped pipes stay within a cell: ' + row);
+}
+const slashTable = renderMarkdown('| First | Second | Third |\n|---|---|---|\n| a\\\\|b | | <img onerror=x> |');
+A.ok(slashTable.includes('<td>a\\|b</td><td></td><td>&lt;img onerror=x&gt;</td>'), 'backslashes, empty cells and hostile text retain prior rendering');
 A.ok(report.includes('<table'), 'report table is semantic');
 A.ok(report.includes('<ol') && /<li>Inspect[\s\S]*<ul/.test(report), 'ordered list preserves nested bullet hierarchy');
 A.ok(report.includes('<blockquote'), 'quote is semantic');

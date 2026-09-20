@@ -1,0 +1,17 @@
+{"rows":[{"title":"beta","inputs":1,"notice":""},{"title":"alpha","inputs":0,"notice":""},{"title":"beta","inputs":0,"notice":""}],"exceptions":[]}
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Crew choices remain visible after opening projects with identical crew preferences
+    at file:///C:/Users/andro/gen-trees/release-audit-0124-0920/.qa_tmp/release-0124/project-live.mjs:27:264
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.23.0

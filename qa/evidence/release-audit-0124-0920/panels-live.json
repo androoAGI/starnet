@@ -1,0 +1,114 @@
+[
+  {
+    "state": "ingame",
+    "driven": "reset",
+    "visibleControls": 28,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "crew-agents",
+    "driven": "opened:AGENTS:portrait-ready",
+    "visibleControls": 47,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "crew-recruit",
+    "driven": "opened:RECRUIT",
+    "visibleControls": 78,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "crew-commander",
+    "driven": "opened:COMMANDER",
+    "visibleControls": 51,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "work-tasks",
+    "driven": "opened:TASKS",
+    "visibleControls": 38,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "work-deliverables",
+    "driven": "opened:DELIVERABLES",
+    "visibleControls": 37,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "work-recipes",
+    "driven": "opened:RECIPES",
+    "visibleControls": 101,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "work-automation",
+    "driven": "opened:AUTOMATION",
+    "visibleControls": 40,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "work-quests",
+    "driven": "opened:QUESTS:refresh-fixture-settled",
+    "visibleControls": 53,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "build-station",
+    "driven": "opened:REFIT STATION",
+    "visibleControls": 183,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "build-connectors",
+    "driven": "opened:ABILITIES",
+    "visibleControls": 63,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "sys-messaging",
+    "driven": "opened:CHANNELS",
+    "visibleControls": 45,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "build-manual",
+    "driven": "opened:FIELD MANUAL",
+    "visibleControls": 44,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "sys-settings",
+    "driven": "opened:SETTINGS:provider-health-settled",
+    "visibleControls": 81,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "sys-updates",
+    "driven": "opened:UPDATES",
+    "visibleControls": 32,
+    "nativePaint": [],
+    "exceptions": []
+  },
+  {
+    "state": "sys-notifs",
+    "driven": "opened:NOTIFS",
+    "visibleControls": 35,
+    "nativePaint": [],
+    "exceptions": []
+  }
+]

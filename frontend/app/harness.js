@@ -826,17 +826,24 @@ const Harness = (() => {
     const dec = new TextDecoder();
     let buf = '', full = '', lastUsage = null, runId = null, errMsg = null, endReason = null, finishReason = null, completionVerdict = 'not_assessed', effectVerdict = 'no_observed_effects';
     let budgetScope = null, budgetCapUsd = null;   // additive: WHICH spend cap ended a 'budget' run (+ its $ cap)
+    let sawLeadEnd = false;
 
+    try {
     for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
+      let chunk;
+      try { chunk = await reader.read(); }
+      catch (e) { if (sawLeadEnd) break; throw e; } // a lost trailing connection cannot undo a confirmed end
+      const { value, done } = chunk;
+      // EOF is a transport boundary, never proof the run completed. Flush the decoder and
+      // process a final complete JSON record even when the transport omitted its newline.
+      buf += done ? dec.decode() + '\n' : dec.decode(value, { stream: true });
       let nl;
       while ((nl = buf.indexOf('\n')) >= 0) {
         const s = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
         if (!s) continue;
         let ev; try { ev = JSON.parse(s); } catch (_) { continue; }
+        if (!ev || typeof ev !== 'object') continue;
         const name = ev.name, payload = ev.payload || {};
         // INTERNAL reason-only calls (the pitch/suggest self-talk) still produce usage events, but must NOT
         // register as delivered tasks: drop their run.start/run.end re-emit so
@@ -891,7 +898,8 @@ const Harness = (() => {
             if (payload.runId) { delete runModels[payload.runId]; internalRuns.delete(payload.runId); }
             // latch the lead's stop reason AND (Lane 5, additive) WHY it stopped when the provider truncated/
             // filtered it — the caller renders a "cut short" recap instead of a delivered crate for those.
-            if (!payload.runId || payload.runId === runId) {
+            if (runId && payload.runId === runId && typeof payload.reason === 'string' && payload.reason) {
+              sawLeadEnd = true;
               endReason = payload.reason; finishReason = payload.finishReason || null;
               completionVerdict = payload.completionVerdict || 'not_assessed';
               effectVerdict = payload.effectVerdict || 'no_observed_effects';
@@ -902,8 +910,17 @@ const Harness = (() => {
             break;   // the lead's own end, not a forwarded worker's
         }
       }
+      if (done) break;
+    }
+    } finally {
+      reader.releaseLock();
+      if (runId) { delete runModels[runId]; internalRuns.delete(runId); }
     }
     totals.calls++;
+    // Preserve explicit in-band errors, including setup failures before run.start. Otherwise
+    // let COMMS keep the partial reply and reconcile with the durable journal; never retry
+    // inference here, since tools may already have executed before the stream was lost.
+    if (!sawLeadEnd && !errMsg) throw new Error('Reply stream disconnected before completion was confirmed.');
     // surface the error to the caller (do NOT swallow it just because some text streamed first) —
     // a network/fetch failure still throws below; this is for in-band run errors / capdenied.
     if (errMsg) return { text: full, usage: lastUsage, runId, error: errMsg, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd };
@@ -1184,8 +1201,7 @@ const Harness = (() => {
        del(path)           (the sidecar's {error} envelope), so callers can surface j.error; rejects
                            only on network failure or a non-JSON body. body defaults to {}.
      Streaming responses (/api/run, /api/cron/run) and Response-shape consumers must NOT use this. */
-  const api = {
-    get: async (path, options) => {
+  async function requestJson(path, init, options) {
       const controller = new AbortController();
       const signal = options && options.signal;
       const abort = () => controller.abort();
@@ -1193,15 +1209,24 @@ const Harness = (() => {
       let deadline;
       try {
         return await Promise.race([
-          fetch(path, { cache: 'no-store', signal: controller.signal }).then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }),
-          new Promise((_, reject) => { deadline = setTimeout(() => { reject(new Error('The station took too long to respond. Please retry.')); abort(); }, 15000); })
+          fetch(path, Object.assign({ cache: 'no-store' }, init, { signal: controller.signal })).then(async r => {
+            if (!init && !r.ok) throw new Error('http ' + r.status);
+            const j = await r.json();
+            return init ? { ok: r.ok, status: r.status, j } : j;
+          }),
+          new Promise((_, reject) => { deadline = setTimeout(() => {
+            reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
+            abort();
+          }, (options && options.timeoutMs > 0) ? options.timeoutMs : init ? 60000 : 15000); })
         ]);
       } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
-    },
-    post: (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) })
-      .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j }))),
-    del: path => fetch(path, { method: 'DELETE' })
-      .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j })))
+  }
+  // Finite JSON exchanges only: include body parsing in the deadline, never replay writes.
+  // Mutations have a longer budget for connection setup and expose ambiguous completion honestly.
+  const api = {
+    get: (path, options) => requestJson(path, null, options),
+    post: (path, body, options) => requestJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) }, options),
+    del: (path, options) => requestJson(path, { method: 'DELETE' }, options)
   };
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND

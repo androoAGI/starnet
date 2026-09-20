@@ -1,0 +1,10 @@
+{
+  "sourceRun": 35498817260,
+  "sourceReceipt": ".qa_tmp/release-0124/windows-acceptance-passed/installed-smoke/last-smoke.json",
+  "originalArtifactPath": "C:\\Users\\runneradmin\\AppData\\Local\\StarNet\\skynet-desktop.exe",
+  "localArtifactPath": "C:\\Users\\andro\\gen-trees\\release-audit-0124-0920\\.qa_tmp\\release-0124\\signed-native\\extracted\\skynet-desktop.exe",
+  "sha256": "1dde97eada2339675c2ad696d9afc131cb3fec38a2f72825573a11774d8ef10c",
+  "executableBytesIdentical": true,
+  "evidenceBytesIdentical": true,
+  "change": "Artifact path relocation only; verdict, observed runtime identity, checks and timestamps unchanged"
+}

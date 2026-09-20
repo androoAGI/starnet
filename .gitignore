@@ -212,3 +212,4 @@ sidecar/mcp/google-client.json
 
 # Verified helper binaries and server installer bundled by the Mac desktop build.
 /src-tauri/remote-deps/
+/.local/google-review/

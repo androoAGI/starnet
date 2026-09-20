@@ -1,0 +1,53 @@
+name: connector-keychain-acceptance
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/google-oauth-audit-0919, agent/google-oauth-merge-0920]
+permissions:
+  contents: read
+jobs:
+  macos-keychain:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      STARNET_DISPOSABLE_KEYCHAIN: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile production credential code in lightweight acceptance harness
+        run: cargo build --locked --manifest-path test/native-connector-keychain/Cargo.toml
+      - name: Configure disposable keychain
+        shell: bash
+        run: |
+          keychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"
+          security create-keychain -p synthetic-ci-only "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -d user -s "$keychain"
+          security unlock-keychain -p synthetic-ci-only "$keychain"
+      - name: Native migration and process restart recovery
+        shell: bash
+        run: |
+          binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+          "$binary" migrate
+          "$binary" recover
+          "$binary" malformed
+          "$binary" recover
+      - name: Locked keychain and recovery
+        shell: bash
+        run: |
+          binary=test/native-connector-keychain/target/debug/starnet-connector-keychain-acceptance
+          keychain="$RUNNER_TEMP/starnet-acceptance.keychain-db"
+          security lock-keychain "$keychain"
+          "$binary" unavailable
+          security unlock-keychain -p synthetic-ci-only "$keychain"
+          "$binary" recover
+      - name: Vault fault and removal regressions
+        run: node test/connector-vault.test.js

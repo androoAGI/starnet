@@ -1,0 +1,227 @@
+{"suite":"session-reliability.e2e.test.js","executableSha256":"1dde97eada2339675c2ad696d9afc131cb3fec38a2f72825573a11774d8ef10c","installedRuntimeSha256":"0d0f5e39f9f3d9587bc19f73eab3c2c9c4903fd02d6dbf9c853dd81b3d95fad4","identities":{"sidecar/index.js":"7a81ae53ed2a1462ff5aff103c6067653737275bc3f4d37dd244f9b8cbb6f90b","sidecar/loop.js":"a6399a430d45d556175941b6d8e13d0d06fd27f4c199c8d579aca38e36c8e27c","sidecar/tools/builtin/orchestration.js":"99e66a293dadb287243198f0907cf2bf7ad861c836223717f4fdb4839a2dd26e","sidecar/inputpolicy.js":"77ea1085dd266d883321b350295159c0aa76c094b16cc2f56b2b6c922ba14c5e","frontend/app/chat.js":"edcad28adbf5f5baa39633a5be8a204e0c0ac05c96e31780f60854a1a7146c7c","frontend/app/harness.js":"409cb91128e85d8bf0c2f5a664f3fbcc2c971cba6cc903ed914c76a6aa9e858f","frontend/app/workstreams.js":"3ae022d0b991b952f4f92ac1e7645f2e4ab0be1e53fa7b50e2af0631f6112da7","frontend/app/save.js":"58def58bcd009449d523d14347ba23f72af5340a9029a96360442ffb7beba2a3","frontend/app/cloudsave.js":"0074eeea525d73aa4918eb9146303c973a2fe2eac5ce2a064ff3fcb8e3ad8180","frontend/app/diagnostics.js":"a99b0ff0d54e374fa0ef1c0522aff993af6e35a761e8e6e2bf2b211966840edb"},"scope":"Installed Node and sidecar; isolated stations; controlled upstream providers and MCP, no customer account"}
+{
+  "id": "ws_mu9joklw9gzw",
+  "neighbor": "ws_mu9joklwhvat",
+  "delayedVisible": true,
+  "beforeHistoryReady": 0,
+  "modelContext": true,
+  "promptLast": true,
+  "draftProtected": true,
+  "focusProtected": true,
+  "unavailableProtected": true,
+  "retryOnce": true,
+  "partialProtected": true,
+  "failedSave": false,
+  "localRetained": true,
+  "saved": true,
+  "diagnostics": [
+    {
+      "at": 1789892334249,
+      "session": 1,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892334251,
+      "session": 1,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892334932,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892334942,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892335241,
+      "session": 1,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892335298,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892335498,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892335499,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892335499,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892335513,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892335725,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892335726,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789892335862,
+      "session": 3,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892336183,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892336210,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892336215,
+      "session": 3,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892336216,
+      "session": 3,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892336274,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892336274,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789892336279,
+      "session": 2,
+      "event": "session-selected"
+    },
+    {
+      "at": 1789892336330,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892336336,
+      "session": 2,
+      "event": "history-unavailable"
+    },
+    {
+      "at": 1789892336336,
+      "session": 2,
+      "event": "send-held-history-unavailable"
+    },
+    {
+      "at": 1789892336426,
+      "session": 2,
+      "event": "history-loading"
+    },
+    {
+      "at": 1789892336489,
+      "session": 2,
+      "event": "history-loaded"
+    },
+    {
+      "at": 1789892336489,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789892336512,
+      "session": 2,
+      "event": "send-history-ready"
+    },
+    {
+      "at": 1789892336541,
+      "session": 3,
+      "event": "history-loaded"
+    }
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "Remember the launch code: ORBIT-17"
+    },
+    {
+      "role": "assistant",
+      "content": "I have the launch code."
+    },
+    {
+      "role": "user",
+      "content": "The destination is Europa."
+    },
+    {
+      "role": "assistant",
+      "content": "Europa is the destination."
+    },
+    {
+      "role": "user",
+      "content": "Change destination to Titan."
+    },
+    {
+      "role": "assistant",
+      "content": "Titan is now the destination."
+    },
+    {
+      "role": "user",
+      "content": "What destination did we choose?"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Stay bound to A while I read B"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Preserve this message through a failed restore"
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ Conversation history could not be restored. Your message is kept; try again when the connection returns."
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "user",
+      "content": "Retain a partial reply"
+    },
+    {
+      "role": "assistant",
+      "content": "Continuity checked."
+    },
+    {
+      "role": "assistant",
+      "content": "⚠ The reply stream stopped before it finished — StarNet's local service answered a health check, so the app itself is running; this was the connection carrying the reply. Try again."
+    }
+  ],
+  "draft": ""
+}
+session-reliability: PASS (delayed restore, context, durable save, process restart)

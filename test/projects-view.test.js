@@ -171,4 +171,46 @@ A.ok(/showing the last confirmed list/.test(unavailableProjects) && /Reload to r
 A.ok(!/setProjScope\(/.test(unavailableProjects),
   'an unavailable refresh cannot erase the persisted project scope');
 
-A.report('projects-view.test');
+
+/* Execute the production rendering path: source-pattern checks missed an undefined
+   session-status variable in every nonempty project overview (v0.12.3). */
+const vm = require('node:vm');
+async function renderingRegression() {
+  const list = { innerHTML: '', querySelectorAll: () => [], insertBefore(node) { this.innerHTML = node.textContent + this.innerHTML; } };
+  const ctx = vm.createContext({
+    Projects: P, Date, console: { error() {} },
+    U: { esc: v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;') },
+    Workstreams: { all: () => [], activeId: () => null },
+    el: () => list,
+    document: { createElement: () => ({ setAttribute() {} }) },
+    railView: 'projects', projScope: null, lastConfirmedProjects: null,
+    fetch: async () => ({ ok: true, json: async () => ({ projects: apiProjects }) })
+  });
+  for (const name of ['projDot', 'projSessionsOf', 'renderProjectsOverview', 'renderProjectRows', 'renderProjectsUnavailable', 'renderProjects']) {
+    vm.runInContext(A.fnBody(appSrc, 'function ' + name + '('), ctx);
+  }
+  const refresh = async () => { vm.runInContext('renderProjects()', ctx); await new Promise(resolve => setImmediate(resolve)); };
+  await refresh();
+  A.ok(list.innerHTML.includes('repo project') && list.innerHTML.includes('plain project, access revoked'), 'nonempty trusted and revoked overview renders actual accessible rows');
+  A.ok(!list.innerHTML.includes('loading projects'), 'successful nonempty response ends loading');
+  A.eq(ctx.lastConfirmedProjects.length, 3, 'success retains rendered rows for stale fallback');
+  ctx.fetch = async () => { throw Error('offline'); };
+  await refresh();
+  A.ok(list.innerHTML.includes('showing the last confirmed list') && list.innerHTML.includes('repo project'), 'offline refresh preserves real project rows with stale warning');
+  ctx.renderProjectRows = () => { throw Error('renderer failure'); };
+  await refresh();
+  A.ok(list.innerHTML.includes('Could not display projects') && !list.innerHTML.includes('loading projects'), 'broken cached renderer ends loading without an unhandled rejection');
+  ctx.lastConfirmedProjects = null;
+  ctx.fetch = async () => ({ ok: true, json: async () => ({ projects: apiProjects }) });
+  await refresh();
+  A.ok(list.innerHTML.includes('Could not load projects'), 'first render failure has a terminal recovery message');
+  A.eq(ctx.lastConfirmedProjects, null, 'failed rendering cannot poison the last rendered snapshot');
+  vm.runInContext(A.fnBody(appSrc, 'function renderProjectRows('), ctx);
+  await refresh();
+  A.ok(list.innerHTML.includes('repo project'), 'later successful refresh recovers without resetting data');
+  ctx.fetch = async () => ({ ok: true, json: async () => ({ projects: [] }) });
+  await refresh();
+  A.ok(list.innerHTML.includes('NO TRUSTED PROJECTS'), 'genuinely empty server ledger still renders its empty state');
+}
+renderingRegression().then(() => A.report('projects-view.test')).catch(e => { console.error(e); process.exitCode = 1; });
+

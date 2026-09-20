@@ -1,3 +1,19 @@
+## MAC BOOT COMPATIBILITY MERGED — 2026-09-18 (agent/mac-boot-compat-0918)
+
+Owner-requested compatibility repair and sibling sweep integrated at e71f132d2. Pre/post fast PASS 818/818 and HTTP PASS 119/119; combined customer journeys PASS 36/36. Live fault-injected and staged boot passed; escaped-table parity passed 335,923 inputs, and COMMS expand/restore retained the draft. See qa/digests/2026-09-18-mac-boot-compat.md. Reservation released; unrelated QA status edits preserved. Affected-Mac installed acceptance and catalog engine diagnosis remain open; no installer rebuild or publication.
+
+## SMALL-SCREEN COMMS MERGED — 2026-09-18 (agent/small-screen-0917)
+
+Owner-approved responsive COMMS integrated at 80c9ea54f. Combined pre/post fast gates PASS 817/817; fresh live layout PASS 20/20 with retained widths/draft and working preview comparison. Verified candidate 3c3b7cd85 and merged source trees match. See qa/digests/2026-09-18-small-screen-comms.md. Merge reservation released; unrelated QA status edits preserved. Preview/worktree retained; no installer rebuild or publication.
+
+## HALLWAY TRAFFIC MERGED — 2026-09-18 (agent/hallway-awareness-0917)
+
+Source fix integrated at cee250d8e. Pre/post fast gates both PASS 817/817; customer journeys PASS 36/36. Live opposing traffic reaches original destinations without wall crossings; tests cover single-file retreat, sidestepping, seated anchors, working crew and following distance. See qa/digests/2026-09-18-hallway-traffic.md. Merge reservation released. Unrelated QA status edits preserved; no installer rebuild or publication.
+
+## CHAT FILE DROP MERGED — 2026-09-18 (`agent/chat-drop-0917`)
+
+Owner-requested sweep and merge completed as `321704247`, from baseline `3ba5b8492`. Post-merge fast **816/816** and HTTP **119/119** PASS. Fresh live proof covers real multi-file uploads/read-back, previews, draft preservation, delayed Send, picker/paste, oversized files and outside drops; no page errors. Added edge coverage for disabled chat, folder-only drops, unavailable files, links and browser exit. Merge reservation released. The unrelated QA status refresh is preserved. Installer rebuild, native file-manager gesture acceptance and publication remain separate.
+
 ## 0.12.3 FINAL SPRITE RELEASE — IN PROGRESS — 2026-09-17 (`agent/release-0120-prep-0915`)
 
 The owner authorized the final sprite-animation merge, fresh rebuilt installers and publication after acceptance. Sprite commit `775fc99c4` is merged through `e681e59b4`; no additional feature lanes are in scope. The 0.12.2 candidate passed but remains unpublished and is superseded. The existing long-soak waiver applies to this final artwork addition to the same overhaul. See [0.12.3 release scope](releases/0.12.3/RELEASE.md). Late emails remain deferred; no customer messages or account actions are authorized. Earlier entries below are historical and their publication prohibition is superseded by the owner’s latest instruction.

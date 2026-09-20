@@ -11,7 +11,7 @@
       method: body === undefined ? 'GET' : 'POST', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(15000)
+      signal: U.timeoutSignal(15000)
     });
     return { response, data: await response.json() };
   }
