@@ -1,7 +1,6 @@
-/* sidecar/tools/builtin/computer.js - inert computer-use contract.
-   The task sidecar contains no real OS input/screen driver. This module owns
-   the schema, hard-blocks, and the host lease boundary for a future native
-   attended broker or injected test-only driver.
+/* sidecar/tools/builtin/computer.js - legacy computer-use contract.
+   This module owns the schema and host authority boundary, delegating native
+   operations to the Windows driver or an injected driver.
 
    makeComputerTools({ driver? }) -> { useTool, register(reg), _internals }
      driver.perform(action) -> Promise
@@ -200,7 +199,7 @@
           keys: { type: 'array', items: { type: 'string' } },
           durationMs: { type: 'number' },
           capture_after: { type: 'boolean' },
-          expectApp: { type: 'string', description: 'For type/key/hotkey: app or window-title substring that must be in the foreground, or the input is refused. Always pass it.' }
+          expectApp: { type: 'string', description: 'Legacy advisory app/title hint; foreground matching is not enforced. Inspect the screen before typing. CUA offers explicit window and element targets.' }
         }
       },
       run: async (args, ctx) => {
@@ -223,7 +222,7 @@
           else if (typeof cap === 'string') proof = 'capture_after=' + cap;
           else proof = 'capture_after=' + JSON.stringify(cap);
         }
-        const content = 'computer.' + action.action + ' ok' + (fgNote ? '\n' + fgNote : '') + (proof ? '\n' + proof : '') + (result ? '\n' + String(result) : '');
+        const content = 'computer.' + action.action + ' ok' + (['screenshot', 'wait'].includes(action.action) ? '' : ' (input dispatched; verify the outcome)') + (fgNote ? '\n' + fgNote : '') + (proof ? '\n' + proof : '') + (result ? '\n' + String(result) : '');
         return { content, summary: summarize(action), images };
       }
     };

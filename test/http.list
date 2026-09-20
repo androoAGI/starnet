@@ -1,5 +1,6 @@
 # Sidecar/HTTP integration gate. Run in order by scripts/run-test-list.mjs; one isolated Node process per line.
 test/provider-recovery.e2e.test.js
+test/computer-control.http.test.js
 test/memory-corrections.http.test.js
 test/seam-audit-recovery.http.test.js
 test/customer-journey.e2e.test.js
@@ -41,6 +42,7 @@ test/e2e.worker-access.test.js
 test/e2e.pathtrust.test.js
 test/e2e.subagent-background.test.js
 test/google-signin.e2e.test.js
+test/google-files.e2e.test.js
 test/google-release-deferred.e2e.test.js
 test/e2e.mcp-connector.test.js
 test/e2e.mcp-session-expiry.test.js
@@ -124,4 +126,6 @@ test/e2e.overseer.test.js
 test/save-unreadable.http.test.js
 test/durable-store-faults.http.test.js
 test/dev-seed-isolation.http.test.js
+test/spend-authority.http.test.js
+test/workspace-probe-errors.http.test.js
 test/project-workspace.http.test.js

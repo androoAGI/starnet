@@ -258,7 +258,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $installedNode = Join-Path (Split-Path $env:EXE) 'node.exe'
           New-Item -ItemType Directory -Force candidate-evidence | Out-Null
-          foreach ($suite in @('saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js', 'session-reliability.e2e.test.js')) {
+          foreach ($suite in @('saved-provider-fallback.e2e.test.js', 'delegated-connectors.e2e.test.js', 'session-reliability.e2e.test.js', 'spend-authority.http.test.js')) {
             & $installedNode scripts/qa/installed-customer-regressions.cjs $suite 2>&1 | Tee-Object -FilePath "candidate-evidence/$suite.log"
             if ($LASTEXITCODE -ne 0) { throw "Installed scenario failed: $suite" }
           }

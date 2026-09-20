@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**11** open (open+claimed) of 195 total — 0 P0 · 1 P1 · 10 P2
+**12** open (open+claimed) of 202 total — 0 P0 · 2 P1 · 10 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **95** · source fixed: **84** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **92**.
+User/owner reports: **96** · source fixed: **85** · installer verified: **6** · customer confirmed: **1** · still reported failing: **2** · recovery unconfirmed: **93**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -101,6 +101,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | [Quest log tiny text and undifferentiated card grid](bugs/74be01cc-quest-log-tiny-text-and-undifferentiated-card-gr.md) | quest-journal | fixed | unverified | unconfirmed |
 | [Raised room corners excluded from interior lighting](bugs/52397fc0-raised-room-corners-excluded-from-interior-light.md) | room-lighting | fixed | unverified | unconfirmed |
 | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | recipe-layout | fixed | unverified | unconfirmed |
+| [Refit object placement stalls while rebaking unchanged environment](bugs/e725e614-refit-object-placement-stalls-while-rebaking-unc.md) | refit-placement-performance | fixed | unverified | unconfirmed |
 | [Remastered prop selection outlines include transparent packing](bugs/30c44acc-remastered-prop-selection-outlines-include-trans.md) | prop-selection | fixed | unverified | unconfirmed |
 | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-traffic | fixed | unverified | unconfirmed |
 | [Room fixture grids flood edges and corners](bugs/b8594ab9-room-fixture-grids-flood-edges-and-corners.md) | room-lighting | fixed | unverified | unconfirmed |
@@ -118,6 +119,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
 | P1 | open | onboarding | [Mac boot guard reports shared specialty catalog load failure](bugs/2f156837-mac-boot-guard-reports-shared-specialty-catalog.md) | release-0112-finalprep-0911 | — |
+| P1 | open | sessions | [Concurrent stale workspace reclaimers both acquire ownership](bugs/c24336d5-concurrent-stale-workspace-reclaimers-both-acqui.md) | reliability-audit-0919 | — |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [Ambiguous permission and routine acknowledgements report unproven changes](bugs/95d13aaf-ambiguous-permission-and-routine-acknowledgement.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P1 | fixed | autonomy | [Concurrency-limited routines starve later due jobs in store order](bugs/0cfef8af-concurrency-limited-routines-starve-later-due-jo.md) | reliability-audit-0919 | b651a8f5d |
@@ -170,6 +172,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
+| P1 | fixed | providers | [Unavailable spend history grants capped runs fresh headroom](bugs/1746d326-unavailable-spend-history-grants-capped-runs-fre.md) | reliability-audit-0919 | 410252bbb |
 | P1 | fixed | release | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | agent/release-0120-prep-0915 | d1848af00 |
 | P1 | fixed | release | [Dismissed frame name suppresses unrelated visual changes](bugs/8993bb79-dismissed-frame-name-suppresses-unrelated-visual.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
 | P1 | fixed | release | [Filtered journey run can replace the full release journey receipt](bugs/3d9dce85-filtered-journey-run-can-replace-the-full-releas.md) | agent/release-ui-audit-0906 | 042394b7d |
@@ -205,6 +208,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P1 | fixed | sessions | [Stalled save responses permanently block the persistence queue](bugs/e6b19398-stalled-save-responses-permanently-block-the-per.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | sessions | [Startup history read failure skips away-work review recovery](bugs/6b655b46-startup-history-read-failure-skips-away-work-rev.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | sessions | [Temporarily unreadable durable records can be quarantined or overwritten](bugs/7aeb7f9f-temporarily-unreadable-durable-records-can-be-qu.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P1 | fixed | sessions | [Unknown PID probe errors authorize workspace takeover](bugs/7f19707e-unknown-pid-probe-errors-authorize-workspace-tak.md) | reliability-audit-0919 | 9cdfc0ba5 |
 | P1 | fixed | sessions | [Workshop reports a completed web tool when its entry file is missing](bugs/097269b5-workshop-reports-a-completed-web-tool-when-its-e.md) | agent/release-ui-audit-0906 | 44a8c3006 |
 | P1 | fixed | skills | [Campaign cards missing from browser element discovery](bugs/305a9e3d-campaign-cards-missing-from-browser-element-disc.md) | agent/browser-campaign-navigation-0912 | dcbc2b941 |
 | P1 | fixed | skills | [gate.verify()'s tamper branch re-enters decide(), which clears the tamper against the STALE stored contentDigest — one approval permanently blesses whatever is](bugs/76d5dc8a-gate-verify.md) | sweep/skills | 598ab4a4 |
@@ -254,9 +258,12 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | fixed | providers | [Secondary console layouts lose provider text and dropdown affordances at enlarged scale](bugs/6c91f5d9-secondary-console-layouts-lose-provider-text-and.md) | agent/interface-finish-0913 | 0054a3d7a |
 | P2 | fixed | providers | [The index.js summarize closure captures the pre-failover provider/model — after a credential rotation or provider fallback, two failed summaries flip compaction](bugs/cb8dc6c3-the-index-js-summarize-closure-captures-the-pre.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | providers | [The ledger's `unmetered` flag is a stamped verdict with zero readers — every ledger USD aggregate (/api/budget, day/global caps) counts subscription dollars tha](bugs/4007eb1f-the-ledger-s-unmetered-flag-is-a-stamped-verdict.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | 9cdfc0ba5 |
+| P2 | fixed | release | [Desktop bundles include development-only native dependencies](bugs/037ec5d2-desktop-bundles-include-development-only-native.md) | reliability-audit-0919 | a711f6ea2 |
 | P2 | fixed | release | [Desktop overlay version disagrees with sidecar diagnostics](bugs/65587128-desktop-overlay-version-disagrees-with-sidecar-d.md) | agent/release-0112-audit-0910 | bed625bdd |
 | P2 | fixed | release | [HTTP gate watchdog expires before the full suite finishes](bugs/0c148510-http-gate-watchdog-expires-before-the-full-suite.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Hydration regression depends on host scheduling](bugs/4bc5d562-hydration-regression-depends-on-host-scheduling.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
+| P2 | fixed | release | [Installed Mac acceptance receipts hard-code destination version](bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md) | reliability-audit-0919 | 2098a36f9 |
 | P2 | fixed | release | [Linux AppImage staging includes incompatible musl Sharp binaries](bugs/694472bf-linux-appimage-staging-includes-incompatible-mus.md) | agent/release-0112-audit-0910 | bbbd7c13a |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
 | P2 | fixed | release | [Seeded lifecycle campaigns reuse a shared workspace and inherit stale ownership](bugs/46f9dad7-seeded-lifecycle-campaigns-reuse-a-shared-worksp.md) | reliability-audit-0919 | b123e3ea3 |
@@ -295,6 +302,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | P2 | fixed | world | [Recipe Bay caches failed catalog reads as permanent empty successes](bugs/e60f28af-recipe-bay-caches-failed-catalog-reads-as-perman.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | world | [Recipe Bay deep shelf collapses initial cards into slivers](bugs/8ac0662a-recipe-bay-deep-shelf-collapses-initial-cards-in.md) | release-0110 | fe5be77a9 |
 | P2 | fixed | world | [Recipe readiness includes disconnected and unauthorized connectors](bugs/759f281c-recipe-readiness-includes-disconnected-and-unaut.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
+| P2 | fixed | world | [Refit object placement stalls while rebaking unchanged environment](bugs/e725e614-refit-object-placement-stalls-while-rebaking-unc.md) | refit-smooth-0919 | 0afbde0cf |
 | P2 | fixed | world | [Remastered prop selection outlines include transparent packing](bugs/30c44acc-remastered-prop-selection-outlines-include-trans.md) | prop-coordination-0914 | 8637c9d8d |
 | P2 | fixed | world | [Retired crew leave furniture reserved](bugs/f2bd926a-retired-crew-leave-furniture-reserved.md) | doorway-occlusion-0910 | 35d255dbd |
 | P2 | fixed | world | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-awareness-0917 | 54105ec6c |
@@ -314,7 +322,7 @@ User/owner reports: **95** · source fixed: **84** · installer verified: **6** 
 | autonomy | 3 |
 | providers | 3 |
 | safecell | 0 |
-| sessions | 0 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 2 |
 | world | 0 |

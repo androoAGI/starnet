@@ -1,0 +1,17 @@
+{
+  "buildRun": 35477408214,
+  "sourceCommit": "a711f6ea2392e82c2c3fbd9147ebb1ffc02e5e4a",
+  "attempt": 1,
+  "builds": "all four passed",
+  "notarization": "both Mac architectures passed",
+  "intelInstalledAcceptance": "failed",
+  "jobId": 105994358074,
+  "observed": [
+    "codesign: valid on disk; satisfies Designated Requirement",
+    "installed app spctl: rejected; source=Unnotarized Developer ID",
+    "Finder launch and recovery were not reached"
+  ],
+  "rawLogSha256": "f2a7335f5d2826f35304f97f5a62ba692eb74271e2c70d824d7a88201fb34770",
+  "logUrl": "https://github.com/androoAGI/starnet/actions/runs/35477408214/job/105994358074",
+  "retry": "same acceptance job, same artifact; no trust bypass"
+}

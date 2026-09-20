@@ -113,7 +113,7 @@ function sanitizeObject(value, pathParts, redacted) {
   return out;
 }
 
-function sanitizeManagedJson(rel, raw) {
+function sanitizeManagedJson(rel, raw, options = {}) {
   const p = slash(rel).toLowerCase();
   if (!/^connectors\/(?:state|connectors|oauth|servicekeys)\.json$/.test(p) && p !== 'channels/secrets.json' && p !== 'permissions.allow.json') return null;
   let doc;
@@ -131,6 +131,11 @@ function sanitizeManagedJson(rel, raw) {
     value = Object.assign({}, doc, { allow: allow.filter(x => x.indexOf('path:') !== 0), meta: keptMeta });
     for (const key of machinePaths) reauthentication.push({ kind: 'project-path', id: key.slice(5), reason: 'Machine-specific path authority is not transferable; restore or relocate the project, then re-authorize it.', fields: ['permissions.allow'] });
   } else if (p === 'connectors/state.json') {
+    if (typeof doc.format === 'string' && doc.format.startsWith('starnet.connector-vault.')) {
+      if (typeof options.readConnectorState !== 'function') throw new Error('Encrypted connector export requires the running StarNet app and its unlocked OS credential store.');
+      doc = options.readConnectorState();
+      if (!doc || doc.version !== 2 || !Array.isArray(doc.configs) || !isObj(doc.oauth)) throw new Error('Encrypted connector export could not verify the original settings.');
+    }
     const configs = Array.isArray(doc.configs) ? doc.configs.map((cfg, i) => {
       const fields = [];
       const clean = sanitizeObject(cfg, ['configs', String(i)], fields);
@@ -243,7 +248,7 @@ function capture(opts) {
     }
     let redactedFields = [];
     if (policy.action === 'sanitize') {
-      const clean = sanitizeManagedJson(item.rel, data);
+      const clean = sanitizeManagedJson(item.rel, data, o);
       data = clean.data;
       redactedFields = clean.redacted;
       reauthentication.push(...clean.reauthentication);

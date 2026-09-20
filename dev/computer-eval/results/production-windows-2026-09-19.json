@@ -1,0 +1,62 @@
+{
+  "date": "2026-09-20T01:50:48.506Z",
+  "steps": 10,
+  "imageSeen": true,
+  "diskVerified": true,
+  "receipts": [
+    {
+      "step": 1,
+      "operation": "launch_app",
+      "effect": null
+    },
+    {
+      "step": 2,
+      "operation": "get_window_state",
+      "effect": null
+    },
+    {
+      "step": 3,
+      "operation": "type_text",
+      "effect": "confirmed"
+    },
+    {
+      "step": 4,
+      "operation": "get_window_state",
+      "effect": null
+    },
+    {
+      "step": 5,
+      "operation": "click",
+      "effect": "unverifiable"
+    },
+    {
+      "step": 6,
+      "operation": "get_window_state",
+      "effect": null
+    },
+    {
+      "step": 7,
+      "operation": "click",
+      "effect": "unverifiable"
+    },
+    {
+      "step": 8,
+      "operation": "get_window_state",
+      "effect": null
+    },
+    {
+      "step": 9,
+      "operation": "click",
+      "effect": "unverifiable"
+    }
+  ],
+  "eventTypes": [
+    "agent.run.start",
+    "cost.estimate",
+    "agent.cost",
+    "agent.tool_call",
+    "agent.tool_result",
+    "agent.token",
+    "agent.run.end"
+  ]
+}

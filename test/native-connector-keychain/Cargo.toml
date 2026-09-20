@@ -1,0 +1,10 @@
+[package]
+name = "starnet-connector-keychain-acceptance"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+keyring = { version = "=3.6.3", features = ["apple-native", "windows-native"] }
+serde_json = "=1.0.150"
+uuid = { version = "=1.23.3", features = ["v4"] }

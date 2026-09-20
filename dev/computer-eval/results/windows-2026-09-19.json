@@ -1,0 +1,354 @@
+{
+  "evaluatedAt": "2026-09-19",
+  "starnetCommit": "621bbf467",
+  "driverVersion": "0.28.2",
+  "nodeVersion": "22.23.0",
+  "installedHermesCommit": "c9de69c6d",
+  "nativeTaskBaseline": "INCOMPLETE: foreground changed; physical typing withheld",
+  "trials": [
+    {
+      "scenario": "notepad-background-edit-save",
+      "passed": true,
+      "file": "starnet-cua-2a5b1427.txt",
+      "bytes": 57,
+      "cursorUnchangedDuringEdit": true,
+      "foregroundUnchangedDuringEdit": true,
+      "staleTargetRejected": true,
+      "measurements": [
+        {
+          "label": "background-edit",
+          "ms": 65,
+          "result": {
+            "content": "computer.type ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"confirmed\",\"evidence\":[{\"kind\":\"value_readback\"}],\"route\":\"accessibility\"}",
+            "summary": "type 28 chars",
+            "images": null
+          }
+        },
+        {
+          "label": "open-file-menu",
+          "ms": 19,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        },
+        {
+          "label": "save",
+          "ms": 13,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "notepad-background-edit-save",
+      "passed": true,
+      "file": "starnet-cua-393e6c3d.txt",
+      "bytes": 57,
+      "cursorUnchangedDuringEdit": true,
+      "foregroundUnchangedDuringEdit": true,
+      "staleTargetRejected": true,
+      "measurements": [
+        {
+          "label": "background-edit",
+          "ms": 22,
+          "result": {
+            "content": "computer.type ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"confirmed\",\"evidence\":[{\"kind\":\"value_readback\"}],\"route\":\"accessibility\"}",
+            "summary": "type 28 chars",
+            "images": null
+          }
+        },
+        {
+          "label": "open-file-menu",
+          "ms": 16,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        },
+        {
+          "label": "save",
+          "ms": 14,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "notepad-background-edit-save",
+      "passed": true,
+      "file": "starnet-cua-5d495b1f.txt",
+      "bytes": 57,
+      "cursorUnchangedDuringEdit": true,
+      "foregroundUnchangedDuringEdit": true,
+      "staleTargetRejected": true,
+      "measurements": [
+        {
+          "label": "background-edit",
+          "ms": 20,
+          "result": {
+            "content": "computer.type ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"confirmed\",\"evidence\":[{\"kind\":\"value_readback\"}],\"route\":\"accessibility\"}",
+            "summary": "type 28 chars",
+            "images": null
+          }
+        },
+        {
+          "label": "open-file-menu",
+          "ms": 15,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        },
+        {
+          "label": "save",
+          "ms": 16,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "notepad-background-edit-save",
+      "passed": true,
+      "file": "starnet-cua-a9eb319b.txt",
+      "bytes": 57,
+      "cursorUnchangedDuringEdit": true,
+      "foregroundUnchangedDuringEdit": true,
+      "staleTargetRejected": true,
+      "ownedTabClosureVerified": true,
+      "measurements": [
+        {
+          "label": "background-edit",
+          "ms": 17,
+          "result": {
+            "content": "computer.type ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"confirmed\",\"evidence\":[{\"kind\":\"value_readback\"}],\"route\":\"accessibility\"}",
+            "summary": "type 28 chars",
+            "images": null
+          }
+        },
+        {
+          "label": "open-file-menu",
+          "ms": 14,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        },
+        {
+          "label": "save",
+          "ms": 9,
+          "result": {
+            "content": "computer.click ok\n{\"delivery\":{\"mode\":\"background\"},\"effect\":\"unverifiable\",\"route\":\"accessibility\"}",
+            "summary": "click undefined,undefined",
+            "images": null
+          }
+        }
+      ]
+    }
+  ],
+  "manualCallTimings": [
+    {
+      "label": "cua.launch.notepad",
+      "ms": 5803,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.observe.notepad",
+      "ms": 601,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.type.element.background",
+      "ms": 19,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.save.hotkey.background",
+      "ms": 92,
+      "error": "hotkey on a modern XAML / UWP target (pid 40740, hwnd 2098452) could not find a UIA AcceleratorKey or `(Ctrl+X)`-style name hint matching `ctrl+s` (scanned 138 element(s)). PostMessage WM_KEYDOWN/UP is ignored by this target's input pipeline. Common cause: the action is nested behind a closed menu (e.g. modern Notepad's Save under the File menu) — its element isn't in the visible subtree until the menu is opened. Call `get_window_state(pid=40740, window_id=2098452)` to inspect available UIA actions, then use an exposed accelerator or `click` the matching element directly.",
+      "blocked": null
+    },
+    {
+      "label": "cua.filemenu.element.background",
+      "ms": 41,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.save.element.background",
+      "ms": 22,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.setup.launch",
+      "ms": 4395,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.capture.virtual-desktop",
+      "ms": 1354,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.click.document",
+      "ms": 592,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.type.document",
+      "ms": null,
+      "error": null,
+      "blocked": "Foreground changed before typing; no input sent"
+    },
+    {
+      "label": "cua.stale-element.refused",
+      "ms": 1,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.capture.window",
+      "ms": 858,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.capture.window.repeat.0",
+      "ms": 741,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.capture.window.repeat.1",
+      "ms": 737,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.capture.window.repeat.2",
+      "ms": 761,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.capture.virtual-desktop.repeat.0",
+      "ms": 669,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.capture.virtual-desktop.repeat.1",
+      "ms": 527,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "native.capture.virtual-desktop.repeat.2",
+      "ms": 496,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "cua.handoff.open-export",
+      "ms": 7472,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "starnet.cua-adapter.type.background",
+      "ms": 27,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "starnet.cua-adapter.background-proof",
+      "ms": null,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "starnet.cua-adapter.file-menu",
+      "ms": 55,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "starnet.cua-adapter.save",
+      "ms": 26,
+      "error": null,
+      "blocked": null
+    },
+    {
+      "label": "starnet.cua-adapter.handoff-saved",
+      "ms": null,
+      "error": null,
+      "blocked": null
+    }
+  ],
+  "liveLoop": {
+    "imageTurns": 1,
+    "toolResults": 1,
+    "restrictedContextRejected": true,
+    "runEndObserved": true
+  },
+  "seededApp": {
+    "status": 200,
+    "events": [
+      {
+        "name": "agent.run.start"
+      },
+      {
+        "name": "cost.estimate"
+      },
+      {
+        "name": "agent.token"
+      },
+      {
+        "name": "agent.cost"
+      },
+      {
+        "name": "agent.run.end",
+        "reason": "done"
+      }
+    ]
+  },
+  "validation": {
+    "adapterTests": {
+      "passed": 8,
+      "failed": 0
+    },
+    "fullFastGate": {
+      "status": "TIMEOUT",
+      "limitMs": 900000,
+      "lastCompleted": "test/station-recovery.test.js",
+      "completedPrefix": 743,
+      "totalSteps": 829
+    },
+    "remainingFastSteps": {
+      "count": 86,
+      "status": "PASS",
+      "receipt": "cua-eval-fast-remainder: OK - 86 step(s) green"
+    }
+  }
+}

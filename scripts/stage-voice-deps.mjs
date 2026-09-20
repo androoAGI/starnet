@@ -15,9 +15,9 @@
 //
 //   node scripts/stage-voice-deps.mjs [--target win-x64] [--platform win32] [--arch x64] [--out <dir>] [--report]
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isUnusedMuslSharp, isUnusedDesktopAccelerator } from './lib/staged-native-packages.mjs';
+import { isUnusedMuslSharp, isUnusedDesktopAccelerator, isDevelopmentOnlyPackage } from './lib/staged-native-packages.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -119,7 +119,7 @@ function purgeStaleReleasePackages() {
       roots.push(join(targetRoot, entry.name, 'release', 'node_modules'));
     }
   }
-  const removeNamed = dir => {
+  const removeNamed = (dir, packageRoot) => {
     let children;
     try { children = readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
     for (const child of children) {
@@ -128,14 +128,14 @@ function purgeStaleReleasePackages() {
         if (child.isFile() && isUnusedDesktopAccelerator(childPath, PLATFORM)) rmSync(childPath, { force: true });
         continue;
       }
-      if (DROP_ANYWHERE.has(child.name) || isUnusedMuslSharp(dir.split(/[\\/]/).pop(), child.name, PLATFORM)) {
+      if (isDevelopmentOnlyPackage('node_modules/' + relative(packageRoot, childPath), lockedPackages) || DROP_ANYWHERE.has(child.name) || isUnusedMuslSharp(dir.split(/[\\/]/).pop(), child.name, PLATFORM)) {
         rmSync(childPath, { recursive: true, force: true });
       } else {
-        removeNamed(childPath);
+        removeNamed(childPath, packageRoot);
       }
     }
   };
-  for (const root of roots) removeNamed(root);
+  for (const root of roots) removeNamed(root, root);
 }
 
 if (args.includes('--report')) {
@@ -149,6 +149,8 @@ if (!existsSync(SRC)) {
   process.exit(1);
 }
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+const lockedPackages = JSON.parse(readFileSync(join(ROOT, 'package-lock.json'), 'utf8')).packages;
+if (!lockedPackages || typeof lockedPackages !== 'object') throw new Error('Runtime staging requires lockfile package identities');
 const runtimeDeps = Object.keys(pkg.dependencies || {});
 if (!runtimeDeps.length) {
   console.log('stage-voice-deps: package.json declares no runtime dependencies — nothing to stage.');
@@ -164,7 +166,7 @@ let copied = 0;
 for (const entry of readdirSync(SRC, { withFileTypes: true })) {
   if (DROP_TOP.has(entry.name)) continue;
   if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-  cpSync(join(SRC, entry.name), join(dest, entry.name), { recursive: true, dereference: true });
+  cpSync(join(SRC, entry.name), join(dest, entry.name), { recursive: true, dereference: true, filter: source => !isDevelopmentOnlyPackage(relative(ROOT, source), lockedPackages) });
   copied++;
 }
 const afterCopy = dirSize(dest);

@@ -15,17 +15,7 @@ const { proc } = launchChrome({ cdpPort: 9348, win: '1280,832', profileDir: path
 const c = await connectCDP(9348);
 // Large saved-station cold bakes must produce a failure receipt, not disappear
 // behind the normal CDP request timeout. Entry has its own strict time budget.
-c.send = function(method, params = {}) {
-  const id = ++this.id;
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      if (this.pending.delete(id)) reject(Error('Refit probe timed out: ' + method));
-    }, 180000);
-    this.pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); },
-      reject: error => { clearTimeout(timer); reject(error); } });
-    this.ws.send(JSON.stringify({ id, method, params }));
-  });
-};
+c.timeoutMs = 180000;
 const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 try {
   await c.send('Page.enable');

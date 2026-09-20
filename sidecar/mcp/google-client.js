@@ -24,7 +24,12 @@ function loadDesktopClient({ env, readFile }) {
 const UNAVAILABLE = 'Google sign-in is not available in this build. StarNet needs to finish enabling it. You do not need to create an app or enter credentials.';
 // Release scope, deliberately source-controlled: publisher credentials do not enable this feature.
 const RELEASE_DEFERRED = true;
-const DEFERRED = 'Google Workspace connections are deferred from 0.11.0 while Google verification is completed. Saved connections are kept but cannot run in this update.';
+const SELECTED_FILES_ENABLED = true;
+const FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const FILES_URL = 'https://www.googleapis.com/drive/v3#selected-files';
+function isSelectedFiles(cfg) { return !!cfg && cfg.id === 'google-files' && cfg.url === FILES_URL; }
+function fileScopeOnly(scope) { const scopes = String(scope || '').trim().split(/\s+/); return scopes.length === 1 && scopes[0] === FILE_SCOPE; }
+const DEFERRED = 'Full Google Workspace access is deferred while Google verification is completed. Saved broad-access connections are kept but cannot run. Selected Google files is available separately.';
 function isWorkspaceUrl(raw) {
   try {
     const u = new URL(raw);
@@ -35,4 +40,4 @@ function isWorkspaceUrl(raw) {
       u.hostname === 'www.googleapis.com' && /^\/(drive|calendar)(\/|$)/.test(u.pathname));
   } catch (_) { return false; }
 }
-module.exports = { desktopClient, loadDesktopClient, UNAVAILABLE, RELEASE_DEFERRED, DEFERRED, isWorkspaceUrl };
+module.exports = { desktopClient, loadDesktopClient, UNAVAILABLE, RELEASE_DEFERRED, SELECTED_FILES_ENABLED, FILE_SCOPE, FILES_URL, isSelectedFiles, fileScopeOnly, DEFERRED, isWorkspaceUrl };

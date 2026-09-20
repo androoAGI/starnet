@@ -309,6 +309,17 @@
 
     const host = mountConsole(body, 'connectors', [
       { id: 'toolsets', label: 'BUILT-IN ABILITIES', glyph: '▤', desc: 'Inspect an agent’s capability grants. Switches apply in ASK mode; Full Access overrides them. Connected services still need working credentials.', build: frag(secToolsets) },
+      { id: 'computer', label: 'COMPUTER CONTROL', glyph: '▣', desc: 'Choose how agents interact with native desktop apps. Full Power or a paired remote-owner lease is required.', build: frag(
+        '<div class="set-about">CUA targets windows and accessibility elements, works in the background where supported, and reports evidence for each action. Foreground input can move focus when needed.</div>' +
+        '<div id="cu-status" class="set-about" role="status" aria-live="polite">Checking computer control…</div>' +
+        '<div class="mc-acts" role="group" aria-label="Computer control backend">' +
+        '<button type="button" class="bb sm" data-cu-backend="cua">CUA · ACCESSIBILITY</button>' +
+        '<button type="button" class="bb sm" data-cu-backend="win32">WINDOWS · CLASSIC</button>' +
+        '<button type="button" class="bb sm" data-cu-backend="off">OFF</button></div>' +
+        '<div class="mc-acts"><button type="button" class="bb sm" id="cu-install">INSTALL CUA</button>' +
+        '<button type="button" class="bb sm" id="cu-check">CHECK DRIVER</button></div>' +
+        '<p class="dim">Install downloads the verified Windows x64 driver from CUA’s official release. Reinstall and backend changes close current CUA sessions; start a new task afterward.</p>' +
+        '<div id="cu-message" class="msg" role="status" aria-live="polite"></div>') },
       { id: 'catalog', label: 'CATALOG', glyph: '⊞', desc: 'Find a service by name or what you want to do. Choose it to see the setup required; YOUR SERVICES shows saved setups, not a live connection guarantee.', build: frag(secCatalog) },
       { id: 'keys', label: 'SAVED API CONNECTIONS', glyph: '⊟', desc: 'The platform credentials your agents actually hold, plus a safe drop for a custom API the catalog does not list.', build: frag(secKeys) },
       { id: 'mcp', label: 'CONNECTED SERVICES', glyph: '⧉', desc: 'Manage service access, check connection status, and reconnect when needed.', build: frag(secMcp) },
@@ -317,7 +328,7 @@
     ].concat(lanes.reduce((acc, l) => acc.concat(l.sections), [])), {
       search: true,
       groups: [
-        { id: 'installed', label: 'INSTALLED', sections: ['toolsets', 'mcp', 'keys', 'agent'] },
+        { id: 'installed', label: 'INSTALLED', sections: ['toolsets', 'computer', 'mcp', 'keys', 'agent'] },
         { id: 'discover', label: 'DISCOVER', sections: ['catalog', 'library'] },
         { id: 'advanced', label: 'CREATE / ADVANCED', sections: ['custom', 'extensions', 'exchange'] }
       ],
@@ -581,6 +592,53 @@
     });
     renderExtensions();
 
+    // Computer control settings reflect host facts, never a guessed connection badge.
+    const cuStatus = body.querySelector('#cu-status');
+    const cuMessage = body.querySelector('#cu-message');
+    const cuInstall = body.querySelector('#cu-install');
+    const cuCheck = body.querySelector('#cu-check');
+    const cuChoices = [...body.querySelectorAll('[data-cu-backend]')];
+    let cuState = null, cuBusy = false;
+    function cuRender(state) {
+      cuState = state;
+      cuStatus.textContent = (state.backend === 'cua' ? 'CUA' : state.backend === 'win32' ? 'WINDOWS CLASSIC' : 'OFF') + ' — ' + state.detail + (state.envLocked ? ' Selection is controlled by the launch environment.' : '');
+      for (const button of cuChoices) {
+        button.setAttribute('aria-pressed', String(button.dataset.cuBackend === state.backend));
+        button.disabled = cuBusy || state.envLocked || ((!state.desktopShell || !state.nativeSupported) && button.dataset.cuBackend !== 'off') || (button.dataset.cuBackend === 'cua' && (!state.supported || !state.installed));
+      }
+      cuInstall.textContent = state.installing ? 'INSTALLING CUA…' : (state.installed ? 'REINSTALL CUA ' : 'INSTALL CUA ') + state.version;
+      cuInstall.hidden = state.customBinary;
+      cuInstall.style.display = state.customBinary ? 'none' : '';
+      cuInstall.disabled = cuBusy || state.installing || !state.supported || !state.desktopShell;
+      cuCheck.disabled = cuBusy || !state.installed;
+    }
+    async function cuRefresh() {
+      try {
+        const state = await Harness.api.get('/api/computer-control');
+        cuRender(state);
+        if (state.installing) setTimeout(() => { if (cuStatus.isConnected) cuRefresh(); }, 1500);
+      }
+      catch (_) { cuStatus.textContent = 'Computer control status unavailable. Reopen Abilities after reconnecting.'; }
+    }
+    async function cuAction(payload) {
+      if (cuBusy) return;
+      cuBusy = true;
+      if (cuState) cuRender(cuState);
+      cuMessage.textContent = payload.action === 'install' ? 'Downloading and verifying CUA…' : 'Checking…';
+      try {
+        const response = await Harness.api.post('/api/computer-control', payload, { timeoutMs: 240000 });
+        if (!response.ok || response.j?.error) throw new Error(response.j?.error || 'Computer control request failed');
+        cuRender(response.j);
+        cuMessage.textContent = response.j.checkDetail || (payload.action === 'install' ? 'Installed. Select CUA to use it for new runs.' : 'Selection saved. Start a new run to use it.');
+      } catch (e) { cuMessage.textContent = e.message || 'Computer control request failed'; }
+      finally { cuBusy = false; await cuRefresh(); }
+    }
+    for (const button of [...cuChoices, cuInstall, cuCheck]) button.disabled = true;
+    for (const button of cuChoices) button.addEventListener('click', () => cuAction({ action: 'select', backend: button.dataset.cuBackend }));
+    cuInstall.addEventListener('click', () => cuAction({ action: 'install', repair: !!cuState?.installed }));
+    cuCheck.addEventListener('click', () => cuAction({ action: 'check' }));
+    cuRefresh();
+
     // ===== TOOLSETS: render pill-switch rows from GET /api/toolsets, honestly reflecting placement + consent =====
     const tsListEl = body.querySelector('#ts-list');
     // Refresh the selected agent's workspace projection alongside its host authority.
@@ -833,12 +891,12 @@
           // http-bearer/stdio editor; there is no bearer to paste). A fresh browser consent is the only cure, so
           // the row always carries it — same engine as the catalog card's ▸ SIGN IN (ccSignIn), which is otherwise
           // unreachable here: the catalog card renders a disabled ✓ ADDED for every installed connector.
-          (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.oauthAuthorized
+          (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.id === 'google-files' ? 'choose files in Google’s picker">CHOOSE GOOGLE FILES' : c.oauthAuthorized
             ? 're-run the browser OAuth sign-in — the fix for a revoked or expired grant">⏼ RE-SIGN-IN'
             : 'open the browser OAuth sign-in">⏼ SIGN IN') + '</button>' : '') +
           (c.releaseDeferred ? '' :
           '<button class="bb xs" data-act="reload">↻ RELOAD</button>' +
-          '<button class="bb xs" data-act="edit">✎ EDIT</button>') +
+          (c.id === 'google-files' ? '' : '<button class="bb xs" data-act="edit">✎ EDIT</button>')) +
           '<button class="bb xs danger" data-act="remove">✕ REMOVE</button>' +
         '</div></div>';
     }
@@ -847,6 +905,7 @@
       try {
         const j = await Harness.api.get('/api/connectors');
         const list = (j && j.connectors) || []; lastList = list;
+        const storageError = j && j.credentialStorage && j.credentialStorage.error;
         renderHandoffs(list);
         const overview = body.querySelector('#mc-overview');
         const notices = body.querySelector('#mc-notices');
@@ -857,6 +916,12 @@
         // A release-wide explanation belongs once above the list, not in every saved service.
         notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
           '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
+        if (storageError) {
+          overview.textContent = 'Saved services unavailable';
+          notices.innerHTML += '<div class="mc-notice"><b>Credential storage</b>' + esc(storageError) + '</div>';
+          listEl.innerHTML = '<div class="mc-detail">Your saved connections have not been erased. Unlock the credential store and restart StarNet.</div>';
+          return;
+        }
         if (list.length) {
           const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
           listEl.innerHTML = list.map(row).join('');
@@ -1074,7 +1139,7 @@
       else if (e.googleApi && e.signInAvailable === false) action =
         '<button class="bb xs" disabled>' + (e.releaseDeferred ? 'DEFERRED' : 'GOOGLE SIGN-IN UNAVAILABLE') + '</button>';
       else if (e.authType === 'oauth') action = e.url
-        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.deviceFlow ? 'SIGN IN WITH GITHUB' : e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
+        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.id === 'google-files' ? 'CHOOSE GOOGLE FILES' : e.deviceFlow ? 'SIGN IN WITH GITHUB' : e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
         : (e.via
           // url-less oauth entry reachable through an aggregator: a LIVE jump to that card, never a mute dead button.
           ? '<button class="bb xs" data-cc-act="via" data-id="' + esc(cardId) + '" data-via="' + esc(e.via) + '" title="no direct endpoint — jump to the connector that reaches it">▸ VIA ' + esc(e.via.toUpperCase()) + '</button>'

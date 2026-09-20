@@ -95,3 +95,16 @@ for (const name of ['libonnxruntime.so.1', 'libonnxruntime_providers_shared.so',
 assert.equal(isUnusedDesktopAccelerator('/other/libonnxruntime_providers_cuda.so', 'linux'), false, 'an unrelated project file is not a pruning target');
 assert.equal(isUnusedDesktopAccelerator(ort + 'libonnxruntime_providers_cuda.so', 'win32'), false, 'Windows staging is unchanged');
 console.log('desktop voice bundle tests passed');
+
+const { isDevelopmentOnlyPackage } = require('../scripts/lib/staged-native-packages.mjs');
+for (const name of ['canvas','canvas-linux-x64-musl','canvas-linux-x64-gnu','canvas-win32-x64-msvc']) {
+  assert.equal(isDevelopmentOnlyPackage('node_modules/@napi-rs/'+name, lock.packages), true, 'development-only canvas stays out of every desktop bundle: '+name);
+}
+const fixtures={'node_modules/dev':{dev:true},'node_modules/shared':{},'node_modules/optional':{devOptional:true},'node_modules/prod/node_modules/dev':{dev:true}};
+assert.equal(isDevelopmentOnlyPackage('node_modules\\dev',fixtures),true);
+assert.equal(isDevelopmentOnlyPackage('node_modules/prod/node_modules/dev',fixtures),true);
+for(const name of ['shared','optional','unknown'])assert.equal(isDevelopmentOnlyPackage('node_modules/'+name,fixtures),false);
+for(const dep of Object.keys(pkg.dependencies))assert.equal(isDevelopmentOnlyPackage('node_modules/'+dep,lock.packages),false,'production root preserved: '+dep);
+assert.match(stage,/filter: source => !isDevelopmentOnlyPackage/, 'fresh staging filters development closure');
+assert.match(stage,/relative\(packageRoot, childPath\)/, 'warm outputs use the same lockfile package identity');
+console.log('desktop staging: development-only native packages excluded, production/shared/optional packages preserved');

@@ -37,7 +37,7 @@ const editedGeo = { origin: { tx: 5, ty: 8 } }, editedCache = {};
 const editor = vm.createContext({
   station: { projectGeometry() { projections++; return editedGeo; } },
   opts: { world: { refitBake() { return { cache, geo }; } } },
-  cache: null, cacheGeo: null, bakeDirty: true, bakeDirtyRects: null,
+  cache: null, cacheGeo: null, bakeDirty: true, bakeDirtyRects: null, projectionDirty: false,
   bakeDirtyRectsGlobal: false, bakeVisibleOnly: false, planDirty: false,
   valPlan: {}, valLive: null, valComps: null, ghost: null, lastStampIds: null,
   maybeFirstRide() {}, renderFinCard() {}, refreshLineFacts() {},
@@ -67,3 +67,53 @@ editor.opts.world.refitBake = () => null;
 initializeEditor(); editor.rebake();
 assert.equal(calls, 2, 'missing or stale world image takes the original cold-bake path');
 console.log('refit-bake-reuse: same-save handoff, invalidation, entry/reopen and cold fallback PASS');
+
+// Execute the actual edit listener, so coalesced invalidations cannot turn a
+// floor/airlock edit into a prop-only frame (including a pending pan bake).
+Object.assign(editor, { clearLineFields() {}, bumpGeo() {}, updateUndoRedo() {},
+  renderSelection() {}, renderEquipmentInfo() {}, tool: 'select' });
+const listenerStart = build.indexOf('    unsub = station.onChange(p => {');
+const listenerEnd = build.indexOf('    const worldBake =', listenerStart);
+vm.runInContext('this.edit = p => {' + build.slice(listenerStart, listenerEnd)
+  .split('station.onChange(p => {')[1].replace(/\}\);\s*$/, '') + '};', editor);
+const reset = () => Object.assign(editor, { bakeDirty: false, planDirty: false,
+  projectionDirty: false, bakeDirtyRects: null, bakeDirtyRectsGlobal: false, bakeVisibleOnly: false });
+const propPatch = { staticBakeUnchanged: true, dirtyRects: [{x1:2,y1:2,x2:3,y2:3}] };
+reset(); editor.edit(propPatch);
+assert.equal(editor.bakeDirty, false, 'ordinary prop keeps environment pixels');
+assert.equal(editor.projectionDirty, true, 'prop refreshes collision geometry');
+assert.equal(editor.planDirty, true, 'prop refreshes capability routing');
+const priorCalls=calls, priorProjections=projections;
+editor.rebake();
+assert.equal(calls, priorCalls, 'prop-only frame never repaints environment');
+assert.equal(projections, priorProjections+1, 'prop-only frame gets fresh geometry');
+assert.equal(editor.projectionDirty, false);
+for (const edits of [[{global:true},propPatch],[propPatch,{global:true}],
+  [{dirtyRects:propPatch.dirtyRects},propPatch],[propPatch,{dirtyRects:propPatch.dirtyRects}]]) {
+  reset(); editor.bakeVisibleOnly=true;
+  for(const patch of edits)editor.edit(patch);
+  assert.equal(editor.bakeDirty,true,'mixed edits retain the environment bake');
+  assert.equal(editor.bakeVisibleOnly,false,'real edit cancels pan-only mode');
+  if(edits.some(p=>p.global))assert.equal(editor.bakeDirtyRects,null,'global invalidation stays global');
+}
+
+const WM=require('../frontend/app/worldmodel.js');
+const st=WM.create(); let patch;
+st.onChange(p=>{patch=p;});
+const added=st.addProp({t:'plant',x:4,y:4,w:1,h:1});
+assert.ok(added.ok); assert.equal(patch.staticBakeUnchanged,true);
+for(const change of [()=>st.moveProp(added.id,1,0),()=>st.rotateProp(added.id,1),
+  ()=>st.mirrorProp(added.id),()=>st.removeProp(added.id)]){
+  assert.ok(change().ok);assert.equal(patch.staticBakeUnchanged,true);
+}
+st.undo();assert.equal(patch.staticBakeUnchanged,undefined,'undo conservatively rebakes');
+st.redo();assert.equal(patch.staticBakeUnchanged,undefined,'redo conservatively rebakes');
+const door=st.addProp({t:'airlock',door:'closed',x:6,y:4,w:1,h:1});
+assert.ok(door.ok);assert.equal(patch.staticBakeUnchanged,undefined,'airlock can change doorways');
+for(const change of [()=>st.moveProp(door.id,1,0),()=>st.rotateProp(door.id,1),
+  ()=>st.mirrorProp(door.id),()=>st.removeProp(door.id)]){
+  assert.ok(change().ok);assert.equal(patch.staticBakeUnchanged,undefined);
+}
+st.setFloor(st.rooms()[0].id,'cobalt');
+assert.equal(patch.staticBakeUnchanged,undefined,'floor changes still rebake');
+console.log('refit placement: prop-only pixels, fresh geometry/routing, mixed edits, airlock and history PASS');
