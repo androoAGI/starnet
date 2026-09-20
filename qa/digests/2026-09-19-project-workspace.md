@@ -45,3 +45,11 @@ The final browser console had no errors. The preview was restarted on the correc
 - Final live preview restarted on the corrected source. Browser console: no errors.
 
 The source worktree was clean after verification. This evidence-only commit adds no product changes. The project extension remains on its isolated branch for owner review; no merge, installer build, push or publication of this extension occurred.
+
+## COMMS-only correction (2026-09-19)
+
+Supersedes the world-covering project overview described above: user explicitly rejected that placement. Project controls now mount before the existing transcript inside chat-panel. A collapsed project/activity row opens bounded, scrollable crew and activity details. Removed stage attachment and world-hiding body hooks. Backend is unchanged.
+
+Verified live on the isolated preview at port 55715: station visible with controls collapsed and expanded; expanded content capped at 240px; world width remains 434px; composer remains visible; no horizontal overflow; preferred MIRA selection and completed activity result render; switching Launch-Notes and Website-Refresh restores each conversation; browser error log empty. Final preview left on Website-Refresh with controls collapsed.
+
+Checks: project-home-ui passes including new world isolation, transcript placement and collapsed-default assertions; projects-view 78, comms-responsive-text 5, control-floor-theming 181 assertions pass; syntax and diff whitespace checks pass. Source commit 569b7c053, audit 13ed72ebd. Full fast/HTTP receipts above predate this frontend correction; full merge gate has not been rerun for this revision. Project extension remains unmerged and pending UX review.
