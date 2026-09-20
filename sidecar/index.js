@@ -13,6 +13,12 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const dns = require('node:dns');
+// Consume the native envelope key before any subsystem can snapshot process.env
+// or launch a worker. The key stays in the vault closure, never a child environment.
+const connectorVaultMod = require('./connector-vault.js');
+const connectorVault = connectorVaultMod.makeConnectorVault({ fs, path,
+  keyHex: process.env.STARNET_CONNECTOR_ENCRYPTION_KEY || '', required: process.env.STARNET_DESKTOP_SHELL === '1' });
+delete process.env.STARNET_CONNECTOR_ENCRYPTION_KEY;
 
 const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
@@ -4001,6 +4007,7 @@ const CONNECTORS_FILE = path.join(CONNECTORS_DIR, 'connectors.json');
 const CONNECTORS_OAUTH_FILE = path.join(CONNECTORS_DIR, 'oauth.json');       // legacy read-only migration source
 const CONNECTORS_STATE_FILE = path.join(CONNECTORS_DIR, 'state.json');       // authoritative v2 envelope
 const CONNECTORS_SCHEMA_DIR = path.join(CONNECTORS_DIR, 'schemas');
+let connectorStorageError = '';
 function connectorSchemaFile(id) { return path.join(CONNECTORS_SCHEMA_DIR, String(id) + '.json'); }
 const connectorSchemaCacheStore = {
   load: (id) => {
@@ -4044,31 +4051,39 @@ function migrateConnectorCatalogKeyHeaders(rawState) {
 }
 function loadConnectorState() {
   let current = null, legacyConfigs = [], legacyOauth = {};
-  try { current = loadResilient(CONNECTORS_STATE_FILE, 'connector-state'); } catch (_) {}
-  if (current && Array.isArray(current.configs) && current.oauth) {
+  try { current = connectorVault.load(CONNECTORS_STATE_FILE); }
+  catch (_) { connectorStorageError = connectorVaultMod.UNAVAILABLE; console.error('[connectors] ' + connectorStorageError); return connectorStateMod.normalize(null); }
+  if (current && current.version === 2 && Array.isArray(current.configs) && current.oauth) {
     const original = connectorStateMod.normalize(current);
     const moved = migrateConnectorCatalogKeyHeaders(original);
     if (!moved.changed) return original;
     const r = saveJsonVerified({
       mkdir: () => fs.mkdirSync(CONNECTORS_DIR, { recursive: true }),
-      save: () => saveResilient(CONNECTORS_STATE_FILE, moved.state),
-      load: () => loadResilient(CONNECTORS_STATE_FILE, 'connector-state'),
+      save: () => connectorVault.write(CONNECTORS_STATE_FILE, moved.state),
+      load: () => connectorVault.load(CONNECTORS_STATE_FILE),
       proof: raw => connectorStateMod.same(raw, moved.state)
     });
     if (r.ok) return moved.state;
     console.warn('[connectors] catalog key-header migration could not be verified; keeping the prior credential state');
     return original;
   }
-  try { const raw = loadResilient(CONNECTORS_FILE, 'connectors'); legacyConfigs = (raw && Array.isArray(raw.connectors)) ? raw.connectors : []; } catch (_) {}
-  try { const raw = loadResilient(CONNECTORS_OAUTH_FILE, 'connector-oauth'); legacyOauth = (raw && typeof raw === 'object') ? { byId: raw.byId || {}, clients: raw.clients || {} } : {}; } catch (_) {}
+  if (current != null) {
+    connectorStorageError = 'Saved connector state is not recognized. The original files have been preserved.';
+    console.error('[connectors] ' + connectorStorageError);
+    return connectorStateMod.normalize(null);
+  }
+  try {
+    const raw = connectorVault.load(CONNECTORS_FILE); legacyConfigs = (raw && Array.isArray(raw.connectors)) ? raw.connectors : [];
+    const oauth = connectorVault.load(CONNECTORS_OAUTH_FILE); legacyOauth = (oauth && typeof oauth === 'object') ? { byId: oauth.byId || {}, clients: oauth.clients || {} } : {};
+  } catch (_) { connectorStorageError = connectorVaultMod.UNAVAILABLE; console.error('[connectors] ' + connectorStorageError); return connectorStateMod.normalize(null); }
   const migrated = migrateConnectorCatalogKeyHeaders(connectorStateMod.normalize(null, { configs: legacyConfigs, oauth: legacyOauth })).state;
   // Migration is best-effort at boot. Until the verified v2 write succeeds, the legacy files remain untouched
   // and will be read again next boot, so a read-only disk never loses the last credential copy.
   if (legacyConfigs.length || Object.keys(legacyOauth.byId || {}).length || Object.keys(legacyOauth.clients || {}).length) {
     const r = saveJsonVerified({
       mkdir: () => fs.mkdirSync(CONNECTORS_DIR, { recursive: true }),
-      save: () => saveResilient(CONNECTORS_STATE_FILE, migrated),
-      load: () => loadResilient(CONNECTORS_STATE_FILE, 'connector-state'),
+      save: () => connectorVault.write(CONNECTORS_STATE_FILE, migrated),
+      load: () => connectorVault.load(CONNECTORS_STATE_FILE),
       proof: raw => connectorStateMod.same(raw, migrated)
     });
     if (!r.ok) console.warn('[connectors] v2 migration could not be verified; legacy state remains authoritative for the next boot');
@@ -4076,12 +4091,17 @@ function loadConnectorState() {
   return migrated;
 }
 let connectorState = loadConnectorState();
+if (connectorVault.protected && !connectorStorageError) {
+  try { connectorVault.migrate(CONNECTORS_STATE_FILE, connectorState, [CONNECTORS_FILE, CONNECTORS_OAUTH_FILE]); }
+  catch (_) { connectorStorageError = 'Connector credential migration is incomplete. Restart StarNet to retry; saved credentials have been preserved.'; console.error('[connectors] ' + connectorStorageError); }
+}
 let connectorConfigs = connectorState.configs;
 let connectorOauth = connectorState.oauth;
 /* Publisher-owned Desktop registration wins for new sign-ins. Keep launch configuration out of the
    shared OAuth-client cache; old grants retain their own client for refresh. Legacy Web clients remain readable. */
 const GOOGLE_OAUTH_AS = 'https://accounts.google.com';
 const googleConnectorDeferred = cfg => googleClientConfig.RELEASE_DEFERRED && !!cfg &&
+  !(googleClientConfig.SELECTED_FILES_ENABLED && googleClientConfig.isSelectedFiles(cfg)) &&
   (cfg.googleApi || cfg.transport !== 'stdio' && googleClientConfig.isWorkspaceUrl(cfg.url));
 const GOOGLE_DESKTOP_CLIENT = googleClientConfig.loadDesktopClient({ env: process.env,
   readFile: () => fs.readFileSync(path.join(__dirname, 'mcp', 'google-client.json'), 'utf8') });
@@ -4102,24 +4122,22 @@ function connectorOauthClient(authServer) {
   return authServer === GOOGLE_OAUTH_AS && GOOGLE_OAUTH_ENV_CLIENT ? GOOGLE_OAUTH_ENV_CLIENT : {};
 }
 function persistConnectorState(nextConfigs, nextOauth) {
+  if (connectorStorageError) return false;
   const intended = connectorStateMod.envelope(nextConfigs, nextOauth);
   const r = saveJsonVerified({
     mkdir: () => fs.mkdirSync(CONNECTORS_DIR, { recursive: true }),
-    save: () => saveResilient(CONNECTORS_STATE_FILE, intended),
-    load: () => loadResilient(CONNECTORS_STATE_FILE, 'connector-state'),
+    save: () => connectorVault.write(CONNECTORS_STATE_FILE, intended),
+    load: () => connectorVault.load(CONNECTORS_STATE_FILE),
     proof: raw => connectorStateMod.same(raw, intended)
   });
   if (!r.ok) console.warn('[connectors] transactional persist UNVERIFIED after retry (' + (r.error || '?') + ')');
   return r.ok;
 }
 function persistConnectorRemoval(nextConfigs, nextOauth) {
+  if (connectorStorageError) return false;
   const intended = connectorStateMod.envelope(nextConfigs, nextOauth);
-  return saveCredentialRemovalVerified(
-    CONNECTORS_STATE_FILE,
-    intended,
-    raw => connectorStateMod.same(raw, intended),
-    'connectors'
-  );
+  try { return connectorVault.write(CONNECTORS_STATE_FILE, intended, { removal: true }); }
+  catch (_) { console.warn('[connectors] removal could not be verified'); return false; }
 }
 function adoptConnectorState(next) {
   connectorState = connectorStateMod.normalize(next);
@@ -4209,6 +4227,7 @@ function mcpStdioIsolationError(cfg) {
 }
 const connectors = makeConnectorManager({
   makeTransport: (cfg) => {
+    if (connectorStorageError) throw new Error(connectorStorageError);
     if (googleConnectorDeferred(cfg)) throw new Error(googleClientConfig.DEFERRED);
     if (cfg && cfg.transport === 'http' && googleApiTransport.productForUrl(cfg.url)) return googleApiTransport.makeGoogleTransport(cfg);
     if (!cfg || cfg.transport !== 'stdio') return makeHttpTransport(cfg);
@@ -4323,6 +4342,7 @@ async function ensureConnectorOauthToken(id, force) {
   }
   const t = connectorOauth.byId[id];
   if (!t || !t.accessToken) return { token: '', refreshError: null };
+  if (id === 'google-files' && !googleClientConfig.fileScopeOnly(t.scope)) return { token: '', refreshError: { kind: 'invalid_grant', message: 'Select Google files again; this connection requires only per-file access.' } };
   if ((force === true || mcpOauth.needsRefresh(t.expiresAt, Date.now())) && t.refreshToken && t.tokenEndpoint) {
     const bo = connectorOauthRefreshBackoff.get(id);
     if (bo && bo.until > Date.now() && !connectorOauthRefreshInFlight.get(id)) {
@@ -4354,7 +4374,8 @@ async function ensureConnectorOauthToken(id, force) {
             || JSON.stringify(currentGrant || null) !== startedGrant) {
           return { token: (currentGrant && currentGrant.accessToken) || '', refreshError: null };
         }
-        const next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), id, Object.assign({}, cur, nt));
+        if (id === 'google-files' && !googleClientConfig.fileScopeOnly(nt.scope || cur.scope)) throw new Error('invalid_scope: selected files requires only per-file access');
+        const next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), id, Object.assign({}, cur, nt, id === 'google-files' ? { scope: nt.scope || cur.scope } : {}));
         if (!persistConnectorState(next.configs, next.oauth)) throw new Error('refreshed token could not be saved');
         adoptConnectorState(next);
         connectorOauthRefreshBackoff.delete(id);
@@ -4379,6 +4400,10 @@ async function ensureConnectorOauthToken(id, force) {
 }
 // configure a connector, injecting a fresh OAuth bearer for oauth connectors (kept out of the persisted config).
 async function configureConnectorCfg(cfg, options) {
+  if (connectorStorageError) {
+    await connectors.configure(cfg.id, Object.assign({}, cfg, { enabled: false, token: '', tokenProvider: null }), options);
+    return { ok: false, state: 'down', toolCount: 0, error: connectorStorageError };
+  }
   if (googleConnectorDeferred(cfg)) {
     // Runtime-only suspension. Never write enabled:false over the owner's saved preference or grant.
     await connectors.configure(cfg.id, Object.assign({}, cfg, { enabled: false, token: '', tokenProvider: null }), options);
@@ -8810,7 +8835,12 @@ const openaiCompat = makeOpenAiCompat({
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
 updatePreparation = makeUpdatePreparation({
-  fs: fs, path: path, recovery: stationRecovery, workspaceRoot: WORKSPACES,
+  fs: fs, path: path, recovery: Object.assign({}, stationRecovery, {
+    capture: options => stationRecovery.capture(Object.assign({}, options, { readConnectorState: () => {
+      if (connectorStorageError) throw new Error(connectorStorageError);
+      return connectorVault.load(CONNECTORS_STATE_FILE);
+    } }))
+  }), workspaceRoot: WORKSPACES,
   writeDurable: writeFileDurableRaw, now: () => Date.now(), newId: () => crypto.randomUUID(),
   onFreeze: () => { updateWritesFrozen = true; }, onThaw: () => { updateWritesFrozen = false; },
   liveRuns: () => runs.size,
@@ -10850,7 +10880,7 @@ async function handleToolsetToggle(req, res) {
 /* ---- /api/connectors: the Connectors panel manages MCP servers. A token is accepted here, persisted to the
    protected sibling file, and NEVER echoed back (list/status carry `hasToken` only, never the value). ---- */
 function connectedConnectorSnapshot() {
-  return connectors.list().map(c => googleConnectorDeferred(c)
+  return connectors.list().map(c => googleConnectorDeferred(connectorConfigs.find(cfg => cfg.id === c.id) || c)
     ? Object.assign({}, c, { releaseDeferred: true, signInAvailable: false, detail: googleClientConfig.DEFERRED,
       oauth: !!connectorConfigs.find(cfg => cfg.id === c.id)?.oauth, oauthAuthorized: false,
       credentialSaved: !!connectorOauth.byId[c.id]?.accessToken })
@@ -10860,7 +10890,9 @@ function connectedConnectorSnapshot() {
 }
 function handleConnectorsList(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify({ connectors: connectedConnectorSnapshot(), browserSession: { busy: !!browserProfileHolder, waitingRunIds: Array.from(browserProfileWaiters) } }));
+  res.end(JSON.stringify({ connectors: connectedConnectorSnapshot(), credentialStorage: {
+    encrypted: connectorVault.protected && !connectorStorageError, error: connectorStorageError || null
+  }, browserSession: { busy: !!browserProfileHolder, waitingRunIds: Array.from(browserProfileWaiters) } }));
 }
 /* ---- /api/servicekeys: the KEYS tab's custom platform keys. The value is accepted on POST, persisted to the
    protected sibling file, applied to process.env, and NEVER echoed back (the list carries a masked last4). ---- */
@@ -10944,8 +10976,8 @@ function handleConnectorCatalog(req, res) {
     if (e.googleApi) {
       e.releaseDeferred = googleConnectorDeferred(e);
       if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(/^Planned for a later update\. /, '').replace(' Sign in with Google to connect your account.', '');
-      e.signInAvailable = !e.releaseDeferred && !e.needsClient;
-      if (!e.signInAvailable) e.signInMessage = e.releaseDeferred ? googleClientConfig.DEFERRED : googleClientConfig.UNAVAILABLE;
+      e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
+      if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleClientConfig.DEFERRED : googleClientConfig.UNAVAILABLE);
     }
   };
   payload.connectors.forEach(markNeedsClient);
@@ -10986,7 +11018,9 @@ async function handleConnectorUpsert(req, res) {
   const url = String(body.url || (transport === 'http' ? (prev.url || '') : '')).trim();
   const command = String(body.command || (transport === 'stdio' ? (prev.command || '') : '')).trim();
   if (transport === 'http' && !url) return json(400, { error: 'a server URL is required' });
-  if (googleConnectorDeferred({ transport, url })) return json(503, { ok: false, saved: false, error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
+  const selectedFileToggle = googleClientConfig.isSelectedFiles(prev) && transport === 'http' && url === prev.url && oauth &&
+    Object.keys(body).every(k => ['id', 'transport', 'enabled'].includes(k));
+  if (!selectedFileToggle && googleConnectorDeferred({ transport, url })) return json(503, { ok: false, saved: false, error: googleClientConfig.DEFERRED, code: 'google_release_deferred' });
   if (transport === 'stdio' && !command) return json(400, { error: 'a stdio command is required' });
   const agentId = String(body.agentId || (transport === 'stdio' ? (prev.agentId || '') : '')).trim();
   const cwd = transport === 'stdio' ? String(Object.prototype.hasOwnProperty.call(body, 'cwd') ? body.cwd : (prev.cwd || '')).trim() : '';
@@ -11163,6 +11197,8 @@ async function handleConnectorOauthStart(req, res) {
   const target = resolveConnectorOauthTarget(String(body.id || '').trim(), connectorCatalog, connectorConfigs);
   if (target.error) return json(target.status || 400, { error: target.error });
   const entry = target.entry;
+  if (connectorStorageError) return json(503, { error: connectorStorageError, code: 'connector_storage_locked', signInAvailable: false });
+  if (googleClientConfig.isSelectedFiles(entry) && !connectorVault.protected) return json(503, { error: 'Selected Google files requires encrypted credential storage in the StarNet desktop app.', code: 'connector_storage_required' });
   if (googleConnectorDeferred(entry)) return json(503, { error: googleClientConfig.DEFERRED, code: 'google_release_deferred', signInAvailable: false });
   const rawAttempt = String(body.attemptId || '').trim();
   const attemptId = /^[A-Za-z0-9_-]{8,80}$/.test(rawAttempt) ? rawAttempt : crypto.randomBytes(12).toString('hex');
@@ -11356,7 +11392,14 @@ async function handleConnectorOauthCallback(req, res) {
       scope: tok.scope, tokenType: tok.tokenType, clientId: pending.clientId, clientSecret: pending.clientSecret,
       tokenEndpointAuthMethod: pending.tokenEndpointAuthMethod, tokenEndpoint: pending.tokenEndpoint,
       authorizationServer: pending.authorizationServer, resource: pending.resource, at: Date.now() };
-    oauthEntry.account = await require('./mcp/account.js').readGoogleAccount({ authorizationServer: pending.authorizationServer,
+    if (pending.id === 'google-files' && !googleClientConfig.fileScopeOnly(tok.scope)) return page('Google permissions changed', 'This connection accepts only selected-file access. Your previous connection was kept.', false);
+    if (pending.id === 'google-files') {
+      const picked = String(q.get('picked_file_ids') || '').split(',');
+      if (picked.length > 100 || !picked.every(id => /^[A-Za-z0-9_-]{1,256}$/.test(id))) return page('No Google files selected', 'Choose files in Google’s picker and try again. Your previous connection was kept.', false);
+      oauthEntry.pickedFileIds = [...new Set(picked)];
+    }
+    // Picker permits drive.file alone; do not call userinfo or ask for identity scopes.
+    oauthEntry.account = pending.id === 'google-files' ? null : await require('./mcp/account.js').readGoogleAccount({ authorizationServer: pending.authorizationServer,
       tokenEndpoint: pending.tokenEndpoint, accessToken: tok.accessToken, fetchImpl: connectorOauthFetch, now: Date.now() });
     if (pending.googleApi && (connectorOauthPending.get(state) !== pending ||
         JSON.stringify(connectorConfigs.find(c => c && c.id === pending.id) || null) !== pending.originalConfig ||

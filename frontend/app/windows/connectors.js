@@ -833,12 +833,12 @@
           // http-bearer/stdio editor; there is no bearer to paste). A fresh browser consent is the only cure, so
           // the row always carries it — same engine as the catalog card's ▸ SIGN IN (ccSignIn), which is otherwise
           // unreachable here: the catalog card renders a disabled ✓ ADDED for every installed connector.
-          (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.oauthAuthorized
+          (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.id === 'google-files' ? 'choose files in Google’s picker">CHOOSE GOOGLE FILES' : c.oauthAuthorized
             ? 're-run the browser OAuth sign-in — the fix for a revoked or expired grant">⏼ RE-SIGN-IN'
             : 'open the browser OAuth sign-in">⏼ SIGN IN') + '</button>' : '') +
           (c.releaseDeferred ? '' :
           '<button class="bb xs" data-act="reload">↻ RELOAD</button>' +
-          '<button class="bb xs" data-act="edit">✎ EDIT</button>') +
+          (c.id === 'google-files' ? '' : '<button class="bb xs" data-act="edit">✎ EDIT</button>')) +
           '<button class="bb xs danger" data-act="remove">✕ REMOVE</button>' +
         '</div></div>';
     }
@@ -847,6 +847,7 @@
       try {
         const j = await Harness.api.get('/api/connectors');
         const list = (j && j.connectors) || []; lastList = list;
+        const storageError = j && j.credentialStorage && j.credentialStorage.error;
         renderHandoffs(list);
         const overview = body.querySelector('#mc-overview');
         const notices = body.querySelector('#mc-notices');
@@ -857,6 +858,12 @@
         // A release-wide explanation belongs once above the list, not in every saved service.
         notices.innerHTML = Array.from(new Set(deferred.map(c => c.detail).filter(Boolean))).map(note =>
           '<div class="mc-notice"><b>Service availability</b>' + esc(note) + '</div>').join('');
+        if (storageError) {
+          overview.textContent = 'Saved services unavailable';
+          notices.innerHTML += '<div class="mc-notice"><b>Credential storage</b>' + esc(storageError) + '</div>';
+          listEl.innerHTML = '<div class="mc-detail">Your saved connections have not been erased. Unlock the credential store and restart StarNet.</div>';
+          return;
+        }
         if (list.length) {
           const expanded = new Set(Array.from(listEl.querySelectorAll('.mc-inspect[open]')).map(el => el.closest('.mc-row').dataset.id));
           listEl.innerHTML = list.map(row).join('');
@@ -1074,7 +1081,7 @@
       else if (e.googleApi && e.signInAvailable === false) action =
         '<button class="bb xs" disabled>' + (e.releaseDeferred ? 'DEFERRED' : 'GOOGLE SIGN-IN UNAVAILABLE') + '</button>';
       else if (e.authType === 'oauth') action = e.url
-        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.deviceFlow ? 'SIGN IN WITH GITHUB' : e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
+        ? '<button class="bb xs" data-cc-act="signin" data-id="' + esc(cardId) + '" title="opens a secure browser sign-in (OAuth)">' + (e.id === 'google-files' ? 'CHOOSE GOOGLE FILES' : e.deviceFlow ? 'SIGN IN WITH GITHUB' : e.googleApi ? 'SIGN IN WITH GOOGLE' : '▸ SIGN IN') + '</button>'
         : (e.via
           // url-less oauth entry reachable through an aggregator: a LIVE jump to that card, never a mute dead button.
           ? '<button class="bb xs" data-cc-act="via" data-id="' + esc(cardId) + '" data-via="' + esc(e.via) + '" title="no direct endpoint — jump to the connector that reaches it">▸ VIA ' + esc(e.via.toUpperCase()) + '</button>'

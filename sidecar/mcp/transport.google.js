@@ -8,7 +8,8 @@ const ENDPOINTS = Object.freeze({
   'google-drive': 'https://www.googleapis.com/drive/v3',
   'google-calendar': 'https://www.googleapis.com/calendar/v3',
   'google-docs': 'https://docs.googleapis.com/v1/documents',
-  'google-sheets': 'https://sheets.googleapis.com/v4/spreadsheets'
+  'google-sheets': 'https://sheets.googleapis.com/v4/spreadsheets',
+  'google-files': 'https://www.googleapis.com/drive/v3#selected-files'
 });
 const STR = { type: 'string' };
 function tool(name, description, properties, required, readOnly) {
@@ -50,6 +51,13 @@ const TOOLS = {
     tool('batch_update', 'Edit spreadsheet structure and formatting with Sheets API batchUpdate requests.', { spreadsheetId: STR, requests: { type: 'array', items: { type: 'object' }, minItems: 1, maxItems: 100 } }, ['spreadsheetId', 'requests'])
   ]
 };
+// One per-file grant serves Drive metadata, Docs and Sheets; duplicate method
+// names are qualified so tool routing cannot silently select the wrong API.
+TOOLS['google-files'] = [
+  ...TOOLS['google-drive'].filter(t => ['list_files', 'get_file', 'export_file'].includes(t.name)).map(t => ({ ...t, description: t.description + ' Only files granted to StarNet are accessible.' })),
+  ...TOOLS['google-docs'].map(t => ({ ...t, name: 'docs_' + t.name })),
+  ...TOOLS['google-sheets'].map(t => ({ ...t, name: 'sheets_' + t.name }))
+];
 function productForUrl(url) { return Object.keys(ENDPOINTS).find(id => ENDPOINTS[id] === url) || null; }
 function segment(value) {
   if (typeof value !== 'string' || !value || value.length > 2048 || /[\x00-\x1f]/.test(value) || value === '.' || value === '..') throw new Error('Invalid Google resource identifier');
@@ -67,6 +75,11 @@ function validate(def, args) {
   for (const k of def.inputSchema.required) if (!(k in args)) throw new Error('Missing argument: ' + k);
 }
 function requestFor(product, name, a) {
+  if (product === 'google-files') {
+    if (name.startsWith('docs_')) return requestFor('google-docs', name.slice(5), a);
+    if (name.startsWith('sheets_')) return requestFor('google-sheets', name.slice(7), a);
+    return requestFor('google-drive', name, a);
+  }
   const base = ENDPOINTS[product];
   const get = (path, query) => ({ url: base + path, query, method: 'GET' });
   const write = (path, body, method = 'POST', query) => ({ url: base + path, body, method, query });
