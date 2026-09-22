@@ -486,6 +486,13 @@
         const lim = ip ? normalizeLineLimits(ip.limits) : null;
         if (lim) { rec.limits = lim; lineLimits[lineId] = lim; break; }
       }
+      // The first Inbox with a project supplies the whole connected workflow.
+      for (const iid of c.intakes) {
+        const ip = props.find(q => q.id === iid);
+        if (ip && typeof ip.projectRoot === 'string' && ip.projectRoot.trim()) {
+          rec.projectRoot = ip.projectRoot.trim().slice(0, 4096); break;
+        }
+      }
       lines.push(rec);
     }
     plan.lines = lines;

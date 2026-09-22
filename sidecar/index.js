@@ -5226,7 +5226,7 @@ const cronDriver = makeCronDriver({
           key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
           baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
           system: cronSystemFor(h.agentId),
-          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,
+          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: o.runsLine === true ? router.lineOfAgent(o.agentId) : null, isTask: true,
           emit: sink, signal: h.signal, runId: hopRunId, streamId: o.streamId,
           surface: 'autonomous', trigger: 'schedule', reflect: true,
           station: router.stationFor(h.agentId) || undefined,
@@ -12452,7 +12452,7 @@ async function handleCronRun(req, res) {
       postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
       preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null,
       scriptTimeoutMs: job.scriptTimeoutMs,
-      noAgent: job.noAgent === true, workdir: job.workdir || null,
+      noAgent: job.noAgent === true, runsLine: job.runsLine === true, workdir: job.workdir || null,
       enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null,
       initialTaint: !!(job.contextFrom && job.contextFrom.length)
     });
@@ -12513,7 +12513,7 @@ async function handleCronRun(req, res) {
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
                 baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
                 system: cronSystemFor(h.agentId),
-                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,
+                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: job.runsLine === true ? router.lineOfAgent(job.agentId) : null, isTask: true,
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId,
                 surface: 'autonomous', trigger: 'schedule', broadcast: true, reflect: true,
                 station: router.stationFor(h.agentId) || undefined,
@@ -15260,6 +15260,17 @@ async function runOnce(o) {
 async function runOnceCore(o) {
   if (updatePreparation.isFrozen()) {
     throw Object.assign(new Error('StarNet is frozen at a verified pre-update recovery point.'), { code: 'UPDATE_MUTATIONS_FROZEN' });
+  }
+  // Only host-routed workflow runs carry this origin; /api/run never accepts it.
+  const workflowLine = o.runsLine === true ? router.lineOfAgent(o.agentId) : o.lineId;
+  if (workflowLine) {
+    const plan = router.getPlan();
+    const line = plan && (plan.lines || []).find(l => l.lineId === workflowLine);
+    if (!line || !(line.agents || []).includes(o.agentId)) throw new Error('The workflow changed before this stage could run.');
+    if (line.projectRoot) {
+      const root = cronCanonicalWorkdir(line.projectRoot);
+      o = { ...o, workdir: root, projectRoot: root };
+    }
   }
   const { key, system: rawSystem, messages = [], agentId = 'agent', signal, runId } = o;
   const runStartedAt = Date.now();
