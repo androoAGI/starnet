@@ -52,7 +52,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
         assert.equal(events.filter(e => e.name === 'agent.run.end' && e.payload.agentId === 'agent').at(-1)?.payload.reason, 'done', mode + ': ' + r.text);
         assert.ok(calls.length, mode + ' reached the upstream');
         assert.ok(calls.every(c => c.auth === 'Bearer byok-fixture' && c.url.startsWith('/byok/')), JSON.stringify(calls));
-        if (mode === 'delegation') assert.ok(events.some(e => e.name === 'agent.run.end' && e.payload.agentId === 'worker'), 'a real child run finished');
+        if (mode === 'delegation') assert.equal(events.find(e => e.name === 'agent.run.end' && e.payload.agentId === 'worker')?.payload.reason, 'done', 'the child run must succeed, not merely emit a terminal');
         if (mode === 'image') assert.equal(fs.readFileSync(path.join(fixture.workspace, 'agent/images/byok.png')).toString('base64'), PNG);
       }
     }

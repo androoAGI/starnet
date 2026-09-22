@@ -7,7 +7,7 @@ const http = require('node:http');
 const WM = require('../frontend/app/worldmodel.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 (async () => {
-  let calls = [], filename = '', sequence = 0;
+  let calls = [], filename = '', sequence = 0, readbacks = 0;
   const upstream = http.createServer((req, res) => {
     let raw = ''; req.on('data', b => raw += b); req.on('end', () => {
       if (req.method !== 'POST') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ data: [], models: [] })); }
@@ -16,7 +16,10 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       const results = (body.messages || []).filter(m => m.role === 'tool');
       const write = names.includes('fs_write') && results.length === 0;
       const read = names.includes('fs_read') && results.length === 1 && !String(results[0].content).startsWith('ERROR:');
-      if (results.length === 2) assert.ok(String(results[1].content).includes('projection proof'), 'model receives the actual file readback');
+      if (results.length === 2) {
+        assert.ok(String(results[1].content).includes('projection proof'), 'model receives the actual file readback');
+        readbacks++;
+      }
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.end('data: ' + JSON.stringify({ choices: [{ delta: write ? { tool_calls: [{ index: 0, id: 'write_probe', type: 'function', function: { name: 'fs_write', arguments: JSON.stringify({ path: filename, content: 'projection proof' }) } }] } : read ? { tool_calls: [{ index: 0, id: 'read_probe', type: 'function', function: { name: 'fs_read', arguments: JSON.stringify({ path: filename }) } }] } : { content: 'Projection complete.' }, finish_reason: (write || read) ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5 } }) + '\n\ndata: [DONE]\n\n');
     });
@@ -41,7 +44,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     const row = v => v.toolsets.find(t => t.id === 'cabinet');
     const view = async (query = '') => (await fixture.json('GET', '/api/toolsets' + query)).body;
     const run = async (model, extra, expected) => {
-      calls = []; filename = 'projection-' + (++sequence) + '.txt';
+      calls = []; readbacks = 0; filename = 'projection-' + (++sequence) + '.txt';
       const r = await fixture.json('POST', '/api/run', { agentId: 'agent', provider: 'ollama', model, baseUrl, isTask: true, internal: true, messages: [{ role: 'user', content: 'Write the requested fixture file.' }], ...extra });
       assert.equal(r.status, 200, r.text);
       assert.ok(calls.length, 'provider actually received a request');
@@ -51,6 +54,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       const end = events.find(e => e.name === 'agent.run.end');
       assert.equal(end?.payload.reason, 'done', r.text);
       assert.equal(fs.existsSync(path.join(fixture.workspace, 'agent', filename)), expected, 'real file creation follows grant');
+      assert.equal(readbacks > 0, expected, 'readback reaches the model exactly when filesystem tools are granted');
       if (expected) assert.equal(fs.readFileSync(path.join(fixture.workspace, 'agent', filename), 'utf8'), 'projection proof');
       const diag = (await fixture.json('GET', '/api/diagnostics')).body;
       assert.equal(diag.report.lastRun.runId, end.payload.runId, 'diagnostics correlates the completed run');

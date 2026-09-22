@@ -15,6 +15,7 @@ const Pipeline = require('../frontend/app/pipeline.js');
     const recent = body.messages.slice(body.messages.findLastIndex(m => m.role === 'user') + 1);
     const results = recent.filter(m => m.role === 'tool');
     const toolNames = (body.tools || []).map(t => t.function.name);
+    if (toolNames.includes('fs_write') && results.length === 3) assert.ok(String(results[2].content).includes('workflow project proof'), 'stage receives real file readback');
     const file = body.model === 'entry-model' ? 'entry.txt' : 'hop.txt';
     const call = !toolNames.includes('fs_write') ? null : results.length === 0 ? { name: 'brief_proceed', args: { objective: 'write and read a file', deliverable: 'a saved file with a read receipt', assumptions: ['The selected folder is trusted'] } } : results.length === 1 ? { name: 'fs_write', args: { path: file, content: 'workflow project proof' } }
       : results.length === 2 ? { name: 'fs_read', args: { path: file } } : null;
