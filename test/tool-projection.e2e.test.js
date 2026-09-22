@@ -13,10 +13,12 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       if (req.method !== 'POST') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ data: [], models: [] })); }
       const body = JSON.parse(raw), names = (body.tools || []).map(t => t.function.name);
       calls.push(names);
-      const result = (body.messages || []).some(m => m.role === 'tool');
-      const write = names.includes('fs_write') && !result;
+      const results = (body.messages || []).filter(m => m.role === 'tool');
+      const write = names.includes('fs_write') && results.length === 0;
+      const read = names.includes('fs_read') && results.length === 1 && !String(results[0].content).startsWith('ERROR:');
+      if (results.length === 2) assert.ok(String(results[1].content).includes('projection proof'), 'model receives the actual file readback');
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      res.end('data: ' + JSON.stringify({ choices: [{ delta: write ? { tool_calls: [{ index: 0, id: 'write_probe', type: 'function', function: { name: 'fs_write', arguments: JSON.stringify({ path: filename, content: 'projection proof' }) } }] } : { content: 'Projection complete.' }, finish_reason: write ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5 } }) + '\n\ndata: [DONE]\n\n');
+      res.end('data: ' + JSON.stringify({ choices: [{ delta: write ? { tool_calls: [{ index: 0, id: 'write_probe', type: 'function', function: { name: 'fs_write', arguments: JSON.stringify({ path: filename, content: 'projection proof' }) } }] } : read ? { tool_calls: [{ index: 0, id: 'read_probe', type: 'function', function: { name: 'fs_read', arguments: JSON.stringify({ path: filename }) } }] } : { content: 'Projection complete.' }, finish_reason: (write || read) ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5 } }) + '\n\ndata: [DONE]\n\n');
     });
   });
   await new Promise(r => upstream.listen(0, '127.0.0.1', r));
@@ -62,13 +64,13 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     assert.equal((await view()).toolsets.find(t => t.id === 'orchestrator').grantSource, 'lead run', 'lead runtime grant disclosed');
     assert.equal(row(await view('?placed=')).available, false, 'explicit empty disclosure overrides saved floor');
     await run('qwen3:14b', { placed: [] }, false);
-    for (const model of ['qwen3:14b', 'qwen3:30b-a3b']) {
+    for (const model of ['qwen3:14b', 'qwen3:30b-a3b', 'qwen3:8b', 'llama3.1:8b']) {
       await roster('trusted-project');
-      await run(model, { placed: [] }, true);
+      await run(model, { placed: [], internal: false }, true);
       await fixture.json('POST', '/api/toolsets/cabinet', { enabled: false });
       await run(model, {}, false);
       await roster('trusted-project', 'full');
-      await run(model, { placed: [] }, true);
+      await run(model, { placed: [], internal: false }, true);
       await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true });
       await roster();
     }
@@ -82,6 +84,6 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     assert.equal(row(await view()).available, false, 'saved removal revokes disclosure');
     assert.equal((await fixture.json('GET', '/api/toolsets?agentId=missing')).status, 404);
     assert.equal((await fixture.json('GET', '/api/toolsets?agent=agent&agentId=missing')).status, 400);
-    console.log('tool-projection.e2e: OK (10 real runs, file writes, both model IDs, revocation and restart)');
+    console.log('tool-projection.e2e: OK (' + sequence + ' real runs, file writes/readback, four model IDs, revocation and restart)');
   } finally { await fixture.dispose(); await new Promise(r => upstream.close(r)); }
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });
