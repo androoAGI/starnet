@@ -2710,7 +2710,7 @@ const Build = (() => {
       : 'The belts determine the paths. Close this panel, choose BELT, then click one prop and the next to connect them.';
     g.innerHTML = '<div class="refit-guide-card" role="dialog" aria-modal="true" aria-labelledby="workflow-title">'
       + workflowIntroHTML((PROP_NAME[p.t] || 'WORKFLOW') + ' · SETUP', TITLE[p.t] || TITLE.outbox, line)
-      + '<div class="workflow-body' + (isIntake || isJoiner || isLoop ? ' workflow-columns' : '') + '"><div class="workflow-main">' + nameHtml + trgHtml + joinerHtml + loopHtml
+      + '<div class="workflow-body' + (isIntake || isJoiner || isLoop ? ' workflow-columns' : '') + '"><div class="workflow-main">' + nameHtml + trgHtml + (isIntake ? '<section class="workflow-section"><h4>Working folder</h4><label for="workflow-project">Trusted project</label><select id="workflow-project" disabled><option>Loading projects…</option></select><p class="workflow-help" id="workflow-project-note">All workflow stages use this folder. Add trusted folders in Projects.</p></section>' : '') + joinerHtml + loopHtml
       + (!isIntake && !isJoiner && !isLoop ? '<section class="workflow-section workflow-no-settings"><h4>No extra settings needed</h4><p>' + esc(help) + '</p></section>' : '')
       + (budgetHtml ? '<details class="refit-workflow-advanced"><summary>Optional limits</summary>' + budgetHtml + '</details>' : '')
       + '</div>' + (isIntake || isJoiner || isLoop ? '<aside class="workflow-aside">'
@@ -2740,6 +2740,33 @@ const Build = (() => {
     // LINE BUDGET fields: one save for the three (the prop holds one `limits` object). The saved answer is
     // re-painted INTO the fields — a clamped number comes back as the number in force, never as what was typed.
     const lbNums = Array.prototype.slice.call(g.querySelectorAll('.lb-num'));
+    const projectPick = g.querySelector('#workflow-project');
+    if (projectPick) {
+      const note = g.querySelector('#workflow-project-note');
+      fetch('/api/projects').then(async r => {
+        if (!r.ok) throw new Error('Could not load trusted projects.');
+        return r.json();
+      }).then(data => {
+        const projects = (data.projects || []).filter(row => row.blessed === true);
+        const line = valPlan && (valPlan.lines || []).find(row => (row.intakes || []).includes(propId));
+        const current = (line && line.projectRoot) || p.projectRoot || '';
+        projectPick.innerHTML = '<option value="">Agent workspace (default)</option>'
+          + projects.map(row => '<option value="' + esc(row.root) + '">' + esc(row.displayPath || row.root) + '</option>').join('');
+        if (current && !projects.some(row => row.root === current)) {
+          projectPick.insertAdjacentHTML('beforeend', '<option value="' + esc(current) + '" disabled>' + esc(current) + ' (unavailable)</option>');
+          note.textContent = 'This project is no longer trusted. Restore access in Projects or choose another folder.';
+        }
+        projectPick.value = current;
+        projectPick.disabled = false;
+        projectPick.onchange = () => {
+          for (const inboxId of (comp && comp.intakes.length ? comp.intakes : [propId])) {
+            const result = station.setPropProject(inboxId, projectPick.value);
+            if (!result.ok) { note.textContent = result.message || 'Could not save the project.'; return; }
+          }
+          note.textContent = 'Working folder saved for all workflow stages. Existing tool permissions still apply.';
+        };
+      }).catch(e => { note.textContent = e.message || 'Could not load trusted projects.'; });
+    }
     const lbNote = g.querySelector('#lb-note');
     let lbSaved = JSON.stringify(Object.keys(lim0).length ? lim0 : null);
     const lbName = k => k === 'maxHops' ? 'stages' : k === 'maxUsdPerMessage' ? '$ per message' : '$ per day';

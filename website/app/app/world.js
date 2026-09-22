@@ -8590,7 +8590,7 @@ const World = (() => {
       + '|' + (plan.dockBays || []).map(b => b.propId + ':' + (b.brief || '')).join(';')
       // LINE BUDGET rides the key too (2026-08-21): limits live on `lines`, outside plan.hash (policy, not
       // topology — splitter balance must survive a cap edit), but the sidecar's copy must re-read them.
-      + '|' + JSON.stringify(plan.lineLimits || {})) : '';
+      + '|' + JSON.stringify(plan.lineLimits || {}) + '|' + JSON.stringify((plan.lines || []).map(l => [l.lineId, l.projectRoot || '']))) : '';
     planPoster.offer(plan, hash);
   }
   // junction props (splitter/filter/merger) keyed by tile — derived from the compiled plan so the VISUAL engine
