@@ -587,7 +587,7 @@
     const _cg = limits.continueGuard;
     const CG_MAX = (_cg === false) ? 0 : (_cg && _cg.max != null ? _cg.max : 2);
     let cgUsed = 0;
-    let memorySaveNudges = 0, memoryWrites = 0;
+    let memorySaveNudges = 0, memoryWrites = 0, configurationWrites = 0;
     // Companion nudge budgets (same disable knob as the continuation guard — they are one family):
     //  · markup nudge — the turn's TEXT carried tool-call markup (scrubbed above; NEVER executed). Tell the
     //    model once that text markup is data and to make a REAL call. Bounded like CG.
@@ -1330,7 +1330,10 @@
         const duplicate = !empty && priorAssistantText != null && text === priorAssistantText;   // a re-emitted prior turn
         const claimsMemorySave = /(?:^|\n)\s*(?:Done[ —:,.-]+)?I(?:['’]ve| have)?\s+(?:saved|stored|remembered|updated)\b[^.!?\n]{0,100}\b(?:preference|instruction|correction|requirement|memory|design style)s?\b/i.test(text);
         const canSaveMemory = tools.some(t => wireKey(t && ((t.function && t.function.name) || t.name)) === 'notebook_write');
-        if (claimsMemorySave && canSaveMemory && memoryWrites === 0) {
+        // A verified Dossier edit is an instruction save, not a notebook mutation. Explicit
+        // memory/preference claims still require a notebook receipt, even in the same run.
+        const verifiedConfigurationSave = configurationWrites > 0 && !/\b(?:preference|memory|design style)s?\b/i.test(text);
+        if (claimsMemorySave && canSaveMemory && memoryWrites === 0 && !verifiedConfigurationSave) {
           if (!graceUsed && memorySaveNudges < 2) {
             memorySaveNudges++;
             messages.push({ role: 'system', content: '<memory_receipt>You claimed a preference or correction was saved, but this run has no successful notebook write receipt. Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.</memory_receipt>' });
@@ -1497,6 +1500,12 @@
       for (const call of calls) {
         const receipt = results.find(r => r.callId === call.id);
         if (wireKey(call.name) === 'notebook_write' && receipt && !receipt.isError && /^(?:Saved|Updated) note "/.test(String(receipt.content))) memoryWrites++;
+        if (wireKey(call.name) === 'team_configure' && receipt && !receipt.isError) {
+          try {
+            const saved = JSON.parse(receipt.content);
+            if (saved.durable === true && saved.agentId && ['identity', 'purpose', 'manual', 'context'].includes(saved.field)) configurationWrites++;
+          } catch (_) {} // a refused or malformed receipt never proves a saved document
+        }
       }
       const repairNote = failedCheckRepairNote(calls, results);
       if (repairNote) messages.push({ role: 'system', content: repairNote });

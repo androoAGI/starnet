@@ -5216,6 +5216,8 @@ const App = (() => {
     openClassDossier: openClassDossier,   // intent-offer beat: accepting a class offer opens the bay ON that class's dossier
     openRecipeLaunch: openRecipeLaunch,   // routine-nudge beat (lane D): accepting deep-links into the recipe's SCHEDULE IT form
     applyConfig: applyAgentConfig,
+    // Model-facing edits wait for the same roster write used by the Dossier UI.
+    configSynced: () => lastRosterPush,
     setApproval: setAgentApproval,
     setExecutionProfile: setAgentExecutionProfile };
 })();
