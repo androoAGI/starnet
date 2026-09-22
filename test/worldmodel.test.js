@@ -913,6 +913,13 @@ A.eq(JSON.stringify(WM.deserialize({ rooms: {}, order: [], props: [], edges: [{ 
   const restored = WM.deserialize(JSON.parse(JSON.stringify(station.serialize())));
   A.eq(restored.propById(inbox.id).projectRoot, '/project', 'project survives migration');
   A.eq(restored.projectGeometry().props.find(p => p.id === inbox.id).projectRoot, '/project', 'compiler geometry carries project');
+  const second = restored.addProp({ t: 'intake', x: 5, y: 2, w: 1, h: 1 });
+  restored.setBelt(3, 2, 'E'); restored.setBelt(4, 2, 'E');
+  A.ok(restored.setPropProject(second.id, '/other').ok, 'second Inbox edits the whole connected workflow');
+  A.eq(restored.propById(inbox.id).projectRoot, '/other', 'connected Inbox shares the selected folder');
+  restored.undo();
+  A.eq(restored.propById(inbox.id).projectRoot, '/project', 'one undo restores the original folder');
+  A.eq(restored.propById(second.id).projectRoot, undefined, 'one undo restores both Inbox values');
   A.ok(restored.setPropProject(inbox.id, '').ok && !restored.propById(inbox.id).projectRoot, 'default workspace clears project');
 }
 

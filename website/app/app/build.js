@@ -2759,10 +2759,8 @@ const Build = (() => {
         projectPick.value = current;
         projectPick.disabled = false;
         projectPick.onchange = () => {
-          for (const inboxId of (comp && comp.intakes.length ? comp.intakes : [propId])) {
-            const result = station.setPropProject(inboxId, projectPick.value);
-            if (!result.ok) { note.textContent = result.message || 'Could not save the project.'; return; }
-          }
+          const result = station.setPropProject(propId, projectPick.value);
+          if (!result.ok) { note.textContent = result.message || 'Could not save the project.'; return; }
           note.textContent = 'Working folder saved for all workflow stages. Existing tool permissions still apply.';
         };
       }).catch(e => { note.textContent = e.message || 'Could not load trusted projects.'; });

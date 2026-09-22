@@ -2231,10 +2231,14 @@ const WorldModel = (() => {
       if (!p) return fail('NOT_FOUND', 'no such prop');
       if (p.t !== 'intake') return fail('BAD_TYPE', 'only an INBOX carries a project');
       const root = typeof projectRoot === 'string' ? projectRoot.trim().slice(0, 4096) : '';
-      if ((p.projectRoot || '') === root) return { ok: true, projectRoot: root };
+      // Every Inbox in one connected workflow shares the setting and one undo step.
+      const P = pipelineModule();
+      const line = P && P.lineComponents(projectGeometry()).find(c => c.intakes.includes(propId));
+      const targets = doc.props.filter(q => q.t === 'intake' && (line ? line.intakes.includes(q.id) : q.id === propId));
+      if (targets.every(q => (q.projectRoot || '') === root)) return { ok: true, projectRoot: root };
       snapshot();
-      if (root) p.projectRoot = root; else delete p.projectRoot;
-      emit([{ x1: p.x, y1: p.y, x2: p.x + (p.w || 1) - 1, y2: p.y + (p.h || 1) - 1 }]);
+      for (const q of targets) { if (root) q.projectRoot = root; else delete q.projectRoot; }
+      emit(targets.map(q => ({ x1: q.x, y1: q.y, x2: q.x + (q.w || 1) - 1, y2: q.y + (q.h || 1) - 1 })));
       return { ok: true, projectRoot: root };
     }
     function setPropLimits(propId, limits) {
