@@ -1504,7 +1504,11 @@
           try {
             const saved = JSON.parse(receipt.content);
             if (saved.durable === true && saved.agentId && ['identity', 'purpose', 'manual', 'context'].includes(saved.field)) configurationWrites++;
-          } catch (_) {} // a refused or malformed receipt never proves a saved document
+          } catch (_) {
+            // Refusals are plain text; malformed receipts are not save evidence either.
+            // Skip this receipt and inspect the next tool result.
+            continue;
+          }
         }
       }
       const repairNote = failedCheckRepairNote(calls, results);
