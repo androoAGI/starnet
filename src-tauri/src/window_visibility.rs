@@ -17,6 +17,10 @@ impl StartupReveal {
         self.pending.swap(false, Ordering::SeqCst)
     }
 
+    pub(crate) fn is_pending(&self) -> bool {
+        self.pending.load(Ordering::SeqCst)
+    }
+
     pub(crate) fn cancel(&self) {
         self.pending.store(false, Ordering::SeqCst);
     }
@@ -29,7 +33,9 @@ mod tests {
     #[test]
     fn initial_document_reveals_once() {
         let reveal = StartupReveal::new(false);
+        assert!(reveal.is_pending());
         assert!(reveal.finish_load());
+        assert!(!reveal.is_pending());
         assert!(
             !reveal.finish_load(),
             "reloads must not reveal the window again"
@@ -40,6 +46,7 @@ mod tests {
     fn close_before_document_finishes_cancels_startup_reveal() {
         let reveal = StartupReveal::new(false);
         reveal.cancel();
+        assert!(!reveal.is_pending());
         assert!(
             !reveal.finish_load(),
             "a delayed load must respect an earlier close"
@@ -57,6 +64,7 @@ mod tests {
     #[test]
     fn start_minimized_never_auto_reveals() {
         let reveal = StartupReveal::new(true);
+        assert!(!reveal.is_pending());
         assert!(!reveal.finish_load());
         assert!(!reveal.finish_load());
     }
