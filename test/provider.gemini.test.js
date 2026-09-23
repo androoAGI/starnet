@@ -112,6 +112,43 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(_internals.modelPath('gemini-x'), 'models/gemini-x', 'modelPath restores models/ prefix');
   }
 
+  // Issue #19: a model on a later Google catalog page must remain selectable.
+  {
+    const urls = [];
+    const token = 'next+/=& page';
+    const p = makeGeminiProvider({ key: 'KEY', fetch: async (url, init) => {
+      urls.push(url);
+      A.eq(init.headers['x-goog-api-key'], 'KEY', 'each catalog page uses the selected key');
+      const next = new URL(url).searchParams.get('pageToken');
+      if (!next) return new Response(JSON.stringify({ models: [{ name: 'models/gemini-2.5-flash' }], nextPageToken: token }));
+      A.eq(next, token, 'opaque pagination tokens survive URL encoding');
+      return new Response(JSON.stringify({ models: [
+        { name: 'models/gemini-2.5-flash' },
+        { name: 'models/gemini-3.1-pro-preview', inputTokenLimit: 1048576, supportedGenerationMethods: ['generateContent'] }
+      ] }));
+    } });
+    const [models, concurrent] = await Promise.all([p.listModels(), p.listModels()]);
+    A.eq(models.map(m => m.id), ['gemini-2.5-flash', 'gemini-3.1-pro-preview'], 'later-page models appear once');
+    A.eq(concurrent, models, 'concurrent callers share the complete catalog');
+    A.eq(p.contextLimit('models/gemini-3.1-pro-preview'), 1048576, 'later-page context metadata is available');
+    await p.listModels();
+    A.eq(urls.length, 2, 'a successful complete catalog is cached');
+  }
+  // A failed or cyclic pagination response must not permanently cache page one.
+  for (const failure of ['http', 'cycle']) {
+    let healthy = false, calls = 0;
+    const p = makeGeminiProvider({ fetch: async url => {
+      calls++;
+      if (healthy) return new Response(JSON.stringify({ models: [{ name: 'models/gemini-3.1-pro-preview' }] }));
+      if (failure === 'http' && new URL(url).searchParams.has('pageToken')) return new Response('{}', { status: 503 });
+      return new Response(JSON.stringify({ models: [{ name: 'models/first' }], nextPageToken: 'repeat' }));
+    } });
+    A.eq(await p.listModels(), [], failure + ': incomplete catalog is not published');
+    A.ok(calls <= 3, failure + ': pagination terminates');
+    healthy = true;
+    A.eq((await p.listModels()).map(m => m.id), ['gemini-3.1-pro-preview'], failure + ': a later refresh recovers');
+  }
+
   // E. USER ATTACHMENTS: a user message with an image_url part maps to a Gemini inlineData part (base64 data,
   //    no data: prefix); text is preserved; a plain-string user turn is unchanged.
   {
@@ -165,6 +202,20 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(b.generationConfig.thinkingConfig.thinkingBudget, 0, "'none' disables thinking on 2.5");
     b = await ask('gemini-3-pro', { reasoningEffort: 'none' });
     A.eq(b.generationConfig.thinkingConfig.thinkingLevel, 'MINIMAL', "'none' on a modern model asks for the floor rather than an unsupported off");
+
+    // Pro models cannot accept every Flash thinking setting.
+    for (const effort of ['none', 'off', 'disabled', 'minimal', 'low', 'medium', 'high']) {
+      const expected = ['medium', 'high'].includes(effort) ? effort.toUpperCase() : 'LOW';
+      b = await ask('models/gemini-3.1-pro-preview', { reasoningEffort: effort });
+      A.eq(b.generationConfig.thinkingConfig, { thinkingLevel: expected }, '3.1 Pro accepts saved effort ' + effort);
+    }
+    b = await ask('gemini-2.5-pro', { reasoningEffort: 'none' });
+    A.ok(b.generationConfig.thinkingConfig.thinkingBudget >= 128, '2.5 Pro never receives unsupported thinking-off');
+    const capabilities = makeGeminiProvider({ fetch: bodyFetch(), key: 'k' });
+    A.eq(capabilities.reasoningEfforts('models/gemini-3.1-pro-preview'), ['low', 'medium', 'high'], '3.1 Pro picker lists only supported levels');
+    A.eq(_internals.normalizeModel({ name: 'models/gemini-3.1-pro-preview' }).reasoningEfforts, ['low', 'medium', 'high'], 'catalog and wire use the same capability policy');
+    A.ok(!capabilities.reasoningEfforts('gemini-2.5-pro').includes('none'), '2.5 Pro picker has no unsupported OFF');
+    A.ok(capabilities.reasoningEfforts('gemini-3-flash-preview').includes('minimal'), 'Flash retains minimal thinking');
 
     // An UNKNOWN Gemini defaults to the MODERN contract — an allowlist of new versions goes stale silently.
     b = await ask('gemini-4-ultra-preview', { reasoningEffort: 'medium' });
