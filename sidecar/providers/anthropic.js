@@ -86,8 +86,9 @@
   // The 4.6 family predates the `xhigh` level (low/medium/high/max only) — offering it there is a 400.
   const NO_XHIGH_CLAUDE = ['claude-opus-4-6', 'claude-opus-4.6', 'claude-sonnet-4-6', 'claude-sonnet-4.6'];
   // Thinking is ALWAYS ON for these: an explicit {type:'disabled'} is refused at any effort, so 'none' is never
-  // offered and the thinking key is OMITTED rather than sent disabled.
-  const ALWAYS_THINKING_CLAUDE = ['claude-fable', 'claude-mythos'];
+  // offered; saved OFF settings clamp to adaptive thinking at the lowest supported effort.
+  // Opus 5.5 rejects disabled thinking; Opus 5 still supports it, so do not match all Opus 5.x.
+  const ALWAYS_THINKING_CLAUDE = ['claude-fable', 'claude-mythos', 'claude-opus-5-5', 'claude-opus-5.5'];
 
   const modelKey = (id) => String(id == null ? '' : id).toLowerCase();
   function hasAny(id, list) { const k = modelKey(id); for (const s of list) if (k.indexOf(s) >= 0) return true; return false; }

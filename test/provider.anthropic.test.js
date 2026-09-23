@@ -277,6 +277,25 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     b = await ask('claude-fable-5', { reasoningEffort: 'none' });
     A.eq(b.thinking, { type: 'adaptive' }, "'none' on fable clamps up instead of sending a rejected disable");
 
+    // #32: saved OFF settings must not send an unsupported disable to Opus 5.5.
+    for (const model of ['claude-opus-5-5', 'claude-opus-5.5', 'claude-opus-5-5-20260922']) {
+      const p = makeAnthropicProvider({ fetch: async () => new Response(JSON.stringify({ data: [{ id: model, display_name: 'Claude Opus 5.5' }] })), key: 'k' });
+      const catalog = await p.listModels();
+      const row = catalog.find(m => m.id === model);
+      A.ok(row && !row.reasoningEfforts.includes('none'), model + ' catalog does not offer OFF');
+      const Dock = require('../frontend/app/modeldock.js');
+      A.ok(!Dock._internals.effortOptionsFor(row).includes('none'), model + ' picker consumes the supported catalog levels');
+      for (const off of ['none', 'off', 'disabled']) {
+        b = await ask(model, { reasoningEffort: off });
+        A.eq(b.thinking, { type: 'adaptive' }, model + ' saved ' + off + ' uses adaptive thinking');
+        A.eq(b.output_config, { effort: 'low' }, model + ' saved ' + off + ' clamps to lowest supported effort');
+      }
+      b = await ask(model, { reasoningEffort: 'high' }, { reasoningEffort: 'none' });
+      A.eq(b.output_config, { effort: 'low' }, model + ' per-run OFF also clamps safely');
+      b = await ask(model, { reasoningEffort: 'max' });
+      A.eq(b.output_config, { effort: 'max' }, model + ' supported effort stays unchanged');
+    }
+
     // G8: a NON-Claude model reached through an Anthropic-compatible baseUrl gets nothing (provider-compat law).
     b = await ask('some-vendor/mixtral', { reasoningEffort: 'high' });
     A.eq(b.thinking, undefined, 'non-Claude model on an anthropic-shaped endpoint gets no thinking parameter');
