@@ -50,5 +50,8 @@ const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   A.ok(/id="set-close-to-tray"/.test(settings) && /Lifecycle\.setCloseToTray/.test(settings), 'Settings renders and wires CLOSE WINDOW TO TRAY');
   A.ok(/close_exit_pending\.store\(true[\s\S]*RunEvent::ExitRequested\s*\{\s*api,\s*code[\s\S]*close_exit_pending\.swap\(false[\s\S]*api\.prevent_exit\(\)/.test(main), 'only a paired main-window close prevents event-loop exit while the close worker decides');
 
+  A.ok(/if !spawn_sidecar_with_retry\(&state\) \{\s*return Err/.test(main), 'startup Cancel aborts before the guardian starts');
+  A.ok(/sidecar_startup::spawn/.test(main) && /!listening && exited.is_none\(\)[\s\S]{0,150}sidecar_startup::stop_timed_out/.test(main), 'the desktop uses tracked spawning and reaps a timed-out attempt');
+  A.ok(/startup_reveal.is_pending\(\)/.test(main) && /report_window_startup_failure/.test(main), 'a hidden stalled window gets a native diagnostic');
   A.report('desktop-lifecycle-preferences');
 })().catch(error => { console.error(error); process.exit(1); });

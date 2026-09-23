@@ -208,3 +208,5 @@ sidecar/mcp/google-client.json
 # Local shell material live-proof images and disposable browser profile.
 /.shell-proof/
 /.local/google-review/
+
+src-tauri/frontend-embed/

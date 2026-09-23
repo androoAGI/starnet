@@ -474,6 +474,7 @@
           cronScript: job.script || null,
           scriptTimeoutMs: job.scriptTimeoutMs,
           noAgent: job.noAgent === true,
+          runsLine: job.runsLine === true,
           workdir: job.workdir || null,
           enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null,
           initialTaint: !!(job.contextFrom && job.contextFrom.length),

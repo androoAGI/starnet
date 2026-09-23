@@ -1943,6 +1943,7 @@ const WorldModel = (() => {
         if (p.role) lp.role = p.role;   // a role-carrying dock's placard/nag copy (guided workflows)
         if (p.brief) lp.brief = p.brief;   // a dock's standing job brief -> the compiled plan (step editor; prompt text only)
         if (p.label) lp.label = p.label;   // an INTAKE's line name (step editor; legibility only, never routing)
+        if (p.t === 'intake' && p.projectRoot) lp.projectRoot = p.projectRoot;
         if (p.limits) lp.limits = p.limits;   // an INTAKE's LINE BUDGET -> the compiled plan (pipeline normalizes; chain executor reads)
         if (p.routes) lp.routes = p.routes; if (p.def) lp.def = p.def; if (p.bufferSize) lp.bufferSize = p.bufferSize;   // junction config -> the bake/pipeline
         if (p.timeoutMin) lp.timeoutMin = p.timeoutMin; if (p.maxIter) lp.maxIter = p.maxIter; if (p.done) lp.done = p.done; if (p.when) lp.when = p.when;   // joiner / loop gate config
@@ -2225,6 +2226,21 @@ const WorldModel = (() => {
        Normalized + clamped through the ONE shared normalizer (Pipeline.normalizeLineLimits) so the doc never
        holds a number the executor would read differently; null/empty clears (= executor defaults). Mirrors
        setPropLabel: only an INBOX carries it, no-op edits take no undo slot. */
+    function setPropProject(propId, projectRoot) {
+      const p = doc.props.find(q => q.id === propId);
+      if (!p) return fail('NOT_FOUND', 'no such prop');
+      if (p.t !== 'intake') return fail('BAD_TYPE', 'only an INBOX carries a project');
+      const root = typeof projectRoot === 'string' ? projectRoot.trim().slice(0, 4096) : '';
+      // Every Inbox in one connected workflow shares the setting and one undo step.
+      const P = pipelineModule();
+      const line = P && P.lineComponents(projectGeometry()).find(c => c.intakes.includes(propId));
+      const targets = doc.props.filter(q => q.t === 'intake' && (line ? line.intakes.includes(q.id) : q.id === propId));
+      if (targets.every(q => (q.projectRoot || '') === root)) return { ok: true, projectRoot: root };
+      snapshot();
+      for (const q of targets) { if (root) q.projectRoot = root; else delete q.projectRoot; }
+      emit(targets.map(q => ({ x1: q.x, y1: q.y, x2: q.x + (q.w || 1) - 1, y2: q.y + (q.h || 1) - 1 })));
+      return { ok: true, projectRoot: root };
+    }
     function setPropLimits(propId, limits) {
       const p = doc.props.find(q => q.id === propId);
       if (!p) return fail('NOT_FOUND', 'no such prop');
@@ -2453,7 +2469,7 @@ const WorldModel = (() => {
       },
       // mutations
       addRoom, placeHallway, removeRoom, moveRoom, setFloor, setMaterial, setDeck, setWalls, setHull, paintTiles, renameRoom,
-      addProp, removeProp, moveProp, rotateProp, faceProp, mirrorProp, assignPropAgent, ensureWorkstation, configureJunction, bindConnector, setDoorState, setPropBrief, setPropLabel, setPropLimits,
+      addProp, removeProp, moveProp, rotateProp, faceProp, mirrorProp, assignPropAgent, ensureWorkstation, configureJunction, bindConnector, setDoorState, setPropProject, setPropBrief, setPropLabel, setPropLimits,
       setBelt, removeBelt, removeBelts, placeBeltRun, connectBelt, stampBlueprint,
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
@@ -2507,7 +2523,7 @@ const WorldModel = (() => {
     // lookup is installed (i.e. a real client with the catalog); plain node tests keep every prop.
     if (propRules) doc.props = doc.props.filter(p => !(p && typeof p.t === 'string') || !!propRules(p.t));
     doc.props = doc.props.filter(p => p && typeof p === 'object' && typeof p.t === 'string')
-      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); return o; });
+      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'intake' && typeof p.projectRoot === 'string' && p.projectRoot.trim()) o.projectRoot = p.projectRoot.trim().slice(0, 4096); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); return o; });
     // Explicit, pack-owned shrinking only. Keep the rendered centre and floor line;
     // never enlarge obstacles or reinterpret a custom saved size. Idempotent on reload.
     for (const p of doc.props) {

@@ -1,5 +1,5 @@
-/* node test/frontend-dist-staging.test.js — the desktop bundle embeds the STAGED frontend (frontend/ minus the
-   industrial review/source art), never the 1 GB calibration tree. Locks the exclusion rule to the runtime
+/* node test/frontend-dist-staging.test.js — the desktop ships the STAGED frontend (frontend/ minus the
+   industrial review/source art), embedding code and sharing loose media with the browser mirror. Locks the exclusion rule to the runtime
    evidence (every asset folder the app requests must ship), the build wiring (package.json + both CI
    workflows stage before `tauri build`), and the provenance/ignore contract for the generated folder. */
 'use strict';
@@ -93,7 +93,7 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
     A.ok(/stage-voice-deps\.mjs --target \$\{\{ matrix\.target \}\}\n\s+node scripts\/stage-frontend-dist\.mjs\n/.test(y), wf + ' stages the frontend right after the voice deps, before the build step');
   }
   const tauri = JSON.parse(rd('src-tauri/tauri.conf.json'));
-  A.eq(tauri.build.frontendDist, 'frontend-dist', 'tauri embeds the staged folder');
+  A.eq(tauri.build.frontendDist, 'frontend-embed', 'tauri embeds code without a second media copy');
   // the packaged sidecar serves the SAME staged copy as its `frontend` resource — the first 0.12.0 cut
   // shipped a 1.5 GB installer because this resource still pointed at the full ../frontend tree.
   A.eq(tauri.bundle.resources['frontend-dist'], 'frontend', 'the sidecar frontend resource is the staged copy (target name unchanged)');
@@ -103,5 +103,26 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   A.ok(/^src-tauri\/frontend-dist\/$/m.test(rd('.gitignore')), 'the staged folder is gitignored (generated, never committed, never makes a build dirty)');
   A.ok(/"frontend-dist",/.test(rd('src-tauri/build.rs')), 'build.rs reruns provenance when the staged folder changes');
 
+  // Exercise staging, including a second build after a file was removed.
+  const temp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'starnet-embed-'));
+  try {
+    const staged = path.join(temp, 'staged'), embed = path.join(temp, 'embed');
+    fs.mkdirSync(path.join(staged, 'assets', 'nested'), { recursive: true });
+    fs.mkdirSync(path.join(staged, 'app'), { recursive: true });
+    fs.writeFileSync(path.join(staged, 'index.html'), '<html>station</html>');
+    fs.writeFileSync(path.join(staged, 'app', 'boot.js'), 'boot();');
+    fs.writeFileSync(path.join(staged, 'assets', 'nested', 'image.png'), 'image');
+    const receipt = mod.stageEmbedded(staged, embed);
+    A.eq(fs.readFileSync(path.join(embed, 'index.html'), 'utf8'), '<html>station</html>', 'HTML remains available for Tauri CSP transformation');
+    A.ok(!fs.existsSync(path.join(embed, 'assets')), 'media has no embedded copy');
+    A.eq(JSON.parse(fs.readFileSync(path.join(embed, 'loose-assets.json'))), ['/assets/nested/image.png'], 'compiled allowlist names only staged media');
+    A.eq(receipt.mediaBytes, 5, 'receipt accounts for the bytes removed from embedding');
+    A.eq(fs.readFileSync(path.join(staged, 'assets', 'nested', 'image.png'), 'utf8'), 'image', 'browser-mirror resource remains intact');
+    fs.unlinkSync(path.join(staged, 'app', 'boot.js'));
+    mod.stageEmbedded(staged, embed);
+    A.ok(!fs.existsSync(path.join(embed, 'app', 'boot.js')), 'restaging cannot embed stale code');
+  } finally { fs.rmSync(temp, { recursive: true, force: true }); }
+  A.ok(/^src-tauri\/frontend-embed\/$/m.test(rd('.gitignore')), 'embedded staging is generated and ignored');
+  A.ok(/"frontend-embed",/.test(rd('src-tauri/build.rs')), 'embedded staging invalidates provenance');
   A.report('frontend-dist-staging.test');
 })().catch((e) => { console.error(e); process.exit(1); });

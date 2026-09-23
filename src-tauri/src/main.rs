@@ -12,8 +12,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod credentials;
+mod desktop_assets;
 mod fresh_start;
 mod lifecycle_preferences;
+mod sidecar_startup;
 mod window_visibility;
 
 use std::collections::BTreeMap;
@@ -1926,12 +1928,8 @@ fn spawn_sidecar(state: &AppState) -> bool {
 
     let mut last_error = None;
     for attempt in 0..=20 {
-        match sidecar_command(state, &entry, &node).spawn() {
-            Ok(child) => {
-                let pid = child.id();
-                if let Ok(mut guard) = state.sidecar.lock() {
-                    *guard = Some(child);
-                }
+        match sidecar_startup::spawn(&mut sidecar_command(state, &entry, &node), &state.sidecar) {
+            Ok(pid) => {
                 let (listening, exited) = wait_for_port_or_exit(
                     state.port,
                     Duration::from_secs(25),
@@ -1950,6 +1948,12 @@ fn spawn_sidecar(state: &AppState) -> bool {
                         ),
                     },
                 );
+                if !listening && exited.is_none() {
+                    match sidecar_startup::stop_timed_out(&state.sidecar, pid) {
+                        Ok(()) => log_startup(&state.startup_log, format!("spawn_sidecar pid={pid} timed out; child stopped and reaped")),
+                        Err(error) => log_startup(&state.startup_log, format!("spawn_sidecar pid={pid} timeout cleanup failed: {error}; retaining child ownership")),
+                    }
+                }
                 return listening;
             }
             Err(e) if cfg!(windows) && e.raw_os_error() == Some(32) && attempt < 20 => {
@@ -1992,8 +1996,8 @@ fn show_startup_failure_dialog(startup_log: &Option<PathBuf>) -> bool {
     };
     let body = format!(
         "StarNet could not start its local engine.\n\n\
-         This usually means the bundled Node runtime was blocked by antivirus or a Windows \
-         Application Control policy, or the port could not be opened.\n\n\
+         The engine exited or did not become ready. Possible causes include unavailable workspace \
+         files, a blocked Node runtime, or a port that could not be opened.\n\n\
          {log_line}\n\n\
          Click Retry to try starting the engine again, or Cancel to close StarNet."
     );
@@ -2022,18 +2026,47 @@ fn show_startup_failure_dialog(startup_log: &Option<PathBuf>) -> bool {
     false
 }
 
-/// Spawn the sidecar and, if it fails to come up, loop showing the startup-failure dialog so the
-/// user can Retry (audit 0.2). Bounded so a persistently-blocked node can't spin a dialog forever:
-/// after the retries are exhausted we return `false` and let the guardian keep trying in the
-/// background. Returns `true` once the sidecar is listening.
+/// Independent of WebView2: even a stalled window constructor must be diagnosable.
+fn report_window_startup_failure(log: &Option<PathBuf>, detail: &str) {
+    log_startup(log, format!("webview-startup: {detail}"));
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            MessageBoxW, MB_ICONERROR, MB_OK, MB_SETFOREGROUND,
+        };
+        let path = log
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "unavailable".into());
+        let text: Vec<u16> = format!("StarNet's window could not finish starting.\n\n{detail}\n\nQuit StarNet from its tray icon and reopen it. If this persists, include startup.log in your bug report:\n{path}")
+            .encode_utf16().chain(std::iter::once(0)).collect();
+        let title: Vec<u16> = "StarNet — window startup"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe {
+            MessageBoxW(
+                std::ptr::null_mut(),
+                text.as_ptr(),
+                title.as_ptr(),
+                MB_OK | MB_ICONERROR | MB_SETFOREGROUND,
+            );
+        }
+    }
+}
+
+/// Retry only in response to the native dialog. Cancel is a full startup abort;
+/// the guardian must not turn a cancelled launch into hidden background work.
 fn spawn_sidecar_with_retry(state: &AppState) -> bool {
-    // A handful of user-driven retries at startup; the long-lived guardian covers the rest.
-    for _ in 0..5 {
+    loop {
         if spawn_sidecar(state) {
             return true;
         }
         if !show_startup_failure_dialog(&state.startup_log) {
-            // User chose Cancel — stop prompting; the guardian may still recover it silently.
+            log_startup(
+                &state.startup_log,
+                "startup: cancelled; stopping local engine",
+            );
             return false;
         }
         log_startup(
@@ -2041,11 +2074,6 @@ fn spawn_sidecar_with_retry(state: &AppState) -> bool {
             "startup: user chose Retry — respawning sidecar",
         );
     }
-    log_startup(
-        &state.startup_log,
-        "startup: retries exhausted; leaving recovery to the guardian",
-    );
-    false
 }
 
 // ---- watchdog: respawn a crashed sidecar so the open window keeps working ----
@@ -3864,6 +3892,8 @@ fn starnet_set_close_to_tray(
 }
 
 fn main() {
+    let mut context = tauri::generate_context!();
+    context.assets = Box::new(desktop_assets::DesktopAssets::new(context.assets));
     tauri::Builder::default()
         // A second launch should focus the running window, not spin up a 2nd sidecar. Registered FIRST per
         // Tauri guidance (n1): single-instance must run before other plugins so a second process bails early.
@@ -3993,10 +4023,11 @@ fn main() {
             // other's rotating Codex OAuth refresh tokens. Scoped strictly to processes whose
             // image path IS our bundled node runtime; fail-open, never blocks startup.
             reap_orphan_sidecars(&node_binary(&state.root), &state.startup_log);
-            // Try to bring the sidecar up; on failure show a native Retry dialog naming startup.log
-            // (audit 0.2). Even if this ultimately returns false, the guardian below keeps trying so
-            // the app can still recover in the background rather than sitting permanently dead.
-            let _ = spawn_sidecar_with_retry(&state);
+            // Bring the sidecar up before starting background supervision. Cancel drops
+            // the owned state and child, before a guardian or hidden window can be created.
+            if !spawn_sidecar_with_retry(&state) {
+                return Err("local engine startup cancelled".into());
+            }
             app.manage(state);
             app.manage(PendingUpdate(Mutex::new(None)));
 
@@ -4076,6 +4107,18 @@ fn main() {
                 );
             }
 
+            log_startup(&startup_log_path(app.handle()), "webview-startup: constructing main window");
+            // Run outside the UI thread: WebView2 creation itself may stall. A normal
+            // load, an explicit close, or start-minimized suppresses this one-shot notice.
+            let startup_watch = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(45));
+                if let Some(state) = startup_watch.try_state::<AppState>() {
+                    if !state.shutting_down.load(Ordering::SeqCst) && state.startup_reveal.is_pending() {
+                        report_window_startup_failure(&state.startup_log, "The window did not finish loading within 45 seconds.");
+                    }
+                }
+            });
             let main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 // Let HTML5 file drops reach COMMS and the existing attachment uploader.
                 // Tauri's native handler otherwise intercepts them on Windows.
@@ -4093,6 +4136,7 @@ fn main() {
                         if let Some(state) = window.app_handle().try_state::<AppState>() {
                             if state.startup_reveal.finish_load() {
                                 let _ = window.show();
+                                log_startup(&state.startup_log, "webview-startup: initial document loaded");
                             }
                         }
                     }
@@ -4121,7 +4165,18 @@ fn main() {
                     _ => main_window,
                 }
             };
-            let main_window = main_window.build()?;
+            let main_window = match main_window.build() {
+                Ok(window) => window,
+                Err(error) => {
+                    if let Some(state) = app.try_state::<AppState>() {
+                        state.startup_reveal.cancel();
+                        state.shutting_down.store(true, Ordering::SeqCst);
+                        state.kill_sidecar();
+                    }
+                    report_window_startup_failure(&startup_log_path(app.handle()), &error.to_string());
+                    return Err(error.into());
+                }
+            };
 
             // ---- Lane 4D: close-to-tray, explicitly selected or gated on REAL armed work ----
             // On a close request: ALWAYS intercept + hide immediately (instant feedback, and the poll must not
@@ -4201,7 +4256,7 @@ fn main() {
 
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build the StarNet desktop shell")
         .run(|app, event| {
             if let RunEvent::ExitRequested { api, code, .. } = event {
