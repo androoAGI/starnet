@@ -2827,7 +2827,14 @@ const App = (() => {
     msg.textContent = '';
 
     wakeBtnBusy(true);   // COMMIT POINT: past every validation gate — show WAKING… and hold the latch through enterGame
-    if (resumingSaved) { const s = resumingSaved; resumingSaved = null; s.agent.model = model; resumeInto(s); return true; }
+    if (resumingSaved) {
+      const s = resumingSaved; resumingSaved = null;
+      // Resume with the provider that just passed preflight (OpenAI may resolve to Codex).
+      s.prov = Harness.getProv();
+      s.agent.provider = s.prov;
+      s.agent.model = model;
+      resumeInto(s); return true;
+    }
 
     // LOCK DOWN before the NEW hero or any of its local stores are committed. A failed durable revoke rejects,
     // leaves the prior station intact, and keeps its confirmed grant visible instead of commissioning a fresh
