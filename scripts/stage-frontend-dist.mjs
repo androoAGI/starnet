@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /* stage-frontend-dist.mjs — stage the SHIPPED frontend for the desktop bundle.
  *
- * Tauri embeds every byte under `build.frontendDist` into the executable. Since the 2026-09 station
+ * Tauri embeds application code from `frontend-embed`; media ships once in the
+ * `frontend-dist` resource tree shared with the sidecar browser mirror.
+ * Previously, Tauri embedded every byte of the staged frontend into the executable. Since the 2026-09 station
  * remaster, `frontend/assets/industrial/` also carries the art SOURCES the remaster was calibrated from
  * (review batches, camera audits, calibration sheets: ~1 GB of 2K PNGs) next to the ~200 MB the app
  * actually loads at runtime. Embedding all of it produced a 926 MB executable and made NSIS fail
@@ -34,6 +36,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(HERE, '..');
 export const SRC = join(ROOT, 'frontend');
 export const DEST = join(ROOT, 'src-tauri', 'frontend-dist');
+export const EMBED = join(ROOT, 'src-tauri', 'frontend-embed');
 
 // industrial subfolders the runtime requests (see header). Root-level files under assets/industrial always ship.
 export const KEEP_INDUSTRIAL = Object.freeze(['projection-correction', 'remaster', 'complete-sheet', 'approved-sheet', 'calibration']);
@@ -72,7 +75,7 @@ export function plan(src = SRC, shared = join(ROOT, 'shared')) {
   return { kept, dropped };
 }
 
-export function stage({ src = SRC, dest = DEST, shared = join(ROOT, 'shared'), log = console.log } = {}) {
+export function stage({ src = SRC, dest = DEST, embed = dest === DEST ? EMBED : dest + '-embed', shared = join(ROOT, 'shared'), log = console.log } = {}) {
   if (!existsSync(src)) throw new Error('frontend source missing: ' + src);
   const catalog = join(shared, 'specialties.js');
   for (const dir of KEEP_INDUSTRIAL) {
@@ -96,11 +99,33 @@ export function stage({ src = SRC, dest = DEST, shared = join(ROOT, 'shared'), l
   // Copy from the shared authority on EVERY build; do not maintain a second catalog.
   mkdirSync(join(dest, 'shared'), { recursive: true });
   cpSync(catalog, join(dest, 'shared', 'specialties.js'));
+  const embedded = stageEmbedded(dest, embed);
+  log(`embedded application: ${embedded.bytes} bytes; loose media: ${embedded.mediaBytes} bytes (one copy)`);
   const mb = (b) => (b / 1048576).toFixed(1) + ' MB';
   log('stage-frontend-dist: ' + p.kept.files + ' file(s) / ' + mb(p.kept.bytes) + ' staged → ' + dest);
   log('  dropped review/source art: ' + p.dropped.files + ' file(s) / ' + mb(p.dropped.bytes));
   for (const [dir, bytes] of [...p.dropped.dirs].sort((a, b) => b[1] - a[1]).slice(0, 12)) log('    - ' + dir + '  ' + mb(bytes));
   return p;
+}
+
+// HTML/scripts stay embedded so Tauri still performs its normal CSP/nonces and
+// local-origin IPC setup. Large media is read from the SAME resource tree used
+// by the browser mirror. The build-time allowlist prevents arbitrary file reads.
+export function stageEmbedded(staged = DEST, embed = EMBED) {
+  rmSync(embed, { recursive: true, force: true });
+  mkdirSync(embed, { recursive: true });
+  cpSync(staged, embed, { recursive: true, filter: file => {
+    const rel = relative(staged, file).split(sep).join('/');
+    return rel !== 'assets' && !rel.startsWith('assets/');
+  } });
+  const keys = [];
+  let mediaBytes = 0, bytes = 0;
+  walk(staged, '', (rel, size) => {
+    if (rel.startsWith('assets/')) { keys.push('/' + rel); mediaBytes += size; }
+    else bytes += size;
+  });
+  writeFileSync(join(embed, 'loose-assets.json'), JSON.stringify(keys.sort()) + '\n');
+  return { bytes, mediaBytes, keys };
 }
 
 const isMain = (() => { try { return process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href; } catch { return false; } })();
