@@ -12,6 +12,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod credentials;
+mod desktop_assets;
 mod fresh_start;
 mod lifecycle_preferences;
 mod window_visibility;
@@ -3864,6 +3865,8 @@ fn starnet_set_close_to_tray(
 }
 
 fn main() {
+    let mut context = tauri::generate_context!();
+    context.assets = Box::new(desktop_assets::DesktopAssets::new(context.assets));
     tauri::Builder::default()
         // A second launch should focus the running window, not spin up a 2nd sidecar. Registered FIRST per
         // Tauri guidance (n1): single-instance must run before other plugins so a second process bails early.
@@ -4201,7 +4204,7 @@ fn main() {
 
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("failed to build the StarNet desktop shell")
         .run(|app, event| {
             if let RunEvent::ExitRequested { api, code, .. } = event {

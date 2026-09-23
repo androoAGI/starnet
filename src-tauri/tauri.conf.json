@@ -4,7 +4,7 @@
   "version": "0.12.4",
   "identifier": "ai.skynet.harness",
   "build": {
-    "frontendDist": "frontend-dist"
+    "frontendDist": "frontend-embed"
   },
   "app": {
     "withGlobalTauri": true,
