@@ -1,5 +1,5 @@
-/* node test/frontend-dist-staging.test.js — the desktop bundle embeds the STAGED frontend (frontend/ minus the
-   industrial review/source art), never the 1 GB calibration tree. Locks the exclusion rule to the runtime
+/* node test/frontend-dist-staging.test.js — the desktop ships the STAGED frontend (frontend/ minus the
+   industrial review/source art), embedding code and sharing loose media with the browser mirror. Locks the exclusion rule to the runtime
    evidence (every asset folder the app requests must ship), the build wiring (package.json + both CI
    workflows stage before `tauri build`), and the provenance/ignore contract for the generated folder. */
 'use strict';
