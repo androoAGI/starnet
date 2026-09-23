@@ -268,6 +268,8 @@
       { capId: 'orchestrator', tool: 'task.list', scope: 'read', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'task.create', scope: 'write', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'task.manage', scope: 'write', requiresConsent: true, network: false },
+      { capId: 'orchestrator', tool: 'team.config', scope: 'read', requiresConsent: false, network: false },
+      { capId: 'orchestrator', tool: 'team.configure', scope: 'write', requiresConsent: true, network: false },
       // LOOPS: standing objective iteration through loops.json. Both mutations require consent because they
       // create or alter future autonomous work. Model tools never accept the host-run check command.
       { capId: 'orchestrator', tool: 'loop.list', scope: 'read', requiresConsent: false, network: false },

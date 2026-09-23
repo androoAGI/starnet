@@ -2272,7 +2272,7 @@ const Build = (() => {
         <section class="workflow-section"><h4><span>2</span> What should they do?</h4>
         <p class="workflow-help">For example: “Check the draft and return a corrected version.”</p>
         <textarea id="step-brief" class="refit-input refit-brief" aria-label="Instructions for this step" maxlength="2000" rows="5" placeholder="${esc(briefPh)}">${esc(p.brief || '')}</textarea>
-        <div class="step-brief-note">These instructions apply to every task that reaches this step.</div></section>
+        <div class="step-brief-note">These instructions add this step’s job to the agent’s Dossier Purpose and standing orders; they do not replace them. Leave blank to use the agent’s existing instructions.</div></section>
         </div>
         <aside class="workflow-aside"><section class="workflow-section"><h4>Where the work goes</h4>
         <div class="step-fact" data-linefact="${esc(bayId)}">${lineTxt}</div></section>
@@ -2668,7 +2668,7 @@ const Build = (() => {
         // the whole line. Plain language; the same fact the STEP card states from the dock's side.
         // It is an EXPLANATION, not a warning, so it reads in the dim voice (.trg-explain) — .refit-note is
         // amber, and an amber paragraph on every INBOX card teaches the Commander to ignore amber.
-        + '<p class="trg-explain">Use a schedule or a connected channel to start this workflow. A direct COMMS message only runs the agent you message.</p>'
+        + '<p class="trg-explain">Use a schedule or a connected channel to start this workflow. For Telegram, connect a bot to the agent in the first Bay, connect this Inbox to that Bay with belts, then message the bot. A direct COMMS message only runs the agent you message.</p>'
         + '<div class="workflow-start-options"><button type="button" class="bb workflow-choice" id="trg-new" aria-expanded="false" aria-controls="trg-form"><b>On a schedule</b><span>Choose a task and when it runs.</span></button>'
         + '<button type="button" class="bb workflow-choice" id="trg-chan"><b>From a channel</b><span>Set up incoming messages in Channels.</span></button></div>'
         // the create form is ONE bordered object (same vocabulary as AUTOMATION's inline RESCHEDULE editor):

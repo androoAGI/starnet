@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ef50cf96fde1a97c897f3e89fae12cd37358ca57",
+    "sourceCommit": "9f21d28976055faed28cdf11f1fb86938c902eb5",
     "pathSetSha256": "624df0d0e5b2511e74e175d045f26a8fd916195933e6750693b47d486e2e7b31",
     "files": [
       {
@@ -168,8 +168,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 385728,
-        "sha256": "12188d6285ad504e96d894ffbcf92d1f573cdf6461604b7dab07ebafc56d140e"
+        "bytes": 385849,
+        "sha256": "d2e60190d27da810f516959ba9f5545861a29e9c261add0a7096969594858d65"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -313,8 +313,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 435890,
-        "sha256": "9131a379ef8a863f8751b58d3424815bddbce0ea676e618e66b9b5e544b60c5c"
+        "bytes": 436128,
+        "sha256": "a6c8d9702ed77c60f4ecf796bf552b27f33c762aa7e013162e51e99e534de8af"
       },
       {
         "path": "frontend/app/channels.js",
@@ -1038,8 +1038,8 @@
       },
       {
         "path": "frontend/app/stationcommands.js",
-        "bytes": 25302,
-        "sha256": "992a0b7ae7428ad5d4e9bf48324fb03afa5953900fa032c3f1b8fb3dc005d139"
+        "bytes": 27790,
+        "sha256": "bcb946d787ee90e6946c76259aea345b4b08f542f0772c7484b62c309d899129"
       },
       {
         "path": "frontend/app/stationquests.js",

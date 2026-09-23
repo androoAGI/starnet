@@ -152,9 +152,32 @@
       }
     };
 
+    const agentConfigTool = {
+      name: 'team.config', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      description: 'List crew IDs and names, or pass an exact agentId to read that agent\'s current Dossier documents: identity, purpose, manual (standing orders), and context. Read the target before changing it with team.configure. Notebook memory does not edit these documents.',
+      schema: { type: 'object', properties: { agentId: { type: 'string' } } },
+      run: async (args) => {
+        const out = await ask('station.agent_config', { agentId: args && args.agentId });
+        return out.ok ? { content: JSON.stringify(out.result), summary: 'crew configuration' } : refuse(out.error);
+      }
+    };
+    const agentConfigureTool = {
+      name: 'team.configure', capability: 'orchestrator', scope: 'write', requiresConsent: true,
+      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text. An empty text explicitly clears the document. Uses the Dossier save path; applies to the next run, not a currently running turn. Requires an open station page. Does not change skills, permissions, Bay briefs, or layout. Never substitute notebook.write for this edit.',
+      schema: { type: 'object', additionalProperties: false, required: ['agentId', 'field', 'previousText', 'text'], properties: {
+        agentId: { type: 'string' }, field: { type: 'string', enum: ['identity', 'purpose', 'manual', 'context'] },
+        previousText: { type: 'string' }, text: { type: 'string', maxLength: 20000 }
+      } },
+      run: async (args) => {
+        const out = await ask('station.update_agent', args || {});
+        return out.ok ? { content: JSON.stringify(out.result), summary: 'saved agent document' } : refuse(out.error);
+      }
+    };
+
     return {
+      agentConfigTool, agentConfigureTool,
       listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool,
-      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool].forEach(t => reg.register(t)); return reg; }
+      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool].forEach(t => reg.register(t)); return reg; }
     };
   }
 

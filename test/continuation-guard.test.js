@@ -146,6 +146,24 @@ const run = (provider, extra) => runAgentLoop(Object.assign({
     A.eq(res.reason, 'done', 'quoted save examples are not first-person receipts');
     A.eq(provider.callCount(), 1, 'quoted examples do not trigger verification');
   }
+  // A Dossier receipt must not send the model back to notebook.write. Neither a failed
+  // edit nor a separate claim about notebook memory can borrow that receipt.
+  for (const scenario of [
+    { content: JSON.stringify({ durable: true, agentId: 'worker', field: 'manual' }), text: "I've updated the agent's instructions.", reason: 'done' },
+    { content: 'REFUSED: save failed', text: "I've updated the agent's instructions.", reason: 'error' },
+    { content: JSON.stringify({ durable: false, agentId: 'worker', field: 'manual' }), text: "I've updated the agent's instructions.", reason: 'error' },
+    { content: JSON.stringify({ durable: true, agentId: 'worker', field: 'manual' }), text: "I've saved your preferences.", reason: 'error' }
+  ]) {
+    const turn = toolTurn('config').map(e => e.type === 'tool_start' ? { ...e, name: 'team_configure' } : e);
+    const provider = scripted([turn, textTurn(scenario.text)]);
+    const res = await run(provider, {
+      tools: [{ name: 'team_configure', schema: { type: 'object' } }, { name: 'notebook_write', schema: { type: 'object' } }],
+      dispatch: async () => ({ ok: true, isError: false, content: scenario.content })
+    });
+    A.eq(res.reason, scenario.reason, scenario.content + ': ' + scenario.text);
+    if (scenario.reason === 'done') A.eq(provider.callCount(), 2, 'saved Dossier instructions need no notebook nudge');
+    else A.eq(res.failureCode, 'memory_write_unverified', 'unverified memory claims remain blocked');
+  }
   console.log('continuation-guard.test: OK');
   // report() settles the assertion counter. The .catch below only fires on a THROWN error, so
   // without this every one of the assertions above could fail and the file would still exit 0.

@@ -134,6 +134,35 @@ const StationCommands = (() => {
   }
 
   const VERBS = {
+    'station.agent_config': (args) => {
+      if (typeof App === 'undefined' || !App.agents) throw new Error('the crew roster is not ready yet');
+      const crew = App.agents();
+      if (!args.agentId) return { agents: crew.map(a => ({ id: a.id, name: a.name })) };
+      const a = crew.find(row => row.id === args.agentId);
+      if (!a) throw new Error('unknown agentId; list the crew with team.config first');
+      return { id: a.id, name: a.name,
+        docs: Object.fromEntries(['identity', 'purpose', 'manual', 'context'].map(field => [field, String((a.docs || {})[field] || '')])) };
+    },
+
+    'station.update_agent': async (a) => {
+      if (typeof App === 'undefined' || !App.agents || !App.applyConfig || !App.configSynced) throw new Error('agent configuration is unavailable');
+      if (typeof CloudSave === 'undefined' || !CloudSave.flush || !CloudSave.pull) throw new Error('durable agent storage is unavailable');
+      const target = App.agents().find(row => row.id === a.agentId);
+      if (!target) throw new Error('unknown agentId; read team.config before editing');
+      if (!['identity', 'purpose', 'manual', 'context'].includes(a.field)) throw new Error('only Dossier documents can be edited');
+      if (typeof a.text !== 'string' || a.text.length > 20000 || typeof a.previousText !== 'string') throw new Error('text and previousText are required; text is limited to 20000 characters');
+      const current = String((target.docs || {})[a.field] || '');
+      // Compare before writing: never overwrite a newer Dossier edit or guess a target.
+      if (current !== a.previousText && current !== a.text) throw new Error('the document changed; read team.config again before editing');
+      App.applyConfig({ [a.field]: a.text }, target.id);
+      if (await App.configSynced() !== true) throw new Error('agent roster sync failed; the edit may be local only, do not report completion');
+      if (!await CloudSave.flush({ force: true })) throw new Error('agent save failed; do not report completion');
+      const saved = await CloudSave.pull();
+      const row = saved && ((saved.agents || []).find(x => x.id === target.id) || (saved.agent && saved.agent.id === target.id ? saved.agent : null));
+      if (!row || !row.docs || row.docs[a.field] !== a.text) throw new Error('saved agent read-back did not confirm the edit; do not report completion');
+      return { agentId: target.id, field: a.field, text: a.text, durable: true, applies: 'next run' };
+    },
+
     /* Everything the station can currently see: which sessions exist, which is active, who is busy, what is
        waiting on approval. Reuses VoiceLive's snapshot so voice and tools cannot drift into two answers. */
     'station.status': () => {
