@@ -63,16 +63,16 @@ const App = (() => {
         if (response.status === 403) {
           if (staleMark.get()) {
             // Already reloaded once for this and still rejected: a real fault, so name it and stop.
-            sayStale('Still rejected after a reload — this page is not being accepted. Check the sidecar log.', 'warn');
+            sayStale('station service is running but refused this window again after a reload — send the save-gate recovery code to support', 'warn');
           } else {
             staleMark.set();
-            sayStale('The station service restarted, so this page was holding an expired token — reloading.', 'warn');
+            sayStale('station service restarted — this window has a stale session, reloading', 'warn');
             setTimeout(() => { try { location.reload(); } catch (_) {} }, 1200);
           }
         } else if (response.ok && staleMark.get()) {
           // The new token is working. Re-arm, so the next genuine restart is handled again.
           staleMark.clear();
-          sayStale('Reconnected — the station service had restarted and this page reloaded.', 'good');
+          sayStale('reconnected — the station service restarted and this window reloaded', 'good');
         }
         return response;
       });
