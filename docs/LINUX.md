@@ -98,5 +98,5 @@ For an extracted AppImage, pass the absolute path to `squashfs-root/AppRun` inst
 The script uses a disposable XDG profile and keyring, checks WebKit document load, a visible
 window, sidecar health, the bundled Node/native dependency closure, shell timeouts, graceful close, shell-crash
 cleanup, and relaunch with preserved data. It deliberately skips legacy station migration.
-It does not require provider credentials or run a model. Run `npm run test:fast`,
+It uses a tiny ONNX test graph; no model downloads or provider credentials are required. Run `npm run test:fast`,
 `npm run test:http`, and `cargo test --manifest-path src-tauri/Cargo.toml --locked` for regressions.

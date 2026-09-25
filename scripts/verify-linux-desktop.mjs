@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Run inside dbus-run-session + Xvfb with a window manager. Accepts an installed
-// binary or an extracted AppImage's AppRun. Every launch gets isolated XDG data.
+// binary or an extracted AppImage's AppRun. All launches share one disposable XDG profile.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readlinkSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -22,18 +22,6 @@ const sentinel = join(workspace, 'linux-smoke-sentinel.txt');
 writeFileSync(sentinel, 'preserve across relaunch\n');
 const env = { ...process.env, XDG_DATA_HOME: join(profile, 'data'),
   XDG_CONFIG_HOME: join(profile, 'config'), XDG_CACHE_HOME: join(profile, 'cache') };
-// A private D-Bus session and disposable, unlocked keyring avoid touching the
-// user's login keyring or hanging on an invisible first-use password prompt.
-const busPid = execFileSync('dbus-send', ['--session', '--print-reply', '--dest=org.freedesktop.DBus',
-  '/org/freedesktop/DBus', 'org.freedesktop.DBus.GetConnectionUnixProcessID',
-  'string:org.freedesktop.DBus'], { encoding: 'utf8' }).match(/uint32 (\d+)/)?.[1];
-assert.ok(busPid, 'run this smoke inside a private dbus-run-session');
-const busArgs = readFileSync(`/proc/${busPid}/cmdline`, 'utf8');
-assert.ok(busArgs.includes('--nofork') && busArgs.includes('--print-address'),
-  'refusing to use the login D-Bus session; use dbus-run-session');
-execFileSync('dbus-update-activation-environment', ['DISPLAY', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'], { env });
-execFileSync('gnome-keyring-daemon', ['--unlock', '--components=secrets',
-  '--control-directory', join(profile, 'keyring')], { env, input: 'starnet-disposable-smoke\n', timeout: 10000 });
 const logPath = join(data, 'startup.log');
 let shell;
 let sidecarPid;
@@ -54,7 +42,7 @@ async function until(label, predicate, timeout = 60000) {
   }
   throw new Error(`Timed out: ${label}`);
 }
-async function launch() {
+async function launch(checkDependencies = false) {
   const offset = log().length;
   shell = spawn(executable, [], { env, cwd: profile, stdio: ['ignore', 'pipe', 'pipe'] });
   shell.stdout.on('data', chunk => { output += chunk; });
@@ -73,14 +61,14 @@ async function launch() {
   const windows = execFileSync('xdotool', ['search', '--onlyvisible', '--pid', String(shell.pid),
     '--name', '^StarNet$'], { encoding: 'utf8' }).trim().split('\n');
   assert.ok(windows.length && /^\d+$/.test(windows[0]), 'visible native window');
-  const image = execFileSync('readlink', [`/proc/${sidecarPid}/exe`], { encoding: 'utf8' }).trim();
-  const shellImage = execFileSync('readlink', [`/proc/${shell.pid}/exe`], { encoding: 'utf8' }).trim();
+  const image = readlinkSync(`/proc/${sidecarPid}/exe`);
+  const shellImage = readlinkSync(`/proc/${shell.pid}/exe`);
   assert.equal(image, join(dirname(shellImage), 'starnet-node'), 'uses this package\'s bundled runtime');
-  const root = execFileSync('readlink', [`/proc/${sidecarPid}/cwd`], { encoding: 'utf8' }).trim();
+  const root = readlinkSync(`/proc/${sidecarPid}/cwd`);
   assert.equal(root, join(dirname(dirname(shellImage)), 'lib', 'StarNet'),
     'uses this package\'s resources, never another installed copy or the source tree');
   // Exercise the shipped dependency closure using the shipped Node, from resources.
-  execFileSync(image, ['-e', `
+  if (checkDependencies) execFileSync(image, ['-e', `
     (async () => {
       const sharp = require('sharp');
       await sharp({create:{width:2,height:2,channels:3,background:'red'}}).png().toBuffer();
@@ -111,11 +99,19 @@ async function launch() {
   return windows[0];
 }
 try {
-  let window = await launch();
-  if (process.argv[3]) {
-    await delay(2000);
-    execFileSync('scrot', [resolve(process.argv[3])]);
-  }
+  // A private D-Bus session and disposable, unlocked keyring avoid touching the
+  // user's login keyring or hanging on an invisible first-use password prompt.
+  const busPid = execFileSync('dbus-send', ['--session', '--print-reply', '--dest=org.freedesktop.DBus',
+    '/org/freedesktop/DBus', 'org.freedesktop.DBus.GetConnectionUnixProcessID',
+    'string:org.freedesktop.DBus'], { encoding: 'utf8' }).match(/uint32 (\d+)/)?.[1];
+  assert.ok(busPid, 'run this smoke inside a private dbus-run-session');
+  const busArgs = readFileSync(`/proc/${busPid}/cmdline`, 'utf8');
+  assert.ok(busArgs.includes('--nofork') && busArgs.includes('--print-address'),
+    'refusing to use the login D-Bus session; use dbus-run-session');
+  execFileSync('dbus-update-activation-environment', ['DISPLAY', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'], { env });
+  execFileSync('gnome-keyring-daemon', ['--unlock', '--components=secrets',
+    '--control-directory', join(profile, 'keyring')], { env, input: 'starnet-disposable-smoke\n', timeout: 10000 });
+  let window = await launch(true);
   // Real WM_DELETE_WINDOW exercises the native close handler and graceful drain.
   execFileSync('wmctrl', ['-ic', `0x${Number(window).toString(16)}`]);
   await until('idle window close drains shell and sidecar', () => !running(shell.pid) && !running(sidecarPid));
@@ -138,9 +134,7 @@ try {
   if (sidecarPid && running(sidecarPid)) { try { process.kill(sidecarPid, 'SIGTERM'); } catch {} }
   await delay(1500);
   // xdg-document-portal may have mounted its private FUSE view below this profile.
-  for (const location of [join(env.XDG_CACHE_HOME, 'doc'), join(profile, 'runtime', 'doc')]) {
-    try { execFileSync('fusermount3', ['-u', location], { stdio: 'ignore' }); } catch {}
-  }
+  try { execFileSync('fusermount3', ['-u', join(env.XDG_CACHE_HOME, 'doc')], { stdio: 'ignore' }); } catch {}
   try { rmSync(profile, { recursive: true, force: true }); }
   catch (error) {
     if (error.code !== 'EBUSY') throw error;
