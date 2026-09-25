@@ -483,6 +483,30 @@
       order: 44
     },
     {
+      // CLAUDE CLI — the locally installed Claude Code CLI (`claude`) as the brain, signed in with the user's own
+      // Claude account or key. No key is stored here: providers/claude-cli.js spawns `claude -p` per turn with
+      // every CLI tool disabled, so StarNet's own capability gate still owns tool use. NOT unmetered: a
+      // subscription login books $0 per turn, an API-key login books the CLI's own reported cost.
+      id: 'claude-cli',
+      aliases: ['claude-code', 'claude-code-cli'],
+      name: 'Claude CLI',
+      label: 'CLAUDE CLI',
+      endpoint: 'local `claude` command',
+      blurb: 'your Claude Code sign-in',
+      live: true,
+      adapter: 'claude-cli',
+      apiMode: 'claude_cli',
+      authType: 'none',
+      keyRequired: false,
+      modelsRequireAuth: false,
+      defaultReasoningEffort: 'medium',
+      unmetered: false,
+      credentialPool: false,
+      supportsTools: true,
+      supportsReasoning: true,
+      order: 58
+    },
+    {
       id: 'ollama',
       aliases: ['ollama-local'],
       name: 'Ollama',
