@@ -311,6 +311,7 @@ const Harness = (() => {
     // managed credits — bearer is the linked device token (mirrors app.js + registry.js aliases)
     if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
     if (p === 'ollama' || p === 'ollama-local') return 'ollama';
+    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
     if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
     return 'openrouter';
   }
@@ -337,12 +338,13 @@ const Harness = (() => {
   function providerNeedsKey(provider) {
     const p = normalizeProviderId(provider);
     // codex/grok/kimi authenticate by device-code OAuth tokens held sidecar-side; ollama/custom are keyless
-    // endpoints; starnet's bearer is the linked device token, which the user never sees, let alone pastes.
-    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet';
+    // endpoints; starnet's bearer is the linked device token, which the user never sees, let alone pastes;
+    // claude-cli authenticates with the local Claude CLI's own sign-in.
+    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet' && p !== 'claude-cli';
   }
   function configured(provider) {
     const p = normalizeProviderId(provider);
-    if (p === 'ollama') return true;
+    if (p === 'ollama' || p === 'claude-cli') return true;
     if (p === 'custom' && getBaseUrl(p)) return true;
     // STARNET MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
     // through to the keyless branch below, which would answer "configured" for every station simply because
@@ -367,6 +369,7 @@ const Harness = (() => {
     // probe + app.js's status refresh) is the only local truth; in the browser the active-provider pick stands in.
     if (p === 'grok' || p === 'kimi') return DESKTOP ? !!_configuredByProvider[p] : (getProv() === p);
     if (p === 'ollama') return false;                      // an endpoint is configuration, never a credential
+    if (p === 'claude-cli') return false;                  // the local CLI's own sign-in is not a StarNet credential
     if (p === 'custom' && !getKey(p)) return false;        // a keyless custom endpoint must not manufacture a key row
     if (DESKTOP) return !!(_configuredByProvider[p] || (p === 'openrouter' && _configured));
     if (!!readScoped(LS.key, p)) return true;              // a real key is stored in this browser
@@ -629,7 +632,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider || getProv());
     const baseUrl = getBaseUrl(p) || '';
     const credentialSaved = hasStoredCredential(p);
-    const endpointConfigured = p === 'ollama' || (p === 'custom' && !!baseUrl);
+    const endpointConfigured = p === 'ollama' || p === 'claude-cli' || (p === 'custom' && !!baseUrl);
     const selected = p === getProv();
     const fallback = { provider: p, credentialSaved, endpointConfigured, reachable: false, catalogAvailable: false, credentialVerified: false, selected, error: 'station unreachable' };
     if (p === 'custom' && !endpointConfigured) return Object.assign({}, fallback, { error: 'endpoint not configured' });

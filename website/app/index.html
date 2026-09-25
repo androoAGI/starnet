@@ -225,6 +225,9 @@
                 <button class="prov tail" data-prov="perplexity" aria-pressed="false">PERPLEXITY</button>
                 <button class="prov tail" data-prov="cerebras" aria-pressed="false">CEREBRAS</button>
                 <button class="prov tail" data-prov="custom" aria-pressed="false">CUSTOM</button>
+                <!-- CLAUDE CLI: the locally installed Claude Code CLI as the brain — no key; its own sign-in is the
+                     credential. #claude-cli-block below reports what the sidecar actually detected. -->
+                <button class="prov" data-prov="claude-cli" aria-pressed="false">CLAUDE CLI</button>
                 <!-- label is COMPUTED by setProviderRowExpanded() from the live .prov.tail count — never hardcoded -->
                 <button type="button" id="prov-more" class="prov-more" aria-expanded="false">＋ MORE</button>
               </div>
@@ -281,6 +284,16 @@
               <div class="codex-signin">
                 <div id="ollama-status" class="codex-status">checking for ollama on this machine…</div>
                 <div class="dim hint" id="ollama-hint">Free and fully local — no key, no account, no bill. Needs <b>Ollama</b> installed and running on this machine (ollama.com), with at least one model pulled (e.g. <code>ollama pull llama3.1</code>). Honest caveat: local models are smaller than the cloud ones — expect slower, rougher work on long tasks.</div>
+              </div>
+            </div>
+
+            <!-- CLAUDE CLI block — same shape as #ollama-block. #claude-cli-status is a PROJECTION of the sidecar's
+                 catalog for the claude-cli provider, which it only lists after `claude auth status` proves the CLI is
+                 installed and signed in (app.js loadModels). -->
+            <div id="claude-cli-block" class="hidden">
+              <div class="codex-signin">
+                <div id="claude-cli-status" class="codex-status">checking for the Claude CLI on this machine…</div>
+                <div class="dim hint" id="claude-cli-hint">Uses the <b>Claude Code</b> CLI already installed on this computer (<code>claude</code>), with the Claude account or key it is signed in with — no key is stored here. StarNet keeps every CLI tool switched off and runs its own tools, so your station's permissions still apply. A subscription sign-in is booked at $0 per turn; an API-key sign-in is booked at the cost the CLI reports.</div>
               </div>
             </div>
 

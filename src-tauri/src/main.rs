@@ -2795,9 +2795,11 @@ fn harness_store_provider_key(
     let mut rollback: Option<(keyring::Entry, Option<String>)> = None;
     if let Some(ref key_value) = key_trimmed {
         // codex + the device-OAuth providers (grok/kimi) authenticate by OAuth token (sidecar-owned), not a
-        // keychain API key; ollama is keyless. None of them get a keychain entry.
+        // keychain API key; ollama and claude-cli (the local CLI's own sign-in) are keyless. None of them get a
+        // keychain entry.
         if provider_id != "codex"
             && provider_id != "ollama"
+            && provider_id != "claude-cli"
             && provider_id != "grok"
             && provider_id != "kimi"
         {
