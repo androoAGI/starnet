@@ -25,6 +25,7 @@ const SHIPPED_INPUTS: &[&str] = &[
     "Cargo.toml",
     "Cargo.lock",
     "tauri.conf.json",
+    "tauri.linux.conf.json",
 ];
 
 // git describe --dirty intentionally ignores untracked files. These are the repository-relative

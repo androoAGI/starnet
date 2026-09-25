@@ -8,8 +8,9 @@ StarNet's public release train supports **Windows and macOS**:
 | **macOS — Apple Silicon** (M1/M2/M3/M4) | `StarNet_<version>_aarch64.dmg` |
 | **macOS — Intel** | `StarNet_<version>_x64.dmg` |
 
-Linux packages may be produced by the manual/internal desktop-build workflow, but Linux is not
-part of the public release train and is not a supported release target.
+Linux is not yet a supported public release target. Linux x86_64 and ARM64 packages can be
+built from source or obtained as CI artifacts; see [Linux installation and testing](docs/LINUX.md).
+The public releases page does not currently contain Linux installers or Linux automatic updates.
 
 Download from the [StarNet releases page](https://github.com/androoAGI/starnet-releases/releases/latest).
 Use only an asset attached to the release you intend to install.

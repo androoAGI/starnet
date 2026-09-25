@@ -50,6 +50,9 @@ jobs:
           - os: ubuntu-22.04
             target: linux-x64
             bundles: deb,appimage
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            bundles: deb,appimage
           # app,dmg — NOT dmg alone: the mac updater artifact (.app.tar.gz + .sig) only exists
           # when the `app` target builds. dmg-only silently produces no updater feed artifacts
           # (Tauri warns and moves on), which is how the v0.8.0 mac cut lost its tarballs twice.
@@ -77,7 +80,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
-            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf
 
       - uses: dtolnay/rust-toolchain@stable
         with:

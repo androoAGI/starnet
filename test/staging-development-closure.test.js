@@ -3,7 +3,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),asse
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'starnet-staging-'));
 const put=(name,body='')=>{const p=path.join(root,name);fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,body);};
 try{
- for(const name of ['scripts/stage-voice-deps.mjs','scripts/lib/staged-native-packages.mjs'])put(name,fs.readFileSync(path.resolve(__dirname,'..',name)));
+ for(const name of ['scripts/stage-voice-deps.mjs','scripts/lib/staged-native-packages.mjs','scripts/prepare-linux-native.mjs'])put(name,fs.readFileSync(path.resolve(__dirname,'..',name)));
  put('package.json',JSON.stringify({dependencies:{'onnxruntime-node':'1'}}));
  const packages={'node_modules/@fixture/dev':{dev:true},'node_modules/onnxruntime-node':{},'node_modules/shared':{},'node_modules/optional':{devOptional:true},'node_modules/shared/node_modules/nested-dev':{dev:true}};
  put('package-lock.json',JSON.stringify({packages}));

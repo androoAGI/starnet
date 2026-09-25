@@ -1,4 +1,4 @@
-/* node test/shell.process-tree.test.js — real Windows foreground abort tree cleanup.
+/* node test/shell.process-tree.test.js — real foreground abort tree cleanup.
 
    The shell leader is deliberately separated from a parent Node process and its grandchild. On Windows,
    killing that leader before taskkill inspects `/T` loses the only process-tree root and leaves both Node
@@ -15,6 +15,12 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function alive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (process.platform === 'linux') {
+    try {
+      const stat = fs.readFileSync('/proc/' + pid + '/stat', 'utf8');
+      if (stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z ')) return false;
+    } catch (_) { return false; }
+  }
   try { process.kill(pid, 0); return true; } catch (_) { return false; }
 }
 
@@ -31,6 +37,10 @@ async function waitFor(read, timeoutMs) {
 function reap(pid) {
   return new Promise(resolve => {
     if (!alive(pid)) return resolve();
+    if (process.platform !== 'win32') {
+      try { process.kill(pid, 'SIGKILL'); } catch (_) {}
+      return resolve();
+    }
     let killer;
     try { killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); }
     catch (_) { return resolve(); }
@@ -40,11 +50,6 @@ function reap(pid) {
 }
 
 (async () => {
-  if (process.platform !== 'win32') {
-    A.ok(true, 'Windows-only process-tree regression is intentionally skipped');
-    return A.report('shell.process-tree.test');
-  }
-
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-shell-tree-'));
   const grandFile = path.join(root, 'grand.js');
   const parentFile = path.join(root, 'parent.js');
@@ -52,6 +57,7 @@ function reap(pid) {
   let pids = null;
   let runPromise = null;
   let settled = false;
+  const unrelated = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
 
   fs.writeFileSync(grandFile, "'use strict'; setInterval(() => {}, 1000);\n");
   fs.writeFileSync(parentFile,
@@ -65,7 +71,7 @@ function reap(pid) {
   try {
     const ac = new AbortController();
     const cmd = '"' + process.execPath + '" "' + parentFile + '"';
-    runPromise = runCommand({ spawn, cmd, cwd: root, timeoutMs: 30000, maxBytes: 1024, signal: ac.signal, isWin: true });
+    runPromise = runCommand({ spawn, cmd, cwd: root, timeoutMs: 30000, maxBytes: 1024, signal: ac.signal, isWin: process.platform === 'win32' });
     runPromise.then(() => { settled = true; }, () => { settled = true; });
 
     pids = await waitFor(() => {
@@ -80,7 +86,9 @@ function reap(pid) {
     A.eq(alive(pids && pids.parent), false, 'abort reaps the command parent');
     A.eq(alive(pids && pids.grandchild), false, 'abort reaps the command grandchild');
     A.eq(settled, true, 'foreground run settles after abort cleanup');
+    A.eq(alive(unrelated.pid), true, 'abort leaves unrelated processes alive');
   } finally {
+    unrelated.kill();
     if (pids) {
       await reap(pids.grandchild);
       await reap(pids.parent);

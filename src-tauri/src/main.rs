@@ -1527,7 +1527,13 @@ fn wait_for_port_or_exit(
 /// Resolve the Node runtime. Packaged builds ship one via Tauri externalBin;
 /// dev builds fall back to the system PATH.
 fn node_binary(root: &Path) -> PathBuf {
-    let name = if cfg!(windows) { "node.exe" } else { "node" };
+    let name = if cfg!(windows) {
+        "node.exe"
+    } else if cfg!(target_os = "linux") {
+        "starnet-node"
+    } else {
+        "node"
+    };
     let root_candidate = root.join(name);
     if root_candidate.exists() {
         return root_candidate;
@@ -1560,6 +1566,7 @@ fn node_binary(root: &Path) -> PathBuf {
 /// fallback `node_binary()` returns (`PathBuf::from("node")`, resolved via PATH) is relative,
 /// and reaping by it would pattern-match EVERY node.exe on the system (dev servers, other
 /// apps). Kept side-effect-free so it is unit-testable.
+#[cfg(any(windows, target_os = "macos", test))]
 fn is_reapable_node_path(node: &Path) -> bool {
     node.is_absolute() && node.file_name().is_some()
 }
@@ -1797,7 +1804,7 @@ fn reap_orphan_sidecars(node: &Path, startup_log: &Option<PathBuf>) -> usize {
     let _ = node;
     log_startup(
         startup_log,
-        "sidecar-reap: this platform has no exact-image reaper wired",
+        "sidecar-reap: no image scan; Linux sidecar monitors its desktop parent",
     );
     0
 }
@@ -1864,6 +1871,10 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     set_sidecar_branded_env(&mut cmd, "SKYNET_IPC_TOKEN", &state.ipc_token);
     set_sidecar_branded_env(&mut cmd, "SKYNET_API_TOKEN", &state.api_token);
     set_sidecar_branded_env(&mut cmd, "SKYNET_WORKSPACES", state.workspaces.as_os_str());
+    // A Linux shell crash must not leave the backend holding workspace locks.
+    // The sidecar checks its real parent, including across AppImage mount changes.
+    #[cfg(target_os = "linux")]
+    cmd.env("STARNET_DESKTOP_PARENT_PID", std::process::id().to_string());
     if let Some(key) = read_key() {
         set_sidecar_branded_env(&mut cmd, "SKYNET_OPENROUTER_KEY", key);
     }
@@ -3462,6 +3473,9 @@ async fn starnet_update_check(
     app: AppHandle,
     pending_update: State<'_, PendingUpdate>,
 ) -> Result<UpdateCheck, String> {
+    if cfg!(target_os = "linux") {
+        return Err("Linux builds currently use manual updates. Install a newer .deb or AppImage from the same build source; your station data is stored separately.".into());
+    }
     // WINDOWS UPDATE-HANG FIX (canary-proven 2026-07-14): the NSIS installer the updater
     // launches must overwrite the bundled node.exe — but our sidecar is STILL RUNNING from
     // that same node runtime, so it holds a write lock and NSIS freezes on an "error opening

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "externalBin": ["binaries/starnet-node"],
+    "createUpdaterArtifacts": false,
+    "linux": {
+      "deb": {
+        "depends": ["libdbus-1-3", "xdg-utils", "zenity", "gstreamer1.0-plugins-good"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
+  }
+}

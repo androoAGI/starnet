@@ -15,6 +15,8 @@ A map of the ~95 files in `docs/`. They fall into four buckets: **living referen
 The docs closest to "how the thing is shaped." Still dated in spirit, but these describe
 durable structure rather than a one-time task.
 
+- [LINUX.md](LINUX.md) — native x86_64/ARM64 builds, package installation, limitations, and lifecycle smoke checks.
+
 - **BRAIN.md** — 5-minute orientation for any session opening the repo; the fastest on-ramp to
   StarNet's core concept (local-first AI-agent harness rendered as a pixel-art station).
 - **HARNESS_ARCHITECTURE.md** — engineering reference for the sidecar/backend: the target

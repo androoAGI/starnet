@@ -143,7 +143,7 @@
     "serve:ui-only": "node scripts/serve-ui-only.js",
     "tauri": "tauri",
     "desktop:prepare": "node scripts/prepare-node.mjs",
-    "desktop:dev": "node scripts/prepare-node.mjs && node scripts/stage-frontend-dist.mjs && tauri dev",
+    "desktop:dev": "node scripts/prepare-node.mjs && node scripts/prepare-linux-native.mjs && node scripts/stage-frontend-dist.mjs && tauri dev",
     "desktop:build": "node scripts/prepare-node.mjs && node scripts/stage-voice-deps.mjs && node scripts/stage-frontend-dist.mjs && tauri build",
     "desktop:stage-frontend": "node scripts/stage-frontend-dist.mjs",
     "desktop:icon": "tauri icon src-tauri/icon-source.png",

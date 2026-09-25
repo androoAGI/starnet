@@ -26,6 +26,7 @@ npm run test:fast
 The Node sidecar itself has no runtime npm dependencies and can be started with
 `node sidecar/index.js`. Desktop development additionally requires Rust and the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+For Linux x86_64/ARM64 builds and packaged lifecycle checks, see [docs/LINUX.md](docs/LINUX.md).
 
 ## Pull-request workflow
 

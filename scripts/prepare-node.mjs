@@ -6,7 +6,7 @@
 // src-tauri/binaries, then copies it beside the packaged app executable.
 //
 // Run directly:        node scripts/prepare-node.mjs            (auto-detects the host OS/arch)
-// Cross-target:        node scripts/prepare-node.mjs linux-x64  (or darwin-arm64 / darwin-x64 / win-x64)
+// Cross-target:        node scripts/prepare-node.mjs linux-x64  (or linux-arm64 / darwin-arm64 / darwin-x64 / win-x64)
 // Override version:    SKYNET_BUNDLE_NODE=v22.23.2
 //
 // Windows ships Node as a bare node.exe; macOS/Linux ship a .tar.gz whose bin/node we extract via `tar`.
@@ -27,6 +27,7 @@ const TARGETS = {
   'darwin-arm64': { triple: 'aarch64-apple-darwin',     dist: 'node-${V}-darwin-arm64.tar.gz', sha: 'node-${V}-darwin-arm64.tar.gz', ext: '',     member: 'node-${V}-darwin-arm64/bin/node' },
   'darwin-x64':   { triple: 'x86_64-apple-darwin',      dist: 'node-${V}-darwin-x64.tar.gz',   sha: 'node-${V}-darwin-x64.tar.gz',   ext: '',     member: 'node-${V}-darwin-x64/bin/node' },
   'linux-x64':    { triple: 'x86_64-unknown-linux-gnu', dist: 'node-${V}-linux-x64.tar.gz',    sha: 'node-${V}-linux-x64.tar.gz',    ext: '',     member: 'node-${V}-linux-x64/bin/node' },
+  'linux-arm64':  { triple: 'aarch64-unknown-linux-gnu', dist: 'node-${V}-linux-arm64.tar.gz', sha: 'node-${V}-linux-arm64.tar.gz', ext: '',     member: 'node-${V}-linux-arm64/bin/node' },
 };
 
 // host OS/arch -> a TARGETS key. Keeps the default (no-arg) behavior = "bundle for THIS machine", so a
@@ -34,7 +35,7 @@ const TARGETS = {
 export function defaultTarget(platform = process.platform, arch = process.arch) {
   if (platform === 'win32') return 'win-x64';
   if (platform === 'darwin') return arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64';
-  if (platform === 'linux') return 'linux-x64';
+  if (platform === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}`;
   throw new Error(`unsupported host platform ${platform}/${arch}; pass an explicit target (${Object.keys(TARGETS).join(', ')})`);
 }
 
@@ -50,7 +51,8 @@ export function resolveTarget(target = defaultTarget(), version = NODE_VERSION) 
     distUrl: `${base}/${sub(t.dist)}`,
     shasumsUrl: `${base}/SHASUMS256.txt`,
     shasumEntry: sub(t.sha),
-    outName: `node-${t.triple}${t.ext}`,
+    // Debian installs externalBin into /usr/bin. Never replace the host's Node.
+    outName: `${target.startsWith('linux-') ? 'starnet-node' : 'node'}-${t.triple}${t.ext}`,
     member: sub(t.member),       // null = bare binary (win); else extract this path from the tarball
   };
 }

@@ -632,6 +632,12 @@
         return;
       }
     }
+    // POSIX foreground commands own a process group (see detached below).
+    // Killing only /bin/sh leaves descendants holding stdout open and running
+    // after cancellation. Signal only this command's group, never our own.
+    if (!isWin && Number.isInteger(child.pid) && child.pid > 1) {
+      try { process.kill(-child.pid, 'SIGKILL'); return; } catch (_) {}
+    }
     try { child.kill(); } catch (_) {}
     try {
       if (child.pid) process.kill(child.pid, 'SIGKILL');
@@ -682,6 +688,7 @@
       // environment exactly as before. Commander-defined exec commands pass a sanitized copy, because the
       // sidecar's env holds provider keys and a user snippet has no business reading them.
       const spawnOpts = { cwd: cwd, shell: true, windowsHide: true };
+      if (!isWin) spawnOpts.detached = true; // Own a group for timeout/abort; pipes remain attached.
       if (opts.env) spawnOpts.env = opts.env;
       try { child = spawn(cmd, spawnOpts); }
       catch (e) { return reject(new Error('could not start shell: ' + ((e && e.message) || e))); }

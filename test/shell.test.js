@@ -80,17 +80,17 @@ const SLEEP = process.platform === 'win32' ? 'ping -n 5 127.0.0.1 > NUL' : 'slee
        "green" to nobody. Driven through a REAL child process so this proves the actual pipe, not a helper. ---- */
     const ESC = String.fromCharCode(27), BEL = String.fromCharCode(7);
     /* Driven through a REAL child process reading a REAL file, so this proves the actual pipe rather than a
-       helper in isolation. `type` rather than a `node -e` one-liner on purpose: the shell floor refuses
+       helper in isolation. `type`/`cat` rather than a `node -e` one-liner on purpose: the shell floor refuses
        commands that launch a native runtime, and a backslash in the command string trips the UNC-path guard —
        both would fail the test for reasons having nothing to do with ANSI. */
-    // shell.exec runs in the AGENT's jail (root/<agentId>), not the root itself — `type` resolves relative
+    // shell.exec runs in the AGENT's jail (root/<agentId>), not the root itself — the reader resolves relative
     // to that cwd, so the fixture has to land there.
     fs.mkdirSync(path.join(root, 'a1'), { recursive: true });
     fs.writeFileSync(path.join(root, 'a1', 'ansi.txt'),
       ESC + '[32mBUILD OK' + ESC + '[0m' + '\n' +
       ESC + ']0;window title' + BEL + ESC + '[2KPROGRESS' + ESC + '[1A' + '\n' +
       'array[32m] and a [0m literal' + '\n');
-    const rAnsi = await tool.run({ cmd: 'type ansi.txt' }, ctx());
+    const rAnsi = await tool.run({ cmd: (process.platform === 'win32' ? 'type' : 'cat') + ' ansi.txt' }, ctx());
     A.ok(rAnsi.content.indexOf('BUILD OK') >= 0, 'the actual text survives the strip');
     A.ok(rAnsi.content.indexOf(ESC) < 0, 'no raw ESC byte reaches the model');
     A.ok(!/\[32m\b|\[0m\b/.test(rAnsi.content.split('array')[0]), 'the colour codes are gone, not just the ESC');

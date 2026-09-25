@@ -554,6 +554,7 @@ test/session-power-tools.test.js
 test/session-creation.test.js
 test/projects-view.test.js
 test/prepare-node.test.js
+test/desktop-parent.test.js
 test/summon.id.test.js
 test/summon-desk-prompt.test.js
 test/recruit-identity-ui.test.js
