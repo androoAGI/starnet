@@ -76,7 +76,9 @@ Windows installer passes Authenticode and timestamp verification, both Mac build
 Developer ID checks and Apple notarization, and every updater artifact has a valid updater
 signature. Those are pipeline requirements, not proof that a particular downloaded or installed
 copy was tested on your machine; [INSTALL.md](INSTALL.md) explains what to verify and when to stop.
-Linux packages are internal build artifacts only and are not a supported public release target.
+Linux x86_64 and ARM64 can be built from source as `.deb` and AppImage packages;
+see the [Linux guide](docs/LINUX.md) for dependencies, installation, testing, and limitations.
+Linux packages are not yet published by the public release train.
 
 > **Early release:** Windows is the most-tested desktop target. macOS has less real-world
 > coverage. Broken? Tell us:

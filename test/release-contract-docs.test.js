@@ -26,7 +26,7 @@ assert.match(buildMatrix[0], /target: darwin-x64/);
 assert.doesNotMatch(buildMatrix[0], /target: linux/,
   'the tagged public release train does not build a Linux leg');
 
-assert.match(install, /Linux is not[\s\S]{0,80}supported release target/i,
+assert.match(install, /Linux is not[\s\S]{0,80}supported (?:public )?release target/i,
   'install guide says Linux is not a supported public target');
 assert.match(readme, /pipeline requirements, not proof/i,
   'README distinguishes workflow requirements from installed evidence');

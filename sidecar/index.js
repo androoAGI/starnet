@@ -9964,6 +9964,10 @@ if (require.main === module) {
   try {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    require('./desktop-parent.js').watchDesktopParent({
+      parentPid: process.env.STARNET_DESKTOP_PARENT_PID,
+      shutdown: gracefulShutdown
+    });
     process.on('SIGBREAK', () => gracefulShutdown('SIGBREAK'));   // Windows console Ctrl+Break (harmless elsewhere)
   } catch (_) {}
 }

@@ -29,7 +29,7 @@ const { createHash } = require('node:crypto');
   A.eq(l.distUrl, 'https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-x64.tar.gz', 'linux tarball url');
   A.eq(l.shasumEntry, 'node-v22.12.0-linux-x64.tar.gz', 'linux shasum entry is the tarball');
   A.eq(l.member, 'node-v22.12.0-linux-x64/bin/node', 'linux extracts bin/node from the tarball');
-  A.eq(l.outName, 'node-x86_64-unknown-linux-gnu', 'linux output filename (no .exe)');
+  A.eq(l.outName, 'starnet-node-x86_64-unknown-linux-gnu', 'Linux runtime cannot overwrite /usr/bin/node');
 
   // ---- darwin (both arches) ----
   const da = m.resolveTarget('darwin-arm64', 'v22.12.0');
@@ -48,6 +48,13 @@ const { createHash } = require('node:crypto');
   A.eq(m.defaultTarget('darwin', 'arm64'), 'darwin-arm64', 'darwin/arm64 -> darwin-arm64');
   A.eq(m.defaultTarget('darwin', 'x64'), 'darwin-x64', 'darwin/x64 -> darwin-x64');
   A.eq(m.defaultTarget('linux', 'x64'), 'linux-x64', 'linux -> linux-x64');
+  A.eq(m.defaultTarget('linux', 'arm64'), 'linux-arm64', 'Linux ARM64 selects its native runtime');
+  A.throws(() => m.defaultTarget('linux', 'arm'), 'unsupported Linux architecture must not silently bundle x64');
+  const la = m.resolveTarget('linux-arm64', 'v22.12.0');
+  A.eq(la.triple, 'aarch64-unknown-linux-gnu', 'Linux ARM64 triple');
+  A.eq(la.distUrl, 'https://nodejs.org/dist/v22.12.0/node-v22.12.0-linux-arm64.tar.gz', 'Linux ARM64 archive');
+  A.eq(la.member, 'node-v22.12.0-linux-arm64/bin/node', 'Linux ARM64 archive member');
+  A.eq(la.outName, 'starnet-node-aarch64-unknown-linux-gnu', 'Linux ARM64 namespaced runtime');
   A.throws(() => m.defaultTarget('aix', 'ppc'), 'an unsupported host platform throws');
 
   // ---- unknown target is a clear error, not a silent wrong download ----

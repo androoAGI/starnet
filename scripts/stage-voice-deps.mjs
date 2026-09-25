@@ -18,6 +18,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statS
 import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isUnusedMuslSharp, isUnusedDesktopAccelerator, isDevelopmentOnlyPackage } from './lib/staged-native-packages.mjs';
+import { prepareLinuxNative } from './prepare-linux-native.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -28,7 +29,7 @@ const argVal = (name, dflt) => {
 const TARGET = argVal('--target', '');
 const targetMatch = /^(win|darwin|linux)-(x64|arm64)$/.exec(TARGET);
 if (TARGET && !targetMatch) {
-  console.error('stage-voice-deps: unsupported --target ' + TARGET + ' (expected win-x64, darwin-x64, darwin-arm64, or linux-x64)');
+  console.error('stage-voice-deps: unsupported --target ' + TARGET + ' (expected win-x64, darwin-x64, darwin-arm64, linux-x64, or linux-arm64)');
   process.exit(1);
 }
 const targetPlatform = targetMatch ? ({ win: 'win32', darwin: 'darwin', linux: 'linux' })[targetMatch[1]] : process.platform;
@@ -126,6 +127,11 @@ function purgeStaleReleasePackages() {
       const childPath = join(dir, child.name);
       if (!child.isDirectory()) {
         if (child.isFile() && isUnusedDesktopAccelerator(childPath, PLATFORM)) rmSync(childPath, { force: true });
+        // Removed by prepareLinuxNative in the fresh stage. Do not let a warm
+        // Tauri resource tree reintroduce an unnamespaced copy of the same ABI.
+        if (PLATFORM === 'linux' && /[/\\]onnxruntime-node[/\\]bin[/\\]napi-v\d+[/\\]linux[/\\](?:x64|arm64)[/\\]libonnxruntime\.so\.1$/.test(childPath)) {
+          rmSync(childPath, { force: true });
+        }
         continue;
       }
       if (isDevelopmentOnlyPackage('node_modules/' + relative(packageRoot, childPath), lockedPackages) || DROP_ANYWHERE.has(child.name) || isUnusedMuslSharp(dir.split(/[\\/]/).pop(), child.name, PLATFORM)) {
@@ -171,6 +177,7 @@ for (const entry of readdirSync(SRC, { withFileTypes: true })) {
 }
 const afterCopy = dirSize(dest);
 const pruned = pruneOnnxBinaries(dest);
+prepareLinuxNative(dest, PLATFORM, ARCH);
 
 // Drop the browser-only packages and debug maps, at any nesting depth.
 let extraFreed = 0;

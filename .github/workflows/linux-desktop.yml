@@ -1,0 +1,79 @@
+name: linux-desktop
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/**'
+      - 'sidecar/**'
+      - 'shared/**'
+      - 'frontend/**'
+      - 'scripts/**'
+      - 'package*.json'
+      - '.github/workflows/linux-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: linux-${{ matrix.arch }}
+      - name: Install build and smoke dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev \
+            patchelf dbus-x11 xvfb openbox xdotool wmctrl gnome-keyring
+      - run: npm ci
+      - name: Build native Linux packages
+        run: npm run desktop:build -- -- --locked
+      - name: Rust regression tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Install and exercise Debian package
+        run: |
+          sudo apt-get install --reinstall -y ./src-tauri/target/release/bundle/deb/*_${{ matrix.arch }}.deb
+          xvfb-run -a -s '-screen 0 1440x1000x24' dbus-run-session -- sh -c '
+            openbox >/tmp/starnet-openbox.log 2>&1 &
+            node scripts/verify-linux-desktop.mjs /usr/bin/skynet-desktop
+          '
+      - name: Exercise AppImage without requiring FUSE
+        run: |
+          image=$(realpath src-tauri/target/release/bundle/appimage/*.AppImage)
+          mkdir "$RUNNER_TEMP/starnet-appimage"
+          cd "$RUNNER_TEMP/starnet-appimage"
+          "$image" --appimage-extract >/dev/null
+          xvfb-run -a -s '-screen 0 1440x1000x24' dbus-run-session -- sh -c '
+            openbox >/tmp/starnet-openbox.log 2>&1 &
+            node "$GITHUB_WORKSPACE/scripts/verify-linux-desktop.mjs" "$PWD/squashfs-root/AppRun"
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starnet-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
