@@ -1,0 +1,41 @@
+[Unit]
+Description=StarNet private browser server
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=starnet
+Group=starnet
+WorkingDirectory=/var/lib/starnet
+StateDirectory=starnet
+StateDirectoryMode=0700
+UMask=0077
+Environment=HOME=/var/lib/starnet
+Environment=STARNET_WORKSPACES=/var/lib/starnet/workspaces
+Environment=STARNET_PORT=8787
+EnvironmentFile=-/etc/starnet/server.env
+ExecStart=/usr/bin/node /opt/starnet-server/sidecar/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+CapabilityBoundingSet=
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target
