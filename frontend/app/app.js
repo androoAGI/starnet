@@ -11,6 +11,74 @@ const App = (() => {
   // CRT-muted crew suit tints — distinct per crew member but passed through the amber-phosphor grade (no pure neons). Last entry stays gold to match ORCH_COLOR.
   const SUITS = ['#6fb3bf', '#7bc88a', '#d99a5a', '#a888c0', '#cf7d96', '#ffd34a'];
 
+  /* ---- stale-token recovery (2026-09-23 report #39) --------------------------------------
+     The API token is a PER-LAUNCH secret that the sidecar injects into the page it serves
+     (see sidecar/apiauth.js), so a sidecar restart mints a NEW one and every request from the
+     still-open page is rejected. Nothing said so. The one dead token showed up as four
+     unrelated symptoms — "catalog offline", "Failed to fetch", "report export failed", and a
+     save that looked like it landed and then reverted — so a token problem read as a network
+     or credential problem on the user's side. A reload is the cure in every case, because
+     re-serving the page injects the token that is current.
+
+     So watch for a 403 on an /api/ route and reload ONCE. The sessionStorage marker is what
+     makes this safe rather than clever: it is set before the reload and cleared by the first
+     /api/ response that is NOT a 403, so a page that is genuinely broken (bad origin or host,
+     no token at all) costs one extra reload and then reports itself instead of looping. The
+     marker surviving the reload is also what lets the message below say what happened.
+
+     Deliberately narrow. Same-origin /api/ paths only, so third-party fetches are untouched;
+     the token-exempt routes from apiauth.js are skipped; only 403 counts. Reading .status
+     never touches the body, so no caller sees a consumed stream. */
+  const STALE_TOKEN_MARK = 'starnet.staleTokenReload';
+  const TOKEN_EXEMPT_UI = new Set(['/api/key', '/api/channels/token', '/api/health',
+    '/api/spotify/callback', '/api/connectors/oauth/callback', '/api/channels/events']);
+  const tokenGatedPath = (input) => {
+    try {
+      const raw = typeof input === 'string' ? input : (input && input.url) || '';
+      if (!raw) return false;
+      const u = new URL(raw, location.href);
+      if (u.origin !== location.origin) return false;        // never react to a third-party fetch
+      if (u.pathname.indexOf('/api/') !== 0) return false;   // static assets and catalogs are not gated
+      return !TOKEN_EXEMPT_UI.has(u.pathname);
+    } catch (_) { return false; }
+  };
+  const sayStale = (message, kind) => {
+    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(message, kind);
+  };
+  // sessionStorage throws SecurityError outright in a sandboxed/custom-scheme context, and this runs
+  // INSIDE the .then that hands the response back — an unguarded throw here would reject the caller's
+  // fetch and break a working request. Read and write through a guard that degrades to "no marker",
+  // which only costs the one-shot reload, never correctness.
+  const staleMark = {
+    get() { try { return sessionStorage.getItem(STALE_TOKEN_MARK); } catch (_) { return null; } },
+    set() { try { sessionStorage.setItem(STALE_TOKEN_MARK, '1'); } catch (_) {} },
+    clear() { try { sessionStorage.removeItem(STALE_TOKEN_MARK); } catch (_) {} }
+  };
+  if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      const gated = tokenGatedPath(input);
+      return nativeFetch(input, init).then((response) => {
+        if (!gated) return response;
+        if (response.status === 403) {
+          if (staleMark.get()) {
+            // Already reloaded once for this and still rejected: a real fault, so name it and stop.
+            sayStale('station service is running but refused this window again after a reload — send the save-gate recovery code to support', 'warn');
+          } else {
+            staleMark.set();
+            sayStale('station service restarted — this window has a stale session, reloading', 'warn');
+            setTimeout(() => { try { location.reload(); } catch (_) {} }, 1200);
+          }
+        } else if (response.ok && staleMark.get()) {
+          // The new token is working. Re-arm, so the next genuine restart is handled again.
+          staleMark.clear();
+          sayStale('reconnected — the station service restarted and this window reloaded', 'good');
+        }
+        return response;
+      });
+    };
+  }
+
   let agent = null;           // the FOCUSED agent — COMMS + camera target. Every existing `agent.` reference still
                               //   reads "the agent in front of you"; summon adds more, focus repoints this pointer.
   const agents = new Map();   // agentId -> agent object (hero + summoned crew) — the live multi-agent roster
@@ -5050,6 +5118,12 @@ const App = (() => {
           const timer = setInterval(async () => {
             try {
               const probe = await fetch('/api/lineage', { cache: 'no-store' });
+              // A 403 here is NOT "not ready yet". The restart that start-fresh asks for has already
+              // happened, and it minted a new per-launch token while this page still holds the old
+              // one — so the very thing being polled can never answer. Keep waiting and the button
+              // stays greyed out forever after an operation that in fact SUCCEEDED (2026-09-23 #39).
+              // Reloading re-serves the page with the token that is current.
+              if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
               const body = probe.ok ? await probe.json() : null;
               if (body && body.lineage && body.lineage.priorInstallEvidence === false) { clearInterval(timer); location.reload(); }
             } catch (_) {}
