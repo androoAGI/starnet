@@ -174,10 +174,23 @@
       }
     };
 
+    const layoutTool = {
+      name: 'station.layout', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      description: 'Read the station floor as data: rooms (with furniture counts), every assembly line (its Inbox label, each Bay step in hand-off order with the assigned agent, the Bay brief, who it sends work to, and whether it reaches the Outbox), open routing issues, and which agent holds which workstation or prop. Use it before explaining, troubleshooting, or suggesting changes to Bays and assembly lines instead of guessing. Read-only: it does not assign agents, edit Bay briefs, or change the layout. Requires an open station page.',
+      schema: { type: 'object', properties: {} },
+      run: async () => {
+        const out = await ask('station.layout', {});
+        if (!out.ok) return refuse(out.error);
+        const r = out.result || {};
+        const lines = (r.lines || []).length, rooms = (r.rooms || []).length;
+        return { content: JSON.stringify(r), summary: rooms + ' room(s), ' + lines + ' assembly line(s)' };
+      }
+    };
+
     return {
-      agentConfigTool, agentConfigureTool,
+      agentConfigTool, agentConfigureTool, layoutTool,
       listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool,
-      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool].forEach(t => reg.register(t)); return reg; }
+      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool, layoutTool].forEach(t => reg.register(t)); return reg; }
     };
   }
 

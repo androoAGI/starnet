@@ -114,7 +114,7 @@ function stubBridge(impl) {
     "peek's description carries the anti-guessing rule — the tool exists because a lead denied real work");
   const reg = { registered: [], register(x) { this.registered.push(x.name); } };
   t.register(reg);
-  A.eq(reg.registered.join(','), 'session.list,session.create,session.peek,session.focus,task.list,task.create,task.manage,team.config,team.configure', 'register() installs session, task, and crew configuration verbs');
+  A.eq(reg.registered.join(','), 'session.list,session.create,session.peek,session.focus,task.list,task.create,task.manage,team.config,team.configure,station.layout', 'register() installs session, task, crew configuration, and layout verbs');
 }
 
 /* ---- ⛔ THE CAPABILITY REGISTRY IS AN ALLOWLIST. A tool registered with the host but not declared in

@@ -133,7 +133,63 @@ const StationCommands = (() => {
     return { folded: true, session: ws.title || 'General', agentId: who, resolvedBy: hit.resolvedBy };
   }
 
+  /* The station floor as data, read from the SAME compiled routing plan the sidecar runs work on
+     (Pipeline.compileRoutingPlan + lineComponents over the live WorldModel geometry). Read-only: nothing here
+     assigns, moves, or saves. Step order follows the directed hand-offs, never the saved prop order. */
+  function describeLayout(st, agents) {
+    const names = {};
+    for (const a of (agents || [])) if (a && a.id) names[a.id] = a.name || a.id;
+    const who = id => id ? { agentId: id, name: names[id] || id } : null;
+    const roomName = (x, y) => { const id = st.roomAt(x, y); const r = id && st.roomById(id); return r ? (r.name || r.kind || id) : null; };
+    const props = st.props() || [];
+    const rooms = (st.rooms() || []).filter(r => r && r.kind !== 'corridor').map(r => {
+      const counts = {};
+      for (const p of props) if (st.roomAt(p.x, p.y) === r.id) counts[p.t] = (counts[p.t] || 0) + 1;
+      return { id: r.id, name: r.name || '', kind: r.kind, props: counts };
+    });
+    const geo = st.projectGeometry();
+    const plan = Pipeline.compileRoutingPlan(geo) || {};
+    const chains = plan.chains || {}, reach = plan.reach || {};
+    const byId = {}; for (const p of props) byId[p.id] = p;
+    const lines = (Pipeline.lineComponents(geo) || []).filter(c => c.intakes.length || c.bays.length || c.outboxes.length).map(c => {
+      const label = c.intakes.map(id => byId[id] && byId[id].label).find(Boolean) || null;
+      // Walk hand-offs from the steps the Inbox feeds; anything the walk cannot reach keeps its place at the end.
+      const agentIds = c.bays.map(b => b.agentId).filter(Boolean), seen = {}, order = [];
+      const queue = agentIds.filter(a => reach[a]);
+      while (queue.length) { const a = queue.shift(); if (seen[a] || agentIds.indexOf(a) < 0) continue; seen[a] = true; order.push(a); for (const n of ((chains[a] && chains[a].next) || [])) queue.push(n); }
+      const rank = b => b.agentId && seen[b.agentId] ? order.indexOf(b.agentId) : order.length;
+      const steps = c.bays.slice().sort((x, y) => rank(x) - rank(y)).map(b => {
+        const ch = b.agentId ? chains[b.agentId] : null, prop = byId[b.propId];
+        return {
+          // Geometry coordinates are projected; the room lookup uses the prop's own station tile.
+          propId: b.propId, room: prop ? roomName(prop.x, prop.y) : null, agent: who(b.agentId),
+          brief: String((prop && prop.brief) || ''),
+          fedByInbox: !!(b.agentId && reach[b.agentId]),
+          sendsTo: ch ? ((ch.next || []).map(who)) : [],
+          toOutbox: !!(ch && ch.outbox)
+        };
+      });
+      const issues = (plan.errors || []).filter(e => e && (c.props.indexOf(e.propId) >= 0 || (e.agentId && agentIds.indexOf(e.agentId) >= 0)))
+        .map(e => ({ code: e.code, propId: e.propId || null, label: typeof Build !== 'undefined' && Build.nagLabel ? Build.nagLabel(e.code) : e.code }));
+      return { lineId: c.key, name: label, inboxes: c.intakes.length, outboxes: c.outboxes.length, steps, issues };
+    });
+    const assignments = props.filter(p => p.agentId && p.t !== 'bay').map(p => ({
+      propId: p.id, type: p.t, room: roomName(p.x, p.y), agent: who(p.agentId),
+      grants: (typeof WorldModel !== 'undefined' && WorldModel.capForProp && WorldModel.capForProp(p.t)) || null
+    }));
+    return { rooms, lines, assignments };
+  }
+
   const VERBS = {
+    /* Read-only floor plan for the lead: rooms, assembly lines with their ordered steps and Bay briefs, and
+       which agent holds which workstation. Refuses honestly when the station or routing is not loaded. */
+    'station.layout': () => {
+      const st = typeof App !== 'undefined' && App.station ? App.station() : null;
+      if (!st || !st.projectGeometry || !st.rooms) throw new Error('the station layout is not ready yet');
+      if (typeof Pipeline === 'undefined' || !Pipeline.compileRoutingPlan || !Pipeline.lineComponents) throw new Error('workflow routing is not loaded on this page');
+      return describeLayout(st, typeof App !== 'undefined' && App.agents ? App.agents() : []);
+    },
+
     'station.agent_config': (args) => {
       if (typeof App === 'undefined' || !App.agents) throw new Error('the crew roster is not ready yet');
       const crew = App.agents();
