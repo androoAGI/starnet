@@ -17099,7 +17099,9 @@ async function runOnceCore(o) {
       if (error.message !== 'no such session') failNote('project.context', error);
     }
     teamNote = '\n\n[ORCHESTRATION] You are the lead orchestrator. You can build and direct a crew for the Commander:';
-    if (require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })) teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle simple work directly. '
+    if (require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })) teamNote += '\nCoordinate the Commander\'s existing station crew from this conversation. Handle only truly quick work directly: a trivial answer, a tiny clarification, or a result you can produce in a few seconds without meaningful research, browsing, or execution. '
+      + 'For research, multi-step investigation, browsing, or anything likely to keep this conversation occupied, prefer delegation over solo work. Reuse a suitable existing specialist first when their role fits and their status suggests they are available; if the right specialist does not exist yet, summon it instead of doing the whole job yourself. Your default stance is manager, not worker: stay available in this conversation, push substantive work outward, and review and synthesize results when specialists report back. '
+      + 'You are also the Commander\'s StarNet guide inside the app. Use the StarNet operator knowledge already in your prompt, the live harness truth from station.inspect, your current capabilities ground truth, and your memory/dossier facilities to track how far the Commander has progressed from onboarding toward autonomous use. Notice when a StarNet-native move would help — a prop to place, a room to build, a specialist to recruit, a routine to create, a connector to add, a session to split out, a workflow to route — and suggest it once, briefly, when it is genuinely useful. If the current goal is being slowed, blocked, or made clumsy by something the station is missing, name the concrete upgrade: the missing capability prop, the missing specialist, the missing connector route, the missing automation, or the missing session structure. Record that guidance in memory when you can so you do not keep repeating it. As the Commander shows they already know a surface or have successfully used it before, back off the teaching and bias toward concise orchestration. '
       + 'Use the agents the Commander has already created, choosing by their roles and instructions. '
       + 'Do not create a replacement crew or require a special General session. '
       + (projectConversation
@@ -17126,13 +17128,14 @@ async function runOnceCore(o) {
       if (track) anyTrack = true;
       lines.push('  - ' + aid + ' (' + (ident.name || aid) + ')' + (ident.role ? ' — ' + ident.role : '') + (track ? ' [' + track + ']' : ''));
     }
-    if (lines.length) teamNote += '\n• DELEGATE to your existing specialist crew with team.dispatch — call it with '
+    if (lines.length) teamNote += '\n• DELEGATE to your existing specialist crew with team.dispatch — this is the default path for any non-trivial task. Call it with '
       + 'workers:[{agentId, prompt}] and synthesize their returned results into your final answer:\n' + lines.join('\n')
       // only explain the bracket when at least one is actually present — a station with no proven crew stays
       // byte-identical to the pre-S3 briefing (no dangling legend for a notation nothing uses).
       + (anyTrack ? '\n  A [bracketed] note is that specialist\'s REAL track record on this station — earned from work the '
         + 'Commander rated and runs the harness watched finish. Use it to pick the right worker; it is evidence, not a '
         + 'permission level, and an agent without one is simply new, not worse.' : '');
+    if (lines.length) teamNote += '\n  For independent or longer specialist work, prefer background:true so the Commander can keep talking to you while the worker runs and reports back here.';
     teamNote += '\n• SPAWN temporary same-identity subagents with team.spawn for one-off parallel subtasks when no named specialist is needed. '
       + 'Use background:true for watchable long-running spawned workers, then inspect/control them with team.subagents, team.interrupt, and team.resume. '
       + 'When a running background worker needs a mid-flight correction or new information, use team.steer (pass the id and generation from team.subagents) instead of interrupting and restarting it.';
@@ -17143,7 +17146,8 @@ async function runOnceCore(o) {
       + '(e.g. "create a research agent for me"): pass a class via specId — one of: ' + classListLine + ' — '
       + 'or a custom name + purpose. It returns the new '
       + 'agentId, which you can immediately hand work to with team.dispatch. When the Commander asks you to create or '
-      + 'summon an agent, actually DO it with team.summon — don\'t just describe it or claim you cannot. '
+      + 'summon an agent, actually DO it with team.summon — don\'t just describe it or claim you cannot. When the '
+      + 'task clearly needs a specialist you do not have, summon it proactively rather than settling into a long solo run. '
       + 'For scheduled work, create StarNet routines with routine_create; if the work clearly belongs to a specialist '
       + '(research/news/latest => researcher/scout/analyst), target that agentId, or summon the specialist first.';
     teamNote += '\n• CREW CONFIGURATION: use team.config to read Dossier documents, then team.configure to edit the requested agent by exact ID. '
