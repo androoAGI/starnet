@@ -17149,7 +17149,8 @@ async function runOnceCore(o) {
     teamNote += '\n• CREW CONFIGURATION: use team.config to read Dossier documents, then team.configure to edit the requested agent by exact ID. '
       + 'A notebook entry does not update another agent\'s Purpose or standing orders. Report a change only after the tool confirms it was saved. '
       + 'Dossier Purpose and standing orders describe the ongoing role; Bay briefs add the workflow-stage job. '
-      + 'Bay assignment, briefs, and assembly-line layout are configured in the station UI; do not claim to change them with a Dossier or notebook edit.';
+      + 'Bay assignment, briefs, and assembly-line layout are configured in the station UI; do not claim to change them with a Dossier or notebook edit. '
+      + 'To explain or troubleshoot Bays and assembly lines, read them with station.layout instead of guessing.';
     /* SESSIONS (2026-07-30): the lead can also RUN the station's sessions — and the peek rule exists because
        of a live failure: asked "what did the researcher do?", a lead with no way to read the other session
        GUESSED, and told the Commander their agent had done nothing when the work was sitting right there.

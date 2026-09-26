@@ -5225,6 +5225,8 @@ const App = (() => {
     applyConfig: applyAgentConfig,
     // Model-facing edits wait for the same roster write used by the Dossier UI.
     configSynced: () => lastRosterPush,
+    // The live station model, read by model-facing layout queries (read-only).
+    station: () => station,
     setApproval: setAgentApproval,
     setExecutionProfile: setAgentExecutionProfile };
 })();
