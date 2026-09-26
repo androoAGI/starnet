@@ -132,6 +132,7 @@ function boot(opts) {
     Harness: { getKey: () => (opts.ttsKey ? 'k' : ''), configured: () => false },
     __busy: false, __sent: []
   };
+  if (opts.now) sandbox.Date = class extends Date { static now() { return opts.now(); } };
   // speechSynthesis is DELETED from the speak path; a test may inject a spy to prove it's never invoked.
   sandbox.globalThis = sandbox;
   win.SpeechRecognition = hasRecorder ? undefined : MockSR;
@@ -715,7 +716,8 @@ async function opensWithin(t, ms) {
   // hiccup. The whole transient-failure path was unreachable code on a keyless station.
   {
     const state = { tts: 0 };
-    const t = boot({ fetch: countingFetch(state, 'no key; edge: edge timeout') });
+    let now = Date.now();
+    const t = boot({ now: () => now, fetch: countingFetch(state, 'no key; edge: edge timeout') });
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('first line on a keyless station', 'agent'); await tick(40);
     A.eq(state.tts, 3, 'keyless + edge blip: two bounded retries retain the chunk');
@@ -725,9 +727,8 @@ async function opensWithin(t, ms) {
     const afterFirst = state.tts;
     t.Voice.speak('second line while still cold', 'agent'); await tick(40);
     A.eq(state.tts, afterFirst, 'keyless + edge blip: the cold-off is honored while it holds');
-    // The ONLY way to tell the 4s transient cool-off from the 60s billing one is to outlast it. The
-    // register measured exactly this at t+4.2s; a 60s cold-off leaves the station mute for a full minute.
-    await new Promise(r => setTimeout(r, 4200));
+    // Advance only this voice instance's clock past the short cool-off; a 60s billing cool-off still holds.
+    now += 4200;
     t.Voice.speak('third line after the SHORT cold-off', 'agent'); await tick(40);
     A.ok(state.tts > afterFirst, 'keyless + edge blip: the cool-off was the 4s transient one, not 60s of dead voice');
   }
