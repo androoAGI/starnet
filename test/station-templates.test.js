@@ -6,7 +6,7 @@ const remasterContext={module:{exports:{}},IndustrialTextures:{enabled:()=>true,
 require('node:vm').runInNewContext(require('node:fs').readFileSync(require.resolve('../frontend/app/propsprites.js'),'utf8'),remasterContext);
 const T=require('../frontend/app/stationtemplates.js');
 const approved=require('./fixtures/station-default-approved.json');
-assert.equal(T.catalog.length,7); // default, five purpose builds, and cozy workshop
+assert.equal(T.catalog.length,8); // default, six purpose builds, and cozy workshop
 for(const P of [legacySprites,remasterContext.module.exports])for(const item of T.catalog) {
   const doc=T.build(item.id,M,P,1000),s=M.create(doc);
   assert.equal(s.rooms().filter(r=>r.kind!=='corridor').length,item.rooms);
@@ -70,6 +70,45 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
     assert.equal(T.example(broken.serialize(),M,pipeline).ready,false,'broken or reversed conveyor never claims ready');
     assert.equal(Object.keys(pipeline.liveTiles(plan)).length,8,'creative: all conveyor segments connected');
   }
+  if(item.id==='software') {
+    const pipeline=require('../frontend/app/pipeline.js');
+    const untouched=JSON.stringify(doc);
+    const guide=T.example(doc,M,pipeline);
+    assert.equal(JSON.stringify(doc),untouched,'software: guide inspection never assigns agents or changes the input document');
+    assert.equal(guide.title,'Software Team');
+    assert.equal(guide.ready,false); assert.equal(guide.roles.length,2);
+    assert.deepEqual(guide.roles.map(r=>r.name),['Builder','Tester']);
+    assert.deepEqual(guide.roles.map(r=>r.agentId),['','']);
+    assert.match(guide.sample,/slugify/);
+    const intake=s.props().find(p=>p.t==='intake'&&p.label==='SOFTWARE · BUILD & TEST');
+    assert.ok(intake,'software: the prepared line has its labelled Inbox');
+    const bays=s.props().filter(p=>p.t==='bay');
+    assert.equal(bays.length,2);
+    assert.match(bays[0].brief,/^Build what the incoming request asks for/);
+    assert.match(bays[1].brief,/^Test the incoming change/);
+    assert.deepEqual(pipeline.compileRoutingPlan(g).errors.map(e=>e.code),['UNBOUND_BAY','UNBOUND_BAY']);
+    bays.forEach((bay,i)=>assert.equal(s.assignPropAgent(bay.id,'software'+i).ok,true));
+    const plan=pipeline.compileRoutingPlan(s.projectGeometry());
+    assert.deepEqual(plan.errors,[],'software: configured line compiles cleanly');
+    assert.equal(plan.reach.software0,true,'software: inbox feeds the builder');
+    assert.deepEqual(plan.chains.software0.next,['software1'],'software: build hands off to test');
+    assert.equal(plan.chains.software1.outbox,true,'software: tester sends to outbox');
+    assert.equal(T.example(s.serialize(),M,pipeline).ready,false,'software: agents still need their own workstations');
+    const room=s.roomAt(bays[0].x,bays[0].y);
+    const desks=s.props().filter(p=>p.t==='desk'&&s.roomAt(p.x,p.y)===room);
+    assert.equal(desks.length,2,'software: the build room carries a workstation for each step');
+    desks.forEach((desk,i)=>assert.equal(s.assignPropAgent(desk.id,'software'+i).ok,true));
+    const configured=T.example(s.serialize(),M,pipeline);
+    assert.equal(configured.ready,true,'software: guide readiness requires the actual compiled route');
+    assert.deepEqual(configured.roles.map(r=>r.agentId),['software0','software1']);
+    const broken=M.create(structuredClone(s.serialize()));
+    const belt=broken.belts()[3];
+    broken.setBelt(belt.x,belt.y,'W');
+    const brokenGuide=T.example(broken.serialize(),M,pipeline);
+    assert.equal(brokenGuide.ready,false,'software: a reversed conveyor never claims ready');
+    assert.match(brokenGuide.issue,/Builder|Tester|Reconnect/,'software: the broken-line message names this line');
+    assert.equal(Object.keys(pipeline.liveTiles(plan)).length,8,'software: all conveyor segments connected');
+  }
   // Every room is reachable from the central room through the real projected graph.
   const origin=[8-g.origin.tx,5-g.origin.ty];
   for(const r of s.rooms().filter(r=>r.kind!=='corridor')){
@@ -102,4 +141,4 @@ for(const P of [legacySprites,remasterContext.module.exports])for(const item of 
   const invalid=structuredClone(doc);invalid.props[0].x=999;
   const snapshot=current.serialize();assert.equal(current.replaceLayout(invalid).ok,false);assert.deepEqual(current.serialize(),snapshot);
 }
-console.log('station-templates: seven layouts, classic/remastered catalogs, approved home, cozy and creative conveyor routing, clear entrances, prop access, ownership, undo/redo and persistence PASS');
+console.log('station-templates: eight layouts, classic/remastered catalogs, approved home, cozy, creative and software conveyor routing, clear entrances, prop access, ownership, undo/redo and persistence PASS');

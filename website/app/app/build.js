@@ -1885,7 +1885,7 @@ const Build = (() => {
     g.querySelector('[data-workflow-close]').onclick = closeP;
     const status = g.querySelector('.station-build-status'), apply = g.querySelector('[data-use-build]');
     if (currentPresetExample()) {
-      const setup = document.createElement('button'); setup.className='bb'; setup.textContent='SET UP CURRENT STUDIO';
+      const setup = document.createElement('button'); setup.className='bb'; setup.textContent='SET UP '+currentPresetExample().title.toUpperCase();
       setup.onclick=openPresetExample; g.querySelector('.station-build-actions').prepend(setup);
     }
     const backupKey = 'starnet.layoutBackup.' + station.doc().meta.createdAt;
@@ -1948,8 +1948,9 @@ const Build = (() => {
     cardCloseAll();
     const g = document.createElement('div');
     g.className = 'refit-guide refit-preset-example';
-    g.setAttribute('role','dialog'); g.setAttribute('aria-modal','true'); g.setAttribute('aria-label','Set up Creative Studio');
-    g.innerHTML = '<div class="refit-guide-card"><header class="refit-prop-actions-head"><div><span class="ui-overline">WORKING EXAMPLE</span><h3>Creative Studio</h3></div><button class="bb" data-workflow-close>CLOSE</button></header><div data-example-body></div></div>';
+    const title = currentPresetExample().title;
+    g.setAttribute('role','dialog'); g.setAttribute('aria-modal','true'); g.setAttribute('aria-label','Set up '+title);
+    g.innerHTML = '<div class="refit-guide-card"><header class="refit-prop-actions-head"><div><span class="ui-overline">WORKING EXAMPLE</span><h3>'+esc(title)+'</h3></div><button class="bb" data-workflow-close>CLOSE</button></header><div data-example-body></div></div>';
     let unsubscribe;
     const closeP = () => { unsubscribe?.(); g.remove(); root?.querySelector('[data-build-group="workflow"]')?.focus(); };
     cardRegister(g,closeP); root.appendChild(g); g.querySelector('[data-workflow-close]').onclick = closeP;
@@ -1964,9 +1965,9 @@ const Build = (() => {
       const sr = finSampleRes?.key===e.key && finSampleRes?.exampleSignature===signature ? finSampleRes : null;
       const status = e.issue ? e.issue : !rosterOK ? 'Choose an agent for each role.' : !ready ? 'Each role needs a different agent and a clear route to the outbox.' : sr?.pending ? 'Sample in progress…' : sr?.view?.ok ? 'Sample completed · the harness confirmed delivery to the outbox.' : 'Configured · ready to try a sample.';
       const body = g.querySelector('[data-example-body]');
-      body.innerHTML = '<p class="example-purpose">'+esc(e.purpose)+'</p><div class="example-flow" aria-label="Example flow"><span>Your brief</span><b>→</b><span>Drafter</span><b>→</b><span>Reviewer</span><b>→</b><span>Outbox</span></div>'+
+      body.innerHTML = '<p class="example-purpose">'+esc(e.purpose)+'</p><div class="example-flow" aria-label="Example flow"><span>Your brief</span>'+e.roles.map(r=>'<b>→</b><span>'+esc(r.name)+'</span>').join('')+'<b>→</b><span>Outbox</span></div>'+
         '<h4>Choose who does each step</h4><div class="example-roles">'+e.roles.map((r,i)=>'<label class="example-role"><b>'+(i+1)+'. '+esc(r.name)+'</b><span>'+esc(r.description)+'</span><select class="refit-input" aria-label="'+esc(r.name)+' agent" data-example-agent="'+esc(r.propId)+'"'+(pending?' disabled':'')+'><option value="">Choose an agent</option>'+agents.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===r.agentId?' selected':'')+'>'+esc(a.name||a.id)+'</option>').join('')+'</select></label>').join('')+'</div>'+
-        (agents.length<2?'<p class="example-note">This example needs two different agents. Recruit another agent from Crew, then return to Conveyors → Set up Creative Studio.</p>':'')+
+        (agents.length<2?'<p class="example-note">This example needs two different agents. Recruit another agent from Crew, then return to Conveyors → Set up '+esc(e.title)+'.</p>':'')+
         '<p class="example-note">Assignments save when selected. The prepared instructions belong to the Bays; you can edit them by clicking those props.</p>'+
         '<section class="example-sample"><h4>Try a small task</h4><p>'+esc(e.sample.replace(/^SAMPLE JOB: /,''))+'</p><p class="example-note">Runs the selected agents using their configured models. Normal model costs apply.</p><button class="bb refit-primary" data-example-run'+(!ready||pending?' disabled':'')+'>'+(pending?'SAMPLE IN PROGRESS…':sr?.view?.ok?'RUN SAMPLE AGAIN':'RUN SAMPLE TASK')+'</button></section>'+
         '<p class="example-status" role="status">'+esc(status)+'</p>'+
@@ -1976,7 +1977,7 @@ const Build = (() => {
         const propId = select.dataset.exampleAgent, aid = select.value;
         if (aid && e.roles.some(r=>r.propId!==propId && r.agentId===aid)) {
           select.value = e.roles.find(r=>r.propId===propId).agentId;
-          body.querySelector('.example-status').textContent = 'Choose a different agent for each role so the draft can hand off to its reviewer.'; return;
+          body.querySelector('.example-status').textContent = 'Choose a different agent for each role so the first step can hand off to the second.'; return;
         }
         const result = station.assignPropAgent(propId,aid);
         if (!result.ok) body.querySelector('.example-status').textContent = result.msg || 'Assignment could not be saved.';
