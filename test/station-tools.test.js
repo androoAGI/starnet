@@ -18,6 +18,7 @@ function stubBridge(impl) {
 // ---- passthrough: each tool asks its verb and returns the page's real answer ----
 {
   const bridge = stubBridge(verb => {
+    if (verb === 'station.status') return { ok: true, result: { active: 'research', workstreams: [{ id: 'a', title: 'research', busy: true }] } };
     if (verb === 'station.sessions') return { ok: true, result: { count: 2, sessions: [{ id: 'a', title: 'research' }, { id: 'b', title: 'General' }] } };
     if (verb === 'station.new_session') return { ok: true, result: { id: 'c', title: 'ops', focused: false } };
     if (verb === 'station.switch_session') return { ok: true, result: { id: 'a', title: 'research' } };
@@ -36,6 +37,9 @@ function stubBridge(impl) {
   A.eq(bridge.seen[1].args.title, 'ops', 'the title travels verbatim');
   A.eq(bridge.seen[1].args.agentId, 'researcher', 'and the crew binding travels');
   A.eq(bridge.seen[1].args.focus, false, 'focus is never implied');
+  const status = await t.statusTool.run({});
+  A.eq(JSON.parse(status.content).active, 'research', 'station.status returns the page snapshot unchanged');
+  A.eq(bridge.seen[bridge.seen.length - 1].verb, 'station.status', 'station.status uses the existing bridge verb');
   const foc = await t.focusTool.run({ session: 'research' });
   A.eq(JSON.parse(foc.content).title, 'research', 'session.focus returns where the Commander now is');
   const peek = await t.peekTool.run({ session: 'research' });
@@ -53,7 +57,7 @@ function stubBridge(impl) {
 // ---- ⛔ the honesty contract: every failure is an explicit REFUSED, never a soft nothing ----
 {
   const t = makeStationTools({});   // no bridge at all (bare host / headless composition)
-  for (const [tool, args] of [[t.listTool, {}], [t.createTool, { title: 'x' }], [t.focusTool, { session: 'x' }], [t.peekTool, { session: 'x' }], [t.taskListTool, {}], [t.taskCreateTool, { title: 'x' }], [t.taskManageTool, { task: 'x', action: 'archive' }]]) {
+  for (const [tool, args] of [[t.statusTool, {}], [t.listTool, {}], [t.createTool, { title: 'x' }], [t.focusTool, { session: 'x' }], [t.peekTool, { session: 'x' }], [t.taskListTool, {}], [t.taskCreateTool, { title: 'x' }], [t.taskManageTool, { task: 'x', action: 'archive' }]]) {
     const out = await tool.run(args);
     A.ok(/^REFUSED:/.test(out.content), tool.name + ' without a bridge refuses explicitly');
     A.ok(/do not report this action as done/.test(out.content), 'and tells the model not to claim it');
@@ -99,6 +103,9 @@ function stubBridge(impl) {
 // ---- capability surface: lead-only, and consent-free (a session costs nothing and is reversible) ----
 {
   const t = makeStationTools({});
+  A.eq(t.statusTool.capability, 'orchestrator', 'station.status is lead-only');
+  A.eq(t.statusTool.scope, 'read', 'station.status is read-only');
+  A.eq(t.statusTool.requiresConsent, false, 'station.status is consent-free');
   for (const tool of [t.listTool, t.createTool, t.peekTool, t.focusTool]) {
     A.eq(tool.capability, 'orchestrator', tool.name + ' rides the lead-only orchestrator gate');
     A.eq(tool.requiresConsent, false, tool.name + ' needs no consent beat');
@@ -114,7 +121,7 @@ function stubBridge(impl) {
     "peek's description carries the anti-guessing rule — the tool exists because a lead denied real work");
   const reg = { registered: [], register(x) { this.registered.push(x.name); } };
   t.register(reg);
-  A.eq(reg.registered.join(','), 'session.list,session.create,session.peek,session.focus,task.list,task.create,task.manage,team.config,team.configure,station.layout', 'register() installs session, task, crew configuration, and floor layout verbs');
+  A.eq(reg.registered.join(','), 'station.status,session.list,session.create,session.peek,session.focus,task.list,task.create,task.manage,team.config,team.configure,station.layout', 'register() installs station status plus session, task, crew configuration, and floor layout verbs');
 }
 
 /* ---- ⛔ THE CAPABILITY REGISTRY IS AN ALLOWLIST. A tool registered with the host but not declared in
@@ -124,9 +131,10 @@ function stubBridge(impl) {
 {
   const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'sidecar', 'capability', 'registry.js'), 'utf8');
   const orch = src.slice(src.indexOf('orchestrator: ['), src.indexOf(']', src.indexOf('orchestrator: [')));
-  for (const name of ['session.list', 'session.create', 'session.peek', 'session.focus', 'task.list', 'task.create', 'task.manage']) {
+  for (const name of ['station.status', 'session.list', 'session.create', 'session.peek', 'session.focus', 'task.list', 'task.create', 'task.manage']) {
     A.ok(orch.indexOf("tool: '" + name + "'") >= 0, name + ' is DECLARED in the orchestrator capability allowlist (registration alone exposes nothing)');
   }
+  A.ok(/tool: 'station\.status', scope: 'read', requiresConsent: false/.test(orch), 'station.status is read-only and consent-free');
   A.ok(/tool: 'session\.create', scope: 'write', requiresConsent: false/.test(orch), 'session.create is consent-free (spends nothing, reversible)');
 }
 
