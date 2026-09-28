@@ -257,6 +257,9 @@
       // standing payload), and pausing or deleting changes what the station does unattended. One action-shaped
       // tool rather than five verbs, because every schema here is re-sent on every turn (see the tool file).
       { capId: 'orchestrator', tool: 'routine.manage', scope: 'write', requiresConsent: true, network: false },
+      // LIVE STATION STATUS: reuse the page's existing truthful VoiceLive snapshot through the station bridge.
+      // Lead-only like the rest of orchestration; read-only, local, and consent-free.
+      { capId: 'orchestrator', tool: 'station.status', scope: 'read', requiresConsent: false, network: false },
       // SESSIONS (2026-07-30): the lead's session verbs over the station bridge — list/create/focus a
       // workstream by the name the Commander says, completing "make a session called X and have them work
       // in it" (team.dispatch's `session` targets one; these are how it comes to exist). No consent: a
