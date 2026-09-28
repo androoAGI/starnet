@@ -41,6 +41,17 @@
     }
     const refuse = (error, summary) => ({ content: 'REFUSED: ' + error + ' — do not report this action as done.', summary: summary || 'refused' });
 
+    const statusTool = {
+      name: 'station.status', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      description: 'Read the live station-wide operational snapshot from the attached StarNet page: active session, open workstreams, which are busy, and any approval state the station can currently prove. Call this before answering station-wide status questions or deciding which existing session/work to inspect; never infer missing station state from your own thread.',
+      schema: { type: 'object', properties: {} },
+      run: async () => {
+        const out = await ask('station.status', {});
+        if (!out.ok) return refuse(out.error);
+        return { content: JSON.stringify(out.result || {}), summary: 'live station status' };
+      }
+    };
+
     const listTool = {
       name: 'session.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
       description: 'List the sessions (workstreams) open on this station: id, title, bound agent, and which one the Commander has focused. Use the TITLES when talking to the Commander and when passing `session` to team.dispatch or session.focus. Read this before creating a session so you never mint a duplicate title.',
@@ -317,9 +328,9 @@
     };
 
     return {
-      agentConfigTool, agentConfigureTool, layoutTool,
+      statusTool, agentConfigTool, agentConfigureTool, layoutTool,
       listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool,
-      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool, layoutTool].forEach(t => reg.register(t)); return reg; }
+      register(reg) { [statusTool, listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool, layoutTool].forEach(t => reg.register(t)); return reg; }
     };
   }
 
