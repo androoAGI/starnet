@@ -351,6 +351,7 @@ let lspManager = null;   // initialized beside procLedger so abrupt desktop-side
 const loopbackListenerProbe = makeLoopbackListenerProbe({ execFile, platform: process.platform, env: process.env });
 const { makeSubagentManager } = require('./subagents.js');          // durable background worker registry
 const { makeRealtimeVoice } = require('./realtime-voice.js');       // browser WebRTC voice coordinator; API key never leaves this process
+const { makeAvatarCall } = require('./avatar-call.js');             // Simli video call: fast conversational front, harness behind
 const { makeStationBridge } = require('./station-bridge.js');   // page-side command channel for station tools
 const { makeNativeStt } = require('./native-stt.js');                // keyless Windows dictation fallback for OAuth Live voice
 const Classify = require('../frontend/app/classify.js');   // the SAME task-vs-talk classifier the browser uses
@@ -2302,6 +2303,43 @@ const realtimeVoice = makeRealtimeVoice({
   hasCredential: provider => providerHasCredential(provider, providerRuntimeKey(provider, ''), providerRuntimeBaseUrl(provider, '')),
   resolveCredential: resolveProviderCredential,
   safetySeed: API_TOKEN
+});
+
+/* The avatar call speaks AS the lead agent: its roster provider/model/credential (the same resolution a channel
+   hop uses). STARNET_AVATAR_PROVIDER / STARNET_AVATAR_MODEL pin a faster conversational model without touching
+   the agent's own configuration — work handed off from the call still runs on the agent's real model. */
+function avatarRunConfig(agentId) {
+  const base = channelRunConfigFor(String(agentId || 'agent'));
+  const wantProvider = String(ENV('AVATAR_PROVIDER') || '').trim();
+  const wantModel = String(ENV('AVATAR_MODEL') || '').trim();
+  if (!wantProvider && !wantModel) return base;
+  const provider = normalizeProvider(wantProvider || (base.ok ? base.provider : cronProviderFor(null)));
+  const model = wantModel || (base.ok && provider === base.provider ? base.model : '');
+  if (!model) return { ok: false, error: 'STARNET_AVATAR_PROVIDER is set without STARNET_AVATAR_MODEL' };
+  const key = providerRuntimeKey(provider, '');
+  const baseUrl = providerRuntimeBaseUrl(provider, '');
+  if (!providerHasCredential(provider, key, baseUrl)) return { ok: false, error: providerCredentialError(provider) + ' for avatar calls' };
+  return { ok: true, provider, model, key, baseUrl, reasoningEffort: resolveReasoningEffort(provider, ''), system: base.ok ? base.system : '' };
+}
+const avatarCall = makeAvatarCall({
+  fetch: globalThis.fetch,
+  env: ENV,
+  // Keys pasted in Settings → KEYS land in process.env under their bare name (servicekeys.applyEnv).
+  serviceKey: (name) => String(process.env[name] || ''),
+  runConfig: avatarRunConfig,
+  providerFor: async (c) => {
+    const providerId = normalizeProvider(c.provider);
+    if (providerUsesCodex(providerId)) return selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: c.baseUrl });
+    if (providerUsesDeviceOAuth(providerId)) return selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl: c.baseUrl });
+    return selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl });
+  },
+  // Spoken turns are real spend: book them on the same ledger as every other model call.
+  onUsage: ({ usage, provider, cfg }) => {
+    const c = makeCostEngine({ priceOf: provider.priceOf }).reconcile(usage, cfg.model);
+    if (!c || !c.usd) return;
+    const unmetered = !!((getProviderProfile(normalizeProvider(cfg.provider)) || {}).unmetered);
+    ledger.record({ runId: 'avatar-' + Date.now(), agentId: 'avatar', turns: 0, usd: c.usd, tokens: (c.tokensIn || 0) + (c.tokensOut || 0), model: cfg.model || '', unmetered });
+  }
 });
 const nativeStt = makeNativeStt({ platform: process.platform, execFile });
 const media = makeMediaService({
@@ -9627,6 +9665,9 @@ const ROUTES = [
   { m: 'POST', exact: '/api/station/ack', h: handleStationAck },
   { m: 'GET', qsplit: '/api/realtime/status', h: handleRealtimeStatus },
   { m: 'POST', qsplit: '/api/realtime/session', h: handleRealtimeSession },
+  { m: 'GET', qsplit: '/api/avatar/status', h: handleAvatarStatus },
+  { m: 'POST', exact: '/api/avatar/session', h: handleAvatarSession },
+  { m: 'POST', exact: '/api/avatar/reply', h: handleAvatarReply },
   { m: 'GET', exact: '/api/stt/status', h: media.handleSttStatus },
   { m: 'GET', exact: '/api/stt/native/status', h: media.handleNativeSttStatus },
   { m: 'POST', exact: '/api/stt/native', h: media.handleNativeStt },
@@ -11345,6 +11386,40 @@ async function handleRealtimeSession(req, res) {
   const out = await realtimeVoice.createCall(offer, provider, wantVoice);
   res.writeHead(out.status, { 'Content-Type': out.contentType, 'Cache-Control': 'no-store' });
   res.end(out.body);
+}
+
+/* ---- avatar call (sidecar/avatar-call.js). status + session mint are plain JSON; reply is NDJSON, one
+   {type:'text'|'tool'|'done'|'error'} per line, aborted the moment the page hangs up or barges in. ---- */
+function handleAvatarStatus(req, res) {
+  let agentId = '';
+  try { agentId = String(new URL(req.url, 'http://x').searchParams.get('agent') || '').trim(); } catch (e) { failNote('avatar.status.url', e); }
+  respondJson(res, 200, avatarCall.status(agentId || 'agent'));
+}
+async function handleAvatarSession(req, res) {
+  let body = {};
+  try { body = JSON.parse((await readBody(req, 4096, res)) || '{}') || {}; }
+  catch (e) { if (!res.headersSent) respondJson(res, e && e.tooLarge ? 413 : 400, { error: 'bad json' }); return; }
+  const out = await avatarCall.createSession(body.faceId);   // an invalid face id falls back to the station default
+  respondJson(res, out.status, out.body);
+}
+async function handleAvatarReply(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 1 << 20, res)) || {}; }
+  catch (e) { if (!res.headersSent) respondJson(res, e && e.tooLarge ? 413 : 400, { error: 'bad json' }); return; }
+  const ac = new AbortController();
+  // res 'close', not req 'close' — readBody already consumed the request (see handleRun for the full story).
+  res.on('close', () => ac.abort());
+  res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+  const line = (obj) => { try { res.write(JSON.stringify(redact(obj)) + '\n'); } catch (e) { failNote('avatar.reply.write', e); } };
+  try {
+    for await (const ev of avatarCall.reply({ agentId: body.agentId, system: body.system, messages: body.messages, signal: ac.signal })) {
+      if (ac.signal.aborted) break;
+      line(ev);
+    }
+  } catch (e) {
+    if (!ac.signal.aborted) line({ type: 'error', message: String(redact((e && e.message) || 'avatar reply failed')) });
+  }
+  try { res.end(); } catch (e) { failNote('avatar.reply.end', e); }
 }
 /* ---- POST /api/budget/resume { scope } — the one-click "keep going" after a SOFT pool cap is hit: grant another
    base-cap of headroom to that scope for the rest of the session. scope ∈ {day, global}. ---- */

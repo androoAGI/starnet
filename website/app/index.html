@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="css/channels.css?v=4">
 <link rel="stylesheet" href="css/quests.css?v=3">
 <link rel="stylesheet" href="css/tasks.css?v=1">
+<link rel="stylesheet" href="css/avatar-call.css">
 <link rel="stylesheet" href="css/agent-dossier.css?v=7">
 <link rel="stylesheet" href="css/warroom.css">
 <link rel="stylesheet" href="css/safety.css">
@@ -662,6 +663,7 @@
       </div>
       <button id="voice-toggle" class="voice-toggle" title="agent voice" aria-label="Agent voice" aria-pressed="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.1h2.1L7.7 3.3v9.4L4.3 9.9H2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="miter"/><g fill="none" stroke="currentColor" stroke-width="1.4"><path d="M10.3 6a3.2 3.2 0 0 1 0 4"/><path d="M12.4 4a6.2 6.2 0 0 1 0 8"/></g></svg></button>
       <button id="voice-live" class="voice-toggle voice-live" title="Local Live hands-free voice — local speech with your active Starnet agent" aria-label="Start Local Live hands-free voice" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.8" stroke-width="1.2"/><path d="M5.1 8h1.2m1.1-2.4v4.8M9.7 7v2m1.6-3.1v4.2" stroke-width="1.35" stroke-linecap="square"/></svg></button>
+      <button id="avatar-call" class="voice-toggle avatar-call" hidden title="Video call with your lead agent" aria-label="Start video call" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="1.8" y="4.2" width="8.6" height="7.6" rx="1"/><path d="M10.4 7l3.8-2.2v6.4L10.4 9z" stroke-linejoin="round"/></svg></button>
       <button id="chat-mic" class="mic-btn" title="click to talk" aria-label="Click to talk" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.8" y="1.7" width="4.4" height="7.2" rx="2.2"/><path d="M3.7 7.5a4.3 4.3 0 0 0 8.6 0"/><path d="M8 11.8v2.4"/><path d="M5.4 14.2h5.2"/></svg></button>
       </div>
     </div>
@@ -887,6 +889,8 @@
 <script src="app/voice-stream.js"></script>
 <script src="app/voice.js"></script>
 <script src="app/voice-live.js"></script>
+<script src="app/avatar-core.js"></script>
+<script src="app/avatar-call.js"></script>
 <script src="app/stationcommands.js"></script>
 <script src="app/overseer.js"></script>
 <script src="app/project-home.js"></script>

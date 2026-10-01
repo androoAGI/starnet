@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [],
     "security": {
-      "csp": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'none'; script-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' data: blob: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:* https://openrouter.ai https://api.openai.com https://chatgpt.com https://auth.openai.com https://accounts.spotify.com https://api.spotify.com; worker-src 'self' blob:"
+      "csp": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'none'; script-src 'self' http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' data: blob: http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:* https://openrouter.ai https://api.openai.com https://chatgpt.com https://auth.openai.com https://accounts.spotify.com https://api.spotify.com https://api.simli.ai wss://api.simli.ai https://*.livekit.cloud wss://*.livekit.cloud; worker-src 'self' blob:"
     }
   },
   "bundle": {

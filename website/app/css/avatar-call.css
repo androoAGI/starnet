@@ -1,0 +1,96 @@
+/* frontend/css/avatar-call.css — the VIDEO CALL panel (frontend/app/avatar-call.js).
+   Same hardware language as the Local Live module: a phosphor rim, a deep lift, station tokens only. */
+
+/* The dock rules (.voice-toggle, .chat-tools .voice-toggle, the glass theme) all set display, which beats the
+   UA [hidden] rule — so without a Simli key the button would render and do nothing. Hidden must win. */
+#avatar-call[hidden] { display: none !important; }
+.voice-toggle.avatar-call.on { color: var(--ink); background: var(--ph); box-shadow: 0 0 16px var(--ph-glow); }
+
+.avatar-call-panel {
+  position: fixed; z-index: 276; right: 18px; bottom: 68px;
+  width: 340px; max-width: calc(100vw - 32px);
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 9px 9px;
+  color: var(--text); border-radius: var(--r-lg); overflow: hidden;
+  background:
+    radial-gradient(ellipse 130% 90% at 50% 0%, var(--ph-glow2), transparent 46%),
+    linear-gradient(180deg, rgba(9, 5, 2, 0.97), rgba(4, 2, 1, 0.985));
+  box-shadow:
+    inset 0 0 0 1px var(--ph-dim),
+    inset 0 1px 0 rgba(var(--ph-bright-rgb), 0.08),
+    0 14px 30px rgba(0, 0, 0, 0.62),
+    0 0 22px var(--ph-glow2);
+}
+.avatar-call-panel[hidden] { display: none; }
+
+.ac-head { display: flex; align-items: center; gap: 7px; min-height: 18px; font-size: 10px; letter-spacing: .08em;
+  cursor: grab; touch-action: none; user-select: none; }
+
+/* movable + resizable (avatar-call.js makeMovable) */
+.avatar-call-panel[data-dragging] {
+  box-shadow: inset 0 0 0 1px var(--ph), 0 16px 34px rgba(0,0,0,.7), 0 0 26px var(--ph-glow2);
+  user-select: none;
+}
+.avatar-call-panel[data-dragging="drag"] .ac-head,
+.avatar-call-panel[data-dragging="drag"] .ac-stage { cursor: grabbing; }
+.ac-grip {
+  position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; z-index: 8;
+  cursor: nwse-resize; touch-action: none; opacity: .55;
+  background:
+    linear-gradient(135deg, transparent 0 55%, var(--ph-dim) 55% 62%, transparent 62% 72%, var(--ph-dim) 72% 79%, transparent 79%);
+}
+.ac-grip:hover, .avatar-call-panel[data-dragging="resize"] .ac-grip { opacity: 1; }
+.ac-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--ph-dim); box-shadow: 0 0 6px var(--ph-glow2); flex: 0 0 auto; }
+.avatar-call-panel[data-state="listening"] .ac-pip { background: var(--ph); }
+.avatar-call-panel[data-state="hearing"] .ac-pip { background: var(--ph-bright); box-shadow: 0 0 9px var(--ph-glow); }
+.avatar-call-panel[data-state="speaking"] .ac-pip { background: var(--gold); box-shadow: 0 0 9px var(--gold); }
+.avatar-call-panel[data-state="thinking"] .ac-pip,
+.avatar-call-panel[data-state="connecting"] .ac-pip { animation: ac-blink 1s steps(2, end) infinite; background: var(--ph); }
+/* another agent is talking through the chat voice: the call holds its tongue and its ears */
+.avatar-call-panel[data-state="crew speaking"] .ac-pip { background: var(--gold); opacity: .45; box-shadow: none; }
+.avatar-call-panel[data-state="crew speaking"] .ac-state { color: var(--gold); }
+.avatar-call-panel[data-state="failed"] .ac-pip,
+.avatar-call-panel[data-state="ended"] .ac-pip { background: var(--bad); }
+@keyframes ac-blink { 50% { opacity: .25; } }
+.ac-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ph); }
+.ac-state { flex: 0 0 auto; color: var(--ph-dim); }
+
+.ac-stage {
+  position: relative; width: 100%; aspect-ratio: 1 / 1; border-radius: var(--r); cursor: grab; touch-action: none;
+  overflow: hidden; background: #000; box-shadow: inset 0 0 0 1px var(--ph-faint);
+}
+.ac-video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+.ac-stage audio { display: none; }
+
+.ac-line { margin: 0; font-size: 11px; line-height: 1.35; min-height: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.ac-line:empty { display: none; }
+/* CALL SETTINGS → CAPTIONS (hidden by default): the transcript lines go; errors and the task line stay. */
+.avatar-call-panel[data-captions="off"] .ac-line { display: none; }
+.ac-heard { color: var(--ph-dim); }
+.ac-heard::before { content: 'YOU  '; color: var(--ph-dim); letter-spacing: .08em; font-size: 9px; }
+.ac-said { color: var(--text); }
+.ac-task { margin: 0; font-size: 9px; letter-spacing: .08em; color: var(--ph-dim); }
+.ac-task:empty { display: none; }
+.ac-task[data-kind="busy"] { color: var(--ph); }
+.ac-task[data-kind="pending"] { color: var(--gold); }
+.ac-error { font-size: 10px; line-height: 1.35; color: var(--bad); }
+
+.ac-controls { display: flex; gap: 6px; }
+.ac-controls .bb { flex: 1; min-height: 28px; font-size: 10px; }
+.ac-controls .ac-end:hover { color: var(--bad); border-color: var(--bad); }
+
+.ac-details { font-size: 9px; color: var(--ph-dim); }
+.ac-voice-now { margin: 6px 0 0; font-size: 9px; letter-spacing: .06em; color: var(--ph); word-break: break-all; }
+.ac-voice-now:empty { display: none; }
+.ac-details summary { cursor: pointer; padding: 3px 0; letter-spacing: .08em; }
+.ac-field { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.ac-field > span { flex: 0 0 78px; letter-spacing: .08em; }
+.ac-field select, .ac-field input {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: 10px; color: var(--text);
+  background: var(--ph-faint); border: 1px solid var(--ph-dim); border-radius: var(--r-sm); padding: 3px 5px;
+}
+
+@media (max-width: 520px) {
+  .avatar-call-panel { right: 16px; left: 16px; width: auto; bottom: 60px; }
+  .ac-stage { aspect-ratio: 4 / 3; }
+}

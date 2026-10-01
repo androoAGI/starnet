@@ -1753,6 +1753,13 @@ const Voice = (() => {
   return {
     recordSpeechEvent, speechDiagnostics: () => speechDiagnostics.map(event => Object.assign({}, event)),
     replyToken: () => speakSeq, isReplyPending: () => draining,
+    /* Is any of the current reply still to be heard: a chunk playing or synthesizing, one queued behind it, or
+       the reply still open for more (the producer has not called endReply yet)? isSpeaking() alone reads false
+       in the gaps between chunks, which is exactly when an open mic (the video call) would take the room's
+       silence for the floor being free. Read-only; it changes nothing about playback. */
+    hasPendingSpeech: () => !!(playing || playIdx < jobs.length || (draining && !replyClosed)),
+    // The text of the chunk playing now and those queued behind it, for echo rejection by an open mic.
+    pendingSpeechText: () => jobs.slice(Math.max(0, playIdx - 1)).map(j => j.text).join(' '),
     init, speak, speakChunk, endReply, mutter, ambientLine, setAgent, isOn, setSpeakReplies,
     startListening, stopListening, toggleListen, stopSpeaking,
     toggleVoiceMode, stopConvo, onTurnEnd,
