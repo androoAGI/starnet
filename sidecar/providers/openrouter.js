@@ -21,6 +21,31 @@
   const timeouts = provider.timeouts;
   const BASE = 'https://openrouter.ai/api/v1';
 
+  // OPTIONAL OPERATOR ROUTING (node only): <STARNET_WORKSPACES>/openrouter-routing.json =
+  //   [{ "match": "<regex on the model id>", "provider": { <OpenRouter provider preferences> } }, …]
+  // The first rule whose regex matches the requested model adds `provider` to the request body — e.g. keep open-weight
+  // models on vetted hosts (`only`), full precision (`quantizations`) and `data_collection: "deny"`. No file, no change.
+  // With the caller-injected clock (determinism law: no ambient Date.now) the file is re-read at most every 30 s, so an
+  // operator edit applies without a restart; with no clock it is re-read once per provider instance (= once per run).
+  // A malformed file is ignored.
+  let ROUTING = [], ROUTING_AT = -Infinity;
+  function routingFor(model, clock, fresh) {
+    if (typeof process === 'undefined' || !process.env || typeof require !== 'function') return null;
+    const now = clock ? clock.now() : null;
+    if (fresh || (now !== null && now - ROUTING_AT > 30000)) {
+      if (now !== null) ROUTING_AT = now;
+      try {
+        const fs = require('fs'), path = require('path');
+        const ws = process.env.STARNET_WORKSPACES || process.env.SKYNET_WORKSPACES || '';
+        const file = ws ? path.join(ws, 'openrouter-routing.json') : '';
+        const rules = file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
+        ROUTING = Array.isArray(rules) ? rules.filter(r => r && typeof r.match === 'string' && r.provider && typeof r.provider === 'object').map(r => ({ re: new RegExp(r.match), provider: r.provider })) : [];
+      } catch (_) { ROUTING = []; }
+    }
+    const hit = ROUTING.find(r => r.re.test(String(model || '')));
+    return hit ? hit.provider : null;
+  }
+
   // The OpenRouter /models catalog is key-independent, so it is shared across every per-run
   // provider instance: warmed once (see warmCatalog), it makes priceOf/contextLimit live for all
   // runs without a per-run /models round-trip. Concurrent loads dedupe on CATALOG_PROMISE.
@@ -193,6 +218,7 @@
     const reasoningEffort = normalizeReasoningEffort(opts.reasoningEffort || 'medium');
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;   // injected wall clock (re-warm throttle); absent -> per-instance kick
     let rewarmKicked = false;   // fallback throttle when no clock: kick at most once per instance (= once per run)
+    let routingLoaded = false;  // operator routing without a clock: read once per instance (= once per run)
 
     // Non-blocking catalog re-warm: if the catalog never loaded (empty), kick one throttled listModels() so a
     // later run prices/compacts correctly. Fire-and-forget — the CURRENT run never waits on it (it uses whatever
@@ -226,6 +252,8 @@
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
       const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(provider.prepareWireMessages(req.messages, 'chat'), req.model), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
+      const routing = routingFor(req.model, clock, !clock && !routingLoaded); routingLoaded = true;
+      if (routing) body.provider = routing;
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
         // on one bad key), and the Moonshot dialect for a moonshotai/* model. A well-formed catalog on any other
