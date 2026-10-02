@@ -28,6 +28,7 @@ const { makeWidgetTools } = require('../sidecar/tools/builtin/widgets.js');
 const { makeTodoTool } = require('../sidecar/tools/builtin/todo.js');
 const { makeDeliverableTool } = require('../sidecar/tools/builtin/deliverable.js');
 const { makeRecallTool } = require('../sidecar/tools/builtin/recall.js');
+const { makeKnowledgeTools } = require('../sidecar/tools/builtin/knowledge.js');   // knowledge_search rides notebook, same as recall_conversation
 const { makeToolSearchTool } = require('../sidecar/tools/builtin/toolsearch.js');
 const { makeCodeTools } = require('../sidecar/tools/builtin/code.js');
 const { makeStationInspectTool } = require('../sidecar/tools/builtin/station-inspect.js');
@@ -100,6 +101,7 @@ const fixture = {
   makeDesktopTools({ opener: async () => 'launched' }).register(registry);
   makeFsTools({ fsp, pathMod: path, root: ROOT, limits: { writeBytes: 1 << 20, readReturn: 24000 } }).register(registry);
   makeNotebookTools({ store: new Map(), clock: { now: () => 0 } }).register(registry);
+  makeKnowledgeTools({}).register(registry);   // ragClient omitted: registration-presence only, this test never calls run()
   makeWidgetTools({ store: new Map(), clock: { now: () => 0 } }).register(registry);   // WIDGET RAILS Phase 2: widget.set rides the notebook (memory) grant
   makeTodoTool({ store: new Map() }).register(registry);
   makeDeliverableTool({ notes: new Map() }).register(registry);   // deliverable_note rides COMPUTER, so the full office resolves it
@@ -143,7 +145,8 @@ const fixture = {
   const capCtx = makeCapCtx(resolved, { emit, consent, timeoutMs: 5000 });
 
   // ---- DRIFT GUARDS (these alone would have caught both default-path showstoppers) ----
-  const EXPECTED = ['browser.attach', 'browser.back', 'browser.click', 'browser.console', 'browser.detach', 'browser.dialog', 'browser.drag', 'browser.emulate', 'browser.eval', 'browser.find', 'browser.forward', 'browser.get_text', 'browser.hover', 'browser.inspect', 'browser.intercept', 'browser.login', 'browser.navigate', 'browser.network', 'browser.pdf', 'browser.press', 'browser.screenshot', 'browser.scroll', 'browser.select', 'browser.snapshot', 'browser.tab_close', 'browser.tab_select', 'browser.tabs', 'browser.type', 'browser.upload', 'browser.viewport', 'browser.vision', 'browser.wait', 'channel.send', 'channel.targets', 'code.run', 'connectors.list', 'deliverable_note', 'fs.append', 'fs.edit', 'fs.list', 'fs.patch', 'fs.read', 'fs.search', 'fs.write', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'todo', 'tool.search', 'web_fetch', 'web_request', 'web_search', 'widget.get', 'widget.set'];
+  // knowledge_search added 2026-10 (RAGFlow retrieval, rides the placed notebook object — see registry.js)
+  const EXPECTED = ['browser.attach', 'browser.back', 'browser.click', 'browser.console', 'browser.detach', 'browser.dialog', 'browser.drag', 'browser.emulate', 'browser.eval', 'browser.find', 'browser.forward', 'browser.get_text', 'browser.hover', 'browser.inspect', 'browser.intercept', 'browser.login', 'browser.navigate', 'browser.network', 'browser.pdf', 'browser.press', 'browser.screenshot', 'browser.scroll', 'browser.select', 'browser.snapshot', 'browser.tab_close', 'browser.tab_select', 'browser.tabs', 'browser.type', 'browser.upload', 'browser.viewport', 'browser.vision', 'browser.wait', 'channel.send', 'channel.targets', 'code.run', 'connectors.list', 'deliverable_note', 'fs.append', 'fs.edit', 'fs.list', 'fs.patch', 'fs.read', 'fs.search', 'fs.write', 'knowledge_search', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'todo', 'tool.search', 'web_fetch', 'web_request', 'web_search', 'widget.get', 'widget.set'];
   A.eq(resolved.tools.slice().sort(), EXPECTED.slice().sort(), 'office objects resolve to the full toolset (object=capability is real)');
   for (const name of EXPECTED) A.ok(registry.get(name), 'tool registered: ' + name);
 

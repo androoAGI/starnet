@@ -75,6 +75,8 @@ const { makeImageTools } = require('./tools/builtin/image.js');           // STU
 const { makeConnectorTools } = require('./tools/builtin/connectors.js');  // WEB: connectors.list — what the station HAS wired, and what it could (read-only, no secrets)
 const { makeVoiceTools } = require('./tools/builtin/voice.js');           // STUDIO: voice_generate — speech saved into the workspace as a playable clip
 const { makeResolveTools } = require('./tools/builtin/resolve.js');       // STUDIO: DaVinci Resolve — FCPXML timelines (free) + live Studio control (Hermes-plugin port)
+const { makeKnowledgeTools, makeRagflowClient } = require('./tools/builtin/knowledge.js');  // KNOWLEDGE: knowledge_search — local RAGFlow retrieval
+const { makeVideoTools, makeMoneyPrinterClient } = require('./tools/builtin/video.js');     // STUDIO: video_generate/status/result — local MoneyPrinterTurbo render
 const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUKEBOX: control/query the user's Spotify
 const { makeSpotifyStore } = require('./spotify/store.js');               // Spotify OAuth (PKCE) token store + auto-refresh
 const spotifyPkce = require('./spotify/pkce.js');                          // pure PKCE helpers (verifier/challenge/urls)
@@ -366,6 +368,21 @@ const SPECIALIST_CLASSES = (sharedSpecialties.BUILTINS || []).map(s => ({ id: s.
 // shell keep working unchanged. Membership test (not truthiness) so a deliberately-empty STARNET_X
 // still wins over a set SKYNET_X — preserving each downstream var's exact empty-vs-unset semantics.
 function ENV(suffix) { const k = 'STARNET_' + suffix; return (k in process.env) ? process.env[k] : process.env['SKYNET_' + suffix]; }
+
+// KNOWLEDGE (RAGFlow) + STUDIO video (MoneyPrinterTurbo), 2026-10: both local Dockerized services reached by
+// plain base URL + optional key, NOT through connector-vault — that abstraction is for OAuth/third-party
+// credentials, and these are unauthenticated-or-station-keyed localhost services (see tools/builtin/
+// knowledge.js and video.js headers for the verified wire contracts). Built once at module scope, same
+// lifetime as PORT/API_TOKEN above; `null` when unconfigured so the tool files refuse honestly rather than
+// silently no-op'ing.
+const RAGFLOW_API_URL = String(ENV('RAGFLOW_API_URL') || '').trim();
+const RAGFLOW_API_KEY = String(ENV('RAGFLOW_API_KEY') || '').trim();
+const RAGFLOW_DATASET_IDS = String(ENV('RAGFLOW_DATASET_IDS') || '').split(',').map(s => s.trim()).filter(Boolean);
+const ragClient = makeRagflowClient({ baseUrl: RAGFLOW_API_URL, apiKey: RAGFLOW_API_KEY });
+
+const MONEYPRINTER_API_URL = String(ENV('MONEYPRINTER_API_URL') || 'http://127.0.0.1:8080').trim();
+const MONEYPRINTER_API_KEY = String(ENV('MONEYPRINTER_API_KEY') || '').trim();
+const mptClient = makeMoneyPrinterClient({ baseUrl: MONEYPRINTER_API_URL, apiKey: MONEYPRINTER_API_KEY });
 
 const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
@@ -16754,6 +16771,14 @@ async function runOnceCore(o) {
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
   // runs a fixed embedded Python bridge (never a shell). Media paths outside the workspace go through this run's path-trust.
   makeResolveTools({ fsp, pathMod: path, root: WORKSPACES, spawn: childSpawn, pathTrust: runPathTrust, envFor: () => sanitizeChildEnv(process.env), config: { ffprobe: ENV('FFPROBE'), python: ENV('RESOLVE_PYTHON') } }).register(registry);
+  // KNOWLEDGE: knowledge_search — local RAGFlow retrieval over a Commander-configured dataset. ragClient is
+  // null when RAGFLOW_API_URL/RAGFLOW_API_KEY are unset; the tool then refuses honestly rather than faking
+  // an empty knowledge base (see tools/builtin/knowledge.js).
+  makeKnowledgeTools({ ragClient, defaultDatasetIds: RAGFLOW_DATASET_IDS }).register(registry);
+  // STUDIO, fourth skill: video_generate/video_status/video_result — full short-video rendering via a local
+  // MoneyPrinterTurbo service. Three tools (submit/poll/fetch), not one blocking call, because a render runs
+  // real minutes past any sane tool timeout (see tools/builtin/video.js header for why).
+  makeVideoTools({ mptClient, fsp, pathMod: path, root: WORKSPACES }).register(registry);
   // JUKEBOX (Spotify): registered every run, EXPOSED via a 'jukebox' object; no-op (clear error) until the user
   // connects Spotify in TOOLSETS. The OAuth session + auto-refresh live in the station-wide spotifyStore above.
   makeSpotifyTools({ store: spotifyStore }).register(registry);

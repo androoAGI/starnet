@@ -28,7 +28,7 @@ function station(objsByRoom, assignedRoom) {
 {
   const full = resolveTools('ag', station({ quarters: ['computer', 'notebook'] }, 'quarters'));
   A.ok(full.hasCompute, 'computer grants compute');
-  A.eq(full.tools.slice().sort(), ['code.run', 'deliverable_note', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'todo', 'tool.search', 'widget.get', 'widget.set'], 'notebook grants its tools; compute excluded from tools[]; the host-scoped routine notepad and other primitives ride the COMPUTER placed in this same room');
+  A.eq(full.tools.slice().sort(), ['code.run', 'deliverable_note', 'knowledge_search', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'todo', 'tool.search', 'widget.get', 'widget.set'], 'notebook grants its tools; compute excluded from tools[]; the host-scoped routine notepad and other primitives ride the COMPUTER placed in this same room');
   A.eq(full.approvalRules['notebook.write'].requiresConsent, false, 'notebook write needs no consent (sandboxed private memory)');
   A.eq(full.approvalRules['notebook.read'].requiresConsent, false, 'read auto-allowed');
 
@@ -40,12 +40,12 @@ function station(objsByRoom, assignedRoom) {
   // `todo` is ABSENT from notebook-only rooms since 2026-08-17: it rides the COMPUTER (taskplan freebie), so
   // any agent that can RUN has a task list — a notebook-less station no longer silently loses planning.
   const split = resolveTools('ag', station({ quarters: ['notebook'], lab: ['computer'] }, 'quarters'));
-  A.eq(split.tools.slice().sort(), ['notebook.feedback', 'notebook.read', 'notebook.write', 'recall_conversation', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'widget.get', 'widget.set'], 'only assigned-room objects grant tools');
+  A.eq(split.tools.slice().sort(), ['knowledge_search', 'notebook.feedback', 'notebook.read', 'notebook.write', 'recall_conversation', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'widget.get', 'widget.set'], 'only assigned-room objects grant tools');
   A.ok(!split.hasCompute, 'a computer in a DIFFERENT room does not grant compute');
 
   // de-dupe duplicate objects
   const dup = resolveTools('ag', station({ quarters: ['notebook', 'notebook'] }, 'quarters'));
-  A.eq(dup.tools.slice().sort(), ['notebook.feedback', 'notebook.read', 'notebook.write', 'recall_conversation', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'widget.get', 'widget.set'], 'duplicate objects de-duped');
+  A.eq(dup.tools.slice().sort(), ['knowledge_search', 'notebook.feedback', 'notebook.read', 'notebook.write', 'recall_conversation', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'widget.get', 'widget.set'], 'duplicate objects de-duped');
 
   // QUEST V2 §B fix: quest.update rides the COMPUTER (the compute freebie), not the notebook. A computer-only room
   // therefore grants quest.update while granting NO notebook tool — the exact reach a bare interactive agent gets.

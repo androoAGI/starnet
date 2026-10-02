@@ -86,10 +86,21 @@
       { capId: 'memory', tool: 'skill.list', scope: 'read', requiresConsent: false, network: false },          // H4: list saved skills (metadata only)
       { capId: 'memory', tool: 'skill.view', scope: 'read', requiresConsent: false, network: false },          // H4: load a saved skill's full body
       { capId: 'memory', tool: 'widget.get', scope: 'read', requiresConsent: false, network: false },
-      { capId: 'memory', tool: 'widget.set', scope: 'write', requiresConsent: false, network: false }          // User-defined widgets: read the current definition, then publish a sourced reading.
+      { capId: 'memory', tool: 'widget.set', scope: 'write', requiresConsent: false, network: false },         // User-defined widgets: read the current definition, then publish a sourced reading.
       // QUEST V2 §B: quest.update was MOVED to the `computer` object (above) — see the note there. It rode `notebook`
       // (memory) originally, but the interactive office has no placed notebook, so the tool was absent while the prompt
       // demanded it. It belongs with compute (the always-present freebie), not with placeable memory.
+      //
+      // KNOWLEDGE (RAGFlow, 2026-10): a distinct capId, NOT 'memory' — memory is the agent's own PRIVATE
+      // sandboxed notebook, while this is a Commander-curated, shared external document store (RAGFlow). Not
+      // placed under `dish`'s 'web' capId either: that is the open public internet, and conflating "a
+      // configured local KB" with "the whole web" would teach a reach the station may not actually have, the
+      // same toggle-independence principle that keeps 'comms' off of 'web' above. Rides `notebook` because the
+      // Commander-facing idea is the same family ("what can this agent look up"), and `notebook` is already
+      // present in every office that needs real knowledge work. Read-only + no consent, same posture as
+      // recall_conversation: it only returns text, writes nothing, and the credential is the station's own
+      // (never the agent's to see or set). (see tools/builtin/knowledge.js)
+      { capId: 'knowledge', tool: 'knowledge_search', scope: 'read', requiresConsent: false, network: true }
     ],
     // M5: object = capability made real — placing these grants the agent real-world reach.
     cabinet: [
@@ -302,7 +313,20 @@
       // imports, timelines, markers, renders — so it is execute + consent. All local: no network.
       { capId: 'studio', tool: 'resolve_timeline_file', scope: 'write', requiresConsent: true, network: false },
       { capId: 'studio', tool: 'resolve_status', scope: 'read', requiresConsent: false, network: false },
-      { capId: 'studio', tool: 'resolve_control', scope: 'execute', requiresConsent: true, network: false }
+      { capId: 'studio', tool: 'resolve_control', scope: 'execute', requiresConsent: true, network: false },
+      // MONEYPRINTERTURBO (2026-10): the studio's fourth skill — full short-video rendering (script, stock/AI
+      // footage, voiceover, subtitles) via a local MoneyPrinterTurbo service. A render takes real minutes, so
+      // this is THREE tools mirroring the station's own shell.bg.* background-job shape (shell.js:820-1132)
+      // instead of one blocking call: submit, poll, fetch. video_generate is write+consent (spends real
+      // compute/render time and will write a file, same reasoning as image_generate/voice_generate above).
+      // video_status is read-only, no consent (same posture as shell.bg.status — just a progress peek).
+      // video_result is write+consent (it writes the finished file into the workspace, same reasoning as
+      // image_generate). All three ride the SAME 'studio' capId as the rest of this object: a Commander who
+      // has placed a STUDIO already expects "the agent can make media here" to cover video too. (see
+      // tools/builtin/video.js)
+      { capId: 'studio', tool: 'video_generate', scope: 'write', requiresConsent: true, network: true },
+      { capId: 'studio', tool: 'video_status', scope: 'read', requiresConsent: false, network: true },
+      { capId: 'studio', tool: 'video_result', scope: 'write', requiresConsent: true, network: true }
     ],
     // JUKEBOX (Spotify): querying playback/library is consent-free (read); CONTROLLING playback is an outward
     // action on the user's account/device, so it is execute + consent-gated. The OAuth session (PKCE, no secret)

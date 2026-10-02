@@ -35,7 +35,8 @@ const CAPS = [
   { id: 'memory',       probe: 'notebook.write',  have: 'keep long-term memory, reusable skills, and recall conversation history', object: 'a NOTEBOOK' },   // task plans ride the computer now (taskplan freebie, 2026-08-17)
   // `alt`: a narrower true claim when the headline tool is gone but a sibling survives (image generation deferred as
   // certainly unavailable -- no image connection -- while image_analyze still works). Never claim the headline then.
-  { id: 'studio',       probe: 'image_generate',  have: 'generate and analyze images', object: 'a STUDIO', alt: { probe: 'image_analyze', have: 'analyze images' } },
+  { id: 'studio',       probe: 'image_generate',  have: 'generate and analyze images, record voice, and render short videos', object: 'a STUDIO', alt: { probe: 'image_analyze', have: 'analyze images' } },
+  { id: 'knowledge',    probe: 'knowledge_search', have: 'search a configured local knowledge base (RAGFlow) for relevant passages', object: 'a NOTEBOOK' },
   { id: 'jukebox',      probe: 'spotify_play',    have: 'search and control Spotify', object: 'a JUKEBOX' }
 ];
 
