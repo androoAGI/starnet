@@ -1,0 +1,70 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "UCR-001",
+  "owner_lane": "unassigned_role_only",
+  "state": "checklist_prepared_execution_not_released",
+  "execution_released": false,
+  "reviewer": null,
+  "review_outcome": "not_recorded",
+  "canonical_state_entities": [
+    "Mission",
+    "Experiment",
+    "Run",
+    "Agent",
+    "Workspace",
+    "Stage",
+    "Capability Grant",
+    "Permission",
+    "Evidence",
+    "Decision",
+    "Deliverable",
+    "Cost",
+    "Status"
+  ],
+  "stage_mapping": "A01-A12",
+  "items": [
+    {
+      "id": "contract-entities",
+      "requirement": "Canonical state contract includes the entity list above",
+      "status": "not_produced",
+      "evidence": null
+    },
+    {
+      "id": "additive-shared-events",
+      "requirement": "Shared event changes stay additive in shared/events.js",
+      "status": "not_produced",
+      "evidence": "baseline mechanism: test/events-contract.test.js"
+    },
+    {
+      "id": "stage-mapping",
+      "requirement": "Stage mapping tests for A01-A12",
+      "status": "not_produced",
+      "evidence": null
+    },
+    {
+      "id": "serialization",
+      "requirement": "Serialization and deserialization tests for the canonical state contract",
+      "status": "not_produced",
+      "evidence": null
+    },
+    {
+      "id": "event-contract-coverage",
+      "requirement": "Event contract test coverage after any additive snapshot update",
+      "status": "not_produced",
+      "evidence": "test/events-contract.test.js and test/fixtures/events-contract.snapshot.json"
+    },
+    {
+      "id": "contract-diff",
+      "requirement": "Contract-diff evidence against the baseline snapshot",
+      "status": "not_produced",
+      "evidence": null
+    },
+    {
+      "id": "negative-non-additive",
+      "requirement": "Negative test proving a non-additive mutation is rejected",
+      "status": "not_produced",
+      "evidence": "baseline self-test inside test/events-contract.test.js proveGateCatchesBreakage; UCR-001's own negative receipt is still required"
+    }
+  ]
+}
