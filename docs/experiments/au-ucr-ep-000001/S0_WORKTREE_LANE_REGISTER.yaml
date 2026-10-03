@@ -1,0 +1,42 @@
+experiment_id: AU-UCR-EP-000001
+sprint_id: S0
+state: proposed_not_accepted
+baseline_authority_branch: feat/harness-backend
+
+lanes:
+  - role: Coordinator/Architect
+    branch: cursor/ucr-coordination-3141
+    owner: unassigned_role_only
+    scope: dependency_control_and_gate_signoff
+  - role: Contract Agent
+    branch: cursor/ucr-001-contract-3141
+    owner: unassigned_role_only
+    scope: shared_contract_and_ucr001
+  - role: Runtime Agent
+    branch: cursor/ucr-runtime-3141
+    owner: unassigned_role_only
+    scope: runtime_projection_persistence_correlation
+  - role: Security/Governance Agent
+    branch: cursor/ucr-governance-3141
+    owner: unassigned_role_only
+    scope: capability_permission_consent_mapping
+  - role: Campus/UI Agent
+    branch: cursor/ucr-campus-3141
+    owner: unassigned_role_only
+    scope: frontend_projection_only_non_authoritative
+  - role: QA/Evidence Agent
+    branch: cursor/ucr-qa-evidence-3141
+    owner: unassigned_role_only
+    scope: independent_validation_and_receipts
+
+enforcement_policy:
+  no_feature_edits_in_integration_tree: true
+  one_lane_per_worktree: true
+  no_cross_lane_commits: true
+  qa_lane_independent_of_implementation_acceptance: true
+  unresolved_dependencies_block_downstream_execution: true
+  done_not_equal_accepted: true
+
+current_session_lane:
+  branch: cursor/ucr-s0-execution-3141
+  purpose: sprint0_execution_and_artifact_preparation
