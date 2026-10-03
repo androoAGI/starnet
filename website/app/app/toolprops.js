@@ -8,8 +8,10 @@
      web_search / web_fetch / public browser.*   -> 'dish'      (web)
      channel.*                                   -> 'dish'      (outbound comms — the dish transmits too)
      notebook.* / skill.* / recall_conversation  -> 'notebook'  (memory; todo moved to `computer` 2026-08-17)
+     knowledge_search                            -> 'notebook'  (RAGFlow retrieval, 2026-10 — rides the notebook object, see registry.js)
      image_*                                     -> 'studio'    (media)
      resolve_*                                   -> 'studio'    (DaVinci Resolve)
+     video_*                                     -> 'studio'    (MoneyPrinterTurbo render, 2026-10 — video_generate/status/result)
      spotify_*                                   -> 'jukebox'   (spotify)
 
    Everything else maps to null ON PURPOSE — those tools already have their own dedicated
@@ -35,6 +37,10 @@ const ToolProps = (() => {
     'connectors.list': 'dish',
     voice_generate: 'studio',   // the studio makes audio as well as images — same prop, same pulse
     recall_conversation: 'notebook',
+    // RAGFlow retrieval (2026-10, tools/builtin/knowledge.js): a lookup against a Commander-curated external
+    // document store, same "what can this agent recall/know" family as recall_conversation — no shared prefix
+    // with anything else, so it's EXACT rather than earning its own PREFIX row.
+    knowledge_search: 'notebook',
     'widget.get': 'notebook',
     'widget.set': 'notebook'   // Widget definitions/readings share the notebook-object (memory) grant.
     // QUEST V2 §B: quest.update is DELIBERATELY absent here → null. It moved from the notebook object to the `computer`
@@ -55,6 +61,7 @@ const ToolProps = (() => {
     ['skill.', 'notebook'],
     ['image_', 'studio'],
     ['resolve_', 'studio'],   // DaVinci Resolve edit bay — cutting timelines is studio work (tools/builtin/resolve.js)
+    ['video_', 'studio'],     // MoneyPrinterTurbo render (2026-10): video_generate/video_status/video_result (tools/builtin/video.js)
     ['spotify_', 'jukebox']
   ];
 

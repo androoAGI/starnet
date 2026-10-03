@@ -30,8 +30,9 @@
     { id: 'cabinet',      label: 'FILE CABINET',             glyph: '🗄', desc: 'Read, search, and write files in the agent’s workspace.' },
     { id: 'workbench',    label: 'WORKBENCH (CODE EXECUTION)', glyph: '🔧', desc: 'Run shell commands and verify code — the code-execution bench.' },
     { id: 'orchestrator', label: 'TASK DELEGATION',          glyph: '🕸', desc: 'Delegate subtasks to summoned crew, summon new agents, and schedule routines.' },
-    { id: 'studio',       label: 'MEDIA STUDIO',             glyph: '🎨', desc: 'Generate images, analyse images, record voice clips, and cut DaVinci Resolve timelines — on the keys the agent already uses.' },
+    { id: 'studio',       label: 'MEDIA STUDIO',             glyph: '🎨', desc: 'Generate images, analyse images, record voice clips, render short videos, and cut DaVinci Resolve timelines — on the keys and local services the agent already has.' },
     { id: 'memory',       label: 'MEMORY NOTEBOOK',          glyph: '📓', desc: 'The agent’s private memory and saved skills.' },   // task plans moved to the computer (taskplan freebie, 2026-08-17)
+    { id: 'knowledge',    label: 'KNOWLEDGE BASE',           glyph: '📚', desc: 'Search a Commander-configured local knowledge base (RAGFlow) for relevant passages from uploaded documents.' },
     { id: 'jukebox',      label: 'JUKEBOX (SPOTIFY)',        glyph: '♫',  desc: 'Search and control your Spotify — play, pause, queue, “what’s playing”.' }
   ];
 

@@ -36,10 +36,17 @@ const HOST = '127.0.0.1';
    library:<slug> name) and the operator manual ~9.3K -> ~6.3K (orientation + every behaviour rule stay inline; the
    navigation / props / troubleshooting reference sections are a TOC served verbatim by manual.read). The +1 tool /
    +695 B is manual.read plus skill.view's description naming installed recipes; the tool budgets above still hold.
-   The system budgets drop to the new measurement + ~6% so the diet cannot silently regrow. */
+   The system budgets drop to the new measurement + ~6% so the diet cannot silently regrow.
+   RAGFLOW + MONEYPRINTERTURBO (2026-10, agent/starnet-wiring): +4 tools — knowledge_search (RAGFlow
+   retrieval, rides the notebook object already in the starter floor) and video_generate/video_status/
+   video_result (MoneyPrinterTurbo render, rides the studio object already in the starter floor). Since both
+   `notebook` and `studio` are already part of starterDoc()'s five essentials, both layouts picked up the
+   same +4 tools: measured 24046 / 87 / 66641 (default-new-install) and 24267 / 87 / 66641 (fully-granted-
+   floor) against the prior 24600 / 84 / 64600 budgets. Intended growth — new first-class local-service
+   capabilities, not bloat — so raised here with the same ~6% headroom. */
 const BUDGET = {
-  'default-new-install': { systemChars: 24600, tools: 84, toolBytes: 64600 },
-  'fully-granted-floor': { systemChars: 24800, tools: 84, toolBytes: 64600 }
+  'default-new-install': { systemChars: 25500, tools: 93, toolBytes: 70700 },
+  'fully-granted-floor': { systemChars: 25750, tools: 93, toolBytes: 70700 }
 };
 
 (async () => {
