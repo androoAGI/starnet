@@ -285,7 +285,9 @@ function check() {
     fail(errors, 'QA gate must not record acceptance or a reviewer');
   }
   const rubric = readFileSync(join(ROOT, 'docs/experiments/au-ucr-ep-000001/S0_RUBRIC_APPROVAL_WORKFLOW.md'), 'utf8');
-  if (!rubric.includes('pending') || rubric.includes('threshold: 0') || rubric.includes('frozen: true')) {
+  const rubricFrozen = /(?:frozen:\s*true|\|\s*frozen\s*\|\s*true\s*\|)/i.test(rubric);
+  const zeroThreshold = /(?:threshold:\s*0\b|\|\s*Approved thresholds\s*\|\s*0(?:\.0+)?\s*\|)/i.test(rubric);
+  if (!rubric.includes('pending') || zeroThreshold || rubricFrozen) {
     fail(errors, 'rubric workflow must keep dimensions pending');
   }
   const flag = JSON.parse(readFileSync(join(ROOT, 'qa/evidence/au-ucr-ep-000001-s0/baseline/flag-code-search.json'), 'utf8'));
