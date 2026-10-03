@@ -1,0 +1,36 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "state": "proposed_not_accepted",
+  "baseline": {
+    "authority_branch": "feat/harness-backend",
+    "capture_branch": "cursor/ucr-s0-execution-3141",
+    "capture_commit": "fbddbf992f8e7082196f07c3024781fcf1c276fc"
+  },
+  "manifests": {
+    "test_fast_entries": 953,
+    "test_http_entries": 156,
+    "test_customer_journey_entries": 38
+  },
+  "gates": [
+    {
+      "gate": "npm run test:fast",
+      "outcome": "fail",
+      "receipt_log": "/opt/cursor/artifacts/au-ucr-ep-000001-s0-test-fast-verified.log",
+      "failure_point": "test/crt-context-loss.e2e.test.mjs",
+      "notes": "WebGL context-loss expectations failed in this environment."
+    },
+    {
+      "gate": "npm run test:http",
+      "outcome": "fail",
+      "receipt_log": "/opt/cursor/artifacts/au-ucr-ep-000001-s0-test-http-after-install.log",
+      "failure_point": "test/output-recovery.e2e.test.js",
+      "notes": "Command output path uses 'type flood-a.txt' and returns not found in Linux environment."
+    }
+  ],
+  "remediation_attempts": [
+    "Installed dependencies with npm ci.",
+    "Reran fast gate with pipefail and explicit SKYNET_CHROME.",
+    "Isolated failing HTTP test to confirm reproducibility."
+  ]
+}

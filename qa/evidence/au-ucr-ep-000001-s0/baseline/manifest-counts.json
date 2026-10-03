@@ -1,0 +1,12 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-001",
+  "parser": "scripts/run-test-list.mjs readSteps (trim, drop blanks and # comments)",
+  "counts": {
+    "test/fast.list": 953,
+    "test/http.list": 156,
+    "test/customer-journeys.list": 38
+  },
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77"
+}
