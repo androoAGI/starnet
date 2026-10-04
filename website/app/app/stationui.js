@@ -94,6 +94,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      a NEW Set each time and the row you just opened slams shut. Measured exactly that before moving it
      here. Ids only: an agent that is deleted simply stops being asked about. */
   const permCrewOpen = new Set();
+  const permExactOpen = new Set();   // which crew rows have MORE OPTIONS open (survives the wholesale repaint, like permCrewOpen)
   let lastStageSummary = '';         // #8: last screen-reader summary text, so we only update the live region on change
   let access = {};           // { totals(), activity() } injected by app.js
   let sel = 0;               // selected agent index (dossier / crew)
@@ -2625,14 +2626,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   const STATION_POSTURES = [
     { id: 'careful', label: 'CHECK WITH ME', approval: 'ask', profile: 'station-gear', level: 'suggest',
       blurb: 'It asks you before every risky step, and only touches what you placed on the station.',
-      who: 'Best if you are just starting out.' },
+      who: 'Best if you are just starting out.',
+      agentBlurb: 'Asks before every risky step. Uses only what you placed on the station.' },
     { id: 'balanced', label: 'LET IT WORK', approval: 'ask', profile: 'trusted-project', level: 'draft',
       blurb: 'It still asks before risky steps, but it can work in your project folders and leave drafts while you are away.',
-      who: 'The everyday setting.' },
+      who: 'The everyday setting.',
+      agentBlurb: 'Asks before risky steps. Can work in your approved project folders.' },
     { id: 'open', label: 'FULL POWER', approval: 'full', profile: 'this-computer', level: 'full',
       blurb: 'It never asks and may use the whole local computer to complete your requests.',
-      who: 'Only when you trust it completely.' }
+      who: 'Only when you trust it completely.',
+      agentBlurb: 'Never asks. Can use the whole local computer.' }
   ];
+  // the posture ONE agent matches (approval + reach profile), or null = its own custom mix. The station-wide
+  // unattended level is not part of a single agent's answer — only the whole-station cards set that.
+  const agentPostureOf = (a) => STATION_POSTURES.find(P =>
+    (a && a.approvalMode === 'full' ? 'full' : 'ask') === P.approval && executionProfileId(a) === P.profile) || null;
   // the fallback is the DEFAULT profile by id, never EXECUTION_PROFILES[0] — the array is ordered by reach,
   // so an index-based fallback would silently relabel an unknown profile as the narrowest one.
   const executionProfileOf = (id) => EXECUTION_PROFILES.find(x => x.id === id) ||
@@ -6734,13 +6742,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
          labels of the dials did not read as labels at all. `.set-sub` splits the name from its gloss —
          the name carries the phosphor, the gloss stays dim — and is shared with NIGHT SHIFT / the other
          panes so every settings sub-label looks the same. Pure presentation; no ids or handlers move. */
-      '<div class="set-sub"><span class="set-sub-k">INITIATIVE</span><span class="set-sub-d">does it start work on its own</span></div>' +
+      /* ONE QUESTION UP FRONT (2026-10-04, "make it less confusing"): what does it do on its own? The other two
+         dials (how far, how often) and DIRECTION (where) are tuning, so they share ONE fold below — they used to
+         be three equal rows plus a fold, which read as four questions a newcomer had to answer. */
+      '<div class="set-sub"><span class="set-sub-k">ON ITS OWN</span><span class="set-sub-d">what it does while you are away</span></div>' +
       '<div class="set-themes" id="auto-init">' +
         '<button class="set-theme" data-init="wait" title="nothing runs unless you ask">WAIT</button>' +
         '<button class="set-theme" data-init="propose" title="lines up suggestions you approve — never acts on its own">SUGGEST</button>' +
         '<button class="set-theme" data-init="leash" title="does a few small grounded jobs a day on its own">BUILD</button>' +
         '<button class="set-theme" data-init="free" title="picks &amp; does work toward your goals while you’re away">FREE</button>' +
       '</div>' +
+      '<p class="mc-hint">The three answers in PERMISSIONS set this too.</p>' +
+      '<details class="cf-group set-fold" id="auto-direction-fold"><summary><h4 class="ms-h">FINE-TUNE <span class="dim">— how far, how often, and where</span></h4></summary>' +
       '<div class="set-sub"><span class="set-sub-k">REACH</span><span class="set-sub-d">how far an unattended action may go</span></div>' +
       '<div class="set-themes" id="auto-reach">' +
         '<button class="set-theme" data-reach="observe" title="read / research only — writes nothing">OBSERVE</button>' +
@@ -6761,7 +6774,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // honest, never an invented priority or a fake learned profile.
       // QUIETER (front doors, 2026-10-01): DIRECTION is set once and rarely revisited — it folds closed under its own
       // heading. Every control and id is unchanged; settings search opens the fold when a match is inside.
-      '<details class="cf-group set-fold" id="auto-direction-fold"><summary><h4 class="ms-h">DIRECTION <span class="dim">— where its unattended work should go</span></h4></summary>' +
+      '<div class="set-sub"><span class="set-sub-k">DIRECTION</span><span class="set-sub-d">where its unattended work should go</span></div>' +
       '<div class="set-sub"><span class="set-sub-k">FOCUS</span><span class="set-sub-d" id="auto-focus">…</span></div>' +
       '<div class="set-row ns-steer"><input id="auto-steer" class="key-input" type="text" autocomplete="off" placeholder="Project folder, thread:&lt;id&gt;, or goal"><button class="bb xs" id="auto-steer-set">SET FOCUS</button><button class="bb xs" id="auto-steer-clear" style="display:none">CLEAR</button></div>' +
       '<div class="mc-hint">a steer outranks learned evidence (~7 days, or until cleared). It only redirects the unattended priority — no new access.</div>' +
@@ -6775,8 +6788,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // LIVE HELPERS — the real background sub-agents (team.spawn) running RIGHT NOW, from GET /api/subagents
       // (server truth; the floor's ghost sprites are the same ledger). STOP rides POST /api/subagents/interrupt —
       // before this row a runaway helper could not be stopped from anywhere in the UI.
-      '<div class="set-sub"><span class="set-sub-k">LIVE HELPERS</span><span class="set-sub-d">background sub-agents running now</span></div>' +
-      '<div class="key-list" id="auto-helpers"><p class="set-about">reading helpers…</p></div>';
+      // shown only while helpers are actually running (paintHelpers toggles it) — an empty "no helpers" row was noise
+      '<div class="set-sub" id="auto-helpers-sub" hidden><span class="set-sub-k">LIVE HELPERS</span><span class="set-sub-d">background sub-agents running now</span></div>' +
+      '<div class="key-list" id="auto-helpers" hidden></div>';
     /* ONE WORD: AUTONOMY (2026-09-29, Andrew: "should simply be autonomy"). What the Commander saw as two things —
        the AUTONOMY dial and a separate NIGHT SHIFT section — is one thing: the dial, and what it did while they were
        away. This block (status, decision trail, last report) now renders INSIDE the AUTONOMY section, under the dial
@@ -6822,75 +6836,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="set-row"><button class="bb sm" id="ns-report-btn">▤ LAST REPORT</button></div>' +
       '<div id="ns-report"></div>';
     const secPermissions =
-      /* PERMISSIONS — THREE TIERS, general → specific → rare (2026-08-07, round 3).
-         The pane was four numbered blocks of in-house vocabulary with two separate crew tables and no
-         summary (547 words to set up ONE agent). Round 2 put three postures out front and folded
-         everything else away, which over-corrected: per-agent reach is the pane's most useful control
-         and a posture can only set every agent the SAME way. So it now steps down by how often you
-         touch a thing, never by how advanced it is:
-           AT A GLANCE      — what the station is allowed to do right now, COUNTED from the live roster.
-           TIER 1 · POSTURE — three station-wide buttons. One click and a newcomer is done.
-           TIER 2 · CREW    — one row per agent, the "except this one" override of tier 1.
-           then the rest of the PERMISSIONS, all visible: SKIP EVERY PROMPT (it outranks every row
-           above it, so it is the last thing that should hide) · WHILE YOU'RE AWAY · STANDING
-           APPROVALS (a revocation you cannot find is not revocable).
-           ADVANCED (closed) — idle Safe Cell cleanup, and ONLY that. Maintenance is the one thing
-           here that earns a fold; ONE fold, never a fold inside a fold.
+      /* PERMISSIONS — ONE QUESTION (2026-10-04, Andrew: "make it less confusing").
+         Round 3 (08-07) left every permission visible, which made the pane honest but long: three postures,
+         then a crew table, two sweep buttons that repeated the postures, a master override, a second copy of
+         the AUTONOMY ladder and the approvals ledger — five ways to answer one question.
+         Now the pane answers it once and steps down only where an answer can differ:
+           AT A GLANCE   — what the station is allowed to do right now, COUNTED from the live roster.
+           THE QUESTION  — three postures. One click and you are done.
+           EACH CREW MEMBER — the SAME three answers per agent (the "except this one" override); the exact
+                           reach ladder / ask-or-not / sandbox for that agent fold under its own row.
+           ALWAYS-YES    — the standing approvals ledger. A revocation you cannot find is not revocable,
+                           so it stays on screen.
+           ADVANCED (closed) — the whole-station Full Power override + Safe Cell maintenance. The override
+                           is reported in the glance AND on every crew row whenever it is ON, so folding the
+                           switch never hides its EFFECT.
+         The four-rung unattended ladder lives in AUTONOMY only; a posture still sets it (one click, one truth).
          No inner "PERMISSIONS" h4 — the console section head already prints it (the PROVIDERS rule). */
-      // ── AT A GLANCE — the pane's answer to "what is my station allowed to do RIGHT NOW", in one
-      // ordinary sentence, computed from the live roster + the server's bypass truth. Beginners opened
-      // this pane and met four numbered blocks of vocabulary with no summary; this is the summary. It
-      // asserts nothing the harness can't prove — every clause counts real agent records.
       '<div id="perm-glance" class="perm-glance"><p class="pg-line">reading your crew…</p></div>' +
-      // ── THE FRONT DOOR — three postures. One click sets reach, asks-first and unattended together for
-      // the whole station, so a newcomer answers ONE question instead of composing four dials. Painted by
-      // paintPostures(): a card highlights only when every component matches the live state.
+      // ── THE QUESTION — three postures. One click sets reach, asks-first and the unattended level together for
+      // the whole station. Painted by paintPostures(): a card highlights only when every component matches.
       '<div class="perm-postures" id="perm-postures"><p class="set-about">reading your station…</p></div>' +
-      '<div class="perm-tier-rule"></div>' +
-      // ── TIER 2 · EACH CREW MEMBER — VISIBLE, directly under the buttons that sweep it. Folding this
-      // away was over-correcting: per-agent reach is the pane's most useful control, and a posture only
-      // sets every agent the SAME way. The postures answer "most of the time"; this answers "except…".
-      // ONE row per agent carrying BOTH per-agent axes. These used to be two separate lists, ~40 rows
-      // apart, each re-listing the whole crew: to set up one agent you scrolled between two tables and
-      // matched names by eye. Independent settings, same subject — so, one row.
-      '<h4 class="ms-h">EACH CREW MEMBER <span class="dim">— override the setting above for one agent</span></h4>' +
+      // ── EACH CREW MEMBER — visible, directly under the cards it overrides. One collapsed row per agent.
+      '<h4 class="ms-h">EACH CREW MEMBER <span class="dim">— give one agent a different answer</span></h4>' +
       '<div class="perm-list" id="perm-crew"></div>' +
-      '<div class="mc-acts perm-allacts">' +
-        '<button class="bb sm" id="perm-ask-all">EVERYONE ASKS FIRST</button>' +
-        '<button class="bb sm danger" id="perm-full-all">FULL POWER — WHOLE STATION</button>' +
-      '</div>' +
-      '<div class="mc-hint">Each crew member either <b>ASKS</b> within the selected reach profile or has <b>FULL POWER</b> over the whole local computer. Full Power applies watched or unattended and includes available tools, host files, arbitrary commands, visible apps, and screen/input control. <code>/yolo</code> is the shortcut.</div>' +
-      // The master switch — it overrides the ASKS FIRST setting on every row above, so it sits directly
-      // under them. Visible: it is a permission, and a switch that silently outranks the rows above it
-      // is the last thing that should be hidden behind a disclosure.
-      '<h4 class="ms-h">FULL POWER — WHOLE STATION <span class="dim">— one switch grants host-wide authority to every agent</span></h4>' +
-      '<div id="perm-bypass" class="perm-master"><p class="perm-m-desc">checking the bypass switch…</p></div>' +
-      // ONE ladder, one vocabulary (UX sweep 2026-07-15): these four rungs ARE the AUTONOMY dial's rungs
-      // (Permissions.PLANS maps 1:1 onto the dial presets) — so they carry the SAME primary words the
-      // dial uses. Stored data-level values are unchanged. FULLY AUTONOMOUS stays in the label (it says
-      // the stakes plainly). Plain-language line first, house vocabulary second.
-      // a pick = AUTONOMY preset + matching standing approvals (PermissionsStore.setLevel) — not a 2nd initiative row
-      '<h4 class="ms-h">ONE-STEP AUTONOMY <span class="dim">— a level plus the approvals it needs</span></h4>' +
-      '<p class="set-about perm-lede">Pick how much agents start on their own while you are away — the same WAIT / SUGGEST / BUILD / FREE ladder as AUTONOMY, plus the standing approvals each level needs, set in one step. AUTONOMY fine-tunes initiative, reach and pace one at a time.</p>' +
-      '<p class="set-about perm-lede" id="perm-desc"></p>' +
+      // ── ALWAYS-YES — what you already said ALWAYS to. Visible: a revocation you cannot find is not revocable.
+      '<h4 class="ms-h">STANDING APPROVALS <span class="dim">— things you said ALWAYS to</span></h4>' +
       '<p class="set-about perm-lede" id="perm-status" aria-live="polite">checking standing approvals…</p>' +
-      '<div class="set-themes" id="perm-level">' +
-        '<button class="set-theme" data-level="never" title="does nothing on its own — you drive everything">WAIT</button>' +
-        '<button class="set-theme" data-level="suggest" title="lines up ideas you approve — never acts on its own">SUGGEST</button>' +
-        '<button class="set-theme" data-level="draft" title="acts on its own and leaves drafts — writes no files">BUILD (DRAFTS)</button>' +
-        '<button class="set-theme" data-level="full" title="acts AND writes real files on its own — logged &amp; reversible">FREE (FULLY AUTONOMOUS)</button>' +
-      '</div>' +
-      // STANDING APPROVALS — a review surface, not a setup one, but still a PERMISSION: it is the list of
-      // things already blessed, and a revocation you cannot find is not really revocable. Visible.
-      // (The "answer ALWAYS and it lands here" teaching is the ledger's own empty state; repeating it in
-      // a lede printed the same sentence twice on a fresh station.)
-      '<h4 class="ms-h">STANDING APPROVALS <span class="dim">— what you already said yes to, for good</span></h4>' +
       '<div class="key-list perm-grants" id="perm-grants"></div>' +
-      // ── ADVANCED — station-wide Docker housekeeping, and ONLY that. Everything else on this pane is a
-      // permission somebody might genuinely need to find; this is maintenance, so it is the one thing
-      // that earns a fold. ONE fold, never a fold inside a fold.
+      // ── ADVANCED — ONE fold, never a fold inside a fold. The override's EFFECT is never hidden (glance + rows).
       '<details class="perm-fold" id="perm-advanced">' +
-        '<summary>Safe Cell maintenance</summary>' +
+        '<summary>Advanced — whole-station override &amp; Safe Cell</summary>' +
+        '<div id="perm-bypass" class="perm-master"><p class="perm-m-desc">checking the Full Power override…</p></div>' +
         '<div id="perm-exec-policy"></div>' +
       '</details>';
     const secBudget =
@@ -7501,7 +7477,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       wireLifecyclePreference(closeToTrayToggle, Lifecycle.setCloseToTray, 'Close to tray', 'closeToTray');
     }
     // PERMISSIONS panel repaint hook — set by the permissions block below; called whenever the granular dial
-    // changes so the level highlight + #perm-desc stay in sync with the posture. No-op until that block wires it.
+    // changes so the posture cards stay in sync with the dial. No-op until that block wires it.
     let syncPerm = function () {};
     repaintAutonomyDial = null;   // GROWTH Tier 3: re-armed per settings render (the closure below owns the live DOM)
     repaintPermAgents = null;     // same contract: the PERMISSIONS block below re-arms it against THIS render's DOM
@@ -7681,10 +7657,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // /api/subagents/interrupt; the list repaints from the ROUTE after every action (never an optimistic flip).
     {
       const list = host.querySelector('#auto-helpers');
+      const helpersSub = host.querySelector('#auto-helpers-sub');
       const paintHelpers = (rows) => {
         if (!list) return;
+        // visible only while something is running (or the ledger can't be read — that is worth saying)
+        const show = !Array.isArray(rows) || rows.length > 0;
+        list.hidden = !show; if (helpersSub) helpersSub.hidden = !show;
         if (!Array.isArray(rows)) { list.innerHTML = '<p class="set-about">helpers unreachable right now.</p>'; return; }
-        if (!rows.length) { list.innerHTML = '<p class="set-about">no background helpers running.</p>'; return; }
+        if (!rows.length) { list.innerHTML = ''; return; }
         list.textContent = '';
         for (const r of rows) {
           const row = document.createElement('div');
@@ -7850,16 +7830,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // Re-setting the dial / a LEVEL click is the (silent) act that LIFTS a durable E-STOP halt
       // (handleAutonomyPosture → clearHalt) — re-read the status shortly after so the ⛔ HALTED card clears
       // (or appears) from the ROUTE's truth, never from an optimistic guess.
-      host.querySelectorAll('#auto-init [data-init], #auto-reach [data-reach], #auto-pace [data-pace], #perm-level [data-level]')
+      host.querySelectorAll('#auto-init [data-init], #auto-reach [data-reach], #auto-pace [data-pace]')
         .forEach(b => b.addEventListener('click', () => { setTimeout(refreshPanel, 600); }));
+      // a PERMISSIONS posture sets the level too (the old level row's job) — its cards are repainted wholesale, so
+      // listen on the stable host rather than on cards that will be replaced.
+      const postureHost = host.querySelector('#perm-postures');
+      if (postureHost) postureHost.addEventListener('click', e => { if (e.target.closest('[data-posture]')) setTimeout(refreshPanel, 600); });
     }
     // PERMISSIONS panel — the never→fully-autonomous LEVEL chooser + the OS-style standing-grant list
     // (permissionsstore). Grants live server-side, so paint from cache now, refresh from the sidecar, repaint. A
     // level click sets BOTH posture + the write grant (so it repaints the dial); the dial syncs back via syncPerm.
     if (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) {
-      const levelWrap = host.querySelector('#perm-level'), grantsWrap = host.querySelector('#perm-grants'),
-            permDesc = host.querySelector('#perm-desc'), permStatus = host.querySelector('#perm-status');
-      const pdesc = (lvl) => (typeof Permissions !== 'undefined' && Permissions.describeLevel) ? Permissions.describeLevel(lvl) : '';
+      // (the four-rung unattended ladder that used to sit here lives in AUTONOMY only; a posture still sets it)
+      const grantsWrap = host.querySelector('#perm-grants'), permStatus = host.querySelector('#perm-status');
       const plabel = (k) => (typeof Permissions !== 'undefined' && Permissions.catalogLabel) ? Permissions.catalogLabel(k) : k;
       const pcurated = () => (typeof Permissions !== 'undefined' && Permissions.grantableKeys) ? Permissions.grantableKeys() : [];
       const repaintDial = () => {
@@ -7972,10 +7955,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const n = present.length;
         const noPrompt = present.filter(a => a && a.approvalMode === 'full').length;
         const asks = n - noPrompt;
-        const broadest = present.reduce((best, a) => {
-          const p = executionProfileOf(executionProfileId(a));
-          return (!best || p.reach > best.p.reach) ? { p: p, a: a } : best;
-        }, null);
         // Whole sentences per branch rather than glued fragments — a concatenated subject and verb
         // disagree the moment the crew count is 1 ("Your one crew member stops and ask you").
         const everyone = (verbSingular, verbPlural) => n === 1
@@ -7987,16 +7966,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         else if (!noPrompt) head = everyone('stops and asks', 'stop and ask') + ' you before anything risky.';
         else if (!asks) head = everyone('runs', 'run') + ' without stopping to ask you.';
         else head = asks + ' of your ' + n + ' crew ask before anything risky; ' + noPrompt + ' run' + (noPrompt === 1 ? 's' : '') + ' without asking.';
-        // the PLAIN name leads here too — the glance is the first thing a newcomer reads, and the house
-        // name ("STATION GEAR") teaches them nothing at the moment they most need to understand it.
-        const reachLine = broadest
-          ? 'Furthest reach on the station: <b>' + esc(broadest.p.plainLabel) + '</b> (' + esc(broadest.a.name || broadest.a.id) + ') — ' + esc(broadest.p.plain)
-          : '';
+        // The host-wide meaning of FULL POWER is stated only when someone actually HOLDS it — on a station where
+        // everyone asks, the warning was a paragraph about a state that did not exist. When the whole-station
+        // override is the reason, the glance says where to turn it off (it lives in the ADVANCED fold).
         glanceWrap.classList.toggle('loud', bypassOn);
         glanceWrap.innerHTML =
           '<p class="pg-line">' + esc(head) + '</p>' +
-          (reachLine ? '<p class="pg-reach">' + reachLine + '</p>' : '') +
-          '<p class="pg-floor">FULL POWER is host-wide: it may use protected files, arbitrary commands, visible apps, and screen/input control. ASK and narrower reach modes retain their listed restrictions.</p>';
+          ((bypassOn || noPrompt) ? '<p class="pg-floor">FULL POWER is host-wide: it may use protected files, arbitrary commands, visible apps, and screen/input control. Full Power applies watched or unattended.' +
+            (bypassOn && !snap.envFullAccess ? ' Turn the whole-station override off under <b>Advanced</b> below.' : '') + '</p>' : '');
       };
       /* ── THE POSTURE FRONT DOOR ────────────────────────────────────────────────────────────────────
          A posture is a SHORTCUT FOR SETTING VALUES, never a badge. It highlights only when every one of
@@ -8017,7 +7994,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const can = !!(access.config && access.config.setApproval && access.config.setExecutionProfile);
         postureWrap.innerHTML =
           '<div class="pp-head"><span class="pp-q">HOW MUCH SHOULD YOUR CREW DO ON ITS OWN?</span>' +
-            '<span class="pp-state' + (on ? ' matched' : '') + '">' + (on ? 'SET TO ' + esc(on.label) : 'CUSTOM — your own mix of the settings below') + '</span></div>' +
+            '<span class="pp-state' + (on ? ' matched' : '') + '">' + (on ? 'SET TO ' + esc(on.label) : 'CUSTOM — your crew have different answers, see below') + '</span></div>' +
           '<div class="pp-cards">' + STATION_POSTURES.map(P =>
             '<button class="pp-card' + (on && on.id === P.id ? ' sel' : '') + (P.id === 'open' ? ' danger' : '') + '" data-posture="' + P.id + '"' +
               ' data-name="' + esc(P.label) + '" aria-pressed="' + (on && on.id === P.id ? 'true' : 'false') + '"' + (can ? '' : ' disabled') + '>' +
@@ -8025,7 +8002,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               '<span class="pp-blurb">' + esc(P.blurb) + '</span>' +
               '<span class="pp-who">' + esc(P.who) + '</span>' +
             '</button>').join('') + '</div>' +
-          '<p class="pp-foot">Pick one and you are done — everything below is optional.</p>';
+          '<p class="pp-foot">Pick one and you are done. Everything below is optional.</p>';
         // Applying: count what ACTUALLY changed and report that number. setApproval returns false for an
         // agent deleted from another surface mid-click, and setExecutionProfile can be refused by the
         // station — a blanket "posture applied" over a partly-failed sweep is the app asserting a state
@@ -8138,25 +8115,34 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
              reach — so the list READS without opening anything; opening is for CHANGING.
              <details> rather than a hand-rolled toggle: free keyboard + screen-reader semantics, and it is
              the same idiom `.mc-adv` / `.exec-ssh` already use in this file. */
+          /* THE ROW = the same three answers as the cards above, for this one agent. Its SUMMARY says which
+             answer it holds (or CUSTOM — a hand-set mix of reach + asking that no card names) and what that
+             means; opening it offers the three answers; the exact reach ladder, ask-or-not and sandbox fold
+             under MORE OPTIONS for the rare case a card is not enough. The badge reports the EFFECTIVE state:
+             under the whole-station override every row reads FULL POWER, and the stored answer stays visible. */
+          const AP = agentPostureOf(a);
+          const badge = effFull ? 'FULL POWER' : (AP ? AP.label : 'CUSTOM');
+          const stateLine = overridden
+            ? 'whole-station override is ON · ' + (AP ? 'returns to ' + AP.label : 'returns to its custom mix') + ' when it is off'
+            : (AP ? AP.agentBlurb : (full ? 'never asks · ' : 'asks first · ') + p.short);
+          const postureChips = STATION_POSTURES.map(P =>
+            '<button class="ov-vchip pc-posture' + (AP && AP.id === P.id ? ' sel' : '') + (P.id === 'open' ? ' danger' : '') + '" data-agent-posture="' + P.id + '" data-agent="' + esc(String(a.id)) + '"' +
+              ' title="' + esc(P.agentBlurb) + '" aria-pressed="' + (AP && AP.id === P.id ? 'true' : 'false') + '"' + (can && canAsk ? '' : ' disabled') + '>' + esc(P.label) + '</button>').join('');
           return '<details class="perm-agent perm-crew-row' + (effFull ? ' full' : '') + (overridden ? ' overridden' : '') + '" data-profile-agent="' + esc(String(a.id)) + '" data-ssh-configured="' + (sshConfigured ? '1' : '0') + '"' +
               (permCrewOpen.has(String(a.id)) ? ' open' : '') + '>' +
             '<summary class="pc-head">' +
               '<span class="pa-name">' + esc(a.name || a.id) + '</span>' +
-              // WORDING from trunk's host-wide Full Power lane (`7b35f70e8`), STRUCTURE from this one.
-              // Their side is an honesty claim about what the posture actually authorizes — it is the
-              // newer, deliberate copy and must not be reverted by a layout change; my side only turns
-              // the row into a <summary> and adds the caret. Taking either side whole would have
-              // silently dropped the other's work, which is why this conflict was resolved by hand.
-              '<span class="pa-mode">' + (effFull ? 'FULL POWER' : 'ASKS') + '</span>' +
-              '<span class="pa-state">' + (effFull ? 'whole local computer · never stops to ask you' : (esc(p.short) + ' · stops before it writes, runs, or reaches out')) + '</span>' +
+              '<span class="pa-mode">' + esc(badge) + '</span>' +
+              '<span class="pa-state">' + esc(stateLine) + '</span>' +
               '<span class="pc-caret" aria-hidden="true">▸</span>' +
             '</summary>' +
+            '<div class="ov-vchips pc-chips pc-posture-chips">' + postureChips + '</div>' +
+            (AP ? '' : '<p class="pc-plain">A custom mix — it reaches <b>' + esc(p.plainLabel.toLowerCase()) + '</b> and ' + (full ? 'never asks' : 'asks before risky steps') + '. Pick an answer above to reset it, or fine-tune below.</p>') +
+            '<details class="mc-adv pc-exact"' + (permExactOpen.has(String(a.id)) || id === 'remote-ssh' ? ' open' : '') + ' data-exact-agent="' + esc(String(a.id)) + '"><summary>More options — exact reach, asking, sandbox</summary>' +
             '<div class="pc-axis">' +
               '<span class="pc-q">CAN REACH</span>' +
-              // `pc-reach-chips` lays the five rungs out as an EVEN grid rather than a flex-wrap. Wrapping
-              // by content width made a ladder of five different-width lozenges break 4 + 1, with the
-              // orphan under a wide hole — the one thing on the pane that is an ORDERED SCALE was also
-              // the only thing you could not read as one. (CSS-only; the chips themselves are unchanged.)
+              // `pc-reach-chips` lays the five rungs out as an EVEN grid rather than a flex-wrap (an ordered scale
+              // must read as one). (CSS-only; the chips themselves are unchanged.)
               (can ? '<div class="ov-vchips pc-chips pc-reach-chips">' + reachChips + '</div>' : '<span class="pc-plain">' + esc(p.label) + '</span>') +
               '<p class="pc-plain">' + (effFull ? 'Full Power currently overrides this stored reach profile; the profile applies again when Full Power is turned off.' : esc(p.plain)) + '</p>' +
               '<p class="mc-hint pc-truth">' + sandboxChip(row) + 'routes next command to <b>' + esc(routed) + '</b> · availability <b>' + esc(availability) + '</b> · files: ' + esc(p.files) + ' · tools: ' + esc(p.tools) + ' · desktop ' + esc(p.desktop) + '</p>' +
@@ -8173,6 +8159,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
                   : 'Before it writes a file, runs a command, or reaches outside, it stops and waits for your yes.') + '</p>' +
             '</div>' +
             (cell || ssh ? '<div class="pc-more">' + cell + ssh + '</div>' : '') +
+            '</details>' +
             '</details>';
         }).join('');
         wireCrew();
@@ -8188,6 +8175,32 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             if (!id) return;
             if (row.open) permCrewOpen.add(id); else permCrewOpen.delete(id);
           });
+        });
+        crewList.querySelectorAll('.pc-exact[data-exact-agent]').forEach(box => box.addEventListener('toggle', () => {
+          const id = String(box.dataset.exactAgent || '');
+          if (box.open) permExactOpen.add(id); else permExactOpen.delete(id);
+        }));
+        /* THE THREE ANSWERS, per agent. One click writes BOTH halves of the answer through the same two paths the
+           cards use (setExecutionProfile, then setApproval) and reports what ACTUALLY landed — a refused profile
+           change leaves asking untouched rather than half-applying. FULL POWER keeps the house two-press confirm;
+           an answer the agent already holds does nothing. */
+        crewList.querySelectorAll('[data-agent-posture]').forEach(b => {
+          const P = STATION_POSTURES.find(x => x.id === b.getAttribute('data-agent-posture'));
+          const id = b.getAttribute('data-agent');
+          if (!P || b.disabled || b.classList.contains('sel')) return;
+          const agentName = () => { const a = present.find(x => String(x.id) === id); return a ? (a.name || a.id) : id; };
+          const apply = () => {
+            b.disabled = true;
+            Promise.resolve(access.config.setExecutionProfile(id, P.profile))
+              .then(okP => !!okP && !!access.config.setApproval(id, P.approval))
+              .catch(() => false)
+              .then(ok => {
+                notify(ok ? agentName() + ' set to ' + P.label : 'could not change ' + agentName() + ' — it kept its previous setting', ok ? (P.id === 'open' ? 'warn' : 'good') : 'bad');
+                refreshExecutionProfiles();
+              });
+          };
+          if (P.id === 'open') ArmConfirm.wire(b, { armedLabel: 'SURE? WHOLE COMPUTER', restLabel: P.label, timeoutMs: 4000, onArm: () => sfx('bad'), onConfirm: () => { sfx('bad'); apply(); } });
+          else b.addEventListener('click', () => { sfx('click'); apply(); });
         });
         crewList.querySelectorAll('[data-ssh-save]').forEach(button => button.addEventListener('click', () => {
           const box = button.closest('[data-exec-agent]'); if (!box) return;
@@ -8280,37 +8293,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       paintCrew();
       paintPolicy(null);
       refreshExecutionProfiles();
-      // WHOLE-STATION switches. Both COUNT what actually changed and report that number: a blanket
-      // "whole station on FULL ACCESS" toast over an empty roster, or over a partly-failed sweep, is
-      // the app asserting a state the harness never reached (the truthful-telemetry law).
-      const sweepApproval = (mode) => {
-        if (!(access.config && access.config.setApproval)) return null;
-        let done = 0;
-        present.forEach(a => { if (access.config.setApproval(a.id, mode)) done++; });
-        paintCrew();
-        return { done: done, of: present.length };
-      };
-      const fullAll = host.querySelector('#perm-full-all'), askAll = host.querySelector('#perm-ask-all');
-      if (fullAll) ArmConfirm.wire(fullAll, {
-        armedLabel: 'SURE? EVERY AGENT, FULL POWER', restLabel: 'FULL POWER — WHOLE STATION', timeoutMs: 4000,
-        onArm: () => sfx('bad'),
-        onConfirm: () => {
-          const r = sweepApproval('full');
-          if (!r) return;
-          sfx('bad');
-          notify(r.done
-            ? r.done + ' agent' + (r.done === 1 ? '' : 's') + ' now have FULL POWER over the local computer without approval prompts'
-            : 'no crew to change — summon an agent first', r.done ? 'warn' : 'bad');
-        }
-      });
-      if (askAll) askAll.addEventListener('click', () => {
-        const r = sweepApproval('ask');
-        if (!r) return;
-        sfx('click');
-        notify(r.done
-          ? r.done + ' agent' + (r.done === 1 ? '' : 's') + ' will ask before risky moves again'
-          : 'no crew to change — summon an agent first', r.done ? 'good' : 'bad');
-      });
       // A SUMMON / DELETE while the panel sits open must refresh this list (a panel painted from the roster
       // owes a repaint hook — otherwise the pane offers a reach flip for an agent that no longer exists).
       repaintPermAgents = paintCrew;
@@ -8339,6 +8321,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const paintBypass = (snap) => {
         if (!bypassWrap) return;
         bypassWrap.classList.toggle('on', !!(snap.loaded && (snap.masterBypass || snap.envFullAccess)));
+        // the override lives in the ADVANCED fold, but an ON override is never tucked away: the fold opens itself
+        // so the switch that is outranking every crew row is on screen next to the rows it outranks.
+        const advFold = bypassWrap.closest('details');
+        if (advFold && snap.loaded && (snap.masterBypass || snap.envFullAccess)) advFold.open = true;
         if (!snap.loaded) { bypassWrap.innerHTML = '<p class="perm-m-desc">The bypass switch is unavailable until the local permission service confirms it.</p>'; return; }
         // the card: title + live state chip · one description paragraph · the control on its OWN line ·
         // a hairline-separated floor note. The button never sits inside the prose (it read as part of
@@ -8392,8 +8378,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // The glance sentence AND every crew row name the override state, so both must move WITH the
         // switch — a flip that repainted only the card left the rows claiming "ASKS" under an ON override.
         paintCrew();
-        if (permDesc) permDesc.textContent = pdesc(snap.level);
-        if (levelWrap) levelWrap.querySelectorAll('[data-level]').forEach(x => x.classList.toggle('sel', x.dataset.level === snap.level));
         if (permStatus) {
           if (snap.error) permStatus.textContent = '⚠ ' + snap.error + (snap.loaded ? ' — showing the last confirmed approvals; changes were not applied.' : ' — standing approvals could not be verified; no changes are available.');
           else permStatus.textContent = snap.loaded ? '' : 'checking standing approvals…';
@@ -8404,7 +8388,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         }
       };
       syncPerm = repaintPerm;
-      if (levelWrap) levelWrap.querySelectorAll('[data-level]').forEach(b => b.addEventListener('click', () => { Promise.resolve(PermissionsStore.setLevel(b.dataset.level)).then(() => { repaintPerm(); repaintDial(); }); sfx('click'); }));
       repaintPerm();
       if (PermissionsStore.refresh) Promise.resolve(PermissionsStore.refresh()).then(repaintPerm).catch(() => {});
     }
