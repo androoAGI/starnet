@@ -5527,6 +5527,14 @@ select.fbc-sel:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba
 .sandbox-chip-fix { display: block; color: var(--bad); opacity: .9; margin: 0 0 4px; }
 .perm-crew-row .pc-truth .sandbox-chip, .perm-crew-row .pc-truth .sandbox-chip-fix { opacity: 1; }
 .perm-crew-row .pc-more { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--ph-faint); }
+/* THE THREE ANSWERS, per agent (2026-10-04): the same three words as the station cards, as one even row
+   so the choice reads as one question. The exact reach ladder / asking / sandbox fold under MORE OPTIONS. */
+.perm-crew-row .pc-posture-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.perm-crew-row .pc-posture-chips .ov-vchip { justify-content: center; text-align: center; padding: 7px 8px; }
+.perm-crew-row .pc-posture-chips .ov-vchip.danger:not(.sel) { color: var(--bad); }
+.perm-crew-row .pc-exact { margin-top: 10px; }
+.perm-crew-row .pc-exact > summary { font-size: 13px; color: var(--ph-dim); cursor: pointer; }
+.perm-crew-row .pc-exact > summary:hover { color: var(--ph); }
 .perm-crew-row .pc-more .mc-acts { margin: 0 0 6px; }
 .perm-crew-row .pc-more .mc-acts:last-child { margin-bottom: 0; }
 .perm-crew-row .exec-ssh { margin: 0; }

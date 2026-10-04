@@ -162,7 +162,8 @@ async function main() {
 
   const childEnv = Object.assign({}, process.env, {
     SKYNET_DEV: '1',
-    SKYNET_FULL_ACCESS: '1',
+    // SEED_FULL_ACCESS=0 boots WITHOUT the env-forced override, so the PERMISSIONS pane can be exercised live.
+    SKYNET_FULL_ACCESS: process.env.SEED_FULL_ACCESS === '0' ? '' : '1',
     SKYNET_WORKSPACES: SCRATCH,
     SKYNET_PORT: port
   });
