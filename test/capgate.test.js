@@ -28,7 +28,7 @@ function station(objsByRoom, assignedRoom) {
 {
   const full = resolveTools('ag', station({ quarters: ['computer', 'notebook'] }, 'quarters'));
   A.ok(full.hasCompute, 'computer grants compute');
-  A.eq(full.tools.slice().sort(), ['app.check', 'app.create', 'app.publish', 'app.read', 'app.schedule', 'app.write', 'code.run', 'deliverable_note', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'todo', 'tool.search', 'widget.get', 'widget.set'], 'notebook grants its tools; compute excluded from tools[]; the host-scoped routine notepad and other primitives ride the COMPUTER placed in this same room');
+  A.eq(full.tools.slice().sort(), ['app.check', 'app.create', 'app.publish', 'app.read', 'app.schedule', 'app.write', 'code.run', 'deliverable_note', 'manual.read', 'notebook.feedback', 'notebook.read', 'notebook.write', 'quest.update', 'recall_conversation', 'routine.notepad', 'skill.list', 'skill.manage', 'skill.view', 'skill.write', 'station.inspect', 'station.show', 'todo', 'tool.search', 'widget.get', 'widget.set'], 'notebook grants its tools; compute excluded from tools[]; the host-scoped routine notepad and other primitives ride the COMPUTER placed in this same room');
   A.eq(full.approvalRules['notebook.write'].requiresConsent, false, 'notebook write needs no consent (sandboxed private memory)');
   A.eq(full.approvalRules['notebook.read'].requiresConsent, false, 'read auto-allowed');
 
@@ -55,7 +55,7 @@ function station(objsByRoom, assignedRoom) {
   // is inert unless the host also minted a cronJobId for this exact scheduled run.
   // deliverable_note rides COMPUTER for the same reason quest.update/tool.search do: it must exist on the
   // compute-only interactive office, which is exactly the surface most likely to produce an unnamed file.
-  A.eq(compOnly.tools.slice().sort(), ['app.check', 'app.create', 'app.publish', 'app.read', 'app.schedule', 'app.write', 'code.run', 'deliverable_note', 'manual.read', 'quest.update', 'routine.notepad', 'station.inspect', 'todo', 'tool.search'], 'computer-only room grants the host-scoped routine scratch tool + the deliverable naming, task-plan and (deferred, inert-until-approved) plugin-authoring freebies, no general notebook tools');
+  A.eq(compOnly.tools.slice().sort(), ['app.check', 'app.create', 'app.publish', 'app.read', 'app.schedule', 'app.write', 'code.run', 'deliverable_note', 'manual.read', 'quest.update', 'routine.notepad', 'station.inspect', 'station.show', 'todo', 'tool.search'], 'computer-only room grants the host-scoped routine scratch tool + the deliverable naming, task-plan and (deferred, inert-until-approved) plugin-authoring freebies, no general notebook tools');
   A.eq(compOnly.approvalRules['quest.update'].requiresConsent, false, 'quest.update is consent-free (freebie trust class)');
   A.eq(compOnly.approvalRules['todo'].requiresConsent, false, 'todo is consent-free (taskplan freebie — a runnable agent always has a task list)');
 
