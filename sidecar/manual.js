@@ -40,7 +40,10 @@ const LIVE_STATE =
   'It is the authoritative local, read-only, secret-free snapshot and needs no placed prop or approval. Never ' +
   'guess this state, invent a StarNet CLI command, or ask for a WORKBENCH/INTEL CAB just to inspect the harness.\n';
 const NAV_HEAD =
-  'NAVIGATION — the controls the Commander uses:\n';
+  'NAVIGATION — the controls the Commander uses. When they ask where something is or to see it, OPEN it for them with ' +
+  'station.show (any window, tab or settings section below, an agent\'s dossier tab or desk, BUILD MODE, the Recruitment Bay) ' +
+  'instead of describing the clicks; it opens on their screen only while they are watching your conversation, so if it is ' +
+  'refused, tell them where it is:\n';
 const NAV_COMMS =
   '- COMMS: the chat panel. The Commander types a request and hits Enter to task the focused agent. ' +
   'Clicking an agent (or its crew-manifest row) focuses it, so messages and new work go to that agent.\n';
@@ -70,8 +73,8 @@ const NAV_REST =
   '- Recruitment Bay: where the Commander SUMMONS a new agent. They pick a class seal (a specialist ' +
   'class), or use the ＋ BUILD A CUSTOM CLASS tile to define their own. The new agent materializes on ' +
   'the floor.\n' +
-  '- APPROVALS hotspot: where a paused agent waits for a decision. Choices are Approve once, Always, ' +
-  'Full access, or Deny (Alt+A jumps to a pending approval).\n';
+  '- APPROVALS: an agent in ASK mode that needs a decision pauses with an approval card in COMMS, in the conversation ' +
+  'where it paused: Approve once, Always, Full access, or Deny. NOTIFICATIONS › NEEDS YOU lists every one still waiting.\n';
 const PROPS =
   'OBJECT = CAPABILITY — a prop placed in an agent’s BAY room grants it a REAL power. No prop placed ' +
   'means no power (the floor never lies). The core props and what they grant:\n' +
@@ -94,7 +97,7 @@ const APPROVAL =
   'APPROVAL MODE — each agent has a consent posture. In APPROVAL (“ask”) mode the Commander gets a ' +
   'one-click prompt the first time the agent tries a write / shell / network action; FULL POWER authorizes ' +
   'the whole local computer without asking, including host files, arbitrary commands, visible apps, and ' +
-  'screen/input control when the native desktop driver is available. So if an ASK-mode action is “stuck,” look at the APPROVALS hotspot — it may be ' +
+  'screen/input control when the native desktop driver is available. So if an ASK-mode action is “stuck,” look at the approval in COMMS — it may be ' +
   'waiting on a decision. Just CALL your tools when ready; the prompt is automatic. Do not refuse in chat ' +
   'or claim you cannot act because of permissions.\n';
 const CONNECTING =
@@ -136,8 +139,8 @@ const TROUBLESHOOTING =
   'prop in THAT agent’s room: DISH for web, INTEL CAB for files, WORKBENCH for the terminal.\n' +
   '- “The agent won’t run / it says NO COMPUTE” → its bay has no workstation; place a desk or ' +
   'console in its room so it has its own PC.\n' +
-  '- “An approval is stuck / the edge is flashing red” → open the APPROVALS hotspot (Alt+A) and ' +
-  'Approve or Deny the pending request.\n' +
+  '- “An agent is stuck / waiting” → it may be waiting on an approval: its card is in COMMS, in the conversation ' +
+  'where it paused (NOTIFICATIONS › NEEDS YOU lists every one waiting). Approve or Deny it there.\n' +
   '- “I typed in COMMS but nothing happened” → make sure the intended agent is focused (click it) ' +
   'before sending.\n' +
   '- “Where did my agent go?” → agents walk to their workstation to work and roam when idle; they ' +
@@ -151,8 +154,8 @@ const SECTIONS = [
   { id: 'about', kind: 'orientation', lead: '', title: 'What this manual is', text: ABOUT },
   { id: 'live-state', kind: 'rule', lead: '', title: 'LIVE HARNESS STATE', text: LIVE_STATE },
   { id: 'navigation', kind: 'reference', lead: '\n', title: 'NAVIGATION', text: NAV_HEAD + NAV_COMMS + NAV_AUTOMATION + NAV_REST,
-    summary: 'every window and control the Commander uses — COMMS, MY WORK, AUTOMATE, the DOCK, CONNECT › ABILITIES and '
-      + 'CHANNELS, SETTINGS › AI & MODELS, BUILD MODE, the Recruitment Bay, the APPROVALS hotspot.' },
+    summary: 'every window and control, and station.show to open one for the Commander — COMMS, MY WORK, AUTOMATE, the DOCK, '
+      + 'ABILITIES, CHANNELS, SETTINGS, BUILD MODE, the Recruitment Bay.' },
   { id: 'props', kind: 'reference', lead: '\n', title: 'OBJECT = CAPABILITY', text: PROPS,
     summary: 'OBJECT = CAPABILITY — a prop placed in an agent\'s BAY room grants it a real power, and no prop means no '
       + 'power: WORKSTATION → COMPUTE, DISH → WEB, INTEL CAB → FILES, WORKBENCH → TERMINAL, SERVER CART → MEMORY, '

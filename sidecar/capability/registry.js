@@ -59,6 +59,11 @@
       // station.inspect and the same always-present object, so the prompt's "call manual.read" can never name a
       // tool the run lacks. A constant text lookup: no IO, no network, no consent.
       { capId: 'stationinfo', tool: 'manual.read', scope: 'read', requiresConsent: false, network: false },
+      // SHOWING the station (2026-10-04): station.show opens a StarNet window/tab on the Commander's screen (frontend/app/places.js).
+      // Read scope + no consent: it changes only what they LOOK at (no harness state), so neither an approval card nor the Task
+      // Brief gate stands between "show me" and the window; the page obeys only the run they are watching. Deferred: found by
+      // tool_search "show open window" (the manual's navigation section names it), so it costs no prompt bytes.
+      { capId: 'stationinfo', tool: 'station.show', scope: 'read', requiresConsent: false, network: false, deferred: true },
       // Host-scoped scheduled scratchpad: the computer is present on every runnable station, while the tool
       // itself refuses any run without a host-minted cronJobId. This does not grant general notebook access.
       { capId: 'routinescratch', tool: 'routine.notepad', scope: 'write', requiresConsent: false, network: false },

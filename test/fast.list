@@ -863,6 +863,7 @@ test/station-bridge.test.js
 test/station-commands.test.js
 test/station-tools.test.js
 test/station-control.test.js
+test/station-show.test.js
 test/station-power-consent.test.js
 test/station-control-contracts.test.js
 test/team-configure-guard.test.js
