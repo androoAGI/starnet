@@ -527,16 +527,21 @@ A.ok(/orchestrator/.test(mhh) && /tuned for/.test(mhh),
 A.ok(/overrides the class default/.test(mhh), 'a pinned model is labelled as overriding the class default');
 A.ok(/applied at summon/.test(mkt), 'the builder still labels reasoning effort as what summon APPLIES');
 
-/* ---------- S3b. CUSTOM BUILDER: kit/skills/effort round-trip into the saved custom spec ---------- */
-// the builder holds picked-loadout state and folds it into the spec passed to Specialties.saveCustom.
-A.ok(/let buildKit = \[\], buildSkills = \[\], buildEffort = null/.test(mkt), 'the custom builder tracks picked kit/skills/effort');
-A.ok(/function buildKitChipsHTML\(\)/.test(mkt), 'the builder renders kit picker chips');
-A.ok(/KIT_PICKABLE = \['dish', 'cabinet', 'notebook', 'workbench', 'studio'\]/.test(mkt),
-  'the gear picker offers the shareable station caps only (computer/connector are per-agent manual-bind, excluded)');
-A.ok(/Choose at least one tool this class will use/.test(mkt), 'the custom builder explains the tool picker in plain language');
-A.ok(/data-skill=/.test(mkt) && /loadSkillCatalog\(\)\.then/.test(mkt.slice(mkt.indexOf('function wireBuildForm'))),
-  'the skill picker is populated from the live skill catalog');
-A.ok(/data-effort=/.test(mkt), 'the builder has a reasoning-effort selector');
+/* ---------- S3b. CUSTOM BUILDER: tools + skills are BUILT IN; a carried loadout still round-trips ----------
+   Andrew 2026-10-04: the builder's tool/skill/model/effort pickers were "very confusing" — and they never decided
+   an agent's reach (tools resolve per turn from the station + power settings, skills are ADD-only over the enabled
+   set, model + effort are picked on the recruit card). The builder is now one page that says so. Lock BOTH halves:
+   no picker comes back, and a loadout carried in from a station draft / an edited class still survives the save. */
+const bfhAll = A.fnBody(mkt, 'function buildFormHTML(');
+const wbfAll = A.fnBody(mkt, 'function wireBuildForm(');
+A.ok(/let buildKit = \[\], buildSkills = \[\], buildEffort = null/.test(mkt), 'the custom builder still carries a draft/edited loadout (kit/skills/effort)');
+A.ok(!/function buildKitChipsHTML\(\)/.test(mkt) && !/KIT_PICKABLE/.test(mkt), 'the builder no longer renders a tool (kit) picker');
+A.ok(!/Choose at least one tool/.test(mkt), 'the builder never demands a tool pick (the pick changed nothing)');
+A.ok(!/data-skill=/.test(bfhAll + wbfAll) && !/loadSkillCatalog/.test(wbfAll), 'the builder no longer renders a skill picker');
+A.ok(!/data-effort=/.test(bfhAll) && !/data-model=/.test(bfhAll), 'the builder no longer renders model / effort pickers (the recruit card owns them)');
+A.ok(!/data-recipe-panel/.test(bfhAll), 'the builder is ONE page, not three tabs');
+A.ok(/Tools and skills are built in/.test(bfhAll), 'the builder says, plainly, that tools and skills come built in');
+A.ok(/Pick its model when you recruit/.test(bfhAll), 'the builder points model choice at the recruit card');
 // the CREATE handler passes kit/skills/effort into saveCustom (round-trip).
 const createSeg = mkt.slice(mkt.indexOf("const create = stage.querySelector('.mkt-do-build')"), mkt.indexOf("stage.querySelector('#mkt-b-name'); if (nameIn)"));
 A.ok(/kit:\s*buildKit\.slice\(\)/.test(createSeg), 'CREATE folds the picked kit into the saved spec');
