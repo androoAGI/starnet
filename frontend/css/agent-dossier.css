@@ -134,3 +134,8 @@
 .agent-dossier .ag-portrait-well { box-sizing: content-box; border: 1px solid rgba(var(--ph-rgb),.24); border-radius: 14px; background: radial-gradient(ellipse at 50% 90%,rgba(var(--ph-rgb),.16),transparent 70%),rgba(0,0,0,.14); box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb),.12); }
 .agent-dossier #ag-portrait { border: 0; background: transparent; box-shadow: none; }
 .agent-dossier :is(.ag-ptick,.ag-psweep) { display: none; }
+/* ACCESS = the three answers; the exact reach ladder + asking pair fold under MORE OPTIONS (2026-10-04) */
+.agent-dossier .cf-access-more { margin-top: 12px; }
+.agent-dossier .cf-access-more > summary { cursor: pointer; color: var(--ph-dim); font-size: 14px; }
+.agent-dossier .cf-access-more > summary:hover { color: var(--ph); }
+.agent-dossier .cf-access-more > .cf-card { margin-top: 10px; }

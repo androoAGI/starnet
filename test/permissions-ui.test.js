@@ -65,6 +65,11 @@ ok(/EACH CREW MEMBER[\s\S]{0,220}<div class="perm-list" id="perm-crew"><\/div>/.
 // the flip button may never go back to sitting inline after the row's sentence (the collision bug)
 ok(/class="perm-agent/.test(src) && /class="pa-state"/.test(src), 'agent rows are structured (name/state/button), not one inline sentence');
 
+// the agent DOSSIER asks the SAME question: ACCESS opens on the three answers, the exact controls fold under it
+ok(/function accessAnswerCard\(a\)/.test(src) && /agSkills\(a\.id\) \+ accessAnswerCard\(a\)/.test(src), 'dossier ACCESS opens on the three answers');
+ok(/<details class="cf-access-more"[\s\S]{0,200}executionProfileCard\(a\) \+ approvalCard\(a\)/.test(src), 'the exact reach ladder + asking pair fold under MORE OPTIONS in the dossier');
+ok(/accWrap\.querySelectorAll\('\[data-access-posture\]'\)/.test(src) && /if \(P\.id === 'open'\) ArmConfirm\.wire\(chip/.test(src), 'dossier answers apply through the same paths with a two-press FULL POWER');
+
 // ── the plain-language pass (2026-08-07) ──
 // AT A GLANCE: the pane opens with ONE ordinary sentence about the station's real posture, counted from
 // the same live records the rows render — never a fixed string, never a claim the roster can't back.

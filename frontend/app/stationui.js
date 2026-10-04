@@ -2555,13 +2555,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       purpose ? fileCard(a, purpose) : '',
       CONFIG_FILES.filter(f => f.key !== 'purpose').map(f => fileCard(a, f)).join(''),
       modelCard(a), personaCard(a),
-      agSkills(a.id) + executionProfileCard(a) + approvalCard(a), agCommand(a)
+      agSkills(a.id) + accessAnswerCard(a), agCommand(a)
     ];
     const summaries = [a.purpose || 'What should this agent accomplish?', 'Identity, context and operating rules · edit each source file',
       a.model || 'Follow station default', (typeof Personas !== 'undefined' && Personas.get(a.personaId)?.name) || 'Station personality',
-      'Effective reach, execution and approval settings',
+      (() => { const AP = agentPostureOf(a); return AP ? AP.label + ' — ' + AP.agentBlurb : 'Custom — its own mix of reach and asking'; })(),
       ((typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[a.skin]) || {}).name || 'Choose a skin'];
-    return '<p class="cf-grp-note">Choose what to change. Instructions, model and personality tuning use SAVE; personality presets, appearance and access controls apply when selected.</p>' +
+    return '<p class="cf-grp-note">Choose what to change. Text you edit needs SAVE; buttons apply right away.</p>' +
       CF_GROUPS.map((g, i) => {
         const key = a.id + ':' + g.id;
         return '<details class="cf-group" id="' + g.id + '" data-cf-group="' + esc(key) + '"' + (cfOpen.get(key) ? ' open' : '') + '><summary><span class="cf-group-title">' + g.label + '</span><span class="cf-group-summary">' + esc(summaries[i]) + '</span></summary><div class="cf-group-body">' + content[i] + '</div></details>';
@@ -2679,6 +2679,25 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<div class="cf-desc pc-plain" id="ag-execution-plain">' + esc(p.plain) + '</div>' +
       '<div class="mc-hint" id="ag-execution-truth">ROUTES NEXT COMMAND TO <b>' + esc(p.backend.toUpperCase()) + '</b> · FILES: ' + esc(p.files) + ' · TOOLS: ' + esc(p.tools) + ' · DESKTOP: ' + esc(p.desktop) + ' · checking availability…</div>' +
       '<div id="ag-execution-msg" class="msg"></div>' +
+    '</div>';
+  }
+
+  /* ACCESS = the SAME three answers as SETTINGS › PERMISSIONS (2026-10-04, "make it less confusing"). This card used
+     to open on two separate controls — a five-rung execution-profile ladder and an ASK / FULL POWER pair — so the
+     dossier asked a different question than the settings pane about the same agent. Now it asks the same one; the
+     two exact controls (unchanged ids + wiring) fold under MORE OPTIONS for the rare case an answer is not enough. */
+  function accessAnswerCard(a) {
+    const AP = agentPostureOf(a);
+    const chips = STATION_POSTURES.map(P =>
+      '<button type="button" class="ov-vchip' + (AP && AP.id === P.id ? ' sel' : '') + '" data-access-posture="' + P.id + '" data-name="' + esc(P.label) + '" title="' + esc(P.agentBlurb) + '" aria-pressed="' + (AP && AP.id === P.id ? 'true' : 'false') + '">' + esc(P.label) + '</button>').join('');
+    return '<div class="cf-card" id="ag-access-card">' +
+      '<div class="cf-head"><span class="cf-file">How much can it do?</span></div>' +
+      '<div class="ov-vchips" id="ag-access-chips">' + chips + '</div>' +
+      '<div class="cf-desc pc-plain" id="ag-access-plain">' + esc(AP ? AP.agentBlurb : 'A custom mix — open More options to see exactly what it can reach and whether it asks first.') + '</div>' +
+      '<div id="ag-access-msg" class="msg"></div>' +
+      '<details class="cf-access-more"' + (executionProfileId(a) === 'remote-ssh' ? ' open' : '') + '><summary>More options — exact reach and asking</summary>' +
+        executionProfileCard(a) + approvalCard(a) +
+      '</details>' +
     '</div>';
   }
 
@@ -2955,6 +2974,30 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         notify(id === 'full' ? '⚡ ' + ((a && a.name) || 'agent') + ' now has Full Power over the local computer' : '✋ ' + ((a && a.name) || 'agent') + ' will ask before risky moves again', id === 'full' ? 'warn' : 'good');
         sfx('click'); rerender('agents');
       }));
+    }
+    // THE THREE ANSWERS (ACCESS card) — the same two write paths the settings rows use (reach first, then asking),
+    // reporting what actually landed; FULL POWER keeps the two-press confirm; the held answer is a no-op.
+    const accWrap = body.querySelector('#ag-access-chips');
+    if (accWrap) {
+      const accMsg = body.querySelector('#ag-access-msg');
+      const held = agentPostureOf(a);
+      accWrap.querySelectorAll('[data-access-posture]').forEach(chip => {
+        const P = STATION_POSTURES.find(x => x.id === chip.dataset.accessPosture);
+        if (!P || (held && held.id === P.id)) return;
+        const apply = () => {
+          if (!(access.config && access.config.setExecutionProfile && access.config.setApproval)) { if (accMsg) accMsg.textContent = 'access change unavailable'; sfx('bad'); return; }
+          chip.disabled = true;
+          Promise.resolve(access.config.setExecutionProfile(a && a.id, P.profile))
+            .then(okP => !!okP && !!access.config.setApproval(a && a.id, P.approval))
+            .catch(() => false)
+            .then(ok => {
+              notify(ok ? ((a && a.name) || 'agent') + ' set to ' + P.label : 'could not change ' + ((a && a.name) || 'agent') + ' — it kept its previous setting', ok ? (P.id === 'open' ? 'warn' : 'good') : 'bad');
+              sfx(ok ? 'click' : 'bad'); rerender('agents');
+            });
+        };
+        if (P.id === 'open') ArmConfirm.wire(chip, { armedLabel: 'SURE? WHOLE COMPUTER', restLabel: P.label, timeoutMs: 4000, onArm: () => sfx('bad'), onConfirm: apply });
+        else chip.addEventListener('click', apply);
+      });
     }
     body.querySelectorAll('[data-away-open]').forEach(b => { b.onclick = () => { if (window.AutomationWindow) window.AutomationWindow.openAway(a.id); }; });
   }
