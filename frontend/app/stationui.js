@@ -6742,13 +6742,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
          labels of the dials did not read as labels at all. `.set-sub` splits the name from its gloss —
          the name carries the phosphor, the gloss stays dim — and is shared with NIGHT SHIFT / the other
          panes so every settings sub-label looks the same. Pure presentation; no ids or handlers move. */
-      '<div class="set-sub"><span class="set-sub-k">INITIATIVE</span><span class="set-sub-d">does it start work on its own</span></div>' +
+      /* ONE QUESTION UP FRONT (2026-10-04, "make it less confusing"): what does it do on its own? The other two
+         dials (how far, how often) and DIRECTION (where) are tuning, so they share ONE fold below — they used to
+         be three equal rows plus a fold, which read as four questions a newcomer had to answer. */
+      '<div class="set-sub"><span class="set-sub-k">ON ITS OWN</span><span class="set-sub-d">what it does while you are away</span></div>' +
       '<div class="set-themes" id="auto-init">' +
         '<button class="set-theme" data-init="wait" title="nothing runs unless you ask">WAIT</button>' +
         '<button class="set-theme" data-init="propose" title="lines up suggestions you approve — never acts on its own">SUGGEST</button>' +
         '<button class="set-theme" data-init="leash" title="does a few small grounded jobs a day on its own">BUILD</button>' +
         '<button class="set-theme" data-init="free" title="picks &amp; does work toward your goals while you’re away">FREE</button>' +
       '</div>' +
+      '<p class="mc-hint">The three answers in PERMISSIONS set this too.</p>' +
+      '<details class="cf-group set-fold" id="auto-direction-fold"><summary><h4 class="ms-h">FINE-TUNE <span class="dim">— how far, how often, and where</span></h4></summary>' +
       '<div class="set-sub"><span class="set-sub-k">REACH</span><span class="set-sub-d">how far an unattended action may go</span></div>' +
       '<div class="set-themes" id="auto-reach">' +
         '<button class="set-theme" data-reach="observe" title="read / research only — writes nothing">OBSERVE</button>' +
@@ -6769,7 +6774,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // honest, never an invented priority or a fake learned profile.
       // QUIETER (front doors, 2026-10-01): DIRECTION is set once and rarely revisited — it folds closed under its own
       // heading. Every control and id is unchanged; settings search opens the fold when a match is inside.
-      '<details class="cf-group set-fold" id="auto-direction-fold"><summary><h4 class="ms-h">DIRECTION <span class="dim">— where its unattended work should go</span></h4></summary>' +
+      '<div class="set-sub"><span class="set-sub-k">DIRECTION</span><span class="set-sub-d">where its unattended work should go</span></div>' +
       '<div class="set-sub"><span class="set-sub-k">FOCUS</span><span class="set-sub-d" id="auto-focus">…</span></div>' +
       '<div class="set-row ns-steer"><input id="auto-steer" class="key-input" type="text" autocomplete="off" placeholder="Project folder, thread:&lt;id&gt;, or goal"><button class="bb xs" id="auto-steer-set">SET FOCUS</button><button class="bb xs" id="auto-steer-clear" style="display:none">CLEAR</button></div>' +
       '<div class="mc-hint">a steer outranks learned evidence (~7 days, or until cleared). It only redirects the unattended priority — no new access.</div>' +
@@ -6783,8 +6788,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // LIVE HELPERS — the real background sub-agents (team.spawn) running RIGHT NOW, from GET /api/subagents
       // (server truth; the floor's ghost sprites are the same ledger). STOP rides POST /api/subagents/interrupt —
       // before this row a runaway helper could not be stopped from anywhere in the UI.
-      '<div class="set-sub"><span class="set-sub-k">LIVE HELPERS</span><span class="set-sub-d">background sub-agents running now</span></div>' +
-      '<div class="key-list" id="auto-helpers"><p class="set-about">reading helpers…</p></div>';
+      // shown only while helpers are actually running (paintHelpers toggles it) — an empty "no helpers" row was noise
+      '<div class="set-sub" id="auto-helpers-sub" hidden><span class="set-sub-k">LIVE HELPERS</span><span class="set-sub-d">background sub-agents running now</span></div>' +
+      '<div class="key-list" id="auto-helpers" hidden></div>';
     /* ONE WORD: AUTONOMY (2026-09-29, Andrew: "should simply be autonomy"). What the Commander saw as two things —
        the AUTONOMY dial and a separate NIGHT SHIFT section — is one thing: the dial, and what it did while they were
        away. This block (status, decision trail, last report) now renders INSIDE the AUTONOMY section, under the dial
@@ -7651,10 +7657,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // /api/subagents/interrupt; the list repaints from the ROUTE after every action (never an optimistic flip).
     {
       const list = host.querySelector('#auto-helpers');
+      const helpersSub = host.querySelector('#auto-helpers-sub');
       const paintHelpers = (rows) => {
         if (!list) return;
+        // visible only while something is running (or the ledger can't be read — that is worth saying)
+        const show = !Array.isArray(rows) || rows.length > 0;
+        list.hidden = !show; if (helpersSub) helpersSub.hidden = !show;
         if (!Array.isArray(rows)) { list.innerHTML = '<p class="set-about">helpers unreachable right now.</p>'; return; }
-        if (!rows.length) { list.innerHTML = '<p class="set-about">no background helpers running.</p>'; return; }
+        if (!rows.length) { list.innerHTML = ''; return; }
         list.textContent = '';
         for (const r of rows) {
           const row = document.createElement('div');

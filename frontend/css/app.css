@@ -5259,6 +5259,8 @@ select.fbc-sel:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba
   display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px;
   margin: 14px 0 6px; font-size: var(--fs-1);
 }
+/* a sub-label (and its list) a painter hides — e.g. LIVE HELPERS while nothing runs — must actually hide */
+.set-sub[hidden], .key-list[hidden] { display: none !important; }   /* beats the scoped settings-pane display rules */
 .set-sub-k { color: var(--ph); letter-spacing: var(--ls-2); flex: 0 0 auto; }
 .set-sub-d { color: var(--ph-dim); letter-spacing: var(--ls-1); min-width: 0; }
 

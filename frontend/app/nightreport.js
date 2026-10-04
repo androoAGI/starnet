@@ -25,21 +25,21 @@
   // honest sentence naming why a beat could not fire — so an empty night reads as a reason, never a shrug.
   //   posture: the dial itself forbade acting; present: Andrew was here; the rest are transient runtime gates.
   const BINDING_PHRASE = {
-    posture: "the dial was below 'build' — I'm not allowed to act unattended",
+    posture: 'it is set to WAIT or SUGGEST, so it is not allowed to act on its own',
     // "present" confused real users (2026-07-15): "while you're away" read as "while the app is closed". It isn't —
     // away = no clicks/keys for the idle threshold; the app stays open 24/7. Say the actual rule.
     present: 'you were using the station — it waits until you step away (no clicks or keys for a while); the app stays open',
-    halt: 'the emergency stop was engaged — re-set the autonomy dial to lift it',
-    leash: 'the daily leash was already spent',
+    halt: 'the emergency stop was engaged — press any ON ITS OWN button in SETTINGS › AUTONOMY to lift it',
+    leash: 'today’s job limit was already used',
     // NS-2 pre-spend readiness: the station lacks grounded knowledge (a fresh/stale dossier AND too little recent
     // activity) so a beat could not have reached a model call. Honest about what feeds it: real work + answers.
     readiness: 'the station doesn’t know you well enough yet to act unattended — run a few real tasks (or answer its questions) so it learns',
     // NS-2 pre-spend gates the precheck can also bind on (they flow through statusDecision as bindings):
-    budget: 'the spending budget is exhausted — raise the cap or resume to let beats run',
-    'no-provider': 'no runnable provider/model is configured — add a key so beats can run',
-    cooldown: 'it wasn’t time for the next beat yet',
+    budget: 'the spending budget is exhausted — raise the cap or resume to let jobs run',
+    'no-provider': 'no runnable provider/model is configured — add a key so jobs can run',
+    cooldown: 'it wasn’t time for the next job yet',
     concurrency: 'the desk was busy with another run',
-    'in-flight': 'a beat was still running',
+    'in-flight': 'a job was still running',
     'precheck-error': 'the station could not verify its budget, provider, or readiness checks, so it stood down safely',
     'persist-failed': 'the station couldn’t safely record the work, so it stood down'
   };
@@ -47,7 +47,7 @@
   // a stable, HONEST label for a binding we don't recognise (forward-compat: a new gate name renders as itself,
   // never a fabricated reason). Used by both the report's idle sentence and the panel's decision trail.
   function bindingPhrase(binding) {
-    if (binding == null || binding === '') return 'no gate is blocking a beat right now';
+    if (binding == null || binding === '') return 'nothing is blocking the next job right now';
     return BINDING_PHRASE[binding] || ('held back by the ' + String(binding) + ' gate');
   }
 
@@ -131,15 +131,15 @@
       priorityLine = 'priority: ' + String(focus.label || focus.ref) + (focus.source === 'steer' ? ' (you steered this)' : '') + (why ? ' — because ' + why : '');
     }
 
-    // headline — "N beats fired, M drafts on your desk" (reuse the beats/drafts vocabulary the digest already uses).
+    // headline — "N jobs done, M drafts on your desk" (plain words: a "job" is one small unattended run).
     const headline = actCount > 0
-      ? (plural(actCount, 'beat') + ' fired' + (draftList.length ? ', ' + plural(draftList.length, 'draft') + ' on your desk' : ''))
-      : (plural(declineCount, 'beat') + ' skipped — nothing landed on your desk');
+      ? (plural(actCount, 'job') + ' done' + (draftList.length ? ', ' + plural(draftList.length, 'draft') + ' on your desk' : ''))
+      : (plural(declineCount, 'job') + ' skipped — nothing landed on your desk');
 
     // ACT lines: one per draft (real title). If the drafts route was down but the ledger has acts, list the count.
     const actLines = draftList.length
       ? draftList.map(d => '✓ ' + d.title)
-      : (acts.length ? [plural(acts.length, 'beat') + ' fired (drafts unavailable to list)'] : []);
+      : (acts.length ? [plural(acts.length, 'job') + ' done (drafts unavailable to list)'] : []);
 
     // DECLINE lines: the honest other half. Group declines by their binding, name the gate + the time of the last
     // occurrence in LOCAL clock ("2 beats skipped — leash spent by 1:10 AM"). Deterministic ordering by binding.
@@ -154,7 +154,7 @@
     const declineLines = Object.keys(byBinding).sort().map(b => {
       const g = byBinding[b];
       const when = fmtLocalTime(g.lastTs, tz);
-      return '— ' + plural(g.count, 'beat') + ' skipped: ' + bindingPhrase(b) + (when ? ' (by ' + when + ')' : '');
+      return '— ' + plural(g.count, 'job') + ' skipped: ' + bindingPhrase(b) + (when ? ' (by ' + when + ')' : '');
     });
 
     // THE "DID NOTHING AND WHY" sentence: only when the shift fired zero acts. Derive the dominant reason from the
@@ -199,7 +199,7 @@
     // guard on the RAW value being a real number before trusting it — a null leash must never render as "used/0".
     const leash = (typeof s.leashPerDay === 'number' && Number.isFinite(s.leashPerDay)) ? s.leashPerDay : null;
     const halted = !!s.halted;
-    const leashText = leash == null ? (used + ' beats today') : (used + '/' + leash + ' beats today');
+    const leashText = leash == null ? (plural(used, 'job') + ' today') : (used + ' of ' + leash + ' jobs today');
     // THE DURABLE E-STOP HALT WINS OVER EVERYTHING (EL-11 FIX 1). status.halted means the shift is stood down
     // until the Commander re-writes the dial (handleAutonomyPosture → clearHalt) — rendering "ACTIVE · standing
     // by / NEXT ELIGIBLE <time>" here affirmatively claimed a run the E-STOP guarantees won't happen. The halted
@@ -211,12 +211,12 @@
         away: away,
         halted: true,
         stateText: '⛔ HALTED — E-STOP engaged',
-        why: 'autonomy is stopped and will not run until you re-set the autonomy dial — press any LEVEL or dial button above to lift the halt',
+        why: 'autonomy is stopped and will not run until you re-set the autonomy dial — press any ON ITS OWN button above to lift the halt',
         presence: away ? 'you’re away' : 'you’re present',
         awayRuleText: awayRuleText(s),
         leashText: leashText,
         leashSpent: leash != null && used >= leash,
-        lastBeatText: fmtLocalTime(s.lastBeatAt, tz) || 'no beat yet',
+        lastBeatText: fmtLocalTime(s.lastBeatAt, tz) || 'no job yet',
         nextEligibleText: 'not scheduled — the E-STOP is engaged'
       };
     }
@@ -235,7 +235,7 @@
       awayRuleText: awayRuleText(s),
       leashText: leashText,
       leashSpent: leash != null && used >= leash,
-      lastBeatText: fmtLocalTime(s.lastBeatAt, tz) || 'no beat yet',
+      lastBeatText: fmtLocalTime(s.lastBeatAt, tz) || 'no job yet',
       nextEligibleText: fmtLocalTime(s.nextEligibleAt, tz) || 'when the next window opens',
       modeText: modeText(s),
       modeWarn: s.buildMode === 'draft' && s.draftReason === 'no-workshop-grant',
@@ -247,9 +247,9 @@
   // buildMode/draftReason (server-proven). An older sidecar without the field → '' (render nothing, never guess).
   function modeText(s) {
     if (!s || (s.buildMode !== 'build' && s.buildMode !== 'draft')) return '';
-    if (s.buildMode === 'build') return 'beats BUILD real deliverables — each arrives as a new ⚒ session in your rail';
-    if (s.draftReason === 'no-workshop-grant') return 'drafts only — the away-workshop grant is off, so beats can’t build for real';
-    return 'drafts only — to build real things while you’re away, raise REACH (how far I may act on my own) to sandbox in SETTINGS › AUTONOMY';
+    if (s.buildMode === 'build') return 'jobs build real deliverables — each arrives as a new ⚒ session in your rail';
+    if (s.draftReason === 'no-workshop-grant') return 'drafts only — the away-workshop grant is off, so jobs can only draft';
+    return 'drafts only — to let it build real things while you’re away, set REACH to SANDBOX under FINE-TUNE in SETTINGS › AUTONOMY';
   }
 
   // the cold-start explanation behind a 'readiness' stand-down: how far the station is from EITHER hot bar
@@ -260,7 +260,7 @@
     const dimsBar = Number.isFinite(Number(rd.hotDimsMin)) ? Number(rd.hotDimsMin) : 4;
     const runsBar = Number.isFinite(Number(rd.hotRunsMin)) ? Number(rd.hotRunsMin) : 4;
     const runs = Number(rd.activityCount) || 0;
-    return 'still learning you — knows ' + dims + '/' + dimsBar + ' areas · ' + runs + '/' + runsBar + ' recent runs (either bar unlocks acting)';
+    return 'still learning you — it knows ' + dims + ' of ' + dimsBar + ' areas and has ' + runs + ' of ' + runsBar + ' recent runs; reaching either lets it act';
   }
 
   // THE DIAL-RAISE OUTLOOK (NS visibility 2026-07-13): the one honest sentence shown the INSTANT the Commander raises
