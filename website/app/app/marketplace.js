@@ -82,8 +82,8 @@ const Marketplace = (() => {
   ];
   function cadenceOpt(id) { return CADENCE_OPTS.filter(c => c.id === id)[0] || null; }
   function cadenceLabel(id) { const c = cadenceOpt(id); return c ? c.label : 'one-shot'; }
-  // the gear objectTypes a recipe editor offers (same pickable set as the class builder — dish/cabinet/notebook/
-  // workbench/studio; computer/connector are per-agent binds, not advisory recipe gear). Labels from the live source.
+  // the gear objectTypes a recipe editor offers (dish/cabinet/notebook/workbench/studio; computer/connector are
+  // per-agent binds, not advisory recipe gear). Labels from the live source.
   const RECIPE_GEAR_PICK = ['dish', 'cabinet', 'notebook', 'workbench', 'studio'];
   // the category buckets the EDITOR offers as authorable browse buckets (the discovery-rail personas).
   const RECIPE_CATEGORIES = ['developer', 'research', 'creator', 'ops', 'business', 'money', 'data', 'general'];
@@ -2320,8 +2320,8 @@ const Marketplace = (() => {
     const edit = sc.querySelector('.mkt-edit');
     if (edit) edit.addEventListener('click', () => {
       editingId = edit.dataset.id; sfx('click');
-      // A custom class is a full loadout — edit it in the same builder form (so kit/skills/effort are editable),
-      // prefilling every picker from the saved spec. (Only customs carry an EDIT button; built-ins stay frozen.)
+      // A custom class is edited in the same builder form it was made in. Its carried loadout (kit/skills/effort/tier)
+      // is prefilled from the saved spec so the save round-trips it untouched. (Only customs carry an EDIT button.)
       const s = Specialties.get(editingId);
       buildAccent = (s && s.accent) || '#ffaa33';
       buildModel = (s && s.model) || 'balanced';
@@ -3630,147 +3630,87 @@ const Marketplace = (() => {
   }
 
   /* ---------- build a custom class from scratch (the ＋ tile) ----------
-     A full authoring form: icon, name, accent (the seal colour), tagline, clearance tier, purpose +
-     standing orders — saved straight to YOUR SPECIALISTS via Specialties.saveCustom (tags auto-derive
-     from the text, so the new class ranks in the feed and deploys/recruits like any built-in). */
+     ONE friendly page (Andrew 10-04: "out of date and very confusing … it should just have everything built
+     into it"): an icon, a name, the job, optional standing orders, a suit colour. Saved straight to YOUR
+     SPECIALISTS via Specialties.saveCustom (tags auto-derive from the text, so it ranks + recruits like a built-in).
+     NO tool / skill / model / effort pickers. They were never what decided an agent's reach: tools resolve per turn
+     from the station + the agent's power settings (sidecar resolveTools), skills are ADD-only over the ones enabled
+     in SKILLS, and model + effort are picked on the recruit card (applied at summon). The old "choose at least one
+     tool" gate asked the Commander to configure something that changed nothing — so the page now says what is
+     true: tools and skills come built in. A loadout carried in from a station draft or an edited class still rides
+     along untouched (buildKit/buildSkills/buildEffort/buildModel) — it only ever ADDS focus, never restricts. */
   const BUILD_ACCENTS = ['#ffaa33', '#7bc88a', '#6fa8bf', '#b790c0', '#cf8a7d', '#88b6c4', '#ffd34a', '#6fbcc0', '#9fc0c4'];
+  const BUILD_ACCENT_NAMES = ['Amber', 'Green', 'Blue', 'Purple', 'Coral', 'Ice', 'Gold', 'Teal', 'Silver'];
   const CLASS_ICONS = [['✦', 'Star'], ['◆', 'Diamond'], ['◉', 'Focus'], ['⌕', 'Research'], ['✎', 'Writing'], ['☑', 'Planning'], ['⚙', 'Engineering'], ['⚒', 'Building'], ['⚑', 'Strategy'], ['♟', 'Advisor'], ['♜', 'Security'], ['♬', 'Music'], ['✉', 'Messages'], ['⌂', 'Home'], ['☼', 'Ideas'], ['♥', 'Care']];
   function buildFormHTML() {
     const editing = editingId ? Specialties.get(editingId) : null;
     const d = editing || buildDraft || { emoji: '✦', name: '', tagline: '', purpose: '', manual: '' };
     const previewEmoji = (d.emoji || '✦').trim() || '✦';
     const sw = BUILD_ACCENTS.map((c, i) => '<button type="button" class="mkt-sw' + (c === buildAccent ? ' sel' : '') +
-      '" data-acc="' + c + '" style="background:' + c + '" aria-label="' + ['Amber', 'Green', 'Blue', 'Purple', 'Coral', 'Ice', 'Gold', 'Teal', 'Silver'][i] + '"></button>').join('');
-    const seg = (m, l) => '<button type="button" class="mkt-seg' + (buildModel === m ? ' sel' : '') + '" data-model="' + m + '">' + l + '</button>';
-    const basics = '<label class="mkt-lbl">Name<input class="mkt-in" id="mkt-b-name" maxlength="28" value="' + esc(d.name || '') + '" placeholder="e.g. Travel Planner"></label>' +
-      '<label class="mkt-lbl">Short description <span class="mkt-opt">optional</span><input class="mkt-in" id="mkt-b-tag" maxlength="48" value="' + esc(d.tagline || '') + '" placeholder="Plans practical trips around your budget"></label>' +
-      '<label class="mkt-lbl">What should this class do?<textarea class="mkt-in" id="mkt-b-purpose" rows="3" placeholder="Describe its job and what a useful result looks like.">' + esc(d.purpose || '') + '</textarea></label>' +
-      '<label class="mkt-lbl">Always follow these instructions <span class="mkt-opt">optional</span><textarea class="mkt-in" id="mkt-b-manual" rows="3" placeholder="e.g. Compare costs, cite sources, and ask before booking.">' + esc(d.manual || '') + '</textarea></label>';
-    const tools = '<p class="mkt-detail-note">Choose at least one tool this class will use. Skills are optional.</p>' +
-      '<div class="mkt-kitpicks" id="mkt-b-kit">' + buildKitChipsHTML() + '</div>' +
-      '<label class="mkt-lbl">Find a skill<input class="mkt-in" id="mkt-b-skill-search" placeholder="Search skills"></label>' +
-      '<div class="mkt-chips" id="mkt-b-skills"><span class="mkt-hint">Loading skills…</span></div>';
-    const settings = '<p class="mkt-detail-note">These defaults apply when you recruit from this class.</p>' +
-      '<div class="mkt-lbl">Model preference</div><div class="mkt-segs" id="mkt-b-model">' + seg('reasoning', 'Deep reasoning') + seg('balanced', 'Balanced') + seg('fast', 'Fast') + '</div>' +
-      '<div class="mkt-lbl">Reasoning effort</div><div class="mkt-segs" id="mkt-b-effort">' + effSeg(null, 'Default') + effSeg('high', 'High') + effSeg('medium', 'Medium') + effSeg('low', 'Low') + '</div>' +
-      '<div class="mkt-lbl">Suit color</div><p class="mkt-detail-note">The agent’s floor accent. Its class icon follows your station theme.</p><div class="mkt-swatches" id="mkt-b-acc">' + sw + '</div>';
+      '" data-acc="' + c + '" style="background:' + c + '" aria-label="' + BUILD_ACCENT_NAMES[i] + '" title="' + BUILD_ACCENT_NAMES[i] + '"></button>').join('');
+    // icons are glyph-only keys (the label is the hover tip + aria name) so the whole set fits one compact row.
+    const icons = '<div class="mkt-class-icons" role="group" aria-label="Class icon">' + CLASS_ICONS.map(([glyph, label]) =>
+      '<button type="button" data-class-icon="' + esc(glyph) + '" aria-pressed="' + (glyph === previewEmoji) + '" aria-label="' + label + '" title="' + label + '">' + glyph + '</button>').join('') +
+      '<input class="mkt-in mkt-class-own" id="mkt-b-emoji" maxlength="16" value="' + esc(previewEmoji) + '" aria-label="Or type your own icon" title="Or type your own"></div>';
+    // identity header: the live seal beside the name — what you are making, in one glance.
+    const ident = '<div class="mkt-class-ident"><div class="mkt-coin" id="mkt-build-coin"><span class="mkt-coin-emoji" id="mkt-build-emoji">' + esc(previewEmoji) + '</span></div>' +
+      '<label class="mkt-lbl mkt-grow">Name<input class="mkt-in" id="mkt-b-name" maxlength="28" value="' + esc(d.name || '') + '" placeholder="e.g. Travel Planner"></label></div>';
+    const fields =
+      '<label class="mkt-lbl">What should it do?<textarea class="mkt-in" id="mkt-b-purpose" rows="3" placeholder="Describe its job and what a good result looks like.">' + esc(d.purpose || '') + '</textarea></label>' +
+      '<label class="mkt-lbl"><span>How should it work? <span class="mkt-opt">optional</span></span><textarea class="mkt-in" id="mkt-b-manual" rows="2" placeholder="e.g. Compare costs, cite sources, ask before booking.">' + esc(d.manual || '') + '</textarea></label>' +
+      '<label class="mkt-lbl"><span>One-line description <span class="mkt-opt">optional · shown on its card</span></span><input class="mkt-in" id="mkt-b-tag" maxlength="48" value="' + esc(d.tagline || '') + '" placeholder="Plans practical trips around your budget"></label>' +
+      '<div class="mkt-lbl">Icon</div>' + icons +
+      '<div class="mkt-lbl">Suit color</div><div class="mkt-swatches" id="mkt-b-acc">' + sw + '</div>';
+    // the ONE line that replaces three tabs of pickers — and it is the truth (see the block comment above).
+    const builtIn = '<div class="mkt-class-builtin"><span class="mkt-class-builtin-mark" aria-hidden="true">✓</span>' +
+      '<span><b>Tools and skills are built in.</b> It works with the same tools and skills as the rest of your crew — nothing to set up. ' +
+      'Pick its model when you recruit it.</span></div>';
     return '<div class="mkt-save mkt-build-form mkt-class-editor"><div class="mkt-save-h">' + (editing ? 'Edit custom class' : 'Build a custom class') + '</div>' +
-      '<p class="mkt-detail-note">' + (editing ? 'Update this template for future recruits. Existing crew members keep their settings.' : 'Give it a job and choose its tools. Save it to your specialists, then recruit when ready.') + '</p>' +
-      '<div class="mkt-class-columns"><aside class="mkt-class-icon-panel"><div class="mkt-build-preview"><div class="mkt-coin" id="mkt-build-coin"><span class="mkt-coin-emoji" id="mkt-build-emoji">' + esc(previewEmoji) + '</span></div><span>Class icon</span></div>' +
-      '<div class="mkt-class-icons" role="group" aria-label="Class icon">' + CLASS_ICONS.map(([glyph, label]) => '<button type="button" data-class-icon="' + esc(glyph) + '" aria-pressed="' + (glyph === previewEmoji) + '"><span aria-hidden="true">' + glyph + '</span><span>' + label + '</span></button>').join('') + '</div>' +
-      '<label class="mkt-lbl">Or use your own symbol<input class="mkt-in" id="mkt-b-emoji" maxlength="16" value="' + esc(previewEmoji) + '"></label></aside>' +
-      '<div class="mkt-class-fields"><div class="mkt-recipe-detail-tabs" role="tablist" aria-label="Class settings">' +
-      ['Basics', 'Tools & skills', 'Defaults'].map((label, i) => '<button type="button" role="tab" id="class-tab-' + i + '" aria-controls="class-panel-' + i + '" aria-selected="' + (i === 0) + '" tabindex="' + (i ? '-1' : '0') + '" data-recipe-panel="' + i + '">' + label + '</button>').join('') + '</div>' +
-      [basics, tools, settings].map((html, i) => '<div class="mkt-recipe-detail-panel" role="tabpanel" id="class-panel-' + i + '" aria-labelledby="class-tab-' + i + '"' + (i ? ' hidden' : '') + '>' + html + '</div>').join('') + '</div></div>' +
+      '<p class="mkt-detail-note">' + (editing ? 'Changes apply to future recruits. Existing crew members keep their settings.' : 'Give it a name and a job. Everything else is ready to go.') + '</p>' +
+      ident + fields + builtIn +
       '<div class="mkt-save-acts"><button class="bb sm mkt-cancel">‹ BACK</button><button class="bb sm mkt-do-build">' + (editing ? 'SAVE CHANGES' : 'CREATE CLASS') + '</button></div></div>';
   }
-  // the pickable kit objectTypes — the auto-requisitionable capabilities (computer/connector are per-agent
-  // manual-bind, per-agent bound props, never shared station gear a class draws on). Labels from the live source.
-  const KIT_PICKABLE = ['dish', 'cabinet', 'notebook', 'workbench', 'studio'];
-  // each kit pick shows its capability blurb (from capGrant) next to the toggle, so a beginner sees what the
-  // gear actually grants ("the WEB — live search & fetch") instead of a bare prop label with a hidden title.
-  function buildKitChipsHTML() {
-    return KIT_PICKABLE.map(t => {
-      const on = buildKit.indexOf(t) >= 0;
-      return '<div class="mkt-kitpick">' +
-        '<button type="button" class="mkt-chip pick' + (on ? ' sel' : '') + '" data-kit="' + esc(t) + '" ' +
-          'title="' + esc(capGrant(t)) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(kitPropLabel(t)) + '</button>' +
-        '<span class="mkt-kitpick-grant">' + esc(capGrant(t)) + '</span></div>';
-    }).join('');
-  }
-  const effSeg = (e, l) => '<button type="button" class="mkt-seg' + ((buildEffort === e || (e === null && !buildEffort)) ? ' sel' : '') + '" data-effort="' + (e == null ? '' : e) + '">' + l + '</button>';
   function wireBuildForm(stage) {
-    wireDetailTabs(stage);
     const iconChoices = stage.querySelectorAll('[data-class-icon]');
+    const emojiIn = stage.querySelector('#mkt-b-emoji'), coinEmoji = stage.querySelector('#mkt-build-emoji');
+    // live seal preview: the ICON only. The suit swatch never repaints the coin — the seal is station phosphor
+    // in the roster, so previewing it in the picked colour would preview a lie.
     const paintIcon = value => {
-      stage.querySelector('#mkt-build-emoji').textContent = value || '✦';
+      if (coinEmoji) coinEmoji.textContent = value || '✦';
       iconChoices.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.classIcon === value)));
     };
-    iconChoices.forEach(b => b.addEventListener('click', () => {
-      stage.querySelector('#mkt-b-emoji').value = b.dataset.classIcon; paintIcon(b.dataset.classIcon);
-    }));
-    stage.querySelector('#mkt-b-emoji').addEventListener('input', e => paintIcon(e.target.value.trim()));
-    const skillSearch = stage.querySelector('#mkt-b-skill-search');
-    skillSearch.addEventListener('input', () => {
-      const q = skillSearch.value.trim().toLowerCase();
-      stage.querySelectorAll('#mkt-b-skills [data-skill]').forEach(b => { b.hidden = !b.textContent.toLowerCase().includes(q); });
-    });
+    iconChoices.forEach(b => b.addEventListener('click', () => { emojiIn.value = b.dataset.classIcon; paintIcon(b.dataset.classIcon); sfx('click'); }));
+    if (emojiIn) emojiIn.addEventListener('input', () => paintIcon(emojiIn.value.trim()));
     const back = stage.querySelector('.mkt-cancel');
     if (back) back.addEventListener('click', () => { sfx('click'); editingId = null; buildDraft = null; acceptingProspectId = null; view = 'grid'; renderStage(); });
-    // live seal preview: the ICON only. The suit swatch no longer repaints the coin — the seal is
-    // station phosphor in the roster, so previewing it in the picked colour would preview a lie.
-    const emojiIn = stage.querySelector('#mkt-b-emoji'), coinEmoji = stage.querySelector('#mkt-build-emoji');
-    if (emojiIn) emojiIn.addEventListener('input', () => { if (coinEmoji) coinEmoji.textContent = (emojiIn.value || '✦').trim() || '✦'; });
     stage.querySelectorAll('#mkt-b-acc .mkt-sw').forEach(b => b.addEventListener('click', () => {
       buildAccent = b.dataset.acc;
       stage.querySelectorAll('#mkt-b-acc .mkt-sw').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
       sfx('click');
     }));
-    stage.querySelectorAll('#mkt-b-model .mkt-seg').forEach(b => b.addEventListener('click', () => {
-      buildModel = b.dataset.model;
-      stage.querySelectorAll('#mkt-b-model .mkt-seg').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); sfx('click');
-    }));
-    // EFFORT selector — '' data-effort => default (null).
-    stage.querySelectorAll('#mkt-b-effort .mkt-seg').forEach(b => b.addEventListener('click', () => {
-      buildEffort = b.dataset.effort || null;
-      stage.querySelectorAll('#mkt-b-effort .mkt-seg').forEach(x => x.classList.remove('sel')); b.classList.add('sel'); sfx('click');
-    }));
-    // KIT chips — toggle a capability objectType in/out of the picked kit.
-    const wireKitChips = () => stage.querySelectorAll('#mkt-b-kit .mkt-chip.pick').forEach(b => b.addEventListener('click', () => {
-      const t = b.dataset.kit, i = buildKit.indexOf(t);
-      if (i >= 0) buildKit.splice(i, 1); else buildKit.push(t);
-      const on = buildKit.indexOf(t) >= 0;
-      b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); sfx('click');
-    }));
-    wireKitChips();
-    // SKILL chips — fetched from the live catalog, then toggle a slug in/out of the package. Best-effort: an
-    // unreachable catalog leaves a hint (the class still saves with whatever kit/effort was picked).
-    const skHost = stage.querySelector('#mkt-b-skills');
-    if (skHost) loadSkillCatalog().then(map => {
-      const slugs = Object.keys(map).sort((a, b) => map[a].name.localeCompare(map[b].name));
-      if (!slugs.length) { skHost.innerHTML = '<span class="mkt-hint">no skill library found (is the sidecar running?)</span>'; return; }
-      skHost.innerHTML = slugs.map(slug => {
-        const on = buildSkills.indexOf(slug) >= 0;
-        return '<button type="button" class="mkt-chip pick' + (on ? ' sel' : '') + '" data-skill="' + esc(slug) + '" ' +
-          'title="' + esc(map[slug].description) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(map[slug].name) + '</button>';
-      }).join('');
-      skHost.querySelectorAll('.mkt-chip.pick').forEach(b => b.addEventListener('click', () => {
-        const slug = b.dataset.skill, i = buildSkills.indexOf(slug);
-        if (i >= 0) buildSkills.splice(i, 1); else buildSkills.push(slug);
-        const on = buildSkills.indexOf(slug) >= 0;
-        b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); sfx('click');
-      }));
-    });
     const create = stage.querySelector('.mkt-do-build');
     if (create) create.addEventListener('click', () => {
       // editingId set => upserting an existing custom class through the SAME store path (saveCustom keeps the id).
       const editing = editingId ? Specialties.get(editingId) : null;
-      const name = (stage.querySelector('#mkt-b-name').value || '').trim();
-      if (!name) { sfx('bad'); note('give your class a name', 'bad'); stage.querySelector('#mkt-b-name').focus(); return; }
-      // mirror the prospect drafter's constraint (prospect.js:112): a specialist with no gear is not a real role.
-      // an empty kit used to save silently; make it explain itself and point back at the gear picker.
-      if (!buildKit.length) {
-        sfx('bad'); note('Choose at least one tool for this class.', 'bad');
-        stage.querySelector('#class-tab-1').click();
-        const kitHost = stage.querySelector('#mkt-b-kit'); if (kitHost && kitHost.scrollIntoView) kitHost.scrollIntoView({ block: 'center' });
-        return;
-      }
+      const nameIn = stage.querySelector('#mkt-b-name'), purposeIn = stage.querySelector('#mkt-b-purpose');
+      const name = (nameIn.value || '').trim();
+      if (!name) { sfx('bad'); note('give your class a name', 'bad'); nameIn.classList.add('mkt-bad'); nameIn.focus(); return; }
+      const purpose = (purposeIn.value || '').trim();
       // when editing, start from the saved record so non-authored carried fields (persona, tags, starters, blurb)
       // survive the round-trip; the form fields below overwrite what the builder exposes.
       const spec = Object.assign({}, editing || {}, {
         name,
-        emoji: (stage.querySelector('#mkt-b-emoji').value || '✦').trim() || '✦',
+        emoji: (emojiIn.value || '✦').trim() || '✦',
         accent: buildAccent, model: buildModel,
         tagline: (stage.querySelector('#mkt-b-tag').value || '').trim(),
-        purpose: (stage.querySelector('#mkt-b-purpose').value || '').trim(),
+        purpose,
         manual: (stage.querySelector('#mkt-b-manual').value || '').trim(),
-        // LOADOUT (Class Loadouts S3): the picked kit/skills/effort round-trip into the saved custom spec
-        // (Specialties.normCustom normalizes + freezes them) so a user class is a full loadout, applied at summon.
+        // the carried loadout (a station draft's or the edited class's) round-trips untouched — empty for a fresh
+        // class, which simply works with the crew's tools + enabled skills (Specialties.normCustom normalizes them).
         kit: buildKit.slice(), skills: buildSkills.slice(), reasoningEffort: buildEffort
       });
-      // keep the id (and any non-editable carried fields, e.g. persona/tags/starters) when editing, so the edit
-      // is an upsert of the SAME record rather than a new class. Editing does not touch already-summoned agents —
-      // they own their loadout on their roster record (applyLoadout snapshots it at summon).
+      // keep the id when editing, so the edit is an upsert of the SAME record rather than a new class. Editing does
+      // not touch already-summoned agents — they own their loadout on their roster record (snapshotted at summon).
       if (editing) spec.id = editing.id;
       try {
         const saved = Specialties.saveCustom(spec);
@@ -3782,7 +3722,8 @@ const Marketplace = (() => {
         renderStage();
       } catch (e) { sfx('bad'); note((e && e.message) || 'could not save', 'bad'); }
     });
-    const nameIn = stage.querySelector('#mkt-b-name'); if (nameIn) nameIn.focus();
+    const nameIn = stage.querySelector('#mkt-b-name');
+    if (nameIn) { nameIn.addEventListener('input', () => nameIn.classList.remove('mkt-bad')); nameIn.focus(); }
   }
 
   // Slice 4: let ProspectStore refresh the open bay when a fresh prospect mints (no-op when the bay is closed or

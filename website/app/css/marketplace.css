@@ -183,11 +183,6 @@
 .mkt-chip.pick.sel { color: var(--ink); background: var(--accent, var(--ph)); border-color: var(--accent, var(--ph)); text-shadow: none; }
 .mkt-chip.pick:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
 .mkt-chips-loading { opacity: .7; }
-/* kit picker with a visible capability blurb next to each toggle (custom-class builder) */
-.mkt-kitpicks { display: flex; flex-direction: column; gap: 5px; margin-bottom: 4px; }
-.mkt-kitpick { display: flex; align-items: center; gap: 9px; }
-.mkt-kitpick .mkt-chip.pick { flex: 0 0 auto; min-width: 92px; }
-.mkt-kitpick-grant { color: var(--ph-dim); font-size: 11px; letter-spacing: .3px; text-transform: none; }
 .mkt-lbl-hint { color: var(--ph-dim); font-size: 10px; letter-spacing: .5px; opacity: .8; text-transform: none; }
 
 /* ---- the DOSSIER (right pane: the focused class detail + the action) ---- */
@@ -739,8 +734,6 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-build-plus { font-size: 32px; line-height: 1; }
 .mkt-build-lbl { font-size: 12px; letter-spacing: 2px; }
 .mkt-yours-hint { margin: -4px 0 8px; }
-.mkt-build-preview { display: flex; align-items: center; gap: 12px; margin: 2px 0 4px; }
-.mkt-build-preview .mkt-coin { --coin: 64px; }
 .mkt-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
 .mkt-sw { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; padding: 0;
   border: 2px solid rgba(0,0,0,.55); box-shadow: 0 0 0 1px var(--ph-dim); }
@@ -1149,21 +1142,24 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-agent-examples { list-style: none; margin: 8px 0 20px; padding: 0; }
 .mkt-agent-examples li { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
 .mkt-agents .mkt-cta-second { margin-top: 20px; border-top: 1px solid var(--ph-faint); padding-top: 14px; }
-.mkt-stage.form .mkt-class-editor { max-width: 980px; }
-.mkt-class-columns { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 28px; }
-.mkt-class-icon-panel { min-width: 0; padding: 16px; border: 1px solid var(--ph-faint); border-radius: 8px; background: rgba(var(--ph-rgb),.035); }
-.mkt-class-editor .mkt-build-preview { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; color: var(--ph-dim); }
-.mkt-class-icons { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; margin-bottom: 20px; }
-.mkt-class-icons button { font: inherit; color: var(--ph-dim); background: transparent; border: 1px solid var(--ph-faint); border-radius: 6px; padding: 8px 2px; cursor: pointer; }
-.mkt-class-icons button span { display: block; font-size: 10px; }
-.mkt-class-icons button span:first-child { font-size: 25px; margin-bottom: 5px; color: var(--ph); }
-.mkt-class-icons button:hover, .mkt-class-icons button[aria-pressed="true"] { background: var(--ui-face); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.mkt-stage.form .mkt-class-editor { max-width: 720px; }
+/* one column: seal + name header, the job, then compact icon + colour rows (no tabs, no side panel). */
+.mkt-class-ident { display: flex; align-items: flex-end; gap: 16px; margin-top: 4px; }
+.mkt-class-ident .mkt-coin { --coin: 64px; }
+.mkt-class-editor .mkt-class-ident .mkt-lbl { margin: 0; flex: 1 1 auto; }
+.mkt-class-icons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mkt-class-icons button { font: inherit; font-size: 20px; line-height: 1; width: 40px; height: 40px; padding: 0; color: var(--ph);
+  background: transparent; border: 1px solid var(--ph-faint); border-radius: 6px; cursor: pointer; }
+.mkt-class-icons button:hover, .mkt-class-icons button[aria-pressed="true"] { color: var(--ph-bright); background: var(--ui-face); border-color: var(--ph); box-shadow: inset 0 1px 0 var(--ui-highlight); }
 .mkt-class-icons button:focus-visible { outline: 2px solid var(--ph); outline-offset: 2px; }
+.mkt-class-editor .mkt-class-icons .mkt-class-own { width: 64px; height: 40px; text-align: center; font-size: 18px; padding: 0 4px; }
 .mkt-class-editor .mkt-lbl { margin: 16px 0 8px; gap: 7px; font-size: 14px; letter-spacing: .3px; }
-.mkt-class-editor .mkt-recipe-detail-tabs { margin-top: 0; }
 .mkt-class-editor .mkt-in { width: 100%; box-sizing: border-box; }
-.mkt-class-editor .mkt-kitpick { padding: 10px 0; border-bottom: 1px solid var(--ph-faint); }
-.mkt-class-editor #mkt-b-skills { max-height: 220px; overflow-y: auto; padding: 4px; }
-.mkt-class-editor #mkt-b-skills [hidden] { display: none; }
 .mkt-class-editor .mkt-save-acts { position: sticky; bottom: 0; padding: 16px 0; background: var(--panel); border-top: 1px solid var(--ph-faint); }
-@container (max-width: 680px) { .mkt-class-columns { grid-template-columns: minmax(0,1fr); gap: 18px; } .mkt-class-icons { grid-template-columns: repeat(8,minmax(0,1fr)); } }
+/* the one line that replaced the tool/skill/model pickers: tools + skills come built in (it is the truth). */
+.mkt-class-builtin { display: flex; gap: 12px; align-items: flex-start; margin: 22px 0 4px; padding: 12px 14px;
+  border: 1px solid var(--ph-faint); border-radius: 8px; background: rgba(var(--ph-rgb),.05);
+  color: var(--ph-dim); font-size: 14px; line-height: 1.5; }
+.mkt-class-builtin b { color: var(--ph-bright); font-weight: normal; }
+.mkt-class-builtin-mark { flex: 0 0 auto; color: var(--ph-bright); font-size: 16px; line-height: 1.4; }
+.mkt-class-editor .mkt-swatches { margin-top: 2px; }
