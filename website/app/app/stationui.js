@@ -3522,6 +3522,35 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function openAgent(i) { sel = i; if (open.agents) { if (minimized.agents) restoreTerm('agents'); rerender('agents'); } else toggleTerm('agents', 'AGENT DOSSIER', buildAgents, { console: true, className: 'dossier' }); }
 
+  /* SHOW A PLACE (station.show, 2026-10-04 — the agent puts a window in front of the Commander). Opens through the
+     window's own door (openTerm: aliases, the ONE MENU tab swap, a minimized window restored), then RAISES it when
+     another window buries it — openTerm leaves an already-open window where it sits. Returns what is really on screen,
+     so the agent's "it's open" is a read-back, never a hope. */
+  function shown(key) {
+    const w = open[key];
+    if (!w || w._closing) return { open: false, key };
+    if (minimized[key]) restoreTerm(key);
+    w.style.zIndex = U.zTop();
+    return { open: !minimized[key] && w.isConnected, key, title: (BUILDERS[key] || [])[0] || key, section: consoleSection[key] || null };
+  }
+  function showTerm(key, section) {
+    if (key === 'work') key = 'tasks';
+    const al = TERM_ALIAS[key];
+    openTerm(key, section);
+    if (al) key = al.term;
+    return shown(key);
+  }
+  function showAgent(agentId, section, desk) {
+    const i = present.findIndex(x => x && x.id === agentId);
+    if (i < 0) return { open: false, key: desk ? 'desk' : 'agents' };
+    if (desk) return openDesk(agentId) ? shown('desk') : { open: false, key: 'desk' };
+    if (section) consoleSection.agents = section;
+    openAgent(i);
+    const out = shown('agents');
+    out.agent = (present[sel] && present[sel].id) || null;
+    return out;
+  }
+
   /* ============== SKILLS — capability readout (mirrors the sidecar CAP_REGISTRY) ==============
      The agent's real tools come from the OBJECTS at its workstation (object = capability — see
      sidecar/capability/registry.js). This is an honest readout of that grant set: the real tool
@@ -10963,7 +10992,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, showTerm, showAgent, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };
