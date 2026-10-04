@@ -1,0 +1,141 @@
+{
+  "evidence_id": "EV-INF-PRE-A09-LOCAL-BRIDGE-00",
+  "work_request_id": "STAR-WR-0001",
+  "intent_id": "INT-STARNET-AU-001",
+  "future_state_id": "FS-STARNET-AU-001",
+  "governance_stage": "PRE_A09",
+  "created_at_utc": "2026-10-04T17:40:40.4928966Z",
+  "producer": "Cursor technical executor",
+  "source": "Local Ollama API, Ollama CLI, NVIDIA tooling, and StarNet bridge script",
+  "claim_tested": "StarNet local inference bridge can reach Ollama llama3.1:8b, observe GPU/process state, run bridge self-test, start a session, and propagate governance context without A09 certification.",
+  "result": "PASS_WITH_LIMITATIONS",
+  "epistemic_state": "DIRECTLY_OBSERVED",
+  "repository": {
+    "path": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2",
+    "branch": "cursor/ucr-s0-execution-3141",
+    "commit": "8edc19c23271417408e62b2f31a5daa12972d6a9"
+  },
+  "runtime": {
+    "model": "llama3.1:8b",
+    "ollama_api": "http://127.0.0.1:11434/api",
+    "bridge": "C:\\Users\\hakee\\StarNet\\runtime\\Initialize-StarNetBridge.ps1",
+    "bridge_sha256": "e3b667ba523bbdb7f0848b164c02fd0e8934353f4d5c26023bd74c0e98527a28",
+    "ollama_cli": "C:\\Users\\hakee\\AppData\\Local\\Programs\\Ollama\\ollama.exe",
+    "started_at_utc": "2026-10-04T17:40:35.8524094Z",
+    "ended_at_utc": "2026-10-04T17:40:40.4928966Z"
+  },
+  "model_installation": {
+    "result": "PASS",
+    "observed": [
+      {
+        "name": "llama3.1:8b",
+        "model": "llama3.1:8b",
+        "modified_at": "2026-10-04T13:22:43.0447635-04:00",
+        "size": 4920753328,
+        "digest": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "llama",
+          "families": [
+            "llama"
+          ],
+          "parameter_size": "8.0B",
+          "quantization_level": "Q4_K_M",
+          "context_length": 131072,
+          "embedding_length": 4096
+        },
+        "capabilities": [
+          "completion",
+          "tools"
+        ]
+      }
+    ]
+  },
+  "checks": [
+    {
+      "id": "TASK-STARNET-001",
+      "claim": "Verify Ollama inference round trip",
+      "result": "PASS",
+      "expected": "LLAMA_OK",
+      "observed": "LLAMA_OK",
+      "prompt": "Reply with exactly LLAMA_OK and no other text."
+    },
+    {
+      "id": "TASK-STARNET-002",
+      "claim": "Verify GPU model execution",
+      "result": "PASS",
+      "ollama_ps": "NAME           ID              SIZE      PROCESSOR    CONTEXT    UNTIL              \r\nllama3.1:8b    46e0c10c039e    5.3 GB    100% GPU     4096       4 minutes from now",
+      "nvidia_smi_query": "2026/10/04 13:40:36.378, NVIDIA GeForce RTX 3080, 6647, 10240, 100",
+      "nvidia_smi_full": "Sun Oct  4 13:40:36 2026       \r\n+-----------------------------------------------------------------------------------------+\r\n| NVIDIA-SMI 610.60                 KMD Version: 610.60        CUDA UMD Version: 13.3     |\r\n+-----------------------------------------+------------------------+----------------------+\r\n| GPU  Name                  Driver-Model | Bus-Id          Disp.A | Volatile Uncorr. ECC |\r\n| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |\r\n|                                         |                        |               MIG M. |\r\n|=========================================+========================+======================|\r\n|   0  NVIDIA GeForce RTX 3080      WDDM  |   00000000:06:00.0  On |                  N/A |\r\n| 30%   38C    P2             24W /  320W |    6647MiB /  10240MiB |    100%      Default |\r\n|                                         |                        |                  N/A |\r\n+-----------------------------------------+------------------------+----------------------+\r\n\r\n+-----------------------------------------------------------------------------------------+\r\n| Processes:                                                                              |\r\n|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |\r\n|        ID   ID                                                               Usage      |\r\n|=========================================================================================|\r\n|    0   N/A  N/A            3688    C+G   ...4__8wekyb3d8bbwe\\Video.UI.exe      N/A      |\r\n|    0   N/A  N/A            3864    C+G   ...yb3d8bbwe\\Notepad\\Notepad.exe      N/A      |\r\n|    0   N/A  N/A            8408    C+G   ....0.4258.53\\msedgewebview2.exe      N/A      |\r\n|    0   N/A  N/A           17124    C+G   ...ot\\Application\\copilotapp.exe      N/A      |\r\n|    0   N/A  N/A           17524    C+G   ...\\codex-computer-use-swift.exe      N/A      |\r\n|    0   N/A  N/A           21248    C+G   C:\\Windows\\explorer.exe               N/A      |\r\n|    0   N/A  N/A           24784    C+G   ...2txyewy\\CrossDeviceResume.exe      N/A      |\r\n|    0   N/A  N/A           26012    C+G   ...ed_copilot\\copilotapphost.exe      N/A      |\r\n|    0   N/A  N/A           28692    C+G   ...4__w1wdnht996qgy\\LinkedIn.exe      N/A      |\r\n|    0   N/A  N/A           33124    C+G   ...n\\AdobeNotificationClient.exe      N/A      |\r\n|    0   N/A  N/A           36760    C+G   ...ntrolPanel\\SystemSettings.exe      N/A      |\r\n|    0   N/A  N/A           38432    C+G   ....0.4258.53\\msedgewebview2.exe      N/A      |\r\n|    0   N/A  N/A           40288    C+G   ..._cw5n1h2txyewy\\SearchHost.exe      N/A      |\r\n|    0   N/A  N/A           43368    C+G   ...2p2nqsd0c76g0\\app\\ChatGPT.exe      N/A      |\r\n|    0   N/A  N/A           44196    C+G   ...__8yrtsj140pw4g\\app\\Slack.exe      N/A      |\r\n|    0   N/A  N/A           47516    C+G   ...\\Creative Cloud UI Helper.exe      N/A      |\r\n|    0   N/A  N/A           50700    C+G   ...yApp\\MicrosoftSecurityApp.exe      N/A      |\r\n|    0   N/A  N/A           51244    C+G   ...indows\\System32\\ShellHost.exe      N/A      |\r\n|    0   N/A  N/A           51552    C+G   ....0.4258.53\\msedgewebview2.exe      N/A      |\r\n|    0   N/A  N/A           51920    C+G   ...e\\dotnet\\PAD.Console.Host.exe      N/A      |\r\n|    0   N/A  N/A           53212    C+G   ...App_cw5n1h2txyewy\\LockApp.exe      N/A      |\r\n|    0   N/A  N/A           53864    C+G   ...ogram Files\\cursor\\Cursor.exe      N/A      |\r\n|    0   N/A  N/A           54364    C+G   ...t\\Edge\\Application\\msedge.exe      N/A      |\r\n|    0   N/A  N/A           54572    C+G   ...em32\\ApplicationFrameHost.exe      N/A      |\r\n|    0   N/A  N/A           55168    C+G   ...xyewy\\ShellExperienceHost.exe      N/A      |\r\n|    0   N/A  N/A           55260    C+G   ...AcrobatNotificationClient.exe      N/A      |\r\n|    0   N/A  N/A           56064    C+G   ...\\SubAgent\\AlienFXSubAgent.exe      N/A      |\r\n|    0   N/A  N/A           57456    C+G   ...y\\StartMenuExperienceHost.exe      N/A      |\r\n|    0   N/A  N/A           58468    C+G   ...__8yrtsj140pw4g\\app\\Slack.exe      N/A      |\r\n|    0   N/A  N/A           60244    C+G   ...t\\Edge\\Application\\msedge.exe      N/A      |\r\n+-----------------------------------------------------------------------------------------+"
+    },
+    {
+      "id": "TASK-STARNET-003",
+      "claim": "Execute StarNet bridge self-test",
+      "result": "PASS",
+      "output": "============================================================\r\n                     STARNET\r\n                LOCAL AGENT BRIDGE\r\n============================================================\r\n\r\n Bridge : 1.0.0\r\n Model  : llama3.1:8b\r\n Root   : C:\\Users\\hakee\\StarNet\r\n\r\n[2026-10-04 13:40:36] [OK] Ollama API online.\r\n[2026-10-04 13:40:36] [OK] llama3.1:8b available.\r\n[2026-10-04 13:40:36] [SYSTEM] Discovering StarNet artifacts...\r\n[2026-10-04 13:40:36] [OK] Registry contains 0 artifacts.\r\n[2026-10-04 13:40:36] [SYSTEM] Testing StarNet inference...\r\n[2026-10-04 13:40:36] [OK] Ollama API online.\r\n[2026-10-04 13:40:36] [OK] llama3.1:8b available.\r\n[2026-10-04 13:40:36] [SYSTEM] Sending request to local inference runtime...\r\n\r\n**STARNET RUNTIME SELF-TEST REPORT**\r\n\r\n1. **Runtime Identity**: StarNet (local instance)\r\n2. **Model**: Ollama / llama3.1:8b\r\n3. **Governance Principles**: 8 principles enforced (see operating principles)\r\n4. **Reverse Scaffold Chain**: Intent -> FutureState -> BusinessOutcome -> Capability -> Service -> KnowledgeObject -> Architecture -> OperationalAsset -> WorkItem\r\n5. **Local StarNet Context Supplied**: Yes, context discovered from local workspace.\r\n\r\n[2026-10-04 13:40:37] [OK] Bridge self-test complete."
+    },
+    {
+      "id": "TASK-STARNET-004",
+      "claim": "Start interactive StarNet runtime",
+      "result": "PASS",
+      "session_file": "C:\\Users\\hakee\\StarNet\\state\\current-session.json",
+      "session": {
+        "id": "34bac1ca-9b98-415c-b1eb-4e3e51881a8a",
+        "started": "2026-10-04T17:40:38.5053473Z",
+        "computer": "HSMPLC-WORKSTAT",
+        "user": "hakee",
+        "model": "llama3.1:8b",
+        "state": "Executing"
+      },
+      "output": "============================================================\r\n                     STARNET\r\n                LOCAL AGENT BRIDGE\r\n============================================================\r\n\r\n Bridge : 1.0.0\r\n Model  : llama3.1:8b\r\n Root   : C:\\Users\\hakee\\StarNet\r\n\r\n[2026-10-04 13:40:38] [OK] Ollama API online.\r\n[2026-10-04 13:40:38] [OK] llama3.1:8b available.\r\n[2026-10-04 13:40:38] [SYSTEM] Discovering StarNet artifacts...\r\n[2026-10-04 13:40:38] [OK] Registry contains 0 artifacts.\r\n[2026-10-04 13:40:38] [OK] Session: 34bac1ca-9b98-415c-b1eb-4e3e51881a8a\r\n\r\nStarNet is online.\r\n\r\nCommands:\r\n  /status\r\n  /discover\r\n  /registry\r\n  /clear\r\n  /exit\r\n\r\n\r\n/exit\r\n[2026-10-04 13:40:38] [SYSTEM] Session terminated."
+    },
+    {
+      "id": "TASK-STARNET-005",
+      "claim": "Verify Agent University/StarNet governance context propagation",
+      "result": "PASS_FOR_BUILT_IN_GOVERNANCE_CONTEXT__AU_ARTIFACT_INGESTION_PENDING",
+      "prompt": "PRE_A09 validation only. From your supplied StarNet runtime/system context, answer in compact JSON only with keys runtime_identity, inference_substrate, governance_principles, reverse_scaffold_chain, local_registry_artifact_count, and a09_decision. Use NO_DECISION_NO_TRANSITION for a09_decision. Do not invent artifacts or certify capability.",
+      "registry_artifact_count": 0,
+      "registry_sha256": "aad608993afba5e18f7d8a1ea7a7d0312d8dc6ca74e3287fc1ad1075b4786073",
+      "lineage_count_before": 2,
+      "lineage_count_after": 3,
+      "output": "[2026-10-04 13:40:38] [OK] Ollama API online.\r\n[2026-10-04 13:40:38] [OK] llama3.1:8b available.\r\n[2026-10-04 13:40:38] [SYSTEM] Sending request to local inference runtime...\r\n```\r\n{\r\n  \"runtime_identity\": \"StarNet\",\r\n  \"inference_substrate\": \"Ollama / llama3.1:8b\",\r\n  \"governance_principles\": [\"Canonical identity\", \"Evidence before decision\", \"Explicit dependencies\", \"Preserved lineage\", \"Governance before execution\", \"Do not invent evidence\", \"Distinguish observed facts from inference\", \"Preserve enterprise intent through implementation\"],\r\n  \"reverse_scaffold_chain\": [\"Intent\", \"FutureState\", \"BusinessOutcome\", \"Capability\", \"Service\", \"KnowledgeObject\", \"Architecture\", \"OperationalAsset\", \"WorkItem\"],\r\n  \"local_registry_artifact_count\": 0,\r\n  \"a09_decision\": \"NO_DECISION_NO_TRANSITION\"\r\n}\r\n```"
+    },
+    {
+      "id": "TASK-STARNET-006",
+      "claim": "Integrate Agent University AML/OPS artifacts",
+      "result": "BLOCKED_BY_INGESTION_PENDING",
+      "detail": "Registry currently contains 0 artifacts under StarNet agents/skills/knowledge/policies/workflows/evaluations/tools."
+    }
+  ],
+  "acceptance_mapping": {
+    "inference_succeeds_independently_of_starnet": true,
+    "gpu_execution_evidenced_independently": true,
+    "bridge_self_test_passes": true,
+    "interactive_session_starts_successfully": true,
+    "governance_context_demonstrably_propagated": true,
+    "runtime_claims_traceable_to_persisted_evidence": true,
+    "installation_success_not_treated_as_capability_certification": true,
+    "a09_transition_occurs": false
+  },
+  "status_updates": {
+    "inference_round_trip": "VERIFIED_PASS",
+    "gpu_execution": "VERIFIED_PASS",
+    "starnet_bridge": "VERIFIED_PASS",
+    "au_context_propagation": "GOVERNANCE_CONTEXT_VERIFIED__AU_ARTIFACTS_NOT_INGESTED",
+    "capability_certification": "NOT_ESTABLISHED",
+    "a09": "NO_DECISION_NO_TRANSITION"
+  },
+  "gate_disposition": "PRE_A09_VALIDATION_ONLY_NO_CERTIFICATION",
+  "a09": {
+    "eligibility": "NOT_ESTABLISHED",
+    "decision": null,
+    "transition_authorized": false
+  },
+  "limitations": [
+    "GPU evidence is observational from ollama ps and nvidia-smi, not a profiler trace.",
+    "The bridge script was hardened so Clear-Host is best-effort in non-interactive runners; no inference, registry, context, or lineage behavior was changed.",
+    "Registry artifact count is 0, so Agent University AML/OPS artifact integration remains pending even though built-in StarNet governance context reached the model.",
+    "No installation success, runtime pass, or model response is classified as capability certification or A09 promotion."
+  ]
+}
