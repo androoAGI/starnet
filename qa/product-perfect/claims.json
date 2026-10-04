@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "ec3c8aafe82e8c9d6afba9977abd45b5cd2ae843",
+    "sourceCommit": "2f17027a35c148aa28fc5a962b64a14c4bf95218",
     "pathSetSha256": "fac5552f81f0dd00ab64856cfdfc9f107fcb0517a3ef0449f4018b13e983e609",
     "files": [
       {
@@ -698,8 +698,8 @@
       },
       {
         "path": "frontend/app/nightreport.js",
-        "bytes": 22226,
-        "sha256": "e2c7c2f1bd9b06c6c50014b11613ac1424e3e0fdf313f38e1d8ec3e374c6686b"
+        "bytes": 22248,
+        "sha256": "b0faf4c3defbad6a3106cccabd7ced4dbb732640de3d0230b37f4270e9918e75"
       },
       {
         "path": "frontend/app/nightreportstore.js",
@@ -1158,8 +1158,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 823379,
-        "sha256": "dab4d3457a3f221dc20ba5688bcbbba3f9c4e2da5c69b64837696424b78d7f39"
+        "bytes": 825704,
+        "sha256": "1cd29da2e40198c7d827e5cb5ecb8eba44654782a21197a73d3cb8f8ca9f47e7"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1319,7 +1319,7 @@
       {
         "path": "frontend/app/windows/automation.js",
         "bytes": 9635,
-        "sha256": "bc3a341904de616a84d93fcf613681e422210c9b14d3c905c1a676956e305a81"
+        "sha256": "15a03f79add711f630c68e45c602beccd1670138978aebe9d8a7e97e0e27e6cb"
       },
       {
         "path": "frontend/app/windows/connectors.js",
@@ -1493,13 +1493,13 @@
       },
       {
         "path": "frontend/css/agent-dossier.css",
-        "bytes": 15106,
-        "sha256": "56f3f78a1035e2366630b7d342fe013d7b1eef5b2cbe82cec94cb0608b8098eb"
+        "bytes": 15501,
+        "sha256": "7cc74cd45251f1b813fbdbde8cdf3fbcfb0edf95c075d9040efdeec9a754fab7"
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 415830,
-        "sha256": "bd02ba556d0bc53b741c626b06f467d3a1f400b3a64df780d8be3e6b5015ed55"
+        "bytes": 416805,
+        "sha256": "0802262d5170387ac7f9247d4e49e2fc577ef94a7f0846451b30f84f0c87fe18"
       },
       {
         "path": "frontend/css/asciifx.css",
