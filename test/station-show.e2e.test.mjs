@@ -42,9 +42,10 @@ const stopChild = (child) => new Promise(resolve => {
 });
 
 const MARK = 'STATION-SHOW-E2E';
-// the mock model: a request carrying MARK plays mock.script one call per turn, then answers in words
+// the mock model: a request whose LATEST user message carries mock.phase plays mock.script one call per turn (counting only the
+// tool results after that message — a second ask carries the first ask's history), then answers in words
 function startMock() {
-  const mock = { script: [], results: [] };
+  const mock = { script: [], results: [], phase: MARK, seen: [] };
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/models') >= 0) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -53,8 +54,11 @@ function startMock() {
     if (req.url.indexOf('/chat/completions') < 0) { res.writeHead(404); return res.end(); }
     let body = ''; req.on('data', d => { body += d; }); req.on('end', () => {
       let p = {}; try { p = JSON.parse(body); } catch (_) {}
-      const mine = JSON.stringify(p.messages || []).indexOf(MARK) >= 0 && (p.tools || []).length > 0;
-      const answered = (p.messages || []).filter(m => m && m.role === 'tool');
+      const msgs = p.messages || [];
+      let lastUser = -1; for (let k = msgs.length - 1; k >= 0; k--) if (msgs[k] && msgs[k].role === 'user') { lastUser = k; break; }
+      const mine = lastUser >= 0 && JSON.stringify(msgs[lastUser].content || '').indexOf(mock.phase) >= 0 && (p.tools || []).length > 0;
+      const answered = msgs.slice(lastUser + 1).filter(m => m && m.role === 'tool');
+      mock.seen.push({ user: lastUser >= 0 ? JSON.stringify(msgs[lastUser].content || '').slice(0, 90) : null, tools: (p.tools || []).length, answered: answered.length });
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
       const send = o => res.write('data: ' + JSON.stringify(o) + '\n\n');
       if (mine && answered.length < mock.script.length) {
@@ -115,9 +119,9 @@ try {
     { name: 'station_show', args: { place: 'recruit' } }
   ];
   await evalJS(cdp, `(() => { const t = document.getElementById('chat-input'); t.value = ${JSON.stringify(MARK + ' show me my deliverables, my spending limits, your config, and the recruitment bay')}; t.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('chat-send').click(); return true; })()`);
-  for (let i = 0; i < 120 && mock.results.length < mock.script.length; i++) await sleep(500);
+  for (let i = 0; i < 360 && mock.results.length < mock.script.length; i++) await sleep(500);   // ≤3 min: a loaded gate is slow
   const R = mock.results;
-  check('the model received every result', R.length === mock.script.length, R.length + ' of ' + mock.script.length);
+  check('the model received every result', R.length === mock.script.length, R.length + ' of ' + mock.script.length + (R.length === mock.script.length ? '' : ' :: model saw ' + JSON.stringify(mock.seen.slice(-8)) + ' :: COMMS ' + JSON.stringify(await evalJS(cdp, `(() => ({ busy: !!(Chat.isBusy && Chat.isBusy()), input: (document.getElementById('chat-input') || {}).value, lines: [...document.querySelectorAll('#chat .msg, #chat-log > *')].slice(-4).map(x => x.innerText.slice(0, 120)) }))()`))));
   check('tool_search reveals station_show', /station[._]show/.test(R[0] || ''), (R[0] || '').slice(0, 300));
   check('shown: MY WORK › DELIVERABLES', /^OPEN on the Commander's screen: MY WORK › DELIVERABLES/.test(R[1] || ''), (R[1] || '').slice(0, 200));
   check('shown: SETTINGS › SPENDING LIMITS', /^OPEN on the Commander's screen: SETTINGS › SPENDING LIMITS/.test(R[2] || ''), (R[2] || '').slice(0, 200));
@@ -138,10 +142,11 @@ try {
   check('screen: the last place shown (the Recruitment Bay) is on top', !!bay && /RECRUITMENT BAY/.test(bay.title), JSON.stringify(bay));
 
   // a buried window is RAISED when shown again — the Commander sees it, not a window behind another
-  mock.results = [];
+  mock.results = []; mock.phase = MARK + '-AGAIN';
   mock.script = [{ name: 'station_show', args: { place: 'deliverables' } }];
-  await evalJS(cdp, `(() => { const t = document.getElementById('chat-input'); t.value = ${JSON.stringify(MARK + ' show me my deliverables again')}; t.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('chat-send').click(); return true; })()`);
-  for (let i = 0; i < 60 && mock.results.length < 1; i++) await sleep(500);
+  for (let i = 0; i < 360 && await evalJS(cdp, 'Chat.isBusy && Chat.isBusy()'); i++) await sleep(500);   // the first ask's run has ended
+  await evalJS(cdp, `(() => { const t = document.getElementById('chat-input'); t.value = ${JSON.stringify(MARK + '-AGAIN show me my deliverables again')}; t.dispatchEvent(new Event('input', { bubbles: true })); document.getElementById('chat-send').click(); return true; })()`);
+  for (let i = 0; i < 360 && mock.results.length < 1; i++) await sleep(500);
   const top = ((await evalJS(cdp, SCREEN)) || []).sort((a, b) => b.z - a.z)[0];
   check('a buried DELIVERABLES is raised to the top', !!top && isDlv(top), JSON.stringify(top));
   const count = ((await evalJS(cdp, SCREEN)) || []).filter(w => /^MY WORK/.test(w.title)).length;
@@ -151,10 +156,10 @@ try {
   await evalJS(cdp, `(() => { document.querySelectorAll('.term .term-x, .term [aria-label^="Close"]').forEach(b => { try { b.click(); } catch (_) {} }); return true; })()`);
   await sleep(800);
   const cleared = ((await evalJS(cdp, SCREEN)) || []).length;
-  mock.results = [];
+  mock.results = []; mock.phase = MARK + '-UNWATCHED';
   mock.script = [{ name: 'tool_search', args: { query: 'open a window to show the Commander' } }, { name: 'station_show', args: { place: 'settings' } }];
   const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: base };
-  const res = await fetch(base + '/api/run', { method: 'POST', headers, body: JSON.stringify({ key: 'sk-or-v1-fake', model: 'test/model', agentId: 'agent', isTask: true, messages: [{ role: 'user', content: MARK + ' open my settings' }] }) });
+  const res = await fetch(base + '/api/run', { method: 'POST', headers, body: JSON.stringify({ key: 'sk-or-v1-fake', model: 'test/model', agentId: 'agent', isTask: true, messages: [{ role: 'user', content: MARK + '-UNWATCHED open my settings' }] }) });
   await res.text();
   check('unwatched run: the model was told the screen was left alone', /^REFUSED: the Commander is not looking at this conversation/.test(mock.results[1] || ''), (mock.results[1] || '').slice(0, 200));
   const after = ((await evalJS(cdp, SCREEN)) || []).filter(w => /^SETTINGS/.test(w.title));
