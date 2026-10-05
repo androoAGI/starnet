@@ -3167,6 +3167,7 @@ const App = (() => {
     if (typeof MintStore !== 'undefined') MintStore.reset();   // …no inherited recurring-task shapes — these feed the seed shelf, so a leak would offer a prior Commander's chores (own key)
     if (typeof AutoJobStore !== 'undefined') AutoJobStore.reset();   // …and re-arm the one-time standing-jobs proposal (own key; server-side routines are separate)
     if (typeof AutopilotStore !== 'undefined') AutopilotStore.reset();   // …and a fresh idle autopilot (no inherited idle/armed state — its decision is re-earned by the new Commander's posture + dossier)
+    if (typeof Briefing !== 'undefined') Briefing.reset();
     if (typeof ReturnStore !== 'undefined') ReturnStore.reset();   // …and no inherited return-ritual trail — a fresh Commander gets no prior hero's pending OUTBOX crates or attendance stamp (own key)
     if (typeof NightDraftNudge !== 'undefined') NightDraftNudge.reset();   // …and no inherited night-shift seen-stamp / spent nudge — a fresh Commander re-earns the unseen-drafts nudge (own key)
     if (typeof WorkshopStore !== 'undefined') WorkshopStore.reset();   // W3: no inherited "later" list or seen-ledger for a fresh Commander (own key)
@@ -3679,6 +3680,10 @@ const App = (() => {
     // recovers sessions for routines that finished while the browser was closed. Read-only on U.bus. Init AFTER
     // Chat.init + App is fully formed (this returns App) so the module's App.refreshRail/persist bridges resolve.
     if (typeof AutoSessions !== 'undefined') AutoSessions.init();
+    // THE ONE RETURN REPORT: boot + the first input after a real absence ask the sidecar for ONE briefing of every
+    // unattended outcome (routines, builds, loops, drafts, failures) and deliver it into ONE pinned session. The
+    // older per-surface return beats (digest, morning report, drafts nudge, workshop reveal) stand down while it is live.
+    if (typeof Briefing !== 'undefined') Briefing.init({ enabled: !opts.awaitingPurpose, agentId: agent.id });
     if (typeof RemoteView !== 'undefined') RemoteView.init();   // the station picture a paired phone sees (drawn only while one is looking)
     if (typeof RemoteSessions !== 'undefined') RemoteSessions.init();   // phone conversations show up as desk sessions
     // Delegated-session recovery: if no page received the live delivery (or another open page won the ACK race
