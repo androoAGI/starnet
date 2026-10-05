@@ -33,16 +33,21 @@ COMMS run is busy — routine.create/team.dispatch cover it), quest confirm/repo
 cron degraded-clear (accepts data loss — the Commander's call), credentials, consent answers, lifting an E-STOP.
 Still open: a REAL-model run on a seeded station (every lane so far is mock-proven).
 
-## Lane 4 — Ctrl+K: one search for every place, agent and action
-A palette over PLACES (same list the agent uses) + the crew + common verbs; Enter opens through `StationUI.showTerm`.
-No match → "ask the crew" types it into COMMS. One list = the palette, the agent and the manual can never disagree.
+## Lane 4 — Ctrl+K: one search for everything  ✅ BUILT
+SYSTEM › FIND (windows/find.js): a station window (rises from the dock, never a centred popup), Ctrl+K anywhere. Searches
+every place, each crew member's dossier tabs + desk ("NOVA › CONFIG"), every open conversation; ↑↓ Enter. No match → ASK
+THE CREW types the words into COMMS (never sends). ONE opener: `Places.open` (app/places.js) — FIND and the agent's
+station.show open places through the same code. FIND is itself a place; the manual names Ctrl+K. Glass recipe measured
+live (8px field, 10px rows, ≥14px, no glow). Proof: test/find-window.e2e.test.mjs.
 
 ## Lane 5 — front doors (organization, nothing removed)
-1. Autonomy & access: SETTINGS › PERMISSIONS is the one place it is SET; SETTINGS › AUTONOMY dials, dossier ACCESS and the
-   AUTOMATE initiative line become read-outs with a jump (station.show-style) to it. Every control kept.
-2. NOTIFICATIONS: All/New counts include NEEDS YOU rows (badge and count disagree today — truthfulness bug).
-3. DELIVERABLES: drop the duplicate heading + intro paragraph; old keys → glass keys.
-4. Recruit-bay forms: the 6 `.mkt-save-h` headers → the glass sheet header.
-5. Dossier CONFIG: one save model.
+1. Autonomy & access in one place — ✅ done by another lane (one-access-setting, merged 10-04).
+2. NOTIFICATIONS — ✅ All/New count the NEEDS YOU rows they show; New = the bell badge (proven live in
+   station-control-gaps.e2e: All · 2, New · 2, bell 2).
+3. DELIVERABLES — ✅ partly: no second heading under its tab, one short lead line, glass keys + fields. NOT done: the
+   cards, the "0 outputs" strip and the project rail still wear the older small type — needs Andrew's eye on real data.
+4. Recruit-bay forms (`.mkt-save-h`) — ⏸ left alone: the class builder was redesigned by another lane on 10-04; restyle
+   its forms together with that owner, not over it.
+5. Dossier CONFIG one save model — ⏸ a product decision (apply-on-click + undo vs SAVE) for Andrew.
 
 Order: 2 → 3 → 4 → 5 (2 makes every later lane's agent smarter; 4 reuses Lane 1's PLACES).
