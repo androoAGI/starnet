@@ -20415,7 +20415,7 @@ async function runOnceCore(o) {
   // each briefed build/routine/loop actually lives (ids + workspace paths), so "apply that build" never starts from scratch.
   let awayBriefingNote = '';
   if (!internal && o.streamId === AwayBriefing.STREAM_ID) {
-    try { const ctx = AwayBriefing.contextBlock(readAwayBriefingState().last); if (ctx) awayBriefingNote = '\n\n' + ctx; } catch (_) {}
+    try { const ctx = AwayBriefing.contextBlock(readAwayBriefingState().last); if (ctx) awayBriefingNote = '\n\n' + ctx; } catch (e) { failNote('away-briefing.context', e); }
   }
   let taskIntentNote = '';
   if (taskBrief) taskIntentNote = '\n\n' + TaskIntent.directive(taskContextBlock);
@@ -21970,7 +21970,7 @@ async function awayBriefingInputs(since, now, tzOffsetMin) {
         const t = turns[i];
         if (t && t.role === 'assistant' && typeof t.content === 'string' && t.content.trim()) return Object.assign({}, r, { deliveryText: t.content.trim().slice(0, 2000) });
       }
-    } catch (_) {}
+    } catch (e) { failNote('away-briefing.excerpt', e); }
     return r;
   });
   const builds = [];
