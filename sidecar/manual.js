@@ -158,14 +158,16 @@ const CONCEPTS =
   '- OUTBOX vs DELIVERABLES vs TO REVIEW: a floor OUTBOX shows ONLY its own line\'s jobs (clicking it opens that line in ' +
   'WORKFLOWS). Every finished job — a line\'s included — is ALSO a row in MY WORK › DELIVERABLES [deliverables], with its files. ' +
   'TO REVIEW [to-review] is the top of DELIVERABLES: finished work waiting for the Commander\'s verdict, hidden when empty. ' +
-  'You: deliverable_note names your own work there. Trap: never say an OUTBOX holds every result.\n' +
+  'You: deliverable_note names your own work there; station.control deliverables.cleanup clears discarded/failed records (records only, ' +
+  'deliverables.restore undoes it). Trap: never say an OUTBOX holds every result.\n' +
   '- RECIPES [recipes]: ready-made job templates; launching one opens a new session and sends the filled-in job to the current ' +
   'agent (refused while that agent is mid-run). MAKE ROUTINE + RUN AS schedules one as a chosen crew member. You: open it with ' +
   'station.show; to run a recipe-like job on a timer use routine.create. Trap: a recipe never changes who an agent is.\n' +
   '- SCHEDULES vs GOAL LOOPS vs AWAY WORK: a SCHEDULE [schedules] (a routine) answers WHEN — StarNet\'s own scheduler, never OS ' +
   'cron; a GOAL LOOP [goal-loops] answers UNTIL — it repeats toward one objective and its changes wait for the Commander; AWAY ' +
   'WORK [away-work] is an agent\'s consent to build from its own queue, inside its own workspace, while the Commander is away. ' +
-  'You: routine.create/manage, loop.create/manage (if you have them); station.power agent.away_work on. Trap: read ' +
+  'You: routine.create/manage, loop.create/manage (if you have them); station.power agent.away_work on; station.control away.queue / ' +
+  'away.remove fill and trim an agent\'s away queue. Trap: read ' +
   'routine.create\'s scheduler note before saying "it will run" — scheduling can be off (▶ ENABLE SCHEDULING) or stopped by ' +
   'an E-STOP, and you can never lift an E-STOP.\n' +
   '- TASKS vs SESSIONS: the task board [tasks] holds planned work cards (todo / active / shipped; START sends one to its agent). ' +
@@ -174,7 +176,7 @@ const CONCEPTS =
   '- COMMS: the chat. Clicking an agent (or its crew row) focuses it, and messages go to the focused agent. GROUP CHAT: "+ Add ' +
   'agents" in the COMMS bar (or @-mentioning an agent) turns a direct chat into a group; the lead answers anything unaddressed ' +
   'and cannot be removed. Enter while an agent is working QUEUES the message; /steer <text> steers the live run; /stop stops it. ' +
-  'You: station.control session.rename|pin|archive|delete.\n' +
+  'You: station.control session.rename|pin|archive|delete; group.configure changes a group chat\'s members, lead, title or instructions.\n' +
   '- ACCESS (one setting, three answers): CHECK WITH ME (asks first, only placed gear), LET IT WORK (asks first, works in approved ' +
   'project folders), FULL POWER (never asks, the whole computer). Set station-wide or per agent in SETTINGS › PERMISSIONS ' +
   '[settings-permissions]; per agent also in dossier CONFIG [agent-config]. In the ask modes a paused agent shows an approval card ' +
@@ -185,8 +187,9 @@ const CONCEPTS =
   '"While you were away" is a session summarizing what they did. You: station.power autonomy.set. Trap: it does not change ' +
   'schedules and never lifts an E-STOP.\n' +
   '- E-STOP: halts every run, routine, goal loop and night-shift beat at once (the desktop tray\'s Pause Automation, and every ' +
-  'clean quit). While halted the top bar shows RESUME AUTOMATION. You: station.settings reads whether it is halted. Trap: only ' +
-  'the Commander resumes; /stop stops just one run.\n' +
+  'clean quit). While halted the top bar shows RESUME AUTOMATION. You: station.control estop.engage presses it when the Commander ' +
+  'asks (it stops your own run too — say so first); station.settings reads whether it is halted. Trap: only the Commander ' +
+  'resumes; /stop stops just one run.\n' +
   '- SPENDING [settings-spending]: caps per run, per agent, per day and overall, in dollars (0 = no cap); a capped day pauses ' +
   'with a one-click RESUME. On StarNet credits a run with no per-run cap still stops at $2; runs on the Commander\'s own key or ' +
   'subscription do not. Backup models live in SETTINGS › AI & MODELS [settings-ai]. You: station.power budget.set|resume (even to ' +
@@ -198,9 +201,10 @@ const CONCEPTS =
   'file at the workbench. You: station.control checkpoint.restore (saves an undo point first). Trap: it rewinds files, not chat.\n' +
   '- QUESTS [quests] / PROGRESS [progress] / TROPHIES [trophies]: quests are personal goals, goal steps and floor gaps; progress ' +
   'is the station level and the systems that came online (nothing is ever locked); trophies are real completions only. You: ' +
-  'quest.update. Trap: attest_complete only PROPOSES — the Commander confirms.\n' +
+  'quest.update; station.control quest.dismiss / quest.later. Trap: attest_complete only PROPOSES — the Commander confirms.\n' +
   '- NOTIFICATIONS [notifications]: NEEDS YOU (waiting on the Commander, on top until answered), finished results, and alerts; ' +
-  'what pings is set in SETTINGS › ALERTS [settings-alerts]. You: open it with station.show.\n' +
+  'what pings is set in SETTINGS › ALERTS [settings-alerts]. You: station.show opens it; station.control notifications.read / ' +
+  'notifications.clear (a NEEDS YOU entry always stays).\n' +
   '- ABILITIES [abilities]: everything agents can use — connectors (CATALOG [find-a-service], CONNECTED SERVICES, SAVED API ' +
   'CONNECTIONS [api-connections]), skills (SKILL MARKET [skill-market], LIBRARY, AGENT SKILLS, EXCHANGE), built-in abilities and ' +
   'their kill-switches, COMPUTER CONTROL, EXTENSIONS. Connectors are account-wide: no prop. CHANNELS [channels] is the inbound ' +

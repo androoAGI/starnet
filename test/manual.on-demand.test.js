@@ -40,8 +40,8 @@ const inline = M.MANUAL_SECTIONS.filter(s => s.kind !== 'reference');
 // Re-pinned 2026-10-05 (self-driving lane 2) for ONE deliberate addition: the agent learns EVERYTHING on demand — a CONCEPTS
 // reference section (every StarNet thing, its place, its tool, its trap), NAVIGATION's generated EVERY PLACE list (frontend/app/
 // places.js), and the dossier's CAN DO replaces the gone SKILLS tab. All reference: the inline form got SHORTER.
-A.eq(full.length, 23044, 'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +12876: CONCEPTS + EVERY PLACE, 2026-10-05)');
-A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '6f026061c4946b19fd95bfb30543d64b13feda5cb1a41313d873dd0bc2fff8ce',
+A.eq(full.length, 23556, 'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +13388: CONCEPTS + EVERY PLACE + the lane-3 actions, 2026-10-05)');
+A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '85b87660a6cceb1d66c52ee825902589d48877247137f6559f5550d2e918d17d',
   'the whole manual is byte-identical to the literal that shipped before the split');
 
 // ---- B. the sections partition the manual ----

@@ -46,6 +46,7 @@ test/e2e.dispatch-session.test.js
 test/station-layout.e2e.test.mjs
 test/station-control.e2e.test.mjs
 test/station-show.e2e.test.mjs
+test/station-control-gaps.e2e.test.mjs
 test/station-builder.e2e.test.mjs
 test/e2e.worker-access.test.js
 test/taint-lineage.e2e.test.js

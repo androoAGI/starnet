@@ -967,6 +967,12 @@ const StationCommands = (() => {
         if (!r.saved) throw new Error('the look changed on screen but this browser did not keep it (local storage refused) — it will reset on restart; do not report it as saved');
         return r;
       }
+      if (act === 'notifications.read' || act === 'notifications.clear') {
+        if (typeof StationUI === 'undefined' || !StationUI.notifsMarkRead) throw new Error('notifications are not loaded on this page');
+        const r = act === 'notifications.read' ? StationUI.notifsMarkRead() : StationUI.notifsClear();
+        if (!r.saved) throw new Error('the notifications changed on screen but this browser did not keep it (local storage refused) — do not report it as saved');
+        return r;
+      }
       throw new Error('this page has no station control "' + act + '"; reload it');
     },
 

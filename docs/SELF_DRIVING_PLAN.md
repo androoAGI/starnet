@@ -14,28 +14,24 @@ in `station.power`; credentials, consent answers and E-STOP *resume* stay human-
 right tab — only from the run they are watching. Manual NAVIGATION tells agents to open instead of describe. Fixed the
 manual's stale "APPROVALS hotspot / Alt+A" (approvals live in COMMS). Unit 273 + e2e ALL PASS.
 
-## Lane 2 — the agent knows everything (on demand, 0 prompt bytes)
-Gaps found: outbox, group chat, trophies, notifications, E-STOP, spending screen, checkpoints/rewind, apps, floors/lines
-are unexplained or one-word; Telegram/plain-chat turns get NO manual TOC; the agent manual and the Field Manual are two
-hand-kept texts that drift.
-1. `manual.read` section **places** — generated from PLACES (every place's words + about), so it can never drift.
-2. `manual.read` section **concepts** — a glossary of every StarNet noun (crew/classes, props=capability, floors & lines,
-   outbox vs deliverables, recipes, schedules vs goal loops vs away work, group chat, quests/progress/trophies,
-   notifications/NEEDS YOU, spending caps, checkpoints/RECORD, memory/learning, approvals/Full Power, E-STOP, apps,
-   abilities/connectors/skills/channels) — each with "how the agent does it for you" (the tool) and "where it lives" (place id).
-3. Every surface gets the TOC line (Telegram/owner DM/plain chat), within the payload budget (24653/24700 now).
-4. Drift test: every CAPS UI name the manual uses must exist in PLACES words or a known control list.
+## Lane 2 — the agent knows everything  ✅ BUILT (on demand, inline prompt got SHORTER)
+`manual.read` section **concepts** (~8K, reference only): every StarNet thing — what it is, its place id, the tool or
+station.control action that does it, the trap — grounded line by line in the code. NAVIGATION's **EVERY PLACE** list is
+generated from PLACES. A Telegram owner DM gets a ~480-char pointer to manual.read (never the 6K index, never nothing).
+Stale text fixed: the dossier SKILLS tab. Drift test `test/manual-concepts.test.js`: every [place], tool, action and
+MENU › TAB path the manual names is real. Payload 24650/24700 · 24871/24900 · tool bytes 65276/65300.
 
-## Lane 3 — 100% freedom (the station-control catalog gaps)
-Easy (a route exists — add a catalog entry, same `callOwnRoute` path): away-work queue/shift/remove/implement/undo
-(`/api/workshop/*`), deliverables cleanup + undo, quests confirm/dismiss/disposition, `projects/forget`, plugin/hook
-revoke+delete, channel disconnect, `cron/degraded/clear`, `runtime/knobs`, `browser/settings`, `config/export`,
-`update/prepare|cancel`, group-chat membership (`/api/groups` configure), user-prop scale/delete, **E-STOP engage**
-(`POST /api/halt` — the safe direction; resume stays human). Power tier: computer-control, skill-exchange install,
-execution policy, remote enable, config import/reset (typed confirm).
-Page bridge (new `station.control` page actions): launch a recipe, set the station default model
-(`App.setStationProvider`), notifications mark-read/clear, author a custom class, per-agent toolsets.
-Then a REAL-model run on a seeded station (the 10-02 lane is mock-proven only).
+## Lane 3 — 100% freedom  ✅ BUILT (20 more actions: 47 → 67)
+station.control: away.queue|remove, deliverables.cleanup|restore (records only), quest.dismiss|later, project.forget,
+channel.disconnect (Discord forget refused — its route ignores it), browser.mode, group.configure (by id or title, at the
+current revision), notifications.read|clear (page; a NEEDS YOU entry is never touched), **estop.engage** (fires just
+after its result, reported as "engaging"; only the Commander resumes). station.power: plugin/hook revoke+delete (one may be
+a veto guard), limits.set (0 = UNLIMITED). New read sections: away, library, quests, groups, channels, limits.
+Left out on purpose: away-work shift/implement (streaming routes that spend — the agent can do the work itself), update
+prepare (aborts every run), prop scale/delete (canvas would show stale art until reload), recipe launch (refuses while any
+COMMS run is busy — routine.create/team.dispatch cover it), quest confirm/report (an agent never approves its own claim),
+cron degraded-clear (accepts data loss — the Commander's call), credentials, consent answers, lifting an E-STOP.
+Still open: a REAL-model run on a seeded station (every lane so far is mock-proven).
 
 ## Lane 4 — Ctrl+K: one search for every place, agent and action
 A palette over PLACES (same list the agent uses) + the crew + common verbs; Enter opens through `StationUI.showTerm`.

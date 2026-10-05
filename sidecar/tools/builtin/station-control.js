@@ -187,6 +187,105 @@
     run: (a, env) => ['keep', 'discard', 'later'].indexOf(a.decision) < 0 ? refusal('decision is keep, discard or later')
       : env.route('POST', '/api/workshop/decide', { agentId: a.agent || 'agent', runId: a.runId, decision: a.decision }) });
 
+  /* ---- SELF-DRIVING lane 3 (2026-10-05, "100% full freedom with the harness"): the click-only actions an audit found left.
+     Each calls the route its button calls. Left out on purpose: away-work SHIFT/IMPLEMENT (streaming routes that spend —
+     an agent can do that work itself), update prepare (aborts every run), prop scale/delete (the canvas would show stale
+     art), recipe launch (it refuses while any COMMS run is busy — routine.create / team.dispatch do the job), confirming a
+     quest (an agent must never approve its own claim), lifting an E-STOP. ---- */
+
+  // ---- away work (AUTOMATE › AWAY WORK) ----
+  def('away.queue', { takes: '{agent, title, detail?}', card: a => 'add "' + clip(a.title || a.detail, 120) + '" to ' + q(a.agent || 'agent') + '\'s away-work queue (built only while you are away, and only if that agent has away work on).',
+    run: (a, env) => env.route('POST', '/api/workshop/queue', { agentId: a.agent || 'agent', title: a.title, detail: a.detail }) });
+  def('away.remove', { takes: '{agent, id (a queue item id from station.settings away)}', card: a => 'take ' + clip(a.id, 60) + ' off ' + q(a.agent || 'agent') + '\'s away-work queue.',
+    run: (a, env) => env.route('POST', '/api/workshop/remove', { agentId: a.agent || 'agent', backlogId: a.id }) });
+
+  // ---- finished work (MY WORK › DELIVERABLES) — records only, never files ----
+  def('deliverables.cleanup', { takes: '{statuses?: ["discarded","failed","kept","implemented"] (default discarded + failed)}',
+    card: a => 'clear the ' + ((Array.isArray(a.statuses) && a.statuses.length ? a.statuses : ['discarded', 'failed']).map(x => clip(x, 12)).join(' and ')) + ' records out of DELIVERABLES (records only — no file is deleted; deliverables.restore puts them back).',
+    run: async (a, env) => {
+      // the button's own two steps: preview (which fingerprints the library), then apply exactly that preview
+      const statuses = Array.isArray(a.statuses) && a.statuses.length ? a.statuses : ['discarded', 'failed'];
+      const pv = await env.route('POST', '/api/deliverables/cleanup-preview', { statuses });
+      if (!pv || pv.status >= 400 || !pv.json || typeof pv.json.fingerprint !== 'string') return pv && pv.status >= 400 ? pv : refusal('the cleanup preview could not be read, so nothing was cleared');
+      // nothing matches: say so (an empty library's fingerprint is "" — the live e2e caught that read as "unreadable")
+      if (!(pv.json.targets || []).length) return { status: 200, json: { ok: true, removed: 0, note: 'no ' + (pv.json.statuses || statuses).join(' or ') + ' records — nothing to clear' } };
+      return env.route('POST', '/api/deliverables/cleanup', { statuses: pv.json.statuses || statuses, fingerprint: pv.json.fingerprint });
+    } });
+  def('deliverables.restore', { takes: '{undoToken (deliverables.cleanup returns it)}', card: () => 'put back the DELIVERABLES records a cleanup cleared.',
+    run: (a, env) => env.route('POST', '/api/deliverables/cleanup-undo', { undoToken: a.undoToken }) });
+
+  // ---- quests (QUESTS) — never confirm: an agent must not approve its own claim ----
+  def('quest.dismiss', { takes: '{id}', card: a => 'DISMISS the quest ' + q(a.id) + ' for good (it will not be suggested again).',
+    run: (a, env) => env.route('POST', '/api/quests/dismiss', { id: a.id }) });
+  def('quest.later', { takes: '{id, disposition: later|blocked|too_big|resume, reason?}',
+    card: a => ({ later: 'snooze the quest ' + q(a.id) + ' for a day', blocked: 'mark the quest ' + q(a.id) + ' blocked', too_big: 'mark the quest ' + q(a.id) + ' too big', resume: 'bring the quest ' + q(a.id) + ' back' }[String(a.disposition || '').toLowerCase()] || 'change the quest ' + q(a.id)) + '.',
+    run: (a, env) => {
+      const d = String(a.disposition || '').trim().toLowerCase();
+      return ['later', 'blocked', 'too_big', 'resume'].indexOf(d) < 0 ? refusal('disposition is later, blocked, too_big or resume')
+        : env.route('POST', '/api/quests/disposition', { id: a.id, disposition: d, reason: a.reason });   // later = the route's own +24h
+    } });
+
+  // ---- projects, channels, the browser ----
+  def('project.forget', { takes: '{root}', card: a => 'forget the project ' + clip(a.root, 160) + ' (its saved details only — no file is touched).',
+    run: (a, env) => env.route('POST', '/api/projects/forget', { root: a.root }) });
+  def('channel.disconnect', { takes: '{channel: telegram|discord|slack|matrix|signal, forget?}',
+    card: a => 'disconnect ' + clip(a.channel, 20) + (onOff(a.forget) ? ' and FORGET its token (reconnecting needs it pasted again)' : ' (its token is kept: reconnecting is one click)') + '.',
+    run: (a, env) => {
+      const ch = String(a.channel || '').trim().toLowerCase();
+      if (['telegram', 'discord', 'slack', 'matrix', 'signal'].indexOf(ch) < 0) return refusal('channel is telegram, discord, slack, matrix or signal');
+      // the discord route ignores the body (it never forgets): say so rather than report a forget that did not happen
+      if (ch === 'discord' && onOff(a.forget)) return refusal('Discord can only be disconnected from here, not forgotten — the Commander uses FORGET in CONNECT › CHANNELS');
+      return env.route('POST', '/api/channels/' + ch + '/disconnect', { purge: onOff(a.forget) });
+    } });
+  def('browser.mode', { takes: '{mode: builtin|window|chrome}', card: a => 'run the station browser ' + ({ builtin: 'inside StarNet', window: 'as its own Chrome window', chrome: 'in your own Chrome' }[String(a.mode || '').toLowerCase()] || clip(a.mode, 20)) + '.',
+    run: (a, env) => env.route('POST', '/api/browser/settings', { mode: String(a.mode || '').trim().toLowerCase() }) });
+
+  // ---- group chats (COMMS) ----
+  def('group.configure', { takes: '{group (its id or title), members? [crew ids], leadId?, title?, instructions?, maxTurns? 1-100}',
+    card: a => 'change the group chat ' + q(a.group) + ': ' + clip(['members', 'leadId', 'title', 'instructions', 'maxTurns'].filter(k => a[k] != null).map(k => k + ' ' + (Array.isArray(a[k]) ? a[k].join(', ') : a[k])).join('; ') || 'nothing named', 200) + '.',
+    run: async (a, env) => {
+      const l = await env.route('GET', '/api/groups');
+      const gs = l && l.status < 400 && l.json && l.json.result && Array.isArray(l.json.result.groups) ? l.json.result.groups : null;
+      if (!gs) return refusal('the group chats could not be read, so nothing was changed');
+      const want = String(a.group || '').trim().toLowerCase();
+      const byId = gs.filter(g => String(g.id).toLowerCase() === want);
+      const hits = byId.length ? byId : gs.filter(g => String(g.title || '').trim().toLowerCase() === want);
+      if (hits.length !== 1) return refusal((hits.length ? 'more than one group chat is called ' : 'there is no group chat ') + q(a.group) + ' (group chats: ' + (clip(gs.map(g => g.title || g.id).join(', '), 300) || 'none') + ')');
+      // configure is revision-checked (a stale one is refused): read the group's current revision first, as the window does
+      const g = await env.route('GET', '/api/groups?id=' + enc(hits[0].id));
+      const rev = g && g.json && g.json.result ? g.json.result.revision : undefined;
+      return env.route('POST', '/api/groups', Object.assign({ op: 'configure', id: hits[0].id, revision: rev }, pick(a, ['members', 'leadId', 'title', 'instructions', 'maxTurns'])));
+    } });
+
+  // ---- notifications (page: NOTIFICATIONS' MARK ALL READ, ALERTS' CLEAR) — a NEEDS YOU entry is never touched ----
+  def('notifications.read', { page: true, takes: '{}', card: () => 'mark every notification read (anything still waiting on you stays).' });
+  def('notifications.clear', { page: true, takes: '{}', card: () => 'clear the notifications list (anything still waiting on you stays).' });
+
+  // ---- E-STOP: pressing it is the SAFE direction; lifting it stays the Commander's (never here) ----
+  def('estop.engage', { takes: '{}', card: () => 'press the E-STOP: EVERY run stops (this one too), and routines, goal loops and the night shift stand down until you press RESUME AUTOMATION.',
+    run: async (a, env) => {
+      const h = await env.route('GET', '/api/halt');
+      if (h && h.json && h.json.halted) return { status: 200, json: { alreadyHalted: true, note: 'the station is already halted — only the Commander resumes it (RESUME AUTOMATION)' } };
+      // the halt aborts every run, THIS one included, so it fires just after this result is handed back — the report
+      // says "engaging", never "halted": the top bar's RESUME AUTOMATION is the proof the Commander sees
+      env.later(() => { Promise.resolve(env.route('POST', '/api/halt')).catch(() => {}); }, 1500);
+      return { status: 200, json: { engaging: true, note: 'the E-STOP engages in a moment and stops this run too; say so in one line now — RESUME AUTOMATION in the top bar is how the Commander resumes' } };
+    } });
+
+  // ---- escalations: revoking or deleting a plugin or hook can LOOSEN the station (one may be a pre-tool veto guard),
+  //      and a runtime limit of 0 means UNLIMITED — so all of these are station.power ----
+  def('plugin.revoke', { takes: '{id}', power: () => true, card: a => 'revoke the plugin ' + q(a.id) + ' (if it guards other tools, that guard stops too).',
+    run: (a, env) => env.route('POST', '/api/plugins/revoke', { id: a.id }) });
+  def('plugin.delete', { takes: '{id}', power: () => true, card: a => 'DELETE the plugin ' + q(a.id) + ' and its folder — no undo (if it guards other tools, that guard stops too).',
+    run: (a, env) => env.route('POST', '/api/plugins/delete', { id: a.id }) });
+  def('hook.revoke', { takes: '{event, command}', power: () => true, card: a => 'revoke the automatic command "' + clip(a.command, 120) + '" on ' + clip(a.event, 30) + ' (if it is a guard, it stops guarding).',
+    run: (a, env) => env.route('POST', '/api/hooks/revoke', { event: a.event, command: a.command }) });
+  def('hook.delete', { takes: '{event, command}', power: () => true, card: a => 'DELETE the automatic command "' + clip(a.command, 120) + '" on ' + clip(a.event, 30) + ' (if it is a guard, it stops guarding).',
+    run: (a, env) => env.route('POST', '/api/hooks/delete', { event: a.event, command: a.command }) });
+  def('limits.set', { takes: '{maxIters? 0-200, maxConcurrentAgents? 0-32, consentTimeoutMs? 5000-600000, cronTickMs? 5000-600000} (0 = UNLIMITED, null = default; most apply at the next start)', power: () => true,
+    card: a => 'change the station\'s runtime limits: ' + clip(['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs'].filter(k => k in a).map(k => k + ' ' + (a[k] === 0 ? 'UNLIMITED' : a[k] == null ? 'default' : a[k])).join(', ') || 'nothing named', 160) + ' (most take effect at the next start).',
+    run: (a, env) => env.route('POST', '/api/runtime/knobs', pick(a, ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs'])) });
+
   /* ONE reading of the args, used by the tier check, the card's runner AND the page (sweep 2026-10-03). They read the
      same values differently before: the tier check took {on:"off"} as off (ordinary) while the page's !!a.on took it
      as ON, and " this-computer" missed the escalation list while the page trimmed it — both turned an escalation into
@@ -237,6 +336,13 @@
     projects: [['GET', '/api/projects', j => ({ projects: (j.projects || []).map(p => ({ name: p.displayPath || p.root, root: p.root, trusted: !!p.blessed })) })]],
     checkpoints: [['GET', a => '/api/checkpoint?agent=' + enc(a.agent || 'agent'), j => ({ enabled: j.enabled, snapshots: (j.snapshots || []).slice(0, 30) })]],
     deliverables: [['GET', a => '/api/workshop/pending?agent=' + enc(a.agent || 'agent')]],
+    away: [['GET', a => '/api/workshop/backlog?agent=' + enc(a.agent || 'agent'), j => ({ agentId: j.agentId, awayWorkOn: j.granted, queue: (j.items || []).slice(0, 40).map(i => ({ id: i.id, title: i.title, state: i.state })), nextShiftAt: j.nextShiftAt })]],
+    library: [['GET', '/api/deliverables', j => ({ total: j.total, summary: j.summary, recent: (j.items || []).slice(0, 25).map(i => ({ id: i.id, title: clip(i.title, 100), status: i.status, kind: i.kind, agentId: i.agentId })) })]],
+    quests: [['GET', '/api/quests', j => ({ quests: (j.quests || []).slice(0, 60).map(x => ({ id: x.id, title: clip(x.title, 100), status: x.status, kind: x.kind })) })]],
+    groups: [['GET', '/api/groups', j => ({ groups: ((j.result && j.result.groups) || []).map(g => ({ id: g.id, title: g.title, members: g.members, leadId: g.leadId, paused: !!g.paused })) })]],
+    channels: [['GET', '/api/channels/status', j => { const o = {}; for (const k of Object.keys(j || {})) if (j[k] && typeof j[k] === 'object') o[k] = { connected: !!j[k].connected, configured: !!j[k].configured, ownerPaired: !!j[k].ownerLocked }; return o; }]],
+    limits: [['GET', '/api/runtime/knobs', j => { const o = {}; for (const k of Object.keys((j && j.fields) || {})) o[k] = { effective: j.fields[k].effective, saved: j.fields[k].saved, min: j.fields[k].min, max: j.fields[k].max }; return o; }],
+      ['GET', '/api/browser/settings', j => ({ browserMode: j.mode, effective: j.effective })]],
     extensions: [['GET', '/api/plugins', j => ({ plugins: (j.plugins || []).map(p => ({ id: p.id, name: p.name, active: !!p.active, approved: !p.pending, pending: !!p.pending })) })], ['GET', '/api/hooks', j => ({ hooks: j.hooks, pending: j.pending })]],
     actions: { catalog: true }
   };
@@ -259,13 +365,15 @@
       if (!route) return { status: 503, json: { error: 'station settings are not reachable from this run' } };
       try { return await route(method, url, body); } catch (e) { return { status: 500, json: { error: String((e && e.message) || e) } }; }
     }
-    const env = { route: callRoute, page };
+    // a delay for the one action that must outlive its own result (estop.engage) — injectable for tests
+    const later = typeof deps.later === 'function' ? deps.later : (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); };
+    const env = { route: callRoute, page, later };
     const errorOf = r => String((r && r.json && (r.json.error || r.json.reason)) || (r && r.text) || ('the station answered ' + (r && r.status)));
     const shape = obj => { let s; try { s = JSON.stringify(obj); } catch (_) { s = '{}'; } return s.length > MAX_OUT ? s.slice(0, MAX_OUT) + '… (cut: ask for one section)' : s; };
 
     const settingsTool = {
       name: 'station.settings', capability: 'orchestrator', scope: 'read', requiresConsent: false, timeoutMs: 20000,
-      description: 'READ the Commander\'s station settings before changing them with station.control / station.power. section: crew (each agent\'s model, approval, reach, personality, skin; every session; the look; the allowed values for each) | spending | permissions | autonomy | memory {agent} | connections | skills | apps | projects | checkpoints {agent} | deliverables {agent} | extensions | actions (every change you can make and what it takes).',
+      description: 'READ the Commander\'s station settings before changing them with station.control / station.power. section: crew (each agent\'s model, approval, reach, personality, skin; every session; the look; the allowed values for each) | spending | permissions | autonomy | memory {agent} | connections | skills | apps | projects | checkpoints {agent} | deliverables {agent} (away-work results to decide) | library (finished work) | away {agent} (its queue) | quests | groups | channels | limits | extensions | actions (every change you can make and what it takes).',
       schema: { type: 'object', properties: { section: { type: 'string', enum: Object.keys(SECTIONS) }, agent: { type: 'string' } } },
       run: async (args) => {
         const sec = String((args && args.section) || 'crew'), spec = SECTIONS[sec];
@@ -299,8 +407,8 @@
         // run that read outside content asks before it widens the leash (permissions.js, taint.js)
         freshConsent: isPower,
         description: isPower
-          ? 'ESCALATE a station setting for the Commander — only what widens access or spending: agent.approval full, agent.reach trusted-project/this-computer, agent.away_work on, fullpower.set on, budget.set, budget.resume, autonomy.set, scheduler.set on, permission.grant, key.unattended on, key.set on, ability.set on, skill.install, deliverable.decide keep, project.trust, plugin.approve, hook.approve. Only when the Commander asked for it in this conversation; refused on runs nobody is watching. Same {action, args} as station.control.'
-          : 'CHANGE a station setting for the Commander when they ask — the same change their button makes, proven saved. {action, args}: agent.model|personality|rename|skin|approval|reach|away_work|delete, session.rename|pin|archive|delete, look.set, fallback.set, permission.revoke, fullpower.set off, nightshift.focus|avoid, memory.forget|pin|edit|reset|settings, learning.set|wipe, connector.remove|refresh, ability.set, skill.set|install|uninstall, key.set|remove, spotify.disconnect, channels.notify, app.delete|rename, project.untrust, checkpoint.restore, deliverable.decide. station.settings section "actions" lists what each takes; read the current value first. Widening access or spending goes through station.power instead.',
+          ? 'ESCALATE a station setting for the Commander — only what widens access or spending: agent.approval full, agent.reach trusted-project/this-computer, agent.away_work on, fullpower.set on, budget.set, budget.resume, autonomy.set, scheduler.set on, permission.grant, key.unattended on, key.set on, ability.set on, skill.install, deliverable.decide keep, project.trust, plugin.approve|revoke|delete, hook.approve|revoke|delete, limits.set. Only when the Commander asked for it in this conversation; refused on runs nobody is watching. Same {action, args} as station.control.'
+          : 'CHANGE a station setting for the Commander when they ask — the same change their button makes, proven saved. {action, args}: agent.model|personality|rename|skin|approval|reach|away_work|delete, session.rename|pin|archive|delete, look.set, fallback.set, permission.revoke, fullpower.set off, nightshift.focus|avoid, memory.forget|pin|edit|reset|settings, learning.set|wipe, connector.remove|refresh, ability.set, skill.set|install|uninstall, key.set|remove, spotify.disconnect, channels.notify, app.delete|rename, project.untrust|forget, checkpoint.restore, deliverable.decide, deliverables.cleanup|restore, away.queue|remove, quest.dismiss|later, channel.disconnect, browser.mode, group.configure, notifications.read|clear, estop.engage (the Commander alone resumes). station.settings section "actions" lists what each takes; read the current value first. Widening access or spending goes through station.power instead.',
         schema: { type: 'object', required: ['action'], properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: 'object' } } },
         run: async (input) => {
           const spec = A[String((input && input.action) || '')];
