@@ -17,7 +17,7 @@ function makeManualReadTool() {
     name: 'manual.read', capability: 'stationinfo', scope: 'read', requiresConsent: false,
     description: 'Read one section of the StarNet operator manual, verbatim — how the station works, for guiding the '
       + 'Commander: "navigation" (every window and control), "props" (which prop grants which power), '
-      + '"troubleshooting" (the fix for each common stuck case), or "all". Call it before naming any StarNet window, '
+      + '"troubleshooting" (the fix for each stuck case), "concepts" (what each thing is), or "all". Call it before naming any StarNet window, '
       + 'menu, button or prop. Read-only, local, consent-free.',
     schema: { type: 'object', properties: { section: { type: 'string', enum: IDS.concat(['all']) } } },
     run: (args) => {

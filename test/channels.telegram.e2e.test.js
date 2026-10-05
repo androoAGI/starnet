@@ -418,6 +418,10 @@ async function waitUntil(fn, ms, label) {
     A.ok(shellWire.indexOf('team_dispatch') >= 0, 'owner Telegram run advertises task delegation to the provider');
     const shellSystem = String((shellReqs[0].messages.find(m => m.role === 'system') || {}).content || '');
     A.ok(shellSystem.includes('[ORCHESTRATION]'), 'owner Telegram task receives the crew briefing for its advertised delegation tools');
+    // the owner away from the station (self-driving lane 2): a pointer to manual.read — never the ~6K index, never nothing
+    const Manual = require('../sidecar/manual.js');
+    A.ok(shellSystem.includes(Manual.starnetManualPointer()) && shellWire.indexOf('manual_read') >= 0, 'owner Telegram task gets the manual pointer, and manual_read is on its wire');
+    A.ok(!shellSystem.includes(Manual.starnetManualIndex()), 'owner Telegram task does NOT carry the inline manual index');
     const shellToolMessages = shellReqs.flatMap(r => (r.messages || []).filter(m => m && m.role === 'tool'));
     A.ok(shellToolMessages.some(m => /TELEGRAM_SHELL_OK/.test(JSON.stringify(m))),
       'the shell output returns through the real tool loop before the agent replies: ' + JSON.stringify(shellToolMessages));

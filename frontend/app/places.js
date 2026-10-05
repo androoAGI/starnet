@@ -26,7 +26,7 @@
     // ---- WORK ----
     P('tasks', 'MY WORK › TASKS', 'the task board: planned work as cards; assigning a card hands it to an agent', { term: 'tasks' }),
     P('deliverables', 'MY WORK › DELIVERABLES', 'everything the crew finished, with its files', { term: 'deliverables' }),
-    P('to-review', 'MY WORK › DELIVERABLES › TO REVIEW', 'finished work waiting for the Commander\'s verdict (the old OUTBOX)', { term: 'outbox' }),
+    P('to-review', 'MY WORK › DELIVERABLES › TO REVIEW', 'finished work waiting for the Commander\'s verdict, at the top of DELIVERABLES', { term: 'outbox' }),
     P('recipes', 'MY WORK › RECIPES', 'ready-made jobs to start in one click', { fn: 'recipes' }),
     P('workflows', 'AUTOMATE › WORKFLOWS', 'lines of agents on the floor: send a job down a line, see each line\'s output', { term: 'workflows' }),
     P('schedules', 'AUTOMATE › SCHEDULES', 'routines: any job on a schedule (StarNet\'s own scheduler, never OS cron)', { term: 'automation', section: 'routines' }),

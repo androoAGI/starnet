@@ -26,6 +26,7 @@
    Nothing is removed: starnetManual() is still the whole manual, byte-identical to the pre-split literal (the
    test pins its hash), and index.js falls back to it on any run where manual.read is not on the wire. */
 
+const Places = require('../frontend/app/places.js');   // the ONE list of where things are — station.show and this manual read it
 const OPEN = '\n<starnet_operator_manual>\n';
 const CLOSE = '</starnet_operator_manual>';
 
@@ -62,7 +63,7 @@ const NAV_REST =
   'CONNECTED SERVICES where any MCP server is attached by URL, SAVED API CONNECTIONS where an API key for any platform ' +
   'is pasted, listed or not, AGENT SKILLS), DISCOVER (CATALOG one-click connectors to vetted services, SKILL MARKET, ' +
   'SKILL LIBRARY), CREATE / ADVANCED (EXTENSIONS, the Commander\'s own hooks and plugins; SKILL EXCHANGE). Its search box matches platform names. ' +
-  'A single agent\'s live capability readout is the SKILLS tab of its dossier (CREW › AGENTS).\n' +
+  'A single agent\'s live capability readout is the CAN DO list on its dossier\'s BRIEF tab (CREW › AGENTS).\n' +
   '- CONNECT › CHANNELS: connect Telegram, Discord, Slack, Matrix, or Signal so the Commander can ' +
   'message agents FROM those apps. This is the INBOUND direction and is NOT where a platform becomes ' +
   'an agent tool — that is ABILITIES.\n' +
@@ -75,6 +76,9 @@ const NAV_REST =
   'the floor.\n' +
   '- APPROVALS: an agent in ASK mode that needs a decision pauses with an approval card in COMMS, in the conversation ' +
   'where it paused: Approve once, Always, Full access, or Deny. NOTIFICATIONS › NEEDS YOU lists every one still waiting.\n';
+// generated, never hand-kept: every place a Commander can be shown, in the UI's own words, by the id station.show takes
+const NAV_PLACES = 'EVERY PLACE (the id station.show takes → the UI\'s words — what it is for):\n'
+  + Places.PLACES.map(p => '- ' + p.id + ' → ' + p.words + ' — ' + p.about + '\n').join('');
 const PROPS =
   'OBJECT = CAPABILITY — a prop placed in an agent’s BAY room grants it a REAL power. No prop placed ' +
   'means no power (the floor never lies). The core props and what they grant:\n' +
@@ -130,6 +134,85 @@ const CONNECTING =
   'switch routes; do not repeat it or imply they did it wrong. And never say StarNet “cannot” reach a ' +
   'service when what you mean is that it is not connected YET — those are different claims, and stating ' +
   'the first one when the second is true is the single worst thing you can do to a Commander here.\n';
+/* CONCEPTS (2026-10-04, Andrew: agents should "understand EVERYTHING about starnet and how it works so it can basically use
+   itself"). Every StarNet noun: what it IS, where it lives (a station.show place id in brackets), what YOU can do about it
+   from chat, and the one thing not to get wrong. Grounded in the code as of 10-04 (each line was checked against its file);
+   reference only — one manual.read call away, never inline. "If you have it" = lead-only tools (team.*, routine.*, loop.*,
+   task.*, session.*, station.settings/control/power, the station builder): a specialist names the place instead. */
+const CONCEPTS =
+  'CONCEPTS — what each StarNet thing is, where it lives [the station.show place], what you can do about it from chat, and the trap:\n' +
+  '- CREW: the OVERSEER (the lead, agent id "agent") splits jobs and hands them to SPECIALISTS summoned from classes in the ' +
+  'Recruitment Bay [recruit] (or the ＋ BUILD A CUSTOM CLASS tile). You: team.summon by class; team.dispatch to hand work out; ' +
+  'station.control agent.* to rename/re-model/re-skin/delete. Trap: a summoned agent gets its own desk automatically; team.spawn ' +
+  'helpers vanish after their task and never join the crew.\n' +
+  '- PROPS = POWERS: props in the room with an agent\'s desk grant its tools, re-checked every turn (see the props section). ' +
+  'BUILD MODE [build-mode] lays out rooms, surfaces and props. You: station.map → station.plan → station.build (one undo), ' +
+  'station.make_prop draws a new prop for StarNet credits. Trap: a platform is NEVER connected by placing a prop; under FULL ' +
+  'POWER an agent has every power regardless of props.\n' +
+  '- WORKFLOWS / LINES: a line is machines on the floor joined by belts — INTAKE (where work comes in: schedule, chat, watched ' +
+  'folder, app), BAY (one step, done by the agent placed there), FILTER (sorts by kind onto belts), MERGER (belts share one), ' +
+  'SPLITTER (one belt to several; with a JOINER after it every branch gets a copy), JOINER (waits for every branch, sends one ' +
+  'result), LOOP (sends work back until the reviewer approves), OUTBOX (where the result comes out). [workflows] has SEND A JOB. ' +
+  'You: station.layout reads every line; station.test_line sends a real job; station.start_line puts it on a schedule, folder or ' +
+  'webhook (or off). Trap: a line on a schedule is a routine, so it does not fire while scheduling is off or halted.\n' +
+  '- OUTBOX vs DELIVERABLES vs TO REVIEW: a floor OUTBOX shows ONLY its own line\'s jobs (clicking it opens that line in ' +
+  'WORKFLOWS). Every finished job — a line\'s included — is ALSO a row in MY WORK › DELIVERABLES [deliverables], with its files. ' +
+  'TO REVIEW [to-review] is the top of DELIVERABLES: finished work waiting for the Commander\'s verdict, hidden when empty. ' +
+  'You: deliverable_note names your own work there. Trap: never say an OUTBOX holds every result.\n' +
+  '- RECIPES [recipes]: ready-made job templates; launching one opens a new session and sends the filled-in job to the current ' +
+  'agent (refused while that agent is mid-run). MAKE ROUTINE + RUN AS schedules one as a chosen crew member. You: open it with ' +
+  'station.show; to run a recipe-like job on a timer use routine.create. Trap: a recipe never changes who an agent is.\n' +
+  '- SCHEDULES vs GOAL LOOPS vs AWAY WORK: a SCHEDULE [schedules] (a routine) answers WHEN — StarNet\'s own scheduler, never OS ' +
+  'cron; a GOAL LOOP [goal-loops] answers UNTIL — it repeats toward one objective and its changes wait for the Commander; AWAY ' +
+  'WORK [away-work] is an agent\'s consent to build from its own queue, inside its own workspace, while the Commander is away. ' +
+  'You: routine.create/manage, loop.create/manage (if you have them); station.power agent.away_work on. Trap: read ' +
+  'routine.create\'s scheduler note before saying "it will run" — scheduling can be off (▶ ENABLE SCHEDULING) or stopped by ' +
+  'an E-STOP, and you can never lift an E-STOP.\n' +
+  '- TASKS vs SESSIONS: the task board [tasks] holds planned work cards (todo / active / shipped; START sends one to its agent). ' +
+  'Chats, routine runs and away runs are SESSIONS on the COMMS rail. You: task.list/create/manage; session.list/create/peek/' +
+  'focus. Trap: call session.peek before saying what another session did — your thread does not contain it.\n' +
+  '- COMMS: the chat. Clicking an agent (or its crew row) focuses it, and messages go to the focused agent. GROUP CHAT: "+ Add ' +
+  'agents" in the COMMS bar (or @-mentioning an agent) turns a direct chat into a group; the lead answers anything unaddressed ' +
+  'and cannot be removed. Enter while an agent is working QUEUES the message; /steer <text> steers the live run; /stop stops it. ' +
+  'You: station.control session.rename|pin|archive|delete.\n' +
+  '- ACCESS (one setting, three answers): CHECK WITH ME (asks first, only placed gear), LET IT WORK (asks first, works in approved ' +
+  'project folders), FULL POWER (never asks, the whole computer). Set station-wide or per agent in SETTINGS › PERMISSIONS ' +
+  '[settings-permissions]; per agent also in dossier CONFIG [agent-config]. In the ask modes a paused agent shows an approval card ' +
+  'in COMMS where it paused: Approve once / Always (a standing approval) / Full access (that agent goes FULL POWER) / Deny. ' +
+  'NOTIFICATIONS › NEEDS YOU lists every card waiting. You: station.control to narrow access, station.power to widen it. Trap: you ' +
+  'can never answer an approval card yourself.\n' +
+  '- AUTONOMY [settings-autonomy]: how much agents do ON THEIR OWN (WAIT / SUGGEST / BUILD / FREE) while the Commander is away; ' +
+  '"While you were away" is a session summarizing what they did. You: station.power autonomy.set. Trap: it does not change ' +
+  'schedules and never lifts an E-STOP.\n' +
+  '- E-STOP: halts every run, routine, goal loop and night-shift beat at once (the desktop tray\'s Pause Automation, and every ' +
+  'clean quit). While halted the top bar shows RESUME AUTOMATION. You: station.settings reads whether it is halted. Trap: only ' +
+  'the Commander resumes; /stop stops just one run.\n' +
+  '- SPENDING [settings-spending]: caps per run, per agent, per day and overall, in dollars (0 = no cap); a capped day pauses ' +
+  'with a one-click RESUME. On StarNet credits a run with no per-run cap still stops at $2; runs on the Commander\'s own key or ' +
+  'subscription do not. Backup models live in SETTINGS › AI & MODELS [settings-ai]. You: station.power budget.set|resume (even to ' +
+  'lower a cap); station.control fallback.set.\n' +
+  '- MEMORY [agent-memory]: what an agent keeps — beliefs to pin / edit / forget, and new ones awaiting the Commander\'s keep or ' +
+  'discard. Ratings on finished work become feedback memories. You: notebook.* (with memory gear); station.control memory.*, ' +
+  'learning.set (interest personalization) — reflection is memory.settings. Trap: learning ≠ reflection.\n' +
+  '- RESTORE POINTS [agent-record]: saved copies of an agent\'s workspace files, made when it runs a shell command or edits a ' +
+  'file at the workbench. You: station.control checkpoint.restore (saves an undo point first). Trap: it rewinds files, not chat.\n' +
+  '- QUESTS [quests] / PROGRESS [progress] / TROPHIES [trophies]: quests are personal goals, goal steps and floor gaps; progress ' +
+  'is the station level and the systems that came online (nothing is ever locked); trophies are real completions only. You: ' +
+  'quest.update. Trap: attest_complete only PROPOSES — the Commander confirms.\n' +
+  '- NOTIFICATIONS [notifications]: NEEDS YOU (waiting on the Commander, on top until answered), finished results, and alerts; ' +
+  'what pings is set in SETTINGS › ALERTS [settings-alerts]. You: open it with station.show.\n' +
+  '- ABILITIES [abilities]: everything agents can use — connectors (CATALOG [find-a-service], CONNECTED SERVICES, SAVED API ' +
+  'CONNECTIONS [api-connections]), skills (SKILL MARKET [skill-market], LIBRARY, AGENT SKILLS, EXCHANGE), built-in abilities and ' +
+  'their kill-switches, COMPUTER CONTROL, EXTENSIONS. Connectors are account-wide: no prop. CHANNELS [channels] is the inbound ' +
+  'direction (message agents from Telegram, Discord, Slack…). You: connectors.list (with goal = a CONNECT button), station.control ' +
+  'connector/skill/key/ability changes, skill.write. Trap: you never enter or read a key.\n' +
+  '- APPS [apps] / BROWSER [browser] / STEP-IN: NEW APP builds a small app in its own session (APPS appears once one exists). ' +
+  'STEP-IN lets the Commander take an agent\'s browser for a sign-in or CAPTCHA, then hand it back. You: app.create…publish; ' +
+  'browser.need_human to ask for a step-in.\n' +
+  '- DOSSIER: an agent\'s file — BRIEF (who it is, CAN DO) [agent], GROWTH (level, XP) [agent-growth], RECORD (runs, failures, ' +
+  'restore points) [agent-record], MEMORY [agent-memory], CONFIG (instructions, model, personality, access, look) [agent-config]. ' +
+  'YOU [you] is the Commander\'s own dossier (about them, aims, preferences, what agents are told). REMOTE [settings-remote] pairs ' +
+  'a phone; APP & BACKUP [settings-app] exports the station (never keys); UPDATES [updates] installs a new build.\n';
 const TROUBLESHOOTING =
   'TROUBLESHOOTING — when the Commander is stuck, name the concrete fix:\n' +
   '- “How do I connect <platform>?” / “can you use my Google Drive?” → open CONNECT › ABILITIES, search the name ' +
@@ -153,26 +236,27 @@ const TROUBLESHOOTING =
 const SECTIONS = [
   { id: 'about', kind: 'orientation', lead: '', title: 'What this manual is', text: ABOUT },
   { id: 'live-state', kind: 'rule', lead: '', title: 'LIVE HARNESS STATE', text: LIVE_STATE },
-  { id: 'navigation', kind: 'reference', lead: '\n', title: 'NAVIGATION', text: NAV_HEAD + NAV_COMMS + NAV_AUTOMATION + NAV_REST,
+  { id: 'navigation', kind: 'reference', lead: '\n', title: 'NAVIGATION', text: NAV_HEAD + NAV_COMMS + NAV_AUTOMATION + NAV_REST + NAV_PLACES,
     summary: 'every window and control, and station.show to open one for the Commander — COMMS, MY WORK, AUTOMATE, the DOCK, '
       + 'ABILITIES, CHANNELS, SETTINGS, BUILD MODE, the Recruitment Bay.' },
   { id: 'props', kind: 'reference', lead: '\n', title: 'OBJECT = CAPABILITY', text: PROPS,
-    summary: 'OBJECT = CAPABILITY — a prop placed in an agent\'s BAY room grants it a real power, and no prop means no '
-      + 'power: WORKSTATION → COMPUTE, DISH → WEB, INTEL CAB → FILES, WORKBENCH → TERMINAL, SERVER CART → MEMORY, '
-      + 'STUDIO → images, JUKEBOX → music; which props count as each, and conveyors.' },
+    summary: 'which prop grants which power (WORKSTATION → COMPUTE, DISH → WEB, INTEL CAB → FILES, WORKBENCH → TERMINAL, SERVER CART → MEMORY…).' },
   { id: 'connectors', kind: 'rule', lead: '', title: 'CONNECTORS ARE THE EXCEPTION', text: CONNECTORS },
   { id: 'approval', kind: 'rule', lead: '\n', title: 'APPROVAL MODE', text: APPROVAL },
   { id: 'connecting', kind: 'rule', lead: '\n', title: 'CONNECTING A PLATFORM', text: CONNECTING },
   { id: 'troubleshooting', kind: 'reference', lead: '\n', title: 'TROUBLESHOOTING', text: TROUBLESHOOTING,
     summary: 'the concrete fix for each common stuck-Commander case — connecting a platform, a missing web/files/terminal '
-      + 'power, NO COMPUTE, a stuck approval, COMMS not responding, a missing agent, getting more agents.' }
+      + 'power, NO COMPUTE, a stuck approval, COMMS not responding, a missing agent, getting more agents.' },
+  { id: 'concepts', kind: 'reference', lead: '\n', title: 'CONCEPTS', text: CONCEPTS,
+    summary: 'what each StarNet thing IS and which tool does it (lines, OUTBOX, schedules, loops, access, E-STOP, spending…).' }
 ];
 
 const MANUAL = OPEN + SECTIONS.map(s => s.lead + s.text).join('') + CLOSE;
 
+function MANUAL_SECTIONS_IDS() { return SECTIONS.filter(s => s.kind === 'reference').map(s => s.id); }
 const TOC =
   'MANUAL SECTIONS ON DEMAND — the station reference below is one manual.read call away and is not inlined here. ' +
-  'Before you name any StarNet window, menu, button or prop to the Commander, or walk them through a fix, call ' +
+  'Before you name any StarNet window, menu, button or prop to the Commander, explain what something is, or walk them through a fix, call ' +
   'manual.read with the section id and answer from what it returns — never from memory:\n' +
   SECTIONS.filter(s => s.kind === 'reference').map(s => '- ' + s.id + ': ' + s.summary + '\n').join('') +
   'This navigation rule applies without a lookup:\n' +
@@ -187,6 +271,14 @@ const MANUAL_INDEX = OPEN + ABOUT + LIVE_STATE + '\n' + TOC + '\n' + CONNECTORS 
 function starnetManual(/* opts */) { return MANUAL; }
 // the prompt form for a run whose wire carries manual.read. Constant too — it rides the cached prefix.
 function starnetManualIndex() { return MANUAL_INDEX; }
+/* THE OWNER, AWAY FROM THE STATION (2026-10-04): an owner-trusted chat-app turn (Telegram owner DM) used to get NO manual, so
+   "how do I set up a schedule?" from a phone was answered from memory. The whole index is ~6K — too heavy for every phone turn
+   — so these turns get only this pointer to manual.read (a constant: it rides the cached prefix). */
+const MANUAL_POINTER = OPEN + 'The Commander is messaging you from outside the station (a chat app). StarNet\'s operator manual — '
+  + 'every window and place, what each StarNet thing is, the props, the fixes — is one manual.read call away (sections: '
+  + MANUAL_SECTIONS_IDS().join(', ') + '). Call it before explaining any StarNet window, setting or feature; never answer that '
+  + 'from memory. Name places in the UI\'s words — station.show cannot open them from here.\n' + CLOSE;
+function starnetManualPointer() { return MANUAL_POINTER; }
 // one section, verbatim ('all' = the whole manual); null for an unknown id.
 function manualSection(id) {
   const key = String(id == null ? '' : id).trim().toLowerCase();
@@ -196,4 +288,4 @@ function manualSection(id) {
 }
 const MANUAL_SECTIONS = Object.freeze(SECTIONS.map(s => Object.freeze({ id: s.id, kind: s.kind, title: s.title, summary: s.summary || '' })));
 
-module.exports = { starnetManual, starnetManualIndex, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_AUTOMATION]) };
+module.exports = { starnetManual, starnetManualIndex, starnetManualPointer, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_AUTOMATION]) };

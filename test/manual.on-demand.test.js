@@ -37,13 +37,16 @@ const inline = M.MANUAL_SECTIONS.filter(s => s.kind !== 'reference');
 // agent was sending Commanders to 0.12.5 dock buttons that no longer exist.
 // Re-pinned 2026-10-04 (self-driving) for ONE deliberate change: the APPROVALS hotspot and its Alt+A are gone (approvals render
 // in COMMS where the agent paused), and NAVIGATION tells the agent to OPEN a place with station.show instead of describing clicks.
-A.eq(full.length, 10168, 'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04)');
-A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '38d2725032d2f82ae830ff5a7f0b74e388b922e0331d4ac92f578d4e74f0dfb4',
+// Re-pinned 2026-10-05 (self-driving lane 2) for ONE deliberate addition: the agent learns EVERYTHING on demand — a CONCEPTS
+// reference section (every StarNet thing, its place, its tool, its trap), NAVIGATION's generated EVERY PLACE list (frontend/app/
+// places.js), and the dossier's CAN DO replaces the gone SKILLS tab. All reference: the inline form got SHORTER.
+A.eq(full.length, 23044, 'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +12876: CONCEPTS + EVERY PLACE, 2026-10-05)');
+A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '6f026061c4946b19fd95bfb30543d64b13feda5cb1a41313d873dd0bc2fff8ce',
   'the whole manual is byte-identical to the literal that shipped before the split');
 
 // ---- B. the sections partition the manual ----
-A.eq(ids, ['about', 'live-state', 'navigation', 'props', 'connectors', 'approval', 'connecting', 'troubleshooting'], 'sections in manual order');
-A.eq(reference.map(s => s.id), ['navigation', 'props', 'troubleshooting'], 'reference sections: navigation, props, troubleshooting');
+A.eq(ids, ['about', 'live-state', 'navigation', 'props', 'connectors', 'approval', 'connecting', 'troubleshooting', 'concepts'], 'sections in manual order');
+A.eq(reference.map(s => s.id), ['navigation', 'props', 'troubleshooting', 'concepts'], 'reference sections: navigation, props, troubleshooting, concepts');
 A.eq(inline.map(s => s.kind), ['orientation', 'rule', 'rule', 'rule', 'rule'], 'everything else is orientation or a behaviour rule');
 const body = full.replace('\n<starnet_operator_manual>\n', '').replace('</starnet_operator_manual>', '');
 A.eq(ids.map(id => M.manualSection(id)).join('').replace(/\n/g, ''), body.replace(/\n/g, ''), 'the sections, joined in order, ARE the manual (only blank separator lines differ)');
