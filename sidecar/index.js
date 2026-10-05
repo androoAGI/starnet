@@ -6404,6 +6404,9 @@ function autonomyLedgerAppend(entry) {
   if (e.beatsLeft != null) detail.beatsLeft = e.beatsLeft;
   if (e.away != null) detail.away = !!e.away;
   if (e.preSpend) detail.preSpend = true;   // NS-2: this decline stood down BEFORE spending a leash unit (cold-leash fix)
+  // edge-triggered declines (driver): the PREVIOUS logged reason held for heldTicks more identical ticks after it was
+  // written — the information the old one-row-per-tick log carried, now in one number instead of thousands of rows.
+  if (Number.isFinite(e.heldTicks) && e.heldTicks > 0) { detail.heldTicks = Math.floor(e.heldTicks); if (e.heldBinding != null) detail.heldBinding = String(e.heldBinding); }
   if (e.kind === 'outcome') {
     detail.phase = 'outcome'; detail.delivered = !!e.delivered;
     if (e.title) detail.title = e.title; if (e.archetype) detail.archetype = e.archetype;
