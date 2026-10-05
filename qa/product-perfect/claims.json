@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a5ade682189e48f531da6a58df3557d51a595b5f",
-    "pathSetSha256": "a492439fab9c283872b683bd5b9ba9ebe7b8750fcae25400af9f344bd97dc4d3",
+    "sourceCommit": "009fae0e356f1edbaaf3d0fd71d8fd13ab38c3af",
+    "pathSetSha256": "0fe80620e989128257b6797e6c91e9c522c29d226e09bc73aac9287254f4f1e0",
     "files": [
       {
         "path": "INSTALL.md",
@@ -762,6 +762,11 @@
         "sha256": "cd79f5d54688680e69e371e62962400e385da2f75d54e4161c41029f7952f54d"
       },
       {
+        "path": "frontend/app/places.js",
+        "bytes": 9070,
+        "sha256": "78d7e2262d31bf81af6e101c050dfceaba5da4078d49dae988d9f3e1338364e4"
+      },
+      {
         "path": "frontend/app/planpreview.js",
         "bytes": 3984,
         "sha256": "bfdfc34e06d265733d67011e270de42559e0dd2b927ef40a37cb5e323dbe59ef"
@@ -1143,8 +1148,8 @@
       },
       {
         "path": "frontend/app/stationcommands.js",
-        "bytes": 79284,
-        "sha256": "8db9c5a1899ecd77c447d9a610e354e32bd68e888d16b92bf4d93baebe7e53df"
+        "bytes": 84190,
+        "sha256": "8e9db535a224202144a77d79a9280ee78c777364d8cf02b7a51ecf0950960c6e"
       },
       {
         "path": "frontend/app/stationquests.js",
@@ -1163,8 +1168,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 825704,
-        "sha256": "1cd29da2e40198c7d827e5cb5ecb8eba44654782a21197a73d3cb8f8ca9f47e7"
+        "bytes": 828033,
+        "sha256": "b65b1b15b28507c5bb656ffdcb146b3fb68be92e6526758ee1d5103a4b971e7b"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1783,8 +1788,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 97265,
-        "sha256": "3b0bfd114f21bdbe76063aaef4a8450a0716eac75c8dbde6d930b971aa41583b"
+        "bytes": 97408,
+        "sha256": "96e7ca3850b68bab6568173bd26afa252b550938ac4ae9ab59c9662da6d2eef8"
       },
       {
         "path": "frontend/js/arcade.js",
