@@ -275,6 +275,9 @@ const AutoSessions = (() => {
         const job = run.cronJobId ? routineFor(run.cronJobId) : null;
         const jobName = (job && job.name) || run.cronJobName || '';
         if (existing && run.cronJobId) Workstreams.adopt({ id: sid, automation: { kind: 'routine', id: run.cronJobId, name: jobName || (existing.automation && existing.automation.name) || run.title || 'Routine' } });
+        // a fire that landed before the catalogue loaded (a boot catch-up) was adopted as the placeholder 'Routine' —
+        // heal it to the routine's real name (only the placeholder; a Commander rename is theirs)
+        if (existing && jobName && existing.title === 'Routine' && existing.titleAuto !== false) existing.title = jobName;
         const runId = String(sid).slice(STREAM_PREFIX.length);
         const outcome = String(run.runId || '') === runId ? outcomeOfRun(run) : null;
         if (existing && hasReadableOutput(existing.history)) {
