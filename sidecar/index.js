@@ -7741,6 +7741,12 @@ async function runNightshiftActShift(opts) {
   const builtAt = Date.now();
   try { await workshopStore.markBuilt(agentId, backlogId, runId, builtAt); } catch (_) {}
   manifest.builtAt = builtAt;
+  // ONE VERSION WAITING: this build CONTINUED an earlier undecided one (its files were seeded forward), so the older
+  // version leaves the pending queue — the Commander decides the newest version once, not every draft of it.
+  if (continueOf && continueOf.runId) {
+    try { const sup = await workshopStore.supersede(agentId, continueOf.runId, runId, builtAt); if (sup.superseded) manifest.continues = { runId: String(continueOf.runId), title: sup.title }; }
+    catch (e) { failNote('nightshift.supersede', e); }
+  }
   recordNightshiftAct(runId, sel.selected.archetype, sel.selected.threadId);   // so a keep/discard verdict feeds the RIGHT archetype into LEARN (+ NS-6: delivers/declines the cited thread)
   // WHY-THIS: the card's provenance line — the grounding-veto-checked GROUNDS quote this job was selected on.
   manifest.because = workshopBecause({ grounds: sel.selected.grounds, detail: sel.selected.spec, title: manifest.title });
@@ -22128,7 +22134,9 @@ async function awayBriefingInputs(since, now, tzOffsetMin) {
       builds.push({ runId: it.builtRunId, agentId, title: man.title || it.title, summary: man.summary || '', builtAt: workshopBuiltAtOf(it) });
     }
   }
-  const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
+  // a draft that WROTE files is a build's desk-draft echo (the act shift records one for the old digest) — the build
+  // itself is already briefed as "waiting on you", so only reason-only ideas count as drafts here
+  const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).filter(d => d && !(d.wrote && d.wrote.path)).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
   const jobs = (cronJobs || []).map(j => ({ id: j && j.id, name: j && j.name }));
   const loops = (Array.isArray(loopJobs) ? loopJobs : []).map(l => ({ id: l && l.id, name: l && l.name }));
   // "next up" only when the station will actually act on it tonight (initiative ≥ leash) — never a promise it won't keep

@@ -58,7 +58,9 @@ function normalize(stored) {
     // "built X" / "couldn't run — no key" / "nothing queued" instead of the old total silence. Additive; a
     // legacy record simply reads null. Shape: { at, reason, runId?, title?, parkedTitle? } (reason is the
     // runWorkshopShift result reason: built | no-manifest | run-failed | no-capability | empty-backlog | not-granted).
-    lastShift: (s.lastShift && typeof s.lastShift === 'object') ? s.lastShift : null
+    lastShift: (s.lastShift && typeof s.lastShift === 'object') ? s.lastShift : null,
+    // builds retired because a CONTINUATION carried them forward (supersede) — provenance only, capped. Additive.
+    superseded: Array.isArray(s.superseded) ? s.superseded.filter(x => x && typeof x === 'object' && x.runId).slice(-200) : []
   };
 }
 
@@ -352,6 +354,28 @@ function makeWorkshopStore(deps) {
     }).then(() => out);
   }
 
+  // SUPERSEDE (2026-10-05): a CONTINUATION build landed on top of an earlier, still-undecided build — the newer
+  // version carries the older one's files forward, so the older one leaves the pending queue instead of piling up
+  // as a second "waiting on you" item. Not a discard (no denylist: the work was continued, not rejected) and the
+  // older files stay on disk under workshop/<oldRunId>/. Only an UNDECIDED built item is retired. Resolves
+  // { superseded, title? }.
+  function supersede(agentId, oldRunId, newRunId, now) {
+    const oldId = String(oldRunId || ''), newId = String(newRunId || '');
+    let out = { superseded: false };
+    if (!oldId || !newId || oldId === newId) return Promise.resolve(out);
+    return durable.update(keyOf(agentId), (cur) => {
+      const rec = normalize(cur);
+      const it = rec.backlog.find(b => b.builtRunId === oldId);
+      if (!it) return undefined;
+      rec.backlog = rec.backlog.filter(b => b !== it);
+      const trail = rec.superseded.slice(-199);
+      trail.push({ runId: oldId, by: newId, title: String(it.title || ''), at: Number(now) || 0 });
+      rec.superseded = trail;
+      out = { superseded: true, title: String(it.title || '') };
+      return rec;
+    }).then(() => out);
+  }
+
   // SHIFT HEALTH (2026-07-15 UX audit): record the last shift's honest outcome so the away card can render it.
   // info: { at, reason, runId?, title?, parkedTitle? } — written by runWorkshopShift on EVERY exit path.
   function setLastShift(agentId, info) {
@@ -370,7 +394,7 @@ function makeWorkshopStore(deps) {
 
   return {
     read, hasGrant, setGrant, grantIfUndecided, backlogOf, isDenied,
-    queue, claimNext, claimById, sweepStaleClaims, markBuilt, releaseClaim, discard, complete, restorePending, itemForRun, remove, setLastShift,
+    queue, claimNext, claimById, sweepStaleClaims, markBuilt, releaseClaim, discard, complete, restorePending, itemForRun, remove, supersede, setLastShift,
     _durable: durable
   };
 }

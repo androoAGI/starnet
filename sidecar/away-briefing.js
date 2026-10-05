@@ -123,7 +123,8 @@ function compose(input) {
     .sort((a, b) => b.builtAt - a.builtAt);
   const newBuilds = allBuilds.filter(b => b.isNew);
   const olderBuilds = allBuilds.filter(b => !b.isNew);
-  const drafts = (Array.isArray(o.drafts) ? o.drafts : []).filter(d => d && inWindow(num(d.at)) && str(d.title).trim())
+  const buildTitles = new Set(allBuilds.map(b => b.title.toLowerCase()));
+  const drafts = (Array.isArray(o.drafts) ? o.drafts : []).filter(d => d && inWindow(num(d.at)) && str(d.title).trim() && !buildTitles.has(clip(d.title, TITLE_MAX).toLowerCase()))
     .sort((a, b) => num(b.at) - num(a.at)).map(d => ({ kind: 'draft', title: clip(d.title, TITLE_MAX), at: num(d.at) }));
 
   const routineList = Array.from(routines.values()).sort((a, b) => (b.failed - a.failed) || ((b.latest && b.latest.at) - (a.latest && a.latest.at)));
