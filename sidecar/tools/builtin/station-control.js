@@ -36,6 +36,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // the fail-open ledger (sidecar/failopen.js) under node — a deferred halt that fails is counted and visible, never silent
+  const swallow = (typeof module !== 'undefined' && module.exports && typeof require === 'function') ? require('../../failopen.js').swallow : (tag => e => e);
   const clip = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   const q = s => '"' + clip(s, 60) + '"';
   const onOff = v => v === true || v === 'on' || v === 'true';
@@ -268,7 +270,7 @@
       if (h && h.json && h.json.halted) return { status: 200, json: { alreadyHalted: true, note: 'the station is already halted — only the Commander resumes it (RESUME AUTOMATION)' } };
       // the halt aborts every run, THIS one included, so it fires just after this result is handed back — the report
       // says "engaging", never "halted": the top bar's RESUME AUTOMATION is the proof the Commander sees
-      env.later(() => { Promise.resolve(env.route('POST', '/api/halt')).catch(() => {}); }, 1500);
+      env.later(() => { Promise.resolve(env.route('POST', '/api/halt')).catch(swallow('station-control.estop.engage')); }, 1500);
       return { status: 200, json: { engaging: true, note: 'the E-STOP engages in a moment and stops this run too; say so in one line now — RESUME AUTOMATION in the top bar is how the Commander resumes' } };
     } });
 
