@@ -55,8 +55,10 @@ const B = require('../frontend/app/briefing.js');
   A.ok(pinned.has('briefing') && unread.has('briefing'), 'briefing session is pinned and unread');
   A.eq(opened.join(','), 'briefing', 'not engaged → the briefing session opens itself');
 
+  ws.title = 'Identify Daily Space Fact Job'; ws.titleAuto = true;   // a reply's auto-title pass renamed it
   const loadsBefore = loads; await B.deliver('again');
   A.eq(loads, loadsBefore + 1, 'briefing already on screen → re-synced in place (open would be a no-op)');
+  A.ok(ws.title === 'While you were away' && ws.titleAuto === false, 'a machine re-title is repaired and the name locked');
   A.eq(Array.from(sessions.keys()).filter(k => k === 'briefing').length, 1, 'a second briefing lands in the SAME session (never a new row)');
 
   await B.presentFor('briefing');

@@ -43,9 +43,12 @@ const Briefing = (() => {
   // adopt (idempotent) the ONE briefing session: pinned, unread (real unseen content), never a duplicate row.
   function ensureSession(at) {
     if (!hasWS()) return null;
-    const ws = Workstreams.adopt({ id: STREAM, title: TITLE, agentId: agentId, lane: 'active', kind: 'chat', history: [],
+    const ws = Workstreams.adopt({ id: STREAM, title: TITLE, titleAuto: false, agentId: agentId, lane: 'active', kind: 'chat', history: [],
       lastActiveAt: at || Date.now(), lastReadAt: 0, revive: true });
     if (!ws) return null;
+    // the name is locked like a manual rename: a reply here must never re-title the briefing after that reply's
+    // topic. A Commander's own rename (titleAuto already false, a different title) is theirs and is kept.
+    if (ws.titleAuto !== false) { ws.title = TITLE; ws.titleAuto = false; }
     if (Workstreams.pin) Workstreams.pin(STREAM, true);
     if (at && (+ws.lastActiveAt || 0) < at) ws.lastActiveAt = at;
     if (Workstreams.markUnread) Workstreams.markUnread(STREAM);
