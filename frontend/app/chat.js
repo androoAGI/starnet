@@ -1628,6 +1628,7 @@ const Chat = (() => {
     if (log) log.innerHTML = '';
     renderHistory(); replayChannel(); syncStatus(); maybeEmptyState();
     read.repaint = false;
+    if (typeof Briefing !== 'undefined' && Briefing.presentFor) { try { Briefing.presentFor(ws.id).catch(() => {}); } catch (_) {} }   // the repaint wiped the chips
     pinLoadedHistoryAfterLayout(loadToken);
     return reachable;
   }
@@ -1689,6 +1690,10 @@ const Chat = (() => {
     // every other id, re-checks the server (undecided only), and the card itself is pinned to this session.
     if (activeWs && typeof WorkshopStore !== 'undefined' && WorkshopStore.presentFor) {
       try { WorkshopStore.presentFor(activeWs.id).catch(() => {}); } catch (_) {}
+    }
+    // THE ONE RETURN REPORT: opening the briefing session offers each briefed item's own session as a chip
+    if (activeWs && typeof Briefing !== 'undefined' && Briefing.presentFor) {
+      try { Briefing.presentFor(activeWs.id).catch(() => {}); } catch (_) {}
     }
     pinLoadedHistoryAfterLayout(historyPin);
     // Reconcile a run that died while this page was closed or the sidecar restarted. Only the server's durable

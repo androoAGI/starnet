@@ -259,6 +259,7 @@ const loopgit = require('./loopgit.js');                   // LOOPS: pure git ha
 const nightshift = require('./nightshift.js');            // NS-1: pure planner for the server-owned night-shift driver
 const { makeNightshiftDriver } = require('./nightshift-driver.js'); // NS-1: the restart-safe idle-autonomy tick driver
 const contextpack = require('./contextpack.js');          // NS-2: pure recency-weighted context pack for the propose step
+const AwayBriefing = require('./away-briefing.js');   // THE ONE RETURN REPORT: every unattended outcome folded into one briefing
 const nightfocus = require('./nightfocus.js');            // NS-5b: pure single-priority FOCUS resolver (evidence-ranked, steer-aware)
 const { makeProjectScan } = require('./projectscan.js');  // NS-5b: bounded harness-side PROJECT SNAPSHOT scan (consumes NS-5 blessed roots)
 const { makeProjectDiscovery } = require('./project-discovery.js'); // bounded candidate scan; never grants access
@@ -10699,6 +10700,8 @@ const ROUTES = [
   { m: ['GET', 'POST', 'DELETE'], qsplit: '/api/nightshift/focus', h: handleNightshiftFocus },   // NS-5b: the durable focus steer
   { m: ['POST', 'DELETE'], qsplit: '/api/nightshift/avoid', h: handleNightshiftAvoid },   // autonomy-tuning: the off-limits directive
   { m: 'GET', prefix: '/api/nightshift/drafts', h: handleNightshiftDrafts },   // NS-4: night-shift drafts for the morning report
+  { m: 'GET', exact: '/api/away/briefing', h: handleAwayBriefingPreview },     // read-only: what the next briefing would say + the last one delivered
+  { m: 'POST', exact: '/api/away/briefing/deliver', h: handleAwayBriefingDeliver },   // compose + write ONE briefing turn into the 'briefing' session
   // SCOUT: learned interests + server-drafted bay options (prospects/recipes) + the honest attempt ledger
   { m: 'GET', exact: '/api/scout', h: handleScoutGet },
   { m: 'POST', exact: '/api/scout/context', h: handleScoutContext },
@@ -20408,6 +20411,12 @@ async function runOnceCore(o) {
   try { if (isTask && resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('quest.update') >= 0) questsBlock = questBlock(questStore.openForAgent(agentId, Date.now())); } catch (_) { questsBlock = ''; }
   // RUN quests bind only through quest.update op:"start" (or a successful named progress tick). Admission cannot
   // infer which of several open objectives this arbitrary task is doing, so it deliberately binds nothing here.
+  // THE ONE RETURN REPORT: a reply in the briefing session continues FROM the briefed work — the agent is told where
+  // each briefed build/routine/loop actually lives (ids + workspace paths), so "apply that build" never starts from scratch.
+  let awayBriefingNote = '';
+  if (!internal && o.streamId === AwayBriefing.STREAM_ID) {
+    try { const ctx = AwayBriefing.contextBlock(readAwayBriefingState().last); if (ctx) awayBriefingNote = '\n\n' + ctx; } catch (_) {}
+  }
   let taskIntentNote = '';
   if (taskBrief) taskIntentNote = '\n\n' + TaskIntent.directive(taskContextBlock);
   // SERVICE KEYS (KEYS tab): advertise the env-var NAMES of the Commander's connected platform keys — value never
@@ -20474,7 +20483,7 @@ async function runOnceCore(o) {
         ? Object.assign({}, resolved, { tools: resolved.tools.filter(n => !Object.prototype.hasOwnProperty.call(resolved.unavailable, n)) })
         : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock;
   const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
-    + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + directDomainBlock + journeyBlock
+    + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
     + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
   const sys = internal
     ? (String(system || '') + evidenceBlock)
@@ -21926,6 +21935,93 @@ function handleNightshiftDrafts(req, res) {
   } catch (e) {
     json(500, { error: 'could not read night-shift drafts: ' + ((e && e.message) || e) });
   }
+}
+
+/* ---- THE ONE RETURN REPORT (away-briefing.js) -------------------------------------------------------------------
+   One durable stamp ("briefed through") is the single definition of what the Commander has NOT been told yet —
+   replacing the three divergent away clocks (server idle, ReturnStore, NightReportStore) for the return message.
+   deliver composes everything unattended that ended after the stamp, writes it as ONE assistant turn into the
+   durable 'briefing' stream (so it survives reloads, and replying there continues FROM it), then advances the
+   stamp under the store mutex (two tabs can never double-brief). Nothing new → nothing written, stamp advanced. */
+const AWAY_BRIEFING_AGENT = 'agent';
+const AWAY_BRIEFING_FIRST_WINDOW_MS = 24 * 3600 * 1000;   // first-ever briefing looks back one day, never further
+const awayBriefingStore = makeDurableJsonStore({
+  fs: fs, path: path,
+  fileFor: () => path.join(WORKSPACES, '_away.briefing.json'),
+  writeDurable: writeFileDurable,
+  onRecover: (key, file) => console.warn('[away-briefing] recovered ' + file + ' from .bak last-known-good.'),
+  onCorrupt: (key, file) => quarantineCorrupt(file, 'away-briefing')
+});
+function awayBriefingState(raw) {
+  const s = (raw && typeof raw === 'object') ? raw : {};
+  return { through: Math.max(0, Number(s.through) || 0), last: (s.last && typeof s.last === 'object') ? s.last : null };
+}
+function readAwayBriefingState() { try { return awayBriefingState(awayBriefingStore.get('briefing')); } catch (_) { return awayBriefingState(null); } }
+async function awayBriefingInputs(since, now, tzOffsetMin) {
+  let runs = []; try { runs = runStore.list(null, { limit: 500, since: Math.max(0, since - 1) }) || []; } catch (_) { runs = []; }
+  // the run row keeps deliveryText only for session-scoped runs; a routine/loop's own words live in its durable
+  // transcript — read the LAST assistant turn of each briefed stream (bounded) so the excerpt is the run's real output
+  runs = runs.map(r => {
+    const k = AwayBriefing.kindOf(r);
+    if ((k !== 'routine' && k !== 'loop') || String(r.deliveryText || '').trim() || !r.streamId) return r;
+    try {
+      const turns = transcriptStore.reconstruct(String(r.streamId), { limit: 6 }) || [];
+      for (let i = turns.length - 1; i >= 0; i--) {
+        const t = turns[i];
+        if (t && t.role === 'assistant' && typeof t.content === 'string' && t.content.trim()) return Object.assign({}, r, { deliveryText: t.content.trim().slice(0, 2000) });
+      }
+    } catch (_) {}
+    return r;
+  });
+  const builds = [];
+  for (const agentId of workshopAgentIds()) {
+    let rec; try { rec = workshopStore.read(agentId); } catch (_) { continue; }
+    for (const it of rec.backlog) {
+      if (!it.builtRunId) continue;
+      const man = await validateWorkshopManifest(agentId, it.builtRunId);   // re-prove the deliverable still exists
+      if (!man) continue;
+      builds.push({ runId: it.builtRunId, agentId, title: man.title || it.title, summary: man.summary || '', builtAt: workshopBuiltAtOf(it) });
+    }
+  }
+  const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
+  const jobs = (cronJobs || []).map(j => ({ id: j && j.id, name: j && j.name }));
+  const loops = (Array.isArray(loopJobs) ? loopJobs : []).map(l => ({ id: l && l.id, name: l && l.name }));
+  // "next up" only when the station will actually act on it tonight (initiative ≥ leash) — never a promise it won't keep
+  let focus = null;
+  const rung = currentInitiative();
+  if (rung === 'leash' || rung === 'free') { try { focus = (nightFocusState && nightFocusState.focus) || null; } catch (_) { focus = null; } }
+  return { since, now, tzOffsetMin, runs, builds, drafts, jobs, loops, focus };
+}
+function tzOffsetOf(body) { const n = Number(body && body.tzOffsetMin); return (Number.isFinite(n) && Math.abs(n) <= 14 * 60) ? n : 0; }
+async function handleAwayBriefingPreview(req, res) {
+  const json = (code, obj) => respondJson(res, code, obj);
+  try {
+    const u = new URL(req.url, 'http://127.0.0.1');
+    const st = readAwayBriefingState(), now = Date.now();
+    const since = st.through || (now - AWAY_BRIEFING_FIRST_WINDOW_MS);
+    const next = AwayBriefing.compose(await awayBriefingInputs(since, now, tzOffsetOf({ tzOffsetMin: u.searchParams.get('tz') })));
+    json(200, { ok: true, streamId: AwayBriefing.STREAM_ID, title: AwayBriefing.TITLE, through: st.through, next, last: st.last });
+  } catch (e) { json(500, { error: 'could not compose the briefing: ' + ((e && e.message) || e) }); }
+}
+async function handleAwayBriefingDeliver(req, res) {
+  const json = (code, obj) => respondJson(res, code, obj);
+  let body = {};
+  try { body = JSON.parse(await readBody(req, 4096) || '{}') || {}; } catch (_) { return json(400, { error: 'bad json' }); }
+  const tz = tzOffsetOf(body);
+  try {
+    let out = null;
+    await awayBriefingStore.update('briefing', async (raw) => {
+      const st = awayBriefingState(raw), now = Date.now();
+      const since = st.through || (now - AWAY_BRIEFING_FIRST_WINDOW_MS);
+      const b = AwayBriefing.compose(await awayBriefingInputs(since, now, tz));
+      if (b.empty) { out = { delivered: false, counts: b.counts }; return { through: now, last: st.last }; }
+      transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', content: b.text });
+      const last = { at: now, since: b.since, items: b.items, counts: b.counts };
+      out = { delivered: true, at: now, text: b.text, items: b.items, counts: b.counts };
+      return { through: now, last };
+    });
+    json(200, Object.assign({ ok: true, streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, title: AwayBriefing.TITLE }, out || { delivered: false }));
+  } catch (e) { json(500, { error: 'could not deliver the briefing: ' + ((e && e.message) || e) }); }
 }
 
 // POST /api/summon/ack { runId, requestId, agentId, desk? } — the browser's answer to a live crew.summon.request:
