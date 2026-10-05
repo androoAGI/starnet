@@ -7543,7 +7543,7 @@ async function runNightshiftBeat(opts) {
   let beatDelivered = false;
   try {
   // 3) DO — the do directive stays on the declared focus too.
-  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: sel.selected.continueOf.where } : null }) }] });
+  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
   if (dRes.error) return { delivered: false, reason: dRes.error };
   let deliverable = Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title });
   if (!deliverable) return { delivered: false, reason: 'no-deliverable' };
