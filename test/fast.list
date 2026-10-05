@@ -255,6 +255,7 @@ test/embed.test.js
 test/threadstore.test.js
 test/autopilot-threads.test.js
 test/autopilot-focus.test.js
+test/autopilot-focus-veto.test.js
 test/apiauth.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js

@@ -6390,6 +6390,16 @@ function ledgerNightFocus(agentId, foc) {
   } catch (_) {}
 }
 
+// the FOCUS veto's trail: one note per beat that dropped off-focus candidates (titles only), so "why didn't it
+// build X?" is answerable from the ledger. Silent when nothing was dropped.
+function ledgerOffFocus(agentId, foc, titles) {
+  if (!Array.isArray(titles) || !titles.length || !foc || !foc.focus) return;
+  try {
+    recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'note', agentId: String(agentId || ''), runId: '', reason: 'off-focus',
+      detail: { phase: 'focus-veto', focus: String(foc.focus.label || foc.focus.ref || '').slice(0, 120), dropped: titles.length, titles: titles.map(String).join(' | ').slice(0, 400) } });
+  } catch (_) {}
+}
+
 /* ---- NS-5: the DECISION LEDGER append — wired to NS-0's REAL ledger (sidecar/autonomy-ledger.js, served at
    GET /api/autonomy/ledger via recordAutonomy above). This thin adapter maps the night-shift driver's entries
    ({ kind:'beat'|'decline'|'outcome', binding, beatsLeft, away, delivered, title, archetype, reason }) onto the
@@ -7438,7 +7448,9 @@ async function runNightshiftBeat(opts) {
   //    veto's evidence pool = beliefs + activity + thread texts (a thread-tag citation is the preferred grounding).
   const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
-  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads }));
+  const offFocus = [];
+  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads, focus: foc.focus || null, onDrop: (c) => offFocus.push(c.title) }));
+  ledgerOffFocus(agentId, foc, offFocus);
   // 2) SELECT (confidence gate + the learned per-archetype bias — NS-3 wires the server LEARN store in here)
   const sel = Autopilot.scoreAndSelect(candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
@@ -7572,7 +7584,12 @@ async function runNightshiftActShift(opts) {
   // veto — while still-invented grounding dies. The snapshot is harness-read truth, never model improv, so it is
   // honest evidence to ground in. Bounded already (projectscan caps it).
   const vetoActivity = projectSnapshot ? activity.concat(projectSnapshot.split(/\r?\n/).map(s => s.trim()).filter(Boolean)) : activity;
-  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity: vetoActivity, threads }));
+  // FOCUS VETO (host-enforced): with a declared focus, a candidate that shares nothing with the focus's evidence is
+  // dropped here; the harness-read project snapshot counts as focus evidence for a project focus.
+  const offFocus = [];
+  const focusEvidence = projectSnapshot ? projectSnapshot.split(/\r?\n/).map(x => x.trim()).filter(Boolean) : [];
+  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity: vetoActivity, threads, focus: foc.focus || null, focusEvidence, onDrop: (c) => offFocus.push(c.title) }));
+  ledgerOffFocus(agentId, foc, offFocus);
   const sel = Autopilot.scoreAndSelect(candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
   // NS-6 writeback: a build grounded on an open thread marks it PICKED now; a later keep/discard verdict (return
