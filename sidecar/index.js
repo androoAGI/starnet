@@ -6435,7 +6435,7 @@ function ledgerPriorWorkVeto(agentId, vet) {
       detail: { phase: 'dup-veto', dropped: vet.dropped.length, continued: vet.continued.length,
         droppedTitles: vet.dropped.map(d => d.title + ' ~ ' + d.matched + ' [' + d.status + ']').join(' | ').slice(0, 400) || undefined,
         continuedTitles: vet.continued.map(c => c.title + ' -> ' + c.of + ' (' + c.runId + ')').join(' | ').slice(0, 400) || undefined } });
-  } catch (_) {}
+  } catch (e) { failNote('nightshift.ledger.dup-veto', e); }
 }
 // copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
 // workspace; deliverable.json is never copied — the new run writes its own). Bounded: <=40 files, <=2MB each, <=8MB.
@@ -6452,7 +6452,7 @@ async function seedContinueDir(agentId, fromRunId, toRunId) {
       await fsp.mkdir(path.dirname(dst.abs), { recursive: true });
       await fsp.copyFile(src.abs, dst.abs);
       copied.push(f.path); total += bytes;
-    } catch (_) { /* one unreadable member just isn't seeded; the listing still names it */ }
+    } catch (e) { failNote('nightshift.continue.seed', e); /* one unreadable member just isn't seeded; the listing still names it */ }
   }
   return { seeded: copied.length > 0, files: man.files.map(f => f.path), summary: man.summary || '' };
 }
@@ -6464,7 +6464,7 @@ function ledgerOffFocus(agentId, foc, titles) {
   try {
     recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'note', agentId: String(agentId || ''), runId: '', reason: 'off-focus',
       detail: { phase: 'focus-veto', focus: String(foc.focus.label || foc.focus.ref || '').slice(0, 120), dropped: titles.length, titles: titles.map(String).join(' | ').slice(0, 400) } });
-  } catch (_) {}
+  } catch (e) { failNote('nightshift.ledger.off-focus', e); }
 }
 
 /* ---- NS-5: the DECISION LEDGER append — wired to NS-0's REAL ledger (sidecar/autonomy-ledger.js, served at
