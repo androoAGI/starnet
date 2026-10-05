@@ -6307,7 +6307,28 @@ function nightFocusInputs() {
   // rule), so a cold histogram leaves the resolution byte-identical. Bounded + fail-open like every field above.
   let topics = [];
   try { topics = personalizationStore.read().enabled ? Interests.summary(interestsState, { now: now, limit: 8 }) : []; } catch (_) { topics = []; }
-  return { projects, threads, goal, quests, northStar, topics, now };
+  // REPEATED WORK (2026-10-05 audit item 2): requests the Commander made on ≥3 separate days that no cron job covers
+  // yet (workflow-takeover.js already proves both — its candidates exclude scheduled work, and personalization-off
+  // yields none). Bounded + fail-open like every field above.
+  const workflows = nightFocusWorkflows();
+  return { projects, threads, goal, quests, northStar, topics, workflows, now };
+}
+// the workflow-takeover evidence the focus resolver ranks, mapped to its compact input shape. Only a Commander
+// "never" blocks one here (offer counts / defers are about the routine CARD, not about whether the work is wanted).
+// Cached ~60s: status polls reconcile a workflow focus against this list, and the read walks run history.
+let nightFocusWorkflowsCache = { at: 0, list: [] };
+function nightFocusWorkflows() {
+  const now = Date.now();
+  if (now - nightFocusWorkflowsCache.at < 60000 && nightFocusWorkflowsCache.at <= now) return nightFocusWorkflowsCache.list;
+  let list = [];
+  try {
+    list = (workflowTakeoverCandidates(true) || []).map(c => ({
+      id: c.id, name: c.name, count: c.count, lastAt: c.lastAt,
+      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => String((e && e.quote) || '')).filter(Boolean).slice(-3)
+    }));
+  } catch (_) { list = []; }
+  nightFocusWorkflowsCache = { at: now, list };
+  return list;
 }
 
 // ensure a day-keyed focus for the current night; persist iff it changed; return the focus (or null → improv). When
@@ -6340,6 +6361,8 @@ function nightFocusTargetAvailable(target) {
     const goal = commanderGoals.get();
     return target.ref === 'goal' && !!(goal && String(goal.text || '').trim());
   }
+  // a workflow focus retires the moment the Commander schedules it (or says never): it must still be live evidence.
+  if (target.kind === 'workflow') return nightFocusWorkflows().some(w => w && w.id === target.ref);
   return true; // quest/northstar are resolver-owned evidence kinds, not steer kinds.
 }
 function reconcileNightFocusAuthority() {

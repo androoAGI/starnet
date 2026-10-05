@@ -72,7 +72,10 @@
   // the focus KINDS this resolver may declare. project/thread/goal are the NS-5b originals; 'quest' (an open
   // ledger quest) and 'northstar' (the confirmed inferred long-term direction) are the flagship cross-wire (a
   // night beat can actually ADVANCE a work quest / serve the star). Steering is still project/thread/goal only.
-  const FOCUS_KINDS = ['project', 'thread', 'goal', 'quest', 'northstar'];
+  // 'workflow' (2026-10-05 audit item 2): work the Commander asked for on ≥3 separate days that no routine covers yet
+  // (workflow-takeover.js's evidence) — repeated work is the clearest signal of what they want done.
+  const FOCUS_KINDS = ['project', 'thread', 'goal', 'quest', 'northstar', 'workflow'];
+  const WORKFLOW_MIN_COUNT = 3;               // the same bar workflow-takeover.js offers a routine at
 
   /* ---- the LEARNED-TOPIC TIE-BREAK (2026-07-28) ----
      Until now this resolver ranked purely on RECENCY: the most recently touched project won the night, whatever
@@ -192,6 +195,7 @@
          quests:    [{ id, title, contractType, createdAt }],                          // OPEN ledger quests (flagship cross-wire)
          northStar: { text, groundedIn } | null,                                       // CONFIRMED inferred star (via northStarEvidence)
          topics:    [{ label, weight, count, evidence }],                              // learned interests (interests.summary) — a capped TIE-BREAK only
+         workflows: [{ id, name, count, lastAt, quotes:[their words] }],               // repeated asks no routine covers (workflow-takeover)
          steer:     { ref, kind, setAt } | null                                        // a durable user directive
        }
      A fresh steer short-circuits to itself (source:'steer'). Otherwise every candidate is scored by recency and the
@@ -281,6 +285,27 @@
       if (tb && tb.why) why.push(tb.why);
       const score = (isWork ? (0.85 * r + 0.28) : (0.7 * r + 0.15)) + (tb ? tb.boost : 0);
       cands.push({ order: 1, score, focus: { kind: 'quest', ref: str(q.id) || ('quest:' + title), label: title, why, source: 'evidence', resolvedAt: now } });
+    }
+
+    // REPEATED WORK — a request the Commander made on ≥3 separate days (workflow-takeover.js clustering; the host
+    // passes only ones no cron job covers yet). Scored by FREQUENCY × RECENCY: three asks this week sit beside a
+    // project touched today; five or six outrank it. Evidence-or-null: no count ≥3 or no quote of their own words →
+    // not a candidate (a focus must cite what produced it).
+    for (const w of (Array.isArray(inputs.workflows) ? inputs.workflows : [])) {
+      if (!w || !str(w.id) || !str(w.name)) continue;
+      const count = Math.max(0, Math.floor(num(w.count)));
+      if (count < WORKFLOW_MIN_COUNT) continue;
+      const quotes = (Array.isArray(w.quotes) ? w.quotes : []).map(q => str(q).replace(/\s+/g, ' ').trim()).filter(Boolean);
+      if (!quotes.length) continue;
+      const r = recency(w.lastAt, now);
+      if (!(r > 0)) continue;
+      const tag = dayTag(w.lastAt, now);
+      const label = str(w.name).replace(/\s+/g, ' ').trim().slice(0, 120);
+      const why = ['you asked for this ' + count + ' times on separate days' + (tag ? ' (last ' + tag + ')' : '') + ' and no routine does it yet',
+        'in your words: "' + quotes[quotes.length - 1].slice(0, 160) + '"'];
+      if (quotes.length > 1 && quotes[0] !== quotes[quotes.length - 1]) why.push('earlier: "' + quotes[0].slice(0, 120) + '"');
+      const score = r * (0.6 + 0.1 * Math.min(count, 6));
+      cands.push({ order: 1, score, focus: { kind: 'workflow', ref: str(w.id), label, why, source: 'evidence', resolvedAt: now } });
     }
 
     const g = (inputs.goal && !isAvoided(avoid, 'goal', 'goal')) ? inputs.goal : null;
@@ -401,6 +426,6 @@
     resolveFocus, focusLine, ensureFocus, steerActive, applySteer, clearSteer, northStarEvidence,
     applyAvoid, removeAvoid, isAvoided, normAvoid, sameRef,
     fresh, normalize, loadEnvelope, toEnvelope, dayOf, recency, dayTag, baseName, topicBoost,
-    STATE_VERSION, STEER_STALE_MS, DAY_MS, PROJECT_WINDOW_DAYS, FOCUS_KINDS, AVOID_MAX, TOPIC_BOOST_MAX
+    STATE_VERSION, STEER_STALE_MS, DAY_MS, PROJECT_WINDOW_DAYS, FOCUS_KINDS, AVOID_MAX, TOPIC_BOOST_MAX, WORKFLOW_MIN_COUNT
   };
 });
