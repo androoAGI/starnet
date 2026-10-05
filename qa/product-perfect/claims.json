@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8ca928461044568469b3615c86e43edf8b58a74c",
+    "sourceCommit": "a5ade682189e48f531da6a58df3557d51a595b5f",
     "pathSetSha256": "a492439fab9c283872b683bd5b9ba9ebe7b8750fcae25400af9f344bd97dc4d3",
     "files": [
       {
@@ -278,8 +278,8 @@
       },
       {
         "path": "frontend/app/autosessions.js",
-        "bytes": 22638,
-        "sha256": "fbe3aaf68d7d6fdf135bdd4f495f6439b3dc0e672b8f51423f9775998cc6d620"
+        "bytes": 22981,
+        "sha256": "30bb1889a46cdcd42561d2b375cbfc191b643fdf731393d3649d0a55e4edbbac"
       },
       {
         "path": "frontend/app/backdrop-bake-worker.js",
