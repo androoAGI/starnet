@@ -147,7 +147,7 @@ function compose(input) {
   const sinceLabel = whenLabel(since, o.tzOffsetMin);
   L.push('**' + TITLE + '**' + (sinceLabel ? ' · since ' + sinceLabel : ''));
   const needs = [];
-  for (const b of newBuilds.slice(0, MAX_BUILDS)) needs.push('Built “' + b.title + '”' + (b.summary ? ' — ' + b.summary : '') + '. It’s waiting on you: open it to keep it or toss it.');
+  for (const b of newBuilds.slice(0, MAX_BUILDS)) needs.push('Built “' + b.title + '”' + (b.summary ? ' — ' + b.summary.replace(/[.!…\s]+$/, '') : '') + '. It’s waiting on you: open it to keep it or toss it.');
   if (newBuilds.length > MAX_BUILDS) needs.push((newBuilds.length - MAX_BUILDS) + ' more new build' + (newBuilds.length - MAX_BUILDS === 1 ? '' : 's') + ' waiting.');
   if (olderBuilds.length) needs.push(olderBuilds.length + ' earlier build' + (olderBuilds.length === 1 ? ' is' : 's are') + ' still waiting on a decision.');
   for (const f of failedBuilds.slice(0, 2)) needs.push('An away build (“' + f.title + '”) didn’t finish: ' + f.why + '.');

@@ -38,7 +38,7 @@ const runs = [
   run({ runId: 'n1', streamId: 'nightshift-n1', internal: true, endedAt: 1700000, title: 'propose candidates' })
 ];
 const builds = [
-  { runId: 'b-new', agentId: 'agent', title: 'Speedrun timer v2', summary: 'adds split times', builtAt: 1800000 },
+  { runId: 'b-new', agentId: 'agent', title: 'Speedrun timer v2', summary: 'adds split times.', builtAt: 1800000 },
   { runId: 'b-old', agentId: 'agent', title: 'Speedrun timer', builtAt: 400000 }
 ];
 const drafts = [{ title: 'Idea one', at: 1500000 }, { title: 'Stale idea', at: 10 }];
@@ -54,6 +54,7 @@ A.eq(b.counts.loops, 1, 'one loop');
 A.eq(b.counts.drafts, 1, 'only drafts inside the window count');
 A.ok(b.text.indexOf('my own chat') === -1 && b.text.indexOf('propose candidates') === -1, 'interactive + internal runs never leak into the text');
 A.ok(/Waiting on you[\s\S]*Speedrun timer v2[\s\S]*Done/.test(b.text), 'needs-you section comes before done');
+A.ok(b.text.indexOf('adds split times. It’s waiting on you') !== -1, 'a summary ending in a period never doubles it');
 A.ok(b.text.indexOf('1 earlier build is still waiting') !== -1, 'older undecided builds are a count, not re-announced');
 A.ok(b.text.indexOf('“Inbox sweep” failed: no key') !== -1, 'a failed routine says why, in plain words');
 A.ok(b.text.indexOf('“Daily AI news” ran 2×. Latest: Headlines') !== -1, 'grouped routine shows fire count + the LATEST real excerpt');
