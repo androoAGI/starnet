@@ -19,7 +19,7 @@ const once = (needle, label) => { A.eq(src.split(needle).length - 1, 1, label + 
 once("if (isTask && resolved.tools.includes('team.dispatch')) {", 'the [ORCHESTRATION] briefing follows actual delegation authority on task turns');
 once("const manualBlock = (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual())", 'the operator manual is gated on isTask (index form only when manual.read is on the wire)');
 // self-driving lane 2 (2026-10-05): an owner-trusted chat-app task turn gets only the short pointer to manual.read — still task-only
-once("    : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';", 'the owner's chat-app pointer is gated on isTask too (and only when manual.read is on the wire)');
+once("    : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';", 'the owner chat-app pointer is gated on isTask too (and only when manual.read is on the wire)');
 once("skillBlock = isTask", 'the skill recipe block is gated on isTask');
 once("if (isTask && resolved.tools.indexOf('skill.view') >= 0) {", 'the runtime skill index is gated on isTask');
 A.ok(src.indexOf("(system || '') + runtimeBlock + toolNote") < 0, 'the runtime block no longer leads the appended payload');
