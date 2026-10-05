@@ -485,6 +485,7 @@ test/autopilot.test.js
 test/autopilotstore.test.js
 test/nightshift.test.js
 test/nightshift-driver.test.js
+test/nightshift-localday.test.js
 test/contextpack.test.js
 test/nightreport.test.js
 test/autonomy-write.test.js

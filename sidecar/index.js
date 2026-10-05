@@ -257,6 +257,7 @@ const { makeLoopDriver } = require('./loopjob-driver.js'); // LOOPS: the verdict
 const loopcheck = require('./loopjob-check.js');           // LOOPS: pure host-check verdict + tamper guard
 const loopgit = require('./loopgit.js');                   // LOOPS: pure git harvest decision (branch, pathspec, undo plan)
 const nightshift = require('./nightshift.js');            // NS-1: pure planner for the server-owned night-shift driver
+const LocalDay = require('./localday.js');                // the LOCAL calendar-day key (leash/focus/tonight) — offset injected below
 const { makeNightshiftDriver } = require('./nightshift-driver.js'); // NS-1: the restart-safe idle-autonomy tick driver
 const contextpack = require('./contextpack.js');          // NS-2: pure recency-weighted context pack for the propose step
 const nightfocus = require('./nightfocus.js');            // NS-5b: pure single-priority FOCUS resolver (evidence-ranked, steer-aware)
@@ -6216,6 +6217,14 @@ function cronTickHealthy() {
 
 // ---- the persisted driver state ({ v, day, beatsUsedToday, lastBeatAt }) — a sibling of cron.jobs.json, so a
 //      restart RESUMES mid-night (same day → same spent leash) instead of resetting. Durable temp→fsync→rename.
+// THE DAY KEY IS THE COMMANDER'S LOCAL DAY (2026-10-05): the leash, the night focus and the "tonight" scope all key
+// on localday.js. Inject this machine's DST-aware offset once, before the first state load. SKYNET_TZ_OFFSET_MIN
+// (minutes EAST of UTC, e.g. -300 for EST) pins a fixed zone for tests/QA; unset = the real machine zone.
+(function configureLocalDay() {
+  const pinned = String(ENV('TZ_OFFSET_MIN') || '').trim();
+  if (pinned && isFinite(Number(pinned))) LocalDay.configure(Number(pinned) * 60000);
+  else LocalDay.configure((ms) => -new Date(ms).getTimezoneOffset() * 60000);
+})();
 const NIGHTSHIFT_STATE_FILE = path.join(WORKSPACES, 'nightshift.state.json');
 function loadNightshiftState() {
   try { return nightshift.loadEnvelope(loadResilient(NIGHTSHIFT_STATE_FILE, 'nightshift'), Date.now()); }
@@ -6353,7 +6362,7 @@ function resolvedNightFocusCandidate(candidate) {
 }
 
 // same-night prior beat outputs (titles) so beat 2+ EXTENDS the same work (the compounding shape). Drafts carry `at`;
-// scope to today's UTC day-bucket to match the focus's day key. Bounded to the last handful.
+// scope to today's LOCAL day (localday.js) to match the focus's + leash's day key. Bounded to the last handful.
 function nightFocusPriorTonight() {
   try {
     const day = nightfocus.dayOf(Date.now());
@@ -21721,6 +21730,8 @@ function handleNightshiftStatus(req, res) {
     awayAfterMs: NIGHTSHIFT_AWAY_MS,
     beatsUsedToday: rolled.beatsUsedToday || 0,
     leashPerDay: Number.isFinite(summary.leashPerDay) ? summary.leashPerDay : null,
+    // the leash day is the Commander's LOCAL calendar day (localday.js); this is the instant it next refills.
+    leashResetsAt: (() => { try { return LocalDay.dayStartMs((rolled.day || 0) + 1); } catch (_) { return null; } })(),
     lastBeatAt: rolled.lastBeatAt || 0,
     nextEligibleAt: decision ? decision.nextEligibleAt : ((rolled.lastBeatAt || 0) + NIGHTSHIFT_BEAT_MS),
     binding: decision ? decision.binding : 'unknown',

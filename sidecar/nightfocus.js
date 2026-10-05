@@ -21,7 +21,8 @@
    THE PERSISTED STATE (a small sibling JSON, so a restart resumes the SAME night's focus, not a re-scatter):
      { v, day, focus:{kind,ref,label,why,source,threadId?,resolvedAt}|null, steer:{ref,kind,setAt}|null,
        avoid:[{ref,kind,label,setAt}] }
-   day = the UTC day-bucket the focus belongs to; a new day re-resolves.
+   day = the LOCAL calendar day the focus belongs to (localday.js — the SAME key the leash rolls on, so "tonight"
+   means one thing everywhere); a new day re-resolves.
 
    AVOID (autonomy-tuning, 2026-07-17): the EXCLUSION directive — "never pick X as the night's focus on your own."
    Unlike a steer it does NOT go stale (an off-limits stays until the user removes it): a steer is a nudge, an avoid
@@ -38,10 +39,11 @@
   const TM = (typeof module !== 'undefined' && module.exports)
     ? (() => { try { return require('../frontend/app/topicmatch.js'); } catch (_) { return null; } })()
     : ((root.SK && root.SK.topicmatch) || root.TopicMatch || null);
-  const api = factory(TM);
+  const LD = (typeof module !== 'undefined' && module.exports) ? require('./localday.js') : (root.SK && root.SK.localday);
+  const api = factory(TM, LD);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).nightfocus = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (TopicMatch) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TopicMatch, LocalDay) {
   'use strict';
 
   const STATE_VERSION = 1;
@@ -53,7 +55,9 @@
 
   const num = (v) => ((typeof v === 'number' && isFinite(v)) ? v : 0);
   const str = (v) => (v == null ? '' : String(v));
-  const dayOf = (t) => Math.floor(num(t) / DAY_MS);
+  // the LOCAL calendar day (shared with nightshift.js's leash key). Falls back to the UTC bucket only if the
+  // localday module is somehow absent (a browser bundle that didn't load it).
+  const dayOf = (t, tz) => (LocalDay ? LocalDay.dayOf(num(t), tz) : Math.floor(num(t) / DAY_MS));
 
   // a compact relative-day tag for a timestamp, given `now`. Pure arithmetic (no Date). '' when undated.
   function dayTag(ts, now) {
@@ -361,7 +365,7 @@
 
   /* ensureFocus — the DAY-KEYED, steer-aware resolver the host calls at the start of every beat. Keeps the SAME
      focus for the whole night (single-priority) and re-resolves ONLY when:
-       · a new UTC day has begun (day-roll), OR
+       · a new LOCAL day has begun (day-roll), OR
        · a durable steer was set/changed AFTER the current focus was resolved (a fresh user directive), OR
        · there is no focus yet.
      Returns { state, focus, resolved } — `resolved:true` iff this call recomputed the focus (the beat should ledger
