@@ -90,6 +90,8 @@ const ReturnStore = (() => {
     // an already-open OUTBOX window re-renders with the fresh crates (no-op when closed)
     try { if (typeof OutboxView !== 'undefined' && OutboxView.refresh) OutboxView.refresh(); } catch (_) {}   // DELIVERABLES › TO REVIEW
     if (!rows.length || fired) return;
+    // THE ONE RETURN REPORT owns the welcome-back message; the crates above still land on the OUTBOX
+    try { if (typeof Briefing !== 'undefined' && Briefing.ownsReturn && Briefing.ownsReturn()) { fired = true; return; } } catch (_) {}
     fired = true;
     if (typeof Chat !== 'undefined' && Chat.awayDigest) Chat.awayDigest(rows.slice(0, Returns.DIGEST_CAP), { onRated: resolve, openWork: openWork });
   }

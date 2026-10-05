@@ -46,6 +46,8 @@ const NightReportStore = (() => {
   // honest to say (compose → hasReport). Fail-open: any missing dependency simply skips the beat.
   async function maybeReport() {
     if (fired) return;
+    // THE ONE RETURN REPORT folds the night shift into the single briefing session — this beat stands down
+    try { if (typeof Briefing !== 'undefined' && Briefing.ownsReturn && Briefing.ownsReturn()) { fired = true; return; } } catch (_) {}
     if (typeof NightReport === 'undefined' || typeof Chat === 'undefined' || !Chat.nudge) return;
     const awaySince = awayBoundary();
     const now = Date.now();

@@ -43,6 +43,8 @@ const NightDraftNudge = (() => {
   // other beat owns the slot — surface ONE nudge. Fail-open: any missing dependency simply skips (never a fake beat).
   async function check() {
     if (fired) { stopPolling(); return; }
+    // THE ONE RETURN REPORT lists drafted ideas in the single briefing — no second nudge about them
+    try { if (typeof Briefing !== 'undefined' && Briefing.ownsReturn && Briefing.ownsReturn()) { fired = true; stopPolling(); return; } } catch (_) {}
     if (typeof NightReport === 'undefined' || typeof Chat === 'undefined' || !Chat.nudge) return;
     // only when the tab is actually being looked at — a nudge fired into a hidden tab is noise the Commander misses.
     try { if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return; } catch (_) {}

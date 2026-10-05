@@ -569,6 +569,8 @@ test/hero-color-resume.test.js
 test/roster-track.test.js
 test/chat-prompt-diet.test.js
 test/returns.test.js
+test/away-briefing.test.js
+test/briefing-frontend.test.js
 test/outbox-window.test.js
 test/notifications-useful.test.js
 test/bell-settles.test.js
