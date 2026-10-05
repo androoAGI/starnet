@@ -3514,7 +3514,11 @@ const pathTrustCore = makePathTrust({
   roots: blessedRoots,
   workspaceRoot: WORKSPACES,
   bless: async (rootReal, m) => blessProjectRoot(rootReal, m),
-  touch: (rootReal, abs) => { try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
+  // RECENCY IS THE USER'S (2026-10-05): lastTouchedAt feeds the night focus ("you worked in X — last touched today"),
+  // so ONLY user-caused I/O may bump it. The night shift's own away work under a project used to refresh its folder
+  // every night, making the agent's last build the reason for tonight's focus (a self-reinforcing loop). Autonomous
+  // touches are simply not recency evidence; meta.user comes from runPathTrust (interactive or owner-trusted DM).
+  touch: (rootReal, abs, meta) => { if (!meta || meta.user !== true) return; try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
   isGitRepoOf: projectIsGitRepo,
   now: () => Date.now()
 });
@@ -18602,6 +18606,8 @@ async function runOnceCore(o) {
   const runPathTrust = (abs, o2) => pathTrustCore.guard(abs, {
     scope: (o2 && o2.scope) || 'read', surface: surface, prompt: pathPrompt || null,
     agentId: (o2 && o2.agentId) || agentId,
+    // who CAUSED this I/O (recency metadata only): a watched run, or the Commander's owner-trusted channel DM.
+    userTouch: surface === 'interactive' || ownerTrusted,
     // This Computer widens the path envelope without changing approval posture: ASK still prompts before
     // mutations, while reads of non-protected host paths no longer need a second project-root card.
     fullAccess: unrestrictedHostNow() || executionProfile.filesystemScope === 'host-paths-except-hard-floor',

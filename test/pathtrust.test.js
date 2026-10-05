@@ -26,7 +26,7 @@ function harness(opts) {
     fsp, pathMod: path,
     roots: () => Array.from(roots),
     bless: async (rootReal, meta) => { if (!blessOk) return false; roots.add(rootReal); blessed.push({ rootReal, meta }); return true; },
-    touch: (rootReal, abs) => touched.push({ rootReal, abs }),
+    touch: (rootReal, abs, meta) => touched.push({ rootReal, abs, meta }),
     isGitRepoOf: async (r) => { try { await fsp.stat(path.join(r, '.git')); return true; } catch (_) { return false; } },
     now: () => 1700000000000
   });
@@ -124,6 +124,21 @@ function scriptPrompt(decision) {
     // and the SAME blessed root now serves an AUTONOMOUS run (the standing grant, not the surface, is what matters)
     const r3 = await h.pt.guard(fileAbs, { scope: 'read', surface: 'autonomous', prompt: null });
     A.ok(r3 && r3.base, 'once blessed, an autonomous run reads under the root with no prompt');
+    // RECENCY IS THE USER'S (2026-10-05 audit item 4): the touch names WHO caused the I/O so the host bumps
+    // lastTouchedAt only for user runs — the agent's own away work must not keep its folder tonight's focus.
+    A.ok(h.touched.slice(0, -1).every(t => t.meta && t.meta.user === true), 'interactive I/O is reported as a USER touch');
+    A.eq(h.touched[h.touched.length - 1].meta, { user: false }, 'autonomous I/O is reported as an AGENT touch');
+    await h.pt.guard(fileAbs, { scope: 'read', surface: 'autonomous', prompt: null, userTouch: true });
+    A.eq(h.touched[h.touched.length - 1].meta, { user: true }, 'a host-minted userTouch (owner-trusted DM) overrides the surface default');
+    await h.pt.guard(fileAbs, { scope: 'read', surface: 'interactive', prompt: p2, userTouch: false });
+    A.eq(h.touched[h.touched.length - 1].meta, { user: false }, 'an explicit userTouch:false is honored too');
+  }
+  // the host contract: index.js bumps projects recency ONLY on a user touch, and runPathTrust mints the flag from
+  // the run's own surface / owner-trust bit (never from model state).
+  {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    A.ok(/touch: \(rootReal, abs, meta\) => \{ if \(!meta \|\| meta\.user !== true\) return;/.test(src), 'host touch ignores agent (non-user) touches');
+    A.ok(/userTouch: surface === 'interactive' \|\| ownerTrusted,/.test(src), 'runPathTrust derives userTouch from surface/ownerTrusted');
   }
 
   // ---- Full Access: every non-hardline path flows without a card on watched and unattended surfaces ----
