@@ -500,6 +500,7 @@ test/pathtrust.test.js
 test/workspace-reserved.test.js
 test/nightfocus.test.js
 test/nightfocus-workflow.test.js
+test/priorwork.test.js
 test/nightpatch.test.js
 test/projectscan.test.js
 test/discovery.test.js

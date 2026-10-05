@@ -149,6 +149,10 @@ function makeWorkshopStore(deps) {
       // or any caller-supplied ask context). Stored so the delivery card can say WHY it built this in the
       // Commander's own terms — real recorded data, never re-synthesized at render time. Additive; optional.
       if (it.grounds != null && String(it.grounds).trim()) stored.grounds = String(it.grounds).slice(0, 500);
+      // PRIOR-WORK provenance (2026-10-05): which night focus this build served, and which earlier build it continues,
+      // so later nights can scope "already built" to the same focus and see the iteration chain. Additive; optional.
+      if (it.focusRef != null && String(it.focusRef).trim()) stored.focusRef = String(it.focusRef).slice(0, 500);
+      if (it.continuesRunId != null && /^[A-Za-z0-9_-]{1,80}$/.test(String(it.continuesRunId))) stored.continuesRunId = String(it.continuesRunId);
       rec.backlog.push(stored);
       while (rec.backlog.length > BACKLOG_CAP) rec.backlog.shift();
       out = { item: stored, reason: 'added' };

@@ -91,7 +91,11 @@ function startMock() {
             else text('Wrote the patch.');
           } else if (/JOB:/.test(prompt) && /GROUNDS:/.test(prompt)) {
             // the PROPOSE: a build job grounded in the REAL repo state (the planted TODO, surfaced by the harness scan).
-            text(['JOB: fix empty invoice list', 'KIND: advance-goal', 'GROUNDS: the TODO in app.js — handle empty invoice list', 'CONFIDENCE: high', 'SPEC: a git-apply-able patch that guards total() against an empty list'].join('\n'));
+            // PRIOR WORK (2026-10-05): once the fix was kept, the prompt lists it as ALREADY BUILT and a plain rebuild is
+            // vetoed by the host — so the mock follows the no-rebuild rule and asks to CONTINUE it (an explicit
+            // continuation of kept work is honored, and still exercises the honest-failure keep below).
+            const already = /ALREADY BUILT ON EARLIER NIGHTS[\s\S]*"fix empty invoice list"/.test(prompt);
+            text([already ? 'JOB: Continue: fix empty invoice list' : 'JOB: fix empty invoice list', 'KIND: advance-goal', 'GROUNDS: the TODO in app.js — handle empty invoice list', 'CONFIDENCE: high', 'SPEC: a git-apply-able patch that guards total() against an empty list'].join('\n'));
           } else { text('ok'); }
           res.write('data: [DONE]\n\n'); res.end();
         });
@@ -234,6 +238,9 @@ async function stop(child) {
     // (the working tree is now dirty-free on ns/ but the seed file already changed; a second identical patch won't
     //  apply cleanly. Build a fresh beat, then keep — the apply must fail HONESTLY, not lie.)
     const act2 = await fireBeat(B, headers);
+    A.ok(act2.reason === 'built' && act2.runId, 'the second beat built (an explicit continuation of the kept fix, not a vetoed rebuild): ' + act2.reason);
+    A.eq(act2.continuesRunId, runId, 'the continuation names the kept build it continues');
+    A.ok(fs.existsSync(path.join(ws, 'agent', 'workshop', String(act2.runId), 'change.patch')), 'the continuation started from the earlier build\'s files');
     if (act2.reason === 'built' && act2.runId) {
       const keep2 = await (await fetch(B + '/api/workshop/decide', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', runId: act2.runId, decision: 'keep' }) })).json();
       A.ok(keep2.applied !== true, 'a non-applying / dirty-tree keep reports applied:false (honest failure, never a false apply)');

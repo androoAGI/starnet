@@ -334,5 +334,17 @@ function freshStore() {
     A.eq(s.read('hero').lastShift.reason, 'built', 'a newer shift outcome replaces the old one');
   }
 
+  // PRIOR-WORK provenance (2026-10-05): the focus a build served + the build it continues round-trip; junk is refused.
+  {
+    const fs = memFs();
+    const s = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    await s.queue('hero', { id: 'ns-act-a', title: 'Continue: parkour', focusRef: 'C:/code/parkour', continuesRunId: 'run-1' }, 10);
+    await s.queue('hero', { id: 'ns-act-b', title: 'other', continuesRunId: '../../etc' }, 11);
+    const s2 = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    const a = s2.backlogOf('hero').find(b => b.id === 'ns-act-a');
+    A.ok(a && a.focusRef === 'C:/code/parkour' && a.continuesRunId === 'run-1', 'focusRef + continuesRunId survive a fresh store');
+    A.eq(s2.backlogOf('hero').find(b => b.id === 'ns-act-b').continuesRunId, undefined, 'a non-id continuesRunId is not stored');
+  }
+
   A.report('workshop-store.test');
 })();

@@ -27,6 +27,7 @@ const { bootToken } = require('./_httpToken.js');
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const ACT_MARK = '[NIGHTSHIFT_ACT]';
+let sawPriorBuilds = 0;   // propose prompts that listed the KEPT checklist tool as already built (prior-work memory)
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // mock OpenRouter. Two shapes of call reach it:
@@ -65,18 +66,24 @@ function startMockOpenRouter() {
             } else if (toolResults === 1) {
               tool('f1', 'fs_write', { path: dir + '/tool.py', content: 'print("built by the night shift")\n' });
             } else if (toolResults === 2) {
-              const manifest = { v: 1, runId: runId, agentId: 'agent', backlogId: '', title: 'Release checklist tool', kind: 'tool', summary: 'A tiny helper toward shipping the beta.', files: [{ path: 'tool.py', bytes: 34 }], howToUse: 'Run it.', notVerified: ['not executed'] };
+              const jobTitle = ((prompt.match(/^- JOB: (.+)$/m) || [])[1] || 'Release checklist tool').trim();
+              const manifest = { v: 1, runId: runId, agentId: 'agent', backlogId: '', title: jobTitle, kind: 'tool', summary: 'A tiny helper toward shipping the beta.', files: [{ path: 'tool.py', bytes: 34 }], howToUse: 'Run it.', notVerified: ['not executed'] };
               tool('f2', 'fs_write', { path: dir + '/deliverable.json', content: JSON.stringify(manifest) });
             } else { text('Built the tool in my workshop.'); }
           } else if (/JOB:/.test(prompt) && /GROUNDS:/.test(prompt)) {
             // the reason-only PROPOSE (V2 candidate directive). Reply ONE grounded, high-confidence build job.
+            // PRIOR WORK (2026-10-05): once the checklist tool was KEPT, the propose prompt lists it as already built.
+            // The mock still re-proposes it FIRST (a model ignoring the courtesy) — the host veto must drop it — and
+            // offers a genuinely new job second, which is what then gets built.
+            const keptBefore = /ALREADY BUILT ON EARLIER NIGHTS[\s\S]*"Release checklist tool" — kept/.test(prompt);
+            if (keptBefore) sawPriorBuilds++;
             text([
               'JOB: Release checklist tool',
               'KIND: advance-goal',
               'GROUNDS: ship the StarNet beta to 100 users',
               'CONFIDENCE: high',
               'SPEC: a small script that helps ship the beta'
-            ].join('\n'));
+            ].concat(keptBefore ? ['', 'JOB: Beta signup tracker', 'KIND: advance-goal', 'GROUNDS: ship the StarNet beta to 100 users', 'CONFIDENCE: high', 'SPEC: a tiny tracker of beta signups'] : []).join('\n'));
           } else {
             text('ok');
           }
@@ -221,6 +228,12 @@ async function recommendations(B, headers) {
     // ===== 5. DENY → LEARN — build a fresh deliverable, discard it → run dir wiped + archetype DOWN-weighted. =====
     const act2 = await fireBeat(B, headers);
     A.ok(act2.reason === 'built' && act2.runId && act2.runId !== runId, 'a fresh beat built a second deliverable with its own runId');
+    // PRIOR-WORK MEMORY + DUPLICATE VETO (2026-10-05): the propose prompt named the kept build, and the re-proposal of
+    // it was dropped by the host — the second build is the NEW job, not a rebuild of the kept one.
+    A.ok(sawPriorBuilds >= 1, 'the propose prompt listed the kept build under ALREADY BUILT ON EARLIER NIGHTS');
+    A.ok(/Beta signup tracker/.test(String(act2.title || '')), 'the near-duplicate of kept work was vetoed; the new job was built instead');
+    const vetoNote = (await ledger(B, headers)).find(e => e.reason === 'duplicate-veto' && e.detail && /Release checklist tool/.test(String(e.detail.droppedTitles || '')));
+    A.ok(vetoNote && /\[kept\]/.test(vetoNote.detail.droppedTitles), 'the ledger records the veto (dropped title ~ matched kept build)');
     const runId2 = act2.runId;
     const runDir2 = path.join(ws, 'agent', 'workshop', runId2);
     A.ok(fs.existsSync(runDir2), 'the second build landed on disk');
