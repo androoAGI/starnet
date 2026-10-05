@@ -8759,6 +8759,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     }));
   }
   // The bell counts what's worth looking at: everyone still waiting on you + anything new that finished or broke.
+  /* NOTIFICATIONS FROM CHAT (station.control notifications.read / notifications.clear, 2026-10-05): the MARK ALL READ and
+     CLEAR NOTIFICATIONS keys' own effect — except that an agent can NEVER read or clear a NEEDS YOU entry, so an agent can
+     never hide the approval it is waiting on. `saved` is the localStorage write's own answer, never assumed. */
+  function notifsMarkRead() {
+    let marked = 0;
+    store.notifs.forEach(n => { if (!isWaiting(n) && !n.read) { n.read = true; marked++; } });
+    const saved = save(); rerender('notifs'); badges();
+    return { marked, waiting: store.notifs.filter(isWaiting).length, saved };
+  }
+  function notifsClear() {
+    const keep = store.notifs.filter(isWaiting), cleared = store.notifs.length - keep.length;
+    store.notifs = keep;
+    const saved = save(); badges(); rerender('notifs');
+    return { cleared, waiting: keep.length, saved };
+  }
   function badges() {
     reapDeadPrompts();
     const n = store.notifs.filter(x => x && x.kind && (isWaiting(x) || !x.read)).length;
@@ -10992,7 +11007,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, showTerm, showAgent, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, showTerm, showAgent, notifsMarkRead, notifsClear, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };
