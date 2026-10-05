@@ -985,30 +985,11 @@ const StationCommands = (() => {
       if (!place) throw new Error('there is no StarNet place "' + String((a && a.place) || '') + '"; places: ' + (typeof Places !== 'undefined' ? Places.ids().join(', ') : 'none loaded — reload the page'));
       if (typeof StationUI === 'undefined' || !StationUI.showTerm) throw new Error('the station windows are not ready yet');
       const o = place.open;
-      let out;
-      if (o.agent || o.desk) {
-        const ag = resolveAgent(a && a.agent);
-        out = StationUI.showAgent(ag.id, o.agent || null, !!o.desk);
-        out.agentName = ag.name || ag.id;
-      } else if (o.fn === 'build') {
-        if (typeof Build === 'undefined' || !Build.open) throw new Error('BUILD MODE is not loaded on this page');
-        Build.open();
-        out = { open: !!(Build.isOpen && Build.isOpen()), key: 'build-mode' };
-      } else if (o.fn === 'recruit' || o.fn === 'recipes') {
-        const fn = typeof App !== 'undefined' && (o.fn === 'recruit' ? App.openSummonBay : App.openRecipes);
-        if (!fn) throw new Error('that door is not loaded on this page');
-        // the bay already showing this tab is RAISED, never re-opened: Marketplace.open resets it, and a half-written
-        // recipe or class would be lost to "show me the recruitment bay"
-        const tabNow = typeof Marketplace !== 'undefined' && Marketplace.currentTab ? Marketplace.currentTab() : null;
-        out = StationUI.showTerm('marketplace');
-        if (!out.open || tabNow !== (o.fn === 'recipes' ? 'recipes' : 'agents')) {
-          fn();
-          // the summon bay reads the agent limit before it opens (one fetch, first time only): wait for the window
-          for (let i = 0; i < 40 && !(out = StationUI.showTerm('marketplace')).open; i++) await new Promise(r => setTimeout(r, 100));
-        }
-      } else {
-        out = StationUI.showTerm(o.term, o.section || undefined);
-      }
+      const ag = (o.agent || o.desk) ? resolveAgent(a && a.agent) : null;
+      // the ONE opener (app/places.js): the same doors FIND (Ctrl+K) uses, with this page's own objects
+      const out = await Places.open(place, { ui: StationUI, agentId: ag && ag.id,
+        build: typeof Build !== 'undefined' ? Build : null, app: typeof App !== 'undefined' ? App : null, market: typeof Marketplace !== 'undefined' ? Marketplace : null });
+      if (ag && out) out.agentName = ag.name || ag.id;
       if (!out || !out.open) throw new Error(place.words + ' did not open on the Commander\'s screen' + (o.term === 'apps' ? ' (no app exists yet)' : '') + '; tell them where it is instead');
       return Object.assign({ place: place.id, words: place.words }, out);
     },

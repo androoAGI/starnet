@@ -74,6 +74,8 @@ const NAV_REST =
   '- Recruitment Bay: where the Commander SUMMONS a new agent. They pick a class seal (a specialist ' +
   'class), or use the ＋ BUILD A CUSTOM CLASS tile to define their own. The new agent materializes on ' +
   'the floor.\n' +
+  '- FIND (SYSTEM › FIND, or Ctrl+K anywhere): one search over every window, setting, agent and conversation; Enter opens it, ' +
+  'and a search that matches nothing hands the words to the crew in COMMS. Point a lost Commander at Ctrl+K.\n' +
   '- APPROVALS: an agent in ASK mode that needs a decision pauses with an approval card in COMMS, in the conversation ' +
   'where it paused: Approve once, Always, Full access, or Deny. NOTIFICATIONS › NEEDS YOU lists every one still waiting.\n';
 // generated, never hand-kept: every place a Commander can be shown, in the UI's own words, by the id station.show takes

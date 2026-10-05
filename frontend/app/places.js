@@ -76,7 +76,8 @@
     P('settings-app', 'SETTINGS › APP & BACKUP', 'startup, runtime limits, backups, updates, troubleshooting', { term: 'settings', section: 'system' }),
     P('notifications', 'NOTIFICATIONS', 'everything that happened and what is waiting on the Commander', { term: 'notifs' }),
     P('updates', 'UPDATES', 'check for and install a StarNet update', { term: 'updates' }),
-    P('field-manual', 'FIELD MANUAL', 'the Commander\'s guide to StarNet', { term: 'manual' })
+    P('field-manual', 'FIELD MANUAL', 'the Commander\'s guide to StarNet', { term: 'manual' }),
+    P('find', 'SYSTEM › FIND', 'one search over every window, agent and conversation (Ctrl+K from anywhere)', { term: 'find' })
   ]);
 
   const BY_ID = Object.create(null);
@@ -85,5 +86,35 @@
   const get = id => BY_ID[String(id || '').trim().toLowerCase()] || null;
   const needsAgent = p => !!(p && (p.open.agent || p.open.desk));
 
-  return { PLACES, ids, get, needsAgent };
+  /* OPEN a place through its own door — the ONE opener for the agent's station.show and the Commander's FIND (Ctrl+K).
+     env = the page's own objects, passed in so this file stays DOM-free (the sidecar requires it) and testable:
+     { ui: StationUI, build?: Build, app?: App, market?: Marketplace, agentId? (for an agent place), sleep?(ms) }.
+     Resolves what is really on screen ({ open, key, … }); throws when a door is not loaded on this page. */
+  async function open(place, env) {
+    const o = place.open, ui = env.ui;
+    if (o.agent || o.desk) return ui.showAgent(env.agentId, o.agent || null, !!o.desk);
+    if (o.fn === 'build') {
+      if (!env.build || !env.build.open) throw new Error('BUILD MODE is not loaded on this page');
+      env.build.open();
+      return { open: !!(env.build.isOpen && env.build.isOpen()), key: 'build-mode' };
+    }
+    if (o.fn === 'recruit' || o.fn === 'recipes') {
+      const fn = env.app && (o.fn === 'recruit' ? env.app.openSummonBay : env.app.openRecipes);
+      if (!fn) throw new Error('that door is not loaded on this page');
+      // the bay already showing this tab is RAISED, never re-opened: re-opening resets it, and a half-written recipe or
+      // class would be lost to "show me the recruitment bay"
+      const tabNow = env.market && env.market.currentTab ? env.market.currentTab() : null;
+      let out = ui.showTerm('marketplace');
+      if (!out.open || tabNow !== (o.fn === 'recipes' ? 'recipes' : 'agents')) {
+        fn();
+        // the summon bay reads the agent limit before it opens (one fetch, first time only): wait for the window
+        const sleep = env.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+        for (let i = 0; i < 40 && !(out = ui.showTerm('marketplace')).open; i++) await sleep(100);
+      }
+      return out;
+    }
+    return ui.showTerm(o.term, o.section || undefined);
+  }
+
+  return { PLACES, ids, get, needsAgent, open };
 });

@@ -1,0 +1,49 @@
+/* SYSTEM › FIND (Ctrl+K) — frontend/app/windows/find.js (2026-10-05).
+   MATERIAL: the Workflow-window glass, restated on this window's root exactly as css/workflows-window.css does (the Build
+   Library field: 8px, recessed; rows: 10px glass cards; a name + ONE short line, never a paragraph). Theme tokens only, so
+   every phosphor set re-tints it; nothing a Commander reads is under 14px; matte — no glow. */
+.term.find-win {
+  --refit-glass: linear-gradient(125deg, rgba(var(--ph-bright-rgb),.09), rgba(var(--ph-rgb),.045) 48%, rgba(var(--ph-rgb),.015));
+  --fnd-edge: rgba(var(--ph-rgb),.2);
+  --fnd-light: inset 0 1px 0 rgba(var(--ph-bright-rgb),.07);
+  --fnd-hover: rgba(var(--ph-rgb),.1);
+  --fnd-on: rgba(var(--ph-rgb),.13);
+}
+.term.find-win .term-body { font-family: 'VT323', 'Courier New', monospace; font-size: 17px; line-height: 1.4; color: var(--text); text-shadow: none; }
+.fnd { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; height: 100%; min-height: 0; padding: 4px 6px 8px; box-sizing: border-box; }
+.fnd :is(button, input):focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+
+/* the field: the Build Library field */
+.fnd-head { display: flex; align-items: center; gap: 10px; }
+.term.find-win .fnd-field {
+  flex: 1 1 auto; min-width: 0; box-sizing: border-box; min-height: 40px; padding: 9px 12px;
+  font: 18px/1.3 'VT323', monospace; color: var(--ph-bright); text-shadow: none; outline: none;
+  border: 1px solid var(--fnd-edge); border-radius: 8px; background: rgba(0,0,0,.18); box-shadow: inset 0 1px 3px rgba(0,0,0,.15);
+  transition: border-color var(--t-fast) var(--ease-soft), box-shadow var(--t-fast) var(--ease-soft);
+}
+.term.find-win .fnd-field:hover { border-color: rgba(var(--ph-rgb),.38); }
+.term.find-win .fnd-field:focus { border-color: var(--ph); box-shadow: 0 0 0 2px rgba(var(--ph-rgb),.1); }
+.term.find-win .fnd-field:focus-visible { outline: none; }
+.term.find-win .fnd-field::placeholder { color: var(--text); opacity: .55; }
+.fnd-field::-webkit-search-cancel-button { filter: grayscale(1); opacity: .5; }
+.fnd-count { flex: 0 0 auto; font-size: 15px; letter-spacing: .6px; color: var(--ph-dim); }
+
+/* the results: one glass card each — a glyph, the place in the UI's words, ONE short line */
+.fnd-list { display: grid; align-content: start; gap: 6px; min-height: 0; overflow-y: auto; padding: 2px 2px 4px;
+  scrollbar-width: thin; scrollbar-color: rgba(var(--ph-rgb),.24) transparent; }
+.fnd-row {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
+  padding: 8px 12px; font: inherit; text-align: left; color: var(--text); cursor: pointer;
+  border: 1px solid var(--fnd-edge); border-radius: 10px; background: var(--refit-glass); box-shadow: var(--fnd-light);
+  transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft);
+}
+.fnd-row:hover { border-color: rgba(var(--ph-rgb),.45); background: var(--fnd-hover); }
+.fnd-row.on { border-color: var(--ph); background: var(--fnd-on); box-shadow: var(--fnd-light), inset 2px 0 0 var(--ph); }
+.fnd-g { font-size: 17px; color: var(--ph-dim); text-align: center; }
+.fnd-row.on .fnd-g { color: var(--ph-bright); }
+.fnd-t { display: grid; gap: 1px; min-width: 0; }
+.fnd-n { font-weight: normal; font-size: 19px; line-height: 1.2; letter-spacing: .5px; color: var(--ph-bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnd-l { font-size: 15px; line-height: 1.3; color: var(--ph-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnd-ask { border-style: dashed; }
+.fnd-empty { margin: 0; padding: 18px 6px; color: var(--ph-dim); }
+.fnd-keys { margin: 0; font-size: 14px; letter-spacing: .4px; color: var(--ph-dim); }
