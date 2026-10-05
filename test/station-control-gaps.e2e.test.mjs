@@ -108,6 +108,12 @@ try {
   await evalJS(cdp, `(() => { StationUI.notify('E2E finished result', '', undefined, { kind: 'result' }); StationUI.notify('E2E agent waiting on you', '', undefined, { kind: 'needs', key: 'e2e-needs' }); return true; })()`);
   const seeded = await evalJS(cdp, NOTIFS);
   check('setup: a result and a NEEDS YOU notification are saved', Array.isArray(seeded) && seeded.some(n => n.kind === 'result') && seeded.some(n => n.kind === 'needs'), JSON.stringify((seeded || []).map(n => n.kind)));
+  // the NOTIFICATIONS window's counts include the NEEDS YOU row it shows, and "New" is the bell badge's own number
+  await evalJS(cdp, `(() => { StationUI.openTerm('notifs'); return true; })()`); await sleep(400);
+  const counts = await evalJS(cdp, `(() => ({ all: (document.querySelector('[data-nf-view="all"]') || {}).textContent, fresh: (document.querySelector('[data-nf-view="unread"]') || {}).textContent,
+    bell: (document.getElementById('nf-badge') || {}).textContent, needs: document.querySelectorAll('.nf-list-needs .nf').length, rest: document.querySelectorAll('.nf-list:not(.nf-list-needs) .nf').length }))()`);
+  check('NOTIFICATIONS counts what it shows: All · 2, New · 2 = the bell', counts && counts.all === 'All · 2' && counts.fresh === 'New · 2' && counts.bell === '2' && counts.needs === 1 && counts.rest === 1, JSON.stringify(counts));
+  await evalJS(cdp, `(() => { StationUI.closeTerm('notifs'); return true; })()`);
   const halt0 = await api(base, token, 'GET', '/api/halt');
   check('setup: the station is not halted', halt0.json && halt0.json.halted === false, JSON.stringify(halt0.json));
 

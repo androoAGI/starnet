@@ -8736,8 +8736,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     body.innerHTML = '<header class="utility-head"><h2>Notifications</h2><p>What needs you, and what finished or went wrong while you were elsewhere. Click one to go there.</p></header>' +
       (waiting.length ? '<section class="nf-needs"><h4 class="ms-h">NEEDS YOU <span class="dim">— ' + waiting.length + ' waiting</span></h4><div class="nf-list nf-list-needs">' + waiting.map(row).join('') + '</div></section>' : '') +
       '<div class="nf-toolbar"><div class="utility-tabs" role="group" aria-label="Show notifications">' +
-      '<button type="button" data-nf-view="all" aria-pressed="' + (notifView === 'all') + '">All · ' + rest.length + '</button>' +
-      '<button type="button" data-nf-view="unread" aria-pressed="' + (notifView === 'unread') + '">New · ' + unread + '</button></div>' +
+      // the counts include NEEDS YOU (shown above, in both views): "New" is the bell badge's own number, never fewer than the
+      // rows on screen (self-driving lane 5 — it read "All · 0" with waiting rows listed, and New disagreed with the bell)
+      '<button type="button" data-nf-view="all" aria-pressed="' + (notifView === 'all') + '">All · ' + (rest.length + waiting.length) + '</button>' +
+      '<button type="button" data-nf-view="unread" aria-pressed="' + (notifView === 'unread') + '">New · ' + (unread + waiting.length) + '</button></div>' +
       '<button class="bb sm" id="nf-clear"' + (!unread ? ' disabled' : '') + '>MARK ALL READ</button></div>' +
       '<div class="nf-list">' + (rows.length ? rows.map(row).join('') : '<div class="empty-state"><span class="es-glyph">▮</span><b>' + (notifView === 'unread' ? 'You’re all caught up' : 'Nothing yet') + '</b><span>' + (notifView === 'unread' ? 'Switch to All to see earlier ones.' : 'When an agent needs your OK, or work finishes while you’re elsewhere, it lands here.') + '</span></div>') + '</div>';
     body.querySelectorAll('[data-nf-view]').forEach(b => b.addEventListener('click', () => {
