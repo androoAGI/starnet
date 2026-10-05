@@ -234,7 +234,9 @@
     let runFilter = null;
     const openState = { blobUrl: '', previewHost: null };
     const revoke = () => revokePreview(openState);
-    body.innerHTML = '<div class="cfg dlv"><h3>DELIVERABLES</h3><p class="muted">Everything your agents actually made, filed under the project it was made for. Open any one to see what you asked for, what came back, and every file it produced. Previews open safely inside StarNet in a browser; desktop OPEN uses your file app.</p>' +
+    // self-driving lane 5: no second DELIVERABLES heading under the MY WORK tab that already says it, and one short line where
+    // a four-line paragraph sat (TO REVIEW still lands right after this p.muted — stationui's deliverables builder)
+    body.innerHTML = '<div class="cfg dlv"><p class="muted dlv-lead">Everything your crew made, filed by project — open one for the ask, the answer and every file.</p>' +
       '<div id="dl-head" class="dlv-head-strip"></div><div id="dl-run-scope" class="cfg-block" hidden></div>' +
       '<div class="deliverables-toolbar"><input id="dl-query" aria-label="Search deliverables" placeholder="search title, agent, project"><select id="dl-status" aria-label="Filter deliverables"><option value="">ALL</option><option value="pending">NEEDS A DECISION</option><option value="produced">DONE</option><option value="kept">KEPT</option><option value="implemented">IMPLEMENTED</option><option value="failed">FAILED</option><option value="discarded">DISCARDED</option></select><button class="bb sm" id="dl-refresh">REFRESH</button><button class="bb sm" id="dl-clean">CLEAN OLD RECORDS</button></div>' +
       '<div id="dl-kinds" class="dlv-kinds"></div>' +

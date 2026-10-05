@@ -45,6 +45,8 @@
 <link rel="stylesheet" href="css/deskscreen.css"><!-- DESK SCREEN: click an agent's workstation → its live work -->
 <link rel="stylesheet" href="css/workflow-panel.css"><!-- the DOCKED Workflow panel of BUILD MODE (workflowpanel.js) — rides the refit glass tokens -->
 <link rel="stylesheet" href="css/workflows-window.css"><!-- WORK › WORKFLOWS (windows/workflows.js): the Workflow panel glass, restated on its own docked window -->
+<link rel="stylesheet" href="css/deliverables-glass.css"><!-- MY WORK › DELIVERABLES: the current glass on its keys, fields and lead line -->
+<link rel="stylesheet" href="css/find-window.css"><!-- SYSTEM › FIND (Ctrl+K): one search for every place, agent and conversation (windows/find.js) -->
 <link rel="stylesheet" href="css/utility-menus.css?v=1">
 <link rel="stylesheet" href="css/glass-demo.css">
 <link rel="stylesheet" href="css/glass-comms.css">
@@ -772,6 +774,7 @@
         <!-- NAV CONDENSE 2: LOGBOOK + RESTORE are per-agent and live in the AGENTS dossier
              (LOGBOOK / RESTORE tabs); openTerm keeps the old keys as deep links. UPDATES stays
              its own window (Andrew's call — check-it-now, not a setting). -->
+        <button class="bb" data-term="find"><span class="bb-i">⌕</span><span class="bb-tx"><b>FIND</b><small>any window, agent or setting · Ctrl+K</small></span></button>
         <button class="bb" data-term="manual" data-hint="manual"><span class="bb-i">§</span><span class="bb-tx"><b>FIELD MANUAL</b><small>first mission, controls &amp; station handbook</small></span></button>
         <button class="bb" data-term="settings" data-hint="settings"><span class="bb-i">⚙</span><span class="bb-tx"><b>SETTINGS</b><small>keys, models, voice, data</small></span></button>
         <button class="bb" data-term="updates" data-hint="update"><span class="bb-i">↑</span><span class="bb-tx"><b>UPDATES</b><small>version &amp; release notes</small></span></button>
@@ -959,6 +962,7 @@
 <script src="app/stationui.js"></script>
 <!-- extracted station windows — each registers itself via StationUI.registerWindow, so they MUST load after stationui.js and before app.js init -->
 <script src="app/windows/trophies.js"></script><!-- TROPHY CASE — real earned achievements + the LIVING TOOLS shelf -->
+<script src="app/windows/find.js"></script><!-- FIND (Ctrl+K) — search every place/agent/conversation; opens through Places.open, the agent's own opener -->
 <script src="app/windows/logbook.js"></script><!-- LOGBOOK dossier lane — per-agent run history (RUNS · SLAG · INSIGHTS; mounts in the AGENTS dossier). Registration order = dossier tab order: LOGBOOK before RESTORE. -->
 <script src="app/windows/rewind.js"></script><!-- RESTORE dossier lane — per-agent workspace checkpoints, two-step confirmed restore (mounts in the AGENTS dossier) -->
 <script src="app/windows/outbox.js"></script><!-- OUTBOX — FINISHED WORK: uncollected finished runs, readable + rateable accordion -->

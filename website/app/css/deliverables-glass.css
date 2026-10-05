@@ -1,0 +1,37 @@
+/* MY WORK › DELIVERABLES — the current glass on the window's chrome (self-driving lane 5, 2026-10-05).
+   The audit (10-04) found the old look here: a CRT 4px key pair (REFRESH / CLEAN OLD RECORDS), a pitch-dark search field and
+   select, a 12px lead. MATERIAL: the Workflow-window glass restated on this window's root, exactly as
+   css/workflows-window.css and css/find-window.css do — 8px glass keys (36px, 16px VT323), the Build Library field (8px,
+   recessed), nothing a Commander reads under 14px, matte (no glow). The deliverable cards keep their own styles here. */
+.term.dlv-win {
+  --refit-glass: linear-gradient(125deg, rgba(var(--ph-bright-rgb),.09), rgba(var(--ph-rgb),.045) 48%, rgba(var(--ph-rgb),.015));
+  --dlv-edge: rgba(var(--ph-rgb),.2);
+  --dlv-light: inset 0 1px 0 rgba(var(--ph-bright-rgb),.07);
+}
+.term.dlv-win .dlv-lead { margin: 2px 0 10px; font-size: 16px; line-height: 1.4; color: var(--ph-dim); text-shadow: none; }
+
+/* keys: the panel's glass key */
+.term.dlv-win .cfg.dlv .bb {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box;
+  min-height: 36px; padding: 7px 14px; font: 16px/1.15 'VT323', monospace; letter-spacing: .6px; white-space: nowrap;
+  color: var(--ph); border: 1px solid var(--dlv-edge); border-radius: 8px;
+  background: var(--refit-glass); box-shadow: var(--dlv-light); text-shadow: none; cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-soft), border-color var(--t-fast) var(--ease-soft), color var(--t-fast) var(--ease-soft);
+}
+.term.dlv-win .cfg.dlv .bb.sm, .term.dlv-win .cfg.dlv .bb.xs { min-height: 34px; padding: 6px 13px; font-size: 16px; }
+.term.dlv-win .cfg.dlv .bb:hover::before, .term.dlv-win .cfg.dlv .bb:hover::after { content: none; }
+.term.dlv-win .cfg.dlv .bb:hover:not(:disabled) { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.45); background: rgba(var(--ph-rgb),.1); box-shadow: var(--dlv-light); }
+.term.dlv-win .cfg.dlv .bb:active:not(:disabled) { box-shadow: inset 0 2px 4px rgba(0,0,0,.35); }
+.term.dlv-win .cfg.dlv .bb:disabled { opacity: .4; cursor: default; }
+
+/* the search field and the status filter: the Build Library field */
+.term.dlv-win .deliverables-toolbar :is(input, select) {
+  box-sizing: border-box; min-height: 36px; padding: 7px 12px;
+  font: 17px/1.3 'VT323', monospace; color: var(--ph-bright); text-shadow: none; outline: none;
+  border: 1px solid var(--dlv-edge); border-radius: 8px; background: rgba(0,0,0,.18); box-shadow: inset 0 1px 3px rgba(0,0,0,.15);
+  transition: border-color var(--t-fast) var(--ease-soft), box-shadow var(--t-fast) var(--ease-soft);
+}
+.term.dlv-win .deliverables-toolbar :is(input, select):hover { border-color: rgba(var(--ph-rgb),.38); }
+.term.dlv-win .deliverables-toolbar :is(input, select):focus { border-color: var(--ph); box-shadow: 0 0 0 2px rgba(var(--ph-rgb),.1); }
+.term.dlv-win .deliverables-toolbar input::placeholder { color: var(--text); opacity: .55; }
+.term.dlv-win .deliverables-toolbar select option { background: var(--panel); color: var(--text); }
