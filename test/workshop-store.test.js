@@ -239,7 +239,7 @@ function freshStore() {
 
   // ---- 7. normalize is defensive: partial/legacy/absent records load to a full safe shape ----
   {
-    A.eq(normalize(null), { grant: false, grantExplicit: false, grantAuto: false, backlog: [], denylist: [], deniedTitles: [], lastShift: null }, 'null -> empty safe record');
+    A.eq(normalize(null), { grant: false, grantExplicit: false, grantAuto: false, backlog: [], denylist: [], deniedTitles: [], lastShift: null, superseded: [] }, 'null -> empty safe record');
     A.eq(normalize({ grant: true }).grant, true, 'partial record keeps its grant');
     A.eq(normalize({ backlog: [{ id: 'ok' }, { nope: 1 }, 'junk'] }).backlog.length, 1, 'backlog drops entries without an id');
     A.eq(normalize({ denylist: ['a', 1, null, 'b'] }).denylist, ['a', '1', 'b'], 'denylist coerces to non-empty strings');
@@ -332,6 +332,37 @@ function freshStore() {
     A.ok(s2.read('hero').lastShift && s2.read('hero').lastShift.reason === 'no-capability', 'lastShift SURVIVES a fresh store (restart-safe)');
     await s.setLastShift('hero', { at: 2000, reason: 'built', runId: 'r9', title: 'thing' });
     A.eq(s.read('hero').lastShift.reason, 'built', 'a newer shift outcome replaces the old one');
+  }
+
+  // PRIOR-WORK provenance (2026-10-05): the focus a build served + the build it continues round-trip; junk is refused.
+  {
+    const fs = memFs();
+    const s = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    await s.queue('hero', { id: 'ns-act-a', title: 'Continue: parkour', focusRef: 'C:/code/parkour', continuesRunId: 'run-1' }, 10);
+    await s.queue('hero', { id: 'ns-act-b', title: 'other', continuesRunId: '../../etc' }, 11);
+    const s2 = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    const a = s2.backlogOf('hero').find(b => b.id === 'ns-act-a');
+    A.ok(a && a.focusRef === 'C:/code/parkour' && a.continuesRunId === 'run-1', 'focusRef + continuesRunId survive a fresh store');
+    A.eq(s2.backlogOf('hero').find(b => b.id === 'ns-act-b').continuesRunId, undefined, 'a non-id continuesRunId is not stored');
+  }
+
+  // ---- SUPERSEDE: a continuation retires the older undecided version (one version waiting, never a pile) ----
+  {
+    const fs = memFs();
+    const s = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    await s.queue('hero', { id: 'v1', title: 'Parkour prototype' }, 1);
+    await s.markBuilt('hero', 'v1', 'run-v1', 2);
+    await s.queue('hero', { id: 'v2', title: 'Continue: Parkour prototype', continuesRunId: 'run-v1' }, 3);
+    await s.markBuilt('hero', 'v2', 'run-v2', 4);
+    const r = await s.supersede('hero', 'run-v1', 'run-v2', 5);
+    A.ok(r.superseded && r.title === 'Parkour prototype', 'supersede reports the retired version');
+    const s2 = makeWorkshopStore({ fs, path, workspaces: '/ws', writeDurable });
+    const ids = s2.backlogOf('hero').map(b => b.id).join(',');
+    A.eq(ids, 'v2', 'only the newest version stays waiting (survives a fresh store)');
+    A.ok(!s2.isDenied('hero', 'v1'), 'superseded is NOT discarded — the work was continued, not rejected');
+    A.eq(s2.read('hero').superseded.map(x => x.runId + '>' + x.by).join(','), 'run-v1>run-v2', 'the provenance trail survives a restart');
+    A.eq((await s2.supersede('hero', 'run-v1', 'run-v2', 6)).superseded, false, 'superseding twice is a no-op');
+    A.eq((await s2.supersede('hero', 'run-v2', 'run-v2', 7)).superseded, false, 'a build never supersedes itself');
   }
 
   A.report('workshop-store.test');

@@ -26,6 +26,14 @@
      deps.emit(name, payload)        -> void             // OPTIONAL: a validated emitter for a status pulse (no-op default)
      deps.agentId                    -> string           // the agent the night shift acts as (default 'agent')
      deps.awayThresholdMs, deps.beatIntervalMs -> int    // the knobs (env-tunable + a dev override in index.js)
+     deps.declineRepeatMs            -> int              // OPTIONAL: re-log an UNCHANGED decline at most this often (1h)
+
+   EDGE-TRIGGERED DECLINES (2026-10-05 audit item 5): the tick runs every ~60s and used to ledger a 'decline' EVERY
+   tick — 3,111 of 3,168 live ledger rows were the same "daily limit used up", which pushed every real decision out
+   of the morning report's newest-200 window. A decline is now ledgered only when its reason (binding + preSpend)
+   CHANGES from the previous tick's, or once per declineRepeatMs while it holds. Nothing the status panel needs is
+   lost: status reads the LIVE decision (statusDecision), never the ledger, and each logged decline carries
+   heldTicks/heldBinding — how many identical ticks the PREVIOUS logged reason held for after it was written.
 
    ONE BEAT AT A TIME: a beat runs asynchronously (the model calls take seconds); `beatRunning` guards re-entry so
    a second tick during an in-flight beat is a clean no-op (like cron's per-job lease, but there is exactly ONE
@@ -55,11 +63,26 @@
     const agentId = String(d.agentId || 'agent');
     const awayThresholdMs = d.awayThresholdMs;
     const beatIntervalMs = d.beatIntervalMs;
+    const declineRepeatMs = Number.isFinite(d.declineRepeatMs) && d.declineRepeatMs >= 0 ? d.declineRepeatMs : 3600000;
     if (typeof getState !== 'function' || typeof setState !== 'function') throw new Error('nightshift-driver: getState/setState are required');
     if (typeof beat !== 'function') throw new Error('nightshift-driver: beat is required');
 
     let beatRunning = false;               // the one-beat-at-a-time guard (a beat's model calls take seconds)
     let currentAbort = null;               // the in-flight beat's AbortController (for the E-STOP hook)
+    let lastDecline = null;                // { key, binding, at, held } — the last LOGGED decline (edge-trigger memory)
+
+    // ledger a decline iff its reason changed since the last logged one, or the same reason has held for
+    // declineRepeatMs. Returns true when written. A suppressed tick only counts toward the held tally.
+    function logDecline(nowMs, entry, force) {
+      const key = String(entry.binding) + '|' + (entry.preSpend ? 1 : 0);
+      const fresh = force || !lastDecline || lastDecline.key !== key || !(nowMs >= lastDecline.at) || (nowMs - lastDecline.at) >= declineRepeatMs;
+      if (!fresh) { lastDecline.held += 1; return false; }
+      const out = Object.assign({}, entry);
+      if (lastDecline && lastDecline.held > 0) { out.heldTicks = lastDecline.held; out.heldBinding = lastDecline.binding; }
+      try { ledger(out); } catch (_) {}
+      lastDecline = { key: key, binding: entry.binding, at: nowMs, held: 0 };
+      return true;
+    }
 
     // gather the live gate inputs the pure planner needs (posture booleans + the knobs + presence + halt).
     function gather(nowMs) {
@@ -145,7 +168,7 @@
       // Declines are final now, so ledger them immediately. A would-be beat is ledgered ONLY after its durable
       // leash/accounting write succeeds below; otherwise the morning report would claim an unaccounted act.
       if (!fireNow) {
-        try { ledger({ ts: nowMs, kind: 'decline', binding: binding, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: (decision.fire && !preOk) || undefined }); } catch (_) {}
+        logDecline(nowMs, { ts: nowMs, kind: 'decline', binding: binding, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: (decision.fire && !preOk) || undefined });
         return { fired: false, binding: binding, decision: decision };
       }
 
@@ -155,10 +178,13 @@
       // correct even if the pipeline then stands down (that stand-down cost a model call; anti-runaway holds).
       try { setState(nightshift.recordBeat(getState(), nowMs)); }
       catch (e) {
-        try { ledger({ ts: nowMs, kind: 'decline', binding: 'persist-failed', agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: true }); } catch (_) {}
+        logDecline(nowMs, { ts: nowMs, kind: 'decline', binding: 'persist-failed', agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: true }, true);
         return { fired: false, binding: 'persist-failed', decision: decision };
       }
-      try { ledger({ ts: nowMs, kind: 'beat', binding: null, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away }); } catch (_) {}
+      const beatEntry = { ts: nowMs, kind: 'beat', binding: null, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away };
+      if (lastDecline && lastDecline.held > 0) { beatEntry.heldTicks = lastDecline.held; beatEntry.heldBinding = lastDecline.binding; }
+      lastDecline = null;   // a beat breaks the decline run: the next decline (e.g. cooldown) is a NEW edge and logs
+      try { ledger(beatEntry); } catch (_) {}
 
       beatRunning = true;
       const ac = newAbort();
@@ -203,7 +229,7 @@
       statusDecision: statusDecision,
       runInFlight: function () { return beatRunning; },
       abortBeat: abortBeat,
-      _internals: { finishBeat: finishBeat, gather: gather }
+      _internals: { finishBeat: finishBeat, gather: gather, lastDecline: function () { return lastDecline ? Object.assign({}, lastDecline) : null; } }
     };
   }
 

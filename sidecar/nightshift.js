@@ -17,7 +17,9 @@
 
    THE PERSISTED DRIVER STATE (one small workspaces JSON, so a restart resumes mid-night, not resets):
      { v, day, beatsUsedToday, lastBeatAt }
-   day = the UTC day-bucket the counter belongs to (floor(now/86400000)); a new day rolls beatsUsedToday to 0.
+   day = the LOCAL calendar-day the counter belongs to (localday.js — the host injects the machine's timezone; an
+   unconfigured process is UTC); a new day rolls beatsUsedToday to 0. v1 states were stamped with the UTC bucket and
+   are re-keyed on load (see normalize) so the switch neither refills nor double-spends a leash.
 
    THE GATES (each individually binding; decide() names WHICH one blocks a beat, for truthful telemetry):
      · posture     — initiative must be ≥ 'leash' (the dial permits acting unattended). Below that → binding:'posture'.
@@ -29,18 +31,20 @@
    ONLY when every gate clears does decide() return { fire:true, binding:null }. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('./localday.js') : (root.SK && root.SK.localday));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).nightshift = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (LocalDay) {
   'use strict';
 
-  const STATE_VERSION = 1;
+  const STATE_VERSION = 2;   // v2 (2026-10-05): `day` is the LOCAL calendar day (v1 = UTC bucket)
   const DEFAULT_AWAY_MS = 30 * 60 * 1000;    // "the Commander stepped out" = no user-surface activity for 30 min
   const DEFAULT_BEAT_MS = 45 * 60 * 1000;    // steady cadence: at most one autonomous beat every ~45 min
   const DAY_MS = 86400000;
 
-  const dayOf = (t) => Math.floor((Number(t) || 0) / DAY_MS);   // a UTC day bucket — deterministic, no Date needed
+  // the LOCAL calendar day (the leash resets at the Commander's midnight, not UTC's). Deterministic: the offset is
+  // injected into localday.js by the host; `tz` optionally pins one for a single call (tests).
+  const dayOf = (t, tz) => LocalDay.dayOf(t, tz);
 
   // fresh() — the safe floor: no beats spent, no beat ever fired. day is set the first time state is rolled.
   function fresh(now) { return { v: STATE_VERSION, day: dayOf(now || 0), beatsUsedToday: 0, lastBeatAt: 0, haltedAt: 0 }; }
@@ -54,6 +58,11 @@
       if (Number.isFinite(raw.beatsUsedToday) && raw.beatsUsedToday >= 0) s.beatsUsedToday = Math.floor(raw.beatsUsedToday);
       if (Number.isFinite(raw.lastBeatAt) && raw.lastBeatAt >= 0) s.lastBeatAt = Math.floor(raw.lastBeatAt);
       if (Number.isFinite(raw.haltedAt) && raw.haltedAt >= 0) s.haltedAt = Math.floor(raw.haltedAt);   // NS E-STOP durable halt
+      // v1 → v2 RE-KEY: a v1 `day` is a UTC bucket. When the newest beat belongs to that bucket, its LOCAL day is
+      // the honest key for the counter (those beats happened on that local day) — so the upgrade neither refills
+      // an already-spent leash nor charges today for yesterday. Otherwise the counter holds no beats from a known
+      // instant; keep the value and let rollDay compare it normally. Offset 0 makes this an identity.
+      if (raw.v === 1 && s.lastBeatAt > 0 && LocalDay.utcDayOf(s.lastBeatAt) === s.day) s.day = dayOf(s.lastBeatAt);
     }
     return s;
   }

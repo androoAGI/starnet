@@ -41,7 +41,7 @@ const builds = [
   { runId: 'b-new', agentId: 'agent', title: 'Speedrun timer v2', summary: 'adds split times.', builtAt: 1800000 },
   { runId: 'b-old', agentId: 'agent', title: 'Speedrun timer', builtAt: 400000 }
 ];
-const drafts = [{ title: 'Idea one', at: 1500000 }, { title: 'Stale idea', at: 10 }];
+const drafts = [{ title: 'Idea one', at: 1500000 }, { title: 'Stale idea', at: 10 }, { title: 'Speedrun timer v2', at: 1800000 }];
 const jobs = [{ id: 'news', name: 'Daily AI news' }, { id: 'inbox', name: 'Inbox sweep' }, { id: 'quiet', name: 'Price watch' }];
 b = B.compose({ since: SINCE, now: NOW, tzOffsetMin: 0, runs, builds, drafts, jobs, loops: [{ id: 'L9', name: 'Ship landing page' }], focus: { title: '5.6 test', why: ['you worked on it 4 of the last 7 days'] } });
 A.ok(!b.empty, 'real unattended work → a briefing');
@@ -51,7 +51,7 @@ A.eq(b.counts.routines, 3, 'three distinct routines grouped by job (not one row 
 A.eq(b.counts.routineRuns, 4, 'four routine fires in total');
 A.eq(b.counts.failed, 2, 'one failed routine + one unfinished build');
 A.eq(b.counts.loops, 1, 'one loop');
-A.eq(b.counts.drafts, 1, 'only drafts inside the window count');
+A.eq(b.counts.drafts, 1, 'only drafts inside the window count, and a build’s own desk-draft echo is not a second item');
 A.ok(b.text.indexOf('my own chat') === -1 && b.text.indexOf('propose candidates') === -1, 'interactive + internal runs never leak into the text');
 A.ok(/Waiting on you[\s\S]*Speedrun timer v2[\s\S]*Done/.test(b.text), 'needs-you section comes before done');
 A.ok(b.text.indexOf('adds split times. It’s waiting on you') !== -1, 'a summary ending in a period never doubles it');

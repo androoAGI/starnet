@@ -27,7 +27,10 @@
                   `path:*` grants, so a revoke takes effect on the very next call with no restart).
      bless      : async (rootReal, { isGitRepo, now }) => bool  — persist the standing grant + upsert the
                   known-projects store (persist-before-commit in index.js); false ⇒ deny (never committed).
-     touch      : (rootReal, absPath) => void  — bump lastTouchedAt on I/O under a known root (best-effort).
+     touch      : (rootReal, absPath, meta) => void  — bump lastTouchedAt on I/O under a known root (best-effort).
+                  meta.user === true iff a USER-caused run did the I/O (guard o.userTouch, default: surface ===
+                  'interactive'). The host bumps recency ONLY for user touches: the agent's own away work must
+                  never keep its folder "most recently worked in" (the self-reinforcing night-focus loop, 2026-10-05).
      isGitRepoOf: async (rootReal) => bool  — light metadata for the store (has a .git entry).
      workspaceRoot: absolute parent of the private per-agent workspaces; standing grants and Full Access do
                   not override ownership beneath this root.
@@ -128,6 +131,9 @@
       const prompt = typeof o.prompt === 'function' ? o.prompt : null;
       const fullAccess = o.fullAccess === true;
       const unrestrictedHost = o.unrestrictedHost === true;
+      // WHO caused this I/O, for recency metadata only (never an authority input): an explicit host-minted flag wins,
+      // otherwise a watched interactive run is the user's and everything else is the agent's.
+      const userTouch = (o.userTouch === true || o.userTouch === false) ? o.userTouch : surface === 'interactive';
 
       const raw = String(absPath == null ? '' : absPath);
       const norm = P.resolve(raw);
@@ -175,7 +181,7 @@
       // 1. already under a blessed root? reads flow; the write-scope boundary is the broker's job upstream.
       for (const R of rootsFn()) {
         if (!R) continue;
-        if (pathInside(real, R)) { touch(R, norm); return { base: R, abs: norm }; }
+        if (pathInside(real, R)) { touch(R, norm, { user: userTouch }); return { base: R, abs: norm }; }
       }
 
       // 2. not blessed. In ASK mode only a watched, prompt-wired run may approve a new root. Full Access is
@@ -220,7 +226,7 @@
         const isGit = await isGitRepoOf(proposedReal);
         const ok = await bless(proposedReal, { isGitRepo: isGit, now: now() });
         if (!ok) throw new Error('could not persist project trust — denied: ' + proposed);
-        touch(proposedReal, norm);
+        touch(proposedReal, norm, { user: userTouch });
         return { base: proposedReal, abs: norm };
       }
       // "once": allow THIS access only, without persisting a root — the next access asks again, as promised.

@@ -255,6 +255,7 @@ test/embed.test.js
 test/threadstore.test.js
 test/autopilot-threads.test.js
 test/autopilot-focus.test.js
+test/autopilot-focus-veto.test.js
 test/apiauth.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js
@@ -485,6 +486,8 @@ test/autopilot.test.js
 test/autopilotstore.test.js
 test/nightshift.test.js
 test/nightshift-driver.test.js
+test/nightshift-localday.test.js
+test/nightshift-decline-edge.test.js
 test/contextpack.test.js
 test/nightreport.test.js
 test/autonomy-write.test.js
@@ -496,6 +499,8 @@ test/folderpick.test.js
 test/pathtrust.test.js
 test/workspace-reserved.test.js
 test/nightfocus.test.js
+test/nightfocus-workflow.test.js
+test/priorwork.test.js
 test/nightpatch.test.js
 test/projectscan.test.js
 test/discovery.test.js

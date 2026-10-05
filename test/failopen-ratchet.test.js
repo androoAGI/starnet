@@ -172,7 +172,7 @@ const SYNC_BASELINE = {
   'mcp/transport.stdio.js': 5,
   'media-service.js': 21,
   'native-stt.js': 1,
-  'nightshift-driver.js': 6,
+  'nightshift-driver.js': 5,
   'openai-compat.js': 18,
   'output-artifacts.js': 2,
   'pathtrust.js': 2,

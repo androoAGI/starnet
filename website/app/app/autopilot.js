@@ -288,6 +288,31 @@
     for (const p of list.slice(0, 6)) lines.push('- ' + String(p).replace(/\s+/g, ' ').trim().slice(0, 160));
     return true;
   }
+  // PRIOR BUILDS (2026-10-05 audit item 1): what earlier NIGHTS already built/drafted for this focus (last ~14 days,
+  // each with its status + where its files live — server: priorwork.promptLines). Without it the same prototype was
+  // rebuilt night after night. The host ALSO vetoes near-duplicates (priorwork.veto); this block is the courtesy that
+  // lets the model propose the continuation itself. Returns whether anything was rendered.
+  function pushPriorBuilds(lines, prior) {
+    const list = Array.isArray(prior) ? prior.filter(Boolean) : [];
+    if (!list.length) return false;
+    lines.push('ALREADY BUILT ON EARLIER NIGHTS (last 14 days) — continue or improve these, do NOT rebuild them:');
+    for (const p of list.slice(0, 12)) lines.push('- ' + String(p).replace(/\s+/g, ' ').trim().slice(0, 220));
+    return true;
+  }
+  // the CONTINUE block for a do directive: the selected job iterates on an earlier build instead of starting over.
+  //   cont: { title, where, files:[path], summary, seeded }  (seeded = the host already copied its files into dir)
+  function pushContinueBlock(lines, cont, dir) {
+    if (!cont || !String(cont.title || '').trim()) return false;
+    const files = (Array.isArray(cont.files) ? cont.files : []).filter(Boolean).slice(0, 20);
+    // seeded: name only the NEW dir (one unambiguous place to work); otherwise point at where the old files live.
+    lines.push('CONTINUE, DO NOT RESTART: this job builds on your earlier build "' + String(cont.title).trim().slice(0, 120) + '"'
+      + (!(cont.seeded && dir) && cont.where ? ' (' + String(cont.where).trim() + ')' : '') + '.'
+      + (cont.seeded && dir ? ' Its files are ALREADY COPIED into "' + dir + '/" — open them, keep what works, and improve them in place.'
+        : (cont.where && cont.where !== 'desk draft' ? ' Read its files there first, then write the improved, complete version.' : ' Extend and improve that earlier draft rather than starting a new one.')));
+    if (files.length) lines.push('- its files: ' + files.join(', '));
+    if (String(cont.summary || '').trim()) lines.push('- what it was: ' + String(cont.summary).replace(/\s+/g, ' ').trim().slice(0, 240));
+    return true;
+  }
 
   // THE CANDIDATE DIRECTIVE — the reason-only task that asks the model for a few grounded, achievable-now job ideas
   // (it carries the dossier in its live system prompt; this hands the beliefs + the recent activity + the eligible
@@ -307,12 +332,14 @@
     const hasActivity = pushActivityBlock(lines, ctx.activity);
     pushSnapshotBlock(lines, ctx.projectSnapshot);
     pushPriorTonight(lines, ctx.priorTonight);
+    const hasPrior = pushPriorBuilds(lines, ctx.priorBuilds);
     const dimLine = (key, label) => { const arr = Array.isArray(beliefs[key]) ? beliefs[key].filter(Boolean) : []; if (arr.length) lines.push('- ' + label + ': ' + arr.join(' | ')); };
     lines.push('What you know about them:');
     dimLine('goals', 'Goals'); dimLine('pain', 'Pain points'); dimLine('ambition', 'Ambitions'); dimLine('stack', 'Stack & tools'); dimLine('standing_orders', 'Standing orders'); dimLine('style', 'Working style'); dimLine('people', 'People & audience (who the work is for)'); dimLine('schedule', 'Schedule & cadence (when work should land)');
     lines.push('Each job must be ONE of these kinds: ' + eligible.map(a => a.id + ' (' + a.blurb + ')').join(', ') + '.');
     lines.push('Hard rules:');
     if (hasFocus) lines.push('- STAY ON FOCUS: the single best job MUST advance TONIGHT\'S FOCUS above. A job that wanders off it is worse than a smaller job that moves it.');
+    if (hasPrior) lines.push('- NO REBUILDS: never propose a job that re-makes one of the ALREADY BUILT items above. To work on one, title the job "Continue: <its title>" and say in SPEC what you will improve. Prefer continuing the newest UNDECIDED build over starting something new.');
     if (hasThreads) lines.push('- PREFER AN OPEN THREAD: if any thread above fits, propose it and cite its tag in GROUNDS (e.g. GROUNDS: [t1] ...). A grounded open thread beats a fresh idea. If none fit, improvise a grounded idea as below.');
     if (hasActivity) lines.push('- CONTINUE THEIR WORK: prefer a job that directly advances, unblocks, or extends something in "What they worked on recently" above — that beats a generic idea. But stay HONEST: only cite work that is actually listed; never invent activity.');
     lines.push('- GROUNDED: every job must aim at a SPECIFIC thing above (an open thread / a real recent job / goal / pain / etc). Quote the exact thing in GROUNDS. If you cannot ground it in something you actually know or they actually did, do not propose it.');
@@ -327,12 +354,71 @@
     return lines.join('\n');
   }
 
+  /* ---- THE FOCUS-ADVANCEMENT VETO (2026-10-05 audit item 3) ----
+     A declared night focus used to be PROMPT-ONLY: the directive said "everything must advance TONIGHT'S FOCUS", but
+     nothing checked, so a candidate about something else entirely was selected and built under the focus banner.
+     When a focus is declared, a candidate now survives only if its text (title + grounds + spec) shares at least one
+     significant token with the focus's own evidence — its label, its ref's name, its cited why-lines, plus any extra
+     evidence the host hands in (the harness-read project snapshot for a project focus). Deliberately LENIENT: one
+     shared word is enough, and a candidate citing the focus thread's own id always passes. The words the resolver's
+     why-line TEMPLATES are made of ("you worked in … last touched today", "an open thread you raised …") are not
+     evidence and are excluded, otherwise every candidate mentioning "repo" or "today" would pass for free. */
+  const FOCUS_STOP = {};
+  ('the and for with that this from into onto your you yours are was were has have had not can will just than then '
+    + 'them they their there what when where which while who how why its our out over also only very more most '
+    + 'worked work working last touched today yesterday ago git repo read patch recent run runs point points open thread '
+    + 'threads raised never acted quest quests beat advance slate active goal arc done next step confirmed north star '
+    + 'asked ask focus outranks picked pick tonight night times time separate day days workflow keep keeps seen '
+    + 'commander because would could should about every other thing things stuff really around').split(/\s+/).forEach(w => { if (w) FOCUS_STOP[w] = 1; });
+  function focusStem(w) { return (w.length > 4 && w.endsWith('s') && !w.endsWith('ss')) ? w.slice(0, -1) : w; }
+  function focusTokens(s) {
+    const out = {};
+    for (const w of String(s == null ? '' : s).toLowerCase().match(/[a-z0-9]+/g) || []) {
+      if (w.length < 3 || FOCUS_STOP[w] || STOPWORDS[w] || /^\d+$/.test(w)) continue;
+      out[focusStem(w)] = 1;
+    }
+    return out;
+  }
+  function focusRefName(focus) {
+    const ref = String((focus && focus.ref) || '');
+    if (!focus || focus.kind !== 'project') return '';
+    const t = ref.replace(/[\\/]+$/, '');
+    const i = Math.max(t.lastIndexOf('/'), t.lastIndexOf('\\'));
+    return i >= 0 ? t.slice(i + 1) : t;
+  }
+  // the focus's evidence texts (label, ref name, why lines) + host extras. Pure.
+  function focusEvidenceTexts(focus, extra) {
+    const out = [];
+    if (focus && typeof focus === 'object') {
+      if (focus.label) out.push(String(focus.label));
+      const rn = focusRefName(focus); if (rn) out.push(rn);
+      for (const w of (Array.isArray(focus.why) ? focus.why : [])) if (w) out.push(String(w));
+    }
+    for (const e of (Array.isArray(extra) ? extra : [])) if (e) out.push(String(e));
+    return out;
+  }
+  // does candidate `cand` advance `focus`? true when no focus is declared (nothing to check against).
+  function advancesFocus(cand, focus, extraEvidence) {
+    if (!focus || typeof focus !== 'object' || !(focus.label || focus.ref)) return true;
+    const c = cand || {};
+    if (focus.kind === 'thread' && c.threadId && String(c.threadId) === String(focus.ref || focus.threadId || '')) return true;
+    const text = [c.title, c.grounds, c.spec].filter(Boolean).join(' ');
+    const lower = text.toLowerCase();
+    const label = String(focus.label || '').toLowerCase().trim();
+    if (label.length >= 3 && lower.indexOf(label) >= 0) return true;
+    const cTok = focusTokens(text);
+    const fTok = focusTokens(focusEvidenceTexts(focus, extraEvidence).join(' . '));
+    for (const w in cTok) if (fTok[w]) return true;
+    return false;
+  }
+
   // parse the candidate reply, tolerantly + with the GROUNDING VETO. Keeps a candidate only with a title, an
   // eligible KIND, a non-empty SPEC, and GROUNDS that is actually anchored in the provided EVIDENCE (structure
   // overrules the model). NS-2 widens the evidence pool: a candidate's GROUNDS may cite a static dossier BELIEF OR a
   // recent-ACTIVITY line (a real run/chat/goal/landed-work line from the context pack) — the token-overlap mechanics
   // are unchanged, so invented grounding (zero overlap with EITHER pool) still dies. opts: { eligible:[archetype],
-  // beliefs (map|array), activity:[line], requireGrounding:true }
+  // beliefs (map|array), activity:[line], requireGrounding:true, focus?:{kind,ref,label,why}, focusEvidence?:[line],
+  // onDrop?:(cand, reason) }. With `focus`, the FOCUS veto (advancesFocus) also applies.
   function parseCandidates(text, opts) {
     opts = opts || {};
     const eligibleIds = {};
@@ -366,6 +452,11 @@
       if (conf !== 'high' && conf !== 'medium' && conf !== 'low') conf = 'medium';
       const cand = { title: title.slice(0, 80), archetype: kind, grounds, confidence: conf, spec };
       if (threadId) cand.threadId = threadId;
+      // the FOCUS veto (host-enforced, not prompt-only): with a declared focus, an off-focus candidate never survives.
+      if (opts.focus && !advancesFocus(cand, opts.focus, opts.focusEvidence)) {
+        if (typeof opts.onDrop === 'function') { try { opts.onDrop(cand, 'off-focus'); } catch (_) {} }
+        continue;
+      }
       out.push(cand);
     }
     return out;
@@ -403,6 +494,7 @@
     const lines = [];
     lines.push('INTERNAL — SELF-DIRECTED WORK. The Commander is away. Do not run any tools. Reason only, then reply in the exact format below.');
     pushFocusBlock(lines, ctx.focusHeader);
+    pushContinueBlock(lines, ctx.continueFrom, '');
     lines.push('Do this ONE job now and leave a finished draft on their desk:');
     lines.push('- JOB: ' + String(selected.title || '').trim());
     if (selected.grounds) lines.push('- WHY IT MATTERS TO THEM: ' + String(selected.grounds).trim());
@@ -454,12 +546,14 @@
     const hasActivity = pushActivityBlock(lines, ctx.activity);
     const hasSnapshot = pushSnapshotBlock(lines, ctx.projectSnapshot);
     pushPriorTonight(lines, ctx.priorTonight);
+    const hasPrior = pushPriorBuilds(lines, ctx.priorBuilds);
     const dimLine = (key, label) => { const arr = Array.isArray(beliefs[key]) ? beliefs[key].filter(Boolean) : []; if (arr.length) lines.push('- ' + label + ': ' + arr.join(' | ')); };
     lines.push('What you know about them:');
     dimLine('goals', 'Goals'); dimLine('pain', 'Pain points'); dimLine('ambition', 'Ambitions'); dimLine('stack', 'Stack & tools'); dimLine('standing_orders', 'Standing orders'); dimLine('style', 'Working style'); dimLine('people', 'People & audience (who the work is for)'); dimLine('schedule', 'Schedule & cadence (when work should land)');
     lines.push('Each job must be ONE of these kinds: ' + eligible.map(a => a.id + ' (' + a.blurb + ')').join(', ') + '.');
     lines.push('Hard rules:');
     if (hasFocus) lines.push('- STAY ON FOCUS: the single best job MUST advance TONIGHT\'S FOCUS above.');
+    if (hasPrior) lines.push('- NO REBUILDS: never propose a job that re-makes one of the ALREADY BUILT items above. To work on one, title the job "Continue: <its title>" and say in SPEC what you will improve. Prefer continuing the newest UNDECIDED build over starting something new.');
     if (hasSnapshot) lines.push('- PATCH THE REAL PROJECT: base your change on the PROJECT SNAPSHOT above. Your artifact for a code change is a UNIFIED-DIFF .patch file (git-apply-able from the repo root) plus a one-line "howToUse" — the Commander applies it to a new branch on Keep. Set the manifest "kind":"patch" and include "targetRoot":"<the project root path shown in the snapshot header>".');
     if (hasThreads) lines.push('- PREFER AN OPEN THREAD: if any thread above fits, build it and cite its tag in GROUNDS (e.g. GROUNDS: [t1] ...). A grounded open thread beats a fresh idea. If none fit, improvise a grounded idea as below.');
     if (hasActivity) lines.push('- CONTINUE THEIR WORK: prefer a job that directly advances, unblocks, or extends something in "What they worked on recently" above — that beats a generic idea. But stay HONEST: only cite work that is actually listed; never invent activity.');
@@ -526,6 +620,7 @@
     lines.push('- JOB: ' + String(selected.title || '').trim());
     if (selected.grounds) lines.push('- WHY IT MATTERS TO THEM: ' + String(selected.grounds).trim());
     if (selected.spec) lines.push('- DONE WHEN: ' + String(selected.spec).trim());
+    pushContinueBlock(lines, ctx.continueFrom, dir);
     const hasSnap = pushSnapshotBlock(lines, ctx.projectSnapshot);
     lines.push('RULES:');
     if (hasSnap && String(ctx.targetRoot || '').trim()) {
@@ -670,8 +765,8 @@
   return {
     idleFor, readiness, decide, newestStamp,
     eligibleArchetypes, grounded, sigTokens, flattenBeliefs, pushActivityBlock,
-    pushThreadsBlock, citedThreadId, threadRef, pushFocusBlock, pushSnapshotBlock, pushPriorTonight,
-    buildCandidateDirective, parseCandidates, scoreAndSelect, buildDoDirective, parseDeliverable,
+    pushThreadsBlock, citedThreadId, threadRef, pushFocusBlock, pushSnapshotBlock, pushPriorTonight, pushPriorBuilds, pushContinueBlock,
+    buildCandidateDirective, parseCandidates, scoreAndSelect, advancesFocus, focusTokens, focusEvidenceTexts, buildDoDirective, parseDeliverable,
     buildCandidateDirectiveV2, buildDoDirectiveV2, planRuleFor, planOnlyFieldFor, finishRuleFor, learnFold, learnWeightsFrom,
     buildCritiqueDirective, parseCritique, digestLines, digestSummary, digestHeadline,
     writePath, canWrite, fileBody,

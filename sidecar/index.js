@@ -257,6 +257,8 @@ const { makeLoopDriver } = require('./loopjob-driver.js'); // LOOPS: the verdict
 const loopcheck = require('./loopjob-check.js');           // LOOPS: pure host-check verdict + tamper guard
 const loopgit = require('./loopgit.js');                   // LOOPS: pure git harvest decision (branch, pathspec, undo plan)
 const nightshift = require('./nightshift.js');            // NS-1: pure planner for the server-owned night-shift driver
+const LocalDay = require('./localday.js');
+const PriorWork = require('./priorwork.js');              // the night shift's memory of earlier builds + the near-duplicate veto                // the LOCAL calendar-day key (leash/focus/tonight) — offset injected below
 const { makeNightshiftDriver } = require('./nightshift-driver.js'); // NS-1: the restart-safe idle-autonomy tick driver
 const contextpack = require('./contextpack.js');          // NS-2: pure recency-weighted context pack for the propose step
 const AwayBriefing = require('./away-briefing.js');   // THE ONE RETURN REPORT: every unattended outcome folded into one briefing
@@ -3514,7 +3516,11 @@ const pathTrustCore = makePathTrust({
   roots: blessedRoots,
   workspaceRoot: WORKSPACES,
   bless: async (rootReal, m) => blessProjectRoot(rootReal, m),
-  touch: (rootReal, abs) => { try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
+  // RECENCY IS THE USER'S (2026-10-05): lastTouchedAt feeds the night focus ("you worked in X — last touched today"),
+  // so ONLY user-caused I/O may bump it. The night shift's own away work under a project used to refresh its folder
+  // every night, making the agent's last build the reason for tonight's focus (a self-reinforcing loop). Autonomous
+  // touches are simply not recency evidence; meta.user comes from runPathTrust (interactive or owner-trusted DM).
+  touch: (rootReal, abs, meta) => { if (!meta || meta.user !== true) return; try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
   isGitRepoOf: projectIsGitRepo,
   now: () => Date.now()
 });
@@ -6217,6 +6223,14 @@ function cronTickHealthy() {
 
 // ---- the persisted driver state ({ v, day, beatsUsedToday, lastBeatAt }) — a sibling of cron.jobs.json, so a
 //      restart RESUMES mid-night (same day → same spent leash) instead of resetting. Durable temp→fsync→rename.
+// THE DAY KEY IS THE COMMANDER'S LOCAL DAY (2026-10-05): the leash, the night focus and the "tonight" scope all key
+// on localday.js. Inject this machine's DST-aware offset once, before the first state load. SKYNET_TZ_OFFSET_MIN
+// (minutes EAST of UTC, e.g. -300 for EST) pins a fixed zone for tests/QA; unset = the real machine zone.
+(function configureLocalDay() {
+  const pinned = String(ENV('TZ_OFFSET_MIN') || '').trim();
+  if (pinned && isFinite(Number(pinned))) LocalDay.configure(Number(pinned) * 60000);
+  else LocalDay.configure((ms) => -new Date(ms).getTimezoneOffset() * 60000);
+})();
 const NIGHTSHIFT_STATE_FILE = path.join(WORKSPACES, 'nightshift.state.json');
 function loadNightshiftState() {
   try { return nightshift.loadEnvelope(loadResilient(NIGHTSHIFT_STATE_FILE, 'nightshift'), Date.now()); }
@@ -6295,7 +6309,28 @@ function nightFocusInputs() {
   // rule), so a cold histogram leaves the resolution byte-identical. Bounded + fail-open like every field above.
   let topics = [];
   try { topics = personalizationStore.read().enabled ? Interests.summary(interestsState, { now: now, limit: 8 }) : []; } catch (_) { topics = []; }
-  return { projects, threads, goal, quests, northStar, topics, now };
+  // REPEATED WORK (2026-10-05 audit item 2): requests the Commander made on ≥3 separate days that no cron job covers
+  // yet (workflow-takeover.js already proves both — its candidates exclude scheduled work, and personalization-off
+  // yields none). Bounded + fail-open like every field above.
+  const workflows = nightFocusWorkflows();
+  return { projects, threads, goal, quests, northStar, topics, workflows, now };
+}
+// the workflow-takeover evidence the focus resolver ranks, mapped to its compact input shape. Only a Commander
+// "never" blocks one here (offer counts / defers are about the routine CARD, not about whether the work is wanted).
+// Cached ~60s: status polls reconcile a workflow focus against this list, and the read walks run history.
+let nightFocusWorkflowsCache = { at: 0, list: [] };
+function nightFocusWorkflows() {
+  const now = Date.now();
+  if (now - nightFocusWorkflowsCache.at < 60000 && nightFocusWorkflowsCache.at <= now) return nightFocusWorkflowsCache.list;
+  let list = [];
+  try {
+    list = (workflowTakeoverCandidates(true) || []).map(c => ({
+      id: c.id, name: c.name, count: c.count, lastAt: c.lastAt,
+      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => String((e && e.quote) || '')).filter(Boolean).slice(-3)
+    }));
+  } catch (_) { list = []; }
+  nightFocusWorkflowsCache = { at: now, list };
+  return list;
 }
 
 // ensure a day-keyed focus for the current night; persist iff it changed; return the focus (or null → improv). When
@@ -6328,6 +6363,8 @@ function nightFocusTargetAvailable(target) {
     const goal = commanderGoals.get();
     return target.ref === 'goal' && !!(goal && String(goal.text || '').trim());
   }
+  // a workflow focus retires the moment the Commander schedules it (or says never): it must still be live evidence.
+  if (target.kind === 'workflow') return nightFocusWorkflows().some(w => w && w.id === target.ref);
   return true; // quest/northstar are resolver-owned evidence kinds, not steer kinds.
 }
 function reconcileNightFocusAuthority() {
@@ -6354,7 +6391,7 @@ function resolvedNightFocusCandidate(candidate) {
 }
 
 // same-night prior beat outputs (titles) so beat 2+ EXTENDS the same work (the compounding shape). Drafts carry `at`;
-// scope to today's UTC day-bucket to match the focus's day key. Bounded to the last handful.
+// scope to today's LOCAL day (localday.js) to match the focus's + leash's day key. Bounded to the last handful.
 function nightFocusPriorTonight() {
   try {
     const day = nightfocus.dayOf(Date.now());
@@ -6378,6 +6415,59 @@ function ledgerNightFocus(agentId, foc) {
   } catch (_) {}
 }
 
+/* ---- PRIOR WORK (2026-10-05 audit item 1) — the night shift's memory of its own earlier builds.
+   collect() over the durable stores the host already holds: the agent's workshop backlog (undecided/queued/failed),
+   the deliverable lifecycle rows (kept/discarded/implemented), and the desk drafts. Scoped to the current focus when
+   an item recorded one. Fail-open: a store hiccup degrades that source to empty (never silences the night). */
+function nightPriorWork(agentId, focus) {
+  let backlog = [], deliverables = [];
+  try { backlog = workshopStore.backlogOf(agentId); } catch (_) { backlog = []; }
+  try { deliverables = deliverableStore.list(); } catch (_) { deliverables = []; }
+  try {
+    return PriorWork.collect({ backlog, deliverables, drafts: nightshiftDrafts || [], agentId: String(agentId || ''),
+      focusRef: (focus && focus.ref) || '', now: Date.now() });
+  } catch (_) { return []; }
+}
+// the duplicate veto's trail: one note per beat that converted or dropped a near-duplicate (titles only).
+function ledgerPriorWorkVeto(agentId, vet) {
+  if (!vet || (!vet.dropped.length && !vet.continued.length)) return;
+  try {
+    recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'note', agentId: String(agentId || ''), runId: '', reason: 'duplicate-veto',
+      detail: { phase: 'dup-veto', dropped: vet.dropped.length, continued: vet.continued.length,
+        droppedTitles: vet.dropped.map(d => d.title + ' ~ ' + d.matched + ' [' + d.status + ']').join(' | ').slice(0, 400) || undefined,
+        continuedTitles: vet.continued.map(c => c.title + ' -> ' + c.of + ' (' + c.runId + ')').join(' | ').slice(0, 400) || undefined } });
+  } catch (e) { failNote('nightshift.ledger.dup-veto', e); }
+}
+// copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
+// workspace; deliverable.json is never copied — the new run writes its own). Bounded: <=40 files, <=2MB each, <=8MB.
+async function seedContinueDir(agentId, fromRunId, toRunId) {
+  const man = await validateWorkshopManifest(agentId, fromRunId);
+  if (!man) return { seeded: false, files: [], summary: '' };
+  const copied = []; let total = 0;
+  for (const f of man.files.slice(0, 40)) {
+    const bytes = Number(f.bytes) || 0;
+    if (bytes > 2 * 1024 * 1024 || total + bytes > 8 * 1024 * 1024) continue;
+    try {
+      const src = await fsJail.resolveInside(agentId, 'workshop/' + fromRunId + '/' + f.path);
+      const dst = await fsJail.resolveInside(agentId, 'workshop/' + toRunId + '/' + f.path);
+      await fsp.mkdir(path.dirname(dst.abs), { recursive: true });
+      await fsp.copyFile(src.abs, dst.abs);
+      copied.push(f.path); total += bytes;
+    } catch (e) { failNote('nightshift.continue.seed', e); /* one unreadable member just isn't seeded; the listing still names it */ }
+  }
+  return { seeded: copied.length > 0, files: man.files.map(f => f.path), summary: man.summary || '' };
+}
+
+// the FOCUS veto's trail: one note per beat that dropped off-focus candidates (titles only), so "why didn't it
+// build X?" is answerable from the ledger. Silent when nothing was dropped.
+function ledgerOffFocus(agentId, foc, titles) {
+  if (!Array.isArray(titles) || !titles.length || !foc || !foc.focus) return;
+  try {
+    recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'note', agentId: String(agentId || ''), runId: '', reason: 'off-focus',
+      detail: { phase: 'focus-veto', focus: String(foc.focus.label || foc.focus.ref || '').slice(0, 120), dropped: titles.length, titles: titles.map(String).join(' | ').slice(0, 400) } });
+  } catch (e) { failNote('nightshift.ledger.off-focus', e); }
+}
+
 /* ---- NS-5: the DECISION LEDGER append — wired to NS-0's REAL ledger (sidecar/autonomy-ledger.js, served at
    GET /api/autonomy/ledger via recordAutonomy above). This thin adapter maps the night-shift driver's entries
    ({ kind:'beat'|'decline'|'outcome', binding, beatsLeft, away, delivered, title, archetype, reason }) onto the
@@ -6396,6 +6486,9 @@ function autonomyLedgerAppend(entry) {
   if (e.beatsLeft != null) detail.beatsLeft = e.beatsLeft;
   if (e.away != null) detail.away = !!e.away;
   if (e.preSpend) detail.preSpend = true;   // NS-2: this decline stood down BEFORE spending a leash unit (cold-leash fix)
+  // edge-triggered declines (driver): the PREVIOUS logged reason held for heldTicks more identical ticks after it was
+  // written — the information the old one-row-per-tick log carried, now in one number instead of thousands of rows.
+  if (Number.isFinite(e.heldTicks) && e.heldTicks > 0) { detail.heldTicks = Math.floor(e.heldTicks); if (e.heldBinding != null) detail.heldBinding = String(e.heldBinding); }
   if (e.kind === 'outcome') {
     detail.phase = 'outcome'; detail.delivered = !!e.delivered;
     if (e.title) detail.title = e.title; if (e.archetype) detail.archetype = e.archetype;
@@ -7418,14 +7511,23 @@ async function runNightshiftBeat(opts) {
   const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
+  // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
+  const priorWork = nightPriorWork(agentId, foc.focus);
+  const priorBuilds = PriorWork.promptLines(priorWork, Date.now());
 
   // 1) PROPOSE — the directive LEADS with the focus, then the OPEN-THREADS + recent-activity blocks; the grounding
   //    veto's evidence pool = beliefs + activity + thread texts (a thread-tag citation is the preferred grounding).
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
-  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads }));
+  const offFocus = [];
+  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads, focus: foc.focus || null, onDrop: (c) => offFocus.push(c.title) }));
+  ledgerOffFocus(agentId, foc, offFocus);
   // 2) SELECT (confidence gate + the learned per-archetype bias — NS-3 wires the server LEARN store in here)
-  const sel = Autopilot.scoreAndSelect(candidates, { weights: nightshiftPreferenceWeights() });
+  // the HOST-ENFORCED near-duplicate veto: a re-proposed prior build becomes "Continue: <it>" (newest undecided) or
+  // is dropped (kept/discarded/queued/failed) — the model's courtesy above is not the guarantee, this is.
+  const priorVeto = PriorWork.veto(candidates, priorWork, { mode: 'draft' });
+  ledgerPriorWorkVeto(agentId, priorVeto);
+  const sel = Autopilot.scoreAndSelect(priorVeto.candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
   const draftRecId = 'nightshift-draft:' + String(opts.runId || crypto.randomUUID());
   recommendationLedger.record({ id: draftRecId, surface: 'nightshift', kind: sel.selected.archetype || 'draft', title: sel.selected.title,
@@ -7442,7 +7544,7 @@ async function runNightshiftBeat(opts) {
   let beatDelivered = false;
   try {
   // 3) DO — the do directive stays on the declared focus too.
-  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader }) }] });
+  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
   if (dRes.error) return { delivered: false, reason: dRes.error };
   let deliverable = Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title });
   if (!deliverable) return { delivered: false, reason: 'no-deliverable' };
@@ -7548,17 +7650,29 @@ async function runNightshiftActShift(opts) {
   const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
+  // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
+  const priorWork = nightPriorWork(agentId, foc.focus);
+  const priorBuilds = PriorWork.promptLines(priorWork, Date.now());
   const { projectSnapshot, targetRoot } = await resolveProjectPatchTarget(foc);
 
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, projectSnapshot, initiative: currentInitiative() }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds, projectSnapshot, initiative: currentInitiative() }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
   // NS-5b: the PROJECT SNAPSHOT lines (real git status / TODO markers the harness READ) join the grounding-veto
   // evidence pool, so a candidate that grounds itself in the actual repo state (e.g. a planted TODO) survives the
   // veto — while still-invented grounding dies. The snapshot is harness-read truth, never model improv, so it is
   // honest evidence to ground in. Bounded already (projectscan caps it).
   const vetoActivity = projectSnapshot ? activity.concat(projectSnapshot.split(/\r?\n/).map(s => s.trim()).filter(Boolean)) : activity;
-  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity: vetoActivity, threads }));
-  const sel = Autopilot.scoreAndSelect(candidates, { weights: nightshiftPreferenceWeights() });
+  // FOCUS VETO (host-enforced): with a declared focus, a candidate that shares nothing with the focus's evidence is
+  // dropped here; the harness-read project snapshot counts as focus evidence for a project focus.
+  const offFocus = [];
+  const focusEvidence = projectSnapshot ? projectSnapshot.split(/\r?\n/).map(x => x.trim()).filter(Boolean) : [];
+  const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity: vetoActivity, threads, focus: foc.focus || null, focusEvidence, onDrop: (c) => offFocus.push(c.title) }));
+  ledgerOffFocus(agentId, foc, offFocus);
+  // the HOST-ENFORCED near-duplicate veto: a re-proposed prior build becomes "Continue: <it>" (newest undecided) or
+  // is dropped (kept/discarded/queued/failed) — the model's courtesy above is not the guarantee, this is.
+  const priorVeto = PriorWork.veto(candidates, priorWork);
+  ledgerPriorWorkVeto(agentId, priorVeto);
+  const sel = Autopilot.scoreAndSelect(priorVeto.candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
   // NS-6 writeback: a build grounded on an open thread marks it PICKED now; a later keep/discard verdict (return
   // card → nightshiftDecideLearn) moves it to delivered/declined.
@@ -7573,12 +7687,26 @@ async function runNightshiftActShift(opts) {
     readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2' }, Date.now()).catch(swallow('recledger.record'));
   const backlogId = 'ns-act-' + runId;
   const title = String(sel.selected.title || 'Autonomy build').slice(0, 200);
-  try { await workshopStore.queue(agentId, { id: backlogId, title, detail: String(sel.selected.spec || ''), source: 'nightshift', grounds: String(sel.selected.grounds || '') }, Date.now()); }
+  const continueOf = sel.selected.continueOf || null;
+  let queued = null;
+  try { queued = await workshopStore.queue(agentId, { id: backlogId, title, detail: String(sel.selected.spec || ''), source: 'nightshift', grounds: String(sel.selected.grounds || ''),
+    focusRef: (foc.focus && foc.focus.ref) || '', continuesRunId: (continueOf && continueOf.runId) || undefined }, Date.now()); }
   catch (_) { /* a queue hiccup (e.g. a title the Commander earlier discarded) → stand down honestly */ return { delivered: false, reason: 'queue-refused' }; }
+  // a title already lined up (or discarded) is NOT a new item: building anyway produced an orphan run whose
+  // markBuilt found no backlog row, so it never reached the desk. Stand down instead of duplicating the work.
+  if (!queued || queued.reason !== 'added') return { delivered: false, reason: 'duplicate-backlog' };
   await workshopStore.claimNext(agentId, runId, isRunLive).catch(swallow('workshop.claim', null));   // stamp buildingRunId (zombie-reap aware)
 
   const dir = 'workshop/' + runId;
-  const prompt = NIGHTSHIFT_ACT_MARK + '\n' + Autopilot.buildDoDirectiveV2(sel.selected, { runId, dir, backlogId, focusHeader, projectSnapshot, targetRoot, initiative: currentInitiative() });
+  // CONTINUE, NOT RESTART: a continuation starts from the earlier build's files (copied into this run's dir) plus
+  // its listing + summary in the directive. A seeding hiccup still passes the listing so the agent can read them.
+  let continueFrom = null;
+  if (continueOf && continueOf.runId) {
+    let seed = null;
+    try { seed = await seedContinueDir(agentId, continueOf.runId, runId); } catch (_) { seed = null; }
+    continueFrom = Object.assign({ title: continueOf.title, where: continueOf.where }, seed || {});
+  }
+  const prompt = NIGHTSHIFT_ACT_MARK + '\n' + Autopilot.buildDoDirectiveV2(sel.selected, { runId, dir, backlogId, focusHeader, projectSnapshot, targetRoot, initiative: currentInitiative(), continueFrom });
   const ac = signal ? null : new AbortController();
   const sig = signal || (ac && ac.signal);
   if (ac) runs.set(runId, ac);
@@ -7613,6 +7741,12 @@ async function runNightshiftActShift(opts) {
   const builtAt = Date.now();
   try { await workshopStore.markBuilt(agentId, backlogId, runId, builtAt); } catch (_) {}
   manifest.builtAt = builtAt;
+  // ONE VERSION WAITING: this build CONTINUED an earlier undecided one (its files were seeded forward), so the older
+  // version leaves the pending queue — the Commander decides the newest version once, not every draft of it.
+  if (continueOf && continueOf.runId) {
+    try { const sup = await workshopStore.supersede(agentId, continueOf.runId, runId, builtAt); if (sup.superseded) manifest.continues = { runId: String(continueOf.runId), title: sup.title }; }
+    catch (e) { failNote('nightshift.supersede', e); }
+  }
   recordNightshiftAct(runId, sel.selected.archetype, sel.selected.threadId);   // so a keep/discard verdict feeds the RIGHT archetype into LEARN (+ NS-6: delivers/declines the cited thread)
   // WHY-THIS: the card's provenance line — the grounding-veto-checked GROUNDS quote this job was selected on.
   manifest.because = workshopBecause({ grounds: sel.selected.grounds, detail: sel.selected.spec, title: manifest.title });
@@ -7632,10 +7766,10 @@ async function runNightshiftActShift(opts) {
   // LEDGER TRUTH (NS-3): a real tool-run that BUILT an artifact records kind 'act' here — the authoritative place
   // that knows the artifact paths (this fires for BOTH the driver path and the force-fire route, since both call
   // runNightshiftActShift). The driver's own generic outcome record stays a plain 'note' (no duplicate 'act').
-  try { recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'act', agentId, runId, reason: 'built', detail: { phase: 'act', title: manifest.title, archetype: sel.selected.archetype, artifacts: paths } }); } catch (_) {}
+  try { recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'act', agentId, runId, reason: 'built', detail: { phase: 'act', title: manifest.title, archetype: sel.selected.archetype, artifacts: paths, continues: (continueOf && continueOf.runId) || undefined } }); } catch (_) {}
   // record the desk draft too, so the "while you were away" digest still lists this beat.
   try { recordNightshiftDraft({ title: manifest.title, archetype: sel.selected.archetype, at: Date.now(), body: String(manifest.summary || '').slice(0, 4000), wrote: { path: paths } }); } catch (_) {}
-  return { delivered: true, reason: 'built', title: manifest.title, archetype: sel.selected.archetype, runId, backlogId, artifactPaths: paths };
+  return { delivered: true, reason: 'built', title: manifest.title, archetype: sel.selected.archetype, runId, backlogId, artifactPaths: paths, continuesRunId: (continueOf && continueOf.runId) || undefined };
 }
 
 // ---- the driver: all ambient deps injected, so nightshift-driver.js stays determinism-clean.
@@ -18593,6 +18727,8 @@ async function runOnceCore(o) {
   const runPathTrust = (abs, o2) => pathTrustCore.guard(abs, {
     scope: (o2 && o2.scope) || 'read', surface: surface, prompt: pathPrompt || null,
     agentId: (o2 && o2.agentId) || agentId,
+    // who CAUSED this I/O (recency metadata only): a watched run, or the Commander's owner-trusted channel DM.
+    userTouch: surface === 'interactive' || ownerTrusted,
     // This Computer widens the path envelope without changing approval posture: ASK still prompts before
     // mutations, while reads of non-protected host paths no longer need a second project-root card.
     fullAccess: unrestrictedHostNow() || executionProfile.filesystemScope === 'host-paths-except-hard-floor',
@@ -21730,6 +21866,8 @@ function handleNightshiftStatus(req, res) {
     awayAfterMs: NIGHTSHIFT_AWAY_MS,
     beatsUsedToday: rolled.beatsUsedToday || 0,
     leashPerDay: Number.isFinite(summary.leashPerDay) ? summary.leashPerDay : null,
+    // the leash day is the Commander's LOCAL calendar day (localday.js); this is the instant it next refills.
+    leashResetsAt: (() => { try { return LocalDay.dayStartMs((rolled.day || 0) + 1); } catch (_) { return null; } })(),
     lastBeatAt: rolled.lastBeatAt || 0,
     nextEligibleAt: decision ? decision.nextEligibleAt : ((rolled.lastBeatAt || 0) + NIGHTSHIFT_BEAT_MS),
     binding: decision ? decision.binding : 'unknown',
@@ -21747,6 +21885,19 @@ function handleNightshiftStatus(req, res) {
   out.draftReason = out.buildMode === 'build' ? null : (summary.buildsUnattended ? 'no-workshop-grant' : 'reach');
   // the readiness detail behind a binding:'readiness' stand-down (dims usable / recent runs vs the hot bars).
   out.readiness = nightshiftReadinessView();
+  // PRIOR WORK (audit item 1): what the next beat will be told is "already built" for the declared focus, and the
+  // undecided build a near-duplicate proposal would be converted into continuing. Straight from the stores.
+  out.priorWork = (() => {
+    try {
+      const list = nightPriorWork(NIGHTSHIFT_AGENT, nightFocusState && nightFocusState.focus);
+      const und = list.filter(p => p.status === 'undecided');
+      const byStatus = {};
+      for (const p of list) byStatus[p.status] = (byStatus[p.status] || 0) + 1;
+      return { windowDays: PriorWork.WINDOW_DAYS, dupThreshold: PriorWork.DUP_THRESHOLD, count: list.length, byStatus,
+        newestUndecided: und.length ? { title: und[0].title, runId: und[0].runId, at: und[0].at, where: und[0].where } : null,
+        items: list.map(p => ({ title: p.title, status: p.status, at: p.at, where: p.where })) };
+    } catch (_) { return null; }
+  })();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(out));
 }
@@ -21983,7 +22134,9 @@ async function awayBriefingInputs(since, now, tzOffsetMin) {
       builds.push({ runId: it.builtRunId, agentId, title: man.title || it.title, summary: man.summary || '', builtAt: workshopBuiltAtOf(it) });
     }
   }
-  const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
+  // a draft that WROTE files is a build's desk-draft echo (the act shift records one for the old digest) — the build
+  // itself is already briefed as "waiting on you", so only reason-only ideas count as drafts here
+  const drafts = (Array.isArray(nightshiftDrafts) ? nightshiftDrafts : []).filter(d => d && !(d.wrote && d.wrote.path)).map(d => ({ title: String((d && d.title) || ''), at: Number(d && d.at) || 0 }));
   const jobs = (cronJobs || []).map(j => ({ id: j && j.id, name: j && j.name }));
   const loops = (Array.isArray(loopJobs) ? loopJobs : []).map(l => ({ id: l && l.id, name: l && l.name }));
   // "next up" only when the station will actually act on it tonight (initiative ≥ leash) — never a promise it won't keep

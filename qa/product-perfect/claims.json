@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bf334451b3d8362c5cbebb119eae746d391108ec",
+    "sourceCommit": "8ca928461044568469b3615c86e43edf8b58a74c",
     "pathSetSha256": "a492439fab9c283872b683bd5b9ba9ebe7b8750fcae25400af9f344bd97dc4d3",
     "files": [
       {
@@ -268,8 +268,8 @@
       },
       {
         "path": "frontend/app/autopilot.js",
-        "bytes": 53848,
-        "sha256": "a3f59254d0e4fa912902c4c3b679b7349131fbdcf55110940a01763134ea95c1"
+        "bytes": 61218,
+        "sha256": "7a1cf10d896d8ca13757e2deaffcecb71022cf2cd6da1c929f606ebb50f29bd0"
       },
       {
         "path": "frontend/app/autopilotstore.js",
