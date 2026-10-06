@@ -129,7 +129,11 @@ function buildEntry(src) {
   const doc = readSkillMd(main.content, slug);
   if (src.shelf === 'community') {
     if (!files.some(f => ROOT_FILES.test(f.path) && /^(LICENSE|COPYING)/.test(f.path))) throw new Error(slug + ': a community skill must ship its LICENSE text');
-    if (!src.upstream || !/^https:\/\//.test(str(src.upstream.url)) || !str(src.upstream.commit)) throw new Error(slug + ': a community skill must name its upstream url and commit');
+    // its source is either an upstream repo it was adapted from, or the reviewed upload it came from (account.starnetos.com
+    // Skills tab, pulled by scripts/pull-skill-submissions.mjs): the submission id + the author's owner key
+    const sub = src.submission;
+    const uploaded = !!(sub && /^sk_[A-Za-z0-9_-]{6,40}$/.test(str(sub.id)) && /^[0-9a-f]{24}$/.test(str(sub.owner)));
+    if (!uploaded && (!src.upstream || !/^https:\/\//.test(str(src.upstream.url)) || !str(src.upstream.commit))) throw new Error(slug + ': a community skill must name its upstream url and commit, or the reviewed submission it was uploaded as');
   }
   const pkg = packageFormat.canonicalize(files, { maxFileBytes: 256000 });
   const entry = {
@@ -142,6 +146,8 @@ function buildEntry(src) {
     files: pkg.files.map(f => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
   };
   if (src.upstream) entry.upstream = { url: str(src.upstream.url), commit: str(src.upstream.commit), license: str(src.upstream.license || entry.license) };
+  // shared by a StarNet user through the upload page (read and approved before it was published); additive, older apps ignore it
+  if (src.shelf === 'community' && src.submission && !src.upstream) entry.uploaded = true;
   return { entry, pkg };
 }
 

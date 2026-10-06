@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Skill Market — StarNet</title>
-<meta name="description" content="Skills teach your StarNet crew how to do a job well. Browse StarNet Originals and credited community picks, then install one for your whole crew in one click.">
+<meta name="description" content="Skills teach your StarNet crew how to do a job well. Browse StarNet Originals and credited community skills, install one for your whole crew in one click, or share your own.">
 <meta property="og:title" content="StarNet — Skill Market">
 <meta property="og:description" content="StarNet Originals and credited community picks. Install a skill once and your whole crew can use it.">
 <meta property="og:image" content="https://starnetos.com/assets/og-card.png?v=20260810">
@@ -17,7 +17,7 @@
 <link rel="canonical" href="https://starnetos.com/market.html">
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 <link rel="stylesheet" href="styles.css?v=20260913-brand-nav">
-<link rel="stylesheet" href="market.css?v=20260930-market">
+<link rel="stylesheet" href="market.css?v=20261006-share">
 </head>
 <body>
 
@@ -52,7 +52,8 @@
   <section class="page-hero">
     <h1 class="page-title">SKILL MARKET</h1>
     <p class="page-lede">Skills teach your crew how to do a job well. Install one and every agent with the right gear can use it.</p>
-    <p class="page-sub" id="mk-count">StarNet Originals, written for your station's gear, plus credited picks from the open-source community.</p>
+    <p class="page-sub" id="mk-count">StarNet Originals, written for your station's gear, plus credited skills from the community.</p>
+    <div class="cta-row mk-hero-cta"><a class="btn btn-small" href="#share">[ SHARE YOUR SKILL ]</a></div>
   </section>
 
   <!-- ========== 01 BROWSE ========== -->
@@ -99,9 +100,37 @@
     <div class="cta-row mk-cta"><a class="btn btn-primary" href="index.html#download">[ DOWNLOAD STARNET ]</a></div>
   </section>
 
-  <!-- ========== 03 SAFETY ========== -->
+  <!-- ========== 03 SHARE ========== -->
+  <section class="section" id="share">
+    <div class="section-head"><span class="section-no">03</span><h2>SHARE YOUR SKILL</h2></div>
+    <p class="mk-share-lede">Wrote a skill your crew can't live without? Put it on the market. Every StarNet station can install it,
+      with your name on it.</p>
+    <ol class="steps">
+      <li>
+        <div class="step-no">STEP 01</div>
+        <h3>Write a SKILL.md</h3>
+        <p>What the skill is for, then the steps an agent should follow, in order. A SKILL.md from another tool works
+          as it is. Add up to five plain-text reference files, like templates or checklists.</p>
+      </li>
+      <li>
+        <div class="step-no">STEP 02</div>
+        <h3>Submit it</h3>
+        <p>Sign in with your email (a free StarNet account), open <b>SKILLS</b>, and upload it. Pick
+          <b>MIT</b> or <b>CC BY 4.0</b> and the name you want credited.</p>
+      </li>
+      <li>
+        <div class="step-no">STEP 03</div>
+        <h3>A person reads it</h3>
+        <p>Every upload is read line by line before it is published. You see its status on the same page: waiting,
+          approved, live, or sent back with a note saying what to change.</p>
+      </li>
+    </ol>
+    <div class="cta-row mk-cta"><a class="btn btn-primary" href="https://account.starnetos.com/account/skills">[ SUBMIT A SKILL ]</a></div>
+  </section>
+
+  <!-- ========== 04 SAFETY ========== -->
   <section class="section" id="safety">
-    <div class="section-head"><span class="section-no">03</span><h2>HOW WE KEEP IT SAFE</h2></div>
+    <div class="section-head"><span class="section-no">04</span><h2>HOW WE KEEP IT SAFE</h2></div>
     <ul class="contract">
       <li><b>Signed.</b> The catalog is signed with a key that never leaves StarNet's hands. Your station checks the
         signature against a key built into the app, and refuses a catalog that was changed, is unsigned, or is older
@@ -112,14 +141,16 @@
         station scans it again when it installs. Every file must match its published fingerprint byte for byte.</li>
       <li><b>Pulled when needed.</b> If a skill turns out to be unsafe, we pull it, and every station that installed it
         switches it off within minutes and says why.</li>
-      <li><b>Credited.</b> Community picks keep their original license, ship its text, and link back to the source
-        they were adapted from.</li>
+      <li><b>Read by a person.</b> Skills StarNet users share are read line by line before they are published, and
+        are held to the same scans and the same text-only rule as every other skill.</li>
+      <li><b>Credited.</b> Community skills keep their license and ship its text. Picks adapted from open source link
+        back to the original; shared skills carry their author's name.</li>
     </ul>
   </section>
 
-  <!-- ========== 04 FAQ ========== -->
+  <!-- ========== 05 FAQ ========== -->
   <section class="section faq" id="faq">
-    <div class="section-head"><span class="section-no">04</span><h2>STRAIGHT ANSWERS</h2></div>
+    <div class="section-head"><span class="section-no">05</span><h2>STRAIGHT ANSWERS</h2></div>
     <details>
       <summary>Do skills cost anything?</summary>
       <p>No. Every skill here is free. Running one uses your model like any other task, at your provider's price.</p>
@@ -130,9 +161,10 @@
         checks and output a good job needs. Skills never add new powers; they help agents use the tools they have.</p>
     </details>
     <details>
-      <summary>Where do the community picks come from?</summary>
-      <p>They are open-source skills, adapted by StarNet to fit the station and credited on each card with a link to
-        the original. StarNet Originals are written by StarNet.</p>
+      <summary>Where do the community skills come from?</summary>
+      <p>Two places. Some are open-source skills, adapted by StarNet to fit the station and credited on each card with
+        a link to the original. Others were shared by StarNet users through <a href="#share">SHARE YOUR SKILL</a>; their
+        cards say so and name the author. StarNet Originals are written by StarNet.</p>
     </details>
     <details>
       <summary>Can I use these skills outside StarNet?</summary>
@@ -142,8 +174,14 @@
     </details>
     <details>
       <summary>Can I publish my own skill?</summary>
-      <p>Not yet. Today the market carries skills StarNet wrote or reviewed and adapted. Skills you and your agents
-        write stay on your station.</p>
+      <p>Yes. <a href="https://account.starnetos.com/account/skills">Submit it</a> from your StarNet account. A person reads it, and once it is approved it
+        goes live with the next catalog update. Skills you and your agents write in the app stay on your station
+        until you share them.</p>
+    </details>
+    <details>
+      <summary>Who owns a skill I share?</summary>
+      <p>You do. You publish it under MIT or CC BY 4.0, which lets anyone use and adapt it as long as they credit you.
+        The name is yours too: only you can send an updated version of it.</p>
     </details>
   </section>
 
@@ -167,6 +205,6 @@
   <div class="footer-fine">MIT license &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="legal/privacy.html">we collect nothing</a></div>
 </footer>
 
-<script src="market.js?v=20260930-market"></script>
+<script src="market.js?v=20261006-share"></script>
 </body>
 </html>

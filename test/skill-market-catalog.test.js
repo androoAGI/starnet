@@ -55,7 +55,11 @@ A.ok(filesOk, 'every published file matches the sha256 its entry pins' + (badFil
 const community = entries.filter(e => e.shelf === 'community');
 A.ok(community.length >= 12, 'the community shelf is stocked (' + community.length + ')');
 A.ok(community.every(e => e.files.some(f => /^(LICENSE|COPYING)/.test(f.path))), 'every community skill ships its license text');
-A.ok(community.every(e => e.upstream && /^https:\/\//.test(e.upstream.url)), 'every community skill names its upstream');
+// an adapted pick names its upstream; a skill a StarNet user shared is marked uploaded and carries its submission
+const rawBySlug = new Map(JSON.parse(raw).skills.map(s => [s.slug, s]));
+const sourceless = community.filter(e => !(e.upstream && /^https:\/\//.test(e.upstream.url))).map(e => e.slug)
+  .filter(slug => !(rawBySlug.get(slug).uploaded === true && JSON.parse(fs.readFileSync(path.join(ROOT, 'skills-catalog', 'skills', slug, 'skill.json'), 'utf8')).submission));
+A.eq(sourceless, [], 'every community skill names its upstream, or is a reviewed upload with its submission on record');
 const notice = fs.readFileSync(path.join(ROOT, 'NOTICE.md'), 'utf8');
 const uncredited = entries.filter(e => notice.indexOf('`' + e.slug + '`') < 0).map(e => e.slug);
 A.eq(uncredited, [], 'NOTICE.md credits every skill in the catalog');
