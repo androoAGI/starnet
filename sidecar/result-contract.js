@@ -1,6 +1,12 @@
 'use strict';
 // Dedicated result contract validator: shared event schemas are deliberately untouched.
-const Ajv = require('ajv');
+// ajv is loaded on first schema compile so the sidecar still boots from a bare clone (no npm install).
+let Ajv=null;
+function loadAjv() {
+ if(Ajv)return Ajv;
+ try {Ajv=require('ajv');}catch(_){throw Error('Structured result validation needs the ajv package; run npm install in the StarNet checkout');}
+ return Ajv;
+}
 const cache=new Map();
 function prepare(schema) {
  if(schema==null)return {ok:true,schema:null};
@@ -36,7 +42,7 @@ function prepare(schema) {
    active.delete(s);
   }
   walk(schema,0);
-  const ajv=new Ajv({allErrors:false,strictSchema:true,strictTypes:false,strictTuples:false,strictRequired:false,allowUnionTypes:true,validateFormats:true,coerceTypes:false,useDefaults:false,removeAdditional:false,inlineRefs:false});
+  const ajv=new (loadAjv())({allErrors:false,strictSchema:true,strictTypes:false,strictTuples:false,strictRequired:false,allowUnionTypes:true,validateFormats:true,coerceTypes:false,useDefaults:false,removeAdditional:false,inlineRefs:false});
   const validate=ajv.compile(schema);
   if(cache.size>=32)cache.delete(cache.keys().next().value);
   cache.set(raw,validate);return {ok:true,schema:JSON.parse(raw),validate};

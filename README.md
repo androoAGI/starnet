@@ -87,13 +87,17 @@ Linux packages are internal build artifacts only and are not a supported public 
 Requirements: Node.js 18+ (Node.js 22 matches CI), Git. Rust and the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) only for the desktop shell.
 
-The sidecar uses Node core modules only, so it runs without installing anything:
+The sidecar boots on Node core modules alone, so it runs without installing anything:
 
 ```bash
 git clone https://github.com/androoAGI/starnet.git
 cd starnet
 node sidecar/index.js
 ```
+
+Run `npm install` first for the features that need npm packages: web search and fetch,
+JSON-schema structured results, the built-in terminal, and offline voice. Without it those
+features report the missing package when used; everything else works.
 
 Open <http://localhost:8787>, then connect a provider —
 **bring your own OpenRouter API key (BYOK)** or use a supported OAuth sign-in. Provider requests leave your machine when you run an agent;
