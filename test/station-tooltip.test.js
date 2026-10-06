@@ -180,6 +180,28 @@ A.ok(T.adopt(null) === '', 'adopt() tolerates a null element');
     fire('focusin', { target: tipped });
     A.ok(!card.classList.contains('dock-tip'), 'reusing the card outside the dock clears the dock finish');
 
+    /* ---- 6. focus from a CLICK is not a glance (touchscreen-laptop dock bug) ------------------------
+       A mouse click focuses the button, and focusin showed the card at once — over the dock menu the click
+       had just opened. Only keyboard focus (:focus-visible) shows it now; an engine without matches() keeps
+       the old behaviour. And no card ever opens over an open dock menu (aria-expanded), even on hover. */
+    fire('pointerdown', {});
+    const mouseFocus = mkEl({ title: 'Your agents' }, ''); mouseFocus.matches = () => false;
+    fire('focusin', { target: mouseFocus });
+    A.ok(!mouseFocus.getAttribute('aria-describedby'), 'focus from a mouse click (not :focus-visible) never pops the card');
+    const keyFocus = mkEl({ title: 'Your agents' }, ''); keyFocus.matches = q => q === ':focus-visible';
+    fire('focusin', { target: keyFocus });
+    A.eq(keyFocus.getAttribute('aria-describedby'), 'station-tip', 'keyboard focus (:focus-visible) still shows the card at once');
+    fire('pointerdown', {});
+    const oddEngine = mkEl({ title: 'Your agents' }, ''); oddEngine.matches = () => { throw new Error('unsupported selector'); };
+    fire('focusin', { target: oddEngine });
+    A.eq(oddEngine.getAttribute('aria-describedby'), 'station-tip', 'a matches() that throws falls back to showing on focus');
+    fire('pointerdown', {});
+    const openDock = mkEl({ title: 'Shape the station', 'aria-expanded': 'true' }, 'BUILD');
+    fire('pointerover', { target: openDock });
+    await sleep(420);
+    A.ok(!openDock.getAttribute('aria-describedby'), 'no card opens over an open dock menu (aria-expanded="true"), even on hover');
+    A.ok(!openDock.hasAttribute('title'), 'its title is still adopted, so the OS bubble stays silenced');
+
     A.report('station-tooltip.test');
   })().catch(e => { console.log('FAIL: tooltip rig threw — ' + (e && e.stack || e)); process.exit(1); });
 }

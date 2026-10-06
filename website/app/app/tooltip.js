@@ -135,14 +135,21 @@
       const el = ev.target && ev.target.closest ? ev.target.closest('[title],[data-tip]') : null;
       if (!el || el === anchor || el === pending) return;
       const text = adopt(el);
-      if (!text) return;
+      // adopt() first (it silences the OS bubble); then no card over an open dock menu
+      if (!text || el.getAttribute('aria-expanded') === 'true') return;
       hide();
       if (immediate) show(el, text);
       else { pending = el; timer = setTimeout(() => { timer = null; show(el, text); }, SHOW_DELAY); }
     }
 
     doc.addEventListener('pointerover', ev => enter(ev, false));
-    doc.addEventListener('focusin', ev => enter(ev, true));
+    // keyboard focus only: a mouse click focuses the button too, and must not pop the card over its menu.
+    // No matches()/:focus-visible (old engine, test fakes) → today's behaviour.
+    doc.addEventListener('focusin', ev => {
+      const t = ev.target;
+      try { if (t && typeof t.matches === 'function' && !t.matches(':focus-visible')) return; } catch (_) {}
+      enter(ev, true);
+    });
     doc.addEventListener('pointerout', ev => {
       // A tip that is merely PENDING must be cancellable too — that is the whole ghost-card bug.
       const from = anchor || pending;
