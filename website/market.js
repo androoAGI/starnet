@@ -136,8 +136,10 @@
       list.appendChild(grp);
     });
     var originals = skills.filter(function (s) { return s.shelf === 'originals'; }).length;
-    if (count) count.textContent = skills.length + ' skills: ' + originals + ' StarNet Originals, written for your station\'s gear, and ' +
-      (skills.length - originals) + ' credited picks from the open-source community.';
+    var shared = skills.filter(function (s) { return s.shelf !== 'originals' && s.uploaded === true; }).length;
+    var picks = skills.length - originals - shared;
+    if (count) count.textContent = skills.length + ' skills: ' + originals + ' StarNet Originals, written for your station\'s gear, ' +
+      (shared ? picks + ' credited picks from the open-source community, and ' + shared + ' shared by StarNet users.' : 'and ' + picks + ' credited picks from the open-source community.');
     status.textContent = '';
     status.hidden = true;
     apply();

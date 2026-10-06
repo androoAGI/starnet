@@ -71,5 +71,5 @@
 .mk-cta{ justify-content:flex-start; }
 
 /* ---------- share your skill (uploads land on account.starnetos.com) ---------- */
-.mk-hero-cta{ justify-content:flex-start; margin-top:18px; }
+.mk-hero-cta{ justify-content:center; margin-top:18px; }
 .mk-share-lede{ margin:0 0 18px; font-size:18px; line-height:1.55; color:var(--ink); max-width:62ch; }
