@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a5f29a5d8b3f3eb2ee81b59a76777e7de3c5b025",
+    "sourceCommit": "c8b7426d3e4df39f9d47d371cf0cd1e7c798318e",
     "pathSetSha256": "fac5552f81f0dd00ab64856cfdfc9f107fcb0517a3ef0449f4018b13e983e609",
     "files": [
       {
@@ -553,8 +553,8 @@
       },
       {
         "path": "frontend/app/hint.js",
-        "bytes": 8259,
-        "sha256": "616da3009c0cc1be260dbf0d2ab28e758ac83cb8e672b8254a8751222a2c2e96"
+        "bytes": 9621,
+        "sha256": "2f33253b2e5b1f46687d786bab059778db5045a7ab02d1574ae34003a89f43b0"
       },
       {
         "path": "frontend/app/hudmode.js",
@@ -1218,8 +1218,8 @@
       },
       {
         "path": "frontend/app/tooltip.js",
-        "bytes": 8913,
-        "sha256": "07c38bba46fd02c999c1265a377c9a6f2e133930815f244f3551d0cfe261bd26"
+        "bytes": 9389,
+        "sha256": "d5d8817c623453b9513a9fa39cf382f871def2411cfc718b9e13f05e2373edbb"
       },
       {
         "path": "frontend/app/topbar.js",
