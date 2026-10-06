@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a5f29a5d8b3f3eb2ee81b59a76777e7de3c5b025",
+    "sourceCommit": "f07ca6413a563cb60d059e9f0ed74c6dcbf451e9",
     "pathSetSha256": "fac5552f81f0dd00ab64856cfdfc9f107fcb0517a3ef0449f4018b13e983e609",
     "files": [
       {
@@ -33,8 +33,8 @@
       },
       {
         "path": "README.md",
-        "bytes": 9137,
-        "sha256": "852d188fc1f59877d7bc0f7dbeeb0bd90351d8690f062ffee246c3121e387016"
+        "bytes": 9391,
+        "sha256": "0887bd8b45a1ea6e88f1df9a0d986ee3f2ed39055d3c531356708d4c9ccee74d"
       },
       {
         "path": "RELEASE_NOTES.md",

@@ -424,9 +424,16 @@
 
   function makeWebTools(deps) {
     deps = deps || {};
-    const undici = require('undici');
-    const rawFetch = deps.fetchImpl || undici.fetch;
-    if (!rawFetch) throw new Error('web.js requires global fetch (Node 18+) or deps.fetchImpl');
+    // undici is resolved on first network use, not here: the sidecar builds these tools at boot and must
+    // still start from a bare clone. Its fetch and Agent stay paired so the pinned dispatcher is understood.
+    let undici = null;
+    const loadUndici = () => {
+      if (undici) return undici;
+      try { undici = require('undici'); }
+      catch (_) { throw new Error('web tools need the undici package; run npm install in the StarNet checkout'); }
+      return undici;
+    };
+    const rawFetch = deps.fetchImpl || ((url, opts) => loadUndici().fetch(url, opts));
     const politeness = deps.politeness || makePoliteScheduler({
       wait: deps.politeWait, minGapMs: deps.politeMinGapMs,
       initialBackoffMs: deps.politeInitialBackoffMs, maxBackoffMs: deps.politeMaxBackoffMs,
@@ -437,7 +444,7 @@
     const or = deps.openrouter || null;
     // DNS-rebinding guard resolver: default to real Node DNS; pass deps.lookup:null to disable (tests).
     const doLookup = ('lookup' in deps) ? deps.lookup : nodeLookup;
-    const makePinnedAgent = deps.agentFactory || (options => new undici.Agent(options));
+    const makePinnedAgent = deps.agentFactory || (options => new (loadUndici().Agent)(options));
     // One dispatcher per requested hop: its socket lookup returns ONLY the
     // address validated for this hop. The URL stays intact for Host and TLS SNI.
     // Closing after the body is read prevents an old connection from carrying
