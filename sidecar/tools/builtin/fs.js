@@ -84,7 +84,10 @@ const { note: failNote } = require('../../failopen');
       const r = String(rel == null ? '' : rel);
       if (P.win32.isAbsolute(r) || P.posix.isAbsolute(r) || /^[A-Za-z]:/.test(r)) return '';
       const scoped = !!(ctx && typeof ctx.projectRoot === 'string' && ctx.projectRoot.trim());
-      return '\n[location: ' + abs + (scoped ? '' : ' (your private workspace, not a project folder)') + ']';
+      // the private case names the way into a project, like outputPlacement (#77): the bare fact left the agent stuck
+      return '\n[location: ' + abs + (scoped ? '' : ' (your private workspace, not a project folder; a shell working in a project '
+        + 'will not find it here. To write into a project folder, give "path" as an absolute path inside it, or work from a '
+        + 'conversation scoped to that project)') + ']';
     }
     /* WHERE A PRODUCED FILE LANDED (issue #77) — locationLine's counterpart for the tools that MAKE a file
        (image_generate, voice_generate). `resolved` is resolveInside's { base, abs }. Returns the sentence that

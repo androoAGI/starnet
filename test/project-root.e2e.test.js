@@ -29,7 +29,9 @@ function startProvider() {
         const worker = (body.messages || []).some(message => message.role === 'system' && String(message.content).includes('PROJECT_WORKER_PROOF'));
         let call = null;
         const routine = (body.messages || []).some(message => message.role === 'user' && String(message.content).includes('ROUTINE_WRITE_PROOF'));
-        if (routine) call = results.length === 0 ? { id: 'rwrite', name: 'fs_write', args: { path: 'Working/routine-proof.txt', content: 'ROUTINE_IN_PROJECT' } } : null;
+        const lapsed = (body.messages || []).some(message => message.role === 'user' && String(message.content).includes('LAPSED_WRITE_PROOF'));
+        if (lapsed) call = results.length === 0 ? { id: 'lbrief', name: 'brief_proceed', args: { objective: 'write the proof file', deliverable: 'one write receipt', assumptions: ['The anchored folder may not be trusted'] } } : results.length === 1 ? { id: 'lwrite', name: 'fs_write', args: { path: 'Working/lapsed-proof.txt', content: 'LAPSED_PRIVATE' } } : null;
+        else if (routine) call = results.length === 0 ? { id: 'rwrite', name: 'fs_write', args: { path: 'Working/routine-proof.txt', content: 'ROUTINE_IN_PROJECT' } } : null;
         else if (results.length === 0) call = { id: 'brief', name: 'brief_proceed', args: { objective: 'prove project-relative native tools', deliverable: 'two authoritative read receipts', assumptions: ['The project root is already blessed'] } };
         else if (results.length === 1) call = { id: 'read', name: 'fs_read', args: { path: 'incident.log' } };
         else if (results.length === 2) call = { id: 'shell', name: 'shell_exec', args: { cmd: 'node -e "console.log(require(\'fs\').readFileSync(\'incident.log\',\'utf8\'))"' } };
@@ -100,6 +102,31 @@ function startProvider() {
     A.ok(workerResults.some(message => message.tool_call_id === 'read' && /PROJECT_RELATIVE_OK/.test(message.content)), 'delegated worker reads the same active project');
     A.ok(workerResults.some(message => message.tool_call_id === 'verify' && /PROJECT_VERIFY_OK/.test(message.content)), 'delegated worker verifies the same active project');
     A.ok(!fs.existsSync(path.join(fixture.workspace, 'project-agent', 'incident.log')), 'neither relative read silently fell back to the private agent workspace');
+    const sysOf = request => (request.messages || []).filter(message => message.role === 'system').map(message => String(message.content)).join('\n');
+    A.ok(parentRequests.length && /PROJECT FOLDER: this session is anchored/.test(sysOf(parentRequests[0])) && !/PROJECT FOLDER NOT TRUSTED/.test(sysOf(parentRequests[0])), 'a blessed anchor gets the folder line, never the lapsed one');
+
+    /* ISSUE #60 — an INTERACTIVE session anchored to a folder that is NOT a standing grant (trust removed, or a path
+       that never matched it). The run used to drop the anchor silently: a relative fs.write "verified" into the
+       private workspace while the shell looked in the folder and found it MISSING. Now the run is told plainly. */
+    const lapsedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-lapsed-root-'));
+    const before = provider.requests.length;
+    const lapsedRun = await fixture.request('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: 'sk-or-v1-project-root-fake', provider: 'openrouter', model: 'test/project-root',
+        agentId: 'project-agent', streamId: 'lapsed-root', isTask: true, projectRoot: lapsedRoot,
+        messages: [{ role: 'user', content: 'LAPSED_WRITE_PROOF write the proof file' }]
+      })
+    });
+    A.eq(lapsedRun.status, 200, 'a session anchored to an untrusted folder still runs');
+    await lapsedRun.text();
+    const lapsedRequests = provider.requests.slice(before).filter(request => (request.messages || []).some(message => message.role === 'user' && String(message.content).includes('LAPSED_WRITE_PROOF')));
+    A.ok(lapsedRequests.length && /PROJECT FOLDER NOT TRUSTED: this session is anchored to /.test(sysOf(lapsedRequests[0])) && sysOf(lapsedRequests[0]).indexOf(lapsedRoot) >= 0, 'the run is told its anchored folder is not trusted, by name');
+    A.ok(!/PROJECT FOLDER: this session is anchored/.test(sysOf(lapsedRequests[0])), 'and is never told it works in that folder');
+    const lapsedWrite = lapsedRequests.flatMap(request => (request.messages || []).filter(message => message.role === 'tool')).find(message => message.tool_call_id === 'lwrite');
+    A.ok(lapsedWrite && /\(your private workspace, not a project folder;.*absolute path inside it/.test(lapsedWrite.content), 'the write receipt says private workspace and names the way into a project: ' + (lapsedWrite && lapsedWrite.content));
+    A.ok(!fs.existsSync(path.join(lapsedRoot, 'Working', 'lapsed-proof.txt')), 'nothing was written into the untrusted folder');
+    try { fs.rmSync(lapsedRoot, { recursive: true, force: true }); } catch (_) {}
 
     /* ISSUE #60 — a ROUTINE with a project workdir: its prompt says file work happens in the project and its
        shell defaults there, so a relative fs.write must land there too (it used to land in the agent's private

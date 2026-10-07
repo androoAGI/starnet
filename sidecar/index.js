@@ -208,7 +208,7 @@ const { makePathTrust } = require('./pathtrust.js');            // NS-5: convers
 // Tool-result images (browser.screenshot / browser.vision -> real pixels in the prompt). ON by default; set
 // SKYNET_TOOL_IMAGES=0 for a text-only endpoint that rejects image content parts.
 const TOOL_IMAGES_ON = String(process.env.SKYNET_TOOL_IMAGES == null ? '' : process.env.SKYNET_TOOL_IMAGES).trim() !== '0';
-const { makeProjectBless, projectScopeLine, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
+const { makeProjectBless, projectScopeLine, projectLapsedLine, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
 const { makeFolderPick } = require('./folderpick.js');          // Projects rail "browse": native OS folder chooser (convenience only — bless stays the consent)
 const { makeTelegramAdapter } = require('./channels/telegram.js');
 const { makeTelegramTransport } = require('./channels/telegram.transport.js');   // multi-bot connect: getMe token probe
@@ -17801,7 +17801,8 @@ async function handleRun(req, res) {
   // access the grant layer can't prove. The line rides `system` so it reaches every provider identically.
   const projectRootRaw = (body && typeof body.projectRoot === 'string') ? body.projectRoot.trim().slice(0, 4096) : '';
   const projectBlessed = !!(projectRootRaw && isBlessedRoot(projectRootRaw));
-  const projectLine = projectScopeLine(projectRootRaw, projectBlessed);
+  // an anchor the grant layer no longer backs says so (projectLapsedLine) instead of silently writing elsewhere (#60)
+  const projectLine = projectScopeLine(projectRootRaw, projectBlessed) || projectLapsedLine(projectRootRaw, projectBlessed);
   // ...and the project's OWN house rules, on the same grant. Read ONCE here, before the run, so the text is
   // byte-stable for the whole run and never shifts the cached system prefix mid-stream (providers/anthropic.js).
   let projectRules = '';

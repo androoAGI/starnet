@@ -120,6 +120,21 @@
       ' — unless the user names a different location, file work in this conversation happens there.';
   }
 
+  /* The LAPSED anchor (issue #60). A session anchored to a folder that is NOT a standing grant right now (trust
+     removed, or a path that never matched the grant) used to get projectScopeLine's '' and nothing else: the run
+     quietly fell back to the private workspace while the Commander, the rail and the shell all pointed at the
+     project, so a "verified" fs.write landed where the shell then found it MISSING. Silence was the lie. This
+     line asserts no access (it says the opposite) and names the way back. Empty for a blessed or absent root. */
+  function projectLapsedLine(root, blessed) {
+    const r = String(root == null ? '' : root).replace(/[\r\n]+/g, ' ').trim();
+    if (!r || blessed) return '';
+    return '\n\nPROJECT FOLDER NOT TRUSTED: this session is anchored to ' + r.slice(0, 1024) + ', but that folder is not a ' +
+      'trusted project right now, so a RELATIVE file path writes to your private workspace, not that folder (the shell ' +
+      'will not find it there). To work in the folder, use absolute paths inside it (StarNet may ask the Commander to ' +
+      'approve it), or ask the Commander to add it again under PROJECTS. Never report a file as saved in that folder ' +
+      'unless its receipt names a location inside it.';
+  }
+
   /* PROJECT INSTRUCTIONS — the folder's OWN house rules (2026-07-27).
 
      projectScopeLine above tells the agent WHERE it is working. It never told it HOW that project wants to be
@@ -194,5 +209,5 @@
     return { load };
   }
 
-  return { makeProjectBless, projectScopeLine, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
+  return { makeProjectBless, projectScopeLine, projectLapsedLine, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
 });
