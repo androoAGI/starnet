@@ -464,7 +464,7 @@ function noteApiRefusal(req, reason) {
       (reason === 'forbidden host' ? ' — StarNet answers only on localhost/127.0.0.1; reach it through a port forward' : '');
     console.warn(line);
     recordDiagError(line);
-  } catch (_) {}
+  } catch (e) { failNote('api.refusal.note', e); }
 }
 function rejectBadApiToken(req, res) {
   if (!requiresApiToken(req)) return false;
@@ -23419,7 +23419,7 @@ function noteKeyCheckFailure(route, id, result, candidate) {
     if (keyCheckNoted.size > 64) keyCheckNoted.delete(keyCheckNoted.keys().next().value);
     console.warn(line);
     recordDiagError(line);
-  } catch (_) {}
+  } catch (e) { failNote('providers.keycheck.note', e); }
 }
 async function handleProviderProbe(req, res) {
   let id = '', probeKey = '';
