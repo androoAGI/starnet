@@ -120,13 +120,15 @@
   function isDomainMissing(result) {
     const summary = String((result && result.summary) || '').toLowerCase();
     const content = String((result && result.content) || '').toLowerCase();
+    const failed = !!(result && (result.isError || result.ok === false));
     return summary === 'domain not found'
       || /\bdomain\b[^\n]{0,160}\bdoes not resolve\b/.test(content)
       || /\bnxdomain\b/.test(content)
       // browser.navigate resolves the name in node before Chrome loads anything ("getaddrinfo ENOTFOUND <host>");
-      // a later hop through the station proxy surfaces Chrome's own net::ERR_NAME_NOT_RESOLVED.
-      || /\benotfound\b/.test(content)
-      || /\berr_name_not_resolved\b/.test(content);
+      // a later hop through the station proxy surfaces Chrome's own net::ERR_NAME_NOT_RESOLVED. Only a FAILED call
+      // counts: a page that loaded fine can quote "getaddrinfo ENOTFOUND" (node/npm error docs, an issue thread),
+      // and stopping that run would tell the Commander a live host does not exist.
+      || (failed && (/\benotfound\b/.test(content) || /\berr_name_not_resolved\b/.test(content)));
   }
 
   function prompt(policy) {

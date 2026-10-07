@@ -90,6 +90,10 @@ for (const [text, host, why] of [
   A.ok(DomainTask.isDomainMissing({ isError: true, content: 'tool browser.navigate failed: getaddrinfo ENOTFOUND etsyy.com' }), 'the browser\'s own DNS pre-check failure is terminal evidence');
   A.ok(DomainTask.isDomainMissing({ isError: true, content: 'could not load etsyy.com: net::ERR_NAME_NOT_RESOLVED' }), 'Chrome\'s name-not-resolved is terminal evidence');
   A.ok(!DomainTask.isDomainMissing({ isError: true, content: 'tool browser.navigate failed: refusing to navigate: x resolves to private address 10.0.0.1' }), 'a refused private address is not a missing domain');
+  // A page that LOADED can quote the error text (node/npm error docs, an issue thread): that is not a missing host.
+  A.ok(!DomainTask.isDomainMissing({ ok: true, content: 'Troubleshooting: Error: getaddrinfo ENOTFOUND registry.npmjs.org means your DNS…' }), 'a fetched page that mentions getaddrinfo ENOTFOUND is not a missing domain');
+  A.ok(!DomainTask.isDomainMissing({ ok: true, isError: false, content: 'Navigated to https://nodejs.org/api/errors.html\nERR_NAME_NOT_RESOLVED and ENOTFOUND are DNS errors.' }), 'a navigated page that mentions ERR_NAME_NOT_RESOLVED is not a missing domain');
+  A.ok(DomainTask.isDomainMissing({ ok: false, content: 'tool browser_navigate failed: getaddrinfo ENOTFOUND etsyy.com' }), 'ok:false alone marks the call as failed');
   A.ok(/browser\.navigate/.test(DomainTask.prompt(etsy)), 'the host policy prompt names the browser as a way to read the host');
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
