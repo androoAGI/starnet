@@ -57,6 +57,50 @@ A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starne
   A.ok(/c\.name === 'web_request' && !DomainTask\.isTargetRequest\(c, directDomainTask\)/.test(src), 'the dispatch guard confines web_request to the named host');
 }
 A.ok(DomainTask.isDomainMissing({ summary: 'domain not found', content: 'Domain starnessos.com does not resolve (ENOTFOUND).' }), 'ENOTFOUND/NXDOMAIN result is terminal evidence');
+// AN INTERACTIVE VISIT IS NOT A PAGE READ: clicking, typing, signing in and searching a site need the browser, so
+// these are never confined to the one-host read policy (the run keeps its ordinary tools).
+for (const [text, why] of [
+  ['open amazon.com and search for usb cables', 'searching the store'],
+  ['Open etsy.com and search for handmade leather wallets, read the top results', 'the reported Etsy request'],
+  ['browse github.com and log in', 'logging in'],
+  ['visit example.com and click the pricing page', 'clicking'],
+  ['open shop.com and add the blue mug to the cart', 'adding to a cart'],
+  ['open example.com and type my name in the form', 'typing into a form'],
+  ['check example.com in the browser and take a screenshot', 'in the browser + screenshot'],
+  ['open example.com and sign in with my account', 'signing in'],
+  ['open amazon.com and buy me a usb cable', 'buying']
+]) A.eq(DomainTask.classify(text), null, 'an interactive visit is not a bounded page read: ' + why);
+for (const [text, host, why] of [
+  ['check the order status on printify.com', 'printify.com', 'a noun "order"'],
+  ['Read the press release on example.com', 'example.com', 'a noun "press"'],
+  ['What type of site is example.com? Check it.', 'example.com', 'a noun "type"'],
+  ['check my shop on etsy.com', 'etsy.com', 'a plain one-host check']
+]) A.ok(DomainTask.classify(text)?.host === host, 'a non-interactive read stays bounded: ' + why);
+// THE BROWSER STAYS ON a bounded run, confined to the named host — the same bound web_request has (#58).
+{
+  const etsy = DomainTask.classify('check my shop on etsy.com');
+  A.ok(DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://www.etsy.com/search?q=mug' } }, etsy), 'browser.navigate to the named host is allowed');
+  A.ok(DomainTask.isTargetNavigate({ name: 'browser_navigate', args: { url: 'https://m.etsy.com/shop/x' } }, etsy), 'a subdomain (wire name) is allowed');
+  A.ok(DomainTask.isTargetNavigate({ name: 'browser.login', args: { url: 'https://www.etsy.com/signin' } }, etsy), 'browser.login to the named host is allowed');
+  A.ok(!DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://web.archive.org/web/etsy.com' } }, etsy), 'an archive is refused');
+  A.ok(!DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://www.google.com/search?q=etsy' } }, etsy), 'a search engine is refused');
+  A.ok(!DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://evil-etsy.com' } }, etsy), 'a look-alike host is not a subdomain');
+  A.ok(!DomainTask.isTargetNavigate({ name: 'web_fetch', args: { url: 'https://etsy.com' } }, etsy), 'only the browser URL tools are matched');
+  A.ok(!DomainTask.isTargetNavigate({ name: 'browser.navigate', args: { url: 'https://etsy.com' } }, null), 'no policy, no match');
+  A.ok(DomainTask.isDomainMissing({ isError: true, content: 'tool browser.navigate failed: getaddrinfo ENOTFOUND etsyy.com' }), 'the browser\'s own DNS pre-check failure is terminal evidence');
+  A.ok(DomainTask.isDomainMissing({ isError: true, content: 'could not load etsyy.com: net::ERR_NAME_NOT_RESOLVED' }), 'Chrome\'s name-not-resolved is terminal evidence');
+  A.ok(!DomainTask.isDomainMissing({ isError: true, content: 'tool browser.navigate failed: refusing to navigate: x resolves to private address 10.0.0.1' }), 'a refused private address is not a missing domain');
+  A.ok(/browser\.navigate/.test(DomainTask.prompt(etsy)), 'the host policy prompt names the browser as a way to read the host');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
+  A.ok(withheld && withheld.indexOf('browser') < 0, 'the direct-domain policy no longer strips the browser from the advertised tools');
+  A.ok(/c\.name === 'browser\.navigate' \|\| c\.name === 'browser\.login'\) && !DomainTask\.isTargetNavigate\(c, directDomainTask\)/.test(src), 'the dispatch guard confines browser navigation to the named host');
+  A.ok(/DomainTask\.isTargetNavigate\(c, directDomainTask\)\) && DomainTask\.isDomainMissing\(r\)/.test(src), 'a missing domain reached through the browser gets the same terminal stop');
+  // tool.search's pool is settled BEFORE capCtx with the same predicate, so it never offers a withheld name.
+  const decl = src.indexOf('const directDomainWithheld = '), pool = src.indexOf('!directDomainWithheld(n)'), cap = src.indexOf('makeCapCtx(resolved, Object.assign(');
+  A.ok(decl > 0 && pool > decl && cap > pool, 'the deferred pool tool.search reads is filtered by the direct-domain predicate before capCtx is built');
+  A.ok(/policyWithheld: directDomainTask \?/.test(src), 'tool.search is told what the direct-domain policy keeps off this run');
+}
 
 const hostSrc = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
 A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain host withholds delegation');

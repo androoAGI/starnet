@@ -19427,13 +19427,19 @@ async function runOnceCore(o) {
          carry why and how to enable it. An unknown signal leaves the tool advertised.
      KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, these included, exactly as before deferral. */
   const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  /* DIRECT-DOMAIN WITHHOLDING — what a bounded one-host check may not even see: delegation and open web search, the
+     two typo-cascade routes. web_request (issue #58) and the browser stay ADVERTISED; the dispatch guards below
+     confine their URL-taking calls to the named host + subdomains (DomainTask.isTargetRequest / isTargetNavigate).
+     Declared before the deferred pool is settled so tool.search can never offer — and announce as "Now available"
+     — a name the loop will not reveal and dispatch would refuse. */
+  const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || name === 'web_search');
   let connectorDeferral = { deferred: [], servers: [] };
   let unavailable = { byTool: {}, bySignal: {} };
   {
     const granted = new Set(resolved.tools);
     // A deferred name must be a GRANTED one. enforceRunAuthority narrows `tools` but not `deferred`, and a name
     // left behind would be offered by tool.search (and named in the prompt) and then refused by the gate.
-    const deferred = (resolved.deferred || []).filter(n => granted.has(n));
+    const deferred = (resolved.deferred || []).filter(n => granted.has(n) && !directDomainWithheld(n));
     if (isTask && !deferralOff) {
       try {
         const entries = [];
@@ -19465,7 +19471,7 @@ async function runOnceCore(o) {
       }, granted);
     }
     const extra = connectorDeferral.deferred.concat(Object.keys(unavailable.byTool));
-    resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0));
+    resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0 && !directDomainWithheld(n)));
     resolved.unavailable = unavailable.byTool;
     const footprintSig = JSON.stringify([connectorDeferral.servers, unavailable.bySignal]);
     if (footprintSig !== lastToolFootprintLog) {
@@ -19543,6 +19549,12 @@ async function runOnceCore(o) {
     // Host-minted routine identity for routine.notepad. Interactive/model-authored runs cannot name another
     // job: only the autonomous schedule path receives this context field.
     cronJobId: (surface === 'autonomous' && trigger === 'schedule') ? String(o.cronJobId || '') : '',
+    // tool.search explains what the direct-domain policy keeps off this run (resolved.deferred already excludes it)
+    policyWithheld: directDomainTask ? {
+      names: (resolved.tools || []).filter(directDomainWithheld),
+      why: 'this request names one exact host (' + directDomainTask.host + '), so this run checks only that host',
+      enable: 'read ' + directDomainTask.host + ' with web_fetch or the browser (browser.navigate to that host), or ask the Commander to widen the request beyond that one site'
+    } : null,
     origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }),   // stamped onto notebook.write records: WHICH surface formed this belief
     deliveryOrigin: o.deliveryOrigin || (streamId ? { streamId: streamId, sessionId: streamId, sessionTitle: o.sessionTitle || '' } : null),
     authorize: userControlAuthority.authorize,
@@ -19903,10 +19915,11 @@ async function runOnceCore(o) {
   // advertises everything, exactly as before this feature — the escape hatch for an operator whose model is
   // one of those, and the A/B control for measuring whether deferral (rather than the model) caused a miss.
   // (`deferralOff` is read once, above at TOOL FOOTPRINT, so the connector/availability deferrals obey it too.)
-  // web_request stays ADVERTISED (issue #58): the dispatch guard below confines it to the named host + subdomains
-  const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || /^browser\./.test(name) || name === 'web_search');
+  // (`directDomainWithheld` is declared there too: tool.search's pool and these wire lists apply ONE predicate.)
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !directDomainWithheld(n)));
   const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !directDomainWithheld(n));
+  // tool.search names a listed tool as callable instead of offering the nearest hidden one (see listedMatch)
+  capCtx.advertised = isTask ? coreNames : [];
   const toolDefs = isTask ? registry.wireFormat(registry.list(new Set(coreNames))) : [];
   const deferredToolDefs = isTask ? registry.wireFormat(registry.list(deferredNames)) : [];
   // A tool deferred because it CANNOT work this run keeps that fact on its own declaration, so a model that
@@ -20027,7 +20040,10 @@ async function runOnceCore(o) {
         content: 'WITHHELD: this run was started from a paired phone or by someone other than the station owner, so it cannot set up or restart work that runs on its own later (a routine, a loop, a line trigger or a line test) — that work would run with the station standing Full Access. Pausing, stopping or removing it is fine. Tell the Commander exactly what to set up so they can do it at the desk; do NOT retry.' };
     }
     if (directDomainTask && directDomainWithheld(c.name)) {
-      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + directDomainTask.host + '. Do not delegate, search, browse, or call archives; fetch that host directly with web_fetch.' };
+      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + directDomainTask.host + '. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' };
+    }
+    if (directDomainTask && (c.name === 'browser.navigate' || c.name === 'browser.login') && !DomainTask.isTargetNavigate(c, directDomainTask)) {
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' };
     }
     if (directDomainTask && c.name === 'web_request' && !DomainTask.isTargetRequest(c, directDomainTask)) {
       return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': web_request may call that host (or its own API subdomains) only.' };
@@ -20211,7 +20227,7 @@ async function runOnceCore(o) {
           });
         }
       }
-      if (DomainTask.isTargetFetch(c, directDomainTask) && DomainTask.isDomainMissing(r)) {
+      if ((DomainTask.isTargetFetch(c, directDomainTask) || DomainTask.isTargetNavigate(c, directDomainTask)) && DomainTask.isDomainMissing(r)) {
         r = Object.assign({}, r, { control: Object.assign({}, r && r.control, DomainTask.stopControl(directDomainTask)) });
       }
       // Persist the full model-visible result before the loop advances to another call/turn. Once dispatch is
