@@ -6,6 +6,8 @@
    Envelope shape: { access_token, refresh_token, expires_at?, last_refresh?, device_id?, token_type?, authDead? }
      · expires_at  — ms epoch, computed from expires_in at persist time; drives the freshness check across a restart.
      · device_id   — Kimi's stable per-install X-Msh-Device-Id, minted once and kept WITH the tokens.
+     · region      — Kimi only: 'global' (kimi.ai) or 'cn' (kimi.com) — the deployment the sign-in was minted in.
+                     Absent on pre-#70 envelopes, which read as 'cn' (providers/kimi-region.js).
      · authDead    — the honest dead-token marker (see oauth-auth-state via the reused codex-auth-state module). */
 'use strict';
 (function (root, factory) {

@@ -518,7 +518,7 @@
     if (isMoonshotModel(model)) return true;
     const m = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]+)/i.exec(String(baseUrl == null ? '' : baseUrl).trim());
     const host = m ? m[1].replace(/^[^@]*@/, '').replace(/:\d+$/, '').toLowerCase() : '';
-    return /(^|\.)(moonshot\.ai|moonshot\.cn|kimi\.com)$/.test(host);
+    return /(^|\.)(moonshot\.ai|moonshot\.cn|kimi\.com|kimi\.ai)$/.test(host);   // kimi.ai = the Global Kimi deployment (#70)
   }
 
   /* The advertised tool list for a wire that sends OpenAI-shape tools verbatim (Chat Completions): property keys

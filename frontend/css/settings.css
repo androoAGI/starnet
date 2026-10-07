@@ -60,6 +60,9 @@
 .settings-console .prov-accounts .key-mask { max-width: 100%; overflow-wrap: anywhere; }
 .settings-console .prov-accounts .key-acts { flex-direction: row; margin-left: auto; }
 .settings-console .prov-accounts .key-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+/* KIMI ACCOUNT REGION (#70): GLOBAL · kimi.ai / CHINA · kimi.com, full width under the card head */
+.settings-console .prov-region { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; line-height: 1.4; }
+.settings-console .prov-region .bb.sm.active[aria-pressed="true"] {   /* outranks the glass skin's .term :is(.bb.sm) paint */ border-color: var(--ph); background: rgba(var(--ph-rgb), .13); color: var(--ph-bright); }
 .settings-console .prov-accounts-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; line-height: 1.4; }
 .settings-console .key-edit:not([hidden]) { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.16); }
 .settings-console .key-edit input { flex: 1 1 200px; }
@@ -137,6 +140,8 @@
   .settings-console .prov-addkey { grid-column:1; grid-row:2; justify-self:start; margin-left:42px; }
   .settings-console .prov-stat,.settings-console .prov-card:not(:has(.prov-addkey)) .prov-stat { grid-column:1; grid-row:3; justify-content:flex-start; text-align:left; padding-left:42px; }
   .settings-console .prov-accounts { grid-row:4; }   /* the card's own status line stays above its accounts */
+  .settings-console .prov-region { grid-row:4; }
+  .settings-console .prov-card:has(.prov-region) .prov-accounts { grid-row:5; }
   .settings-console [data-provider="starnet"] :is(.prov-addkey,.prov-stat) { margin-left:0; padding-left:0; }
 }
 @container settings-pane (max-width:340px) {

@@ -4802,12 +4802,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       .then(j => {
         // carry the WHOLE truth shape (connected + expired + reason), exactly like codex — a lone bool can't
         // distinguish "never signed in" from the dead-refresh-token death the row must render differently.
-        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '' };
+        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '', region: (j && j.region) || '' };
+        // kimi (#70): the stored sign-in's region seeds the next sign-in's default (unless the Commander picked one)
+        if (pid === 'kimi' && next.region && typeof KimiRegion !== 'undefined') KimiRegion.noteSignedIn(next.region);
         // Same rule as codex above: compare what the row will actually DRAW, so a cold "not connected" answer
         // that matches the fallback does not force a full pane rebuild (and its fan-out) for nothing.
-        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid);
+        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid), wasRegion = oauthStatus[pid] ? oauthStatus[pid].region : '';
         oauthStatus[pid] = next;
-        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired) scheduleSettingsRepaint();
+        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired || next.region !== wasRegion) scheduleSettingsRepaint();
       })
       .catch(() => {})
       .finally(() => { oauthChecking[pid] = false; });
@@ -4921,6 +4923,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      device-code engine (OAuthAccounts.for). The list is backend truth (/api/auth/<pid>/accounts: stored tokens, a
      recorded dead sign-in, the station's cooldown) and is re-read at most every 5s while Settings repaints, so a
      DISCONNECT or RE-SIGN-IN of the primary elsewhere on this page shows up without its own wiring. */
+  /* KIMI ACCOUNT REGION (#70): a Kimi account lives in ONE deployment — Global (kimi.ai) or China (kimi.com) — and can
+     only sign in there. This strip picks where the NEXT sign-in (⏼ SIGN IN, RE-SIGN-IN, ＋ ADD ACCOUNT) goes and says
+     which region the stored sign-in belongs to (the sidecar's status `region`, never a guess). */
+  function kimiRegionHtml() {
+    if (typeof KimiRegion === 'undefined') return '';
+    const next = KimiRegion.get();
+    const s = oauthStatus.kimi;
+    const stored = s && (s.connected || s.expired) && s.region ? KimiRegion.label(s.region) : '';
+    return '<div class="prov-region" role="group" aria-label="Kimi account region">' +
+      '<span class="dim">ACCOUNT REGION</span>' +
+      KimiRegion.OPTIONS.map(o => '<button class="bb sm' + (o.id === next ? ' active' : '') + '" data-act="kimi-region" data-region="' + esc(o.id) + '" aria-pressed="' + (o.id === next) + '"' +
+        ' title="sign in with a ' + esc(o.host) + ' account">' + esc(o.label + ' · ' + o.host) + '</button>').join('') +
+      '<span class="dim">' + (stored ? 'signed in on ' + esc(stored) + ' · ' : '') + 'pick where your Kimi account lives before you sign in</span>' +
+    '</div>';
+  }
   const STACKABLE_OAUTH = ['codex', 'grok', 'kimi'];
   const oauthAccts = {};   // pid -> { list: undefined|null|{accounts,max}, at, pending, box: null|{ account, msg, code, uri, openUri } }
   function oauthAcctState(pid) { return (oauthAccts[pid] = oauthAccts[pid] || { list: undefined, at: 0, pending: false, box: null }); }
@@ -5156,6 +5173,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : '') +
         (wantsClaudeSignin && !claudeCard.account ? claudeFlowBoxHtml(claudeFlowing, claudeBox) : '') +
         (isClaude && claudeCliSt && claudeCliSt.installed ? claudeAccountsHtml() : '') +
+        (p.id === 'kimi' && p.live ? kimiRegionHtml() : '') +
         (STACKABLE_OAUTH.indexOf(p.id) >= 0 ? oauthAccountsHtml(p.id) : '') +
         (wantsOAuthSignin
           ? '<div class="key-edit codex-inline prov-oauth-inline" id="prov-oauth-inline-' + esc(p.id) + '" hidden>' +
@@ -5790,6 +5808,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const claudeInstall = card.querySelector('[data-act="prov-claude-install"]');
       if (claudeInstall) claudeInstall.addEventListener('click', ev => { ev.stopPropagation(); sfx('click'); openExternal('https://code.claude.com/docs/en/setup'); });
+      // KIMI ACCOUNT REGION (#70): the pick rides the NEXT sign-in's start body; it never touches the stored sign-in.
+      card.querySelectorAll('[data-act="kimi-region"]').forEach(btn => btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (typeof KimiRegion === 'undefined' || !KimiRegion.set(btn.dataset.region)) return;
+        sfx('click');
+        rerender('settings');
+      }));
       // FIRST sign-in for a keyless device-code provider (grok/kimi) — the card-local twin of the key-row's
       // ⏼ RE-SIGN-IN, driving the SAME shared engine (OAuthSignIn.for). stopPropagation: the card click selects.
       const oauthSignin = card.querySelector('[data-act="prov-oauth-signin"]');

@@ -144,6 +144,12 @@ function googleRelayGuard() {
   return googleRelayGuardInstance;
 }
 function selectProvider(opts) {
+  // KIMI REGION (#70): every Kimi adapter — runs, catalogs, probes, fallbacks, extra accounts — talks to the API of
+  // the region its sign-in was minted in. An empty or stock regional base resolves to that region; a custom proxy
+  // URL the Commander set is kept. opts.kimiRegion names an extra account's region; otherwise the primary's.
+  if (opts && normalizeProvider(opts.provider) === 'kimi') {
+    opts = Object.assign({}, opts, { baseUrl: kimiRegion.resolveBaseUrl(opts.kimiRegion || kimiPrimaryRegion(), opts.baseUrl) });
+  }
   const built = selectProviderRaw(opts);
   return opts && normalizeProvider(opts.provider) === 'starnet' ? googleRelayGuard().guardProvider(built) : built;
 }
@@ -161,6 +167,9 @@ const codexAuthState = require('./providers/codex-auth-state.js');
 // pure dead-token machinery. Codex keeps its own proprietary wire above — these are additive, never a reroute.
 const oauthDevice = require('./providers/oauth-device.js');
 const oauthTokenStore = require('./providers/oauth-token-store.js');
+// Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
+// must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
+const kimiRegion = require('./providers/kimi-region.js');
 const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
@@ -4313,7 +4322,7 @@ function kimiMshHeaders(deviceId) {
 }
 // The verified wire constants for each provider (from the official device-code implementations). Everything
 // provider-specific is contained here; the generic oauth-device.js knows none of it.
-function oauthDeviceConfig(id, deviceId) {
+function oauthDeviceConfig(id, deviceId, region) {
   if (id === 'grok') {
     return {
       providerId: 'grok',
@@ -4328,11 +4337,14 @@ function oauthDeviceConfig(id, deviceId) {
     };
   }
   if (id === 'kimi') {
+    // ONE client id for both regions (Moonshot's kimi-code shares it); only the OAuth host differs (#70):
+    // auth.kimi.com for a China account (the legacy default), auth.kimi.ai for a Global one.
+    const urls = kimiRegion.oauthUrls(region);
     return {
       providerId: 'kimi',
       clientId: '17e5f671-d194-4dfb-9706-5516cb48c098',
-      deviceUrl: 'https://auth.kimi.com/api/oauth/device_authorization',
-      tokenUrl: 'https://auth.kimi.com/api/oauth/token',
+      deviceUrl: urls.deviceUrl,
+      tokenUrl: urls.tokenUrl,
       encoding: 'form',            // live-proven 2026-07-17: auth.kimi.com 400s JSON bodies; kimi-cli's requests(data=) is form-encoded
       refreshSkewSeconds: 300,
       halfLifeRefresh: true,       // ~15min access tokens: refresh past 50% of life OR within 300s of expiry
@@ -4348,6 +4360,10 @@ function oauthInferenceHeaders(id) {
   if (id === 'kimi' && entry) return kimiMshHeaders(entry.deviceId);
   return undefined;
 }
+// kimi (#70): the region of the PRIMARY sign-in. Before the table below exists (boot order) it is the legacy China wire.
+function kimiPrimaryRegion() {
+  try { const e = oauthProviders.kimi; return (e && e.region) || kimiRegion.LEGACY_REGION; } catch (_) { return kimiRegion.LEGACY_REGION; }
+}
 const oauthProviders = (() => {
   const map = {};
   for (const id of OAUTH_PROVIDER_IDS) {
@@ -4356,9 +4372,12 @@ const oauthProviders = (() => {
     try { tokens = oauthTokenStore.loadTokens({ file, load: (f, t) => loadResilient(f, t), tag: id }); } catch (_) { tokens = null; }
     // stable per-install device id: reuse the persisted one, else mint (persisted on the first token write).
     const deviceId = (tokens && typeof tokens.device_id === 'string' && tokens.device_id) ? tokens.device_id : crypto.randomUUID();
+    // kimi: the region the stored sign-in was minted in (no stored region = a pre-#70 China sign-in). Refreshes go
+    // to that region's token endpoint; a new sign-in may pick another region and replaces this with its own.
+    const region = id === 'kimi' ? kimiRegion.regionOfTokens(tokens) : '';
     map[id] = {
-      id, file, deviceId,
-      auth: oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, deviceId)),
+      id, file, deviceId, region,
+      auth: oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, deviceId, region)),
       tokens: (tokens && typeof tokens === 'object') ? tokens : null,
       authDead: codexAuthState.deadFromTokens(tokens),
       persistError: '',
@@ -4465,7 +4484,8 @@ function oauthAccountEntry(pid, acctId) {
     authDead: codexAuthState.deadFromTokens(tokens), persistError: '', refreshInFlight: null };
   if (pid !== 'codex') {
     entry.deviceId = (tokens && typeof tokens.device_id === 'string' && tokens.device_id) ? tokens.device_id : crypto.randomUUID();
-    entry.auth = oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, entry.deviceId));
+    entry.region = pid === 'kimi' ? kimiRegion.regionOfTokens(tokens) : '';   // each extra Kimi account keeps its OWN region (#70)
+    entry.auth = oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, entry.deviceId, entry.region));
   }
   oauthAccountEntries.set(key, entry);
   return entry;
@@ -23512,18 +23532,39 @@ function pruneOAuthPending(entry) {
   for (const [k, v] of entry.pending) { if (!v || (now - (v.at || 0)) > OAUTH_PENDING_TTL_MS) entry.pending.delete(k); }
 }
 
+// KIMI REGION (#70): which deployment a NEW sign-in goes to. The browser names it ({ region: 'global'|'cn' }); a
+// start with no region (an older page) keeps `fallback` — the stored sign-in's region, else China, the old wire.
+// A region that names neither deployment is refused rather than guessed. Other providers have no regions ('').
+function oauthStartRegion(id, body, fallback) {
+  if (id !== 'kimi') return { region: '' };
+  const asked = body && body.region != null && String(body.region).trim() !== '' ? body.region : null;
+  if (asked == null) return { region: kimiRegion.normalizeRegion(fallback) || kimiRegion.LEGACY_REGION };
+  const region = kimiRegion.normalizeRegion(asked);
+  return region ? { region } : { error: 'unknown Kimi region — choose global (kimi.ai) or cn (kimi.com)' };
+}
+async function readOptionalJson(req) {
+  const raw = String(await readBody(req, 1 << 16) || '').trim();
+  return raw ? (JSON.parse(raw) || {}) : {};
+}
 async function handleOAuthStart(req, res, id) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const entry = oauthProviders[id];
   if (!entry) return json(404, { error: 'unknown provider' });
+  let body; try { body = await readOptionalJson(req); } catch (_) { return json(400, { error: 'bad json' }); }
+  const pick = oauthStartRegion(id, body, entry.region);
+  if (pick.error) return json(400, { error: pick.error, code: 'bad_region' });
   try {
-    const d = await entry.auth.startDeviceLogin({ fetch: globalThis.fetch });
+    // The sign-in is driven against the CHOSEN region's auth host; the stored sign-in (and its refreshes) keep their
+    // own region until this one completes — an abandoned attempt never moves a working credential.
+    const auth = pick.region === (entry.region || '') ? entry.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, entry.deviceId, pick.region));
+    const d = await auth.startDeviceLogin({ fetch: globalThis.fetch });
     pruneOAuthPending(entry);
     const login_id = crypto.randomUUID();
-    entry.pending.set(login_id, { device_code: d.device_code, interval: d.interval, at: Date.now() });
+    entry.pending.set(login_id, { device_code: d.device_code, interval: d.interval, at: Date.now(), region: pick.region, auth });
     // device_code is DELIBERATELY absent from this payload — it stays server-side (entry.pending).
     // device_auth_id mirrors login_id so the ONE shared browser sign-in engine (codexsignin.js) works verbatim.
-    json(200, { login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in });
+    json(200, Object.assign({ login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in },
+      pick.region ? { region: pick.region } : {}));
   } catch (e) {
     json(502, { error: (e && e.message) || ('failed to start ' + oauthLabel(id) + ' sign-in'), code: (e && e.code) || 'device_code_request_failed' });
   }
@@ -23539,13 +23580,16 @@ async function handleOAuthPoll(req, res, id) {
   const pending = login_id && entry.pending.get(login_id);
   if (!pending) return json(400, { status: 'error', error: 'unknown or expired sign-in — start again', code: 'login_not_found' });
   try {
-    const poll = await entry.auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: pending.device_code, interval: pending.interval, now: Date.now() });
+    const auth = pending.auth || entry.auth;
+    const poll = await auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: pending.device_code, interval: pending.interval, now: Date.now() });
     if (poll && poll.pending) {
       if (poll.interval) pending.interval = poll.interval;   // honor a slow_down replacement interval
       return json(200, { status: 'pending', interval: pending.interval });
     }
     // poll resolved to the normalized token envelope — a completed device sign-in supersedes any dead marker.
-    entry.tokens = Object.assign({}, poll, entry.deviceId ? { device_id: entry.deviceId } : {});
+    // kimi: the credential carries its region from here on; refreshes and inference follow it (#70).
+    entry.tokens = Object.assign({}, poll, entry.deviceId ? { device_id: entry.deviceId } : {}, pending.region ? { region: pending.region } : {});
+    if (pending.region) { entry.region = pending.region; entry.auth = auth; }
     entry.authDead = null;
     saveOAuthTokens(id, entry.tokens);
     entry.pending.delete(login_id);
@@ -23561,7 +23605,10 @@ async function handleOAuthPoll(req, res, id) {
 function handleOAuthStatus(req, res, id) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   const entry = oauthProviders[id] || {};
-  res.end(JSON.stringify(codexAuthState.statusPayload({ tokens: entry.tokens, dead: entry.authDead, persistError: entry.persistError })));
+  const st = codexAuthState.statusPayload({ tokens: entry.tokens, dead: entry.authDead, persistError: entry.persistError });
+  // kimi: WHICH deployment the stored sign-in belongs to (a label, never a credential) — only when one is stored.
+  if (id === 'kimi' && entry.tokens && entry.tokens.access_token) st.region = entry.region || kimiRegion.LEGACY_REGION;
+  res.end(JSON.stringify(st));
 }
 
 // GET /api/auth/<id>/models — the account's live catalog with a fresh token; falls back to the static roster
@@ -23608,8 +23655,10 @@ async function handleOAuthAccounts(req, res, pid, verb) {
         const e = oauthAccountEntry(pid, a.id);
         if (!e) continue;
         rows.push(Object.assign({ account: a.id, primary: false, email: accountEmailOf(e.tokens) },
-          codexAuthState.statusPayload({ tokens: e.tokens, dead: e.authDead, persistError: e.persistError })));
+          codexAuthState.statusPayload({ tokens: e.tokens, dead: e.authDead, persistError: e.persistError }),
+          pid === 'kimi' && e.tokens && e.tokens.access_token ? { region: e.region || kimiRegion.LEGACY_REGION } : {}));
       }
+      if (pid === 'kimi' && prim.tokens && prim.tokens.access_token) rows[0].region = kimiPrimaryRegion();
       const accounts = rows.map((r, i) => {
         noteAccountAuth(pid, r.account, { installed: true, loggedIn: !!r.connected });
         return Object.assign(r, { label: 'account ' + (i + 1), coolingUntil: credPool.coolingUntil('account:' + pid + ':' + (r.account || 'primary')) || 0 });
@@ -23633,11 +23682,16 @@ async function handleOAuthAccounts(req, res, pid, verb) {
       // grok / kimi: a new account gets its own stable device id from the first request (kimi signs every call with it)
       const existing = account ? oauthAccountEntry(pid, account) : null;
       const deviceId = existing ? existing.deviceId : crypto.randomUUID();
-      const auth = existing ? existing.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, deviceId));
+      // kimi: the region the browser chose for THIS sign-in (an older page sends none: the account's own region,
+      // else China — the pre-#70 wire). The account adopts it only when the sign-in completes.
+      const pick = oauthStartRegion(pid, body, existing ? existing.region : '');
+      if (pick.error) return json(400, { error: pick.error, code: 'bad_region' });
+      const auth = existing && pick.region === (existing.region || '') ? existing.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, deviceId, pick.region));
       const d = await auth.startDeviceLogin({ fetch: globalThis.fetch });
       const login_id = crypto.randomUUID();
-      accountLogins.set(login_id, { pid, account, device_code: d.device_code, interval: d.interval, deviceId, auth, at: now });
-      return json(200, { account, login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in });
+      accountLogins.set(login_id, { pid, account, device_code: d.device_code, interval: d.interval, deviceId, auth, region: pick.region, at: now });
+      return json(200, Object.assign({ account, login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in },
+        pick.region ? { region: pick.region } : {}));
     }
 
     if (verb === 'account-poll') {
@@ -23654,7 +23708,7 @@ async function handleOAuthAccounts(req, res, pid, verb) {
         } else {
           const poll = await p.auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: p.device_code, interval: p.interval, now: Date.now() });
           if (poll && poll.pending) { if (poll.interval) p.interval = poll.interval; return json(200, { status: 'pending', interval: p.interval }); }
-          tokens = Object.assign({}, poll, { device_id: p.deviceId });
+          tokens = Object.assign({}, poll, { device_id: p.deviceId }, p.region ? { region: p.region } : {});
         }
       } catch (e) {
         accountLogins.delete(id);
@@ -23665,7 +23719,7 @@ async function handleOAuthAccounts(req, res, pid, verb) {
       const acctId = p.account || providerAccounts.add(pid).id;
       const entry = oauthAccountEntry(pid, acctId);
       if (!entry) return json(404, { status: 'error', error: 'that ' + label + ' account was removed while it was signing in', code: 'account_not_found' });
-      if (p.deviceId && pid !== 'codex') { entry.deviceId = p.deviceId; entry.auth = p.auth; }
+      if (p.deviceId && pid !== 'codex') { entry.deviceId = p.deviceId; entry.auth = p.auth; if (p.region) entry.region = p.region; }
       entry.tokens = tokens; entry.authDead = null;
       saveAccountTokens(entry, entry.tokens);
       noteAccountAuth(pid, acctId, { installed: true, loggedIn: true });
@@ -23773,7 +23827,8 @@ function oauthAccountProvider(providerId, acct, baseUrl, reasoningEffort) {
   const e = oauthAccountEntry(providerId, acct.id);
   return selectProvider({ provider: providerId, fetch: globalThis.fetch, tokenProvider: () => ensureAccountAccessToken(e),
     renewToken: codex ? (stale) => ensureAccountAccessToken(e, true, stale) : undefined,
-    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort });
+    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort,
+    kimiRegion: providerId === 'kimi' ? e.region : undefined });   // an extra Kimi account runs on ITS region's API (#70)
 }
 async function handleClaudeCliAuth(req, res, verb) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
