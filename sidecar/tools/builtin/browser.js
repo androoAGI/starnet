@@ -1679,6 +1679,7 @@
           : ''));
         err.code = viaProxy ? 'STATION_PROXY_DOWN' : 'NAVIGATION_FAILED';
         err.navigationError = navError;
+        if (viaProxy && attachPort !== null) err.revealTools = ['browser.reset'];   // deferred: the hint must make it callable
         throw err;
       }
       if (deps.syntheticInputOnly !== false) {
@@ -2883,8 +2884,10 @@
          URLs are allowed" for that sent the agent hunting for a redirect that never happened. Genuine non-http(s)
          destinations (data:, file:, javascript:, chrome:, custom app schemes) are still refused as unsafe redirects. */
       if (finalUrl && /^about:blank(?:[?#]|$)/i.test(String(finalUrl))) {
-        throw new Error('could not load ' + u.host + ': the page never loaded (the browser is still on about:blank). '
+        const blank = new Error('could not load ' + u.host + ': the page never loaded (the browser is still on about:blank). '
           + 'The site may have refused the connection, or the station browser lost its network; try again, or run browser.reset');
+        blank.revealTools = ['browser.reset'];   // deferred: the hint must make it callable
+        throw blank;
       }
       if (finalUrl) {
         try {
@@ -3103,10 +3106,18 @@
     }
     async function evalPublic(expression) {
       const gate = evalAllowed();
-      if (!gate.ok) throw new Error('browser.eval is refused: ' + gate.reason + ', and arbitrary page ' +
-        'script there could read the cookies and storage of accounts you are signed into. Use ' +
-        'browser.inspect for computed styles/attributes/shadow DOM, browser.get_text for content, or ' +
-        'browser.test_eval on your own localhost server.');
+      if (!gate.ok) {
+        /* Name only tools that exist, and REVEAL the one that is deferred: browser.inspect is not advertised until a
+           tool_search finds it, so pointing at it without the reveal sent the agent after a tool it could not call
+           (and the "test_eval" tool it also named never existed). The refusal stays an error; the registry carries the reveal. */
+        const err = new Error('browser.eval is refused: ' + gate.reason + ', and arbitrary page ' +
+          'script there could read the cookies and storage of accounts you are signed into. Use ' +
+          'browser.inspect (by ref from browser.snapshot) for computed styles/attributes/shadow DOM, or ' +
+          'browser.get_text for content. On your own localhost server, browser.test_snapshot and browser.test_state read the page.');
+        err.revealTools = ['browser.inspect'];
+        err.toolSummary = 'eval refused';
+        throw err;
+      }
       const d = ensureDriver();
       return driverFn(d, 'evalPublic')(expression);
     }

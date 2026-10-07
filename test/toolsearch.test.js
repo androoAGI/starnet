@@ -225,5 +225,55 @@ const DEFERRED = ['page.screenshot', 'page.upload'];
     A.eq(res.reason, 'done', 'omitting deferredTools entirely is a no-op — the old call shape still works');
   }
 
+  /* ---- F. A REFUSAL THAT NAMES A DEFERRED TOOL REVEALS IT (browser.eval -> browser.inspect, 10-07). The refusal is
+     a thrown error, and an error result used to carry no control at all, so the tool it named stayed uncallable
+     until the model happened to search for it. It stays an error; only granted+deferred names become advertised. ---- */
+  {
+    const registry = fixture();
+    registry.register({
+      name: 'page.refuse', capability: 'web', scope: 'read', requiresConsent: false,
+      description: 'Always refuses.', schema: { type: 'object', properties: {} },
+      run: async () => { const e = new Error('refused: use page.screenshot instead'); e.revealTools = ['page.screenshot', 'not.granted', 42, '../bad']; e.toolSummary = 'refused'; throw e; }
+    });
+    const direct = await registry.dispatch({ id: 'x', name: 'page.refuse', args: {}, argsRaw: '{}' }, {});
+    A.eq([direct.ok, direct.isError, direct.summary], [false, true, 'refused'], 'the refusal is still an error result with its own summary');
+    A.eq(direct.control && direct.control.revealTools, ['page.screenshot', 'not.granted'], 'the error carries only well-formed tool names to reveal');
+    const plain = await registry.dispatch({ id: 'y', name: 'page.missing.args', args: {}, argsRaw: '{}' }, {});
+    A.ok(!plain.control, 'an ordinary error carries no control');
+
+    const toolsSeenPerTurn = [];
+    let turn = 0;
+    const provider = {
+      priceOf, contextLimit: () => 0,
+      stream: async function* (req) {
+        toolsSeenPerTurn.push(req.tools.map(t => t.function.name).sort());
+        turn++;
+        if (turn === 1) {
+          yield { type: 'tool_start', index: 0, id: 'r1', name: 'page_refuse' };
+          yield { type: 'tool_args', index: 0, chunk: '{}' };
+          yield { type: 'tool_done', index: 0 };
+          yield { type: 'done', finishReason: 'tool_calls' };
+        } else { yield { type: 'text', delta: 'ok' }; yield { type: 'done', finishReason: 'stop' }; }
+      }
+    };
+    const core = registry.wireFormat(registry.list(new Set(['page.refuse', 'tool.search'])));
+    const deferredDefs = registry.wireFormat(registry.list(new Set(DEFERRED)));
+    const fromWire = new Map();
+    for (const d of core.concat(deferredDefs)) { const real = d.function.name; const w = real.replace(/\./g, '_'); fromWire.set(w, real); d.function.name = w; }
+    const bus = A.makeBus(); A.collectBus(bus, events.names());
+    const res = await runAgentLoop({
+      messages: [{ role: 'user', content: 'go' }], provider, emit: makeEmitter(bus, () => {}),
+      cost: makeCostEngine({ priceOf }),
+      tools: core, deferredTools: deferredDefs,
+      dispatch: (c, ctx) => registry.dispatch(fromWire.has(c.name) ? Object.assign({}, c, { name: fromWire.get(c.name) }) : c, ctx),
+      capCtx: makeCapCtx({ agentId: 'a', room: 'r', hasCompute: true, tools: ['page.refuse', 'tool.search'].concat(DEFERRED), deferred: DEFERRED.slice(), approvalRules: {} }, { timeoutMs: 5000 }),
+      model: 'm', agentId: 'a', runId: 'r'
+    });
+    A.eq(res.reason, 'done', 'the run completed');
+    A.ok(toolsSeenPerTurn[0].indexOf('page_screenshot') < 0, 'TURN 1: the named tool is not advertised yet');
+    A.ok(toolsSeenPerTurn[1].indexOf('page_screenshot') >= 0, 'TURN 2: the refusal revealed the deferred tool it named');
+    A.ok(toolsSeenPerTurn[1].indexOf('page_upload') < 0 && toolsSeenPerTurn[1].indexOf('not_granted') < 0, 'nothing else was advertised — a reveal never widens the grant');
+  }
+
   A.report('toolsearch.test');
 })().catch(e => { console.log('THREW', e && e.stack || e); process.exit(1); });

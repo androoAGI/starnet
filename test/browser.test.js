@@ -1084,6 +1084,18 @@ function fakeDriver() {
       /refused|signed-in station profile/i, 'eval is REFUSED while the signed-in station profile is live');
     await rejects(S2.session.evalPublic('document.cookie'), /cookies and storage/i,
       'and the refusal says WHY, and names the tools that do work there');
+    /* The refusal named browser.inspect, which is DEFERRED (not callable until a tool_search reveals it), and
+       browser.test_eval, which never existed. Through the registry it now stays an error AND reveals inspect. */
+    const evalReg = makeRegistry();
+    S2.register(evalReg);
+    const refusedEval = await evalReg.dispatch(call('browser.eval', { expression: 'document.cookie' }));
+    A.eq([refusedEval.isError, refusedEval.summary], [true, 'eval refused'], 'the refusal is still an error, named as one');
+    A.eq(refusedEval.control && refusedEval.control.revealTools, ['browser.inspect'], 'and it reveals the deferred browser.inspect it points at');
+    A.ok(/browser\.inspect/.test(refusedEval.content) && !/test_eval/.test(refusedEval.content), 'it names only tools that exist (no browser.test_eval)');
+    const named = (refusedEval.content.match(/browser\.[a-z_]+/g) || []).filter((n, i, all) => all.indexOf(n) === i);
+    const registeredNames = new Set(S2.tools.map(t => t.name));
+    A.eq(named.filter(n => !registeredNames.has(n)), [], 'every browser.* tool the refusal names is a registered tool (' + named.join(', ') + ')');
+
     A.eq(E.tools.find(t => t.name === 'browser.eval').requiresConsent, true, 'eval is consent-gated even when allowed');
     A.eq(E.tools.find(t => t.name === 'browser.inspect').requiresConsent, false, 'inspect is a read, so it is not consent-gated');
 
