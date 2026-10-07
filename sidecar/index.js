@@ -18559,35 +18559,34 @@ async function runOnceCore(o) {
     // A managed reservation needs a FINITE cap to hold, and the reservation is also the loop's maxCostUsd
     // (below). With no opt-in cap this used to reserve the WHOLE wallet, so one prompt could spend all of it
     // (issue #53). Now it reserves the managed per-run default, clamped to the balance (a wallet smaller than
-    // the default still runs); settle refunds whatever the run didn't use. A user's positive per-run cap was
-    // already resolved into runCapUsd above and is honoured verbatim (budgetCaps.managedRunCapUsd).
-    if (!(runCapUsd > 0 && isFinite(runCapUsd))) {
-      const snap = credits.snapshot();
-      const avail = Number(snap && snap.balanceUsd);
-      runCapUsd = budgetCaps.managedRunCapUsd(0, avail, MANAGED_PER_RUN_DEFAULT);
-      if (!(runCapUsd > 0)) {
-        // fail closed — never spend against an unknown/empty managed balance (same surface as a beginRun refusal).
-        const exhausted = isFinite(avail);   // a known $0 balance vs. a balance the service never reported
-        const msg = exhausted
-          ? 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).'
+    // the default still runs); settle refunds whatever the run didn't use. A positive cap (the user's per-run
+    // cap or a caller's) is a CEILING, so it is clamped to the wallet too: a $100 cap on a $79 wallet used to
+    // be refused as "out of credit" (customer report 2026-10-06). budgetCaps.managedRunCapUsd owns the rule.
+    const snap = credits.snapshot();
+    // ONLY a number the service reported is a balance. A failed refresh leaves null, and Number(null) is 0 — that
+    // read a slow/5xx/revoked balance check as a known $0 and told funded customers they were out of credit.
+    const avail = (snap && typeof snap.balanceUsd === 'number' && isFinite(snap.balanceUsd)) ? snap.balanceUsd : NaN;
+    runCapUsd = budgetCaps.managedRunCapUsd((runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT);
+    // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
+    // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
+    const refuseManaged = (exhausted) => {
+      const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
+      const msg = exhausted
+        ? 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).'
+        : linkRefused
+          ? 'Managed credits are unavailable — your StarNet account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).'
           : 'Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).';
-        emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-        emit('agent.run.error', { agentId, runId, transient: !exhausted, reason: 'billing', message: msg });
-        emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
-        return;   // the outer finally releases the concurrency slot; nothing was reserved (billed stays false)
-      }
+      emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
+      emit('agent.run.error', { agentId, runId, transient: !exhausted && !linkRefused, reason: 'billing', message: msg });
+      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+    };
+    if (!(runCapUsd > 0)) {
+      refuseManaged(isFinite(avail));   // a reported $0 balance vs. a balance the service never reported
+      return;   // the outer finally releases the concurrency slot; nothing was reserved (billed stays false)
     }
     const adm = credits.beginRun({ runId, agentId, capUsd: runCapUsd });
     if (!adm || adm.ok === false) {
-      // fail closed — never spend against an unknown/exhausted managed balance. Surface it as a billing fault
-      // so the UI (friendlyerror) can point at the STORE, and the error string carries the 'credit' vocabulary.
-      const exhausted = adm && adm.reason === 'managed_credits_exhausted';
-      const msg = exhausted
-        ? 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).'
-        : 'Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).';
-      emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !exhausted, reason: 'billing', message: msg });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+      refuseManaged(!!(adm && adm.reason === 'managed_credits_exhausted'));
       return;   // the outer finally releases the concurrency slot; nothing was reserved (billed stays false)
     }
     billed = adm.managed === true;

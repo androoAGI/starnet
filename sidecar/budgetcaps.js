@@ -46,18 +46,19 @@
 
   /* The amount a MANAGED (StarNet-credit) run reserves — which is also its per-run spend ceiling.
        capUsd      the cap already in force for this run: an explicit caller cap (a delegated worker's) or the
-                   user's positive per-run cap. Honoured verbatim, as before — admission refuses it if the
-                   balance can't cover it (the low-balance warning fires at exactly that threshold).
-       balanceUsd  the managed wallet as last reported.
+                   user's positive per-run cap. It is a CEILING, so it is clamped to the wallet: a cap above
+                   the balance reserves the balance. (It used to pass through verbatim and admission refused it
+                   as "out of credit" — a $100 cap on a $79 wallet, customer report 2026-10-06.)
+       balanceUsd  the managed wallet as last REPORTED by the service (null/NaN = unknown, never $0).
        defaultUsd  the managed per-run default (DEFAULT_MANAGED_PER_RUN_USD unless an operator retuned it);
                    0/absent = no default, i.e. the wallet itself is the ceiling (pre-#53 behaviour).
      With no cap in force the run reserves min(default, balance): a wallet smaller than the default still runs
      (it is never refused for a cap the user never chose). Returns 0 for an unknown/empty wallet so the caller
-     fails closed exactly as before. Pure — no IO. */
+     fails closed. Pure — no IO. */
   function managedRunCapUsd(capUsd, balanceUsd, defaultUsd) {
-    if (isNum(capUsd) && capUsd > 0) return capUsd;
-    const bal = Number(balanceUsd);
+    const bal = (balanceUsd == null || balanceUsd === '') ? NaN : Number(balanceUsd);
     if (!(isFinite(bal) && bal > 0)) return 0;
+    if (isNum(capUsd) && capUsd > 0) return Math.min(capUsd, bal);
     const d = Number(defaultUsd);
     return (isFinite(d) && d > 0) ? Math.min(d, bal) : bal;
   }

@@ -97,11 +97,22 @@ for (const raw of [
   A.ok(/credit/i.test(v.userMessage) && /AI & MODELS/.test(v.userMessage), 'the message names the credit problem and the AI & MODELS door (the same one the button opens)');
 }
 
-// ---- the "credits unavailable" (service didn't answer) admission message also reads as managed_credit ----
+// ---- a FAILED balance check is not an empty wallet (customer report 2026-10-06: told to top up holding $79.24) ----
 {
   const v = friendlyError('Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).');
-  A.eq(v.kind, 'managed_credit', 'the unavailable-credits admission message also maps to managed_credit');
-  A.eq(v.action, 'store', 'it still points at the STORE (top up / switch key)');
+  A.eq(v.kind, 'managed_credit_unavailable', 'an unanswered balance check is its own kind, never managed_credit');
+  A.ok(!/out of|top up/i.test(v.userMessage), 'it never tells a funded user they are out of credits or to top up: ' + v.userMessage);
+  A.ok(/credits are safe/i.test(v.userMessage), 'it says the credits are safe');
+  A.eq(v.retryable, true, 'a failed check is retryable (the service hiccup passes)');
+  A.eq(v.action, null, 'retry is the door, not a top-up');
+}
+// ---- the service REFUSED the station's link: relink, never top up ----
+{
+  const v = friendlyError("Managed credits are unavailable — your StarNet account refused this station's link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).");
+  A.eq(v.kind, 'managed_credit_link', 'a refused link is its own kind');
+  A.ok(/relink/i.test(v.userMessage) && !/out of|top up/i.test(v.userMessage), 'it points at relinking, never at a top-up: ' + v.userMessage);
+  A.eq(v.action, 'store', 'the door is AI & MODELS, where the STARNET card relinks');
+  A.eq(v.retryable, false, 'a refused link does not fix itself on retry');
 }
 
 // ---- no provider / auth => BOTH paths offered (ChatGPT sign-in OR add a key), pointed at Settings ----
