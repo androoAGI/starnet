@@ -4786,7 +4786,10 @@ const executionEnvironmentDeps = { spawn: childSpawn, fs: fs, pathMod: path, roo
   ledger: procLedger,   // h2 F2: the LOCAL backend receipts foreground shell children for the boot orphan sweep
   serviceEnv: (surface) => serviceKeysMod.runEnv(serviceKeys, process.env, { reservedEnv: SERVICEKEYS_RESERVED_ENV, surface: surface }),
   idleCleanupMs: () => Number(executionSettings.idleCleanupMinutes || 0) * 60000,
-  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId) };
+  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId),
+  // station-wide reap (E-STOP / Quit / shutdown): every agent with a configured remote target, read lazily so a
+  // target saved after boot is included — remote jobs outlive a profile switch, so not the current profile
+  sshAgentIds: () => Object.keys((executionSettings && executionSettings.sshTargets) || {}) };
 const configuredExecutionBackend = String(process.env.STARNET_EXEC_BACKEND || process.env.SKYNET_EXEC_BACKEND || 'local').trim().toLowerCase();
 if (configuredExecutionBackend !== 'local' && configuredExecutionBackend !== 'docker' && configuredExecutionBackend !== 'ssh') throw new Error('unknown execution backend "' + configuredExecutionBackend + '" (expected local, docker, or ssh)');
 const executionEnvironments = {
@@ -18514,6 +18517,10 @@ async function runOnceCore(o) {
     }
     return after;
   };
+  // The taint this run was HANDED (caller's initialTaint: a delegated worker inherits its lead's latch) and the one
+  // it STARTED with (set once the replay proof below has run): a refusal under either must not claim this run read anything.
+  const taintHandedIn = execution.taintedBy();
+  let taintAtStart = null;
   // One sequence across provider and tool recovery. Adapter-local counters restart at one, but the durable run
   // record must preserve the actual cross-stage order in which recovery actions happened.
   const recordRunRecoveryAttempt = (attempt) => {
@@ -20237,13 +20244,39 @@ async function runOnceCore(o) {
     }
     const postTaintConfirmed = postTaint.oneShot;
     if (!postTaint.allow) {
+      // WHERE the lock came from, truthfully: this run's own read, or context it STARTED with (a lead's latch handed
+      // to a worker, an attachment, replayed history, scheduled context). Same lock either way — only the words differ,
+      // and the remedy is the structural one (taint-replay.js DECAY): a session whose history never held the content.
+      const ownTaint = execution.taintedBy();
+      const startedLocked = ownTaint ? (!!taintAtStart && ownTaint === taintAtStart) : !!inheritedTaint;
+      const fromLead = !!o.delegatedBy && (ownTaint ? (!!taintHandedIn && ownTaint === taintHandedIn) : !!inheritedTaint);
+      // team.resume: the stored task carries the taint of the chat that FIRST handed it over (resumeConnectorOptions),
+      // so the lock follows the task into any session that resumes it — the resuming lead's chat may be clean.
+      const resumedTaint = o.resumedTaint ? String(o.resumedTaint) : '';
+      const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;
+      const taintCause = fromResume
+        ? 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
+          + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
+          + 'telling this agent not to read that content does not lift it.'
+        : fromLead
+          ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
+            + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+            + 'telling this agent not to read that content does not lift it.'
+          : startedLocked
+            ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
+            : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. This run has already read '
-          + 'outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it. '
+        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. ' + taintCause + ' '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
-          + 'run needs a fresh confirmation for this exact call after the outside content was read. Retrying without '
-          + 'that confirmation will not help: finish what you can and report the withheld step plainly.'
+          + 'run needs a fresh confirmation for this exact call. For the Commander: a watched chat can ask to approve '
+          + 'this exact call, or '
+          + (resumedTaint
+            ? 'hand the task over fresh (not resumed) from a new session whose history has no attachments or outside pages; that starts unlocked. '
+            : 'a new session whose history has no attachments or outside pages (given the task directly, or handed over '
+              + 'fresh by a lead in that session) starts unlocked. ')
+          + 'Retrying without that confirmation will not help: '
+          + 'finish what you can and report the withheld step plainly.'
       };
     }
     const internalBriefControl = internalBriefTools.indexOf(c.name) >= 0;
@@ -20936,7 +20969,8 @@ async function runOnceCore(o) {
   try {
     const replayed = replayedTaint({ recovery: o.recovery, streamId, msgs });
     if (replayed) execution.latchTaint(replayed);
-  } catch (e) { failNote('taint.replay', e); }
+  } catch (e) { failNote('taint.replay', e); execution.latchTaint('replayed context (taint check failed)'); }   // unprovable = tainted (fail closed)
+  taintAtStart = execution.taintedBy();
   // Cortex (M-mem.3): surface the agent's OWN memory in-prompt — RANK it by relevance to this message
   // (BM25 + recency/trust/pin), inject the top few as a recalled-memory fence before the triggering user
   // message, and emit memory.used per surfaced record (-> useCount/trust + the XP reuse path). The recency
@@ -22930,7 +22964,7 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
-  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes
+  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
   try { inputGuard.observe('halt').catch(() => {}); } catch (_) {}   // diagnostic only: never release an unowned global clip
