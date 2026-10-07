@@ -2900,10 +2900,20 @@ const App = (() => {
   // BACK from the connect screen. With the title screen gone there's nowhere to retreat TO, so BACK is a
   // context move: in RESUME it re-runs auto-resume (a fresh credential check may now pass straight in); on a
   // fresh first run it's a no-op beyond dropping any in-flight codex poll (the create screen is the root).
-  function onConnectBack() {
+  async function onConnectBack() {
     SFX.click(); stopCodexPoll();
     const saved = Save.has() ? Save.load() : null;
-    if (saved && saved.agent) { reentry(); return; }
+    if (saved && saved.agent) {
+      // RETRY must re-ask, not re-read. A StarNet station's "configured" flag is read ONCE at boot; when the
+      // account service was down then (issue #76), retry kept consulting that stale false and bounced straight
+      // back to this screen even after the link was healthy again. Re-read the sidecar's live answer first.
+      if (savedStationProv(saved) === 'starnet' && Harness.refreshCreditsConfigured) {
+        const back = el('btn-back'); if (back) back.disabled = true;
+        try { await Harness.refreshCreditsConfigured(); } catch (_) {}
+        finally { if (back) back.disabled = false; }
+      }
+      reentry(); return;
+    }
     // fresh first run — nothing behind the create screen; just stay put.
   }
 
