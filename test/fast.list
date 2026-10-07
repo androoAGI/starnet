@@ -368,6 +368,7 @@ test/web.reach.test.js
 test/web.pinned-dispatcher.test.js
 test/browser.test.js
 test/browser-proxy.test.js
+test/browser-orphans.test.js
 test/browser.desktop-login-journey.test.js
 test/browser.login-seed.test.js
 test/browser.reach-measure.test.js

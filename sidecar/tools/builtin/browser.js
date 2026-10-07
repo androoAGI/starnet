@@ -22,6 +22,7 @@
   const { swallow, note: failNote } = require('../../failopen.js');
   const Challenge = require('./browserchallenge.js');
   const { deriveReadClient } = require('./browser-workflow.js');
+  const Orphans = require('./browser-orphans.js');   // #61: end only the station's OWN orphaned Chromium
   const HandoffReasons = require('../../browser-handoff.js').REASONS.slice();   // STEP-IN: browser.need_human's closed reason list
   // UNTRUSTED-CONTENT FENCE (2026-07-25): page text, snapshots, console rows and dialog messages are all
   // authored by the SITE, not the Commander. web_* has fenced since the web lane; these reads did not, so
@@ -803,7 +804,7 @@
     let headed = wantHeaded && !binIsHeadlessOnly;
 
     let proc = null, procExited = false, procError = null, procClosePromise = null, cdp = null, consoleLog = [], dialog = null, attachedPort = null;
-    let networkProxy = null;
+    let networkProxy = null, proxyFailed = false;
     const allowedLocalOrigins = new Set();
     function allowLocal(url) {
       allowedLocalOrigins.add(new URL(url).origin);
@@ -1086,6 +1087,27 @@
        the window's warm-up and a typed address) each launched their OWN Chromium on the same profile; the second
        handed off to the first and exited — "spawned Chromium exited before CDP ownership" while a browser we started
        held the profile — and the retries collided with it. One launch at a time: every concurrent caller awaits it. */
+    /* ORPHANED STATION BROWSER (#61, v0.12.5). A sidecar that ended hard (crash, guardian respawn, START FRESH /
+       RESTART — all TerminateProcess on Windows) leaves the Chromium it started running on the DURABLE profile, its
+       DevTools port open and its network proxy dead with its parent. Every launch on that profile then handed off to
+       it and "exited before CDP ownership", and the 8 s lock wait + blind sweep did not reliably clear it. Before a
+       launch on the persistent profile: if the profile is held, end exactly the processes on it that this sidecar did
+       not start (browser-orphans.js: exact --user-data-dir match, ancestry check, confirmed by re-listing), then
+       clear its stale locks. A browser of OURS that is still closing is left to waitProfileFree as before. */
+    const orphanSweep = typeof deps.orphanSweep === 'function' ? deps.orphanSweep
+      : (spawn === CP.spawn ? (o => Orphans.sweep(o)) : null);
+    let lastOrphanSweep = null;
+    async function healOrphans() {
+      if (!orphanSweep || !deps.profileIsPersistent || attachPort !== null) return null;
+      let held = null;
+      try { held = (typeof deps.profileHeld === 'function' ? deps.profileHeld : (d => Orphans.profileHeld(d, { platform: deps.platform, readlink: deps.readlinkSync, hostname: deps.hostname, alive: deps.pidAlive })))(profileDir); }
+      catch (e) { failNote('browser.orphans.held', e); held = null; }
+      if (!held || !held.held) return null;
+      try { lastOrphanSweep = await orphanSweep({ profileDir, platform: deps.platform }); }
+      catch (e) { failNote('browser.orphans.sweep', e); lastOrphanSweep = { ok: false, error: String((e && e.message) || e), found: 0, killed: [], survivors: [] }; }
+      if (lastOrphanSweep && (lastOrphanSweep.found || lastOrphanSweep.error)) failNote('browser.orphans', new Error(Orphans.describeSweep(lastOrphanSweep)));
+      return lastOrphanSweep;
+    }
     let connecting = null;
     function connect() {
       if (cdp) return Promise.resolve(cdp);
@@ -1146,6 +1168,7 @@
         if (ownPid) await killTree(ownPid); else await killProfileOrphans(profileDir);
         await sleep(600);
       }
+      await healOrphans();
       await waitProfileFree(profileDir);
       cleanStart(profileDir);
       // Allocated here, not by Chromium, so the launch carries no automation flag. Chromium still
@@ -1557,8 +1580,9 @@
          pair on a listing page, which reads as "the browser is broken" rather than "that page did not load".
          Now: navigation gets its own larger budget, and on timeout we ALWAYS Page.stopLoading (best-effort,
          on a short budget of its own) so the session is usable for the very next call. */
+      let navResult = null;
       try {
-        await c.send('Page.navigate', { url }, undefined, navTimeoutMs);
+        navResult = await c.send('Page.navigate', { url }, undefined, navTimeoutMs);
       } catch (e) {
         if (!/CDP timeout/.test(String(e && e.message))) throw e;
         try { await c.send('Page.stopLoading', {}, undefined, Math.min(timeoutMs, 5000)); } catch (_) {}
@@ -1573,6 +1597,23 @@
       // only as the fallback for a page whose quiescence we cannot measure.
       await waitForSettle(c, { budgetMs: settleNavBudgetMs, fallbackMs: 900 });
       const finalUrl = await evalJS('location.href');
+      /* A NAVIGATION THAT NEVER LOADED (#61). Page.navigate reports a network failure in errorText and the tab
+         stays where it was — about:blank for a freshly launched browser. That errorText was ignored, so the caller
+         read "about:blank" as a redirect and told the agent "blocked unsafe redirect: only http(s) URLs are
+         allowed" (the Etsy report) while the real cause — here, a station proxy that had died — stayed hidden. */
+      const navError = navResult && navResult.errorText ? String(navResult.errorText) : '';
+      if (navError && !/^https?:/i.test(String(finalUrl || ''))) {
+        let host = url;
+        try { host = new URL(url).host; } catch (_) {}
+        const viaProxy = /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED|ERR_MANDATORY_PROXY/i.test(navError);
+        if (viaProxy && attachPort === null) proxyFailed = true;   // alive() turns false: the session starts a fresh browser + proxy
+        const err = new Error('could not load ' + host + ': ' + navError + (viaProxy
+          ? ' - the station browser network proxy is not answering' + (attachPort === null ? '; StarNet is restarting the browser' : ' (this browser was started by an earlier StarNet session: run browser.reset)')
+          : ''));
+        err.code = viaProxy ? 'STATION_PROXY_DOWN' : 'NAVIGATION_FAILED';
+        err.navigationError = navError;
+        throw err;
+      }
       if (deps.syntheticInputOnly !== false) {
         const isolation = await evalJS(`(() => {
           const s=${inputStateExpr};
@@ -2450,7 +2491,12 @@
       return { url: '', title: '' };
     }
     // False once the Chromium WE started has exited (the Commander closed the station browser window, or it crashed).
-    function alive() { return !(proc && procExited) && !(cdp && cdp.closed); }
+    function alive() {
+      if (proxyFailed) return false;
+      // our own pinned proxy stopped listening (closed/errored): the browser behind it can load nothing
+      if (networkProxy && typeof networkProxy.listening === 'function' && !networkProxy.listening()) return false;
+      return !(proc && procExited) && !(cdp && cdp.closed);
+    }
     // the Chromium we started, while it has not exited — never a number that may have been reused since
     function ownedPid() { return proc && proc.pid && !procExited ? proc.pid : null; }
     // Raise the station browser's window (the Commander asked to see it).
@@ -2491,7 +2537,7 @@
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: () => !!deps.profileIsPersistent, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir };
+    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: () => !!deps.profileIsPersistent, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -2725,7 +2771,10 @@
         // The browser died under this call (the station window was closed, Chromium crashed): start a fresh one on the
         // same profile and go there ONCE. Opening an address is safe to repeat; a click or a submit never is, so only
         // navigate does this — every other call reports the loss and the next one starts the fresh browser.
-        if (!/CDP connection closed/.test(String((e && e.message) || '')) || !reviveIfDead()) throw e;
+        // …and the same ONCE for a browser whose own network proxy died (#61): the driver reported STATION_PROXY_DOWN
+        // and now reads as dead, so reviveIfDead() ends it and the retry starts a fresh browser with a fresh proxy.
+        const revivable = /CDP connection closed/.test(String((e && e.message) || '')) || (e && e.code === 'STATION_PROXY_DOWN');
+        if (!revivable || !reviveIfDead()) throw e;
         d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
         if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
         finalUrl = await d.navigate(u.href);
@@ -2739,6 +2788,14 @@
         if (finalUrl && /^chrome-error:/i.test(String(finalUrl))) {
           throw new Error('could not load ' + u.host + ': the browser showed an error page (the site did not answer, or the network is down)');
         }
+      }
+      /* NOT A REDIRECT EITHER (#61): a tab still on about:blank after a navigation means the page never loaded (a
+         driver predating errorText, or a load the browser abandoned). Saying "blocked unsafe redirect: only http(s)
+         URLs are allowed" for that sent the agent hunting for a redirect that never happened. Genuine non-http(s)
+         destinations (data:, file:, javascript:, chrome:, custom app schemes) are still refused as unsafe redirects. */
+      if (finalUrl && /^about:blank(?:[?#]|$)/i.test(String(finalUrl))) {
+        throw new Error('could not load ' + u.host + ': the page never loaded (the browser is still on about:blank). '
+          + 'The site may have refused the connection, or the station browser lost its network; try again, or run browser.reset');
       }
       if (finalUrl) {
         try {
@@ -2903,6 +2960,30 @@
       } catch (e) {
         return { ok: false, error: 'browser.attach: nothing is listening on 127.0.0.1:' + port + '. Use browser.login for a saved StarNet session. Advanced attachment requires Chrome launched with --remote-debugging-port=' + port + ' and a separate --user-data-dir; current Chrome does not expose its default profile this way.' };
       }
+    }
+    /* RESET (#61): the supported way out of a wedged station browser - what an agent used to try with a shell kill
+       (refused, rightly) and had no other path for. Ends THIS session's own browser (and its network proxy), then
+       ends any ORPHANED Chromium on the durable station profile (one a previous StarNet process started and left
+       behind) and clears that profile's stale locks. Never touches the Commander's own Chrome (exact profile match)
+       nor a live browser this StarNet started (ancestry check). The next browser call starts a fresh browser and
+       proxy. Saved sign-ins live in the profile's files and are kept. Returns a truthful receipt. */
+    async function reset() {
+      const out = { closedOwn: false, closeError: null, sweep: null, attached: attachedToUserBrowser };
+      if (attachedToUserBrowser) return out;   // the Commander's own Chrome is never ours to end: browser.detach
+      if (driver && !injected) {
+        const d = driver;
+        driver = null; driverHeaded = null; version++; navEpoch++;
+        try { await d.close(); out.closedOwn = true; }
+        catch (e) { out.closeError = String((e && e.message) || e); }
+      }
+      const pp = deps.persistentProfile;
+      const sweepFn = typeof deps.orphanSweep === 'function' ? deps.orphanSweep
+        : (deps.driver || deps.makeDriver ? null : (o => require('./browser-orphans.js').sweep(o)));   // test rigs inject theirs
+      if (pp && pp.dir && sweepFn) {
+        try { out.sweep = await sweepFn({ profileDir: pp.dir }); }
+        catch (e) { out.sweep = { ok: false, error: String((e && e.message) || e), found: 0, killed: [], survivors: [], locks: { removed: [], failed: [] } }; }
+      }
+      return out;
     }
     async function detach() {
       if (!attachedToUserBrowser) return 'Not attached; nothing to detach.';
@@ -3141,7 +3222,7 @@
       const d = driver || null;
       return d && typeof d.attachedPort === 'function' ? d.attachedPort() : null;
     }
-    return { waitForProfile, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
+    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
   }
 
   function makeBrowserTools(deps) {
@@ -3294,6 +3375,19 @@
         }),
       exec('browser.detach', 'Stop driving the Commander\'s own Chrome and go back to the station browser. Their browser keeps running and every tab stays open — this only lets go of it.', { type: 'object', properties: {} },
         async () => ({ content: await session.detach(), summary: 'detached' }), false),
+      // #61: the supported recovery when the browser is wedged (navigations fail with proxy/connection errors, a new
+      // browser "exited before CDP ownership", the profile is locked). An agent never needs a shell kill for this.
+      exec('browser.reset', 'Recover a stuck station browser: closes the browser this run started (and its network proxy), ends any ORPHANED StarNet browser left running on the station profile by an earlier StarNet process, and clears that profile\'s stale locks. Use it when pages fail with proxy or connection errors, or a new browser exits before it can be controlled. Never touches the Commander\'s own Chrome. Saved sign-ins are kept. The next browser call starts fresh.', { type: 'object', properties: {} },
+        async () => {
+          if (typeof session.reset !== 'function') return { content: 'browser.reset is not available for this browser.', summary: 'reset unavailable' };
+          const r = await session.reset();
+          if (r.attached) return { content: 'This run is attached to the Commander\'s own Chrome, which StarNet never closes. Use browser.detach to let go of it.', summary: 'attached: not reset' };
+          const parts = [r.closedOwn ? 'Closed this run\'s browser and its network proxy.' : (r.closeError ? 'Could not close this run\'s browser: ' + r.closeError + '.' : 'This run had no browser open.')];
+          parts.push(r.sweep ? 'Station profile: ' + Orphans.describeSweep(r.sweep) + '.' : 'No station profile sweep was available here.');
+          const clean = !r.closeError && (!r.sweep || r.sweep.ok);
+          parts.push(clean ? 'The next browser call starts a fresh browser.' : 'The browser may still be stuck: the Commander can use Settings > BROWSER > RESET STATION BROWSER, or restart StarNet.');
+          return { content: parts.join(' '), summary: clean ? 'browser reset' : 'browser reset incomplete' };
+        }, false),
       read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer this over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements, while this scans up to 200 and returns only what matches. It does not scan below the fold or inside closed menus; scroll or open the menu and try again. Refs from earlier snapshots expire, same as after any snapshot.',
         { type: 'object', properties: { text: { type: 'string' }, role: { type: 'string' }, limit: { type: 'number' } } },
         async a => {
