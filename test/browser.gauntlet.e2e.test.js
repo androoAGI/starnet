@@ -64,6 +64,11 @@ const ROUTES = {
   // a form aimed at a new window, and a link aimed at a frame ON the page (not a new window at all)
   '/blankform': () => ({ status: 200, body: PAGE('<form action="/second" target="_blank"><button>Send form</button></form>') }),
   '/framelink': () => ({ status: 200, body: PAGE('<iframe name=pf src="about:blank" style="width:300px;height:120px"></iframe><p><a href="/second" target="pf">Into frame</a></p>') }),
+  // a page that RE-AIMS its own _blank link / form at a new window from its own listener (the shim runs first)
+  '/reaim': () => ({ status: 200, body: PAGE('<a id=x href="/second" target="_blank">Re-aimed link</a>' +
+    '<form id=f action="/second" target="_blank"><button>Re-aimed form</button></form>' +
+    '<script>document.getElementById("x").addEventListener("click",function(){this.setAttribute("target","_blank");});' +
+    'document.getElementById("f").addEventListener("submit",function(){this.setAttribute("target","_blank");});</script>') }),
   '/second': () => ({ status: 200, body: PAGE('<h1>Receipt</h1><button id=print>Print receipt</button>', '<title>Receipt</title>') }),
   '/click': () => ({ status: 200, body: PAGE('<button id=go>Load</button><div id=out></div>',
     '<script>addEventListener("click",function(e){if(e.target.id==="go"){setTimeout(function(){document.getElementById("out").innerHTML="<button id=next>Second step</button>";},300);}})</script>') }),
@@ -446,6 +451,37 @@ const ROUTES = {
       threw = false;
       try { await driver.selectTab(3); } catch (_) { threw = true; }
       A.ok(threw, 'selecting a tab that does not exist is refused rather than silently ignored');
+    }
+
+    /* 6g. POPUPS BLOCKED (the page-endpoint fallback: no browser websocket, so a new window would NOT be paused and
+       shimmed). A page that re-aims its link or form from its own listener must still land in THIS tab - the shim
+       cancels the event before the page sees it and loads the destination itself (review, 10-07). */
+    {
+      const dir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-gauntlet-blocked-'));
+      const d3 = T.makeCdpDriver({ chrome, forceHeadless: true, syntheticInputOnly: true, cdpPort: 0, profileDir: dir3, timeoutMs: 20000, adoptPopups: false });
+      d3.allowLocal(base);
+      const pageTargets = async () => (await (await fetch('http://127.0.0.1:' + d3.attachedPort() + '/json/list')).json()).filter(t => t && t.type === 'page');
+      try {
+        await d3.navigate(base + '/reaim');
+        A.eq((await d3.testState(null)).popupBlocked, true, 'adoptPopups:false really runs the popups-BLOCKED shim');
+        const link = (await d3.snapshot(40)).find(n => /Re-aimed link/.test(n.text || ''));
+        A.ok(!!link, 'the re-aimed link is in the snapshot');
+        await d3.click(link);
+        await new Promise(r => setTimeout(r, 1200));
+        A.eq((await pageTargets()).length, 1, 'blocked mode: a link the page re-aims at _blank opens NO unshimmed window');
+        A.ok(/\/second$/.test(await d3.testEval('location.href')), 'and it loaded in this tab');
+
+        await d3.navigate(base + '/reaim');
+        const form = (await d3.snapshot(40)).find(n => /Re-aimed form/.test(n.text || ''));
+        A.ok(!!form, 'the re-aimed form button is in the snapshot');
+        await d3.click(form);
+        await new Promise(r => setTimeout(r, 1200));
+        A.eq((await pageTargets()).length, 1, 'blocked mode: a form the page re-aims at _blank opens NO unshimmed window');
+        A.ok(/\/second\??$/.test(await d3.testEval('location.href')), 'and it submitted in this tab');
+      } finally {
+        try { await d3.close(); } catch (_) {}
+        try { fs.rmSync(dir3, { recursive: true, force: true }); } catch (_) {}
+      }
     }
 
     /* 6f. INSPECT + EVAL against a real page. inspect is the bounded reader that makes the eval gate

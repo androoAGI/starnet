@@ -975,68 +975,121 @@ function fakeDriver() {
 
   // ---- A NEW-WINDOW LINK OPENS IN THIS TAB (Etsy results, 10-07) ---------------------------------
   // The page shim cancelled every target=_blank / named-target link and form (preventDefault + stopImmediatePropagation)
-  // even with popup adoption armed, so the click did nothing while browser.click said "clicked". It now retargets to
-  // _self and lets the event run. Run the REAL shim source in a minimal fake DOM, both popup modes.
+  // even with popup adoption armed, so the click did nothing while browser.click said "clicked". With adoption armed it
+  // now retargets to _self and lets the event run; with popups BLOCKED it still cancels (a page listener could re-aim a
+  // live event at an unshimmed window) and loads the destination in this tab itself. Run the REAL shim source in a
+  // minimal fake DOM, both popup modes.
   {
     const vm = require('node:vm');
     function shimRealm(allowPopups) {
       const listeners = {};
-      class Element { constructor(attrs) { this.attrs = Object.assign({}, attrs || {}); } getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; } setAttribute(k, v) { this.attrs[k] = String(v); } get target() { return this.attrs.target || ''; } get name() { return this.attrs.name || ''; } }
+      const assigned = [];
+      class Element { constructor(attrs) { this.attrs = Object.assign({}, attrs || {}); this.kids = []; } getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; } setAttribute(k, v) { this.attrs[k] = String(v); } removeAttribute(k) { delete this.attrs[k]; } hasAttribute(k) { return k in this.attrs; } appendChild(c) { this.kids.push(c); c.parent = this; return c; } remove() { if (this.parent) this.parent.kids.splice(this.parent.kids.indexOf(this), 1); } get target() { return this.attrs.target || ''; } get name() { return this.attrs.name || ''; } set name(v) { this.attrs.name = v; } get href() { return this.attrs.href || ''; } get value() { return this.attrs.value || ''; } set value(v) { this.attrs.value = v; } }
       class Document {}
       class HTMLAnchorElement extends Element {}
       class HTMLAreaElement extends Element {}
       class HTMLFormElement extends Element {}
       class HTMLIFrameElement extends Element {}
-      let submitted = 0;
-      HTMLFormElement.prototype.submit = function () { submitted++; };
+      const submitted = [];
+      // what a real submission would read: the form's target/action/method and its fields AT the moment of the call
+      HTMLFormElement.prototype.submit = function () {
+        submitted.push({ target: this.getAttribute('target'), action: this.getAttribute('action'), method: this.getAttribute('method'), fields: this.kids.map(k => k.name + '=' + k.value) });
+      };
       const frames = [];
       const document = Object.assign(new Document(), {
         querySelector: () => null,
         querySelectorAll: sel => /iframe/.test(sel) ? frames : [],
+        createElement: () => new Element(),
         dispatchEvent: () => true
       });
-      const ctx = { Element, Document, HTMLAnchorElement, HTMLAreaElement, HTMLFormElement, Event: class { constructor(n) { this.type = n; } }, document, navigator: {}, queueMicrotask, Promise, Object, Array, String, Error };
+      const location = { assign: u => { assigned.push(u); } };
+      const ctx = { Element, Document, HTMLAnchorElement, HTMLAreaElement, HTMLFormElement, Event: class { constructor(n) { this.type = n; } }, document, location, navigator: {}, queueMicrotask, Promise, Object, Array, String, Error };
       ctx.globalThis = ctx;
       ctx.addEventListener = (n, fn) => { (listeners[n] = listeners[n] || []).push(fn); };
       vm.createContext(ctx);
       const src = allowPopups ? T.SYNTHETIC_INPUT_BOOTSTRAP.replace('const ALLOW_POPUPS = false;', 'const ALLOW_POPUPS = true;') : T.SYNTHETIC_INPUT_BOOTSTRAP;
       vm.runInContext(src, ctx);
+      // a window capture listener the PAGE adds after the shim: it re-aims the link / form at a new window again
+      const pageRan = [];
+      const reAim = name => ctx.addEventListener(name, e => {
+        pageRan.push(name);
+        const el = name === 'click' ? e.composedPath()[0] : (e.submitter && e.submitter.hasAttribute('formtarget') ? e.submitter : e.target);
+        el.setAttribute(el === e.submitter ? 'formtarget' : 'target', '_blank');
+      });
       const fire = (name, extra) => {
         const ev = Object.assign({ defaultPrevented: false, stopped: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } }, extra);
-        for (const fn of listeners[name] || []) fn(ev);
+        for (const fn of listeners[name] || []) { fn(ev); if (ev.stopped) break; }
         return ev;
       };
-      return { ctx, fire, frames, HTMLAnchorElement, HTMLFormElement, HTMLIFrameElement, Element, submitted: () => submitted };
+      return { ctx, fire, reAim, pageRan, frames, HTMLAnchorElement, HTMLFormElement, HTMLIFrameElement, Element, submitted, assigned };
     }
     for (const allow of [false, true]) {
       const R = shimRealm(allow);
       const mode = allow ? ' (popups adopted)' : ' (popups blocked)';
       const a = new R.HTMLAnchorElement({ href: '/second', target: '_blank' });
       const ev = R.fire('click', { composedPath: () => [a] });
-      A.eq([ev.defaultPrevented, ev.stopped], [false, false], 'a target=_blank link click is no longer cancelled' + mode);
-      A.eq(a.getAttribute('target'), '_self', 'it is retargeted to this tab' + mode);
+      if (allow) {
+        A.eq([ev.defaultPrevented, ev.stopped], [false, false], 'a target=_blank link click is no longer cancelled' + mode);
+        A.eq([a.getAttribute('target'), R.assigned.length], ['_self', 0], 'it is retargeted to this tab and the browser follows it' + mode);
+      } else {
+        A.eq([ev.defaultPrevented, ev.stopped], [true, true], 'a target=_blank link click is still cancelled before any page listener' + mode);
+        A.eq(R.assigned, ['/second'], 'and this tab loads the destination itself' + mode);
+      }
       const named = new R.HTMLAnchorElement({ href: '/listing/1', target: 'etsy.123' });
       R.fire('click', { composedPath: () => [named] });
-      A.eq(named.getAttribute('target'), '_self', 'an Etsy-style named target opens in this tab too' + mode);
+      A.ok(allow ? named.getAttribute('target') === '_self' : R.assigned[R.assigned.length - 1] === '/listing/1', 'an Etsy-style named target opens in this tab too' + mode);
       const plain = new R.HTMLAnchorElement({ href: '/x' });
-      R.fire('click', { composedPath: () => [plain] });
-      A.eq(plain.getAttribute('target'), null, 'an ordinary link is left untouched' + mode);
+      const plainEv = R.fire('click', { composedPath: () => [plain] });
+      A.eq([plain.getAttribute('target'), plainEv.defaultPrevented], [null, false], 'an ordinary link is left untouched' + mode);
+      const js = new R.HTMLAnchorElement({ href: 'javascript:alert(1)', target: '_blank' });
+      const before = R.assigned.length;
+      R.fire('click', { composedPath: () => [js] });
+      A.eq(R.assigned.length, before, 'a javascript: link aimed at a new window is never run by the shim' + mode);
       R.frames.push(new R.HTMLIFrameElement({ name: 'pf' }));
       const intoFrame = new R.HTMLAnchorElement({ href: '/x', target: 'pf' });
-      R.fire('click', { composedPath: () => [intoFrame] });
-      A.eq(intoFrame.getAttribute('target'), allow ? 'pf' : '_self', allow
-        ? 'a link aimed at a frame ON the page still loads into that frame'
-        : 'with popups blocked even a frame-named target is kept in this tab (fail closed)');
+      const frameEv = R.fire('click', { composedPath: () => [intoFrame] });
+      if (allow) A.eq([intoFrame.getAttribute('target'), frameEv.defaultPrevented], ['pf', false], 'a link aimed at a frame ON the page still loads into that frame');
+      else A.eq([frameEv.defaultPrevented, R.assigned[R.assigned.length - 1]], [true, '/x'], 'with popups blocked even a frame-named target is kept in this tab (fail closed)');
       const form = new R.HTMLFormElement({ action: '/second', target: '_blank' });
       const sub = R.fire('submit', { target: form, submitter: null });
-      A.eq([sub.defaultPrevented, form.getAttribute('target')], [false, '_self'], 'a target=_blank form submits in this tab' + mode);
+      if (allow) A.eq([sub.defaultPrevented, form.getAttribute('target'), R.submitted.length], [false, '_self', 0], 'a target=_blank form submits in this tab' + mode);
+      else A.eq([sub.defaultPrevented, sub.stopped, R.submitted.slice(-1)[0].target], [true, true, '_self'], 'a target=_blank form is cancelled and submitted here by the shim' + mode);
       const form2 = new R.HTMLFormElement({ action: '/second' });
-      const btn = new R.Element({ formtarget: '_blank' });
+      const btn = new R.Element({ formtarget: '_blank', name: 'go', value: 'buy', formaction: '/checkout' });
       R.fire('submit', { target: form2, submitter: btn });
-      A.eq([btn.getAttribute('formtarget'), form2.getAttribute('target')], ['_self', null], 'a submitter formtarget=_blank is retargeted on the submitter' + mode);
+      if (allow) A.eq([btn.getAttribute('formtarget'), form2.getAttribute('target')], ['_self', null], 'a submitter formtarget=_blank is retargeted on the submitter' + mode);
+      else {
+        A.eq(R.submitted.slice(-1)[0], { target: '_self', action: '/checkout', method: null, fields: ['go=buy'] }, 'a submitter formtarget=_blank submits here with the button\'s name=value and formaction' + mode);
+        A.eq([form2.getAttribute('action'), form2.kids.length], ['/second', 0], 'and the form is put back afterwards' + mode);
+      }
       const form3 = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const n3 = R.submitted.length;
       form3.submit();
-      A.eq([R.submitted(), form3.getAttribute('target')], [1, '_self'], 'form.submit() on a _blank form submits here instead of silently doing nothing' + mode);
+      A.eq([R.submitted.length - n3, form3.getAttribute('target')], [1, '_self'], 'form.submit() on a _blank form submits here instead of silently doing nothing' + mode);
+
+      // THE PAGE RE-AIMS IN ITS OWN LISTENER (review, 10-07). Chrome reads the target when the default action runs, so a
+      // live event the page can still reach is a way out. Blocked: the page never sees it. Adopted: it may, and the
+      // window it opens is a tab the driver pauses and shims.
+      R.reAim('click'); R.reAim('submit');
+      const evil = new R.HTMLAnchorElement({ href: '/second', target: '_blank' });
+      const evilEv = R.fire('click', { composedPath: () => [evil] });
+      const evilForm = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const evilSub = R.fire('submit', { target: evilForm, submitter: null });
+      if (allow) A.eq(R.pageRan, ['click', 'submit'], 'popups adopted: the page\'s own listeners still run');
+      else {
+        A.eq(R.pageRan, [], 'popups blocked: a page listener never gets to re-aim the link or the form');
+        A.eq([evilEv.defaultPrevented, evilSub.defaultPrevented, R.assigned[R.assigned.length - 1], R.submitted.slice(-1)[0].target], [true, true, '/second', '_self'], 'both still land in THIS tab');
+      }
+      // a page that no-ops setAttribute cannot keep a form.submit() aimed at a new window
+      if (!allow) {
+        const nop = R.Element.prototype.setAttribute;
+        R.Element.prototype.setAttribute = function () {};
+        const stuck = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+        const n4 = R.submitted.length;
+        stuck.submit();
+        R.Element.prototype.setAttribute = nop;
+        A.eq([R.submitted.length - n4, R.submitted.slice(-1)[0].target], [1, '_self'], 'the shim retargets with the NATIVE setAttribute it captured' + mode);
+      }
     }
   }
 

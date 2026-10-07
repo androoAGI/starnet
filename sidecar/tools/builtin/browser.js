@@ -270,9 +270,14 @@
       }
       /* A LINK OR FORM AIMED AT A NEW WINDOW OPENS IN THIS TAB. These used to be cancelled outright (preventDefault +
          stopImmediatePropagation), from before popups could be adopted - so an Etsy result (target="etsy.123") or any
-         target=_blank link did nothing at all while browser.click said "clicked". Retargeting to _self loads the page in
-         this already-shimmed tab whether or not adoption is armed, and the page's own handlers still run. A target that
-         names a frame ON this page (<iframe name=pf>, <a target=pf>) is not a new window, so it is left alone. */
+         target=_blank link did nothing at all while browser.click said "clicked". A target that names a frame ON this
+         page (<iframe name=pf>, <a target=pf>) is not a new window, so it is left alone.
+         TWO MODES, because Chrome reads the target when the default action RUNS, after every page listener:
+         - popups ADOPTED: retarget to _self and let the event go on, so the page's own handlers still run. A page that
+           sets the target back to _blank only gets a new tab the driver pauses and shims anyway.
+         - popups BLOCKED (the page-endpoint fallback): a new window here would be UNSHIMMED, so the event is still
+           cancelled before any page listener sees it, and this tab loads the destination itself. Nothing the page does
+           afterwards can re-aim it. (A link aimed at an in-page frame then loads in this top frame.) */
       // by the frame ELEMENTS' names, never window[name]: named access also returns any element with that id. Only while
       // popups are adopted - with them blocked, a page that removed the frame mid-click must still not get a new window.
       const inPageFrame = n => ALLOW_POPUPS && !!n && !!document.querySelectorAll && Array.prototype.some.call(document.querySelectorAll('iframe[name],frame[name]'), f => f.name === n);
@@ -282,21 +287,54 @@
         const t=raw.toLowerCase();
         return !!t && t !== '_self' && t !== '_top' && t !== '_parent' && !inPageFrame(raw);
       };
-      const toSelf = (el, attr) => { if (el && el.setAttribute) el.setAttribute(attr, '_self'); };
+      // the NATIVE setter, taken before page script runs: a page that no-ops setAttribute must not keep its _blank
+      const setAttr = Element.prototype.setAttribute;
+      const toSelf = (el, attr) => { if (el && el instanceof Element) setAttr.call(el, attr, '_self'); };
+      const nativeSubmit = globalThis.HTMLFormElement ? HTMLFormElement.prototype.submit : null;
+      const stop = e => { e.preventDefault(); e.stopImmediatePropagation(); };
+      // A download link keeps the old cancel (no page to load), and a javascript: href never runs here.
+      const loadHere = el => {
+        const href = el.href ? String(el.href) : '';
+        if (href && !/^\s*javascript:/i.test(href) && !(el.hasAttribute && el.hasAttribute('download'))) location.assign(href);
+      };
+      // form.submit() never fires a submit event, so nothing can re-aim it between here and the navigation. It also
+      // ignores the submitter, so the button's name=value and form* overrides are carried over for the one call.
+      const submitHere = (form, sub) => {
+        toSelf(form, 'target');
+        const undo = [];
+        if (sub && sub.name) {
+          const h = document.createElement('input');
+          h.type = 'hidden'; h.name = sub.name; h.value = sub.value;
+          form.appendChild(h); undo.push(() => h.remove());
+        }
+        for (const a of ['formaction', 'formmethod', 'formenctype']) {
+          if (!sub || !sub.hasAttribute || !sub.hasAttribute(a)) continue;
+          const own = a.slice(4), had = form.getAttribute(own);
+          form.setAttribute(own, sub.getAttribute(a));
+          undo.push(() => had === null ? form.removeAttribute(own) : form.setAttribute(own, had));
+        }
+        try { if (!escapesTarget(form)) nativeSubmit.call(form); } finally { undo.forEach(f => f()); }
+      };
       globalThis.addEventListener('click', e => {
         const p=typeof e.composedPath==='function'?e.composedPath():[];
         const el=p.find(x => x instanceof HTMLAnchorElement || x instanceof HTMLAreaElement);
-        if(escapesTarget(el)) toSelf(el, 'target');
+        if(!escapesTarget(el)) return;
+        if(ALLOW_POPUPS) return toSelf(el, 'target');
+        stop(e); loadHere(el);
       }, true);
       globalThis.addEventListener('submit', e => {
         const ft=e.submitter&&(e.submitter.formTarget||e.submitter.getAttribute&&e.submitter.getAttribute('formtarget'));
-        if(ft&&escapesTarget(e.target,ft)) toSelf(e.submitter, 'formtarget');
-        else if(!ft&&escapesTarget(e.target)) toSelf(e.target, 'target');
+        const escapes=ft?escapesTarget(e.target,ft):escapesTarget(e.target);
+        if(!escapes) return;
+        if(ALLOW_POPUPS) return ft ? toSelf(e.submitter, 'formtarget') : toSelf(e.target, 'target');
+        stop(e);
+        if(nativeSubmit && e.target instanceof HTMLFormElement) submitHere(e.target, e.submitter);
       }, true);
-      if (globalThis.HTMLFormElement) {
-        const nativeSubmit=HTMLFormElement.prototype.submit;
+      if (nativeSubmit) {
         Object.defineProperty(HTMLFormElement.prototype,'submit',{configurable:false,writable:false,value:function(){
           if(escapesTarget(this)) toSelf(this, 'target');
+          // blocked mode: a target that still escapes (a lying getter) is refused, as before - never an unshimmed window
+          if(!ALLOW_POPUPS && escapesTarget(this)) return undefined;
           return nativeSubmit.call(this);
         }});
       }
