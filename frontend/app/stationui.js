@@ -6396,7 +6396,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       btns.forEach(b => { b.disabled = true; }); setMsg('settling…');
       Harness.api.post('/api/budget/settle', Object.assign({ runId: r.runId }, payload))
         .then(({ ok, j }) => {
-          if (!ok) { setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); return; }
+          if (!ok) {
+            setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; });
+            // a failed settle still changed the server (a failed write drops the run and turns accounting into a write
+            // error; a 404 means it was already settled or gone): repaint the rows + spend line from the server's truth
+            refresh();
+            return;
+          }
           paint(j); setMsg('✓ interrupted run settled — its spend is in your history', true); sfx('click');
         })
         .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); });

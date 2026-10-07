@@ -20,15 +20,15 @@ const tick=()=>new Promise(r=>setImmediate(r));
  }
  console.log('budget display: loading, unavailable totals, preserved caps, failed and malformed reads PASS');
  // ---- a harness with real-ish nodes: rows the panel builds, every POST body captured ----
- const harness=(status,reply)=>{
+ const harness=(status,reply,postOk)=>{
   const mkNode=tag=>{const n={tag,children:[],attrs:{},style:{},classList:{toggle(){}},value:'',_t:'',
    get textContent(){return this._t+this.children.map(c=>c.textContent).join('');},set textContent(v){this._t=String(v);this.children=[];},
    appendChild(c){this.children.push(c);return c;},setAttribute(k,v){this.attrs[k]=String(v);},addEventListener(k,fn){this[k]=fn;},focus(){}};return n;};
   const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,mkNode(id));return nodes.get(id);};
-  const posts=[];
-  vm.runInNewContext(code+';wireBudget(body)',{body:{querySelector:node},Harness:{api:{get:async()=>status,post:async(u,b)=>{posts.push([u,JSON.parse(JSON.stringify(b))]);return {ok:true,j:reply?reply(u,b):status};}}},
+  const posts=[],gets=[];
+  vm.runInNewContext(code+';wireBudget(body)',{body:{querySelector:node},Harness:{api:{get:async(u)=>{gets.push(u);return typeof status==='function'?status():status;},post:async(u,b)=>{posts.push([u,JSON.parse(JSON.stringify(b))]);return {ok:postOk?postOk(u,b):true,j:reply?reply(u,b):status};}}},
    fmtUsd:n=>'$'+n,sfx(){},document:{createElement:mkNode,createTextNode:t=>({textContent:String(t)})}});
-  return {node,posts};
+  return {node,posts,gets};
  };
  // ---- SPEND-3: SAVE posts only what the Commander changed; typing the default back into a saved limit clears it ----
  {
@@ -75,6 +75,25 @@ const tick=()=>new Promise(r=>setImmediate(r));
   const [, usd, settle]=h2.node('#budget-unsettled').children[1].children;
   usd.value='0.42';settle.click();await tick();
   assert.deepEqual(h2.posts[0],['/api/budget/settle',{runId:'r2',usd:0.42}],'SETTLE posts exactly what the Commander entered');
+  // a FAILED settle still changed the server (the run is dropped; accounting turns into a write error): the panel re-reads
+  // /api/budget/status, so the stale row vanishes and the spend line says the write-error truth
+  let server=st;
+  const failed={...base,unsettled:[st.unsettled[1]],atLeast:null,accounting:{complete:true,durable:false,readError:null,writeError:'settle_write_failed'}};
+  const h3=harness(()=>server,(u)=>{if(u==='/api/budget/settle'){server=failed;return {error:'the settlement could not be saved to disk — restart StarNet to recover it',code:'spend_history_unavailable'};}return st;},u=>u!=='/api/budget/settle');
+  await tick();assert.equal(h3.gets.length,1);
+  const [, , , count3]=h3.node('#budget-unsettled').children[0].children;
+  count3.click();await tick();await tick();
+  assert.deepEqual(h3.posts[0],['/api/budget/settle',{runId:'r1',mode:'limit'}]);
+  assert.equal(h3.gets.length,2,'a failed settle re-reads /api/budget/status');
+  assert.match(h3.node('#budget-msg').textContent,/could not be saved/,'the server reason stays on screen');
+  assert.equal(h3.node('#budget-unsettled').children.length,1,'the dropped run is no longer offered for a second booking');
+  assert.match(h3.node('#budget-spend').textContent,/Restart StarNet/,'the spend line shows the write-error copy');
+  // a 404 (settled elsewhere / gone) repaints the same way
+  server=st;
+  const h4=harness(()=>server,(u)=>{if(u==='/api/budget/settle'){server=settledReply;return {error:'that run has no unsettled spend',code:'not_unsettled'};}return st;},u=>u!=='/api/budget/settle');
+  await tick();
+  h4.node('#budget-unsettled').children[0].children[3].click();await tick();await tick();
+  assert.equal(h4.gets.length,2);assert.equal(h4.node('#budget-unsettled').children.length,0);assert.match(h4.node('#budget-msg').textContent,/no unsettled spend/);
  }
  for(const [acc,re,not] of [[{complete:true,durable:false,writeError:'ENOSPC'},/Restart StarNet/,/Settle/],[{complete:false,durable:true,readError:'SPEND_RECEIPT_CONFLICT'},/could not be read/,/Settle/]]){
   const {node}=harness({caps:{perRun:0,perAgent:0,perDay:25,global:0},saved:{},envDefaults:{perRun:0,perAgent:0,perDay:25,global:0},spentToday:null,accounting:acc,unsettled:[]});await tick();
