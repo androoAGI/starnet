@@ -19,10 +19,13 @@
   // a verb the agent can carry out (or a filename) -> TASK, regardless of any courtesy wrapper
   const ACTIONABLE = /\b(research|search|google|find|look ?up|fetch|scrape|crawl|download|browse|visit|go to|read|open|write|save|create|generate|build|make|draft|compile|summari[sz]e|report|list|extract|analy[sz]e|investigate|compare|check|calculate|translate|plan|schedule|email|post|send)\b|\.(md|txt|js|ts|py|csv|json|html?|pdf)\b/;
   // pure pleasantries / acknowledgements / short answers — a greeting or ack word, optionally trailed by a
-  // few non-actionable tokens ("hey there", "thanks a lot", "sounds good", "good morning friend") over the
-  // WHOLE message -> CHAT. (ACTIONABLE is tested first, so a greeting that carries a real instruction —
+  // few tokens that are THEMSELVES pleasantries ("hey there", "thanks a lot", "sounds good", "good morning friend")
+  // over the WHOLE message -> CHAT. (ACTIONABLE is tested first, so a greeting that carries a real instruction —
   // "sure, send it" — never reaches here.) Acks like "yes / got it / sounds good" are answers, not missions.
-  const CHATTY = /^(hi+|hey+|hello|yo|sup|hiya|howdy|gm|good (morning|evening|night|afternoon)|good (idea|one|call)|thanks?|thank you|ty|np|nice( one)?|cool|awesome|great( job)?|good job|well done|perfect|exactly|agreed|makes sense|sounds? good|got it|will do|right|correct|ok(ay)?|k|yes|ya|yeah|yep|yup|no|nope|nah|sure|fine|lol|haha|nvm|never ?mind|bye|cya|see ya)([\s,!.?]+\w+){0,3}[\s!.?]*$/;
+  // Any other trailing word carries work and falls through to TASK: a retry ("ok, try it now"), a redirect
+  // ("no, use the dish") or a new topic ("yes, bitcoin price today") was chat while the tail took ANY three words,
+  // so the run got zero tools and the agent told the Commander it had no web tool with a DISH placed.
+  const CHATTY = /^(hi+|hey+|hello|yo|sup|hiya|howdy|gm|good (morning|evening|night|afternoon)|good (idea|one|call)|thanks?|thank you|ty|np|nice( one)?|cool|awesome|great( job)?|good job|well done|perfect|exactly|agreed|makes sense|sounds? good|got it|will do|right|correct|ok(ay)?|k|yes|ya|yeah|yep|yup|no|nope|nah|sure|fine|lol|haha|nvm|never ?mind|bye|cya|see ya)([\s,!.?]+(?:there|again|so|much|a|lot|very|man|bro|dude|friend|guys|mate|buddy|all|everyone|then|too|thanks?|thank|you|ty|lol|haha|bye|for|that|this|the|it|help|anyway|worries|problem|prob|thing|by|me|works|is|does|not|yet|i|agree|good|great|cool|nice|ok(?:ay)?|yes|yeah|no|nope|sure|fine|perfect|one|morning|evening|night|afternoon|please|pls)\b){0,3}[\s!.?]*$/;
   // questions ABOUT the agent itself (the WHOLE message; a few trailing words allowed — "how are you today")
   // -> CHAT
   const ABOUT_SELF = /^(how are you|how('?s| is) it going|how do you feel|how'?s your day|who are you|what('?s| is) your name|what are you|are you (ok|okay|alright|there|conscious|sentient|alive|real|happy|sure|awake|busy|free))([\s,!.?]+\w+){0,3}[\s!.?]*$/;

@@ -23,7 +23,11 @@ const TASKS = [
   'download the spec and extract the API limits',
   'compare the top 3 GPUs and make a table',
   'build me a landing page',
-  'investigate why sales dropped in Q2'
+  'investigate why sales dropped in Q2',
+  // an ack-led RETRY / REDIRECT / new topic carries work: the ack word does not make it small talk (the agent was
+  // handed zero tools and told the Commander a placed DISH gave it no web tool)
+  'ok, try it now', 'cool, try now', 'no, use the dish', 'ok try again', 'ok, versuch es nochmal',
+  'sure, latest news?', 'yes, bitcoin price today', 'perfect, now the weather', 'cool, do that'
 ];
 
 // pure small-talk / questions about the agent / bare acknowledgements -> MUST be chat (no tools, quick reply)
@@ -37,7 +41,10 @@ const CHATS = [
   'how are you today', 'how are you doing today?', 'what are you up to', 'are you busy', 'are you free',
   'yes', 'yeah', 'yep', 'nope', 'nah', 'sure', 'fine', 'correct',
   'sounds good', 'sound good', 'got it', 'will do', 'makes sense', 'perfect', 'exactly', 'agreed',
-  'good idea', 'nice one'
+  'good idea', 'nice one',
+  // the pleasantry tail stays chat: every trailing word is itself a pleasantry
+  'ok thanks', 'thanks a lot', 'no thanks', 'no worries', 'sure thing', 'no problem', 'thanks for that',
+  'thank you so much', 'yes please', 'hey there friend', 'good morning everyone'
 ];
 
 for (const t of TASKS) A.ok(isTaskDirective(t) === true, 'TASK: ' + JSON.stringify(t));
