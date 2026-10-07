@@ -943,10 +943,11 @@
     const pageSessions = new Map();    // CDP sessionId -> targetId, for every adopted extra tab
     const tabWaiters = new Set();      // bounded observers waiting for popup adoption to become visible
     let activeSession = null;
-    /* TAB EPOCH: bumps whenever the tab the driver acts on went away underneath the agent (tab 0 promoted or lost in
-       openerLost, the selected tab closed). Refs carry node x/y, and click/type dispatch at those coordinates on
-       whatever tab is current - so a ref minted on the dead tab would land on a page the agent never snapshotted.
-       The session compares the epoch a ref was minted in with this one and refuses across a change. */
+    /* TAB EPOCH: bumps whenever the tab the driver acts on went away underneath the agent (tab 0 closed while the agent
+       was on it - openerLost - or the selected tab closed). Refs carry node x/y, and click/type dispatch at those
+       coordinates on whatever tab is current - so a ref minted on the dead tab would land on a page the agent never
+       snapshotted. The session compares the epoch a ref was minted in with this one and refuses across a change, and an
+       input action in flight stops at the change (pinTab). */
     let tabEpoch = 0;
     function wakeTabWaiters() {
       for (const wake of Array.from(tabWaiters)) {
@@ -1022,21 +1023,28 @@
        pageLost turns alive() false and the next call starts a fresh browser on the same profile. The Commander's own
        Chrome is never re-pointed at whichever of their other tabs happens to be first: there the loss is reported. */
     function openerLost() {
+      const dead = openerSession;
       inflight.clear();   // the dead tab's requests never finish, and waitForSettle would burn its whole budget on them
-      tabEpoch++;         // every ref minted on the dead tab is now aimed at another page (or none): see tabEpoch
       const next = attachPort === null ? pageSessions.keys().next() : { done: true };
       if (next.done) {
+        tabEpoch++;       // no page left at all: every ref (and any action in flight) is aimed at nothing
         pageLost = true;
         openerSession = null; openerTargetId = null; activeSession = null;
         wakeTabWaiters();
         return;
       }
+      /* The epoch moves only when the agent was ON the dead tab (tab 0 not switched away from, or selected as itself).
+         An agent on a selected tab whose page is still open - an unrelated tab 0 closing, or its own tab being promoted
+         to tab 0 (the same page under a new index) - keeps its refs: refusing them said "the tab that snapshot was taken
+         on was closed" about a tab that was not. */
+      if (activeSession === null || activeSession === dead) tabEpoch++;
       const sid = next.value, tid = pageSessions.get(sid) || null;
       pageSessions.delete(sid);
       openerSession = sid; openerTargetId = tid;
       // a page target's main frame id is its target id: keeps lastResponse (the HTTP status navigate reports) truthful
       mainFrameId = tid;
-      if (activeSession === sid) activeSession = null;
+      // the promoted tab is tab 0 now (null routes to it), and a selection of the dead tab must never outlive it
+      if (activeSession === sid || activeSession === dead) activeSession = null;
       wakeTabWaiters();
       // the screencast follows on its own (streamStart's watch restarts it when castTarget() changes)
       cdp.send('Page.enable', {}, sid).catch(e => failNote('browser.opener-promote', e));
@@ -1636,8 +1644,42 @@
       }
       return pageProxy;
     }
-    async function evalJS(expression) {
+    /* PINNED INPUT (review 10-07). An input action is many sends with paced pauses between them, and default routing
+       re-picks activeSession || openerSession at EACH send - so when the tab closed part-way (tab 0 promoted, the
+       selected tab gone) the rest of the input went to whichever page took its place: a probe typed the first
+       character of a password into tab 0 and the other 36 into a promoted tab the agent never read, and the call
+       said "typed". pinTab() fixes the action to the session it started on and the tabEpoch at its start. Every send
+       goes to that session EXPLICITLY (a dead session fails, it never re-routes), and once the epoch moves the rest is
+       refused with REF_TAB_CLOSED. The epoch is read before any await, in the same turn as the session's ref check. */
+    function tabClosedMidAction(cause) {
+      const err = new Error('the browser tab this action started on was closed part-way through, so the rest of it was '
+        + 'NOT sent: nothing reached the page that took its place. Take a fresh browser.snapshot.');
+      err.code = 'REF_TAB_CLOSED';
+      if (cause) err.cause = cause;
+      return err;
+    }
+    async function pinTab() {
+      const epoch = tabEpoch;
       const c = await page();
+      if (tabEpoch !== epoch) throw tabClosedMidAction();
+      const sid = activeSession || openerSession || undefined;
+      return {
+        send: (method, params, sessionId, timeoutMs) => {
+          if (tabEpoch !== epoch) return Promise.reject(tabClosedMidAction());
+          const target = sessionId !== undefined ? sessionId : sid;
+          return c.send(method, params, target, timeoutMs).catch(e => {
+            if (sessionId !== undefined || !TARGET_GONE.test(String((e && e.message) || ''))) throw e;
+            // the proxy's BACKSTOP, for the pinned session: tab 0 died and its detach event has not reached us yet
+            if (target && target === openerSession) { openerLost(); throw tabGone(e); }
+            if (tabEpoch !== epoch) throw tabClosedMidAction(e);
+            throw e;
+          });
+        },
+        on: (n, fn) => c.on(n, fn)
+      };
+    }
+    async function evalJS(expression, pinned) {
+      const c = pinned || await page();
       const r = await c.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
       if (r.exceptionDetails) throw new Error('page eval failed: ' + ((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text || 'exception'));
       return r.result && r.result.value;
@@ -1766,14 +1808,24 @@
         const quad = box && box.model && box.model.content;
         if (!quad || quad.length < 2) return null;
         return { x: Math.round(quad[0]), y: Math.round(quad[1]) };
-      } catch (_) { return null; }
+      } catch (e) {
+        if (e && e.code === 'TARGET_DETACHED') throw e;   // tab 0 itself went away: see evalIn
+        return null;
+      }
     }
+    /* A failed read is "nothing readable" (null) - EXCEPT the tab itself going away. That error (the proxy's backstop
+       or a page already lost) used to be swallowed here too, so browser.snapshot answered [] - an empty page - for a
+       tab that no longer existed. It propagates; every other failure is noted and stays a null. */
     async function evalIn(c, expression, sessionId) {
       try {
         const r = await c.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
         if (r && r.exceptionDetails) return null;
         return r && r.result && r.result.value;
-      } catch (_) { return null; }
+      } catch (e) {
+        if (e && e.code === 'TARGET_DETACHED') throw e;
+        failNote('browser.eval-in', e);
+        return null;
+      }
     }
     async function snapshot(limit) {
       const c = await page();
@@ -1866,8 +1918,9 @@
     function center(node) {
       return { x: node.x + Math.max(1, Math.floor(node.w / 2)), y: node.y + Math.max(1, Math.floor(node.h / 2)) };
     }
-    async function click(node) {
-      const c = await page();
+    // Every input action below runs on a pinTab() channel: the tab it started on, or a refusal (see pinTab).
+    async function click(node) { return clickOn(await pinTab(), node); }
+    async function clickOn(c, node) {
       const downloadCursor = downloads ? downloads.cursor() : 0;
       const tabsBefore = new Set(pageSessions.keys());
       const x = node.x + Math.max(1, Math.floor(node.w / 2));
@@ -1902,22 +1955,28 @@
       return 'clicked';
     }
     async function type(node, text) {
-      await click(node);
-      const c = await page();
+      const c = await pinTab();
+      await clickOn(c, node);   // the focusing click rides the SAME pin: one tab for the whole action
       const chars = Array.from(String(text || ''));
       const paced = Math.min(chars.length, 40);
       let at = 0;
-      for (let i = 0; i < paced; i++) {
-        const take = Math.ceil((chars.length - at) / (paced - i));
-        await c.send('Input.insertText', { text: chars.slice(at, at + take).join('') });
-        at += take;
-        if (i + 1 < paced) await inputPause(25, 70);
+      try {
+        for (let i = 0; i < paced; i++) {
+          const take = Math.ceil((chars.length - at) / (paced - i));
+          await c.send('Input.insertText', { text: chars.slice(at, at + take).join('') });
+          at += take;
+          if (i + 1 < paced) await inputPause(25, 70);
+        }
+      } catch (e) {
+        // say how much of the text reached the tab it was meant for before that tab went away
+        if (e && (e.code === 'REF_TAB_CLOSED' || e.code === 'TARGET_DETACHED')) e.message = at + ' of ' + chars.length + ' characters were typed before the tab closed; ' + e.message;
+        throw e;
       }
       await waitForSettle(c, { budgetMs: settleActionBudgetMs });
       return 'typed';
     }
     async function press(key) {
-      const c = await page();
+      const c = await pinTab();
       key = String(key || 'Enter');
       await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key });
       await inputPause(25, 70);
@@ -1929,7 +1988,7 @@
     /* Hover is not a nicety: menus, tooltips and disclosure widgets render their real targets only on
        mouseover, so without it whole navigations are unreachable from a snapshot. */
     async function hover(node) {
-      const c = await page();
+      const c = await pinTab();
       const p = center(node);
       await movePointer(c, p, 'none');
       await waitForSettle(c, { budgetMs: settleActionBudgetMs });
@@ -1938,7 +1997,7 @@
     /* HTML5 drag-and-drop needs intermediate move events — a press/release pair at two points is
        ignored by every library that listens for dragover. */
     async function drag(from, to) {
-      const c = await page();
+      const c = await pinTab();
       const a = center(from), b = center(to);
       await movePointer(c, a, 'none');
       await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', clickCount: 1 });
@@ -1952,6 +2011,7 @@
        Set the value and fire the events a framework listens for. The agent supplies only a VALUE, never
        code: it is embedded as a JS string literal, so no page script can be composed from tool input. */
     async function selectOption(node, value) {
+      const c = await pinTab();
       const p = center(node);
       const lit = jsLiteral(value);
       const r = await evalJS(`(() => {
@@ -1966,8 +2026,8 @@
         sel.dispatchEvent(new Event('input', { bubbles: true }));
         sel.dispatchEvent(new Event('change', { bubbles: true }));
         return { ok: true, value: hit.value, label: (hit.label || hit.text || '').trim() };
-      })()`);
-      await waitForSettle(await page(), { budgetMs: settleActionBudgetMs });
+      })()`, c);
+      await waitForSettle(c, { budgetMs: settleActionBudgetMs });
       return r;
     }
     /* The viewport was pinned to the launch flag --window-size=1440,900, so mobile layouts and
@@ -2144,7 +2204,10 @@
       const sessions = tabSessions();
       const i = Number(index);
       if (!Number.isInteger(i) || i < 0 || i >= sessions.length) throw new Error('no such tab: ' + index + ' (there are ' + sessions.length + ')');
-      activeSession = sessions[i];
+      /* Tab 0 is selected as null ("whatever tab 0 is"), never by its session id: openerLost only clears a selection
+         of the PROMOTED tab, so a stored opener id outlived its tab and wedged the driver on a dead session (every
+         navigate "Session with given id not found", tabs() with no active tab, snapshot reading as an empty page). */
+      activeSession = i === 0 ? null : sessions[i];
       const c = await page();
       /* Intercept and emulation are session-scoped in CDP but run-scoped in intent: a tab adopted
          after they were set (a popup, a target=_blank checkout) has neither. Re-applying on focus is
@@ -2178,7 +2241,7 @@
        nearest one in the same container) and hand CDP that element's objectId. Paths are resolved and
        jail-checked by the caller; this only ever sees absolute paths. */
     async function upload(node, absPaths) {
-      const c = await page();
+      const c = await pinTab();   // a local file must never be attached to whatever tab replaced the one that was read
       await c.send('DOM.enable');
       const p = center(node);
       const r = await c.send('Runtime.evaluate', { expression: `(() => {
@@ -2262,7 +2325,7 @@
     // Scrolling is what triggers lazy-load / infinite-scroll, so it settles too — otherwise the very
     // content the scroll was meant to reveal is missing from the next snapshot.
     async function scroll(x, y) {
-      const c = await page();
+      const c = await pinTab();
       const totalX = Number(x) || 0, totalY = Number(y) || 0;
       const steps = inputBetween(3, 6);
       let sentX = 0, sentY = 0;
@@ -2792,19 +2855,21 @@
       // The reference is cleared BEFORE propagating so a later mode-less call cannot reconnect that headed,
       // unshimmed driver. The latch blocks every later action in this run rather than spawning against a profile
       // whose ownership is now unknown.
+      // A different browser is a different DOCUMENT: navEpoch moves with version at both sites, or a stale ref would be
+      // role+text "recovered" onto whatever the new browser shows (refs die with the browser, as in reviveIfDead).
       if (driver) {
         const closing = driver;
         try { await closing.close(); }
         catch (e) {
-          driver = null; driverHeaded = null; version++;
+          driver = null; driverHeaded = null; version++; navEpoch++;
           teardownFailure = e instanceof Error ? e : new Error(String(e || 'browser teardown failed'));
           throw teardownFailure;
         }
         driver = null; driverHeaded = null;
       }
+      version++; navEpoch++;   // any element refs belong to the torn-down browser - even if the new one fails to start
       driver = makeDriver(Object.assign({}, deps, profileDeps(), overrides));
       driverHeaded = !!overrides.headed;
-      version++;   // any element refs belong to the torn-down browser
       return driver;
     }
     async function ensureDriverMode(wantVisible) {
@@ -2830,6 +2895,20 @@
       if (m.d && m.d === seenTab.d && m.e !== seenTab.e) { version++; navEpoch++; }
       seenTab = m;
       return m;
+    }
+    /* THE TAB THE AGENT LAST READ. press and scroll take no ref, so the ref check never saw them: after tab 0 closed
+       and another tab was promoted, browser.press Enter went to that tab - which could submit a form the agent never
+       read. lookedAt is the tab mark of the last snapshot, find, navigate or tab_select; a ref-less input refuses when
+       the same driver has moved to another tab since (a fresh driver starts a fresh page: nothing to compare). */
+    let lookedAt = { d: null, e: 0 };
+    function requireReadTab(what) {
+      const now = syncTab();
+      if (now.d && now.d === lookedAt.d && now.e !== lookedAt.e) {
+        const err = new Error(what + ' was refused: the tab you last read was closed and another page took its place, so it '
+          + 'would land on a page you have not read. Take a fresh browser.snapshot (browser.tabs lists what is open).');
+        err.code = 'REF_TAB_CLOSED';
+        throw err;
+      }
     }
     function refFor(node, mark) {
       const ref = 'b' + (++seq);
@@ -2913,6 +2992,10 @@
       const wantedMode = local ? false : ('visible' in opts ? !!opts.visible : undefined);
       let d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
       if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
+      /* From the first d.navigate the page is changing, whatever this call ends up saying: an error page, a tab still
+         on about:blank, a blocked redirect whose cleanup navigation failed. Every error path below throws, so the refs
+         die HERE - not only on success - or an old ref would click at its coordinates on the page the failure left. */
+      version++; navEpoch++;
       let finalUrl;
       try { finalUrl = await d.navigate(u.href); }
       catch (e) {
@@ -2976,6 +3059,7 @@
       localOrigin = local ? u.origin : null;
       version++;
       navEpoch++;   // a new document: every existing ref is now unrecoverable, not merely renumbered
+      lookedAt = syncTab();   // the agent asked for this page: it is the one a press or scroll may now land on
       return finalUrl || u.href;
     }
     // A driver predating this accessor (an injected test fake) simply reports no status.
@@ -2989,6 +3073,7 @@
       const mark = syncTab();
       const nodes = await d.snapshot(limit);
       version++;
+      lookedAt = mark;
       const out = (nodes || []).map(n => Object.assign({}, n, { ref: refFor(n, mark) }));
       return out;
     }
@@ -3006,7 +3091,7 @@
     }
     async function click(ref) { const d = ensureDriver(); return actOnRef(ref, n => d.click(n)); }
     async function type(ref, text) { const d = ensureDriver(); return actOnRef(ref, n => d.type(n, text)); }
-    async function press(key) { return ensureDriver().press(key); }
+    async function press(key) { const d = ensureDriver(); requireReadTab('browser.press'); return d.press(key); }
     // A driver that predates one of these (an injected fake) says so plainly instead of throwing a
     // TypeError the agent cannot interpret.
     function driverFn(d, name) {
@@ -3049,6 +3134,7 @@
       const mark = syncTab();   // taken before the read, as in snapshot
       const nodes = await d.snapshot(FIND_SCAN_CAP);
       version++;
+      lookedAt = mark;
       const hits = [];
       for (const n of (nodes || [])) {
         if (role && String(n.role || '').toLowerCase() !== role) continue;
@@ -3200,7 +3286,14 @@
     // must die — a ref silently re-aimed at another page is the worst outcome available here.
     // A tab switch is a different DOCUMENT, exactly like a navigation — refs minted on tab 0 must never be
     // recoverable against tab 2's page, so this bumps the epoch and not just the ref version.
-    async function selectTab(i) { const d = ensureDriver(); const out = await driverFn(d, 'selectTab')(i); version++; navEpoch++; return out; }
+    async function selectTab(i) {
+      const d = ensureDriver();
+      const mark = tabMark();   // before the switch, like snapshot's: a tab lost during it leaves press/scroll refused
+      const out = await driverFn(d, 'selectTab')(i);
+      version++; navEpoch++;
+      lookedAt = mark;
+      return out;
+    }
     async function closeTab(i) { const d = ensureDriver(); const out = await driverFn(d, 'closeTab')(i); version++; return out; }
     async function requireLocalDriver() {
       if (!localMode) throw new Error('browser.test_input requires browser.test_navigate to a loopback URL first');
@@ -3228,7 +3321,7 @@
       return d.testState(selector);
     }
     async function testSnapshot(limit) { await requireLocalDriver(); return snapshot(limit); }
-    async function scroll(x, y) { return ensureDriver().scroll(x, y); }
+    async function scroll(x, y) { const d = ensureDriver(); requireReadTab('browser.scroll'); return d.scroll(x, y); }
     async function back() { version++; navEpoch++; return ensureDriver().back(); }
     async function getText(selector) { return ensureDriver().getText(selector); }
     async function challengeStatus() {
