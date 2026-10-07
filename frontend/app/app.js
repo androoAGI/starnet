@@ -3748,7 +3748,7 @@ const App = (() => {
       // writeFile = the token-gated, consent-broker-gated, checkpointed server write (/api/autonomy/write). A failed
       // or denied write just degrades to a desk draft (the act() branch handles the fallback).
       canWriteFiles: () => { try { return (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) ? (PermissionsStore.snapshot().grants || []).indexOf('cabinet:write') >= 0 : false; } catch (_) { return false; } },
-      hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).indexOf('cabinet') >= 0 : false; } catch (_) { return false; } },
+      hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).some(c => (c && (c.objectType || c)) === 'cabinet') : false; } catch (_) { return false; } },   // heroCaps returns [{objectType}]: an indexOf('cabinet') never matched
       writeFile: (req) => fetch('/api/autonomy/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content }) }).then(r => r.ok ? r.json() : { ok: false }).catch(() => ({ ok: false })),
       // leave the result on the Commander's desk: a persistent toast + the live "working" cue + a gentle COMMS beat
       // that, on accept, posts the work into the feed. If it WROTE a real file (B2) the copy says so + names the path;
