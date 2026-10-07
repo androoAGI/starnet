@@ -10,6 +10,7 @@
 
 const http = require('node:http');
 const net = require('node:net');
+const { note: failNote } = require('../../failopen.js');
 
 async function startPinnedProxy({ validate, resolve }) {
   const localOrigins = new Set();
@@ -91,7 +92,7 @@ async function startPinnedProxy({ validate, resolve }) {
   // After listen: a runtime server error (rare — an fd/socket failure) must never end the station; it marks the proxy
   // dead instead, and the driver reads listening() to treat its browser as dead and start a fresh one (#61).
   let failed = false;
-  server.on('error', () => { failed = true; try { server.close(); } catch (_) {} });
+  server.on('error', () => { failed = true; try { server.close(); } catch (e) { failNote('browser.proxy.close', e); } });
   return {
     port: server.address().port,
     listening: () => !failed && server.listening,

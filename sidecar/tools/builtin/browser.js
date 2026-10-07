@@ -1587,7 +1587,7 @@
         if (!/CDP timeout/.test(String(e && e.message))) throw e;
         try { await c.send('Page.stopLoading', {}, undefined, Math.min(timeoutMs, 5000)); } catch (_) {}
         let host = url;
-        try { host = new URL(url).host; } catch (_) {}
+        try { host = new URL(url).host; } catch (e) { failNote('browser.load-fail.host', e); }
         throw new Error('the page did not finish loading within ' + Math.round(navTimeoutMs / 1000) + 's, so the ' +
           'navigation to ' + host + ' was stopped (the browser is still usable). The site may be slow, may be ' +
           'refusing automated browsers, or may be holding a challenge page. Try browser.get_text to see what ' +
@@ -1604,7 +1604,7 @@
       const navError = navResult && navResult.errorText ? String(navResult.errorText) : '';
       if (navError && !/^https?:/i.test(String(finalUrl || ''))) {
         let host = url;
-        try { host = new URL(url).host; } catch (_) {}
+        try { host = new URL(url).host; } catch (e) { failNote('browser.load-fail.host', e); }
         const viaProxy = /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED|ERR_MANDATORY_PROXY/i.test(navError);
         if (viaProxy && attachPort === null) proxyFailed = true;   // alive() turns false: the session starts a fresh browser + proxy
         const err = new Error('could not load ' + host + ': ' + navError + (viaProxy
@@ -3313,7 +3313,7 @@
           const challenge = await session.challengeStatus();
           if (challenge && challenge.challenged) {
             let host = url;
-            try { host = new URL(url).host; } catch (_) {}
+            try { host = new URL(url).host; } catch (e) { failNote('browser.load-fail.host', e); }
             const http = describeResponse(session.lastResponse && session.lastResponse());
             return {
               content: 'Browser reached a human-verification wall at ' + host + http.text + '. This is not page content. If the Commander is available, use browser.attach for their own Chrome or browser.login when sign-in is required; otherwise report the wall plainly.' + stepInHint('captcha'),

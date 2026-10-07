@@ -21,6 +21,7 @@
 'use strict';
 
 const P = require('node:path');
+const { note: failNote } = require('../../failopen.js');
 
 // The files a running Chromium leaves in its user-data-dir to claim it. SingletonLock/Socket/Cookie are POSIX
 // symlinks naming the owner; `lockfile` is the Windows equivalent; DevToolsActivePort names a debugging port
@@ -127,7 +128,7 @@ function makeKiller(o) {
       execFile('taskkill', ['/T', '/F', '/PID', String(Number(pid))], { windowsHide: true, timeout: 10000 }, () => resolve());
     });
   }
-  return pid => { try { process.kill(Number(pid), 'SIGKILL'); } catch (_) {} return Promise.resolve(); };
+  return pid => { try { process.kill(Number(pid), 'SIGKILL'); } catch (e) { failNote('browser.orphans.kill', e); } return Promise.resolve(); };
 }
 
 /* Remove the profile's lock files. Only call when NO process runs on the profile (sweep() enforces it). lstat +
@@ -192,7 +193,7 @@ async function sweep(o) {
   receipt.ours = before.ours.map(p => p.pid);
   const roots = before.orphans.filter(p => p.browser).concat(before.orphans.filter(p => !p.browser));
   for (const p of roots) {
-    try { await kill(p.pid); } catch (_) { /* confirmed below */ }
+    try { await kill(p.pid); } catch (e) { failNote('browser.orphans.kill', e); /* confirmed below */ }
   }
   let after = before;
   if (roots.length) {
