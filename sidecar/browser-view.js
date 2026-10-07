@@ -456,12 +456,34 @@ function makeBrowserViews(deps) {
     const d = st && st.driver ? { agentId: st.driver.agentId, runId: st.driver.runId, signIn: !!st.signIn } : null;
     return { agents, settings: settings(), station: { available: !!makeSession, open: !!s, mode: st ? st.mode : effectiveMode(), visible: !!(s && s.visible), driver: d, handoff: !!(d && handoffLive(d.runId)), remembered: !!(s && s.remembered), setup: setupState() } };
   }
+  /* RESET STATION BROWSER (#61, Settings > BROWSER): close the station browser, then end any ORPHANED StarNet browser
+     on the durable profile (one an earlier StarNet process started and left behind, its proxy dead) and clear the
+     profile's stale locks (deps.sweepStationProfile -> tools/builtin/browser-orphans.js). Refused while an agent is
+     driving: STOP that run first. The receipt is what happened, never what was hoped. */
+  async function reset() {
+    const out = { ok: false, closed: false, driving: null, sweep: null, error: null };
+    if (station && station.driver) {
+      out.driving = { agentId: station.driver.agentId, runId: station.driver.runId };
+      out.error = 'an agent is driving the browser right now - stop that run, then reset';
+      return out;
+    }
+    const r = await closeStation();
+    out.closed = !!(r && r.ok);
+    if (!out.closed) { out.error = (r && r.error) || 'the station browser did not close'; return out; }
+    if (typeof deps.sweepStationProfile === 'function') {
+      try { out.sweep = await deps.sweepStationProfile(); }
+      catch (e) { out.sweep = { ok: false, error: String((e && e.message) || e), found: 0, killed: [], survivors: [], ours: [], locks: { removed: [], failed: [] } }; }
+    }
+    out.ok = !out.sweep || out.sweep.ok === true;
+    if (!out.ok) out.error = (out.sweep && out.sweep.error) || 'an orphaned browser is still running';
+    return out;
+  }
   async function closeAll() {
     for (const k of Array.from(chans.keys())) dropChan(k, k !== 'station');
     if (station) { station.driver = null; await closeStation(); }
   }
 
-  return { sessionForRun, releaseRun, registerRun, unregisterRun, open, nav, input, front, warm, frame, list, setMode, settings, signInOpen, signInClose, close: closeStation, closeAll,
+  return { sessionForRun, releaseRun, registerRun, unregisterRun, open, nav, input, front, warm, frame, list, setMode, settings, signInOpen, signInClose, close: closeStation, closeAll, reset,
     _internals: { runs, chans, station: () => station } };
 }
 
@@ -481,6 +503,7 @@ function makeViewRoutes(deps) {
     respondJson(res, r.ok ? 200 : 409, r);
   }
   async function close(req, res) { const r = await views.close(); respondJson(res, r.ok ? 200 : 409, r); }
+  async function reset(req, res) { const r = await views.reset(); respondJson(res, r.ok ? 200 : 409, r); }
   async function front(req, res) { const r = await views.front(); respondJson(res, r.ok ? 200 : 409, r); }
   async function warm(req, res) { const r = views.warm(); respondJson(res, r.ok ? 200 : 409, r); }
   async function getSettings(req, res) { respondJson(res, 200, Object.assign({ ok: true }, views.settings())); }
@@ -515,6 +538,7 @@ function makeViewRoutes(deps) {
       { m: 'POST', exact: '/api/browser/view/open', h: open },
       { m: 'POST', exact: '/api/browser/view/nav', h: nav },
       { m: 'POST', exact: '/api/browser/view/close', h: close },
+      { m: 'POST', exact: '/api/browser/reset', h: reset },   // #61: Settings > BROWSER > RESET STATION BROWSER
       { m: 'POST', exact: '/api/browser/view/front', h: front },
       { m: 'POST', exact: '/api/browser/view/warm', h: warm },
       { m: 'GET', exact: '/api/browser/settings', h: getSettings },
