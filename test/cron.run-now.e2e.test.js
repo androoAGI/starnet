@@ -240,6 +240,14 @@ async function readNdjson(res) {
     const stage1 = mock.requests.slice(callsBefore).find(r =>
       (r.messages || []).some(m => m.role === 'user' && String(m.content || '').indexOf('gather relevant AI news') >= 0));
     A.ok(stage1, "found stage one's recorded provider request");
+    /* RUN NOW GETS THE SCHEDULED FIRE'S TOOLS (B5). Stage one passed no `station`, so runOnce fell back to the broad
+       autonomous office and Run Now had a dish (web_fetch/web_request) the routine's computer-only bay does not —
+       "test it now" proved tools the scheduled fire lacks. Recorded off the REAL provider requests: the floorless
+       fire runs in the default office (dish included), the bay-bound fire only in its bay room. */
+    const toolNamesOf = req => (req.tools || []).map(t => String((t.function && t.function.name) || t.name || ''));
+    A.ok(preFloor.some(r => toolNamesOf(r).indexOf('web_fetch') >= 0), 'before a floor is posted, Run Now runs in the default office (web_fetch offered)');
+    A.ok(stage1 && toolNamesOf(stage1).indexOf('web_fetch') < 0 && toolNamesOf(stage1).indexOf('web_request') < 0,
+      "a bay-bound Run Now runs in its computer-only bay room like the scheduled fire: no dish, no web tools");
     A.ok(sysOf(stage1).indexOf('YOUR STANDING BRIEF FOR THIS STATION:\nDig three primary sources and cite them.') >= 0,
       "stage one's system carries the dock's standing brief under the hub's exact section header");
 
