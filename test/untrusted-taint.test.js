@@ -146,6 +146,16 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   A.ok(/const fromLead = !!o\.delegatedBy && /.test(src) && /handed over by ' \+ o\.delegatedBy/.test(src), 'a delegated worker\'s refusal names the lead whose chat carried the content');
   A.ok(/started with outside content already in its context \(via ' \+ taintSource/.test(src), 'any other start-time lock says the run STARTED with it');
   A.ok(/a new session whose history has no attachments or outside pages/.test(src), 'the refusal names the structural remedy (a session whose history never held the content)');
+  // team.resume: the stored task's taint rides along (resumeConnectorOptions resumedTaint) — never blame a clean resuming
+  // lead's chat, and never promise that resuming from a new session unlocks it
+  A.ok(/const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;/.test(src)
+    && /const taintCause = fromResume\s*\n\s*\? 'This run resumes a task first handed over from a chat with outside content/.test(src),
+    'a resumed task\'s lock says it rides the stored task, checked BEFORE the handed-over-by-the-lead wording');
+  A.ok(/resuming it stays under the same lock from any session/.test(src) && /\(resumedTaint\s*\n\s*\? 'hand the task over fresh \(not resumed\) from a new session/.test(src),
+    'a resumed task\'s remedy is a fresh hand-over, not a resume from a new session');
+  const orchSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'orchestration.js'), 'utf8');
+  A.ok(/initialTaint: base\.initialTaint \|\| lim\.taintedBy \|\| null, resumedTaint: lim\.taintedBy \|\| null/.test(orchSrc),
+    'team.resume marks the taint the stored task carries');
   A.ok(!/clear (the )?taint|turn on Full Access/i.test(src.slice(src.indexOf("summary: 'untrusted-content-lockout'"), src.indexOf("summary: 'untrusted-content-lockout'") + 2000)), 'the refusal never suggests a taint-clearing control or Full Access as the way out');
   // consent must agree with the gate or a tool could be consented-then-refused
   A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\)/.test(src), 'the terminal standing grant never survives taint');

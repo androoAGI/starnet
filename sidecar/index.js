@@ -20075,20 +20075,32 @@ async function runOnceCore(o) {
       const ownTaint = execution.taintedBy();
       const startedLocked = ownTaint ? (!!taintAtStart && ownTaint === taintAtStart) : !!inheritedTaint;
       const fromLead = !!o.delegatedBy && (ownTaint ? (!!taintHandedIn && ownTaint === taintHandedIn) : !!inheritedTaint);
-      const taintCause = fromLead
-        ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
-          + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+      // team.resume: the stored task carries the taint of the chat that FIRST handed it over (resumeConnectorOptions),
+      // so the lock follows the task into any session that resumes it — the resuming lead's chat may be clean.
+      const resumedTaint = o.resumedTaint ? String(o.resumedTaint) : '';
+      const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;
+      const taintCause = fromResume
+        ? 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
+          + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
           + 'telling this agent not to read that content does not lift it.'
-        : startedLocked
-          ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
-          : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
+        : fromLead
+          ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
+            + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+            + 'telling this agent not to read that content does not lift it.'
+          : startedLocked
+            ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
+            : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
         content: 'BLOCKED: "' + c.name + '" is no longer available on this run. ' + taintCause + ' '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
           + 'run needs a fresh confirmation for this exact call. For the Commander: a watched chat can ask to approve '
-          + 'this exact call, or a new session whose history has no attachments or outside pages (given the task '
-          + 'directly, or by a lead in that session) starts unlocked. Retrying without that confirmation will not help: '
+          + 'this exact call, or '
+          + (resumedTaint
+            ? 'hand the task over fresh (not resumed) from a new session whose history has no attachments or outside pages; that starts unlocked. '
+            : 'a new session whose history has no attachments or outside pages (given the task directly, or handed over '
+              + 'fresh by a lead in that session) starts unlocked. ')
+          + 'Retrying without that confirmation will not help: '
           + 'finish what you can and report the withheld step plainly.'
       };
     }
