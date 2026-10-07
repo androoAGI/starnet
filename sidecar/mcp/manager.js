@@ -677,8 +677,19 @@
       if (!t) return null;
       return { name: t.name, readOnlyHint: !!(t.annotations && t.annotations.readOnlyHint === true), state: c.state };
     }
+    // A run that wants this connector's tools while it sits in the GAVE-UP error state (bounded reconnect exhausted —
+    // e.g. the station booted offline, or the laptop slept through all 8 attempts) re-arms ONE more bounded cycle.
+    // Without this an HTTP connector stayed toolless for the rest of the session even after the network came back.
+    // Demand-driven, so an unused dead connector still never retries forever; a dead credential is left alone.
+    function rearmOnDemand(c) {
+      if (!c || c.state !== 'error' || !c.enabled || c.authRequired || c.reconnectTimer != null || c.connecting) return;
+      if ((c.reconnectAttempt || 0) < RECONNECT_MAX_ATTEMPTS) return;
+      c.reconnectAttempt = 0;
+      scheduleReconnect(c);
+    }
     function toolDefsFor(id) {
       const c = conns.get(String(id));
+      if (c && !configIssue(c) && c.transportKind === 'http') rearmOnDemand(c);
       if (!c || configIssue(c) || (c.state !== 'up' && c.state !== 'cached')) return [];
       const bound = (toolName, args, ctx) => call(c.id, toolName, args, ctx);   // ctx rides through for connector_required + the run's abort signal
       const defTimeoutMs = (c.timeoutMs || timeoutMs) + REGISTRY_SLACK_MS;

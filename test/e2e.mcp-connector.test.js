@@ -312,6 +312,36 @@ async function readNdjson(res) {
     const listed = await (await fetch(B + '/api/connectors', { headers: { 'X-StarNet-Token': token, Origin: B } })).json();
     A.ok((listed.connectors || []).some(c => c.id === 'demo' && c.tools && c.tools.indexOf('lookup') >= 0), '/api/connectors lists the discovered MCP tool');
 
+    // EDIT ROUND-TRIP: the panel's EDIT form is filled from the MASKED status (secret query param -> <redacted>,
+    // header values -> <set> / blank). Saving it with only the label changed must keep the real URL + headers —
+    // it used to store the masks literally, so a rename silently broke a keyed connector.
+    const editUrl = mcp.url + '?api_key=URLSECRET_e2e';
+    const made = await fetch(B + '/api/connectors', { method: 'POST', headers,
+      body: JSON.stringify({ id: 'demo-edit', label: 'Edit me', transport: 'http', url: editUrl, headers: { 'X-Api-Key': 'HDRSECRET_e2e', 'X-Plain': 'plainvalue' } }) });
+    A.eq((await made.json()).state, 'up', 'keyed connector with a secret query param + headers connects');
+    const shown = ((await (await fetch(B + '/api/connectors', { headers: { 'X-StarNet-Token': token, Origin: B } })).json()).connectors || []).find(c => c.id === 'demo-edit');
+    A.ok(shown && /redacted/.test(shown.url) && shown.headers['X-Api-Key'] === '<redacted>', 'status masks the secrets (what the edit form is filled from)');
+    const formHeaders = {};
+    for (const k of Object.keys(shown.headers)) formHeaders[k] = shown.headers[k] === '<redacted>' ? '' : shown.headers[k];   // exactly connectors.js prefill
+    const callsBefore = mcp.calls.length;
+    const edited = await fetch(B + '/api/connectors', { method: 'POST', headers,
+      body: JSON.stringify({ id: 'demo-edit', label: 'Renamed', transport: 'http', oauth: false, url: shown.url, headers: formHeaders }) });
+    A.eq((await edited.json()).state, 'up', 'label-only edit reconnects');
+    const editDisk = JSON.parse(fs.readFileSync(connectorFile, 'utf8'));
+    const savedEdit = (editDisk.configs || []).find(c => c.id === 'demo-edit') || {};
+    A.eq(savedEdit.url, editUrl, 'edit kept the real secret query param (not the <redacted> mask)');
+    A.eq(JSON.stringify(savedEdit.headers), JSON.stringify({ 'X-Api-Key': 'HDRSECRET_e2e', 'X-Plain': 'plainvalue' }), 'edit kept the real header values (not blank / <set>)');
+    A.eq(savedEdit.label, 'Renamed', 'the label change itself landed');
+    const reconnect = mcp.calls.slice(callsBefore).find(c => c.msg && c.msg.method === 'initialize');
+    A.ok(reconnect && reconnect.headers['x-api-key'] === 'HDRSECRET_e2e', 'the server still receives the real header after the edit');
+    // a URL change is a different service: masks must NOT pull the old secrets onto the new endpoint
+    const moved = await fetch(B + '/api/connectors', { method: 'POST', headers,
+      body: JSON.stringify({ id: 'demo-edit', transport: 'http', oauth: false, url: 'http://127.0.0.1:1/mcp', headers: formHeaders, timeoutMs: 1000 }) });
+    await moved.json();
+    const movedSaved = (JSON.parse(fs.readFileSync(connectorFile, 'utf8')).configs || []).find(c => c.id === 'demo-edit') || {};
+    A.ok(JSON.stringify(movedSaved.headers || {}).indexOf('HDRSECRET_e2e') < 0, 'an old secret header never follows a changed URL');
+    await (await fetch(B + '/api/connectors/remove', { method: 'POST', headers, body: JSON.stringify({ id: 'demo-edit' }) })).text();
+
     // HARNESS SELF-KNOWLEDGE: plant all three mutable sources, then make a REAL /api/run call the
     // always-present station.inspect tool. The returned bytes must agree with the same live stores the
     // APIs above use — not a prompt summary or scripted fixture inside the tool.
