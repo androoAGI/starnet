@@ -4663,6 +4663,14 @@ input[type=number].key-input:focus { border-color: var(--ph); box-shadow: inset 
 #budget-pools .bg-pool-hit { display: flex; align-items: center; gap: 10px; border: 1px solid var(--warn); background: rgba(0,0,0,.32); padding: 6px 9px; margin: 2px 0 8px; font-size: 12.5px; color: var(--warn); }
 #budget-pools .bg-pool-hit b { color: var(--ph-bright); }
 #budget-pools .bg-pool-hit .bb { flex: 0 0 auto; margin-left: auto; }
+/* INTERRUPTED-run rows — a run whose charge was never booked; the Commander enters it (SETTLE) or counts it at its
+   per-run limit. Rendered ONLY while /api/budget/status lists one. Same warn vocabulary as the CAP-HIT row; the
+   explanation lives in the row's data-tip, never a sentence under it. */
+#budget-unsettled .bg-unsettled { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border: 1px solid var(--warn); background: rgba(0,0,0,.32); padding: 6px 9px; margin: 2px 0 8px; font-size: 12.5px; color: var(--warn); }
+#budget-unsettled .bg-un-what { flex: 1 1 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#budget-unsettled .bg-un-what b { color: var(--ph-bright); }
+#budget-unsettled .bg-un-usd { flex: 0 0 104px; width: 104px; font-size: 15px; padding: 4px 8px; text-align: right; }
+#budget-unsettled .bb { flex: 0 0 auto; }
 /* MODELS panel — the ordered fallback chain (P0-3). Additive: new selectors only, on-theme via the same vars. */
 .mc-list-fb { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 4px; }
 .fbc-row { display: flex; align-items: center; gap: 6px; border: 1px solid var(--ph-dim); background: rgba(0,0,0,.32); padding: 4px 8px; }

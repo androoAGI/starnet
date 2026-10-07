@@ -6364,14 +6364,88 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const anySaved = BG_KEYS.some(k => Object.prototype.hasOwnProperty.call(saved, k));
       if (resetBtn) resetBtn.style.display = anySaved ? '' : 'none';
-      if (spendEl && st.accounting && (!st.accounting.complete || !st.accounting.durable)) {
-        spendEl.textContent = 'Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.';
+      const acc = st.accounting;
+      if (spendEl && acc && (!acc.complete || !acc.durable)) {
+        // name the cause and the fix that works for it: a restart replays a failed save, never an interrupted run
+        const open = Array.isArray(st.unsettled) ? st.unsettled.length : 0;
+        const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
+        spendEl.textContent = acc.writeError
+          ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
+          : (acc.readError === 'UNSETTLED_SPEND' && open)
+            ? 'Spend history unavailable — ' + (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent') +
+              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+            : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
         const runs = (st && typeof st.runs === 'number') ? st.runs : 0;
         spendEl.innerHTML = 'SPENT TODAY <b>' + today + '</b> &nbsp;·&nbsp; LIFETIME <b>' + life + '</b> <span class="dim">(' + runs + ' run' + (runs === 1 ? '' : 's') + ')</span>';
       }
+      paintUnsettled(st);
       paintPools(st);
+    };
+    // INTERRUPTED RUNS — a run that stopped before its spend was booked leaves that spend unknown, and a limit the
+    // Commander chose refuses every paid run until it is known. One row per run (/api/budget/status `unsettled`, only
+    // runs found at boot), settled ONLY by the amount the Commander enters from the provider dashboard, or — when the run
+    // started under a per-run limit — counted at that limit. Never a guessed figure (DECISIONS.md "Strict vs soft").
+    const unsettledEl = body.querySelector('#budget-unsettled');
+    const whenOf = ts => {
+      if (!(typeof ts === 'number' && ts > 0)) return 'time unknown';
+      try { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return new Date(ts).toISOString(); }
+    };
+    const settleRun = (r, payload, btns) => {
+      btns.forEach(b => { b.disabled = true; }); setMsg('settling…');
+      Harness.api.post('/api/budget/settle', Object.assign({ runId: r.runId }, payload))
+        .then(({ ok, j }) => {
+          if (!ok) { setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); return; }
+          paint(j); setMsg('✓ interrupted run settled — its spend is in your history', true); sfx('click');
+        })
+        .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); });
+    };
+    const paintUnsettled = (st) => {
+      if (!unsettledEl) return;
+      unsettledEl.textContent = '';
+      const list = (st && Array.isArray(st.unsettled)) ? st.unsettled : [];
+      for (const r of list) {
+        if (!r || !r.runId) continue;
+        const row = document.createElement('div');
+        row.className = 'set-row bg-unsettled';
+        const where = [r.provider, r.model].filter(Boolean).join(' · ');
+        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' + (where ? ' (it started on ' + where + ')' : '') +
+          '. Enter the charge your provider dashboard shows for it: StarNet books it once and your spending limits can be checked again.');
+        const what = document.createElement('span');
+        what.className = 'bg-un-what';
+        const name = document.createElement('b');
+        name.textContent = String(r.title || r.agentId || 'a run').slice(0, 80);
+        what.appendChild(document.createTextNode('INTERRUPTED — '));
+        what.appendChild(name);
+        what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
+        const usd = document.createElement('input');
+        usd.className = 'key-input bg-cap bg-un-usd';
+        usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
+        usd.setAttribute('inputmode', 'decimal'); usd.setAttribute('autocomplete', 'off');
+        usd.setAttribute('aria-label', 'what your provider charged for this run, in USD');
+        const btn = document.createElement('button');
+        btn.className = 'bb sm'; btn.textContent = 'SETTLE';
+        btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
+        const btns = [btn];
+        let capBtn = null;
+        if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
+          capBtn = document.createElement('button');
+          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
+          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so your provider dashboard has the exact charge');
+          btns.push(capBtn);
+        }
+        btn.addEventListener('click', () => {
+          const raw = String(usd.value).trim();
+          const n = raw === '' ? NaN : Number(raw);
+          if (!Number.isFinite(n) || n < 0) { setMsg('enter what your provider charged for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
+          settleRun(r, { usd: n }, btns);
+        });
+        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
+        row.appendChild(what); row.appendChild(usd); row.appendChild(btn);
+        if (capBtn) row.appendChild(capBtn);
+        unsettledEl.appendChild(row);
+      }
     };
     // Soft-pool truth + the one-click RESUME. /api/budget/status carries the governor's live pool reads
     // (day/global: {usd, cap, base} — null when ungoverned). A pool is HIT when spend reached its session cap;
@@ -7020,6 +7094,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
       '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
+      '<div id="budget-unsettled"></div>' +   // interrupted runs whose charge is unknown + their SETTLE (only rendered when one exists)
       '<div id="budget-pools"></div>' +   // soft-pool cap state + the one-click RESUME (only rendered when a pool is actually hit)
       '<div class="mc-form" id="budget-form">' +
         '<div class="set-row"><label for="bg-perRun">PER RUN <span class="src-badge" id="bg-src-perRun" hidden></span></label><input id="bg-perRun" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
