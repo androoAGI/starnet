@@ -13,6 +13,7 @@
 
 mod credentials;
 mod desktop_assets;
+mod erase_all;
 mod fresh_start;
 mod hud_mode;
 mod lifecycle_preferences;
@@ -4668,6 +4669,202 @@ fn starnet_start_fresh(
     })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EraseView {
+    /// true only when every planned removal and every keychain deletion was confirmed
+    ok: bool,
+    listening: bool,
+    removed: Vec<String>,
+    failed: Vec<EraseFailure>,
+    keychain_cleared: usize,
+    keychain_failed: Vec<String>,
+    autostart_disabled: bool,
+    browser_data_cleared: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EraseFailure {
+    path: String,
+    error: String,
+}
+
+/// Where the local voice-model download lives (mirrors sidecar/local-voice.js defaultCacheRoot).
+fn local_voice_model_cache() -> Option<PathBuf> {
+    if cfg!(windows) {
+        std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .map(|base| base.join("StarNet").join("models"))
+    } else if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(PathBuf::from).map(|home| {
+            home.join("Library")
+                .join("Application Support")
+                .join("StarNet")
+                .join("models")
+        })
+    } else {
+        std::env::var_os("XDG_CACHE_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
+            .map(|base| base.join("starnet").join("models"))
+    }
+}
+
+/// #65 ERASE EVERYTHING (Settings > APP & BACKUP). The full "start over from scratch": stop every run and the
+/// sidecar (its graceful quit closes the station browser and reaps its children), swap in a sealed empty station
+/// (fresh_start::set_aside_for_erase; a failed move changes NOTHING), then DELETE the old station, every other entry
+/// of the app-data folder, older StarNet data roots and the voice-model cache (erase_all.rs: StarNet-owned paths
+/// only, links never followed), remove every keychain credential this shell can have created, turn launch-at-login
+/// off, clear the WebView's own storage, and start a clean sidecar. The receipt lists what was removed and what
+/// could not be, so the UI never claims an erase that did not happen. Project folders the user trusted are
+/// recorded by path and are never inside the station data; they are not touched.
+#[tauri::command]
+fn starnet_erase_everything(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    state: State<AppState>,
+    confirm: String,
+) -> Result<EraseView, String> {
+    if confirm.trim() != "ERASE" {
+        return Err("type ERASE to confirm - nothing was erased".to_string());
+    }
+    let st: &AppState = state.inner();
+    if st.shutting_down.load(Ordering::SeqCst) {
+        return Err("StarNet is shutting down - nothing was erased".to_string());
+    }
+    let _recovery = begin_recovery(st)?;
+    log_startup(
+        &st.startup_log,
+        "erase: ERASE EVERYTHING confirmed by the user",
+    );
+
+    // Read what only the station files can tell us (agent-bound bot ids) before they go.
+    let bot_ids = erase_all::telegram_bot_ids(&st.workspaces);
+
+    // Stop all work, then the sidecar: its graceful quit closes the station browser (which holds files in the
+    // station profile) and reaps backgrounded children; the bounded kill guarantees it is gone.
+    post_sidecar_halt(st, Duration::from_secs(3));
+    let stopped_pid = st
+        .sidecar
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(Child::id));
+    stop_sidecar_gracefully(st);
+
+    let mut acknowledged = legacy_workspace_paths(&st.root, &st.workspaces);
+    if let Some(parent) = st.workspaces.parent() {
+        push_unique_path(&mut acknowledged, parent.join("update-snapshots"));
+    }
+    let prepared = match fresh_start::set_aside_for_erase(
+        &st.workspaces,
+        &acknowledged,
+        stopped_pid,
+        now_ms(),
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            let listening = spawn_sidecar(st);
+            log_startup(
+                &st.startup_log,
+                format!("erase: refused before any deletion ({error}); station respawn listening={listening}"),
+            );
+            return Err(format!(
+                "nothing was erased - {error}. Close any other StarNet window or browser and try again."
+            ));
+        }
+    };
+
+    // Older data roots under the per-user app-data bases only; the install folder (and its bundled first-run
+    // seed, sealed off by the new generation's migration marker) is never touched.
+    let install_root = strip_verbatim(&st.root);
+    let legacy: Vec<PathBuf> = legacy_workspace_paths(&st.root, &st.workspaces)
+        .into_iter()
+        .filter(|path| !path.starts_with(&install_root))
+        .collect();
+    let extra: Vec<PathBuf> = local_voice_model_cache().into_iter().collect();
+    let app_data = st
+        .workspaces
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| st.workspaces.clone());
+    let targets = erase_all::plan_targets(
+        &app_data,
+        &st.workspaces,
+        prepared.quarantine.as_deref(),
+        &legacy,
+        &extra,
+    );
+    let report = erase_all::remove_all(&targets);
+
+    // Every credential this shell can have created, under the ai.skynet.harness keychain service.
+    let channels: Vec<&str> = SIDECAR_CHANNEL_TOKEN_ENVS
+        .iter()
+        .map(|(id, _)| *id)
+        .collect();
+    let mut keychain_cleared = 0usize;
+    let mut keychain_failed = Vec::new();
+    for account in erase_all::keychain_accounts(&channels, &bot_ids) {
+        match keyring::Entry::new(credentials::KEYCHAIN_SERVICE, account.as_str())
+            .map_err(|e| e.to_string())
+            .and_then(|entry| delete_credential_honest(&entry))
+        {
+            Ok(()) => keychain_cleared += 1,
+            Err(error) => keychain_failed.push(format!("{account}: {error}")),
+        }
+    }
+
+    let autostart_disabled = {
+        use tauri_plugin_autostart::ManagerExt;
+        let manager = app.autolaunch();
+        let _ = manager.disable();
+        matches!(manager.is_enabled(), Ok(false))
+    };
+
+    let browser_data_cleared = match window.clear_all_browsing_data() {
+        Ok(()) => true,
+        Err(error) => {
+            log_startup(
+                &st.startup_log,
+                format!(
+                    "erase: native browser-data clear failed; renderer fallback required ({error})"
+                ),
+            );
+            false
+        }
+    };
+
+    let listening = spawn_sidecar(st);
+    let failed: Vec<EraseFailure> = report
+        .failed
+        .into_iter()
+        .map(|(path, error)| EraseFailure { path, error })
+        .collect();
+    log_startup(
+        &st.startup_log,
+        format!(
+            "erase: removed={} failed={} keychain_cleared={} keychain_failed={} autostart_off={} browser_data_cleared={} listening={}",
+            report.removed.len(),
+            failed.len(),
+            keychain_cleared,
+            keychain_failed.len(),
+            autostart_disabled,
+            browser_data_cleared,
+            listening
+        ),
+    );
+    Ok(EraseView {
+        ok: failed.is_empty() && keychain_failed.is_empty(),
+        listening,
+        removed: report.removed,
+        failed,
+        keychain_cleared,
+        keychain_failed,
+        autostart_disabled,
+        browser_data_cleared,
+    })
+}
+
 /// What the crash guardian knows about the sidecar (read by the STATION DATA UNREACHABLE screen).
 /// Pure read of AppState.guardian — no probe, no side effect — so a HALTED crash loop is shown as
 /// exactly that instead of a generic "not answering".
@@ -4811,6 +5008,7 @@ fn main() {
             starnet_sidecar_status,
             starnet_restart_sidecar,
             starnet_start_fresh,
+            starnet_erase_everything,
             starnet_set_start_minimized,
             starnet_set_close_to_tray,
             hud_mode::starnet_hud_status,

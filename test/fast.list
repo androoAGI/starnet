@@ -98,6 +98,7 @@ test/media-service.test.js
 test/desktop-voice-bundle.test.js
 test/transcript.compaction.e2e.test.js
 test/provider.anthropic.test.js
+test/provider.anthropic.thinking-binding.test.js
 test/provider.claude-cli.test.js
 test/claude-cli-text-protocol.test.js
 test/provider-accounts.test.js
@@ -167,6 +168,7 @@ test/freshstart.test.js
 test/unreachable-browser-mode.test.js
 test/harness.cancel-truth.test.js
 test/desktop-fresh-start-contract.test.js
+test/datareset.test.js
 test/cloudsave-unload.test.js
 test/fullscreen.test.js
 test/titlebar.test.js
@@ -257,6 +259,8 @@ test/autopilot-threads.test.js
 test/autopilot-focus.test.js
 test/autopilot-focus-veto.test.js
 test/apiauth.test.js
+test/provider-key-check.test.js
+test/kimi-region.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js
 test/browser-view.test.js
@@ -368,6 +372,7 @@ test/web.reach.test.js
 test/web.pinned-dispatcher.test.js
 test/browser.test.js
 test/browser-proxy.test.js
+test/browser-orphans.test.js
 test/browser.desktop-login-journey.test.js
 test/browser.login-seed.test.js
 test/browser.reach-measure.test.js
@@ -388,6 +393,8 @@ test/inputpolicy.test.js
 test/image.test.js
 test/image-task.test.js
 test/voice-tool.test.js
+test/media-project-placement.test.js
+test/delegated-command-gap.test.js
 test/resolve-tools.test.js
 test/connectors-tool.test.js
 test/attachments.test.js
@@ -669,6 +676,7 @@ test/stationbake.seam.test.js
 test/stationbake.connections.test.mjs
 test/stationbake.hull.test.js
 test/canvas-loss-recovery.test.js
+test/render-pacing.test.js
 test/stage-context-loss.test.js
 test/conveyor.test.js
 test/pipeline.test.js
@@ -814,6 +822,7 @@ test/sprite-loading.test.js
 test/textsize-screen-space.test.js
 test/mobile-control-reachability.test.js
 test/station-tooltip.test.js
+test/hint-input-mode.test.js
 test/toast-live-region.test.js
 test/toast-seat.test.js
 test/channels.discord-wire.test.js

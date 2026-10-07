@@ -2383,8 +2383,14 @@ body.row-resizing { cursor: row-resize; user-select: none; }
 #crew.shut { padding: 0; }
 
 /* the v7 screen-flicker animation targets #app (which this app doesn't
-   have) — re-point it at the live station so the SETTINGS toggle works */
-body:not(.no-flicker) #screen-game.active { animation: flick 7s infinite; }
+   have) — re-point it at the live station so the SETTINGS toggle works.
+   #69: the dip is the LAST 4% of the old 7s cycle (flick-dip = 96%..100% of it, same opacities), played
+   once every 7s by StationUI's flicker clock. An infinite opacity animation on the whole screen made
+   the compositor re-draw the full window every vsync for the 96% of the cycle where nothing changes —
+   measured ~0.75 GPU-process cores with the world stopped. isolation keeps the stacking context the
+   running animation always created, so nothing above/below the station re-layers between dips. */
+body:not(.no-flicker) #screen-game.active { isolation: isolate; }
+body:not(.no-flicker) #screen-game.active.flick-dip { animation: flick-dip 280ms 1; }
 
 /* top bar: reuse the v7 logo (#logo, .logo-*) and .tb-stat; subtitle fit */
 #topbar .logo-sub { white-space: nowrap; }

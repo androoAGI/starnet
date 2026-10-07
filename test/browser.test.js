@@ -126,7 +126,7 @@ function fakeDriver() {
     'browser.attach', 'browser.back', 'browser.click', 'browser.console', 'browser.detach', 'browser.dialog', 'browser.drag',
     'browser.emulate', 'browser.eval', 'browser.find', 'browser.forward', 'browser.get_text', 'browser.hover', 'browser.inspect',
     'browser.intercept', 'browser.login', 'browser.navigate', 'browser.need_human', 'browser.network',
-    'browser.pdf', 'browser.press', 'browser.screenshot', 'browser.scroll', 'browser.select', 'browser.snapshot',
+    'browser.pdf', 'browser.press', 'browser.reset', 'browser.screenshot', 'browser.scroll', 'browser.select', 'browser.snapshot',
     'browser.tab_close', 'browser.tab_select', 'browser.tabs',
     'browser.test_input', 'browser.test_navigate', 'browser.test_snapshot', 'browser.test_state',
     'browser.type', 'browser.upload', 'browser.viewport', 'browser.vision', 'browser.wait'

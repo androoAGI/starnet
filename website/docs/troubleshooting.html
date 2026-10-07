@@ -102,11 +102,71 @@ verifies every update against a key baked into the app. This is independent of A
 Developer ID signing, and notarization. The build contract is not installed-update evidence;
 report a failed update and use the matching current release installer when necessary.</p>
 
+<h2 id="the-station-browser-will-not-load-pages">The station browser will not load pages</h2>
+<p>If every page fails, agents report proxy or connection errors, or a new browser "exits before it
+can be controlled", an earlier StarNet session may have left its browser running. Open
+<b>Settings &rarr; BROWSER &rarr; RESET STATION BROWSER</b>. It closes the station browser, ends any copy
+an earlier StarNet session left running on the station profile, and clears that profile's stale
+locks. It never touches your own Chrome, and your saved sign-ins are kept. Agents can do the same
+thing themselves with the <code>browser.reset</code> tool. StarNet also does this check on its own
+before it starts the station browser.</p>
+<p>If an agent is using the browser at that moment, stop the run first. If the reset reports a
+process it could not end, quit StarNet from the tray and restart your computer.</p>
+
+<h2 id="erase-everything-and-start-over">Erase everything and start over</h2>
+<p>Uninstalling removes only the program. Your station lives in a separate folder for your user
+account, so a reinstall picks it right back up. To really start from scratch, open
+<b>Settings &rarr; APP &amp; BACKUP &rarr; ERASE EVERYTHING</b>, type <code>ERASE</code>, and click twice.
+StarNet stops, deletes everything it keeps on this computer, and restarts at first run. When it
+finishes it lists exactly what it removed, and anything it could not remove.</p>
+<p>It deletes your station, agents, chats, memory, routines and settings, saved browser sign-ins,
+files agents saved inside StarNet, logs, the voice-model download, the keys and tokens StarNet saved
+in your system keychain, and the app window's own stored data. It also turns off Launch at login.</p>
+<p>It does <b>not</b> touch project folders you let agents work in, files exported to
+<code>StarNet deliverables</code>, your Downloads folder, your StarNet account and its credits (this
+computer is just unlinked from it), or the StarNet app itself. Export a backup first
+(<b>EXPORT STATION</b>, same page) if you might want any of it back.</p>
+<p>Want a clean station but keep the old one on disk? Use <b>START FRESH</b> on the recovery screen
+instead: it moves the old station to a quarantine folder rather than deleting it.</p>
+
+<h2 id="where-starnet-keeps-your-data">Where StarNet keeps your data</h2>
+<p>Quit StarNet first (tray icon &rarr; Quit), or it will recreate files while you delete them. Then
+remove these by hand if you cannot use ERASE EVERYTHING:</p>
+<ul>
+<li><b>Windows</b>
+  <ul>
+  <li>Station data: <code>%APPDATA%\ai.skynet.harness\</code></li>
+  <li>App window storage: <code>%LOCALAPPDATA%\ai.skynet.harness\</code></li>
+  <li>Program and voice-model download: <code>%LOCALAPPDATA%\StarNet\</code> (uninstall first; delete
+  what is left)</li>
+  <li>Saved keys and tokens: Control Panel &rarr; Credential Manager &rarr; Windows Credentials, every
+  entry containing <code>ai.skynet.harness</code></li>
+  </ul></li>
+<li><b>macOS</b>
+  <ul>
+  <li>Station data: <code>~/Library/Application Support/ai.skynet.harness/</code></li>
+  <li>Voice-model download: <code>~/Library/Application Support/StarNet/</code></li>
+  <li>App window storage: <code>~/Library/WebKit/ai.skynet.harness/</code>,
+  <code>~/Library/Caches/ai.skynet.harness/</code> and <code>~/Library/HTTPStorages/ai.skynet.harness/</code>
+  if present</li>
+  <li>Saved keys and tokens: Keychain Access, search <code>ai.skynet.harness</code>, delete each item</li>
+  <li>Launch at login (only if you turned it on): the StarNet item in
+  <code>~/Library/LaunchAgents/</code></li>
+  </ul></li>
+<li><b>Running from source</b>: the <code>workspaces</code> folder you started it with (the repo's
+<code>workspaces/</code> by default, or the path in <code>SKYNET_WORKSPACES</code>).</li>
+</ul>
+<p>In Finder, press <b>Cmd+Shift+G</b> and paste a <code>~/Library/...</code> path to open it. In Windows,
+paste a <code>%APPDATA%</code> path into the File Explorer address bar.</p>
+
 <h2 id="uninstalling">Uninstalling</h2>
 <ul>
 <li><b>Windows:</b> Settings &rarr; Apps &rarr; Installed apps.</li>
 <li><b>macOS:</b> quit StarNet, drag it from Applications to the Trash.</li>
 </ul>
+<p>Uninstalling keeps your station data. To remove that too, run
+<a href="#erase-everything-and-start-over">ERASE EVERYTHING</a> before you uninstall, or delete the
+folders listed in <a href="#where-starnet-keeps-your-data">Where StarNet keeps your data</a>.</p>
 
 <h2 id="behind-a-vpn-or-corporate-proxy">Behind a VPN or corporate proxy</h2>
 <p>The app window honors your system proxy, but the engine's own outbound connections — AI providers and

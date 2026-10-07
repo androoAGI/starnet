@@ -593,7 +593,7 @@
 
   // The widget's world is drawn ~20 times a second (World.setFrameCap): alive to a glance, a fraction of the
   // full station's cost while a game has the GPU. 48ms stays under the world's 64ms step clamp, so bodies
-  // still move at their true speed. The full station always gets its uncapped loop back.
+  // still move at their true speed. The full station gets the world's own RENDER PACING back (30 fps focused, slower unfocused — world.js).
   const WIDGET_FRAME_MS = 48;
   function worldStart(capped) {
     // the widget shows the world only: its rows already say who works, for how long and on what, so the

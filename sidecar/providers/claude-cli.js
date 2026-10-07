@@ -136,10 +136,12 @@
      with &lt; so it stays text; the native API keeps roles apart structurally, this text transcript has to do it here. */
   const TRANSCRIPT_TAG_RE = /<(\/?)((?:[A-Za-z_][\w-]*:)?(?:tool_result|user|assistant|system_note|conversation|function_calls|invoke|parameter|tool_call))(?=[\s>/]|$)/gi;
   const inertTags = s => String(s).replace(TRANSCRIPT_TAG_RE, '&lt;$1$2');
+  // Claude Code (v2.1.275+) splits a system prompt at this line into two blocks, each with its own cache breakpoint.
+  const DYNAMIC_BOUNDARY = '__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__';
 
   /* Leading system messages become the CLI system prompt; everything after is rendered as a tagged transcript
      on stdin (later system messages stay in place as notes, like the native Anthropic adapter keeps them). */
-  function buildPrompt(messages, tools) {
+  function buildPrompt(messages, tools, cachePrefix) {
     messages = provider.repairToolPairs(Array.isArray(messages) ? messages : []);
     const system = [];
     let i = 0;
@@ -147,8 +149,14 @@
       const t = textOf(messages[i].content).trim();
       if (t) system.push(t);
     }
+    /* Prompt caching (#68): the stable cacheSystemPrefix + tools go before the CLI's dynamic boundary and the per-run
+       text (run id, task brief) after it, so each is its own cached block and a new run reuses the stable part. */
+    const prefix = typeof cachePrefix === 'string' ? cachePrefix.trim() : '';
+    const joined = system.join('\n\n');
+    const note = prefix && joined.startsWith(prefix) ? joined.slice(prefix.length).trim() : '';
     const tp = toolsPrompt(tools);
-    if (tp) system.push(tp);
+    if (note) system.splice(0, system.length, prefix, ...(tp ? [tp] : []), DYNAMIC_BOUNDARY + '\n' + note);
+    else if (tp) system.push(tp);
     const rest = messages.slice(i).filter(m => m && typeof m === 'object');
     if (rest.length === 1 && rest[0].role === 'user') return { system: system.join('\n\n'), input: textOf(rest[0].content) };
     const lines = ['<conversation>'];
@@ -573,7 +581,7 @@
       if (signal && signal.aborted) return;
       const cmd = command();
       if (!cmd) throw notInstalled();
-      const prompt = buildPrompt(req.messages, req.tools);
+      const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix);
       const turn = ++seq;
       const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
       const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'], NO_TOOLS_ARGS);

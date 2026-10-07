@@ -39,7 +39,8 @@
       canUse: (call) => canAgentUse(resolved, call.name),
       approvalRules: resolved.approvalRules,
       deferred: resolved.deferred || [],   // granted-but-unadvertised names; tool.search searches exactly this
-      unavailable: resolved.unavailable || {}   // deferred names the host PROVED cannot work this run -> { why, enable }; tool.search says so
+      unavailable: resolved.unavailable || {},   // deferred names the host PROVED cannot work this run -> { why, enable }; tool.search says so
+      withheld: resolved.withheld || {}   // floor-granted names the run authority removed this run -> { why, enable } (issue #77); tool.search says so
     }, extra || {});
   }
 

@@ -146,6 +146,25 @@
       + '"create an issue") and the matching tools become callable immediately. ';
   }
 
+  /* WITHHELD MATCHES (issue #77). ctx.withheld (name -> { why, enable }) holds tools this agent's floor grants but the
+     run authority removed from THIS run — shell.exec on a delegated ASK-mode worker. They are never revealed (the gate
+     would refuse them), so they stay out of the deferred pool and its IDF scoring, which is byte-identical with or
+     without them. A query that names one (a query term inside a withheld tool's name) or asks for commands in plain words —
+     gets ONE note listing every withheld tool (they share one cause on a run), why, and what works instead. Before,
+     "run a shell command" answered with an unrelated browser tool and the worker reported the shell as gone. */
+  const COMMAND_WORDS = /\b(?:shell|command|commands|cmd|terminal|bash|powershell|exec|execute|script|run)\b/i;
+  function withheldNote(q, ctx) {
+    const withheld = (ctx && ctx.withheld && typeof ctx.withheld === 'object') ? ctx.withheld : null;
+    const names = withheld ? Object.keys(withheld).sort() : [];
+    if (!names.length) return '';
+    const qs = terms(q);
+    const hit = COMMAND_WORDS.test(String(q)) || names.some(n => qs.some(w => String(n).toLowerCase().indexOf(w) >= 0));
+    if (!hit) return '';
+    const first = withheld[names[0]] || {};
+    return 'WITHHELD on this run (these exist on this station, but you cannot call them here): ' + names.join(', ')
+      + '. Why: ' + first.why + '. What works instead: ' + first.enable + '.';
+  }
+
   function makeToolSearchTool(deps) {
     const registry = (deps || {}).registry;
 
@@ -165,7 +184,9 @@
       run: async (args, ctx) => {
         const q = args && args.query != null ? String(args.query) : '';
         const names = (ctx && Array.isArray(ctx.deferred)) ? ctx.deferred : [];
+        const blocked = q.trim() ? withheldNote(q, ctx) : '';
         if (!names.length) {
+          if (blocked) return { content: blocked, summary: 'withheld' };
           return { content: 'Every tool you have been granted is already listed — there is nothing further to find.', summary: 'none hidden' };
         }
         if (!q.trim()) return { content: 'Provide a `query` describing the capability you want.', summary: 'no query' };
@@ -186,6 +207,7 @@
         const best = scored.length ? scored[0].s : 0;
         const hits = scored.filter(h => h.s * 3 >= best).slice(0, MAX_HITS);
 
+        if (!hits.length && blocked) return { content: blocked, summary: 'withheld' };
         if (!hits.length) {
           // Name the shelf rather than dead-ending: a miss usually means wrong vocabulary, not absent capability.
           const sample = pool.map(t => t.name).sort().slice(0, 12).join(', ');
@@ -206,7 +228,7 @@
         };
         const lines = hits.map(h => '· ' + h.t.name + ' ' + required(h.t) + ' — ' + gist(h.t) + caveat(h.t.name));
         return {
-          content: 'Now available to call for the rest of this run:\n' + lines.join('\n'),
+          content: (blocked ? blocked + '\n' : '') + 'Now available to call for the rest of this run:\n' + lines.join('\n'),
           summary: hits.length + ' revealed',
           // The loop reads this and adds these tools to the advertised set. Names only — the loop owns
           // turning them into wire declarations, so this tool never has to know the provider format.

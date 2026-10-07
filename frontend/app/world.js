@@ -1441,6 +1441,10 @@ const World = (() => {
        and stack forever (every other handler is cv-scoped and dies with the replaced node). */
     document.addEventListener('visibilitychange', () => { if (!document.hidden) lastProbeAt = 0; });
     window.addEventListener('focus', () => { lastProbeAt = 0; });
+    // RENDER PACING wake-ups (#69): focus, a visible page, or any hand on the window resumes full pace NOW
+    window.addEventListener('focus', paceWake);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) paceWake(); });
+    for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, paceEngage, { passive: true, capture: true });
     /* STUCK CAMERA DRAG: a press dragged past the canvas edge and released elsewhere never delivers
        cv's mouseup, so `drag` survived — the bare cursor then panned the camera on every crossing and
        the next real click was swallowed as a "drag" (drag.moved was already true). Same class build.js
@@ -1612,8 +1616,8 @@ const World = (() => {
   // the queued rAF first so frame()'s own re-schedule doesn't leave two loops running.
   function redrawNow() {
     if (!running || !cache) return;
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    frame(performance.now());
+    cancelScheduled();
+    frame(performance.now(), true);   // forced: a resize blanked the bitmap, so the pacer may not skip this one
   }
 
   function start() {
@@ -1624,12 +1628,69 @@ const World = (() => {
     try { if (typeof LineWatch !== 'undefined' && typeof fetch !== 'undefined') lineStatsSoon(); } catch (_) {}
     frame(last);
   }
-  function stop() { cancelArrival(); running = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+  function stop() { cancelArrival(); running = false; cancelScheduled(); }
   /* FRAME CAP (HUD widget, 2026-09-29): an opt-in ceiling on how often the floor is DRAWN. Frames in between are
      skipped whole; the simulation still reads the real clock, so bodies move at their true speed, just drawn fewer
-     times a second. 0 = uncapped (the station's normal loop, byte-identical). */
+     times a second. 0 = no caller cap (the station's own RENDER PACING below then decides). */
   let frameCapMs = 0, lastDrawnAt = 0;
-  function setFrameCap(ms) { frameCapMs = ms > 0 ? +ms : 0; }
+  function setFrameCap(ms) { frameCapMs = ms > 0 ? +ms : 0; paceWake(); }
+  /* RENDER PACING (#69, 2026-10-06): StarNet stays open all day so routines run, and an uncapped rAF loop drew the
+     whole station at the monitor's refresh rate the entire time — 240 draws/s on a 240 Hz panel, a visible-but-
+     unfocused window included (rAF only pauses when the page is HIDDEN). Measured on the seeded station: the GPU
+     process alone burned ~1.1 cores, the renderer another ~0.7. Only the DRAWING is paced; every event handler and
+     the harness state they write keep running in real time, and a throttled draw advances the simulation in real-
+     time slices (see simSlices) so nothing walks or rides slower.
+       focused (or a pointer/key touched the window in the last PACE_ENGAGED_MS) → at most 30 draws/s
+       visible but unfocused → PACE_BLUR_MS between draws, the wait spent in a setTimeout (no 240 Hz rAF wakeups)
+       hidden/minimized → the browser stops rAF outright; the timer path parks on that same rAF
+     Focus, a pointer move, a key or the page becoming visible again wakes the loop immediately. A caller cap
+     (setFrameCap — the HUD widget's 48 ms) is that caller's stated intent and wins over the blur rate. */
+  const PACE_FOCUS_MS = 1000 / 30, PACE_BLUR_MS = 200, PACE_ENGAGED_MS = 2500;
+  const PACE_TIMER_MIN_MS = 100;   // pace intervals at/above this wait in a timer instead of spinning rAF
+  const SIM_SLICE_MS = 48, SIM_CATCHUP_MAX_MS = 1000;   // a slice stays under frameBody's 64 ms step clamp; past 1 s (a hidden page) the old freeze stands
+  let paceTimer = 0, paceLowRate = false, engagedUntil = 0, pacedDraws = 0, simMs = 0;   // simMs: total simulated time advanced (renderPace readout)
+  function pageFocused() {
+    try { return typeof document === 'undefined' || typeof document.hasFocus !== 'function' || document.hasFocus(); } catch (_) { return true; }
+  }
+  function paceMs(now) {
+    if (frameCapMs) return Math.max(frameCapMs, PACE_FOCUS_MS);
+    return (now < engagedUntil || pageFocused()) ? PACE_FOCUS_MS : PACE_BLUR_MS;
+  }
+  function cancelScheduled() {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    if (paceTimer) { clearTimeout(paceTimer); paceTimer = 0; }
+  }
+  // the ONE place the next frame is booked: rAF at a draw-rate pace, a timer then rAF at a low one
+  function scheduleFrame(pace) {
+    if (!running) return;
+    const wait = pace >= PACE_TIMER_MIN_MS ? lastDrawnAt + pace - performance.now() - 2 : 0;
+    if (wait > 0) paceTimer = setTimeout(() => { paceTimer = 0; if (running && !raf) raf = requestAnimationFrame(frame); }, wait);
+    else raf = requestAnimationFrame(frame);
+  }
+  // focus / input / visible again: drop a pending low-rate wait and draw on the very next vsync
+  function paceWake() {
+    if (!running || !paceTimer) return;
+    clearTimeout(paceTimer); paceTimer = 0;
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function paceEngage() { engagedUntil = performance.now() + PACE_ENGAGED_MS; paceWake(); }
+  /* The simulation's step list for one drawn frame. At draw rate it is the old single step (dt clamped to 64 ms, so a
+     long stall never teleports anyone). While the pacer holds a low rate it is the real elapsed time cut into
+     <= SIM_SLICE_MS slices, so bodies and crates cover the same ground per wall-second as at 30 fps. */
+  function simSlices(gap, now) {
+    if (!(paceLowRate && gap > 64 && gap <= SIM_CATCHUP_MAX_MS)) return [[Math.min(64, gap), now]];
+    const n = Math.ceil(gap / SIM_SLICE_MS), step = gap / n, out = [];
+    for (let i = n - 1; i >= 0; i--) out.push([step, now - i * step]);
+    return out;
+  }
+  // a per-frame ease tuned at 60 Hz, held to the same WALL-CLOCK speed at any draw rate (the 30 fps pace, a 240 Hz panel)
+  function easeK(k60, dt) { return dt > 0 ? 1 - Math.pow(1 - k60, dt / (1000 / 60)) : 0; }
+  function renderPace() {
+    const now = performance.now(), pace = running ? paceMs(now) : 0;
+    return { running, focused: pageFocused(), engaged: now < engagedUntil, paceMs: +pace.toFixed(1),
+      mode: !running ? 'stopped' : frameCapMs ? 'capped' : pace >= PACE_BLUR_MS ? 'blur' : 'focus',
+      draws: pacedDraws, simMs: Math.round(simMs), timerWait: !!paceTimer };
+  }
   /* OVERLAYS (HUD widget, 2026-09-30): the station's in-world readouts — run clocks, tool tickers, await tags,
      routing callouts, bay names/lamps/plates, hover glances, dock flashes, speech bubbles, nameplates and the
      working pulse at a worker's feet. A surface that says all of that itself (the HUD widget's rows) turns
@@ -6307,10 +6368,14 @@ const World = (() => {
     if (!reviewParts) return;
     const t=performance.now();reviewParts[name]=(reviewParts[name]||0)+t-reviewStamp;reviewStamp=t;
   }
-  function frame(now) {
-    if (running) raf = requestAnimationFrame(frame);   // schedule next frame FIRST — a throw below can't kill the loop
-    if (frameCapMs && now - lastDrawnAt < frameCapMs - 1) return;
-    lastDrawnAt = now;
+  function frame(now, force) {
+    raf = 0;
+    if (paceTimer) { clearTimeout(paceTimer); paceTimer = 0; }   // exactly one booking alive (redrawNow / start call in directly)
+    const pace = paceMs(now);
+    paceLowRate = pace >= PACE_TIMER_MIN_MS;
+    if (force !== true && now - lastDrawnAt < pace - 1) { scheduleFrame(pace); return; }   // RENDER PACING: not this vsync
+    lastDrawnAt = now; pacedDraws++;
+    scheduleFrame(pace);   // schedule next frame FIRST — a throw below can't kill the loop
     const reviewStart=reviewPerformance.enabled?performance.now():0;
     reviewParts=reviewPerformance.enabled?{}:null;reviewStamp=reviewStart;
     try {
@@ -6432,7 +6497,8 @@ const World = (() => {
     if(n.root.getAttribute('data-feed')!==readout.state)n.root.setAttribute('data-feed',readout.state);
   }
   function frameBody(now) {
-    const dt = Math.min(64, now - last); last = now; fnow = now;
+    const gap = now - last, dt = Math.min(64, gap); last = now; fnow = now;
+    const slices = simSlices(gap, now);   // RENDER PACING: one step at draw rate; real-time slices while the pacer holds a low rate
     linkStaleDim = linkDown(now);   // recompute the honest link state before any telemetry is drawn this frame
     if (now - lastTtlSweepAt >= 1000) { lastTtlSweepAt = now; try { sweepStaleStates(now); } catch (_) {} }   // E2: degrade any paired state whose end-event was lost
     if (wakeDark !== wakeDarkTarget) { wakeDark += (wakeDarkTarget - wakeDark) * Math.min(1, dt / 260); if (Math.abs(wakeDark - wakeDarkTarget) < 0.002) wakeDark = wakeDarkTarget; }
@@ -6457,7 +6523,9 @@ const World = (() => {
       watchStageLoss(now);    // a DEAD stage context heals here too — the rest of this frame draws onto the replacement
     } finally {probeBatch=null;}
     reviewMark('recovery');
-    tick(dt, now);
+    for (const [d] of slices) simMs += d;
+    if (slices.length === 1) tick(dt, now);
+    else { for (const [d, t] of slices) { fnow = t; tick(d, t); } fnow = now; }
     reviewMark('simulation');
 
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
@@ -6475,12 +6543,12 @@ const World = (() => {
       else {
         const fy = (camLock.seatAt && (lb.seated || lb.sitting)) ? camLock.seatAt : 0.56;   // desk = `sitting`, couch/bench = `seated`
         const ts = camLock.sc, lx = cv.width / 2 - bodyPosX(lb) * ts, ly = cv.height * fy - bodyPosY(lb) * ts;
-        const k = 0.08;   // softer than the one-shot focus ease (0.16): a trailing, cinematic follow of a moving body
+        const k = easeK(0.08, dt);   // softer than the one-shot focus ease (0.16): a trailing, cinematic follow of a moving body
         scale += (ts - scale) * k; panX += (lx - panX) * k; panY += (ly - panY) * k;
       }
     }
     if (camLerp && !camAnim && !camLock) {   // gently ease toward a conversation framing (set by focusAgent); the awakening camera + a follow-lock win
-      const k = 0.16;
+      const k = easeK(0.16, dt);
       scale += (camLerp.scale - scale) * k; panX += (camLerp.panX - panX) * k; panY += (camLerp.panY - panY) * k;
       if (Math.abs(camLerp.scale - scale) < 0.01 && Math.abs(camLerp.panX - panX) < 1 && Math.abs(camLerp.panY - panY) < 1) {
         scale = camLerp.scale; panX = camLerp.panX; panY = camLerp.panY; camLerp = null;
@@ -6491,14 +6559,15 @@ const World = (() => {
        camLerp ran would leave every finite-distance layer a frame behind the station, which is
        exactly the "picture behind a picture" tell the parallax exists to kill. Still screen
        space, still under the identity transform, still first — nothing has drawn yet. */
-    drawScene(now, dt);
+    drawScene(now, dt, slices);
   }
 
   /* THE SCENE PASS — the station drawn once onto whatever {cv, ctx, scale, panX, panY} currently are. The frame
      loop runs it on the stage every frame; renderStill() runs it once on an offscreen canvas. Everything that
      belongs to the live stage alone (the backdrop, bloom, the curve, scanlines, the heartbeat pixel, the camera
      readout) is skipped for a still. */
-  function drawScene(now, dt) {
+  function drawScene(now, dt, slices) {
+    if (!slices) slices = [[dt, now]];
     if (stillPass) { ctx.fillStyle = stillPass.fill; ctx.fillRect(0, 0, cv.width, cv.height); }
     else drawBackdrop(now, { panX, panY, scale });
 
@@ -6526,13 +6595,14 @@ const World = (() => {
       // stops = bound-bay hookup tiles (crate-physics truth: an inbound crate is CONSUMED at its dock,
       // never riding past it toward the outbox — an addressed crate stops only at its OWNER's dock)
       // (multi-bay) stops name the DOCK too: a crate addressed to bay C rides past the same agent's bay A
-      convey.tick(dt, now, geo.belts, junctions, routingPlan ? dockStops() : null);
+      const stops = routingPlan ? dockStops() : null;
+      for (const [d, t] of slices) convey.tick(d, t, geo.belts, junctions, stops);
       /* GHOST PROJECTION (Phase 3): stands down while the tutorial coaches and the INSTANT any
          real crate rides (real telemetry owns the belt); resumes when the line goes incomplete
          again. Same belts + junction decisions as the real sim, on its own dedicated engine. */
       if (ghost) {
         const coaching = !!(typeof Tutorial !== 'undefined' && Tutorial.isCoaching && Tutorial.isCoaching());
-        ghost.tick(dt, now, geo.belts, junctions, { blocked: coaching || convey.boxCount() > 0,
+        for (const [d, t] of slices) ghost.tick(d, t, geo.belts, junctions, { blocked: coaching || convey.boxCount() > 0,
           feed: { known: feedState.known, fed: feedState.fed } });
       }
       convey.drawBelts(ctx, now, T, geo.belts, beltLiveSet);
@@ -10834,7 +10904,7 @@ const World = (() => {
     pollFeed: () => pollFeedState(),
     pollShip: () => pollShipStats()
   });
-  return { init, rebake, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
+  return { init, rebake, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, renderPace, slagLog: () => (slaglog ? slaglog.recent() : []),
     // LINE WATCH: the Workflow panel pushes the step-test session it polls; reads today's numbers for a line
     noteStepTest, lineStatsFor: id => (lineStats.known ? (lineStats.byLine[id] || null) : null), pollLineStats,
     // a bay's live state — the lamp's own fold (WORKING only once the sidecar confirmed the run), with how long it has held
