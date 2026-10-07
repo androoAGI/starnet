@@ -2773,11 +2773,18 @@
         // navigate does this — every other call reports the loss and the next one starts the fresh browser.
         // …and the same ONCE for a browser whose own network proxy died (#61): the driver reported STATION_PROXY_DOWN
         // and now reads as dead, so reviveIfDead() ends it and the retry starts a fresh browser with a fresh proxy.
-        const revivable = /CDP connection closed/.test(String((e && e.message) || '')) || (e && e.code === 'STATION_PROXY_DOWN');
-        if (!revivable || !reviveIfDead()) throw e;
-        d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
-        if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
-        finalUrl = await d.navigate(u.href);
+        if (e && e.code === 'NAVIGATION_FAILED') {
+          // a load that failed outright (the driver read Page.navigate's errorText): the same one retry the error-page
+          // path below always gave a just-started browser; a second failure reaches the agent with the real error
+          await sleep(600);
+          finalUrl = await d.navigate(u.href);
+        } else {
+          const revivable = /CDP connection closed/.test(String((e && e.message) || '')) || (e && e.code === 'STATION_PROXY_DOWN');
+          if (!revivable || !reviveIfDead()) throw e;
+          d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
+          if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
+          finalUrl = await d.navigate(u.href);
+        }
       }
       /* CHROME'S OWN ERROR PAGE is not a redirect (measured 2026-09-30 at 88% CPU: the first load in a just-started
          window landed on chrome-error://chromewebdata and was reported as "blocked unsafe redirect"). Opening an address

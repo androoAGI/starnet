@@ -467,9 +467,10 @@ function makeBrowserViews(deps) {
       out.error = 'an agent is driving the browser right now - stop that run, then reset';
       return out;
     }
+    const wasOpen = !!station;
     const r = await closeStation();
-    out.closed = !!(r && r.ok);
-    if (!out.closed) { out.error = (r && r.error) || 'the station browser did not close'; return out; }
+    if (!(r && r.ok)) { out.error = (r && r.error) || 'the station browser did not close'; return out; }
+    out.closed = wasOpen;   // "closed" only when there was a browser to close
     if (typeof deps.sweepStationProfile === 'function') {
       try { out.sweep = await deps.sweepStationProfile(); }
       catch (e) { out.sweep = { ok: false, error: String((e && e.message) || e), found: 0, killed: [], survivors: [], ours: [], locks: { removed: [], failed: [] } }; }

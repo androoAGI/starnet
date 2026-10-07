@@ -245,6 +245,23 @@ function fakeFs(files) {
     A.ok(made[1].reclaimProfile === true, 'the fresh browser reclaims the profile from the dead one');
   }
 
+  /* ---- a plain failed load keeps the one retry a just-started browser always had, then says what failed ---- */
+  {
+    let n = 0;
+    const failing = times => ({
+      navigate: async url => { n++; if (n <= times) { const e = new Error('could not load www.etsy.com: net::ERR_CONNECTION_RESET'); e.code = 'NAVIGATION_FAILED'; throw e; } return url; },
+      alive: () => true, close: async () => {}
+    });
+    const s1 = T.makeBrowserSession({ driver: failing(1), lookup: null });
+    A.eq(await s1.navigate('https://www.etsy.com/listing/123'), 'https://www.etsy.com/listing/123', 'one transient load failure is retried once and succeeds');
+    n = 0;
+    const s2 = T.makeBrowserSession({ driver: failing(5), lookup: null });
+    let msg = '';
+    try { await s2.navigate('https://www.etsy.com/listing/123'); } catch (e) { msg = e.message; }
+    A.ok(/ERR_CONNECTION_RESET/.test(msg) && !/unsafe redirect/.test(msg), 'a persistent failure reaches the agent as the real network error: ' + msg);
+    A.eq(n, 2, 'exactly one retry');
+  }
+
   /* ---- browser.reset: the supported recovery tool (agents were refused with no path forward) ---- */
   {
     const closed = [];
