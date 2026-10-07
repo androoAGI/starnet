@@ -262,6 +262,66 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   const PRESET_HS = { amber: [35, 100], green: [136, 100], blue: [198, 100], purple: [270, 100], red: [3, 100], white: [120, 8] };
 
   /* ---------- settings → DOM ---------- */
+  /* SCREEN FLICKER clock (#69): the station's 7s CRT flicker used to be an `infinite` CSS opacity animation on the
+     whole game screen, which made the compositor redraw the full window every vsync all day for a dip that lasts
+     280ms. Now this clock plays the dip once per 7s (app.css .flick-dip) and the compositor rests in between.
+     Same look; the SETTINGS toggle (body.no-flicker) still turns it off; a hidden page skips it. */
+  let flickerClock = 0;
+  function armFlickerClock() {
+    if (flickerClock || typeof setInterval !== 'function' || typeof document === 'undefined') return;
+    flickerClock = setInterval(() => { try {
+      if (document.hidden || document.body.classList.contains('no-flicker')) return;
+      const g = document.getElementById('screen-game');
+      if (!g || !g.classList.contains('active')) return;
+      g.classList.add('flick-dip');
+      setTimeout(() => g.classList.remove('flick-dip'), 400);
+    } catch (_) {} }, 7000);
+    if (flickerClock && flickerClock.unref) flickerClock.unref();   // never hold a headless test process open
+  }
+
+  /* MOTION REST (#69): any running `infinite` CSS animation — a status pulse, a blinking caret, the stale save-dot —
+     makes the compositor produce a new frame every vsync, and a station left open all day on a high-refresh panel
+     spent most of a GPU core on that alone (measured: one 2.4s pulse on a 12px dot = ~0.6 GPU-process cores).
+     While the window is visible but NOT focused and untouched for REST_AFTER_MS, the decorative loops hold still;
+     focus, a pointer or a key resumes every one of them immediately. Only infinite loops are touched: one-shot
+     entrances/vanishes (which other code waits on via animationend) always run to completion, and no class or
+     text changes — the state a loop decorates stays exactly what the harness reported. A hidden page needs none
+     of this (the browser stops animating it). */
+  const REST_AFTER_MS = 2500;
+  let motionRestClock = 0, motionEngagedUntil = 0;
+  const restingAnims = new Set();
+  function motionAtRest() {
+    try { return !document.hidden && !document.hasFocus() && performance.now() >= motionEngagedUntil; } catch (_) { return false; }
+  }
+  function motionWake() {
+    for (const a of restingAnims) { try { if (a.playState === 'paused') a.play(); } catch (_) {} }
+    restingAnims.clear();
+  }
+  function motionSweep() {
+    if (!motionAtRest()) { if (restingAnims.size) motionWake(); return; }
+    // a held loop whose node left the page (a finished run's card) is dropped, never kept alive all day
+    for (const a of restingAnims) { const el = a.effect && a.effect.target; if (a.playState === 'idle' || !el || !el.isConnected) restingAnims.delete(a); }
+    for (const a of document.getAnimations()) {
+      if (a.playState !== 'running' || restingAnims.has(a)) continue;
+      const t = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+      if (!t || t.iterations !== Infinity) continue;
+      try { a.pause(); restingAnims.add(a); } catch (_) {}
+    }
+  }
+  function motionEngage() { try { motionEngagedUntil = performance.now() + REST_AFTER_MS; } catch (_) {} if (restingAnims.size) motionWake(); }
+  function armMotionRest() {
+    if (motionRestClock || typeof setInterval !== 'function' || typeof document === 'undefined' || typeof document.getAnimations !== 'function') return;
+    motionEngage();
+    motionRestClock = setInterval(() => { try { motionSweep(); } catch (_) {} }, 1000);
+    if (motionRestClock && motionRestClock.unref) motionRestClock.unref();
+    try {
+      window.addEventListener('focus', motionEngage);
+      for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, motionEngage, { passive: true, capture: true });
+    } catch (_) {}
+  }
+  /** test/QA readout: how many decorative loops are holding still right now */
+  function motionRestState() { return { atRest: motionAtRest(), resting: restingAnims.size }; }
+
   function applySettings() {
     const s = store.settings;
     applyRoomLighting(s.roomLighting);
@@ -376,6 +436,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     }
     document.body.classList.toggle('no-flicker', !s.flicker);
+    armFlickerClock(); armMotionRest();
     if (typeof SFX === 'object') SFX.on = !!s.sound;
     syncKeepAwake(!!s.keepComputerAwake);
   }
@@ -4802,12 +4863,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       .then(j => {
         // carry the WHOLE truth shape (connected + expired + reason), exactly like codex — a lone bool can't
         // distinguish "never signed in" from the dead-refresh-token death the row must render differently.
-        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '' };
+        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '', region: (j && j.region) || '' };
+        // kimi (#70): the stored sign-in's region seeds the next sign-in's default (unless the Commander picked one)
+        if (pid === 'kimi' && next.region && typeof KimiRegion !== 'undefined') KimiRegion.noteSignedIn(next.region);
         // Same rule as codex above: compare what the row will actually DRAW, so a cold "not connected" answer
         // that matches the fallback does not force a full pane rebuild (and its fan-out) for nothing.
-        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid);
+        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid), wasRegion = oauthStatus[pid] ? oauthStatus[pid].region : '';
         oauthStatus[pid] = next;
-        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired) scheduleSettingsRepaint();
+        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired || next.region !== wasRegion) scheduleSettingsRepaint();
       })
       .catch(() => {})
       .finally(() => { oauthChecking[pid] = false; });
@@ -4921,6 +4984,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      device-code engine (OAuthAccounts.for). The list is backend truth (/api/auth/<pid>/accounts: stored tokens, a
      recorded dead sign-in, the station's cooldown) and is re-read at most every 5s while Settings repaints, so a
      DISCONNECT or RE-SIGN-IN of the primary elsewhere on this page shows up without its own wiring. */
+  /* KIMI ACCOUNT REGION (#70): a Kimi account lives in ONE deployment — Global (kimi.ai) or China (kimi.com) — and can
+     only sign in there. This strip picks where the NEXT sign-in (⏼ SIGN IN, RE-SIGN-IN, ＋ ADD ACCOUNT) goes and says
+     which region the stored sign-in belongs to (the sidecar's status `region`, never a guess). */
+  function kimiRegionHtml() {
+    if (typeof KimiRegion === 'undefined') return '';
+    const next = KimiRegion.get();
+    const s = oauthStatus.kimi;
+    const stored = s && (s.connected || s.expired) && s.region ? KimiRegion.label(s.region) : '';
+    return '<div class="prov-region" role="group" aria-label="Kimi account region">' +
+      '<span class="dim">ACCOUNT REGION</span>' +
+      KimiRegion.OPTIONS.map(o => '<button class="bb sm' + (o.id === next ? ' active' : '') + '" data-act="kimi-region" data-region="' + esc(o.id) + '" aria-pressed="' + (o.id === next) + '"' +
+        ' title="sign in with a ' + esc(o.host) + ' account">' + esc(o.label + ' · ' + o.host) + '</button>').join('') +
+      '<span class="dim">' + (stored ? 'signed in on ' + esc(stored) + ' · ' : '') + 'pick where your Kimi account lives before you sign in</span>' +
+    '</div>';
+  }
   const STACKABLE_OAUTH = ['codex', 'grok', 'kimi'];
   const oauthAccts = {};   // pid -> { list: undefined|null|{accounts,max}, at, pending, box: null|{ account, msg, code, uri, openUri } }
   function oauthAcctState(pid) { return (oauthAccts[pid] = oauthAccts[pid] || { list: undefined, at: 0, pending: false, box: null }); }
@@ -5121,6 +5199,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
       const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
         : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+      // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
+      // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
+      const statWhy = p.live && !codexDead && credentialSaved && !isClaude && !keyless && health && !health.credentialVerified && health.error
+        ? '<span class="prov-stat-why">' + esc(String(health.error).slice(0, 200)) + '</span>' : '';
       const n = ks.length;
       // NO-KEY cards that accept a key get an inline, collapsible paste-and-save row so the user never has to hunt
       // for where keys live. It reuses the SAME save path (Harness.setKey) as the key list below — no duplicate logic.
@@ -5143,7 +5225,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             '<span class="prov-ep">' + esc(p.endpoint) + ' · ' + esc(p.blurb) + '</span>' +
           '</span>' +
         '</button>' +
-          '<span class="prov-stat"><span class="prov-stat-t">' + stat + (credentialSaved && !isOAuthProvider(p.id) ? '<i>' + n + (n === 1 ? ' key' : ' keys') + '</i>' : '') + '</span></span>' +
+          '<span class="prov-stat"><span class="prov-stat-t">' + stat + (credentialSaved && !isOAuthProvider(p.id) ? '<i>' + n + (n === 1 ? ' key' : ' keys') + '</i>' : '') + statWhy + '</span></span>' +
         (wantsInline ? '<button class="bb sm prov-addkey" data-act="prov-add-toggle" data-provider="' + esc(p.id) + '" aria-label="Add a ' + esc(p.name) + ' key" title="paste a ' + esc(p.name) + ' key without leaving this card">＋ ADD KEY</button>' : '') +
         (wantsClaudeSignin && !claudeFlowing && !(typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active()) ? '<button class="bb sm prov-addkey" data-act="prov-claude-signin" aria-label="Sign in with Claude" title="opens Claude in your browser — Claude Code keeps the sign-in, StarNet never sees it">' + (claudeCard.failed ? '⏼ TRY AGAIN' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsClaudeInstall ? '<button class="bb sm prov-addkey" data-act="prov-claude-install" aria-label="Get Claude Code" title="Claude Code needs a Pro, Max, Team or Enterprise plan">↗ GET CLAUDE CODE</button>' : '') +
@@ -5156,6 +5238,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : '') +
         (wantsClaudeSignin && !claudeCard.account ? claudeFlowBoxHtml(claudeFlowing, claudeBox) : '') +
         (isClaude && claudeCliSt && claudeCliSt.installed ? claudeAccountsHtml() : '') +
+        (p.id === 'kimi' && p.live ? kimiRegionHtml() : '') +
         (STACKABLE_OAUTH.indexOf(p.id) >= 0 ? oauthAccountsHtml(p.id) : '') +
         (wantsOAuthSignin
           ? '<div class="key-edit codex-inline prov-oauth-inline" id="prov-oauth-inline-' + esc(p.id) + '" hidden>' +
@@ -5790,6 +5873,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const claudeInstall = card.querySelector('[data-act="prov-claude-install"]');
       if (claudeInstall) claudeInstall.addEventListener('click', ev => { ev.stopPropagation(); sfx('click'); openExternal('https://code.claude.com/docs/en/setup'); });
+      // KIMI ACCOUNT REGION (#70): the pick rides the NEXT sign-in's start body; it never touches the stored sign-in.
+      card.querySelectorAll('[data-act="kimi-region"]').forEach(btn => btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (typeof KimiRegion === 'undefined' || !KimiRegion.set(btn.dataset.region)) return;
+        sfx('click');
+        rerender('settings');
+      }));
       // FIRST sign-in for a keyless device-code provider (grok/kimi) — the card-local twin of the key-row's
       // ⏼ RE-SIGN-IN, driving the SAME shared engine (OAuthSignIn.for). stopPropagation: the card click selects.
       const oauthSignin = card.querySelector('[data-act="prov-oauth-signin"]');
@@ -7260,8 +7350,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const b = mkEl('button', 'bb sm', 'OPEN SAVED SIGN-INS'); b.type = 'button'; b.id = 'set-open-signins';
         b.addEventListener('click', () => { sfx('click'); openTerm('stepin'); });
         row.appendChild(b); el.appendChild(row);
+        // #61 RESET STATION BROWSER (app/datareset.js owns it)
+        if (typeof DataReset !== 'undefined' && DataReset.mountBrowserReset) DataReset.mountBrowserReset(el);
       } },
-      { id: 'system', label: 'APP & BACKUP', glyph: '⚙', desc: 'Startup, runtime limits, backups, updates, and troubleshooting.', build: frag(secSystem) }
+      { id: 'system', label: 'APP & BACKUP', glyph: '⚙', desc: 'Startup, runtime limits, backups, updates, and troubleshooting.', build: el => { frag(secSystem)(el); if (typeof DataReset !== 'undefined' && DataReset.mountErase) DataReset.mountErase(el); } }   // #65 ERASE EVERYTHING (app/datareset.js)
     ];
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
@@ -10963,7 +11055,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

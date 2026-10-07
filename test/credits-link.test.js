@@ -446,6 +446,53 @@ function fakeCloud(opts) {
     A.eq(link.hasSaved(), false, 'timed-out identity never creates a link');
   }
 
+  // Issue #76 (2026-10-06): the boot heal was ONE-SHOT. A cloud that was slow/down at launch left a keychain-authorized
+  // station unlinked for the whole session even after the cloud recovered. A transient refusal now arms a spaced retry;
+  // a definitive one (revoked token) never does; concurrent askers share one whoami.
+  {
+    let clock = 10000, mode = 'down';
+    const calls = [];
+    const f = (url, init) => {
+      calls.push(String(url));
+      if (mode === 'down') return Promise.reject(new Error('ETIMEDOUT'));
+      if (mode === '502') return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) });
+      if (mode === 'revoked') return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, accountId: 'acct_back' }) });
+    };
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: f, fsp, fs, pathMod: path,
+      dir: path.join(tmp, 'heal-retry'), now: () => clock, envToken: 'snd_survivor', healRetryMs: 30000 });
+    A.eq(link.healRetryDue(), false, 'nothing to retry before the first heal');
+    const first = await link.healFromEnv();
+    A.eq(first.reason, 'unreachable', 'boot heal met a dead cloud');
+    A.eq(first.retryable, true, 'an unreachable cloud is a transient refusal');
+    A.eq(link.healRetryDue(), false, 'the retry is spaced — not due immediately');
+    clock += 30000;
+    A.eq(link.healRetryDue(), true, 'due once the spacing has elapsed');
+    mode = '502';
+    const second = await link.healFromEnv();
+    A.eq(second.reason, 'whoami http 502', 'a 502 is named');
+    A.eq(second.retryable, true, 'a 5xx keeps the retry armed');
+    clock += 30000;
+    mode = 'up';
+    const [a, b] = [link.healFromEnv(), link.healFromEnv()];
+    A.eq(a === b, true, 'concurrent heals share one in-flight attempt');
+    const healed = await a;
+    A.eq(healed.healed, true, 'the station relinks itself once the cloud is back — no restart');
+    A.eq(link.loadSavedSync().accountId, 'acct_back', 'the record carries the cloud-vouched account');
+    A.eq(calls.filter(u => u.includes('/v1/whoami')).length, 3, 'one whoami per attempt (the shared one counted once)');
+    A.eq(link.healRetryDue(), false, 'a healed station has nothing left to retry');
+
+    // a definitive 401 disarms the retry: a revoked token is never re-asked in a loop
+    let c2 = 0;
+    const revoked = makeCreditsLink({ cloudUrl: 'https://cloud.example', fsp, fs, pathMod: path, dir: path.join(tmp, 'heal-retry-revoked'),
+      now: () => c2, envToken: 'snd_dead', healRetryMs: 10,
+      fetch: () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }) });
+    const rv = await revoked.healFromEnv();
+    A.eq(rv.retryable, false, 'a revoked token is not a transient failure');
+    c2 += 1000;
+    A.eq(revoked.healRetryDue(), false, 'and never arms a retry');
+  }
+
   await flush();
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_) {}
   A.report('credits-link.test');

@@ -145,6 +145,9 @@
          which is also the moment a human is around to answer its consent card. */
       { capId: 'web', tool: 'browser.attach', scope: 'execute', requiresConsent: true, network: true, deferred: true },
       { capId: 'web', tool: 'browser.detach', scope: 'execute', requiresConsent: false, network: true, deferred: true },
+      /* #61: the supported recovery for a wedged station browser (ends only StarNet's own orphaned browser on the
+         station profile). Deferred: a repair move, found through tool.search when a browser error names it. */
+      { capId: 'web', tool: 'browser.reset', scope: 'execute', requiresConsent: false, network: true, deferred: true },
       /* Deferred, same reasoning as attach: specialist moves, not the ordinary browse loop. pdf is a
          READ (render what is already on screen into the jail); intercept/emulate reshape only the
          STATION browser and both refuse in attached mode (ownership — the Commander's own Chrome is

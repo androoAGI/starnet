@@ -8,8 +8,9 @@
      Hint.attach(el, 'refit')                              ← imperative, same result
 
    Behavior:
-   • desktop → the glossary one-liner shows on hover (pointerenter) / keyboard focus.
-   • touch   → shows on tap; a tap elsewhere dismisses it.
+   • mouse/pen → the glossary one-liner shows on hover (pointerenter) / keyboard focus.
+   • touch     → shows on tap; a tap elsewhere dismisses it.
+   • decided per EVENT, not per device: a touchscreen laptop driven by a mouse gets hover, its finger gets taps.
    • the bubble is appended to <body>, so it inherits the themed phosphor tokens (var(--ph)/var(--gold)
      resolve to the ACTIVE theme, never the :root amber — per the frontend theming law) and clamps to
      the viewport so an edge label never renders a bubble off-screen.
@@ -36,8 +37,9 @@
     return G && G.lookup ? G.lookup(term) : null;
   }
 
-  const HAS_TOUCH = (typeof window !== 'undefined') &&
-    ('ontouchstart' in window || (navigator && navigator.maxTouchPoints > 0));
+  // the pointer behind the next focus/click: 'mouse' | 'pen' | 'touch', '' = keyboard (a keypress clears it).
+  // A device gate (maxTouchPoints > 0) wired a touchscreen laptop as a phone: a mouse click pinned the bubble.
+  let lastPointer = '';
 
   const GAP = 10;          // px between the anchor and the bubble
   const EDGE = 8;          // min px from any viewport edge (the clamp margin)
@@ -61,7 +63,7 @@
         'opacity:0;transform:translateY(2px);transition:opacity .12s ease, transform .12s ease;' +
         'letter-spacing:.2px;}' +
       '.hint-bubble.on{opacity:1;transform:translateY(0);}' +
-      '[data-hint]{cursor:help;}';
+      '[data-hint]:not(button):not(a){cursor:help;}';   // controls keep their pointer; jargon spans get help
     const el = doc.createElement('style');
     el.id = 'hint-style';
     el.textContent = css;
@@ -136,38 +138,49 @@
     return node.closest('[data-hint]');
   }
 
+  // keyboard focus only: a click or a tap focuses a button too, and that must not (re)show a bubble.
+  function keyboardFocus(el) {
+    try { if (el && typeof el.matches === 'function') return el.matches(':focus-visible'); } catch (_) {}
+    return !lastPointer;
+  }
+
   function wireDelegation() {
     if (!doc) return;
-    if (!HAS_TOUCH) {
-      // desktop: hover + keyboard focus.
-      doc.addEventListener('pointerover', (e) => {
-        const a = hintAncestor(e.target);
-        if (a && a !== currentAnchor) show(a);
-      }, true);
-      doc.addEventListener('pointerout', (e) => {
-        const a = hintAncestor(e.target);
-        if (a && a === currentAnchor) {
-          // ignore moves that stay inside the same anchor.
-          const to = e.relatedTarget;
-          if (to && a.contains(to)) return;
-          hide();
-        }
-      }, true);
-      doc.addEventListener('focusin', (e) => {
-        const a = hintAncestor(e.target);
-        if (a) show(a); else hide();
-      }, true);
-      doc.addEventListener('focusout', () => hide(), true);
-      // any scroll invalidates the anchored position — cheapest correct answer is to dismiss.
-      window.addEventListener('scroll', () => { if (currentAnchor) hide(); }, true);
-    } else {
-      // touch: tap toggles; a tap anywhere else dismisses.
-      doc.addEventListener('click', (e) => {
-        const a = hintAncestor(e.target);
-        if (a) { if (a === currentAnchor) hide(); else show(a); }
-        else hide();
-      }, true);
-    }
+    injectStyle();      // at wire time — the help cursor must not wait for the first bubble
+    window.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType || ''; }, true);
+    window.addEventListener('keydown', (e) => { lastPointer = ''; if (e.key === 'Escape') hide(); }, true);
+    // hover: mouse / pen. A finger has no hover; taps go through click below.
+    doc.addEventListener('pointerover', (e) => {
+      if (e.pointerType === 'touch') return;
+      const a = hintAncestor(e.target);
+      // an open dock trigger's menu sits above it — a bubble there would cover the menu
+      if (a && a !== currentAnchor && a.getAttribute('aria-expanded') !== 'true') show(a);
+    }, true);
+    doc.addEventListener('pointerout', (e) => {
+      if (e.pointerType === 'touch') return;
+      const a = hintAncestor(e.target);
+      if (a && a === currentAnchor) {
+        // ignore moves that stay inside the same anchor.
+        const to = e.relatedTarget;
+        if (to && a.contains(to)) return;
+        hide();
+      }
+    }, true);
+    doc.addEventListener('focusin', (e) => {
+      const a = hintAncestor(e.target);
+      if (a && keyboardFocus(e.target)) show(a);
+      else if (a !== currentAnchor) hide();
+    }, true);
+    // a tapped bubble survives the blur that follows the tap (navdock drops focus after a pointer toggle)
+    doc.addEventListener('focusout', () => { if (lastPointer !== 'touch') hide(); }, true);
+    // any scroll invalidates the anchored position — cheapest correct answer is to dismiss.
+    window.addEventListener('scroll', () => { if (currentAnchor) hide(); }, true);
+    // touch: a tap toggles; a tap anywhere else dismisses. Any other click away clears a leftover bubble.
+    doc.addEventListener('click', (e) => {
+      const a = hintAncestor(e.target);
+      if (lastPointer === 'touch') { if (a && a !== currentAnchor) show(a); else hide(); }
+      else if (a !== currentAnchor) hide();
+    }, true);
   }
 
   // imperative wiring for callers that build the element in JS (adds the attribute + participates in delegation).
@@ -183,5 +196,5 @@
     else wireDelegation();
   }
 
-  return { attach, show, hide, _internals: { place, copyFor, hintAncestor } };
+  return { attach, show, hide, _internals: { place, copyFor, hintAncestor, keyboardFocus } };
 });

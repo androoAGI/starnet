@@ -38,8 +38,10 @@
   // jail-relative path, and the frontend card opens /api/file?agent=<owner>, so forwarding is the whole fix.
   const FORWARD = { 'agent.run.start': 1, 'agent.run.end': 1, 'agent.run.error': 1, 'agent.cost': 1, 'deliverable': 1 };
   // a delegated worker's added kit, on top of the autonomous full office (compute/web/files/memory/studio/jukebox):
-  // the WORKBENCH (terminal). Paired with the SHARED lead consent broker, shell/writes follow the lead's APPROVAL
-  // posture — so a worker has the same reach as the orchestrator, gated by the same approvals.
+  // the WORKBENCH (terminal). Paired with the SHARED lead consent broker, writes follow the lead's APPROVAL posture.
+  // Commands do NOT in ASK mode: a worker runs surface:'autonomous', so the run authority withholds shell.exec /
+  // verify.run unless the worker (or the station) is Full Access — see the runOnce call below. The worker is told
+  // that plainly, with the step that works (sidecar/capability/withheld.js, issue #77).
   const WORKER_KIT = [{ instanceId: 'wb_worker', objectType: 'workbench' }];
   const boundedDomainTask = (text) => {
     try { return domainTask && typeof domainTask.classify === 'function' ? domainTask.classify(text) : null; }
@@ -371,7 +373,7 @@
         + 'worker, so you inherit the LEAD agent\'s approval posture, not your own: '
         + (p === 'full'
           ? 'FULL ACCESS. Run your tools directly — do not pause to ask, and never request approval in text.'
-          : 'ASK FIRST. Writes, commands, and network calls are shown to the Commander for approval when you call the '
+          : 'ASK FIRST. Writes and network calls (and commands, when shell_exec is in your tool list) are shown to the Commander for approval when you call the '
             + 'tool — so still just make the tool call, but expect a pause, and carry on without it if it is declined.');
     }
     function workerSystem(base) {
@@ -554,7 +556,7 @@
       // user keeps the frictionless flow by choosing it. Lead-only conferral + budget caps + the concurrency
       // ceiling + autonomous workers (default-deny) all still stand underneath.
       name: 'team.dispatch', capability: 'orchestrator', scope: 'execute', requiresConsent: true,
-      description: 'Delegate subtasks to your specialist crew. Each worker runs its OWN real agent loop (live web search/read, files, memory) and returns its result for you to synthesize into the final answer. Address workers by the agentId listed under YOUR TEAM. Runs sequentially by default; pass parallel:true to run them at once. Pass background:true to start watchable workers and keep working. SESSIONS: pass `session` on a worker (the session\'s NAME, as the Commander says it) to make that subtask run in — and be filed under — that session instead of this one. Use an existing relevant session or create a named working session first. A name that does not match one on this station is REFUSED, not guessed, and that worker does not run. FILES: each worker saves into its OWN private workspace — you cannot fs.read another agent\'s files, so never "verify" a worker\'s file with your own file tools (absence in YOUR workspace proves nothing). The result\'s artifacts list is the proof of what each worker saved, and the Commander is shown those files as cards automatically — reference them as "<workerId>\'s workspace: <path>".',
+      description: 'Delegate subtasks to your specialist crew. Each worker runs its OWN real agent loop (live web search/read, files, memory) and returns its result for you to synthesize into the final answer. Address workers by the agentId listed under YOUR TEAM. Runs sequentially by default; pass parallel:true to run them at once. Pass background:true to start watchable workers and keep working. SESSIONS: pass `session` on a worker (the session\'s NAME, as the Commander says it) to make that subtask run in — and be filed under — that session instead of this one. Use an existing relevant session or create a named working session first. A name that does not match one on this station is REFUSED, not guessed, and that worker does not run. FILES: in a conversation scoped to a trusted project, a worker\'s RELATIVE file paths (fs_write, image_generate, voice_generate) land in that project folder, the same place yours do, so fs_read finds them by the same relative path. Otherwise each worker saves into its OWN private workspace — you cannot fs.read another agent\'s private files, so never "verify" such a file with your own file tools (absence in YOUR workspace proves nothing); every save receipt names the absolute location. The result\'s artifacts list is the proof of what each worker saved, and the Commander is shown those files as cards automatically — reference them as "<workerId>\'s workspace: <path>". COMMANDS: in ASK mode a delegated worker cannot run shell commands (shell_exec / verify_run are withheld from delegated runs, WORKBENCH or not, unless that worker is set to Full Access); run commands in this conversation yourself, or have the worker return the exact commands to you.',
       schema: {
         type: 'object', required: ['workers'], properties: {
           workers: {

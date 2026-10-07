@@ -2182,12 +2182,28 @@ const App = (() => {
         ? 'Uses the ChatGPT Plus/Pro account you already have — no API key, no billing setup. Prefer a key? Paste an OpenAI API key above instead.'
         : 'Uses the ' + c.sub + ' you already have — no API key, no billing setup. Prefer a key? Switch to OPENROUTER (or any provider) above.';
     }
+    paintKimiRegion(pid);
     // a stale code/status from the previously picked provider must never dress this one's block
     const codeEl = el('codex-code'), openBtn = el('btn-codex-open');
     if (codeEl) codeEl.classList.add('hidden');
     if (openBtn) openBtn.classList.add('hidden');
     const statusEl = el('codex-status');
     if (statusEl) { statusEl.textContent = 'checking…'; statusEl.className = 'codex-status'; }
+  }
+
+  // KIMI ACCOUNT REGION (#70): shown only while Kimi is picked. The pick is what the NEXT sign-in sends (the shared
+  // engine reads KimiRegion.get()); the sidecar stores it with the credential and routes refresh + inference to it.
+  function paintKimiRegion(pid) {
+    const box = el('kimi-region');
+    if (!box) return;
+    const on = pid === 'kimi' && typeof KimiRegion !== 'undefined';
+    box.classList.toggle('hidden', !on);
+    if (!on) return;
+    const cur = KimiRegion.get();
+    box.querySelectorAll('[data-kimi-region]').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.kimiRegion === cur));
+      b.onclick = () => { if (KimiRegion.set(b.dataset.kimiRegion)) { SFX.click(); paintKimiRegion('kimi'); } };
+    });
   }
 
   // GET /api/auth/<pid>/status → paint the shared sign-in block for THIS provider (mirrors refreshCodexStatus,
@@ -2199,7 +2215,9 @@ const App = (() => {
     try { const r = await fetch('/api/auth/' + pid + '/status'); j = await r.json(); } catch (_) {}
     oauthConnected[pid] = !!j.connected;
     if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, oauthConnected[pid]);
+    if (pid === 'kimi' && j.region && typeof KimiRegion !== 'undefined') KimiRegion.noteSignedIn(j.region);   // #70: default the next sign-in to the stored one's region
     if (pickedProvider !== pid) return;   // the pick moved on while we awaited — never paint another provider's block
+    if (pid === 'kimi') paintKimiRegion('kimi');
     const statusEl = el('codex-status'), signinBtn = el('btn-codex-signin'), logoutBtn = el('btn-codex-logout');
     if (!statusEl || !signinBtn || !logoutBtn) return;
     if (oauthConnected[pid]) {
@@ -2207,7 +2225,7 @@ const App = (() => {
         statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + ' — but the sign-in could not be saved to disk; you may need to re-sign in after a restart';
         statusEl.className = 'codex-status warn';
       } else {
-        statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + ' — your agents can run on your subscription';
+        statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + (pid === 'kimi' && j.region && typeof KimiRegion !== 'undefined' ? ' (' + esc(KimiRegion.label(j.region)) + ')' : '') + ' — your agents can run on your subscription';
         statusEl.className = 'codex-status ok';
       }
       signinBtn.textContent = '↻ RE-SIGN IN';
@@ -2900,10 +2918,20 @@ const App = (() => {
   // BACK from the connect screen. With the title screen gone there's nowhere to retreat TO, so BACK is a
   // context move: in RESUME it re-runs auto-resume (a fresh credential check may now pass straight in); on a
   // fresh first run it's a no-op beyond dropping any in-flight codex poll (the create screen is the root).
-  function onConnectBack() {
+  async function onConnectBack() {
     SFX.click(); stopCodexPoll();
     const saved = Save.has() ? Save.load() : null;
-    if (saved && saved.agent) { reentry(); return; }
+    if (saved && saved.agent) {
+      // RETRY must re-ask, not re-read. A StarNet station's "configured" flag is read ONCE at boot; when the
+      // account service was down then (issue #76), retry kept consulting that stale false and bounced straight
+      // back to this screen even after the link was healthy again. Re-read the sidecar's live answer first.
+      if (savedStationProv(saved) === 'starnet' && Harness.refreshCreditsConfigured) {
+        const back = el('btn-back'); if (back) back.disabled = true;
+        try { await Harness.refreshCreditsConfigured(); } catch (_) {}
+        finally { if (back) back.disabled = false; }
+      }
+      reentry(); return;
+    }
     // fresh first run — nothing behind the create screen; just stay put.
   }
 

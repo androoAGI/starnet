@@ -287,7 +287,7 @@ async function collect(provider, req) { const out = []; for await (const e of pr
       A.ok(!Dock._internals.effortOptionsFor(row).includes('none'), model + ' picker consumes the supported catalog levels');
       for (const off of ['none', 'off', 'disabled']) {
         b = await ask(model, { reasoningEffort: off });
-        A.eq(b.thinking, { type: 'adaptive' }, model + ' saved ' + off + ' uses adaptive thinking');
+        A.eq(b.thinking, { type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } }, model + ' saved ' + off + ' uses adaptive thinking (+ #73 drop_block binding)');
         A.eq(b.output_config, { effort: 'low' }, model + ' saved ' + off + ' clamps to lowest supported effort');
       }
       b = await ask(model, { reasoningEffort: 'high' }, { reasoningEffort: 'none' });
@@ -320,7 +320,7 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(evs.filter(e => e.type === 'text').map(e => e.delta).join(''), 'Answer.', 'thinking deltas NEVER become assistant text');
     const reasoning = evs.filter(e => e.type === 'reasoning');
     A.eq(reasoning.length, 1, 'one reasoning event per completed thinking block');
-    A.eq(reasoning[0].block, { type: 'thinking', thinking: 'let me check', signature: 'sig123' }, 'the block is assembled whole: text + signature');
+    A.eq(reasoning[0].block, { type: 'thinking', thinking: 'let me check', signature: 'sig123', pos: { text: 0, tools: 0 } }, 'the block is assembled whole: text + signature (+ its position in the turn, #73)');
 
     // An UNSIGNED block cannot be replayed (the wire validates the signature), so it is dropped at the source
     // rather than handed on to fail the NEXT turn.

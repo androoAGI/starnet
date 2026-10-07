@@ -112,6 +112,14 @@ const K = require('../sidecar/servicekeys.js');
   A.ok(block.indexOf('rk-secret-9999') < 0, 'block NEVER carries the key value');
   A.ok(block.indexOf('OFF_ONE_API_KEY') < 0, 'disabled key not advertised');
   A.ok(/never print, echo/i.test(block), 'block instructs the model not to leak the value');
+  // Windows: shell.exec is cmd.exe, where $NAME stays literal — the block must name the syntax that expands there
+  const winBlock = K.promptBlock(l1, { platform: 'win32' });
+  A.ok(winBlock.indexOf('%RESEND_API_KEY%') >= 0, 'win32 block names the cmd.exe %VAR% form');
+  A.ok(winBlock.indexOf('$env:RESEND_API_KEY') >= 0, 'win32 block names the PowerShell $env: form');
+  A.ok(K.promptBlock(l1, { platform: 'linux' }).indexOf('%RESEND_API_KEY%') < 0, 'posix block keeps $VAR (no cmd.exe syntax)');
+  A.ok(/Prefer web_request/.test(winBlock), 'with both routes, the block steers to web_request');
+  A.ok(!/Prefer web_request/.test(K.promptBlock(l1, { shell: true, request: false, platform: 'win32' })), 'never recommends a route the run lacks');
+  A.ok(/"in": "query"/.test(block), 'block teaches the auth query slot for ?key= APIs');
 }
 
 // ---- G2. reserved provider env vars: a KEYS paste must never become billing credentials ----
@@ -120,6 +128,8 @@ const K = require('../sidecar/servicekeys.js');
   // 'OpenRouter' derives OPENROUTER_API_KEY — exactly what providerRuntimeKey reads from process.env
   const r1 = K.upsert([], { name: 'OpenRouter', key: 'sk-or-x' }, 1, { reservedEnv: reserved });
   A.ok(r1.error && /model provider/i.test(r1.error), 'provider-shaped name refused with a pointer to SETTINGS');
+  A.ok(/OpenRouter Maps/.test(r1.error), 'the refusal suggests a product-specific name that saves (a Google Maps key is not a model key)');
+  A.ok(!K.upsert([], { name: 'OpenRouter Maps', key: 'k' }, 1, { reservedEnv: reserved }).error, 'the suggested name actually saves');
   // the scoped desktop form is reserved too ('Skynet OpenRouter' -> SKYNET_OPENROUTER_API_KEY)
   A.ok(K.upsert([], { name: 'Skynet OpenRouter', key: 'k' }, 1, { reservedEnv: reserved }).error, 'scoped provider var refused');
   // a Set works as well as an array, and a non-reserved name still passes with the option present

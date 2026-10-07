@@ -264,6 +264,25 @@ const rpc = (id, result) => JSON.stringify({ jsonrpc: '2.0', id, result });
     A.eq(timers.length, 0, 'no reconnect timer remains after giving up (bounded, not infinite)');
     A.ok(mgr2.status('stdio1').detail.indexOf('giving up') >= 0 || guard <= 5, 'gave up within the bounded attempt cap');
 
+    // ON-DEMAND RE-ARM (http): a connector that gave up (booted offline / slept through every attempt) re-arms ONE more
+    // bounded cycle when a run asks for its tools — it used to stay toolless until restart even after the network returned.
+    initFails = false;
+    await mgr2.configure('web1', { transport: 'http', url: 'https://mcp.example.com/mcp' });
+    A.eq(mgr2.status('web1').state, 'up', 'http connector up');
+    initFails = true;
+    liveTransport.onError(new Error('connector request failed: DNS lookup failed [EAI_AGAIN]'));
+    guard = 0;
+    while (timers.length && guard++ < 10) { await drainTimer(); }
+    A.eq(timers.length, 0, 'http connector also gives up (bounded)');
+    A.eq(mgr2.toolDefsFor('web1').length, 0, 'a given-up connector projects no tools to this run');
+    A.eq(timers.length, 1, 'but asking for its tools re-arms one bounded reconnect');
+    mgr2.toolDefsFor('web1');
+    A.eq(timers.length, 1, 'repeat demand never stacks timers');
+    initFails = false;
+    await drainTimer();
+    A.eq(mgr2.status('web1').state, 'up', 'network back -> the re-armed reconnect restores UP');
+    A.ok(mgr2.toolDefsFor('web1').length >= 1, 'and the next run gets the tools again');
+
     await mgr2.close();
     A.eq(timers.length, 0, 'close() clears any pending reconnect timer');
   }

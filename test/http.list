@@ -25,6 +25,7 @@ test/roster-envelope.http.test.js
 test/full-access.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
+test/e2e.worker-project-files.test.js
 test/live-doctor.e2e.test.js
 test/report-0110.e2e.test.js
 test/scout.http.test.js

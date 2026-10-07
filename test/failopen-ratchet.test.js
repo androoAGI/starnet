@@ -209,7 +209,7 @@ const SYNC_BASELINE = {
   'subagents.js': 10,
   'taskbrief-tools.js': 3,
   'terminal-sessions.js': 3,
-  'tools/builtin/browser.js': 45,
+  'tools/builtin/browser.js': 43,
   'tools/builtin/code.js': 3,
   'tools/builtin/comms.js': 2,
   'tools/builtin/connectors.js': 2,

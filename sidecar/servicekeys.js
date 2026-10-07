@@ -127,7 +127,10 @@
     if (!prev && src.length >= LIST_MAX) return { error: 'too many service keys (max ' + LIST_MAX + ')' };
     const envVar = deriveEnvVar(name);
     if (reservedSet(opts).has(envVar)) {
-      return { error: name + ' is a model provider — add model keys under SETTINGS, not here' };
+      // "Google" / "Gemini" / "OpenAI" collide with a model provider's key var, but users mostly mean a NON-model
+      // API from that company (Maps, YouTube, Places, image gen). Say how to save it here instead of dead-ending.
+      return { error: name + ' would be saved as ' + envVar + ', which is reserved for the ' + name + ' model provider key (add AI model keys under SETTINGS). '
+        + 'For a different ' + name + ' API, name it after the product instead — e.g. "' + name + ' Maps" or "' + name + ' YouTube"' };
     }
     // a rename collision (two names deriving the same env var under different ids) would silently
     // shadow one key with the other in the run env — refuse it instead.
@@ -281,11 +284,20 @@
     const how = [];
     if (canRequest) how.push('with web_request, by writing the NAME as a placeholder in a header — e.g. '
       + 'headers {"Authorization": "Bearer ${' + rows[0].envVar + '}"} — which the host substitutes at send time. '
+      + 'For an API that takes its key as a query parameter (?key=...), pass auth {"key": "' + rows[0].envVar + '", "in": "query", "name": "key"} '
+      + 'instead — never put a ${NAME} placeholder in the url or body. '
       + 'web_request can also SEND workspace files to upload endpoints: write ${file:relative/path} in the body '
       + 'where the base64 belongs, or use its multipart parameter — never read and paste file bytes yourself');
-    if (canShell) how.push('in your shell, where each name is an environment variable (curl etc.)');
+    // The shell is cmd.exe on Windows (environment.js spawns shell:true), where $NAME is sent as literal text and
+    // the API answers 401. Name the syntax that actually expands on THIS host instead of letting the model guess bash.
+    const win = !!(opts && opts.platform === 'win32');
+    if (canShell) how.push(win
+      ? 'in your shell, where each name is an environment variable. This host is Windows and shell.exec runs cmd.exe: write %'
+        + rows[0].envVar + '% (inside powershell -Command use $env:' + rows[0].envVar + '); $' + rows[0].envVar + ' is NOT expanded there'
+      : 'in your shell, where each name is an environment variable ($' + rows[0].envVar + ' in curl etc.)');
     return '<service_keys>\n'
       + 'The Commander has connected API keys for these services. You can use them ' + how.join('; and ') + '.\n'
+      + (canRequest && canShell ? 'Prefer web_request for API calls — it needs no shell quoting and works the same on every OS.\n' : '')
       + 'You will never see a key\'s value and must never ask the Commander for one. NEVER print, echo, or '
       + 'write a value anywhere; reference it only by name.\n'
       + lines.join('\n')

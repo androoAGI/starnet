@@ -72,7 +72,8 @@ const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
 const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
-const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');   // certain-unavailability signals -> deferred with the fix named
+const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
+const { withheldCommandTools } = require('./capability/withheld.js');   // issue #77: why a placed command tool is withheld this run, and what works   // certain-unavailability signals -> deferred with the fix named
 const CodeMode = require('./tools/builtin/code.js');                      // code.run: bounded JS composition over this run's read-only grants
 const { makeCodeTools } = CodeMode;
 const { makeSkillTools } = require('./tools/builtin/skills.js');    // H4: the agent's reusable skill library tools
@@ -144,6 +145,12 @@ function googleRelayGuard() {
   return googleRelayGuardInstance;
 }
 function selectProvider(opts) {
+  // KIMI REGION (#70): every Kimi adapter — runs, catalogs, probes, fallbacks, extra accounts — talks to the API of
+  // the region its sign-in was minted in. An empty or stock regional base resolves to that region; a custom proxy
+  // URL the Commander set is kept. opts.kimiRegion names an extra account's region; otherwise the primary's.
+  if (opts && normalizeProvider(opts.provider) === 'kimi') {
+    opts = Object.assign({}, opts, { baseUrl: kimiRegion.resolveBaseUrl(opts.kimiRegion || kimiPrimaryRegion(), opts.baseUrl) });
+  }
   const built = selectProviderRaw(opts);
   return opts && normalizeProvider(opts.provider) === 'starnet' ? googleRelayGuard().guardProvider(built) : built;
 }
@@ -161,6 +168,9 @@ const codexAuthState = require('./providers/codex-auth-state.js');
 // pure dead-token machinery. Codex keeps its own proprietary wire above — these are additive, never a reroute.
 const oauthDevice = require('./providers/oauth-device.js');
 const oauthTokenStore = require('./providers/oauth-token-store.js');
+// Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
+// must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
+const kimiRegion = require('./providers/kimi-region.js');
 const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
@@ -422,7 +432,7 @@ const TICKET_GUARD = apitickets.replayGuard(4096);   // single-use registry for 
 const { isAllowedApiOrigin, isAllowedHost, requiresApiToken, TAURI_ORIGINS } = apiauth;
 function applyApiCors(req, res) {
   const origin = String(req.headers.origin || '');
-  if (origin && isAllowedApiOrigin(origin, PORT)) {
+  if (origin && isAllowedApiOrigin(origin, PORT, req.headers.host)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
@@ -431,9 +441,30 @@ function applyApiCors(req, res) {
   res.setHeader('Access-Control-Max-Age', '600');
 }
 function rejectApi(req, res) {
-  if (!isAllowedHost(req.headers.host)) { res.writeHead(403); res.end('forbidden host'); return true; }
-  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT)) { res.writeHead(403); res.end('forbidden origin'); return true; }
+  if (!isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403); res.end('forbidden host'); return true; }
+  // the Host rides along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62)
+  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) { noteApiRefusal(req, 'forbidden origin'); res.writeHead(403); res.end('forbidden origin'); return true; }
   return false;
+}
+/* #62: a refused API call used to be SILENT server-side — the browser got a bare 403, the sidecar log and
+   diag.errors.json said nothing, so a tunnel/proxy mismatch looked like "the provider rejected my key". Say it ONCE
+   per distinct (reason, origin, host) — a stale page or a probing site cannot flood the log or evict real run errors
+   from the diag ring. Header values are clipped and stripped to printable ASCII; no token or body is ever read here. */
+const apiRefusalsSeen = new Set();
+function noteApiRefusal(req, reason) {
+  try {
+    const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7e]/g, '?').slice(0, 120);
+    const origin = clean(req.headers.origin), host = clean(req.headers.host);
+    const sig = reason + '|' + origin + '|' + host;
+    if (apiRefusalsSeen.has(sig) || apiRefusalsSeen.size >= 64) return;
+    apiRefusalsSeen.add(sig);
+    const line = '[api] refused ' + clean(req.method) + ' ' + clean(apiauth.pathOf(req.url)) + ' — ' + reason +
+      ' (origin ' + (origin || 'none') + ', host ' + (host || 'none') + ', station port ' + PORT + ')' +
+      (reason === 'forbidden token' ? ' — a page from before a sidecar restart; reload it' : '') +
+      (reason === 'forbidden host' ? ' — StarNet answers only on localhost/127.0.0.1; reach it through a port forward' : '');
+    console.warn(line);
+    recordDiagError(line);
+  } catch (e) { failNote('api.refusal.note', e); }
 }
 function rejectBadApiToken(req, res) {
   if (!requiresApiToken(req)) return false;
@@ -443,6 +474,7 @@ function rejectBadApiToken(req, res) {
   // Those exact request shapes accept a ?ticket= minted for exactly that resource (apiauth.ticketOk); the MASTER
   // token is never accepted from a query string (it leaked into browser history, Referer and copied links).
   if (apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return false;
+  noteApiRefusal(req, 'forbidden token');
   res.writeHead(403); res.end('forbidden token'); return true;
 }
 // Desktop build: live BYOK keys are seeded from the OS keychain via env at spawn, and updated
@@ -1089,6 +1121,8 @@ function budgetScopeIsExplicit(scope) {
 const creditsLink = makeCreditsLink({
   cloudUrl: CLOUD_URL, fetch: globalThis.fetch, fsp, fs, pathMod: path,
   dir: path.join(WORKSPACES, '.secrets'), now: () => Date.now(), envToken: CREDITS_TOKEN,
+  // spacing between self-heal retries after a transient cloud failure (default 30s; tests shorten it)
+  healRetryMs: (v => (v != null && v !== '' && Number(v) >= 0) ? Number(v) : undefined)(ENV('CREDITS_HEAL_RETRY_MS')),
   note: failNote   // best-effort seams (tombstone IO, cloud-side revoke) fail counted, never silently
 });
 // Resolve the credits adapter config. PRECEDENCE (additive, never breaks an env deploy): env CREDITS_* wins
@@ -1158,12 +1192,20 @@ userProps.resume();
    still its own (/v1/whoami; every refusal path — tombstone, revoked token, live link — heals nothing).
    Skipped under an env CREDITS_* override, which outranks device linking everywhere else too. Post-boot
    and fail-open: an unreachable cloud just leaves the station honestly unlinked, as before. */
-if (!CREDITS_URL && !credits.configured()) {
-  setImmediate(() => creditsLink.healFromEnv().then(r => {
+function runCreditsSelfHeal() {
+  return creditsLink.healFromEnv().then(r => {
     if (r && r.healed) { console.log('  · credits link self-healed from keychain token (account ' + r.accountId + ')'); return rebuildCredits(); }
-    if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason);
+    if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason + (r.retryable ? ' (will retry on the next credits check)' : ''));
     return null;
-  }).catch(swallow('credits.link.selfheal', null)));
+  }).catch(swallow('credits.link.selfheal', null));
+}
+if (!CREDITS_URL && !credits.configured()) setImmediate(runCreditsSelfHeal);
+// Issue #76: a boot heal that met a slow/down cloud used to leave the station unlinked until the app restarted.
+// The credits status reads (STORE, genesis/RESUME, WAKE) take the armed retry here — bounded by the link client's
+// request timeout, spaced by its retry interval, and only ever for a TRANSIENT refusal.
+function retryCreditsSelfHealIfDue() {
+  if (CREDITS_URL || credits.configured() || !creditsLink.healRetryDue()) return Promise.resolve(null);
+  return runCreditsSelfHeal();
 }
 
 /* ---- P0-2 budget-caps persistence (SETTINGS → Budget). The four USD caps were env-only; now they persist in a
@@ -4313,7 +4355,7 @@ function kimiMshHeaders(deviceId) {
 }
 // The verified wire constants for each provider (from the official device-code implementations). Everything
 // provider-specific is contained here; the generic oauth-device.js knows none of it.
-function oauthDeviceConfig(id, deviceId) {
+function oauthDeviceConfig(id, deviceId, region) {
   if (id === 'grok') {
     return {
       providerId: 'grok',
@@ -4328,11 +4370,14 @@ function oauthDeviceConfig(id, deviceId) {
     };
   }
   if (id === 'kimi') {
+    // ONE client id for both regions (Moonshot's kimi-code shares it); only the OAuth host differs (#70):
+    // auth.kimi.com for a China account (the legacy default), auth.kimi.ai for a Global one.
+    const urls = kimiRegion.oauthUrls(region);
     return {
       providerId: 'kimi',
       clientId: '17e5f671-d194-4dfb-9706-5516cb48c098',
-      deviceUrl: 'https://auth.kimi.com/api/oauth/device_authorization',
-      tokenUrl: 'https://auth.kimi.com/api/oauth/token',
+      deviceUrl: urls.deviceUrl,
+      tokenUrl: urls.tokenUrl,
       encoding: 'form',            // live-proven 2026-07-17: auth.kimi.com 400s JSON bodies; kimi-cli's requests(data=) is form-encoded
       refreshSkewSeconds: 300,
       halfLifeRefresh: true,       // ~15min access tokens: refresh past 50% of life OR within 300s of expiry
@@ -4348,6 +4393,10 @@ function oauthInferenceHeaders(id) {
   if (id === 'kimi' && entry) return kimiMshHeaders(entry.deviceId);
   return undefined;
 }
+// kimi (#70): the region of the PRIMARY sign-in. Before the table below exists (boot order) it is the legacy China wire.
+function kimiPrimaryRegion() {
+  try { const e = oauthProviders.kimi; return (e && e.region) || kimiRegion.LEGACY_REGION; } catch (_) { return kimiRegion.LEGACY_REGION; }
+}
 const oauthProviders = (() => {
   const map = {};
   for (const id of OAUTH_PROVIDER_IDS) {
@@ -4356,9 +4405,12 @@ const oauthProviders = (() => {
     try { tokens = oauthTokenStore.loadTokens({ file, load: (f, t) => loadResilient(f, t), tag: id }); } catch (_) { tokens = null; }
     // stable per-install device id: reuse the persisted one, else mint (persisted on the first token write).
     const deviceId = (tokens && typeof tokens.device_id === 'string' && tokens.device_id) ? tokens.device_id : crypto.randomUUID();
+    // kimi: the region the stored sign-in was minted in (no stored region = a pre-#70 China sign-in). Refreshes go
+    // to that region's token endpoint; a new sign-in may pick another region and replaces this with its own.
+    const region = id === 'kimi' ? kimiRegion.regionOfTokens(tokens) : '';
     map[id] = {
-      id, file, deviceId,
-      auth: oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, deviceId)),
+      id, file, deviceId, region,
+      auth: oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, deviceId, region)),
       tokens: (tokens && typeof tokens === 'object') ? tokens : null,
       authDead: codexAuthState.deadFromTokens(tokens),
       persistError: '',
@@ -4465,7 +4517,8 @@ function oauthAccountEntry(pid, acctId) {
     authDead: codexAuthState.deadFromTokens(tokens), persistError: '', refreshInFlight: null };
   if (pid !== 'codex') {
     entry.deviceId = (tokens && typeof tokens.device_id === 'string' && tokens.device_id) ? tokens.device_id : crypto.randomUUID();
-    entry.auth = oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, entry.deviceId));
+    entry.region = pid === 'kimi' ? kimiRegion.regionOfTokens(tokens) : '';   // each extra Kimi account keeps its OWN region (#70)
+    entry.auth = oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, entry.deviceId, entry.region));
   }
   oauthAccountEntries.set(key, entry);
   return entry;
@@ -4616,6 +4669,8 @@ const browserViews = makeBrowserViews({
     return !!chromiumInstaller.platformKey;   // none installed: one is downloaded on first use
   },
   browserSetup: () => chromiumInstaller.status(),
+  // #61 RESET STATION BROWSER: end only an orphaned StarNet browser on the durable profile (never ours, never the Commander's)
+  sweepStationProfile: () => require('./tools/builtin/browser-orphans.js').sweep({ profileDir: BROWSER_PROFILE_DIR }),
   handoffLive: runId => browserHandoffs.isLive(runId),
   attended: stationBrowserLogin,
   // the driving agent's own jail: a download must land where that agent can read it back
@@ -10179,7 +10234,7 @@ const server = http.createServer((req, res) => {
   // ONE exemption: a line-trigger webhook POST /api/hooks/trg_… may arrive through a tunnel the Commander set up
   // (cloudflared/ngrok forward the PUBLIC Host). It is fenced by its own per-trigger secret and returns no token.
   const triggerHook = req.method === 'POST' ? TRIGGER_HOOK_RX.exec(String(req.url || '')) : null;
-  if (!triggerHook && !isAllowedHost(req.headers.host)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
+  if (!triggerHook && !isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
   // Once an uncaught exception has made this process's in-memory state unprovable, the server becomes a recovery
   // shell. Static GET/HEAD keeps the already-installed UI reloadable; health + authenticated diagnostics explain
   // the fault. Every other API, external-harness, artifact and mutation surface fails closed with 503. This gate
@@ -12651,6 +12706,7 @@ function handleBudgetStatus(req, res) {
    HONESTY LAW: 404s when managed credits are NOT configured, so the frontend renders no STORE card and shows no
    dead balance. Never emits a secret (no api key, no account internals beyond the display id). Read-only. ---- */
 async function handleCredits(req, res) {
+  await retryCreditsSelfHealIfDue();
   if (!credits.configured()) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ configured: false })); }
   const summaryOnly = /(?:\?|&)history=0(?:&|$)/.test(String(req && req.url || ''));
   // History is display-only. Start it beside the authoritative balance read so a slow activity endpoint cannot
@@ -12722,7 +12778,8 @@ async function handleCredits(req, res) {
    creditsLink's memory). link/poll on 'confirmed' rebuilds the live credits adapter — no restart. ---- */
 function creditsJson(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 
-function handleCreditsLinkable(req, res) {
+async function handleCreditsLinkable(req, res) {
+  await retryCreditsSelfHealIfDue();
   // available: the cloud is wired AND we are not already configured (env or an existing link). When already
   // configured, /api/credits carries the balance + the `linked` flag — there is no separate LINK card to show.
   // A definitive cloud rejection overrides local token presence: that station is linkable again without first
@@ -13636,6 +13693,14 @@ async function handleConnectorUpsert(req, res) {
   const prev = connectorConfigs.find(c => c.id === id) || {};
   const transport = String(body.transport || prev.transport || (body.command ? 'stdio' : 'http')).toLowerCase();
   if (transport !== 'http' && transport !== 'stdio') return json(400, { error: 'connector transport must be "http" or "stdio"' });
+  /* EDIT ROUND-TRIP. The panel's EDIT form is filled from connectors.status(), which masks secrets: a secret query
+     param becomes <redacted>, header values become <set>/<redacted> (or a blank line), secret args are masked and URL
+     args normalized. Saving that form unchanged sent the MASKS back and they were stored literally — the URL lost
+     its ?api_key=, headers became the text "<set>", env was dropped — so a label or timeout edit broke a working
+     connector. A field that comes back EXACTLY as it was displayed means "unchanged": keep the saved value. Headers
+     and args restore only when the endpoint below is still the same service, so an old secret never follows a new URL. */
+  const shownPrev = prev.id ? (connectors.status(id) || {}) : {};
+  if (transport === 'http' && prev.url && typeof body.url === 'string' && shownPrev.url && body.url.trim() === shownPrev.url) body.url = prev.url;
   const oauth = transport === 'http' && ('oauth' in body ? body.oauth === true : prev.oauth === true);
   const url = String(body.url || (transport === 'http' ? (prev.url || '') : '')).trim();
   const command = String(body.command || (transport === 'stdio' ? (prev.command || '') : '')).trim();
@@ -13675,6 +13740,19 @@ async function handleConnectorUpsert(req, res) {
     if (oauth && (parsedHttpUrl.protocol !== 'https:' || parsedHttpUrl.username || parsedHttpUrl.password)) {
       return json(400, { ok: false, saved: false, connected: false, code: 'OAUTH_HTTPS_REQUIRED', error: 'custom OAuth connectors require an https:// server URL without embedded credentials' });
     }
+  }
+  if (sameService && Array.isArray(body.args) && Array.isArray(prev.args) && Array.isArray(shownPrev.args) && body.args.length === prev.args.length) {
+    body.args = body.args.map((a, i) => (String(a) === String(shownPrev.args[i]) ? prev.args[i] : a));
+  }
+  if (sameService && body.headers && typeof body.headers === 'object' && !Array.isArray(body.headers) && prev.headers && typeof prev.headers === 'object') {
+    const shownH = (shownPrev.headers && typeof shownPrev.headers === 'object') ? shownPrev.headers : {};
+    const prevKey = k => Object.keys(prev.headers).find(p => p.toLowerCase() === String(k).toLowerCase());
+    const restored = {};
+    for (const k of Object.keys(body.headers)) {
+      const v = String(body.headers[k] == null ? '' : body.headers[k]), pk = prevKey(k);
+      restored[k] = (pk && (v === '' || v === '<redacted>' || v === shownH[pk])) ? prev.headers[pk] : body.headers[k];
+    }
+    body.headers = restored;
   }
   let args = sameService && Array.isArray(prev.args) ? prev.args.slice() : [];
   if ('args' in body) {
@@ -13893,7 +13971,12 @@ async function handleConnectorOauthStart(req, res) {
     let clientId = cachedClient.clientId || '';
     let clientSecret = cachedClient.clientSecret || '';
     let tokenEndpointAuthMethod = cachedClient.tokenEndpointAuthMethod || requiredAuthMethod;
-    if (!clientId || tokenEndpointAuthMethod !== requiredAuthMethod || (requiredAuthMethod !== 'none' && !clientSecret)) {
+    // A DCR client is registered FOR one redirect URI. The desktop shell picks a fresh sidecar port every launch,
+    // so a client cached last session names a different http://127.0.0.1:<port>/ callback; servers that match
+    // redirect URIs exactly then refuse the authorize request on their own page and the sign-in times out.
+    // A client cached before redirectUri was recorded is re-registered once (a fresh DCR client is harmless).
+    const redirectMoved = !!clientId && cachedClient.redirectUri !== CONNECTOR_OAUTH_REDIRECT;
+    if (!clientId || redirectMoved || tokenEndpointAuthMethod !== requiredAuthMethod || (requiredAuthMethod !== 'none' && !clientSecret)) {
       if (!disc.registrationEndpoint) return json(502, { error: 'this server needs a pre-registered OAuth client (no dynamic registration)' });
       const reg = await mcpOauth.registerClient({ fetchImpl: connectorOauthFetch, registrationEndpoint: disc.registrationEndpoint,
         redirectUri: CONNECTOR_OAUTH_REDIRECT, clientName: 'StarNet', tokenEndpointAuthMethod: requiredAuthMethod,
@@ -13905,7 +13988,7 @@ async function handleConnectorOauthStart(req, res) {
       // the clientId is still valid in-memory for this flow, and a failed cache only costs a re-registration next
       // time (harmless — a fresh DCR client), unlike a lost token which forces a full re-sign-in.
       const nextClientState = connectorStateMod.withOauthClient(connectorStateMod.envelope(connectorConfigs, connectorOauth), disc.authorizationServer,
-        { clientId: clientId, clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod, at: Date.now() });
+        { clientId: clientId, clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod, redirectUri: CONNECTOR_OAUTH_REDIRECT, at: Date.now() });
       if (persistConnectorState(nextClientState.configs, nextClientState.oauth)) adoptConnectorState(nextClientState);
       else console.warn('[connectors] DCR clientId cache not persisted for ' + disc.authorizationServer + ' — a later sign-in will re-register a fresh client.');
     }
@@ -18665,7 +18748,10 @@ async function runOnceCore(o) {
   };
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage,
+    // issue #77: the SAME path-trust guard fs.* gets (runPathTrust is bound below; this thunk only runs at tool time), so a
+    // project-scoped run's relative image path lands in the project folder, not the private workspace the lead cannot read
+    pathTrust: (abs, o2) => runPathTrust(abs, o2) });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   // An interactive run drives the STATION browser — the one the Commander sees and uses — when it is free. Anything
@@ -18767,7 +18853,7 @@ async function runOnceCore(o) {
   // STUDIO, third skill: voice_generate — the agent MAKES a clip (voiceover, narration, audio message) into its
   // workspace. It drives the SAME media-service ladder /api/tts does (keyed neural chain, then the
   // free keyless Edge floor), so it needs no voice-specific credential and a zero-key station can still record.
-  makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES }).register(registry);
+  makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
   // runs a fixed embedded Python bridge (never a shell). Media paths outside the workspace go through this run's path-trust.
   makeResolveTools({ fsp, pathMod: path, root: WORKSPACES, spawn: childSpawn, pathTrust: runPathTrust, envFor: () => sanitizeChildEnv(process.env), config: { ffprobe: ENV('FFPROBE'), python: ENV('RESOLVE_PYTHON') } }).register(registry);
@@ -18779,7 +18865,9 @@ async function runOnceCore(o) {
   makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg }).register(registry);
   makeTerminalTools({
     manager: terminalSessions, environment: executionEnvironment, fs: fs, pathMod: path, root: WORKSPACES,
-    platform: process.platform, envFor: () => sanitizeChildEnv(process.env)
+    // sanitizeChildEnv strips every *_API_KEY, so the KEYS-tab vars are merged back exactly as shell.exec gets them
+    // (servicekeys.runEnv: same surface rule — an unattended run only receives keys granted for unattended use).
+    platform: process.platform, envFor: (surface) => Object.assign(sanitizeChildEnv(process.env), executionEnvironmentDeps.serviceEnv(surface))
   }).register(registry);
   // verify.run (same workbench gate as shell): run the project check + emit verify.result. Also workbench-only.
   makeVerifyTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() } }).register(registry);
@@ -19270,8 +19358,19 @@ async function runOnceCore(o) {
   // Connector projection happens after the base office is resolved. Re-apply the host floor so
   // no dynamic server or future registration order can restore a real-screen tool by name.
   resolved = enforceSyntheticOnly(resolved, realDesktopAuthority);
+  const preAuthorityTools = resolved.tools.slice();
   resolved = enforceRunAuthority(resolved, registry, userControlAuthority);
   resolved = enforceEnabledToolsets(resolved, registry, unrestrictedHostNow() ? null : o.enabledToolsets);
+  /* WITHHELD COMMANDS, EXPLAINED (issue #77). The authority above removes workspace-process tools (shell.exec,
+     verify.run, terminal.start …) from an ASK-mode non-interactive run even with a WORKBENCH placed — by design.
+     Record which ones it removed (and the toolset switch would otherwise have allowed) so tool.search, the
+     capability note and the WITHHELD reply can say why and what works, instead of the agent concluding "no shell". */
+  try {
+    const kept = new Set(resolved.tools);
+    const stripped = enforceEnabledToolsets({ tools: preAuthorityTools.filter(n => !kept.has(n)) }, registry, unrestrictedHostNow() ? null : o.enabledToolsets).tools;
+    resolved.withheld = withheldCommandTools(stripped, { impactOf: n => impactOfTool(registry.get(n)),
+      opts: { delegatedBy: o.delegatedBy || '', routine: surface === 'autonomous' && trigger === 'schedule' } });
+  } catch (e) { failNote('tools.withheld', e); resolved.withheld = {}; }
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
     emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
@@ -19913,9 +20012,12 @@ async function runOnceCore(o) {
             ? 'this is an UNATTENDED ' + surface + ' run (scheduled/background, nobody watching) and this tool needs a watched session'
               + ' — placing station objects cannot grant it here'
             : 'its capability was not granted to this run';
+      // a delegated worker's withheld command names its real cause and the route that works (issue #77, withheld.js)
+      const gap = o.delegatedBy && resolved.withheld && Object.prototype.hasOwnProperty.call(resolved.withheld, realName) ? resolved.withheld[realName] : null;
       return {
         ok: false, isError: true, summary: 'withheld',
-        content: 'WITHHELD: "' + realName + '" exists but is not available to you on this run, because ' + why + '. '
+        content: 'WITHHELD: "' + realName + '" exists but is not available to you on this run, because ' + (gap ? gap.why : why) + '. '
+          + (gap ? 'What works instead: ' + gap.enable + '. ' : '')
           + 'Do NOT retry it and do NOT report its work as done. Do everything you genuinely can with the tools you were given, '
           + 'then state plainly which step you could not do and why.'
       };
@@ -20568,7 +20670,7 @@ async function runOnceCore(o) {
     const canShell = kt.indexOf('shell.exec') >= 0;
     const canRequest = kt.indexOf('web_request') >= 0;
     if (canShell || canRequest) {
-      const b = serviceKeysMod.promptBlock(serviceKeys, { shell: canShell, request: canRequest });
+      const b = serviceKeysMod.promptBlock(serviceKeys, { shell: canShell, request: canRequest, platform: process.platform });
       if (b) serviceKeysBlock = '\n\n' + b;
     }
   } catch (_) { serviceKeysBlock = ''; }
@@ -20617,7 +20719,7 @@ async function runOnceCore(o) {
     // unavailable line above says it can't work. Connector tools deferred only for SIZE still work via tool_search.
     + summarizeCapabilities((resolved.unavailable && Object.keys(resolved.unavailable).length)
         ? Object.assign({}, resolved, { tools: resolved.tools.filter(n => !Object.prototype.hasOwnProperty.call(resolved.unavailable, n)) })
-        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock;
+        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow(), delegatedBy: o.delegatedBy || '' }) + skillBlock;
   const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
     + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
@@ -23326,10 +23428,40 @@ function handleProviders(req, res) {
 // POST /api/providers/probe — a no-generation provider round-trip for truthful Settings telemetry. The supplied
 // browser BYOK key is consumed in memory only and never echoed/persisted; desktop callers send no key because the
 // sidecar already owns the keychain-backed runtime credential. A 200 response always carries the probe facts.
+/* #62: a key paste that picked up a line wrap (a long key copied out of a narrow SSH terminal / tmux pane), a stray
+   space, or an invisible zero-width character used to reach the provider verbatim — `.trim()` only cleans the ends —
+   and read as a rejected key. No provider key contains whitespace, so every whitespace and zero-width char goes. */
+function cleanProviderKey(v) { return String(v == null ? '' : v).replace(/[\s\u200b-\u200d\u2060\ufeff]+/g, ''); }
+/* #62: why a key check failed, said server-side too (the result used to reach only the browser). One line, never the
+   key: the candidate is scrubbed out of the text before redact() (the always-on secret scrubber) sees it. Rate-limited
+   per (route, provider, reason) so the Settings probe's repaints cannot flood the log or the diag ring. */
+const keyCheckNoted = new Map();
+function noteKeyCheckFailure(route, id, result, candidate) {
+  try {
+    let why = String((result && result.error) || 'not verified');
+    const status = result && result.status && why.indexOf('HTTP ' + result.status) < 0 ? ' (HTTP ' + result.status + ')' : '';
+    const k = String(candidate || '');
+    if (k.length >= 6) why = why.split(k).join('[key]');
+    const line = '[providers] ' + route + ' ' + String(id || 'unknown') + ': ' + redact(why).slice(0, 240) + status;
+    const now = Date.now(), last = keyCheckNoted.get(line) || 0;
+    if (now - last < 10 * 60 * 1000) return;
+    keyCheckNoted.set(line, now);
+    if (keyCheckNoted.size > 64) keyCheckNoted.delete(keyCheckNoted.keys().next().value);
+    console.warn(line);
+    recordDiagError(line);
+  } catch (e) { failNote('providers.keycheck.note', e); }
+}
 async function handleProviderProbe(req, res) {
-  const json = (obj) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let id = '', probeKey = '';
+  const json = (obj) => {
+    // a SAVED credential that fails its check is worth one key-free line server-side (#62); a provider with nothing saved is not
+    if (obj && obj.credentialVerified === false && probeKey) noteKeyCheckFailure('probe', id, obj, probeKey);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ reachable: false, catalogAvailable: false, credentialVerified: false, error: 'bad json' }); }
-  const id = normalizeProvider(body.provider);
+  id = normalizeProvider(body.provider);
+  body.key = cleanProviderKey(body.key);
+  probeKey = providerRequiresKey(id) ? providerRuntimeKey(id, body.key) : '';
   const profile = getProviderProfile(id);
   if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
   try {
@@ -23375,12 +23507,16 @@ async function handleProviderProbe(req, res) {
 // sends the proposed value here in memory, and commits it only after this route proves provider authentication.
 // The candidate is never logged, echoed, placed on the bus, or written to disk.
 async function handleProviderValidate(req, res) {
-  const json = (obj) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let id = '', candidate = '';
+  const json = (obj) => {
+    if (obj && obj.credentialVerified === false) noteKeyCheckFailure('validate', id, obj, candidate);   // #62: key-free server-side line
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
-  const id = normalizeProvider(body.provider);
+  id = normalizeProvider(body.provider);
   const profile = getProviderProfile(id);
   if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
-  const candidate = String(body.key || '').trim();
+  candidate = cleanProviderKey(body.key);
   const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '');
   if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
   if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
@@ -23392,7 +23528,7 @@ async function handleProviderValidate(req, res) {
     if (profile.credentialProbePath) {
       const u = String(baseUrl || profile.baseUrl || '').replace(/\/$/, '') + profile.credentialProbePath;
       const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
-      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key' : 'credential probe HTTP ' + r.status });
+      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
     const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
@@ -23413,7 +23549,9 @@ async function handleProviderValidate(req, res) {
     return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
   } catch (e) {
     const timedOut = ctrl.signal.aborted;
-    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out' : ((e && e.message) || 'credential validation failed') });
+    // name the network cause (ENOTFOUND / ECONNREFUSED / a TLS failure) — undici's bare "fetch failed" explains nothing (#62)
+    const cause = e && e.cause && (e.cause.code || e.cause.message) ? ' (' + String(e.cause.code || e.cause.message).slice(0, 120) + ')' : '';
+    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out after 15s' : (((e && e.message) || 'credential validation failed') + cause) });
   } finally { clearTimeout(timer); }
 }
 
@@ -23512,18 +23650,39 @@ function pruneOAuthPending(entry) {
   for (const [k, v] of entry.pending) { if (!v || (now - (v.at || 0)) > OAUTH_PENDING_TTL_MS) entry.pending.delete(k); }
 }
 
+// KIMI REGION (#70): which deployment a NEW sign-in goes to. The browser names it ({ region: 'global'|'cn' }); a
+// start with no region (an older page) keeps `fallback` — the stored sign-in's region, else China, the old wire.
+// A region that names neither deployment is refused rather than guessed. Other providers have no regions ('').
+function oauthStartRegion(id, body, fallback) {
+  if (id !== 'kimi') return { region: '' };
+  const asked = body && body.region != null && String(body.region).trim() !== '' ? body.region : null;
+  if (asked == null) return { region: kimiRegion.normalizeRegion(fallback) || kimiRegion.LEGACY_REGION };
+  const region = kimiRegion.normalizeRegion(asked);
+  return region ? { region } : { error: 'unknown Kimi region — choose global (kimi.ai) or cn (kimi.com)' };
+}
+async function readOptionalJson(req) {
+  const raw = String(await readBody(req, 1 << 16) || '').trim();
+  return raw ? (JSON.parse(raw) || {}) : {};
+}
 async function handleOAuthStart(req, res, id) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const entry = oauthProviders[id];
   if (!entry) return json(404, { error: 'unknown provider' });
+  let body; try { body = await readOptionalJson(req); } catch (_) { return json(400, { error: 'bad json' }); }
+  const pick = oauthStartRegion(id, body, entry.region);
+  if (pick.error) return json(400, { error: pick.error, code: 'bad_region' });
   try {
-    const d = await entry.auth.startDeviceLogin({ fetch: globalThis.fetch });
+    // The sign-in is driven against the CHOSEN region's auth host; the stored sign-in (and its refreshes) keep their
+    // own region until this one completes — an abandoned attempt never moves a working credential.
+    const auth = pick.region === (entry.region || '') ? entry.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(id, entry.deviceId, pick.region));
+    const d = await auth.startDeviceLogin({ fetch: globalThis.fetch });
     pruneOAuthPending(entry);
     const login_id = crypto.randomUUID();
-    entry.pending.set(login_id, { device_code: d.device_code, interval: d.interval, at: Date.now() });
+    entry.pending.set(login_id, { device_code: d.device_code, interval: d.interval, at: Date.now(), region: pick.region, auth });
     // device_code is DELIBERATELY absent from this payload — it stays server-side (entry.pending).
     // device_auth_id mirrors login_id so the ONE shared browser sign-in engine (codexsignin.js) works verbatim.
-    json(200, { login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in });
+    json(200, Object.assign({ login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in },
+      pick.region ? { region: pick.region } : {}));
   } catch (e) {
     json(502, { error: (e && e.message) || ('failed to start ' + oauthLabel(id) + ' sign-in'), code: (e && e.code) || 'device_code_request_failed' });
   }
@@ -23539,13 +23698,16 @@ async function handleOAuthPoll(req, res, id) {
   const pending = login_id && entry.pending.get(login_id);
   if (!pending) return json(400, { status: 'error', error: 'unknown or expired sign-in — start again', code: 'login_not_found' });
   try {
-    const poll = await entry.auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: pending.device_code, interval: pending.interval, now: Date.now() });
+    const auth = pending.auth || entry.auth;
+    const poll = await auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: pending.device_code, interval: pending.interval, now: Date.now() });
     if (poll && poll.pending) {
       if (poll.interval) pending.interval = poll.interval;   // honor a slow_down replacement interval
       return json(200, { status: 'pending', interval: pending.interval });
     }
     // poll resolved to the normalized token envelope — a completed device sign-in supersedes any dead marker.
-    entry.tokens = Object.assign({}, poll, entry.deviceId ? { device_id: entry.deviceId } : {});
+    // kimi: the credential carries its region from here on; refreshes and inference follow it (#70).
+    entry.tokens = Object.assign({}, poll, entry.deviceId ? { device_id: entry.deviceId } : {}, pending.region ? { region: pending.region } : {});
+    if (pending.region) { entry.region = pending.region; entry.auth = auth; }
     entry.authDead = null;
     saveOAuthTokens(id, entry.tokens);
     entry.pending.delete(login_id);
@@ -23561,7 +23723,10 @@ async function handleOAuthPoll(req, res, id) {
 function handleOAuthStatus(req, res, id) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   const entry = oauthProviders[id] || {};
-  res.end(JSON.stringify(codexAuthState.statusPayload({ tokens: entry.tokens, dead: entry.authDead, persistError: entry.persistError })));
+  const st = codexAuthState.statusPayload({ tokens: entry.tokens, dead: entry.authDead, persistError: entry.persistError });
+  // kimi: WHICH deployment the stored sign-in belongs to (a label, never a credential) — only when one is stored.
+  if (id === 'kimi' && entry.tokens && entry.tokens.access_token) st.region = entry.region || kimiRegion.LEGACY_REGION;
+  res.end(JSON.stringify(st));
 }
 
 // GET /api/auth/<id>/models — the account's live catalog with a fresh token; falls back to the static roster
@@ -23608,8 +23773,10 @@ async function handleOAuthAccounts(req, res, pid, verb) {
         const e = oauthAccountEntry(pid, a.id);
         if (!e) continue;
         rows.push(Object.assign({ account: a.id, primary: false, email: accountEmailOf(e.tokens) },
-          codexAuthState.statusPayload({ tokens: e.tokens, dead: e.authDead, persistError: e.persistError })));
+          codexAuthState.statusPayload({ tokens: e.tokens, dead: e.authDead, persistError: e.persistError }),
+          pid === 'kimi' && e.tokens && e.tokens.access_token ? { region: e.region || kimiRegion.LEGACY_REGION } : {}));
       }
+      if (pid === 'kimi' && prim.tokens && prim.tokens.access_token) rows[0].region = kimiPrimaryRegion();
       const accounts = rows.map((r, i) => {
         noteAccountAuth(pid, r.account, { installed: true, loggedIn: !!r.connected });
         return Object.assign(r, { label: 'account ' + (i + 1), coolingUntil: credPool.coolingUntil('account:' + pid + ':' + (r.account || 'primary')) || 0 });
@@ -23633,11 +23800,16 @@ async function handleOAuthAccounts(req, res, pid, verb) {
       // grok / kimi: a new account gets its own stable device id from the first request (kimi signs every call with it)
       const existing = account ? oauthAccountEntry(pid, account) : null;
       const deviceId = existing ? existing.deviceId : crypto.randomUUID();
-      const auth = existing ? existing.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, deviceId));
+      // kimi: the region the browser chose for THIS sign-in (an older page sends none: the account's own region,
+      // else China — the pre-#70 wire). The account adopts it only when the sign-in completes.
+      const pick = oauthStartRegion(pid, body, existing ? existing.region : '');
+      if (pick.error) return json(400, { error: pick.error, code: 'bad_region' });
+      const auth = existing && pick.region === (existing.region || '') ? existing.auth : oauthDevice.makeDeviceOAuth(oauthDeviceConfig(pid, deviceId, pick.region));
       const d = await auth.startDeviceLogin({ fetch: globalThis.fetch });
       const login_id = crypto.randomUUID();
-      accountLogins.set(login_id, { pid, account, device_code: d.device_code, interval: d.interval, deviceId, auth, at: now });
-      return json(200, { account, login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in });
+      accountLogins.set(login_id, { pid, account, device_code: d.device_code, interval: d.interval, deviceId, auth, region: pick.region, at: now });
+      return json(200, Object.assign({ account, login_id, device_auth_id: login_id, user_code: d.user_code, verification_uri: d.verification_uri, verification_uri_complete: d.verification_uri_complete, interval: d.interval, expires_in: d.expires_in },
+        pick.region ? { region: pick.region } : {}));
     }
 
     if (verb === 'account-poll') {
@@ -23654,7 +23826,7 @@ async function handleOAuthAccounts(req, res, pid, verb) {
         } else {
           const poll = await p.auth.pollDeviceLogin({ fetch: globalThis.fetch, device_code: p.device_code, interval: p.interval, now: Date.now() });
           if (poll && poll.pending) { if (poll.interval) p.interval = poll.interval; return json(200, { status: 'pending', interval: p.interval }); }
-          tokens = Object.assign({}, poll, { device_id: p.deviceId });
+          tokens = Object.assign({}, poll, { device_id: p.deviceId }, p.region ? { region: p.region } : {});
         }
       } catch (e) {
         accountLogins.delete(id);
@@ -23665,7 +23837,7 @@ async function handleOAuthAccounts(req, res, pid, verb) {
       const acctId = p.account || providerAccounts.add(pid).id;
       const entry = oauthAccountEntry(pid, acctId);
       if (!entry) return json(404, { status: 'error', error: 'that ' + label + ' account was removed while it was signing in', code: 'account_not_found' });
-      if (p.deviceId && pid !== 'codex') { entry.deviceId = p.deviceId; entry.auth = p.auth; }
+      if (p.deviceId && pid !== 'codex') { entry.deviceId = p.deviceId; entry.auth = p.auth; if (p.region) entry.region = p.region; }
       entry.tokens = tokens; entry.authDead = null;
       saveAccountTokens(entry, entry.tokens);
       noteAccountAuth(pid, acctId, { installed: true, loggedIn: true });
@@ -23773,7 +23945,8 @@ function oauthAccountProvider(providerId, acct, baseUrl, reasoningEffort) {
   const e = oauthAccountEntry(providerId, acct.id);
   return selectProvider({ provider: providerId, fetch: globalThis.fetch, tokenProvider: () => ensureAccountAccessToken(e),
     renewToken: codex ? (stale) => ensureAccountAccessToken(e, true, stale) : undefined,
-    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort });
+    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort,
+    kimiRegion: providerId === 'kimi' ? e.region : undefined });   // an extra Kimi account runs on ITS region's API (#70)
 }
 async function handleClaudeCliAuth(req, res, verb) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
