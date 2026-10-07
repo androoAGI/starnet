@@ -24,6 +24,10 @@ A.ok(collectStart >= 0 && collectEnd > collectStart, 'the backup collector is lo
 const collect = new Function('store', 'notifyDefaults', 'resolveRoomLighting',
   ui.slice(collectStart, collectEnd) + '\nreturn browserSections;')({ settings: { hints: false, notifyPrefs: {} } }, () => ({}), v => v);
 A.eq(collect().settings.hints, false, 'a backup carries HINTS, so an import restores it');
+// the lead can flip it from chat like every other look setting (station.settings lists it, look.set accepts it)
+A.ok(/sound: 'true\|false', hints: 'true\|false'/.test(ui), 'station.settings lists hints as true|false');
+A.ok(/'sound', 'hints', 'backdrop', 'sessionRow'\]\.forEach\(k => \{ out\[k\] = s\[k\]; \}\)/.test(ui), 'look readback reports hints');
+A.ok(/else if \(k === 'flicker' \|\| k === 'sound' \|\| k === 'hints'\) bool\(k\);/.test(ui), 'look.set accepts hints as a boolean');
 
 // every bottom-bar dock trigger speaks through the glossary, so HINTS quiets the whole dock (CREW too)
 const triggers = read('frontend/index.html').match(/<button class="bb-grp"[^>]*>/g) || [];
