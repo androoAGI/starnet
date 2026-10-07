@@ -29,8 +29,33 @@
    keep-polling rule. */
 'use strict';
 
+/* KimiRegion — which Kimi deployment the NEXT sign-in goes to (#70). A Kimi account is either Global (kimi.ai) or
+   China (kimi.com) and can only sign in at its own deployment; the sidecar stores the chosen region WITH the
+   credential and routes refreshes + inference to it. This only remembers the Commander's pick for the next sign-in
+   (a per-browser convenience) and what the sidecar last reported for the stored sign-in. Default for a fresh
+   sign-in: the stored sign-in's region when one is known, else Global. DOM-free. */
+const KimiRegion = (() => {
+  const KEY = 'starnet.kimi.region';
+  const OPTIONS = Object.freeze([
+    Object.freeze({ id: 'global', label: 'GLOBAL', host: 'kimi.ai' }),
+    Object.freeze({ id: 'cn', label: 'CHINA', host: 'kimi.com' })
+  ]);
+  let known = '';
+  const norm = v => { v = String(v == null ? '' : v).trim().toLowerCase(); return v === 'global' || v === 'cn' ? v : ''; };
+  function picked() { try { return norm(localStorage.getItem(KEY)); } catch (_) { return ''; } }
+  return {
+    OPTIONS,
+    get() { return picked() || known || 'global'; },
+    set(r) { r = norm(r); if (!r) return false; try { localStorage.setItem(KEY, r); } catch (_) {} return true; },
+    // the sidecar's word on the STORED sign-in (status/accounts `region`); seeds the default when nothing was picked
+    noteSignedIn(r) { r = norm(r); if (r) known = r; },
+    label(r) { const o = OPTIONS.find(x => x.id === norm(r)); return o ? o.label + ' · ' + o.host : ''; }
+  };
+})();
+
 // The internal engine factory — one closure (its own flow/timer) per provider, so two providers can be
-// mid-sign-in independently. `paths` holds the three device-flow endpoints for this provider.
+// mid-sign-in independently. `paths` holds the three device-flow endpoints for this provider, plus an optional
+// `region()` (kimi): the deployment this sign-in goes to, sent as the start body so the sidecar signs in THERE.
 function makeOAuthSignIn(paths) {
   let flow = null;    // { device_auth_id, user_code, deadline } — the in-flight device-code login
   let timer = null;   // the poll setTimeout handle
@@ -47,7 +72,10 @@ function makeOAuthSignIn(paths) {
     if (cb.onRequesting) cb.onRequesting();
     let d;
     try {
-      const r = await fetch(paths.start, { method: 'POST' });
+      const region = typeof paths.region === 'function' ? String(paths.region() || '') : '';
+      const r = await fetch(paths.start, region
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ region }) }
+        : { method: 'POST' });
       d = await r.json();
       if (!r.ok) throw new Error(d.error || ('start failed (' + r.status + ')'));
     } catch (e) {
@@ -92,7 +120,10 @@ function makeOAuthSignIn(paths) {
 
 // build the three endpoints for a provider id. Codex is spelled out literally so the codex device-flow
 // endpoints (start/poll/logout) stay greppable in source (the source-lock tests pin /api/auth/codex/poll).
-function oauthPathsFor(pid) { const b = '/api/auth/' + pid; return { start: b + '/start', poll: b + '/poll', logout: b + '/logout' }; }
+function oauthPathsFor(pid) {
+  const b = '/api/auth/' + pid;
+  return Object.assign({ start: b + '/start', poll: b + '/poll', logout: b + '/logout' }, pid === 'kimi' ? { region: () => KimiRegion.get() } : {});
+}
 
 // The codex-bound engine — UNCHANGED public surface (start/cancel/logout/active), so every existing caller and
 // test/codexsignin.test.js keep working verbatim. Its endpoints are the literal /api/auth/codex/{start,poll,logout}.
@@ -122,7 +153,8 @@ function makeOAuthAccounts(pid) {
   let engine = null;
   const run = (startPath, cb) => {
     if (engine) engine.cancel();
-    engine = makeOAuthSignIn({ start: startPath, poll: base + 'account-poll', logout: base + 'accounts' });
+    engine = makeOAuthSignIn(Object.assign({ start: startPath, poll: base + 'account-poll', logout: base + 'accounts' },
+      pid === 'kimi' ? { region: () => KimiRegion.get() } : {}));
     return engine.start(cb);
   };
   return {
@@ -236,5 +268,5 @@ function makeClaudeCliSignIn() {
 }
 const ClaudeCliSignIn = makeClaudeCliSignIn();
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = CodexSignIn; module.exports.OAuthSignIn = OAuthSignIn; module.exports.ClaudeCliSignIn = ClaudeCliSignIn; module.exports.makeClaudeCliSignIn = makeClaudeCliSignIn; module.exports.OAuthAccounts = OAuthAccounts; }
-if (typeof window !== 'undefined') { window.CodexSignIn = CodexSignIn; window.OAuthSignIn = OAuthSignIn; window.ClaudeCliSignIn = ClaudeCliSignIn; window.OAuthAccounts = OAuthAccounts; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = CodexSignIn; module.exports.OAuthSignIn = OAuthSignIn; module.exports.ClaudeCliSignIn = ClaudeCliSignIn; module.exports.makeClaudeCliSignIn = makeClaudeCliSignIn; module.exports.OAuthAccounts = OAuthAccounts; module.exports.KimiRegion = KimiRegion; }
+if (typeof window !== 'undefined') { window.CodexSignIn = CodexSignIn; window.OAuthSignIn = OAuthSignIn; window.ClaudeCliSignIn = ClaudeCliSignIn; window.OAuthAccounts = OAuthAccounts; window.KimiRegion = KimiRegion; }

@@ -263,6 +263,12 @@
               <div class="codex-signin">
                 <div id="codex-status" class="codex-status">checking…</div>
                 <div id="codex-code" class="codex-code hidden"></div>
+                <!-- KIMI ACCOUNT REGION (#70): a kimi.ai account can only sign in at kimi.ai, a kimi.com one at kimi.com -->
+                <div id="kimi-region" class="codex-actions kimi-region hidden" role="group" aria-label="Kimi account region">
+                  <span class="dim">ACCOUNT REGION</span>
+                  <button type="button" class="btn" data-kimi-region="global" aria-pressed="false">GLOBAL · kimi.ai</button>
+                  <button type="button" class="btn" data-kimi-region="cn" aria-pressed="false">CHINA · kimi.com</button>
+                </div>
                 <div class="codex-actions">
                   <button type="button" id="btn-codex-signin" class="btn">⏼ SIGN IN WITH CHATGPT ▸</button>
                   <button type="button" id="btn-codex-open" class="btn hidden">↗ OPEN PAGE</button>
