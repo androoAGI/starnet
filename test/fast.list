@@ -167,6 +167,7 @@ test/freshstart.test.js
 test/unreachable-browser-mode.test.js
 test/harness.cancel-truth.test.js
 test/desktop-fresh-start-contract.test.js
+test/datareset.test.js
 test/cloudsave-unload.test.js
 test/fullscreen.test.js
 test/titlebar.test.js

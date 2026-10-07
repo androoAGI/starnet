@@ -18,6 +18,8 @@ pub struct FreshWorkspace {
 #[serde(rename_all = "camelCase")]
 struct FreshMarker<'a> {
     version: u8,
+    // #65: true when the previous generation was set aside to be ERASED (not kept in a quarantine).
+    erased: bool,
     at: String,
     acknowledged_roots: Vec<String>,
     quarantine: Option<&'a str>,
@@ -142,12 +144,51 @@ pub fn quarantine_and_prepare(
     )
 }
 
+/// #65 ERASE EVERYTHING: the same atomic swap as START FRESH (stage a sealed clean generation, move the old one
+/// aside, activate), except nothing is carried over (not even the credit-account link record) and the old
+/// generation goes to a sibling `.erasing-*` directory that the caller then deletes. If the move fails (a file in
+/// use), NOTHING has changed and the caller reports "nothing was erased". The returned `quarantine` is the
+/// set-aside path to delete.
+pub fn set_aside_for_erase(
+    workspaces: &Path,
+    acknowledged_roots: &[PathBuf],
+    stopped_child_pid: Option<u32>,
+    now_ms: u64,
+) -> Result<FreshWorkspace, String> {
+    prepare_with_mode(
+        workspaces,
+        acknowledged_roots,
+        stopped_child_pid,
+        now_ms,
+        &process_is_alive,
+        true,
+    )
+}
+
 fn quarantine_and_prepare_with(
     workspaces: &Path,
     acknowledged_roots: &[PathBuf],
     stopped_child_pid: Option<u32>,
     now_ms: u64,
     owner_pid_alive: &dyn Fn(u32) -> bool,
+) -> Result<FreshWorkspace, String> {
+    prepare_with_mode(
+        workspaces,
+        acknowledged_roots,
+        stopped_child_pid,
+        now_ms,
+        owner_pid_alive,
+        false,
+    )
+}
+
+fn prepare_with_mode(
+    workspaces: &Path,
+    acknowledged_roots: &[PathBuf],
+    stopped_child_pid: Option<u32>,
+    now_ms: u64,
+    owner_pid_alive: &dyn Fn(u32) -> bool,
+    erase: bool,
 ) -> Result<FreshWorkspace, String> {
     let parent = workspaces
         .parent()
@@ -167,10 +208,20 @@ fn quarantine_and_prepare_with(
         }
     }
 
-    let quarantine_root = parent.join("workspace-quarantine");
-    let quarantine = workspaces
-        .exists()
-        .then(|| unique_child(&quarantine_root, "station", now_ms));
+    // An erase sets the old generation aside BESIDE the workspace (same volume, so the move is a rename) under a
+    // name that can never be mistaken for a recoverable quarantine.
+    let quarantine_root = if erase {
+        parent.to_path_buf()
+    } else {
+        parent.join("workspace-quarantine")
+    };
+    let quarantine = workspaces.exists().then(|| {
+        unique_child(
+            &quarantine_root,
+            if erase { ".erasing-station" } else { "station" },
+            now_ms,
+        )
+    });
     let stage = unique_child(parent, ".workspaces-fresh-stage", now_ms);
     fs::create_dir_all(&stage).map_err(|error| {
         format!(
@@ -184,19 +235,30 @@ fn quarantine_and_prepare_with(
         .map(|path| path.to_string_lossy().to_string());
     let marker = FreshMarker {
         version: 1,
+        erased: erase,
         at: now_ms.to_string(),
         acknowledged_roots: acknowledged_roots
             .iter()
             .map(|path| path.to_string_lossy().to_string())
             .collect(),
-        quarantine: quarantine_text.as_deref(),
+        quarantine: if erase {
+            None
+        } else {
+            quarantine_text.as_deref()
+        },
         moved: Vec::new(),
     };
     let marker_bytes = serde_json::to_vec_pretty(&marker)
         .map_err(|error| format!("could not encode fresh-station receipt: {error}"))?;
     if let Err(error) = write_durable(&stage.join(MIGRATION_MARKER), b"1")
         .and_then(|_| write_durable(&stage.join(FRESH_MARKER), &marker_bytes))
-        .and_then(|_| preserve_credits_link(workspaces, &stage))
+        .and_then(|_| {
+            if erase {
+                Ok(())
+            } else {
+                preserve_credits_link(workspaces, &stage)
+            }
+        })
     {
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
@@ -290,6 +352,37 @@ mod tests {
             fs::read(root.join("keychain-proof.txt")).unwrap(),
             b"account-credit-token"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn erase_mode_carries_nothing_over_and_sets_the_old_station_aside_for_deletion() {
+        let root = scratch("erase-workspace");
+        let workspaces = root.join("workspaces");
+        fs::create_dir_all(workspaces.join(".secrets")).unwrap();
+        fs::write(workspaces.join("agent.save.json"), b"station").unwrap();
+        let linked = br#"{"url":"https://credits.example","accountId":"acct-7","linkedAt":7}"#;
+        fs::write(workspaces.join(CREDITS_LINK), linked).unwrap();
+
+        let result = prepare_with_mode(&workspaces, &[], None, 777, &|_| false, true)
+            .expect("erase set-aside should activate a clean station");
+        let aside = result.quarantine.expect("the old station was set aside");
+        assert_eq!(aside.parent().unwrap(), root.as_path());
+        assert!(aside
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with(".erasing-station-"));
+        assert!(!root.join("workspace-quarantine").exists());
+        assert_eq!(fs::read(aside.join("agent.save.json")).unwrap(), b"station");
+        // nothing was carried over: no save, and NOT the credit-account link either
+        assert!(!workspaces.join("agent.save.json").exists());
+        assert!(!workspaces.join(CREDITS_LINK).exists());
+        assert!(workspaces.join(MIGRATION_MARKER).is_file());
+        let marker: serde_json::Value =
+            serde_json::from_slice(&fs::read(workspaces.join(FRESH_MARKER)).unwrap()).unwrap();
+        assert_eq!(marker["erased"], true);
+        assert!(marker["quarantine"].is_null());
         let _ = fs::remove_dir_all(root);
     }
 
