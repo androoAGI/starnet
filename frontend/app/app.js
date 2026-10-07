@@ -2592,8 +2592,12 @@ const App = (() => {
     if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your StarNet account…'; }
     const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); if (progress) { progress.className = 'msg bad'; progress.textContent = t; } };
     statusEl.textContent = 'requesting a link code…'; statusEl.className = 'codex-status';
+    // A failure keeps WHAT failed (Friendly.linkStartFailure words it): the station's own POST never answering is a
+    // local-engine fault, not "the link service"; a sidecar reply carries its classification of the cloud failure.
+    const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw new Error('start failed'); return r.j; })
+      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+        () => { throw startFail({ local: true }); })
       .then(j => {
         if (generation !== _starnetLinkGeneration) return;
         if (!j || !j.code) throw new Error('no code');
@@ -2641,7 +2645,10 @@ const App = (() => {
         };
         _starnetLinkPoll = setInterval(tick, 2000);
       })
-      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); })
+      .catch(e => {
+        if (generation !== _starnetLinkGeneration) return;
+        fail((typeof Friendly !== 'undefined' && Friendly.linkStartFailure) ? Friendly.linkStartFailure(e && e.linkStart) : 'could not reach the link service — try again');
+      })
       .finally(() => { if (generation === _starnetLinkGeneration) _starnetLinkStarting = false; });
   }
 

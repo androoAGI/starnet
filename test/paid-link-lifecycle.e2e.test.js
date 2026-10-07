@@ -256,3 +256,37 @@ test('a boot self-heal that met a down cloud retries on the next credits read on
     await fixture.dispose(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   }
 });
+
+// link-down F5 (2026-10-07): a pairing start used to die on ONE cloud blip, and every failure read "could not reach
+// the link service". The start now takes one spaced retry of a transient failure, and a failure that survives it
+// carries the sidecar's machine-readable reason (the UI words it from that, never from raw text).
+test('a pairing start survives one cloud blip, and a dead cloud is reported with its transport cause', { timeout: 30000 }, async () => {
+  let startCalls = 0;
+  const server = http.createServer((req, res) => {
+    const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
+    if (req.url === '/v1/link/start') { startCalls++; return startCalls === 1 ? json(502, { error: 'bad gateway' }) : json(200, { code: 'STAR-BLIP', pollSecret: 'ps', verifyUrl: 'https://example.invalid/link', expiresAt: Date.now() + 60000 }); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + server.address().port;
+  const fixture = SidecarFixture.create({ prefix: 'paid-link-start-retry-', timeoutMs: 15000, env: {
+    STARNET_CLOUD_URL: url, STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', STARNET_CREDITS_TOKEN: ''
+  } });
+  fs.mkdirSync(path.join(fixture.workspace, '.secrets'), { recursive: true });
+  let closed = false;
+  try {
+    await fixture.start();
+    const ok = await fixture.json('POST', '/api/credits/link/start', {});
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(ok.body.code, 'STAR-BLIP', 'the second attempt minted the code');
+    assert.equal(startCalls, 2, 'exactly one retry after the 502');
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); closed = true;
+    const down = await fixture.json('POST', '/api/credits/link/start', {});
+    assert.equal(down.status, 502, down.text);
+    assert.equal(down.body.reason, 'unreachable', 'a refused connection is classified, not a bare "fetch failed"');
+    assert.match(String(down.body.detail || ''), /ECONNREFUSED/, 'the transport cause rides along for support');
+    assert.equal(down.body.status, 0);
+  } finally {
+    await fixture.dispose(); if (!closed) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+  }
+});

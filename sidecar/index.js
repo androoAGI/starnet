@@ -12873,7 +12873,22 @@ async function handleCreditsLinkStart(req, res) {
     const r = await creditsLink.start(body && body.deviceName);
     if (!r || !r.ok) return creditsJson(res, 502, { error: (r && r.error) || 'link_start_failed' });
     return creditsJson(res, 200, { code: r.code, verifyUrl: r.verifyUrl, expiresAt: r.expiresAt });   // pollSecret intentionally withheld
-  } catch (e) { return creditsJson(res, 502, { error: (e && e.message) || 'link_start_failed' }); }
+  } catch (e) { return creditsJson(res, 502, linkStartFailure(e)); }
+}
+// Why a pairing start failed, as a stable machine-readable `reason` the UI switches on (never a regex of raw text):
+// undici says only "fetch failed" — the DNS / timeout / TLS-interception cause lives on err.cause, and each needs a
+// different fix from the Commander. `detail` is the transport code + host only (never a token or the pollSecret).
+function linkStartFailure(e) {
+  const EC = require('./providers/errorClass.js');
+  const msg = String((e && e.message) || '');
+  const status = Number(e && e.status) || 0;
+  const code = String(EC._internals.transportCode(e) || '');
+  const reason = EC._internals.isTlsFailure(e, msg.toLowerCase()) ? 'tls'
+    : (e && e.name === 'AbortError') ? 'timeout'
+    : (code === 'ENOTFOUND' || code === 'EAI_AGAIN') ? 'dns'
+    : !status ? 'unreachable'
+    : status >= 500 ? 'cloud_5xx' : ('cloud_' + status);
+  return { error: msg || 'link_start_failed', reason, status, detail: EC.transportDetail(e) };
 }
 
 async function handleCreditsLinkPoll(req, res) {
