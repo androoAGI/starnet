@@ -297,5 +297,25 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     A.ok(aux.includes('AbortSignal.any([ac.signal, signal])') && aux.includes('signal: callSignal'), 'QA 10-02: the aux vision call ends when its run is stopped');
     A.ok(aux.includes("ev.type === 'usage') usage = ev.usage") && aux.includes('recordMediaUsage(usage, model)') && !aux.includes("ev.type === 'done') break"), 'QA 10-02: its usage is booked like media spend (read to the end of the stream)');
   }
+  // #68: the stable cacheSystemPrefix + tools sit before the CLI's dynamic boundary and the per-run block after it,
+  // so a new run reads the stable part from the CLI prompt cache
+  {
+    const files = [];
+    const fsRec = Object.assign({}, fakeFs, { writeFileSync(p, data) { files.push(data); } });
+    const { p, calls } = make({ lines: [init('none'), result({ result: 'ok' })] }, { fs: fsRec });
+    const prefix = 'You are the researcher.\n';
+    const run = id => ({ model: 'sonnet', cacheSystemPrefix: prefix, messages: [{ role: 'system', content: prefix + '\n\n[RUNTIME]\nRun id: ' + id }, { role: 'user', content: 'hi' }] });
+    await collect(p, run('r1'));
+    await collect(p, run('r2'));
+    const [head1, tail1] = files[0].split('\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n');
+    const [head2, tail2] = files[1].split('\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n');
+    A.ok(head1 && head1 === head2 && head1.startsWith('You are the researcher.') && !head1.includes('Run id'), 'the stable part before the boundary is identical across runs');
+    A.ok(tail1 === '[RUNTIME]\nRun id: r1' && tail2 === '[RUNTIME]\nRun id: r2', 'the per-run block stays in the system prompt, after the boundary');
+    A.ok(head1.indexOf('# Tools') > 0, 'the tool catalog sits on the stable side of the boundary');
+    A.eq(calls[0].stdin, 'hi', 'the transcript on stdin is unchanged');
+    const miss = _internals.buildPrompt([{ role: 'system', content: 'other system' }, { role: 'user', content: 'hi' }], [], prefix);
+    const none = _internals.buildPrompt([{ role: 'system', content: 'other system' }, { role: 'user', content: 'hi' }], []);
+    A.eq(miss, none, 'a prefix that does not match the system prompt leaves the prompt exactly as before');
+  }
   A.report('provider.claude-cli.test');
 })().catch(e => { console.log('FAIL: provider.claude-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });
