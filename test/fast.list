@@ -257,6 +257,7 @@ test/autopilot-threads.test.js
 test/autopilot-focus.test.js
 test/autopilot-focus-veto.test.js
 test/apiauth.test.js
+test/provider-key-check.test.js
 test/kimi-region.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js

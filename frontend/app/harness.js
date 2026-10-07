@@ -507,16 +507,36 @@ const Harness = (() => {
     writeScoped(LS.keyPool, p, JSON.stringify(cleaned));
     return Promise.resolve(cleaned.length);
   }
+  // #62: no provider key contains whitespace — a key pasted out of a narrow SSH terminal can carry a line wrap (or a
+  // zero-width char from a web page) in its MIDDLE, which .trim() never removed. Strip them all (the sidecar does too).
+  const cleanKey = k => String(k == null ? '' : k).replace(/[\s\u200b-\u200d\u2060\ufeff]+/g, '');
+  /* #62: WHY a key check failed, in words. The sidecar's /api/providers/validate answers 200 with { error } for a
+     provider verdict, but the route itself can be refused before it runs (403 forbidden origin/host/token, 423 frozen)
+     with a non-JSON body — which used to fold into "the provider did not verify this key" while the provider was
+     never even asked. Name the station's refusal and its fix instead. PURE (test-locked). */
+  function keyCheckFailure(status, j, text) {
+    j = j || {};
+    if (j.error) return String(j.error);
+    const t = String(text == null ? '' : text).trim().slice(0, 80);
+    if (status >= 200 && status < 300) return 'the provider did not verify this key';
+    const hint = /forbidden origin/.test(t) ? ' — this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
+      : /forbidden host/.test(t) ? ' — StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
+      : /forbidden token/.test(t) ? ' — the station restarted since this page loaded; reload the page'
+      : '';
+    return 'the station refused the key check (HTTP ' + status + (t && !/^[{<]/.test(t) ? ' ' + t : '') + ')' + hint;
+  }
+  async function postKeyCheck(route, body) {
+    const r = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const text = await r.text().catch(() => '');
+    let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
+    return { r, j, text };
+  }
   async function validateAndSetKeyPool(keys, provider) {
     const p = normalizeProviderId(provider || getProv());
-    const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
+    const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(cleanKey).filter(Boolean))).slice(0, 8);
     for (const candidate of cleaned) {
-      const r = await fetch('/api/providers/validate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' })
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.credentialVerified) throw new Error(String(j.error || 'a backup key was rejected') + ' — your previous backup pool is unchanged');
+      const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
+      if (!r.ok || !j.credentialVerified) throw new Error((r.ok && !j.error ? 'a backup key was rejected' : keyCheckFailure(r.status, j, text)) + ' — your previous backup pool is unchanged');
     }
     return setKeyPool(cleaned, p);
   }
@@ -745,12 +765,14 @@ const Harness = (() => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: p, key: getKey(p) || '', baseUrl })
       });
-      const j = await r.json().catch(() => ({}));
+      const text = await r.text().catch(() => '');
+      let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
       return {
         provider: p, credentialSaved, endpointConfigured,
         reachable: !!(r.ok && j.reachable), catalogAvailable: !!(j && j.catalogAvailable),
         credentialVerified: !!(j && j.credentialVerified), selected,
-        error: String((j && j.error) || '')
+        // a refused probe (403 origin/host/token) names the refusal, never a blank "check failed" (#62)
+        error: r.ok ? String((j && j.error) || '') : keyCheckFailure(r.status, j, text).replace('key check', 'provider check')
       };
     } catch (_) { return fallback; }
   }
@@ -759,15 +781,11 @@ const Harness = (() => {
   // never mutates provider state, so a rejection/timeout leaves the previous working key untouched.
   async function validateAndSetKey(key, provider) {
     const p = normalizeProviderId(provider || getProv());
-    const candidate = String(key || '').trim();
+    const candidate = cleanKey(key);
     if (!candidate) return setKey('', p);
-    const r = await fetch('/api/providers/validate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' })
-    });
-    const j = await r.json().catch(() => ({}));
+    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
     if (!r.ok || !j.credentialVerified) {
-      throw new Error(String(j.error || 'the provider did not verify this key') + ' — your previous key is unchanged');
+      throw new Error(keyCheckFailure(r.status, j, text) + ' — your previous key is unchanged');
     }
     await Promise.resolve(setKey(candidate, p));
     return Object.assign({}, j, { stored: true });

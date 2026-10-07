@@ -431,7 +431,7 @@ const TICKET_GUARD = apitickets.replayGuard(4096);   // single-use registry for 
 const { isAllowedApiOrigin, isAllowedHost, requiresApiToken, TAURI_ORIGINS } = apiauth;
 function applyApiCors(req, res) {
   const origin = String(req.headers.origin || '');
-  if (origin && isAllowedApiOrigin(origin, PORT)) {
+  if (origin && isAllowedApiOrigin(origin, PORT, req.headers.host)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
   }
@@ -440,9 +440,30 @@ function applyApiCors(req, res) {
   res.setHeader('Access-Control-Max-Age', '600');
 }
 function rejectApi(req, res) {
-  if (!isAllowedHost(req.headers.host)) { res.writeHead(403); res.end('forbidden host'); return true; }
-  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT)) { res.writeHead(403); res.end('forbidden origin'); return true; }
+  if (!isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403); res.end('forbidden host'); return true; }
+  // the Host rides along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62)
+  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) { noteApiRefusal(req, 'forbidden origin'); res.writeHead(403); res.end('forbidden origin'); return true; }
   return false;
+}
+/* #62: a refused API call used to be SILENT server-side — the browser got a bare 403, the sidecar log and
+   diag.errors.json said nothing, so a tunnel/proxy mismatch looked like "the provider rejected my key". Say it ONCE
+   per distinct (reason, origin, host) — a stale page or a probing site cannot flood the log or evict real run errors
+   from the diag ring. Header values are clipped and stripped to printable ASCII; no token or body is ever read here. */
+const apiRefusalsSeen = new Set();
+function noteApiRefusal(req, reason) {
+  try {
+    const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7e]/g, '?').slice(0, 120);
+    const origin = clean(req.headers.origin), host = clean(req.headers.host);
+    const sig = reason + '|' + origin + '|' + host;
+    if (apiRefusalsSeen.has(sig) || apiRefusalsSeen.size >= 64) return;
+    apiRefusalsSeen.add(sig);
+    const line = '[api] refused ' + clean(req.method) + ' ' + clean(apiauth.pathOf(req.url)) + ' — ' + reason +
+      ' (origin ' + (origin || 'none') + ', host ' + (host || 'none') + ', station port ' + PORT + ')' +
+      (reason === 'forbidden token' ? ' — a page from before a sidecar restart; reload it' : '') +
+      (reason === 'forbidden host' ? ' — StarNet answers only on localhost/127.0.0.1; reach it through a port forward' : '');
+    console.warn(line);
+    recordDiagError(line);
+  } catch (_) {}
 }
 function rejectBadApiToken(req, res) {
   if (!requiresApiToken(req)) return false;
@@ -452,6 +473,7 @@ function rejectBadApiToken(req, res) {
   // Those exact request shapes accept a ?ticket= minted for exactly that resource (apiauth.ticketOk); the MASTER
   // token is never accepted from a query string (it leaked into browser history, Referer and copied links).
   if (apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return false;
+  noteApiRefusal(req, 'forbidden token');
   res.writeHead(403); res.end('forbidden token'); return true;
 }
 // Desktop build: live BYOK keys are seeded from the OS keychain via env at spawn, and updated
@@ -10199,7 +10221,7 @@ const server = http.createServer((req, res) => {
   // ONE exemption: a line-trigger webhook POST /api/hooks/trg_… may arrive through a tunnel the Commander set up
   // (cloudflared/ngrok forward the PUBLIC Host). It is fenced by its own per-trigger secret and returns no token.
   const triggerHook = req.method === 'POST' ? TRIGGER_HOOK_RX.exec(String(req.url || '')) : null;
-  if (!triggerHook && !isAllowedHost(req.headers.host)) { res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
+  if (!triggerHook && !isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
   // Once an uncaught exception has made this process's in-memory state unprovable, the server becomes a recovery
   // shell. Static GET/HEAD keeps the already-installed UI reloadable; health + authenticated diagnostics explain
   // the fault. Every other API, external-harness, artifact and mutation surface fails closed with 503. This gate
@@ -23346,10 +23368,40 @@ function handleProviders(req, res) {
 // POST /api/providers/probe — a no-generation provider round-trip for truthful Settings telemetry. The supplied
 // browser BYOK key is consumed in memory only and never echoed/persisted; desktop callers send no key because the
 // sidecar already owns the keychain-backed runtime credential. A 200 response always carries the probe facts.
+/* #62: a key paste that picked up a line wrap (a long key copied out of a narrow SSH terminal / tmux pane), a stray
+   space, or an invisible zero-width character used to reach the provider verbatim — `.trim()` only cleans the ends —
+   and read as a rejected key. No provider key contains whitespace, so every whitespace and zero-width char goes. */
+function cleanProviderKey(v) { return String(v == null ? '' : v).replace(/[\s\u200b-\u200d\u2060\ufeff]+/g, ''); }
+/* #62: why a key check failed, said server-side too (the result used to reach only the browser). One line, never the
+   key: the candidate is scrubbed out of the text before redact() (the always-on secret scrubber) sees it. Rate-limited
+   per (route, provider, reason) so the Settings probe's repaints cannot flood the log or the diag ring. */
+const keyCheckNoted = new Map();
+function noteKeyCheckFailure(route, id, result, candidate) {
+  try {
+    let why = String((result && result.error) || 'not verified');
+    const status = result && result.status && why.indexOf('HTTP ' + result.status) < 0 ? ' (HTTP ' + result.status + ')' : '';
+    const k = String(candidate || '');
+    if (k.length >= 6) why = why.split(k).join('[key]');
+    const line = '[providers] ' + route + ' ' + String(id || 'unknown') + ': ' + redact(why).slice(0, 240) + status;
+    const now = Date.now(), last = keyCheckNoted.get(line) || 0;
+    if (now - last < 10 * 60 * 1000) return;
+    keyCheckNoted.set(line, now);
+    if (keyCheckNoted.size > 64) keyCheckNoted.delete(keyCheckNoted.keys().next().value);
+    console.warn(line);
+    recordDiagError(line);
+  } catch (_) {}
+}
 async function handleProviderProbe(req, res) {
-  const json = (obj) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let id = '', probeKey = '';
+  const json = (obj) => {
+    // a SAVED credential that fails its check is worth one key-free line server-side (#62); a provider with nothing saved is not
+    if (obj && obj.credentialVerified === false && probeKey) noteKeyCheckFailure('probe', id, obj, probeKey);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ reachable: false, catalogAvailable: false, credentialVerified: false, error: 'bad json' }); }
-  const id = normalizeProvider(body.provider);
+  id = normalizeProvider(body.provider);
+  body.key = cleanProviderKey(body.key);
+  probeKey = providerRequiresKey(id) ? providerRuntimeKey(id, body.key) : '';
   const profile = getProviderProfile(id);
   if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
   try {
@@ -23395,12 +23447,16 @@ async function handleProviderProbe(req, res) {
 // sends the proposed value here in memory, and commits it only after this route proves provider authentication.
 // The candidate is never logged, echoed, placed on the bus, or written to disk.
 async function handleProviderValidate(req, res) {
-  const json = (obj) => { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let id = '', candidate = '';
+  const json = (obj) => {
+    if (obj && obj.credentialVerified === false) noteKeyCheckFailure('validate', id, obj, candidate);   // #62: key-free server-side line
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
-  const id = normalizeProvider(body.provider);
+  id = normalizeProvider(body.provider);
   const profile = getProviderProfile(id);
   if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
-  const candidate = String(body.key || '').trim();
+  candidate = cleanProviderKey(body.key);
   const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '');
   if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
   if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
@@ -23412,7 +23468,7 @@ async function handleProviderValidate(req, res) {
     if (profile.credentialProbePath) {
       const u = String(baseUrl || profile.baseUrl || '').replace(/\/$/, '') + profile.credentialProbePath;
       const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
-      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key' : 'credential probe HTTP ' + r.status });
+      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
     const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
@@ -23433,7 +23489,9 @@ async function handleProviderValidate(req, res) {
     return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
   } catch (e) {
     const timedOut = ctrl.signal.aborted;
-    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out' : ((e && e.message) || 'credential validation failed') });
+    // name the network cause (ENOTFOUND / ECONNREFUSED / a TLS failure) — undici's bare "fetch failed" explains nothing (#62)
+    const cause = e && e.cause && (e.cause.code || e.cause.message) ? ' (' + String(e.cause.code || e.cause.message).slice(0, 120) + ')' : '';
+    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out after 15s' : (((e && e.message) || 'credential validation failed') + cause) });
   } finally { clearTimeout(timer); }
 }
 
