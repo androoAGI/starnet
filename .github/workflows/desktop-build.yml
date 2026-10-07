@@ -346,7 +346,7 @@ jobs:
           Test build — not a public release. Pick your platform:
 
           ## macOS
-          1. Download **`arm64`** for Apple Silicon (M1/M2/M3/M4) or **`x64`** for an Intel Mac.
+          1. Download **`arm64`** for Apple Silicon (M1 or later) or **`x64`** for an Intel Mac.
           2. Open it and drag **StarNet** onto the **Applications** folder.
           3. Launch it from Applications. The Developer ID signature and stapled Apple notarization ticket should open without the old unidentified/developer-risk wall.
 

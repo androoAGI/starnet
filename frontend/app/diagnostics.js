@@ -62,6 +62,28 @@
     } catch (_) { return false; }
   }
 
+  /* GESTURE-SAFE copy of text that is still being fetched. WebKit (macOS WKWebView, Linux WebKitGTK) only lets a
+     page write the clipboard during the click's transient user activation, and an awaited /api/diagnostics fetch
+     uses that up — so a fetch-then-writeText copy fails there EVERY time (WebView2 on Windows tolerates it). The
+     fix is to REGISTER the write synchronously inside the click with a ClipboardItem whose content is a promise;
+     the clipboard fills when the report arrives. MUST be called in the same tick as the click (no await before
+     it). If ClipboardItem is missing or the write is refused, falls back to the plain copy once the text is in.
+     An empty report rejects the item (never a hanging write) and resolves false. Never throws. */
+  function copyDeferred(textP) {
+    const text = Promise.resolve(textP).then(t => (typeof t === 'string' ? t : ''), () => '');
+    let wrote = null;
+    try {
+      if (typeof ClipboardItem === 'function' && typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.write === 'function') {
+        const blob = text.then(t => { if (!t) throw new Error('empty diagnostics'); return new Blob([t], { type: 'text/plain' }); });
+        blob.catch(() => {});   // the rejection is consumed by write(); this only keeps it from surfacing as unhandled
+        wrote = Promise.resolve(navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])).then(() => true, () => false);
+      }
+    } catch (_) { wrote = null; }
+    const plain = () => text.then(t => (t ? copyToClipboard(t) : false)).then(ok => !!ok, () => false);
+    if (!wrote) return plain();
+    return wrote.then(ok => ok ? true : plain());
+  }
+
   // GET the paste-ready block from the sidecar. window.fetch is token-hardened for /api/ (harness.js), so a bare
   // fetch carries the API token automatically. Returns the plain-text string, or '' on any failure.
   function fetchText() {
@@ -250,27 +272,30 @@
 
   /* Fetch → copy → tell the user. opts.notify (default true) shows a toast; opts.onDone(ok, text) fires after.
      opts.context ({ error, kind, engineAlive }) enriches the page-side fallback when the sidecar can't be read.
-     Always resolves (never throws) with the boolean success so a caller can flip button state. */
+     Always resolves (never throws) with the boolean success so a caller can flip button state. On a failed copy
+     onDone still receives the full text, so the caller can render it with showBlock(host, { text }).
+     Call it straight from the click handler: the clipboard write is registered in that same tick (copyDeferred). */
   function copy(opts) {
     opts = opts || {};
     const wantNotify = opts.notify !== false;
     // Prefer the sidecar's full report; fall back to the page-side one rather than stranding the user.
-    return fetchText()
+    const textP = fetchText()
       .then(text => text ? text : localReport(opts.context))
       .then(text => text ? withPageErrors(text) : text)
       .then(withSessionContinuity)
       .then(withPageScreen)
-      .then(text => {
+      .catch(() => '');
+    const okP = copyDeferred(textP);   // synchronous with the click — never move this behind an await
+    return Promise.all([textP, okP]).then(([text, ok]) => {
       if (!text) { if (wantNotify) notify('could not read diagnostics — is the app still running?', 'warn'); if (opts.onDone) opts.onDone(false, ''); return false; }
-      return copyToClipboard(text).then(ok => {
-        // Honest copy: name the support address only when one is actually configured; otherwise just confirm the
-        // copy (no placeholder, no fake address). A user is never told to email an address that can't receive.
-        const dest = supportEmail();
-        const okMsg = dest ? ('diagnostics copied — paste it into an email to ' + dest) : 'diagnostics copied — paste it into a bug report';
-        if (wantNotify) notify(ok ? okMsg : 'copy failed — the report is shown below, select it and copy manually', ok ? 'good' : 'warn');
-        if (opts.onDone) opts.onDone(!!ok, text);
-        return !!ok;
-      });
+      // Honest copy: name the support address only when one is actually configured; otherwise just confirm the
+      // copy (no placeholder, no fake address). A user is never told to email an address that can't receive.
+      const dest = supportEmail();
+      const okMsg = dest ? ('diagnostics copied — paste it into an email to ' + dest) : 'diagnostics copied — paste it into a bug report';
+      // copy() renders nothing itself, so the failure toast must not claim the report is on screen.
+      if (wantNotify) notify(ok ? okMsg : 'copy blocked — the clipboard refused the diagnostics report', ok ? 'good' : 'warn');
+      if (opts.onDone) opts.onDone(!!ok, text);
+      return !!ok;
     });
   }
 
@@ -329,5 +354,5 @@
     return fetchText().then(paint).catch(() => paint(''));
   }
 
-  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, _internals: { copyToClipboard, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
+  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
 });

@@ -22,6 +22,7 @@ test/diagnostics.test.js
 test/diagnostics-support-email.test.js
 test/diagnostics-build.test.js
 test/diagnostics-dead-engine.test.js
+test/diagnostics-copy-gesture.test.js
 test/bootguard.test.js
 test/mac-boot-compat.test.js
 test/live-doctor.test.js
