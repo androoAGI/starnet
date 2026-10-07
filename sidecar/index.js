@@ -13693,6 +13693,14 @@ async function handleConnectorUpsert(req, res) {
   const prev = connectorConfigs.find(c => c.id === id) || {};
   const transport = String(body.transport || prev.transport || (body.command ? 'stdio' : 'http')).toLowerCase();
   if (transport !== 'http' && transport !== 'stdio') return json(400, { error: 'connector transport must be "http" or "stdio"' });
+  /* EDIT ROUND-TRIP. The panel's EDIT form is filled from connectors.status(), which masks secrets: a secret query
+     param becomes <redacted>, header values become <set>/<redacted> (or a blank line), secret args are masked and URL
+     args normalized. Saving that form unchanged sent the MASKS back and they were stored literally — the URL lost
+     its ?api_key=, headers became the text "<set>", env was dropped — so a label or timeout edit broke a working
+     connector. A field that comes back EXACTLY as it was displayed means "unchanged": keep the saved value. Headers
+     and args restore only when the endpoint below is still the same service, so an old secret never follows a new URL. */
+  const shownPrev = prev.id ? (connectors.status(id) || {}) : {};
+  if (transport === 'http' && prev.url && typeof body.url === 'string' && shownPrev.url && body.url.trim() === shownPrev.url) body.url = prev.url;
   const oauth = transport === 'http' && ('oauth' in body ? body.oauth === true : prev.oauth === true);
   const url = String(body.url || (transport === 'http' ? (prev.url || '') : '')).trim();
   const command = String(body.command || (transport === 'stdio' ? (prev.command || '') : '')).trim();
@@ -13732,6 +13740,19 @@ async function handleConnectorUpsert(req, res) {
     if (oauth && (parsedHttpUrl.protocol !== 'https:' || parsedHttpUrl.username || parsedHttpUrl.password)) {
       return json(400, { ok: false, saved: false, connected: false, code: 'OAUTH_HTTPS_REQUIRED', error: 'custom OAuth connectors require an https:// server URL without embedded credentials' });
     }
+  }
+  if (sameService && Array.isArray(body.args) && Array.isArray(prev.args) && Array.isArray(shownPrev.args) && body.args.length === prev.args.length) {
+    body.args = body.args.map((a, i) => (String(a) === String(shownPrev.args[i]) ? prev.args[i] : a));
+  }
+  if (sameService && body.headers && typeof body.headers === 'object' && !Array.isArray(body.headers) && prev.headers && typeof prev.headers === 'object') {
+    const shownH = (shownPrev.headers && typeof shownPrev.headers === 'object') ? shownPrev.headers : {};
+    const prevKey = k => Object.keys(prev.headers).find(p => p.toLowerCase() === String(k).toLowerCase());
+    const restored = {};
+    for (const k of Object.keys(body.headers)) {
+      const v = String(body.headers[k] == null ? '' : body.headers[k]), pk = prevKey(k);
+      restored[k] = (pk && (v === '' || v === '<redacted>' || v === shownH[pk])) ? prev.headers[pk] : body.headers[k];
+    }
+    body.headers = restored;
   }
   let args = sameService && Array.isArray(prev.args) ? prev.args.slice() : [];
   if ('args' in body) {
@@ -13950,7 +13971,12 @@ async function handleConnectorOauthStart(req, res) {
     let clientId = cachedClient.clientId || '';
     let clientSecret = cachedClient.clientSecret || '';
     let tokenEndpointAuthMethod = cachedClient.tokenEndpointAuthMethod || requiredAuthMethod;
-    if (!clientId || tokenEndpointAuthMethod !== requiredAuthMethod || (requiredAuthMethod !== 'none' && !clientSecret)) {
+    // A DCR client is registered FOR one redirect URI. The desktop shell picks a fresh sidecar port every launch,
+    // so a client cached last session names a different http://127.0.0.1:<port>/ callback; servers that match
+    // redirect URIs exactly then refuse the authorize request on their own page and the sign-in times out.
+    // A client cached before redirectUri was recorded is re-registered once (a fresh DCR client is harmless).
+    const redirectMoved = !!clientId && cachedClient.redirectUri !== CONNECTOR_OAUTH_REDIRECT;
+    if (!clientId || redirectMoved || tokenEndpointAuthMethod !== requiredAuthMethod || (requiredAuthMethod !== 'none' && !clientSecret)) {
       if (!disc.registrationEndpoint) return json(502, { error: 'this server needs a pre-registered OAuth client (no dynamic registration)' });
       const reg = await mcpOauth.registerClient({ fetchImpl: connectorOauthFetch, registrationEndpoint: disc.registrationEndpoint,
         redirectUri: CONNECTOR_OAUTH_REDIRECT, clientName: 'StarNet', tokenEndpointAuthMethod: requiredAuthMethod,
@@ -13962,7 +13988,7 @@ async function handleConnectorOauthStart(req, res) {
       // the clientId is still valid in-memory for this flow, and a failed cache only costs a re-registration next
       // time (harmless — a fresh DCR client), unlike a lost token which forces a full re-sign-in.
       const nextClientState = connectorStateMod.withOauthClient(connectorStateMod.envelope(connectorConfigs, connectorOauth), disc.authorizationServer,
-        { clientId: clientId, clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod, at: Date.now() });
+        { clientId: clientId, clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod, redirectUri: CONNECTOR_OAUTH_REDIRECT, at: Date.now() });
       if (persistConnectorState(nextClientState.configs, nextClientState.oauth)) adoptConnectorState(nextClientState);
       else console.warn('[connectors] DCR clientId cache not persisted for ' + disc.authorizationServer + ' — a later sign-in will re-register a fresh client.');
     }
@@ -18839,7 +18865,9 @@ async function runOnceCore(o) {
   makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg }).register(registry);
   makeTerminalTools({
     manager: terminalSessions, environment: executionEnvironment, fs: fs, pathMod: path, root: WORKSPACES,
-    platform: process.platform, envFor: () => sanitizeChildEnv(process.env)
+    // sanitizeChildEnv strips every *_API_KEY, so the KEYS-tab vars are merged back exactly as shell.exec gets them
+    // (servicekeys.runEnv: same surface rule — an unattended run only receives keys granted for unattended use).
+    platform: process.platform, envFor: (surface) => Object.assign(sanitizeChildEnv(process.env), executionEnvironmentDeps.serviceEnv(surface))
   }).register(registry);
   // verify.run (same workbench gate as shell): run the project check + emit verify.result. Also workbench-only.
   makeVerifyTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() } }).register(registry);
@@ -20642,7 +20670,7 @@ async function runOnceCore(o) {
     const canShell = kt.indexOf('shell.exec') >= 0;
     const canRequest = kt.indexOf('web_request') >= 0;
     if (canShell || canRequest) {
-      const b = serviceKeysMod.promptBlock(serviceKeys, { shell: canShell, request: canRequest });
+      const b = serviceKeysMod.promptBlock(serviceKeys, { shell: canShell, request: canRequest, platform: process.platform });
       if (b) serviceKeysBlock = '\n\n' + b;
     }
   } catch (_) { serviceKeysBlock = ''; }

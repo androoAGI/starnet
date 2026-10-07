@@ -19,6 +19,28 @@
   'use strict';
 
   const JSONRPC = '2.0';
+  const LOCAL_ERROR = Symbol.for('starnet.mcp.localTransportError');   // read by client.js safeRpcError
+
+  // Node's fetch rejects with a bare "fetch failed"; the reason (DNS miss, refused, TLS) lives on e.cause.
+  // Only the error CODE and our own wording are kept — never response text — so this stays transport-authored.
+  function requestFailure(e) {
+    if (e && e.name === 'AbortError') return 'timed out or was cancelled';
+    const code = String((e && e.cause && e.cause.code) || (e && e.code) || '');
+    const why = {
+      ENOTFOUND: 'the server name did not resolve (check the URL, or your internet connection)',
+      EAI_AGAIN: 'DNS lookup failed (check your internet connection)',
+      ECONNREFUSED: 'the server refused the connection (is it running at that address?)',
+      ECONNRESET: 'the connection was reset by the server',
+      ETIMEDOUT: 'the connection timed out',
+      UND_ERR_CONNECT_TIMEOUT: 'the connection timed out',
+      CERT_HAS_EXPIRED: 'the server TLS certificate has expired',
+      DEPTH_ZERO_SELF_SIGNED_CERT: 'the server uses a self-signed TLS certificate',
+      UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'the server TLS certificate could not be verified'
+    }[code];
+    if (why) return why + ' [' + code + ']';
+    const msg = String((e && e.message) || e || 'unknown error');
+    return /^[A-Z][A-Z0-9_]{2,40}$/.test(code) ? msg + ' [' + code + ']' : msg;
+  }
 
   /* `/^127\./` was UNANCHORED, so it matched the public hostname `127.0.0.1.evil.com` — and this predicate is
      the module's ONE guard ("refuse http:// for a non-local host, so a bearer token is never sent in
@@ -99,7 +121,9 @@
     function deliver(msg) { if (onMsg) { try { onMsg(msg); } catch (e) { onError(e); } } }
     // a transport-level failure on a REQUEST is turned into a JSON-RPC error response so the client's pending
     // promise rejects promptly (instead of hanging until its timeout); for a notification there is no id to fail.
-    function failTo(id, message) { if (id != null) deliver({ jsonrpc: JSONRPC, id, error: { code: -32000, message: message } }); else onError(new Error(message)); }
+    // LOCAL_ERROR marks text WE wrote (a symbol: no JSON body a server sends can carry it), so the client may show
+    // it instead of masking it like remote-authored error prose — "DNS lookup failed" beats "JSON-RPC error (-32000)".
+    function failTo(id, message) { if (id != null) deliver({ jsonrpc: JSONRPC, id, error: { code: -32000, message: message, [LOCAL_ERROR]: true } }); else onError(new Error(message)); }
 
     async function send(message) {
       const id = message && message.id;
@@ -109,7 +133,7 @@
       }
       let res;
       try { res = await withTimeout(signal => doFetch(u.href, { method: 'POST', headers: headers(), body: JSON.stringify(message), signal, redirect: 'manual' })); }
-      catch (e) { return failTo(id, 'connector request failed: ' + ((e && e.message) || e)); }
+      catch (e) { return failTo(id, 'connector request failed: ' + requestFailure(e)); }
 
       const status = res.status;
       if (status >= 300 && status < 400) return failTo(id, 'connector HTTP redirect refused — update the configured endpoint directly');
