@@ -476,6 +476,31 @@
     return out;
   }
 
+  /* CHAT WIRE KEYS (2026-10-07, user report: Mistral 422 "extra_forbidden" on messages[1].user.streamId).
+     The transcript a run replays is COMMS's own rows — they carry StarNet bookkeeping (ts, streamId, agentId,
+     sourceRunId, error, stopped, attachments, the loop's `reasoning` parking field). Lenient endpoints (OpenAI)
+     ignore unknown message keys; strict ones (Mistral's pydantic schema) reject the WHOLE request, so every run
+     failed — even the first message of a new chat. Project each message onto the Chat Completions message keys
+     right before it leaves. Content (string or parts) and tool_calls ride verbatim; a message that already
+     carries only wire keys keeps its identity, and a clean transcript returns by IDENTITY (bytes unchanged). */
+  const CHAT_WIRE_KEYS = new Set(['role', 'content', 'name', 'tool_calls', 'tool_call_id', 'reasoning_content',
+    'prefix', 'partial', 'refusal', 'function_call', 'audio']);
+  function chatWireMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+    let changed = false;
+    const out = messages.map(m => {
+      if (!m || typeof m !== 'object' || Array.isArray(m)) return m;
+      let extra = false;
+      for (const k in m) if (Object.prototype.hasOwnProperty.call(m, k) && !CHAT_WIRE_KEYS.has(k)) { extra = true; break; }
+      if (!extra) return m;
+      const copy = {};
+      for (const k in m) if (Object.prototype.hasOwnProperty.call(m, k) && CHAT_WIRE_KEYS.has(k) && m[k] !== undefined) copy[k] = m[k];
+      changed = true;
+      return copy;
+    });
+    return changed ? out : messages;
+  }
+
   // Claude has one leading system block. Keep later host reminders in the
   // conversation, as the native Anthropic adapter does, so gateways cannot hoist
   // them and turn the preceding assistant answer into unsupported prefill.
@@ -490,5 +515,5 @@
   }
 
   return { EVENT_TYPES, FINISH, normalizeFinish, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
-    prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID };
+    prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS };
 });

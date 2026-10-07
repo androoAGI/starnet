@@ -255,5 +255,31 @@ const text = v => JSON.stringify(v);
     A.ok(provider.prepareWireMessages(undefined, 'chat') === undefined, 'a missing transcript passes through as it came');
   }
 
+  // ---- 6. StarNet bookkeeping keys never reach a Chat Completions body (user report 2026-10-05: Mistral 422
+  //      extra_forbidden on messages[1].user.streamId / agentId / ts — every run, even a new chat's first message) ----
+  {
+    const comms = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'hello', ts: 1, streamId: 'ws-1', agentId: 'agent', attachments: [] },
+      { role: 'assistant', content: '', ts: 2, sourceRunId: 'r1', reasoning: [{ type: 'reasoning_content', text: 'x' }], tool_calls: [call('call_1', 'web', { q: 1 })] },
+      { role: 'tool', tool_call_id: 'call_1', content: 'one', ts: 3 },
+      { role: 'assistant', content: '⚠ failed', error: true, stopped: true, agentId: 'a2', ts: 4 },
+      { role: 'user', content: [{ type: 'text', text: 'see' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } }], ts: 5, streamId: 'ws-1' }
+    ];
+    const snapshot = text(comms);
+    const body = await chatBody(comms);
+    const allowed = provider.CHAT_WIRE_KEYS;
+    const leaked = [];
+    body.messages.forEach((m, i) => { for (const k of Object.keys(m)) if (!allowed.has(k)) leaked.push(i + '.' + k); });
+    A.eq(leaked, [], 'no non-wire key rides a Chat Completions message');
+    A.eq(body.messages.map(m => m.role), ['system', 'user', 'assistant', 'tool', 'assistant', 'user'], 'every turn still rides, in order');
+    A.eq(body.messages[2].tool_calls, comms[2].tool_calls, 'tool_calls ride verbatim');
+    A.eq(body.messages[3].tool_call_id, 'call_1', 'a tool result keeps its call id');
+    A.eq(body.messages[5].content, comms[5].content, 'content parts ride verbatim');
+    A.eq(text(comms), snapshot, "the caller's transcript is not mutated");
+    const clean = [{ role: 'user', content: 'u' }];
+    A.ok(provider.chatWireMessages(clean) === clean, 'a clean transcript returns by identity');
+  }
+
   A.report('provider.wire-sanitize.test');
 })().catch(e => { console.log('FAIL: provider.wire-sanitize.test threw -- ' + (e && e.stack || e)); process.exit(1); });

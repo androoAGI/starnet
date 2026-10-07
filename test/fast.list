@@ -279,6 +279,7 @@ test/skill-frontmatter.test.js
 test/skill-export.test.js
 test/skill-market.test.js
 test/skill-market-catalog.test.js
+test/skill-uploads-pull.test.js
 test/skill-market-signing.test.js
 test/skill-market-tools.test.js
 test/skill-guard-remote-install.test.js

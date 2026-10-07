@@ -77,6 +77,16 @@ many of these — they win on any wording conflict.
   minimum official serial (market-floor.json, pinned after each catalog deploy), and bundled
   originals carry their own `version:` so the newer of built-in and market copy is the one used.
   Every skill also downloads from starnetos.com/market.html as a standard Agent Skills .zip.
+  **Uploads (2026-10-06, Andrew: "time we allowed uploaded skills"; the plan's recommended options,
+  taken as defaults, his to change):** anyone with a (free) StarNet account submits a SKILL.md + up to
+  five text references on account.starnetos.com › ACCOUNT › SKILLS, reached from SHARE YOUR SKILL on
+  market.html; the author picks MIT or CC BY 4.0 and a plain-text credit; a name belongs to whoever
+  first submitted it. Every upload waits for a PERSON in /admin/skills (approve, or send back with a
+  note the author sees). Approving publishes nothing: `scripts/pull-skill-submissions.mjs` pulls
+  approved packages onto the publisher's PC with its own token (SKILL_REVIEW_TOKEN, never the
+  credit-minting ADMIN_TOKEN), the normal catalog build scans and signs them there, and they go live
+  with the next website deploy. Uploads sit on the community shelf, marked `uploaded`, so older apps
+  read them like any community skill. Runbook: docs/SKILL_MARKET_UPLOADS.md.
 - **Connectors OUT > channels IN** (two-axis framing, 2026-07-06). Google Workspace is a
   connector, not a messaging channel. Curated one-click MCP catalog is the chosen path for
   "more connectors"; paste-a-key tier is bearer-only-honest; OAuth 2.1 generic client is live.

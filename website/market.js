@@ -12,7 +12,7 @@
   var GEAR = { cabinet: 'INTEL CAB', dish: 'DISH', workbench: 'WORKBENCH', notebook: 'NOTEBOOK', studio: 'STUDIO', orchestrator: 'ORCHESTRATOR', computer: 'COMPUTER' };
   var SHELVES = [
     { id: 'originals', title: 'STARNET ORIGINALS', note: 'Written and tested by StarNet for your station\'s gear and tools.' },
-    { id: 'community', title: 'COMMUNITY PICKS', note: 'Open-source skills by other authors, adapted for StarNet and credited.' }
+    { id: 'community', title: 'COMMUNITY', note: 'Skills by other authors, each credited: open-source picks adapted for StarNet, and skills StarNet users shared, read by a person before they were published.' }
   ];
   var shelf = 'all';
   var list = document.getElementById('mk-list');
@@ -48,6 +48,7 @@
     if (s.shelf === 'originals') meta.appendChild(el('b', null, 'StarNet Original'));
     else { meta.appendChild(document.createTextNode('by ')); meta.appendChild(el('b', null, s.author || 'credited authors')); }
     meta.appendChild(document.createTextNode(' · ' + (s.license || 'license in package') + ' · v' + str(s.version)));
+    if (s.uploaded === true) meta.appendChild(document.createTextNode(' · shared by a StarNet user'));
     var up = s.upstream && safeHttps(str(s.upstream.url));
     if (up) {
       meta.appendChild(document.createTextNode(' · '));
@@ -135,8 +136,10 @@
       list.appendChild(grp);
     });
     var originals = skills.filter(function (s) { return s.shelf === 'originals'; }).length;
-    if (count) count.textContent = skills.length + ' skills: ' + originals + ' StarNet Originals, written for your station\'s gear, and ' +
-      (skills.length - originals) + ' credited picks from the open-source community.';
+    var shared = skills.filter(function (s) { return s.shelf !== 'originals' && s.uploaded === true; }).length;
+    var picks = skills.length - originals - shared;
+    if (count) count.textContent = skills.length + ' skills: ' + originals + ' StarNet Originals, written for your station\'s gear, ' +
+      (shared ? picks + ' credited picks from the open-source community, and ' + shared + ' shared by StarNet users.' : 'and ' + picks + ' credited picks from the open-source community.');
     status.textContent = '';
     status.hidden = true;
     apply();
