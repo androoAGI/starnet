@@ -6700,19 +6700,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     btn.addEventListener('click', () => {
       if (typeof Diag === 'undefined' || !Diag.copy) { setMsg('diagnostics unavailable', false); return; }
       btn.disabled = true; sfx('click');
-      Diag.copy({ notify: false }).then(ok => {
+      Diag.copy({ notify: false, onDone: (ok, text) => {
         btn.disabled = false;
         // Name the support address only when one is really configured (Diag.supportEmail() gates out the unset/
         // placeholder case); otherwise just confirm the copy — never point a user at a fake/placeholder address.
         const diagDest = (typeof Diag !== 'undefined' && Diag.supportEmail) ? Diag.supportEmail() : '';
-        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : 'copy failed — try again', ok);
-        // Clipboard-failure fallback: if Lane A's on-screen renderer is present, show the report block so the user can
-        // select-and-copy it by hand. Defensive: the helper may not exist in this build yet — keep current behavior then.
-        // (Orchestrator reconciles the exact API at merge.)
+        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : (text ? 'copy blocked — report shown below' : 'could not read diagnostics — try again'), ok);
+        // Clipboard-failure fallback: show the report the failed copy already read (onDone's text — no second fetch)
+        // as a selectable block, so the user can select-and-copy it by hand.
         if (!ok && typeof Diag !== 'undefined' && typeof Diag.showBlock === 'function') {
-          try { Diag.showBlock(body.querySelector('#diag-block') || body); } catch (_) {}
+          try { Diag.showBlock(body.querySelector('#diag-block') || body, { text }); } catch (_) {}
         }
-      });
+      } });
     });
 
     // LIVE DOCTOR: explicit second consent, then one bounded host request. Results stay visible and copyable;
