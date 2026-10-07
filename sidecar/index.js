@@ -11655,7 +11655,20 @@ function gracefulShutdown(signal) {
   let browserClosing = Promise.resolve();
   try { browserClosing = Promise.resolve(browserViews.closeAll()).catch(e => failNote('shutdown.station-browser', e)); }
   catch (e) { failNote('shutdown.station-browser', e); }
-  const afterBrowser = fn => Promise.race([browserClosing, new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
+  // The runs aborted above still have to BOOK what they spent: their finalizer's ledger.record clears the dispatch
+  // receipt. Exiting first stranded that receipt, so a plain Quit with a run in flight left spend history unknown and
+  // every chosen limit refusing after the next start. Wait for them inside the same bound; a finalizer that cannot
+  // finish in time leaves its receipt honestly unsettled for SETTINGS › SPENDING LIMITS.
+  const runsBooked = new Promise(r => {
+    const poll = () => {
+      let open = 0;
+      try { open = ledger.pendingRuns(); } catch (e) { failNote('shutdown.spend-settle', e); }
+      if (!open) return r();
+      const t = setTimeout(poll, 25); if (t.unref) t.unref();
+    };
+    poll();
+  });
+  const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
   try {
     if (typeof server !== 'undefined' && server && server.close) {
       server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(0); }));   // stop accepting; exit once connections drain + the browser closed

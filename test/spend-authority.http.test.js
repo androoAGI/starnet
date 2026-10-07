@@ -88,5 +88,16 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     await f.restart({SKYNET_BUDGET_PER_DAY:'10'});assert.ok(Math.abs((await status()).body.spentToday-2.65)<1e-9,'and that survives restart');
     console.log('spend HTTP: unreadable history, zero paid dispatch, failed append, restart settlement, exact-once replay uncertain receipt and real hard-crash recovery PASS');
     console.log('spend HTTP: interrupted run listed, refused bad settles, Commander settle + limit settle, idempotent across restart PASS');
+    // ---- a graceful Quit waits for the aborted run to book its spend (SPEND-9): no receipt is stranded ----
+    hold=true;const quitRun=run().catch(()=>null);
+    for(let i=0;i<100&&calls<5;i++)await new Promise(r=>setTimeout(r,50));
+    assert.equal(calls,5,'provider accepted the request before Quit');
+    const exited=new Promise(r=>f.child.once('exit',r));
+    assert.equal((await f.json('POST','/api/lifecycle/quit')).status,202);
+    await exited;await f.stop();await quitRun;server.closeAllConnections();hold=false;
+    assert.equal(fs.existsSync(dir)?fs.readdirSync(dir).length:0,0,'a graceful Quit leaves no unsettled receipt');
+    await f.start({SKYNET_BUDGET_PER_DAY:'10'});st=(await status()).body;
+    assert.equal(st.unsettled.length,0);assert.ok(Math.abs(st.spentToday-2.65)<1e-9,'history stays known after a graceful Quit');
+    console.log('spend HTTP: a graceful Quit books the aborted run before exit PASS');
   } finally {await f.dispose();server.closeAllConnections();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
