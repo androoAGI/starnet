@@ -141,6 +141,12 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   A.ok(/summary: 'untrusted-content-lockout'/.test(src), 'the refusal is telemetered distinctly');
   A.ok(/outside content \(via ' \+ taintSource \+ '\)/.test(src),
     'the refusal names the actual source so the agent can report it honestly');
+  // an INHERITED / start-time lock never claims the run read anything, and names the structural way out
+  A.ok(/taintAtStart = execution\.taintedBy\(\);/.test(src) && /const taintHandedIn = execution\.taintedBy\(\);/.test(src), 'the run records the taint it was handed and the taint it started with');
+  A.ok(/const fromLead = !!o\.delegatedBy && /.test(src) && /handed over by ' \+ o\.delegatedBy/.test(src), 'a delegated worker\'s refusal names the lead whose chat carried the content');
+  A.ok(/started with outside content already in its context \(via ' \+ taintSource/.test(src), 'any other start-time lock says the run STARTED with it');
+  A.ok(/a new session whose history has no attachments or outside pages/.test(src), 'the refusal names the structural remedy (a session whose history never held the content)');
+  A.ok(!/clear (the )?taint|turn on Full Access/i.test(src.slice(src.indexOf("summary: 'untrusted-content-lockout'"), src.indexOf("summary: 'untrusted-content-lockout'") + 2000)), 'the refusal never suggests a taint-clearing control or Full Access as the way out');
   // consent must agree with the gate or a tool could be consented-then-refused
   A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\)/.test(src), 'the terminal standing grant never survives taint');
   A.ok(/connectorGrant: \(call, tool\) => !execution\.taintedBy\(\)/.test(src), 'the connector standing grant never survives taint');

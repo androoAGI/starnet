@@ -18362,6 +18362,10 @@ async function runOnceCore(o) {
     }
     return after;
   };
+  // The taint this run was HANDED (caller's initialTaint: a delegated worker inherits its lead's latch) and the one
+  // it STARTED with (set once the replay proof below has run): a refusal under either must not claim this run read anything.
+  const taintHandedIn = execution.taintedBy();
+  let taintAtStart = null;
   // One sequence across provider and tool recovery. Adapter-local counters restart at one, but the durable run
   // record must preserve the actual cross-stage order in which recovery actions happened.
   const recordRunRecoveryAttempt = (attempt) => {
@@ -20065,13 +20069,27 @@ async function runOnceCore(o) {
     }
     const postTaintConfirmed = postTaint.oneShot;
     if (!postTaint.allow) {
+      // WHERE the lock came from, truthfully: this run's own read, or context it STARTED with (a lead's latch handed
+      // to a worker, an attachment, replayed history, scheduled context). Same lock either way — only the words differ,
+      // and the remedy is the structural one (taint-replay.js DECAY): a session whose history never held the content.
+      const ownTaint = execution.taintedBy();
+      const startedLocked = ownTaint ? (!!taintAtStart && ownTaint === taintAtStart) : !!inheritedTaint;
+      const fromLead = !!o.delegatedBy && (ownTaint ? (!!taintHandedIn && ownTaint === taintHandedIn) : !!inheritedTaint);
+      const taintCause = fromLead
+        ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
+          + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+          + 'telling this agent not to read that content does not lift it.'
+        : startedLocked
+          ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
+          : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. This run has already read '
-          + 'outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it. '
+        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. ' + taintCause + ' '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
-          + 'run needs a fresh confirmation for this exact call after the outside content was read. Retrying without '
-          + 'that confirmation will not help: finish what you can and report the withheld step plainly.'
+          + 'run needs a fresh confirmation for this exact call. For the Commander: a watched chat can ask to approve '
+          + 'this exact call, or a new session whose history has no attachments or outside pages (given the task '
+          + 'directly, or by a lead in that session) starts unlocked. Retrying without that confirmation will not help: '
+          + 'finish what you can and report the withheld step plainly.'
       };
     }
     const internalBriefControl = internalBriefTools.indexOf(c.name) >= 0;
@@ -20765,6 +20783,7 @@ async function runOnceCore(o) {
     const replayed = replayedTaint({ recovery: o.recovery, streamId, msgs });
     if (replayed) execution.latchTaint(replayed);
   } catch (e) { failNote('taint.replay', e); execution.latchTaint('replayed context (taint check failed)'); }   // unprovable = tainted (fail closed)
+  taintAtStart = execution.taintedBy();
   // Cortex (M-mem.3): surface the agent's OWN memory in-prompt — RANK it by relevance to this message
   // (BM25 + recency/trust/pin), inject the top few as a recalled-memory fence before the triggering user
   // message, and emit memory.used per surfaced record (-> useCount/trust + the XP reuse path). The recency
