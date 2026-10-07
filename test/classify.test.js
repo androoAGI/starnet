@@ -44,7 +44,13 @@ const CHATS = [
   'good idea', 'nice one',
   // the pleasantry tail stays chat: every trailing word is itself a pleasantry
   'ok thanks', 'thanks a lot', 'no thanks', 'no worries', 'sure thing', 'no problem', 'thanks for that',
-  'thank you so much', 'yes please', 'hey there friend', 'good morning everyone'
+  'thank you so much', 'yes please', 'hey there friend', 'good morning everyone',
+  // two acks in a row are still an ack — the head words are tail words too (a task here dropped an INTAKE box on
+  // the work-only belt for a closing "ok got it")
+  'ok got it', 'ok sounds good', 'sure, sounds good', 'yep got it', 'ok will do', 'yes exactly', 'yes correct',
+  'cool makes sense', 'ok makes sense thanks', 'ok np', 'ok thx', 'k thx', 'no worries at all', 'thanks, will do',
+  'nice, well done', 'awesome job', 'great work', 'nice work', 'thanks, that worked', 'thanks, appreciate it',
+  'bye for now', 'ok understood'
 ];
 
 for (const t of TASKS) A.ok(isTaskDirective(t) === true, 'TASK: ' + JSON.stringify(t));
