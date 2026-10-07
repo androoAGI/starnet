@@ -943,6 +943,11 @@
     const pageSessions = new Map();    // CDP sessionId -> targetId, for every adopted extra tab
     const tabWaiters = new Set();      // bounded observers waiting for popup adoption to become visible
     let activeSession = null;
+    /* TAB EPOCH: bumps whenever the tab the driver acts on went away underneath the agent (tab 0 promoted or lost in
+       openerLost, the selected tab closed). Refs carry node x/y, and click/type dispatch at those coordinates on
+       whatever tab is current - so a ref minted on the dead tab would land on a page the agent never snapshotted.
+       The session compares the epoch a ref was minted in with this one and refuses across a change. */
+    let tabEpoch = 0;
     function wakeTabWaiters() {
       for (const wake of Array.from(tabWaiters)) {
         try { wake(); } catch (_) {}
@@ -1018,6 +1023,7 @@
        Chrome is never re-pointed at whichever of their other tabs happens to be first: there the loss is reported. */
     function openerLost() {
       inflight.clear();   // the dead tab's requests never finish, and waitForSettle would burn its whole budget on them
+      tabEpoch++;         // every ref minted on the dead tab is now aimed at another page (or none): see tabEpoch
       const next = attachPort === null ? pageSessions.keys().next() : { done: true };
       if (next.done) {
         pageLost = true;
@@ -1451,8 +1457,8 @@
               frameSessions.delete(p.sessionId);
               pageSessions.delete(p.sessionId);
               wakeTabWaiters();
-              // A closed tab must never leave the driver pointed at a dead session.
-              if (activeSession === p.sessionId) activeSession = null;
+              // A closed tab must never leave the driver pointed at a dead session - nor its refs aimed at tab 0.
+              if (activeSession === p.sessionId) { activeSession = null; tabEpoch++; }
               // …and that includes tab 0 itself
               if (openerSession && p.sessionId === openerSession) openerLost();
             });
@@ -2156,7 +2162,7 @@
       const sid = sessions[i];
       const targetId = pageSessions.get(sid);
       pageSessions.delete(sid);
-      if (activeSession === sid) activeSession = null;   // never leave the driver on a dead session   // never leave the driver on a dead session
+      if (activeSession === sid) { activeSession = null; tabEpoch++; }   // never leave the driver on a dead session (nor its refs aimed at tab 0)
       const c = await connect();
       if (targetId) { try { await c.send('Target.closeTarget', { targetId }); } catch (_) {} }
       return 'closed tab ' + i;
@@ -2655,7 +2661,7 @@
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: () => !!deps.profileIsPersistent, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
+    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: () => !!deps.profileIsPersistent, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -2808,14 +2814,38 @@
       if (attachedToUserBrowser || injected || driverHeaded === headed) return driver;
       return relaunch({ headed });
     }
-    function refFor(node) {
+    /* THE TAB A REF WAS MINTED ON. The driver's tabEpoch bumps when the tab it acts on went away underneath us (tab 0
+       closed and another tab promoted, the selected tab closed). Nodes act by their x/y, so a ref from the dead tab would
+       click or type on whatever page took its place - one the agent never snapshotted (a signed-in checkout or SSO popup)
+       - and report a bare "clicked". A tab mark is { driver, epoch }; only the SAME driver's epochs compare (a fresh
+       driver already bumped version and navEpoch). syncTab turns a change the session has not seen yet into a document
+       change (version + navEpoch), so role+text recovery can never re-find the "same" control on the new tab. */
+    let seenTab = { d: null, e: 0 };
+    function tabMark() {
+      const d = driver;
+      return { d, e: (d && typeof d.tabEpoch === 'function') ? d.tabEpoch() : 0 };
+    }
+    function syncTab() {
+      const m = tabMark();
+      if (m.d && m.d === seenTab.d && m.e !== seenTab.e) { version++; navEpoch++; }
+      seenTab = m;
+      return m;
+    }
+    function refFor(node, mark) {
       const ref = 'b' + (++seq);
-      refs.set(ref, { version, navEpoch, node });
+      refs.set(ref, { version, navEpoch, tab: mark || tabMark(), node });
       return ref;
     }
     function requireRef(ref) {
       const r = refs.get(String(ref || ''));
       if (!r) throw new Error('unknown browser ref: ' + ref + ' (take a fresh browser.snapshot)');
+      const now = syncTab();
+      if (r.tab && r.tab.d && r.tab.d === now.d && r.tab.e !== now.e) {
+        const err = new Error('stale browser ref: ' + ref + ' - the tab that snapshot was taken on was closed, so it would '
+          + 'land on a different page. Take a fresh browser.snapshot.');
+        err.code = 'REF_TAB_CLOSED';   // never recovered: there is no "same element" on another tab
+        throw err;
+      }
       if (r.version !== version) throw new Error('stale browser ref: ' + ref + ' (refs expire after each browser.snapshot)');
       return r.node;
     }
@@ -2839,7 +2869,7 @@
       catch (e) {
         // Only a STALE ref is recoverable - an unknown one was never minted here, so there is nothing to
         // re-find, and a genuine failure thrown by act() must propagate untouched.
-        if (!/^stale browser ref/.test(String(e && e.message))) throw e;
+        if (!/^stale browser ref/.test(String(e && e.message)) || (e && e.code === 'REF_TAB_CLOSED')) throw e;
         const known = list.map(r => refs.get(String(r || '')));
         if (known.some(k => !k)) throw e;
         if (known.some(k => k.navEpoch !== navEpoch)) {
@@ -2954,9 +2984,12 @@
       return (d && typeof d.lastResponse === 'function') ? d.lastResponse() : null;
     }
     async function snapshot(limit) {
-      const nodes = await ensureDriver().snapshot(limit);
+      const d = ensureDriver();
+      // the mark is taken BEFORE the read: a tab that goes away mid-snapshot leaves these refs dead, never re-aimed
+      const mark = syncTab();
+      const nodes = await d.snapshot(limit);
       version++;
-      const out = (nodes || []).map(n => Object.assign({}, n, { ref: refFor(n) }));
+      const out = (nodes || []).map(n => Object.assign({}, n, { ref: refFor(n, mark) }));
       return out;
     }
     /* Every ref-taking ACTION runs through recovery. The disclosure is appended to the driver's own answer
@@ -3012,13 +3045,15 @@
       const q = String((query && query.text) || '').trim().toLowerCase();
       const role = String((query && query.role) || '').trim().toLowerCase();
       if (!q && !role) throw new Error('browser.find needs text or role to match on');
-      const nodes = await ensureDriver().snapshot(FIND_SCAN_CAP);
+      const d = ensureDriver();
+      const mark = syncTab();   // taken before the read, as in snapshot
+      const nodes = await d.snapshot(FIND_SCAN_CAP);
       version++;
       const hits = [];
       for (const n of (nodes || [])) {
         if (role && String(n.role || '').toLowerCase() !== role) continue;
         if (q && String(n.text || '').toLowerCase().indexOf(q) < 0) continue;
-        hits.push(Object.assign({}, n, { ref: refFor(n) }));
+        hits.push(Object.assign({}, n, { ref: refFor(n, mark) }));
         if (hits.length >= Math.max(1, Math.min(50, Number(limit || 20)))) break;
       }
       // `scanned` and `capped` describe the VISIBLE scan only. A below-fold or closed-menu control is not in

@@ -972,6 +972,77 @@ function fakeDriver() {
       A.eq(err && err.revealTools, ['browser.detach', 'browser.attach'], 'and reveals the deferred detach/attach it names');
       await R.d.close();
     }
+
+    // (f) REFS NEVER CROSS A CLOSED TAB (review 10-07). Nodes act by x/y on whatever tab is current, so a ref minted on
+    // the dead tab 0 clicked the PROMOTED tab (a signed-in checkout/SSO popup the agent never snapshotted) and reported
+    // "clicked". Through the real session layer: the old ref is refused, no input is dispatched anywhere, and a fresh
+    // snapshot's refs still work.
+    const presses = sent => sent.filter(m => m.method === 'Input.dispatchMouseEvent' && m.params && m.params.type === 'mousePressed');
+    const inputs = sent => sent.filter(m => /^Input\./.test(m.method)).length;
+    const sessionOn = R => T.makeBrowserSession({ makeDriver: () => R.d, lookup: null });
+    {
+      const R = openerRig(9367);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      const old = (await s.snapshot())[0].ref;
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      const before = inputs(R.sent);
+      let err = null; try { await s.click(old); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a ref from the closed tab 0 is refused (it clicked the promoted tab before)');
+      A.ok(/tab that snapshot was taken on was closed/.test(String(err && err.message)) && /fresh browser\.snapshot/.test(String(err && err.message)), 'and says why, and what to do');
+      let terr = null; try { await s.type(old, 'secret'); } catch (e) { terr = e; }
+      A.eq(terr && terr.code, 'REF_TAB_CLOSED', 'type with the same ref is refused too');
+      A.eq(inputs(R.sent), before, 'no input reached ANY tab');
+      const fresh = (await s.snapshot())[0];
+      A.eq(fresh.text, 'In tab-2', 'a fresh snapshot reads the promoted tab');
+      let err2 = null; try { await s.click(old); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'REF_TAB_CLOSED', 'the old ref stays refused after a fresh snapshot');
+      A.eq(await s.click(fresh.ref), 'clicked', '…which does not kill the fresh refs: they click');
+      A.eq(presses(R.sent).map(m => m.sessionId), ['tab-2'], 'exactly one press, on the tab the agent snapshotted');
+      await R.d.close();
+    }
+
+    // (g) the BACKSTOP path (no detach event; Chrome's -32001 is the proof): the failing call refuses, and a plain
+    // retry of the same ref is refused too rather than landing on the promoted tab.
+    {
+      const R = openerRig(9368);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      const old = (await s.snapshot())[0].ref;
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      R.gone.add('opener');
+      let err = null; try { await s.click(old); } catch (e) { err = e; }
+      A.ok(err, 'the click on a dead tab 0 fails');
+      A.eq(presses(R.sent).filter(m => m.sessionId !== 'opener').length, 0, 'and presses nothing on the promoted tab');
+      const before = inputs(R.sent);
+      let err2 = null; try { await s.click(old); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'REF_TAB_CLOSED', 'a retry of the same ref is refused, not re-aimed at the promoted tab');
+      A.eq(inputs(R.sent), before, 'and the retry dispatches no input');
+      await R.d.close();
+    }
+
+    // (h) the same for a SELECTED tab that went away on its own (an SSO popup closing itself): its refs never land on tab 0
+    {
+      const R = openerRig(9369);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      await s.selectTab(1);
+      const old = (await s.snapshot())[0];
+      A.eq(old.text, 'In tab-2', 'the ref is minted on the selected tab');
+      R.gone.add('tab-2');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'tab-2' });
+      const before = inputs(R.sent);
+      let err = null; try { await s.click(old.ref); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a ref from the closed selected tab is refused');
+      A.eq(inputs(R.sent), before, 'and nothing is pressed on tab 0');
+      await R.d.close();
+    }
   }
 
   // ---- A NEW-WINDOW LINK OPENS IN THIS TAB (Etsy results, 10-07) ---------------------------------
