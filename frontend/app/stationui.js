@@ -262,6 +262,66 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   const PRESET_HS = { amber: [35, 100], green: [136, 100], blue: [198, 100], purple: [270, 100], red: [3, 100], white: [120, 8] };
 
   /* ---------- settings → DOM ---------- */
+  /* SCREEN FLICKER clock (#69): the station's 7s CRT flicker used to be an `infinite` CSS opacity animation on the
+     whole game screen, which made the compositor redraw the full window every vsync all day for a dip that lasts
+     280ms. Now this clock plays the dip once per 7s (app.css .flick-dip) and the compositor rests in between.
+     Same look; the SETTINGS toggle (body.no-flicker) still turns it off; a hidden page skips it. */
+  let flickerClock = 0;
+  function armFlickerClock() {
+    if (flickerClock || typeof setInterval !== 'function' || typeof document === 'undefined') return;
+    flickerClock = setInterval(() => { try {
+      if (document.hidden || document.body.classList.contains('no-flicker')) return;
+      const g = document.getElementById('screen-game');
+      if (!g || !g.classList.contains('active')) return;
+      g.classList.add('flick-dip');
+      setTimeout(() => g.classList.remove('flick-dip'), 400);
+    } catch (_) {} }, 7000);
+    if (flickerClock && flickerClock.unref) flickerClock.unref();   // never hold a headless test process open
+  }
+
+  /* MOTION REST (#69): any running `infinite` CSS animation — a status pulse, a blinking caret, the stale save-dot —
+     makes the compositor produce a new frame every vsync, and a station left open all day on a high-refresh panel
+     spent most of a GPU core on that alone (measured: one 2.4s pulse on a 12px dot = ~0.6 GPU-process cores).
+     While the window is visible but NOT focused and untouched for REST_AFTER_MS, the decorative loops hold still;
+     focus, a pointer or a key resumes every one of them immediately. Only infinite loops are touched: one-shot
+     entrances/vanishes (which other code waits on via animationend) always run to completion, and no class or
+     text changes — the state a loop decorates stays exactly what the harness reported. A hidden page needs none
+     of this (the browser stops animating it). */
+  const REST_AFTER_MS = 2500;
+  let motionRestClock = 0, motionEngagedUntil = 0;
+  const restingAnims = new Set();
+  function motionAtRest() {
+    try { return !document.hidden && !document.hasFocus() && performance.now() >= motionEngagedUntil; } catch (_) { return false; }
+  }
+  function motionWake() {
+    for (const a of restingAnims) { try { if (a.playState === 'paused') a.play(); } catch (_) {} }
+    restingAnims.clear();
+  }
+  function motionSweep() {
+    if (!motionAtRest()) { if (restingAnims.size) motionWake(); return; }
+    // a held loop whose node left the page (a finished run's card) is dropped, never kept alive all day
+    for (const a of restingAnims) { const el = a.effect && a.effect.target; if (a.playState === 'idle' || !el || !el.isConnected) restingAnims.delete(a); }
+    for (const a of document.getAnimations()) {
+      if (a.playState !== 'running' || restingAnims.has(a)) continue;
+      const t = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+      if (!t || t.iterations !== Infinity) continue;
+      try { a.pause(); restingAnims.add(a); } catch (_) {}
+    }
+  }
+  function motionEngage() { try { motionEngagedUntil = performance.now() + REST_AFTER_MS; } catch (_) {} if (restingAnims.size) motionWake(); }
+  function armMotionRest() {
+    if (motionRestClock || typeof setInterval !== 'function' || typeof document === 'undefined' || typeof document.getAnimations !== 'function') return;
+    motionEngage();
+    motionRestClock = setInterval(() => { try { motionSweep(); } catch (_) {} }, 1000);
+    if (motionRestClock && motionRestClock.unref) motionRestClock.unref();
+    try {
+      window.addEventListener('focus', motionEngage);
+      for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, motionEngage, { passive: true, capture: true });
+    } catch (_) {}
+  }
+  /** test/QA readout: how many decorative loops are holding still right now */
+  function motionRestState() { return { atRest: motionAtRest(), resting: restingAnims.size }; }
+
   function applySettings() {
     const s = store.settings;
     applyRoomLighting(s.roomLighting);
@@ -376,6 +436,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     }
     document.body.classList.toggle('no-flicker', !s.flicker);
+    armFlickerClock(); armMotionRest();
     if (typeof SFX === 'object') SFX.on = !!s.sound;
     syncKeepAwake(!!s.keepComputerAwake);
   }
@@ -10992,7 +11053,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };
