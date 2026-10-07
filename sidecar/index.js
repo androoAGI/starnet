@@ -370,7 +370,7 @@ const { makeTerminalTools } = require('./tools/builtin/terminal.js');
 const { makeProcLedger } = require('./procledger.js');              // persistent child-PID ledger — boot sweep reaps force-kill orphans
 const { makeWin32ProcessTable } = require('./proctree.js');         // h2: bounded process-table snapshot (orphan walk + verified kills)
 const { makeInputGuard } = require('./inputguard.js');              // stuck cursor-confinement (ClipCursor) release — 2026-07-12 incident
-const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
+const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, TOOLSET_FREEBIES, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
 const { makeEnvironmentManager, sanitizeChildEnv } = require('./environment.js');     // execution backend boundary (reference-harness-style)
 const { makeExecutionRouter } = require('./execution-router.js');                     // per-agent profile -> real backend routing
 const executionProfiles = require('./execution-profiles.js');       // per-agent runtime/scope envelope; approval + desktop lease stay separate
@@ -4835,6 +4835,45 @@ function cronStringList(v, max, pattern) {
     if (out.length >= max) break;
   }
   return out;
+}
+/* A routine's enabledToolsets is a restriction-only list of toolset FAMILY ids (enforceEnabledToolsets). It was only
+   pattern-filtered, so the TOOLSETS console label a user copies ('WEB & BROWSER') was dropped to [] and a tool name
+   ('web_request') or 'Web' kept as an unknown family — each stored as "restrict to (almost) nothing", and the routine
+   fired with no web tools (#58 class). Normalize the RAW entries before any pattern filter: a family id (any case),
+   a console label, or a tool name maps to its family; anything else is REFUSED by name (400 / tool error), never
+   dropped. A computer freebie is always kept, so naming one adds nothing (only freebies named = freebies only). An
+   empty list means NO restriction (null): "nothing listed" is never "restrict to nothing". */
+let cronToolsetIndex = null;
+function cronToolsetList(v) {
+  if (v == null) return null;
+  if (!Array.isArray(v)) throw new Error('enabledToolsets must be a list of toolset ids');
+  if (!cronToolsetIndex) {
+    const valid = TOGGLEABLE_CAPS.concat(['connectors']);
+    const byLabel = new Map(), byTool = new Map();
+    for (const row of toolsetRows(CAP_REGISTRY)) byLabel.set(String(row.label).toLowerCase(), row.id);
+    for (const objectType of Object.keys(CAP_REGISTRY)) {
+      for (const g of (CAP_REGISTRY[objectType] || [])) {
+        const t = String(g.tool || '').toLowerCase();
+        if (t && !byTool.has(t)) { byTool.set(t, g.capId); byTool.set(t.replace(/\./g, '_'), g.capId); }
+      }
+    }
+    cronToolsetIndex = { valid, validSet: new Set(valid), byLabel, byTool };
+  }
+  const ix = cronToolsetIndex, out = [];
+  let named = false;
+  for (const raw of v) {
+    const s = String(raw == null ? '' : raw).trim();
+    if (!s) continue;
+    named = true;
+    const k = s.toLowerCase();
+    let family = ix.validSet.has(k) ? k : (ix.byLabel.get(k) || ix.byTool.get(k) || '');
+    if (!family && /^(mcp|plugin)[:_]/.test(k)) family = 'connectors';
+    if (family === 'compute' || TOOLSET_FREEBIES.has(family)) continue;
+    if (!ix.validSet.has(family)) throw new Error('unknown toolset "' + s.slice(0, 80) + '" — valid: ' + ix.valid.join(', '));
+    if (out.indexOf(family) < 0) out.push(family);
+    if (out.length >= 16) break;
+  }
+  return named ? out : null;
 }
 function cronContextCycle(jobId, refs) {
   const visiting = new Set([String(jobId)]), visited = new Set();
@@ -14718,7 +14757,7 @@ async function createCronJobFromSpec(body) {
     for (const ref of body.skills) if (!skillStore.view(agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + agentId);
     body.contextFrom = cronStringList(body.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
     for (const ref of body.contextFrom) if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref);
-    body.enabledToolsets = body.enabledToolsets == null ? null : cronStringList(body.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/);
+    body.enabledToolsets = cronToolsetList(body.enabledToolsets);
     body.workdir = cronCanonicalWorkdir(body.workdir);
     body.noAgent = body.noAgent === true;
     body.attachToSession = body.attachToSession === true;
@@ -14824,7 +14863,7 @@ function handleCronUpdate(req, res) {
       const current = cronStore.getJob(cronJobs, id), aid = patch.agentId || current.agentId;
       if (Object.prototype.hasOwnProperty.call(patch, 'skills')) { patch.skills = cronStringList(patch.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/); for (const ref of patch.skills) if (!skillStore.view(aid, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '"'); }
       if (Object.prototype.hasOwnProperty.call(patch, 'contextFrom')) { patch.contextFrom = cronStringList(patch.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/); for (const ref of patch.contextFrom) { if (ref === id) throw new Error('a routine cannot depend on itself'); if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref); } if (cronContextCycle(id, patch.contextFrom)) throw new Error('routine context dependencies cannot form a cycle'); }
-      if (Object.prototype.hasOwnProperty.call(patch, 'enabledToolsets')) patch.enabledToolsets = patch.enabledToolsets == null ? null : cronStringList(patch.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/);
+      if (Object.prototype.hasOwnProperty.call(patch, 'enabledToolsets')) patch.enabledToolsets = cronToolsetList(patch.enabledToolsets);
       if (Object.prototype.hasOwnProperty.call(patch, 'deliver')) {
         const mode = String(patch.deliver || 'local');
         if (mode === 'all') { const map = channelStore.loadChatMap(); patch.deliver = 'targets:' + Object.keys((map && map.chats) || {}).slice(0, 16).join(','); }
@@ -19019,6 +19058,7 @@ async function runOnceCore(o) {
       for (const ref of skillRefs) if (!skillStore.view(spec.agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + spec.agentId);
       const contextRefs = cronStringList(spec.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
       for (const ref of contextRefs) if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref);
+      const toolsetRefs = cronToolsetList(spec.enabledToolsets);
       await withCronWrite(jobs => {
         const next = cronStore.createJob(jobs, {
           id: id, name: spec.name, prompt: spec.prompt, schedule: schedule,
@@ -19027,7 +19067,7 @@ async function runOnceCore(o) {
           origin: spec.origin, attachToSession: spec.attachToSession,
           skills: skillRefs, contextFrom: contextRefs,
           monitorMode: spec.monitorMode === true,
-          enabledToolsets: spec.enabledToolsets == null ? null : cronStringList(spec.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/)
+          enabledToolsets: toolsetRefs
         }, { id: id, now: Date.now(), defaultTz: CRON_HOST_TZ });
         return next;
       });
