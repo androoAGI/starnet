@@ -13077,7 +13077,7 @@ async function handleBudgetSettle(req, res) {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
     if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
   }
-  try { ledger.settleUnsettled(runId, usd); }
+  try { ledger.settleUnsettled(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); }
   catch (e) {
     if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
     if (e && e.code === 'bad_usd') return json(400, { error: 'enter the charge in USD (0 or more)' });

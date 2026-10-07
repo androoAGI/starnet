@@ -58,10 +58,21 @@ console.log('spend admission: receipt failure, repeated checks, independent sett
   assert.equal(appended.length,0,'refusals book nothing');
   const row=L.settleUnsettled('x',0.3);
   assert.deepEqual([row.runId,row.agentId,row.usd,row.turns,row.ts,row.attested,row.model],['x','a',0.3,0,50,true,'(unknown)'],'one attested row at the dispatch time');
+  assert.equal(row.attestedAs,'entered','the row says the Commander entered the charge');assert.deepEqual(appended[0],row,'the durable row carries the same attestation');
   assert.equal(appended.length,1);assert.deepEqual(finished,['x'],'the receipt is removed through finishRun');
   assert.deepEqual([L.health().complete,L.health().readError,L.health().unsettledRuns],[true,null,0],'history is complete again');
   assert.equal(L.unsettledRuns().length,0);assert.throws(()=>L.settleUnsettled('x',0.3),e=>e.code==='not_unsettled','never twice');
   assert.equal(makeBudget({clock,ledger:L,caps:{day:5}}).check('t','a',0),null,'the chosen cap works again');
+}
+{
+  // a run counted at its per-run limit says so: the row never claims the Commander entered that figure
+  const appended=[];
+  const L=makeLedger({clock,io:{readAll:()=>[],unsettled:()=>[{runId:'y',agentId:'a',ts:60,runCapUsd:0.5},{runId:'z',agentId:'a',ts:61}],append(e){appended.push(e);},finishRun(){}}});
+  const lim=L.settleUnsettled('y',0.5,'limit');
+  assert.deepEqual([lim.usd,lim.attested,lim.attestedAs],[0.5,true,'limit']);assert.equal(appended[0].attestedAs,'limit');
+  assert.equal(L.settleUnsettled('z',0.1,'bogus').attestedAs,'entered','an unknown mode is never recorded as a limit booking');
+  const metered=L.record({runId:'m',usd:0.2});
+  assert.ok(!('attested' in metered)&&!('attestedAs' in metered),'a metered row carries no attestation');
 }
 {
   // a run that is live in this process can never be settled from outside, even under a boot receipt's runId

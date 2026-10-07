@@ -10,7 +10,8 @@
    makeLedger({ io, clock, dayMs? }) -> {
      record({ runId, agentId, turns, usd, tokens }) -> entry,   // stamps ts, appends, returns it
      recordStrict({ runId, agentId, turns, usd, tokens }) -> entry, // same, but append failure throws
-     unsettledRuns() -> receipt[], settleUnsettled(runId, usd) -> entry,   // interrupted runs found at boot (io.unsettled)
+     unsettledRuns() -> receipt[], settleUnsettled(runId, usd, how?) -> entry,   // interrupted runs found at boot (io.unsettled);
+                                  // how = 'entered' (default: the Commander typed the charge) | 'limit' (counted at its per-run limit)
      pendingRuns() -> int,        // runs this process dispatched whose spend is not booked yet
      all() -> entry[],            count() -> int,
      totalUsd() -> number,                                       // every recorded run, ever
@@ -91,7 +92,13 @@
         unmetered: !!e.unmetered,
         ts: num(e.ts) || clock.now()
       };
-      if (e.attested === true) entry.attested = true;   // the Commander entered this amount (settleUnsettled), not a meter
+      // settleUnsettled, not a meter: the Commander settled this run. attestedAs says HOW — 'entered' (they typed the
+      // charge from the provider dashboard) or 'limit' (they chose to count it at the per-run limit it started with,
+      // a figure its last call can run past). Never claim "entered" for a limit booking.
+      if (e.attested === true) {
+        entry.attested = true;
+        entry.attestedAs = e.attestedAs === 'limit' ? 'limit' : 'entered';
+      }
       if (typeof opts.nextId === 'function') entry.entryId = str(opts.nextId());
       return entry;
     }
@@ -115,13 +122,13 @@
        Never automatic, never a guessed or lower-bound figure. Only a receipt found unsettled at boot qualifies — a run
        this process dispatched is still live and books itself. The row keeps the dispatch time (its real day) and is
        journaled-then-appended like any strict record; the receipt is removed once the row is durable. */
-    function settleUnsettled(runId, usd) {
+    function settleUnsettled(runId, usd, how) {
       const id = str(runId);
       const r = unsettled.get(id);
       if (!r || pending.has(id)) throw Object.assign(new Error('that run has no unsettled spend'), { code: 'not_unsettled' });
       if (typeof usd !== 'number' || !isFinite(usd) || usd < 0) throw Object.assign(new Error('the amount must be a number of dollars, 0 or more'), { code: 'bad_usd' });
       try {
-        return recordStrict({ runId: id, agentId: r.agentId, turns: 0, tokens: 0, usd, model: r.model, ts: r.ts, attested: true });
+        return recordStrict({ runId: id, agentId: r.agentId, turns: 0, tokens: 0, usd, model: r.model, ts: r.ts, attested: true, attestedAs: how === 'limit' ? 'limit' : 'entered' });
       } catch (e) {
         // the settlement journal may already be on disk and replays at the next boot: never offer a second booking
         unsettled.delete(id);
