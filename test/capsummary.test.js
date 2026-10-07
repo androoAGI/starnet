@@ -125,5 +125,18 @@ const resolvedTools = (capIds, tools) => ({
   A.ok(/generate and analyze images/.test(both), 'the full studio claim stands when image_generate is live');
   const neither = summarizeCapabilities({ grants: [{ capId: 'studio' }], tools: ['fs.read'] }, { surface: 'interactive' });
   A.ok(!/images/.test(neither.split('You do NOT have')[0]), 'no image claim at all when neither studio tool survives');
+
+  // TOOLLESS TURN: a chat-classified turn carries NO tool declarations, so the grant set is stated as the station's,
+  // never as "You CAN" on a reply with nothing to call; the missing-power advice stays (it is still true).
+  const webToolless = summarizeCapabilities(resolvedWith('web'), { surface: 'interactive', toolless: true });
+  A.ok(!/You CAN:/.test(webToolless), 'toolless: no "You CAN" claim on a turn with no tools attached');
+  A.ok(/Your station grants:.*search\/fetch the web/.test(webToolless), 'toolless: the station grant is still stated');
+  A.ok(/NONE of these tools are attached to THIS reply/.test(webToolless), 'toolless: says plainly that nothing is attached to this reply');
+  A.ok(/never claim you searched, fetched, browsed/.test(webToolless), 'toolless: forbids claiming tool work this reply');
+  A.ok(/You do NOT have:/.test(webToolless) && /place an INTEL CAB/.test(webToolless), 'toolless: the missing-power placement advice stays');
+  A.eq(webToolless, summarizeCapabilities(resolvedWith('web'), { surface: 'interactive', toolless: true }), 'toolless: byte-stable (it rides the cached prefix)');
+  A.eq(summarizeCapabilities(resolvedWith('web'), { surface: 'interactive', toolless: false }), web, 'a task turn is byte-identical to before');
+  const noneToolless = summarizeCapabilities(resolvedWith(), { surface: 'interactive', toolless: true });
+  A.eq(noneToolless, none, 'nothing granted: the "think and reply" line is already true and unchanged');
   A.report('capsummary.test');
 })();

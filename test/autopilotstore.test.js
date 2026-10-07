@@ -87,6 +87,18 @@ A.ok(/chat:\s*\(o\)\s*=>/.test(appSrc), 'app.js wires Harness.chat into the auto
 A.ok(/present:\s*\(d\)\s*=>/.test(appSrc), 'app.js wires the desk delivery (present) for finished drafts');
 A.ok(/canWriteFiles:\s*\(\)\s*=>/.test(appSrc), 'app.js wires the cabinet:write consent check (B2 write gate)');
 A.ok(/hasCabinet:\s*\(\)\s*=>/.test(appSrc), 'app.js wires the placed-cabinet capability check (object=capability)');
+// RUN the real wired hasCabinet against World.heroCaps' real shape ([{objectType}]): the injected stubs below hid that
+// the old indexOf('cabinet') could never match, so the B2 real write never fired with a cabinet placed.
+{
+  const at = appSrc.indexOf('hasCabinet:');
+  const line = appSrc.slice(at, appSrc.indexOf('\n', at));
+  const arrow = line.slice(line.indexOf('() =>')).replace(/,\s*(\/\/.*)?$/, '');
+  const wired = caps => new Function('World', 'agent', 'return (' + arrow + ')')({ heroCaps: () => (typeof caps === 'function' ? caps() : caps) }, { id: 'a' });
+  A.eq(wired([{ objectType: 'dish' }, { objectType: 'cabinet' }])(), true, 'hasCabinet: a placed cabinet (heroCaps objects) is seen');
+  A.eq(wired([{ objectType: 'dish' }, { objectType: 'plugin', pluginId: 'cabinet' }])(), false, 'hasCabinet: a plugin terminal is not a cabinet');
+  A.eq(wired([])(), false, 'hasCabinet: an empty room has no cabinet');
+  A.eq(wired(() => { throw new Error('x'); })(), false, 'hasCabinet: a heroCaps hiccup is no cabinet');
+}
 A.ok(/\/api\/autonomy\/write/.test(appSrc), 'app.js persists the deliverable via the consent-gated /api/autonomy/write endpoint');
 A.ok(/Autopilot\.digestSummary\(/.test(appSrc), 'B3: the welcome-back digest summarizes files written vs drafted (digestSummary)');
 A.ok(/\/api\/checkpoint\/restore/.test(appSrc), 'B3: the digest offers a one-tap UNDO via the checkpoint restore endpoint');

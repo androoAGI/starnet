@@ -105,6 +105,27 @@ const DEFERRED = ['page.screenshot', 'page.upload'];
     // Determinism: the lint forbids clock/random in sidecar/, and a flaky tool list would be untestable.
     const a = await search.run({ query: 'file' }, ctx), b = await search.run({ query: 'file' }, ctx);
     A.eq(a.content, b.content, 'the same query always returns the same ordering');
+
+    /* RUN-POLICY WITHHOLDING (direct-domain): the host keeps a policy-withheld name OUT of ctx.deferred, and
+       tool.search explains it instead of answering with an unrelated hidden tool. */
+    const policy = { deferred: ['page.upload'], policyWithheld: { names: ['web_search', 'team.delegate'], why: 'W', enable: 'E' } };
+    const ws = await search.run({ query: 'search the web for it' }, policy);
+    A.ok(/WITHHELD on this run/.test(ws.content) && ws.content.indexOf('team.delegate, web_search') >= 0, 'a query for a policy-withheld tool names it as withheld (saw: ' + ws.content + ')');
+    A.ok(ws.content.indexOf('Why: W. What works instead: E.') >= 0, 'with the policy\'s own reason and remedy');
+    A.ok(ws.content.indexOf('Now available') < 0 && !ws.control, 'and never announces it, or anything else, as now available');
+    const wsEmpty = await search.run({ query: 'web search' }, { deferred: [], policyWithheld: policy.policyWithheld });
+    A.ok(/WITHHELD on this run/.test(wsEmpty.content) && wsEmpty.content.indexOf('already listed') < 0, 'an empty hidden pool still explains the withheld tool');
+    A.eq((await search.run({ query: 'take a screenshot of the page' }, ctx)).content,
+      (await search.run({ query: 'take a screenshot of the page' }, Object.assign({}, ctx, { policyWithheld: null }))).content, 'no policy: byte-identical output');
+
+    /* ALREADY LISTED: a model that missed an advertised tool is pointed at it, not at the nearest hidden one. */
+    const listedCtx = { deferred: DEFERRED.slice(), advertised: ['page.open', 'tool.search'] };
+    const open = await search.run({ query: 'open a web page' }, listedCtx);
+    A.ok(/Already in your tool list/.test(open.content) && open.content.indexOf('page.open (url)') >= 0, 'a listed tool is named as callable now (saw: ' + open.content + ')');
+    A.ok(!open.control, 'and no weaker hidden tool is revealed in its place');
+    const shot = await search.run({ query: 'take a screenshot of the page' }, listedCtx);
+    A.eq(shot.control && shot.control.revealTools, ['page.screenshot'], 'a hidden tool that IS the best match is still revealed with listed tools present');
+    A.eq((await search.run({ query: 'take a screenshot of the page' }, ctx)).content.indexOf('Already in your tool list'), -1, 'no advertised list: unchanged');
   }
 
   /* ---- C. THE REAL FLOW: a run that needs a tool it cannot see. Turn 1 the model can only see page.open and
