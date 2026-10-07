@@ -3313,7 +3313,7 @@ async function runBackgroundSkillReview(o) {
   if (!unmetered) {
     let blocked = null;
     try { blocked = budget.check(null, String(agentId || 'agent'), 0, Date.now(), null); } catch (_) { blocked = null; }
-    if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': the spending cap is reached'); return null; }
+    if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': ' + (blocked.unknown ? 'spend history is unavailable' : 'the spending cap is reached')); return null; }
   }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
@@ -7499,10 +7499,12 @@ function nightshiftPrecheck() {
     // → no live note, emit=null → no threshold crossing) and stand down BEFORE the spend. Returns a blocked
     // {scope,usd,cap} (truthy) or null. Checked FIRST so an exhausted pool names the ACTIONABLE reason ('budget',
     // which the Commander clears by resume/raising the cap) rather than a downstream 'no-provider'/'readiness'.
+    // Spend history it cannot see binds 'spend-unknown' instead: no resume or cap change clears that, and claiming an
+    // exhausted budget would assert spend nobody can prove.
     let b = null;
     try { b = budget.check(null, NIGHTSHIFT_AGENT, 0, Date.now(), null); }
     catch (_) { return { ok: false, reason: 'precheck-error' }; }
-    if (b) return { ok: false, reason: 'budget' };
+    if (b) return { ok: false, reason: b.unknown ? 'spend-unknown' : 'budget' };
     // LANE L — CAPABILITY GATE (pre-spend, same wart): with no runnable provider/credential a beat stands down at
     // 'no-capability' AFTER the leash was spent (runNightshiftBeat). Read it locally (no model call) and decline
     // before the spend. A lookup hiccup stands down visibly; uncertainty is not unattended-work permission.
@@ -12469,7 +12471,9 @@ const stationOneShots = new Set();
 async function stationOneShot(prompt, tag, failLead) {
   let blocked = null;
   try { blocked = budget.check(null, 'agent', 0, Date.now(), null); } catch (_) { blocked = null; }
-  if (blocked) return { ok: false, status: 409, error: 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
+  if (blocked) return { ok: false, status: 409, error: blocked.unknown
+    ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
+    : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
   let cfg = null;
   try { cfg = sampleRunConfigFor('agent'); } catch (e) { cfg = null; }
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };

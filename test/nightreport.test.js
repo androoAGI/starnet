@@ -187,6 +187,9 @@ A.eq(NR.panelModel({ status: stBase, tzOffsetMin: 0 }).readinessText, '', 'absen
 // the new binding phrases are real sentences, not the forward-compat fallback.
 A.ok(!/held back by/.test(NR.bindingPhrase('budget')), 'budget binding has a plain phrase');
 A.ok(!/held back by/.test(NR.bindingPhrase('no-provider')), 'no-provider binding has a plain phrase');
+// unknown spend history is NOT an exhausted budget: no resume or cap change clears it, so the phrase never offers one
+A.ok(!/held back by|exhausted|raise the cap|resume/i.test(NR.bindingPhrase('spend-unknown')) && /SPENDING LIMITS/.test(NR.bindingPhrase('spend-unknown'))
+  && NR.bindingPhrase('spend-unknown') !== NR.bindingPhrase('budget'), 'spend-unknown says history is unverifiable and points at SPENDING LIMITS');
 A.ok(/verify|check/i.test(NR.bindingPhrase('precheck-error')) && /stood down safely/i.test(NR.bindingPhrase('precheck-error')), 'precheck-error explains the unproven safety read and safe stand-down in plain language');
 
 /* ---------- trailLine(): one honest ledger row for the panel ---------- */
