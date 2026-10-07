@@ -35,6 +35,7 @@
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
 
   const JSONRPC = '2.0';
+  const LOCAL_ERROR = Symbol.for('starnet.mcp.localTransportError');   // set by transport.http/stdio failTo
   const DEFAULT_PROTOCOL = '2025-06-18';   // MCP revision; the server's echoed version wins after initialize
   const MAX_PAGES = 100;                   // a misbehaving server that always returns a cursor can't spin forever
 
@@ -46,6 +47,9 @@
     const raw = String((error && error.message) || '');
     if (/^connector HTTP \d{3}(?: — [a-z0-9_.-]{1,64})?$/i.test(raw)) return raw;
     if (raw === 'connector HTTP redirect refused — update the configured endpoint directly') return raw;
+    // Text our OWN transport wrote (DNS miss, refused connection, non-JSON body, child exit). The marker is a
+    // Symbol, which no JSON a server sends can produce, so remote prose can never ride this branch.
+    if (error && error[LOCAL_ERROR] === true) return raw.replace(/[\x00-\x1f\x7f]+/g, ' ').slice(0, 300);
     return 'connector JSON-RPC error' + (code != null ? ' (' + String(code).slice(0, 24) + ')' : '');
   }
 

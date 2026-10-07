@@ -20,6 +20,7 @@
   const CP = require('../child-env.js').guardChildProcess(require('node:child_process'));   // the stdio child's env is built explicitly below; helpers get the station-free default
   const P = require('path');
   const JSONRPC = '2.0';
+  const LOCAL_ERROR = Symbol.for('starnet.mcp.localTransportError');   // read by client.js safeRpcError
   const DEFAULT_ALLOWED = [
     'node', 'node.exe',
     'npx', 'npx.cmd',
@@ -154,13 +155,13 @@
       if (onMsg) { try { onMsg(msg); } catch (e) { onError(e); } }
     }
     function failTo(id, message) {
-      if (id != null) deliver({ jsonrpc: JSONRPC, id: id, error: { code: -32000, message: message } });
+      if (id != null) deliver({ jsonrpc: JSONRPC, id: id, error: { code: -32000, message: message, [LOCAL_ERROR]: true } });
       else onError(new Error(message));
     }
     function failAll(message) {
       const ids = Array.from(pendingIds);
       pendingIds.clear();
-      for (const id of ids) deliver({ jsonrpc: JSONRPC, id: id, error: { code: -32000, message: message } });
+      for (const id of ids) deliver({ jsonrpc: JSONRPC, id: id, error: { code: -32000, message: message, [LOCAL_ERROR]: true } });
     }
     function parseStdoutChunk(chunk) {
       stdoutBuf += String(chunk || '');
@@ -206,11 +207,14 @@
         });
         child.on('exit', (code, signal) => {
           if (ledger && ownedChild.pid) { try { ledger.release(ownedChild.pid); } catch (_) {} }
-          const detail = 'mcp stdio process exited' + (code == null ? '' : ' code=' + code) + (signal ? ' signal=' + signal : '') + (stderrBuf.trim() ? ': ' + stderrBuf.trim().slice(0, 200) : '');
+          const exited = 'mcp stdio process exited' + (code == null ? '' : ' code=' + code) + (signal ? ' signal=' + signal : '');
+          const detail = exited + (stderrBuf.trim() ? ': ' + stderrBuf.trim().slice(0, 200) : '');
           const hadPending = pendingIds.size > 0;
           const wasClosed = closed;                 // true only when OUR close() asked the child to go
           closed = true;
-          failAll(detail);
+          // the RPC error is shown to the model and in status: the server's own stderr stays out of it (it is
+          // server-authored text and may echo a token); the exit code is ours.
+          failAll(exited);
           // ANY exit we did not request is a transport death — a clean idle code-0 self-exit included.
           // Skipping onError for those left the manager at state 'up' over a dead child: ensureLive
           // short-circuits on 'up', the stdio call path has no CALL_FAIL_LIMIT net (that lives in

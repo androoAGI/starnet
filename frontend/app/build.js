@@ -3536,7 +3536,7 @@ const Build = (() => {
     if (typeof fetch === 'undefined') { rowsEl.innerHTML = '<div class="refit-conn-note">no sidecar — can\'t list connectors here.</div>'; return; }
     fetch('/api/connectors').then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }).then(j => {
       const list = (j && j.connectors) || [];
-      if (!list.length) { rowsEl.innerHTML = '<div class="refit-conn-note">No connected services yet — add one in the <b>⇄ ABILITIES</b> panel (⚒ BUILD), then bind it here.</div>'; return; }
+      if (!list.length) { rowsEl.innerHTML = '<div class="refit-conn-note">No connected services yet — add one first in <b>BUILD › CONNECT › ABILITIES</b> (DISCOVER for the catalog, or ADD AN ABILITY › custom connection), then come back and bind it here.</div>'; return; }
       rowsEl.innerHTML = list.map(c => {
         const sel = (c.id === p.connectorId), scls = STATE_CLASS[c.state] || '';
         const meta = c.toolCount ? (c.toolCount + ' tool' + (c.toolCount === 1 ? '' : 's')) : (c.state || 'idle');
@@ -4799,6 +4799,9 @@ const Build = (() => {
     if(!p)return;
     if(ev&&ev.detail>=2&&isEditableProp(p.t))return configureProp(p,ev);
     groupIds=[];selectedRoomId=null;selectedPropId=p.id;renderSelection();
+    // an UNBOUND connector/plugin terminal says "CLICK TO BIND" on the floor and in its hover card — so one click
+    // opens the bind editor (it only selected it, and members reported "no bind option": only unbind/cancel showed)
+    if((p.t==='connector_portal'&&!p.connectorId)||(p.t==='plugin_terminal'&&!p.pluginId))return configureProp(p,ev);
     // THE CARD AND THE FLOOR ARE ONE LINE: a click on a line machine opens the docked Workflow panel on it
     // (or re-selects it there), without panning — the floor is where the Commander is looking
     if(WF_PART[p.t]){finFocusLine(p.id);openWorkflowPanel(p.id,true);}

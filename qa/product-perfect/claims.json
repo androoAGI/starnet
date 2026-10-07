@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a5ade682189e48f531da6a58df3557d51a595b5f",
+    "sourceCommit": "338fbcaca536b1bf1112ee58557831e399809aba",
     "pathSetSha256": "a492439fab9c283872b683bd5b9ba9ebe7b8750fcae25400af9f344bd97dc4d3",
     "files": [
       {
@@ -333,8 +333,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 572168,
-        "sha256": "c610dbb66515f2d436475042b451551763680026613de8a24cacbe9e12fb267a"
+        "bytes": 572604,
+        "sha256": "cbf55b449b7f1a5e507adb2156250a9f5418c20e4ed8e5cd0ac25be59cbfa16d"
       },
       {
         "path": "frontend/app/channels.js",
