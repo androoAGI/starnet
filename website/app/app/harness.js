@@ -1351,6 +1351,49 @@ const Harness = (() => {
       .catch(() => done(timedOut ? null : false));
   }
 
+  /* ENGINE RECOVERY (link-down 2026-10-07): the in-game LINK DOWN chip and the boot SAVE-UNKNOWN screen share ONE
+     reading of why the station service is gone and ONE restart door. Before this the reason probe and the restart
+     lived only on the boot screen, so a crash-loop hold after the game loaded showed a red LINK DOWN with no reason
+     and no way out ("I could not find where I could quit/restart").
+     engineState(timeoutMs) -> { state, reason }, never throws:
+       'ok'       /api/health answered 200 — the service is up (a dead link is this window's, not the engine's)
+       'degraded' it answered 503 'degraded: …' (crash-loop breaker / workspace-owner hold) — reason is that text VERBATIM
+       'silent'   nothing answered inside the budget (a hung service)      'down' the request was refused outright
+     For silent/down the desktop guardian's halt (starnet_sidecar_status) is the reason when it has one. Same 4s budget
+     as pingEngine and for the same measured reason: a hung service must not leave the probe pending forever.
+     restartEngine() -> Promise<bool>: the desktop shell kills and respawns the sidecar (same port, same per-launch
+     token — the World bridge reconnects on its own). false in a browser (nothing to restart) or on any failure.
+     Single-flight: a double click never fires two restarts. */
+  function tauriCoreNow() { return (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core : null; }
+  async function engineState(timeoutMs) {
+    const budget = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 4000;
+    let ac = null, timer = null, timedOut = false, state = 'down', reason = '';
+    try { ac = new AbortController(); } catch (_) { ac = null; }
+    try {
+      const answer = fetch('/api/health', Object.assign({ cache: 'no-store' }, ac ? { signal: ac.signal } : {})).then(async r => {
+        if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) return { state: 'degraded', reason: t }; }
+        return { state: 'ok', reason: '' };
+      });
+      const deadline = new Promise((_, reject) => { timer = setTimeout(() => { timedOut = true; try { if (ac) ac.abort(); } catch (_) {} reject(new Error('timeout')); }, budget); });
+      ({ state, reason } = await Promise.race([answer, deadline]));
+    } catch (_) { state = timedOut ? 'silent' : 'down'; reason = ''; }
+    finally { if (timer) clearTimeout(timer); }
+    const core = tauriCoreNow();
+    if (!reason && state !== 'ok' && core) {
+      try { const g = await core.invoke('starnet_sidecar_status'); if (g && g.halted && g.reason) reason = 'station service halted: ' + String(g.reason); } catch (_) {}
+    }
+    return { state, reason };
+  }
+  let restartInflight = null;
+  function restartEngine() {
+    const core = tauriCoreNow();
+    if (!core) return Promise.resolve(false);
+    if (restartInflight) return restartInflight;
+    restartInflight = Promise.resolve().then(() => core.invoke('starnet_restart_sidecar')).then(up => up === true, () => false)
+      .finally(() => { restartInflight = null; });
+    return restartInflight;
+  }
+
   // Durable interrupted-run recovery. Listing is read-only; preparation is accepted only when the sidecar's
   // journal proves there is no uncertain dispatched mutation. The returned token is one-shot and consumed by
   // the ordinary /api/run path, so recovery does not create a privileged second execution route.
@@ -1413,7 +1456,8 @@ const Harness = (() => {
   }
 
   return {
-    pingEngine,
+    pingEngine, engineState, restartEngine,
+    canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, hasStoredCredential, setDesktopConfigured,
     listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentAnswer, summonAck, notebook,
