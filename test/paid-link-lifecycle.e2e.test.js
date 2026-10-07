@@ -211,3 +211,43 @@ test('managed HTTP 400 keeps local, relay and upstream correlation through resta
     }
   } finally { await fixture.dispose(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
+
+// Issue #76 (2026-10-06): the boot self-heal met a degraded account service (502/timeouts) and gave up for the whole
+// session — a keychain-authorized station stayed "not linked" on the RESUME screen until the app was restarted, even
+// after the cloud recovered. The credits status read now takes a spaced retry of a TRANSIENT heal failure.
+test('a boot self-heal that met a down cloud retries on the next credits read once the cloud is back', { timeout: 30000 }, async () => {
+  let healthy = false, whoamiCalls = 0;
+  const server = http.createServer((req, res) => {
+    const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
+    if (req.url === '/v1/whoami') { whoamiCalls++; return healthy ? json(200, { ok: true, accountId: 'acct-recovered' }) : json(502, { error: 'bad gateway' }); }
+    if (req.url.startsWith('/v1/balance')) return json(200, { balanceUsd: 12.5 });
+    if (req.url.startsWith('/v1/history')) return json(200, { entries: [] });
+    res.writeHead(404); res.end();
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + server.address().port;
+  const fixture = SidecarFixture.create({ prefix: 'paid-heal-retry-', timeoutMs: 15000, env: {
+    STARNET_CLOUD_URL: url, STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '',
+    STARNET_CREDITS_TOKEN: 'fixture-keychain-token', STARNET_CREDITS_HEAL_RETRY_MS: '200'
+  } });
+  fs.mkdirSync(path.join(fixture.workspace, '.secrets'), { recursive: true });
+  try {
+    await fixture.start();
+    const until = Date.now() + 5000;
+    while (!/credits link self-heal declined: whoami http 502/.test(fixture.output()) && Date.now() < until) await new Promise(r => setTimeout(r, 20));
+    assert.match(fixture.output(), /self-heal declined: whoami http 502 \(will retry/, 'the boot heal met the outage and armed a retry');
+    const during = await fixture.json('GET', '/api/credits?history=0');
+    assert.equal(during.status, 404, 'still unlinked while the cloud is down');
+    healthy = true;
+    await new Promise(r => setTimeout(r, 250));
+    const after = await fixture.json('GET', '/api/credits?history=0');
+    assert.equal(after.status, 200, after.text);
+    assert.equal(after.body.configured, true, 'the station relinked itself without a restart');
+    assert.equal(after.body.balanceUsd, 12.5, 'and reads the real balance');
+    const calls = whoamiCalls;
+    await fixture.json('GET', '/api/credits?history=0');
+    assert.equal(whoamiCalls, calls, 'a healed station never asks whoami again');
+  } finally {
+    await fixture.dispose(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+  }
+});
