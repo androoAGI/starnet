@@ -26,10 +26,27 @@ function loopbackOrigins(port) { return new Set(['http://127.0.0.1:' + port, 'ht
 
 // Is this Origin one of ours? Absent Origin is allowed HERE because same-origin GETs and non-browser clients
 // omit it — but those callers are still gated by requiresApiToken (the token, not the origin, is their fence).
-function isAllowedApiOrigin(origin, port) {
+// `host` (the request's Host header) admits a PORT-FORWARDED page — see isSameLoopbackOrigin. Omitted = the
+// strict station-port-only answer.
+function isAllowedApiOrigin(origin, port, host) {
   if (!origin) return true;
   if (origin === 'null') return false;                 // file:/sandboxed origins are never the app
-  return loopbackOrigins(port).has(origin) || TAURI_ORIGINS.has(origin);
+  return loopbackOrigins(port).has(origin) || TAURI_ORIGINS.has(origin) || isSameLoopbackOrigin(origin, host);
+}
+/* A page reached through a port forward (`ssh -L 9000:127.0.0.1:8787`, a container port map) is SAME-ORIGIN with
+   the server it talks to, just not on the station's own port: the browser addresses localhost:9000, so it sends
+   Host: localhost:9000 AND Origin: http://localhost:9000. Pinning the Origin to the station's port refused every
+   such POST with a bare 403 while GETs (no Origin) still worked — a valid OpenRouter key read "not verified" with
+   nothing logged anywhere (#62). Admit exactly that pair: the Origin's host:port must EQUAL the request's own Host,
+   and that Host must already be loopback. A foreign page cannot produce it (its Origin is its own site, never the
+   Host it is calling), a DNS-rebinding attacker's Host fails the Host pin, and the per-launch token still fences
+   every route — this restores the same-origin case only, never a cross-origin one. */
+function isSameLoopbackOrigin(origin, host) {
+  if (!host || !isAllowedHost(host)) return false;
+  let u; try { u = new URL(String(origin)); } catch (_) { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+  if (u.origin !== String(origin)) return false;       // a bare serialized origin only (no path/userinfo tricks)
+  return u.host === String(host).toLowerCase().trim();
 }
 // Host must be loopback — this is the DNS-rebinding defense (a rebinding attacker's forged Host fails here).
 function isAllowedHost(host) {
@@ -84,6 +101,6 @@ function ticketOk(req, token, now, guard) {
 }
 
 module.exports = {
-  isAllowedApiOrigin, isAllowedHost, requiresApiToken, apiTokenOk, ticketOk,
+  isAllowedApiOrigin, isSameLoopbackOrigin, isAllowedHost, requiresApiToken, apiTokenOk, ticketOk,
   headerToken, constTimeEq, pathOf, loopbackOrigins, TAURI_ORIGINS, TOKEN_EXEMPT
 };
