@@ -808,6 +808,7 @@ test/textsize-screen-space.test.js
 test/mobile-control-reachability.test.js
 test/station-tooltip.test.js
 test/hint-input-mode.test.js
+test/hints-setting.test.js
 test/toast-live-region.test.js
 test/toast-seat.test.js
 test/channels.discord-wire.test.js
