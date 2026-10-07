@@ -301,6 +301,14 @@ for (const raw of [
     'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.',
     'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.']) {
     A.ok(kindOf(own).kind !== 'billing', 'BROWSER: a local spend-ledger error is not told to top up the provider: ' + own.slice(0, 40));
+    // its own kind on BOTH paths: a truthful headline, the SPENDING LIMITS door, and no doomed RETRY chip
+    for (const v of [kindOf(own), friendlyError(new Error(own))]) {
+      A.eq(v.kind, 'spend_unknown', 'a local spend-ledger refusal is spend_unknown: ' + own.slice(0, 40));
+      A.eq(v.retryable, false, 'spend_unknown offers no retry (a retry hits the same refusal)');
+      A.eq(v.action, 'budget', 'spend_unknown routes to SPENDING LIMITS');
+      A.ok(/spending limits can't be checked/i.test(v.userMessage) && !/something went wrong|try again|top up|out of credit/i.test(v.userMessage),
+        'the headline says the limits cannot be checked, never the generic line or a top-up (got: ' + v.userMessage + ')');
+    }
   }
   A.eq(kindOf("codex: You've hit your usage limit. Resets in 3 days", 429).kind, 'quota_exhausted',
     'BROWSER: the explicit status argument works too');
@@ -405,6 +413,34 @@ for (const raw of [
     'a GROK OAUTH 403 still routes to the xAI key door');
   A.eq(friendlyError(new Error('This account is not enabled for xAI OAuth API access (403). Use the XAI (API KEY) provider instead.')).kind, 'grok_oauth_unavailable',
     'the refresh path\'s allowlist sentence routes there too');
+}
+
+// ---- spend_unknown: StarNet's own spend ledger refused the run (failureCode spend_history_unavailable) ----
+// A customer saw "Something went wrong on that turn — try again." + a RETRY that hit the same refusal every time.
+{
+  const interrupted = friendlyError('An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.');
+  A.eq(interrupted.kind, 'spend_unknown', 'the interrupted-run refusal is spend_unknown');
+  A.ok(/earlier run stopped before StarNet recorded what it spent/.test(interrupted.userMessage) && /Settle that run in SETTINGS › SPENDING LIMITS/.test(interrupted.userMessage),
+    'the interrupted cause names the run and the SETTLE fix (got: ' + interrupted.userMessage + ')');
+  const unsaved = friendlyError('Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.');
+  A.ok(/Restart StarNet/.test(unsaved.userMessage) && !/Settle/.test(unsaved.userMessage), 'a failed save says restart, never settle (got: ' + unsaved.userMessage + ')');
+  const unread = friendlyError('Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.');
+  A.eq(unread.userMessage, KINDS.spend_unknown.msg, 'an unreadable record gets the cause-neutral headline');
+  A.ok(/spend history is unknown/.test(KINDS.spend_unknown.msg), 'the fallback headline says spend history is unknown');
+  A.eq(friendlyError(new Error('sidecar HTTP 409 — spend history is unavailable, so a pool cannot be resumed — see SETTINGS › SPENDING LIMITS')).kind, 'spend_unknown',
+    'the resume refusal reads the same way');
+  A.eq(friendlyError('spend_history_unavailable').kind, 'spend_unknown', 'the bare failure code reads the same way');
+  // the door opens SETTINGS straight on SPENDING LIMITS (the same openTerm(key, section) the other doors use)
+  const btn = actionButton(interrupted);
+  A.ok(btn && /SPENDING LIMITS/.test(btn.label), 'the door names SPENDING LIMITS (got: ' + (btn && btn.label) + ')');
+  const opened = [];
+  const prevUI = global.StationUI;
+  global.StationUI = { openTerm(key, section) { opened.push([key, section]); } };
+  try { btn.run(); } finally { if (prevUI === undefined) delete global.StationUI; else global.StationUI = prevUI; }
+  A.eq(JSON.stringify(opened), JSON.stringify([['settings', 'budget']]), 'the door opens SETTINGS › SPENDING LIMITS (section budget)');
+  // not swallowed: provider billing and the generic unknown stay what they were
+  A.eq(friendlyError(Object.assign(new Error('openai http 429 - insufficient_quota'), { status: 429 })).kind, 'billing', 'provider billing is untouched');
+  A.eq(friendlyError('the spending limit on your OpenAI account was reached').kind !== 'spend_unknown', true, 'a provider spending-limit sentence is not StarNet\'s ledger');
 }
 
 A.report('friendlyerror.test');

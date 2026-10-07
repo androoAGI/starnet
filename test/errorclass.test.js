@@ -4,7 +4,7 @@
 'use strict';
 const A = require('./_assert.js');
 const { classifyApiError, REASONS } = require('../sidecar/providers/errorClass.js');
-const { friendlyError, KINDS } = require('../frontend/app/friendlyerror.js');
+const { friendlyError, actionButton, KINDS } = require('../frontend/app/friendlyerror.js');
 
 // openrouter-adapter-shaped error: `new Error('openrouter http <s> — <detail>')` with .status set
 function httpErr(status, detail) { return Object.assign(new Error('openrouter http ' + status + (detail ? ' — ' + detail : '')), { status: status }); }
@@ -274,7 +274,8 @@ const F = (err, status, opts) => friendlyError(err, status, opts);
   for (const k of Object.keys(KINDS)) {
     const def = KINDS[k];
     A.ok(typeof def.retryable === 'boolean' && typeof def.msg === 'string' && def.msg.length > 0, 'kind "' + k + '" has a boolean retryable + a non-empty message');
-    A.ok(def.action === null || def.action === 'settings' || def.action === 'skills' || def.action === 'store' || def.action === 'refit' || def.action === 'reload' || def.action === 'toolsets', 'kind "' + k + '" action is null|settings|skills|store|refit|reload|toolsets');
+    A.ok(def.action === null || def.action === 'settings' || def.action === 'skills' || def.action === 'store' || def.action === 'refit' || def.action === 'reload' || def.action === 'toolsets' || def.action === 'budget', 'kind "' + k + '" action is null|settings|skills|store|refit|reload|toolsets|budget');
+    if (def.action !== null) A.ok(!!actionButton({ kind: k, action: def.action }), 'kind "' + k + '" action "' + def.action + '" has a door');
   }
 }
 
