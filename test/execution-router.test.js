@@ -65,6 +65,43 @@ router.execute({ agentId: 'safe', cmd: 'x' }).then(async result => {
   A.eq(router.describe().routing.perAgent, true, 'station execution status exposes dynamic routing');
   A.eq(router.killAllBackground(), 3, 'station halt reaches every distinct backend');
 
+  // ---- an ASYNC backend reap (SSH) is dispatched, never an unhandledRejection (customer diagnostics 10-07) ----
+  const unhandled = [];
+  const onUnhandled = e => unhandled.push(String((e && e.message) || e));
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    let sshAsked = 0;
+    const rejectingSsh = Object.assign(fake('ssh'), { killAllBackground: () => { sshAsked++; return Promise.reject(new Error('SSH target is not configured for agent')); } });
+    const asyncRouter = makeExecutionRouter({ environments: { local: fake('local'), docker: fake('docker'), ssh: rejectingSsh }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear' });
+    A.eq(asyncRouter.killAllBackground(), 2, 'the synchronous count covers only the proven local/docker kills');
+    A.eq(sshAsked, 1, 'the async backend is still asked to reap');
+    await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+    A.eq(unhandled.length, 0, 'a rejecting async reap is caught by the router, not left to the process');
+
+    // real wiring: the actual three managers a no-SSH station registers (a sync fake hid the async shape once)
+    const fs = require('fs'), os = require('os'), path = require('path');
+    const { makeEnvironmentManager } = require('../sidecar/environment.js');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-router-'));
+    try {
+      const noSpawn = () => { throw new Error('a no-SSH station halt must not spawn anything'); };
+      const realDeps = { spawn: noSpawn, fs, pathMod: path, root, env: {}, sshConfig: () => null };
+      const real = makeExecutionRouter({
+        environments: {
+          local: makeEnvironmentManager(Object.assign({}, realDeps, { config: { backend: 'local' } })),
+          docker: makeEnvironmentManager(Object.assign({}, realDeps, { config: { backend: 'docker' } })),
+          ssh: makeEnvironmentManager(Object.assign({}, realDeps, { config: { backend: 'ssh' } }))
+        },
+        defaultBackendId: 'local', profileForAgent: () => 'station-gear', env: {}
+      });
+      let threw = null, n = null;
+      try { n = real.killAllBackground(); } catch (e) { threw = e; }
+      A.eq(threw, null, 'E-STOP fan-out over the real managers does not throw');
+      A.eq(n, 0, 'nothing to reap on a fresh no-SSH station');
+      await new Promise(r => setTimeout(r, 0)); await new Promise(r => setTimeout(r, 0));
+      A.eq(unhandled.length, 0, 'real local+docker+ssh managers with no SSH target: zero unhandled rejections on halt');
+    } finally { try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {} }
+  } finally { process.removeListener('unhandledRejection', onUnhandled); }
+
   // ---- Lane C: a requested sandbox is honored or refused, never faked ----
   const noDocker = makeExecutionRouter({ environments: { local }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear', env: {} });
   const safeRes = noDocker.resolutionFor('safe');

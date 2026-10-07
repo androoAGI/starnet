@@ -4761,7 +4761,10 @@ const executionEnvironmentDeps = { spawn: childSpawn, fs: fs, pathMod: path, roo
   ledger: procLedger,   // h2 F2: the LOCAL backend receipts foreground shell children for the boot orphan sweep
   serviceEnv: (surface) => serviceKeysMod.runEnv(serviceKeys, process.env, { reservedEnv: SERVICEKEYS_RESERVED_ENV, surface: surface }),
   idleCleanupMs: () => Number(executionSettings.idleCleanupMinutes || 0) * 60000,
-  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId) };
+  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId),
+  // station-wide reap (E-STOP / Quit / shutdown): every agent with a configured remote target, read lazily so a
+  // target saved after boot is included — remote jobs outlive a profile switch, so not the current profile
+  sshAgentIds: () => Object.keys((executionSettings && executionSettings.sshTargets) || {}) };
 const configuredExecutionBackend = String(process.env.STARNET_EXEC_BACKEND || process.env.SKYNET_EXEC_BACKEND || 'local').trim().toLowerCase();
 if (configuredExecutionBackend !== 'local' && configuredExecutionBackend !== 'docker' && configuredExecutionBackend !== 'ssh') throw new Error('unknown execution backend "' + configuredExecutionBackend + '" (expected local, docker, or ssh)');
 const executionEnvironments = {
@@ -22755,7 +22758,7 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
-  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes
+  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
   try { inputGuard.observe('halt').catch(() => {}); } catch (_) {}   // diagnostic only: never release an unowned global clip
