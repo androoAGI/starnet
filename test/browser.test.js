@@ -835,6 +835,167 @@ function fakeDriver() {
     await d.close();
   }
 
+  // ---- TAB 0 GOES AWAY (customer, 0.13.1 macOS) ------------------------------------------------
+  // Under browser-level attach even the original tab is a session. When ITS target went away (the Commander closed
+  // the tab or the window; macOS keeps Chrome running with no window), openerSession kept the dead id: every call
+  // failed "Session with given id not found" while alive() still said true, so nothing ever started a fresh page.
+  {
+    function openerRig(port, extra) {
+      const sent = [], gone = new Set(), urls = new Map();
+      class OWS {
+        constructor() { this.handlers = {}; OWS.last = this; setTimeout(() => this.fire('open', {}), 0); }
+        addEventListener(n, fn) { (this.handlers[n] = this.handlers[n] || []).push(fn); }
+        fire(n, v) { for (const fn of this.handlers[n] || []) fn(v); }
+        emit(method, params) { this.fire('message', { data: JSON.stringify({ method, params }) }); }
+        send(raw) {
+          const m = JSON.parse(raw); sent.push(m);
+          if (m.sessionId && gone.has(m.sessionId)) {
+            setTimeout(() => this.fire('message', { data: JSON.stringify({ id: m.id, error: { code: -32001, message: 'Session with given id not found: ' + m.sessionId } }) }), 0);
+            return;
+          }
+          const sid = m.sessionId || '';
+          const expr = String((m.params && m.params.expression) || '');
+          let result = {};
+          if (m.method === 'Page.navigate') { urls.set(sid, m.params.url); result = { frameId: 'F-' + sid }; }
+          else if (m.method === 'Page.getFrameTree') result = { frameTree: { frame: { id: sid === 'opener' ? 'T0' : 'F-' + sid } } };
+          else if (m.method === 'DOM.getFrameOwner') result = { backendNodeId: 7 };
+          else if (m.method === 'DOM.getBoxModel') result = { model: { content: [100, 200, 400, 200, 400, 400, 100, 400] } };
+          else if (m.method === 'Runtime.evaluate') {
+            let value = null;
+            if (/return \{ready:/.test(expr)) value = { ready: true, error: null };
+            else if (/document\.readyState/.test(expr)) value = { ok: true, ready: 'complete', n: 0 };
+            else if (expr === 'location.href') value = urls.get(sid) || 'about:blank';
+            else if (/location\.href, title/.test(expr)) value = { url: urls.get(sid) || 'https://x.test/' + sid, title: sid };
+            else if (/role="button"/.test(expr)) value = [{ index: 0, role: 'button', text: 'In ' + sid, x: 1, y: 1, w: 9, h: 9 }];
+            result = { result: { value } };
+          }
+          setTimeout(() => this.fire('message', { data: JSON.stringify({ id: m.id, result }) }), 0);
+          if (m.method === 'Target.setAutoAttach' && !m.sessionId) setTimeout(() => this.emit('Target.attachedToTarget', { sessionId: 'opener', waitingForDebugger: false, targetInfo: { type: 'page', targetId: 'T0' } }), 0);
+        }
+        close() {}
+      }
+      const d = T.makeCdpDriver(Object.assign({
+        chrome: 'fake-chrome.exe', forceHeadless: true, syntheticInputOnly: true, timeoutMs: 1000, cdpPort: port,
+        settleQuietPolls: 1, settleNavBudgetMs: 300, settleActionBudgetMs: 300, settleMinObserveMs: 0, settleEmptyGraceMs: 0,
+        fetchImpl: async url => ({ json: async () => url.endsWith('/json/version') ? { webSocketDebuggerUrl: 'ws://browser' } : [{ type: 'page', webSocketDebuggerUrl: 'ws://page' }] }),
+        WebSocketImpl: OWS,
+        spawn: () => ({ pid: 92, on(ev, fn) { if (ev === 'close') this._c = fn; }, kill() { if (this._c) queueMicrotask(() => this._c(0)); } })
+      }, extra || {}));
+      return { d, sent, gone, ws: () => OWS.last };
+    }
+    const lastButtons = sent => sent.filter(m => m.method === 'Runtime.evaluate' && /role="button"/.test(String(m.params.expression))).pop();
+    const tick = ms => new Promise(r => setTimeout(r, ms || 60));
+
+    // (a) another tab is still open: it becomes tab 0, and the driver keeps working on it
+    {
+      const R = openerRig(9361);
+      await R.d.navigate('https://x.test/');
+      A.ok(R.sent.some(m => m.sessionId === 'opener' && m.method === 'Page.navigate'), 'tab 0 is a session under browser-level attach (the production path)');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      A.eq((await R.d.tabs()).length, 2, 'a second tab was adopted');
+      R.ws().emit('Network.requestWillBeSent', { requestId: 'stuck', request: { method: 'GET', url: 'https://x.test/slow' } });
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      const list = await R.d.tabs();
+      A.eq(list.length, 1, 'the closed tab 0 leaves the list');
+      A.eq(list[0].active, true, 'and the surviving tab is now tab 0, active');
+      A.eq(R.d.alive(), true, 'a browser with a drivable tab is still alive');
+      A.eq((await R.d.snapshot(10))[0].text, 'In tab-2', 'snapshot reads the surviving tab');
+      A.eq(lastButtons(R.sent).sessionId, 'tab-2', 'page commands carry the promoted session, never the dead one');
+      A.ok(R.sent.some(m => m.sessionId === 'tab-2' && m.method === 'Network.enable'), 'the promoted tab gets the Network domain, so its HTTP status is observed');
+      R.ws().emit('Network.responseReceived', { requestId: 'doc2', type: 'Document', frameId: 'T2', response: { status: 404, url: 'https://x.test/receipt' } });
+      A.eq(R.d.lastResponse().status, 404, 'the promoted tab\'s document status is reported (mainFrameId follows tab 0)');
+      await R.d.close();
+    }
+
+    // (b) no other tab: the driver reads as dead, so the session starts a fresh browser
+    {
+      const R = openerRig(9362);
+      await R.d.navigate('https://x.test/');
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      A.eq(R.d.alive(), false, 'with no page left to drive, alive() is false (it said true forever before)');
+      let err = null; try { await R.d.navigate('https://x.test/again'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'a page call says the tab is gone, with a code the session can act on');
+      A.ok(/tab was closed/.test(String(err && err.message)) && !/given id/.test(String(err && err.message)), 'in plain words, not a raw protocol error');
+      await R.d.close();
+    }
+
+    // (c) no detach event ever arrived: Chrome's -32001 on tab 0 is the proof
+    {
+      const R = openerRig(9363);
+      await R.d.navigate('https://x.test/');
+      R.gone.add('opener');
+      let err = null; try { await R.d.navigate('https://x.test/again'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'the backstop recognises a dead tab 0 from the reply itself');
+      A.eq(R.d.alive(), false, 'and the driver then reads as dead');
+      await R.d.close();
+
+      const S = openerRig(9364);
+      await S.d.navigate('https://x.test/');
+      S.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      S.gone.add('opener');
+      let err2 = null; try { await S.d.navigate('https://x.test/again'); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'TARGET_DETACHED', 'the backstop also fires with another tab open');
+      A.eq(S.d.alive(), true, '…which then takes tab 0');
+      A.eq(await S.d.navigate('https://x.test/promoted'), 'https://x.test/promoted', 'and the next navigate lands on it');
+      A.ok(S.sent.some(m => m.sessionId === 'tab-2' && m.method === 'Page.navigate'), 'on the promoted session');
+      await S.d.close();
+    }
+
+    // (d) a stale IFRAME session says nothing about the page: it must never latch the driver dead
+    {
+      const R = openerRig(9365);
+      await R.d.navigate('https://x.test/');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'frame-1', targetInfo: { type: 'iframe', targetId: 'FR1' } });
+      await tick();
+      R.gone.add('frame-1');
+      await R.d.snapshot(10);
+      A.eq(R.d.alive(), true, 'a -32001 on an explicit iframe session leaves the driver alive');
+      A.eq((await R.d.tabs()).length, 1, 'and tab 0 untouched');
+      await R.d.close();
+    }
+
+    // (e) the Commander's OWN Chrome is never re-pointed at another of their tabs: the loss is reported instead
+    {
+      const R = openerRig(9366, { attachPort: 9366, headed: true });
+      await R.d.tabs();
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'their-other-tab', targetInfo: { type: 'page', targetId: 'TX' } });
+      await tick();
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      A.eq(R.d.alive(), false, 'attached: tab 0 closing is an honest loss, not a silent switch to a random signed-in tab');
+      let err = null; try { await R.d.snapshot(10).then(() => R.d.navigate('https://x.test/')); } catch (e) { err = e; }
+      A.ok(/browser\.attach/.test(String(err && err.message)), 'and it says how to pick the tab back up');
+      await R.d.close();
+    }
+  }
+
+  // ---- the SESSION recovers ONCE from a closed tab 0 on navigate --------------------------------
+  {
+    const built = [];
+    const make = () => {
+      const drv = { gone: false, promoted: false, url: '',
+        alive: () => !drv.gone,
+        navigate: async u => {
+          if (drv.failNext) { const how = drv.failNext; drv.failNext = null; if (how === 'dead') drv.gone = true; const e = new Error('the browser tab was closed'); e.code = 'TARGET_DETACHED'; throw e; }
+          drv.navs = (drv.navs || 0) + 1; drv.url = u; return u;
+        },
+        close: async () => {}, usingPersistentProfile: () => false, snapshot: async () => [], tabs: async () => [] };
+      built.push(drv); return drv;
+    };
+    const B = makeBrowserTools({ makeDriver: make, lookup: null });
+    await B.session.navigate('https://example.com/');
+    built[0].failNext = 'dead';
+    A.eq(await B.session.navigate('https://example.org/'), 'https://example.org/', 'a navigate whose only tab was closed lands anyway');
+    A.eq(built.length, 2, '…in a fresh browser on the same profile, once');
+    built[1].failNext = 'promoted';
+    A.eq(await B.session.navigate('https://example.net/'), 'https://example.net/', 'a navigate whose tab 0 was replaced by another open tab lands there');
+    A.eq(built.length, 2, '…without starting another browser');
+  }
+
   // ---- PAGE EVAL IS GATED ON WHICH PROFILE IS LIVE ------------------------------------------
   // The loopback-only gate cost real capability (computed style, data-*, shadow DOM). Lifting it
   // outright is not safe either: browser.login puts REAL signed-in sessions in the persistent
@@ -856,7 +1017,6 @@ function fakeDriver() {
       /refused|signed-in station profile/i, 'eval is REFUSED while the signed-in station profile is live');
     await rejects(S2.session.evalPublic('document.cookie'), /cookies and storage/i,
       'and the refusal says WHY, and names the tools that do work there');
-
     A.eq(E.tools.find(t => t.name === 'browser.eval').requiresConsent, true, 'eval is consent-gated even when allowed');
     A.eq(E.tools.find(t => t.name === 'browser.inspect').requiresConsent, false, 'inspect is a read, so it is not consent-gated');
 

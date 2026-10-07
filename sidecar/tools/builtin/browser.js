@@ -805,6 +805,8 @@
 
     let proc = null, procExited = false, procError = null, procClosePromise = null, cdp = null, consoleLog = [], dialog = null, attachedPort = null;
     let networkProxy = null, proxyFailed = false;
+    // true once tab 0's target went away and no other tab was left to take its place (see openerLost)
+    let pageLost = false;
     const allowedLocalOrigins = new Set();
     function allowLocal(url) {
       allowedLocalOrigins.add(new URL(url).origin);
@@ -956,6 +958,36 @@
       // The first protocol event was held paused for main-page setup. Once a different, actually visible
       // tab becomes tab 0, prepare and resume that first event as an ordinary background tab instead.
       prepareAdoptedPage(backgroundSession, backgroundTargetId, true);
+    }
+    /* TAB 0 WENT AWAY (customer, 0.13.1 macOS: every call failed "Session with given id not found" while the browser
+       still read as alive). Under browser-level attach even the original tab is a session, and its target can go away
+       on its own: the Commander closes the tab or the window (macOS keeps Chrome running with no window), the site
+       calls window.close, a crashed or discarded tab detaches. Before this, openerSession kept the dead id forever.
+       If another tab is still open on our OWN browser, it becomes tab 0: it was adopted with the shim already in place
+       (prepareAdoptedPage), so isolation holds, and a signed-in popup is kept rather than thrown away. Otherwise
+       pageLost turns alive() false and the next call starts a fresh browser on the same profile. The Commander's own
+       Chrome is never re-pointed at whichever of their other tabs happens to be first: there the loss is reported. */
+    function openerLost() {
+      inflight.clear();   // the dead tab's requests never finish, and waitForSettle would burn its whole budget on them
+      const next = attachPort === null ? pageSessions.keys().next() : { done: true };
+      if (next.done) {
+        pageLost = true;
+        openerSession = null; openerTargetId = null; activeSession = null;
+        wakeTabWaiters();
+        return;
+      }
+      const sid = next.value, tid = pageSessions.get(sid) || null;
+      pageSessions.delete(sid);
+      openerSession = sid; openerTargetId = tid;
+      // a page target's main frame id is its target id: keeps lastResponse (the HTTP status navigate reports) truthful
+      mainFrameId = tid;
+      if (activeSession === sid) activeSession = null;
+      wakeTabWaiters();
+      // the screencast follows on its own (streamStart's watch restarts it when castTarget() changes)
+      cdp.send('Page.enable', {}, sid).catch(e => failNote('browser.opener-promote', e));
+      cdp.send('Network.enable', {}, sid).catch(e => failNote('browser.opener-promote', e));
+      cdp.send('DOM.enable', {}, sid).catch(e => failNote('browser.opener-promote', e));
+      if (deps.syntheticInputOnly !== false) cdp.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, sid).catch(e => failNote('browser.opener-promote', e));
     }
     async function deriveStationIdentity(sessionId) {
       if (attachPort !== null) return null;
@@ -1372,6 +1404,8 @@
               wakeTabWaiters();
               // A closed tab must never leave the driver pointed at a dead session.
               if (activeSession === p.sessionId) activeSession = null;
+              // …and that includes tab 0 itself
+              if (openerSession && p.sessionId === openerSession) openerLost();
             });
               let initialPageCount = 1;
               if (viaBrowser && attachPort !== null) {
@@ -1511,6 +1545,18 @@
        directly and are never given a sessionId. An explicit sessionId argument still wins, which is how
        snapshot/get_text reach individual iframe sessions. */
     let pageProxy = null;
+    // Chrome's -32001 for a session whose target is gone (CdpClient keeps only the message, not the code)
+    const TARGET_GONE = /Session with given id not found|No target with given id/i;
+    function tabGone(cause) {
+      const err = new Error(pageLost
+        ? 'the browser tab was closed and no other tab is open' + (attachPort === null
+          ? '; the next browser call starts a fresh browser on the same profile (sign-ins kept)'
+          : '; use browser.detach, then browser.attach to drive the tab Chrome is showing now')
+        : 'the first browser tab was closed; the next open tab is now tab 0 - take a fresh browser.snapshot');
+      err.code = 'TARGET_DETACHED';
+      err.cause = cause;
+      return err;
+    }
     async function page() {
       const c = await connect();
       if (!pageProxy || pageProxy.__cdp !== c) {
@@ -1518,7 +1564,17 @@
           __cdp: c,
           // NOTE the 4th arg: CdpClient.send takes a per-call timeout (navigation uses it). Dropping it
           // here would silently put navigation back on the 15s budget and re-open the stalled-session wedge.
-          send: (method, params, sessionId, timeoutMs) => c.send(method, params, sessionId !== undefined ? sessionId : (activeSession || openerSession || undefined), timeoutMs),
+          send: (method, params, sessionId, timeoutMs) => {
+            if (sessionId === undefined && pageLost) return Promise.reject(tabGone(new Error('Session with given id not found')));
+            const sid = sessionId !== undefined ? sessionId : (activeSession || openerSession || undefined);
+            return c.send(method, params, sid, timeoutMs).catch(e => {
+              /* BACKSTOP for a tab 0 that went away without its detach event reaching us. Only a DEFAULT-routed call
+                 that landed on tab 0 counts: an explicit iframe session going stale says nothing about the page. */
+              if (sessionId !== undefined || !sid || sid !== openerSession || !TARGET_GONE.test(String((e && e.message) || ''))) throw e;
+              openerLost();
+              throw tabGone(e);
+            });
+          },
           on: (n, fn) => c.on(n, fn)
         };
       }
@@ -2490,9 +2546,10 @@
       } catch (e) { failNote('browser.page-info', e); }
       return { url: '', title: '' };
     }
-    // False once the Chromium WE started has exited (the Commander closed the station browser window, or it crashed).
+    // False once the Chromium WE started has exited (the Commander closed the station browser window, or it crashed),
+    // and once no page target is left to drive (tab 0 went away with no other tab to take its place: openerLost).
     function alive() {
-      if (proxyFailed) return false;
+      if (proxyFailed || pageLost) return false;
       // our own pinned proxy stopped listening (closed/errored): the browser behind it can load nothing
       if (networkProxy && typeof networkProxy.listening === 'function' && !networkProxy.listening()) return false;
       return !(proc && procExited) && !(cdp && cdp.closed);
@@ -2778,8 +2835,12 @@
           // path below always gave a just-started browser; a second failure reaches the agent with the real error
           await sleep(600);
           finalUrl = await d.navigate(u.href);
+        } else if (e && e.code === 'TARGET_DETACHED' && typeof d.alive === 'function' && d.alive()) {
+          // tab 0 was closed and another open tab took its place: open the address there, ONCE
+          finalUrl = await d.navigate(u.href);
         } else {
-          const revivable = /CDP connection closed/.test(String((e && e.message) || '')) || (e && e.code === 'STATION_PROXY_DOWN');
+          // …and the same ONCE when tab 0 was closed with no other tab left (TARGET_DETACHED on a driver now dead)
+          const revivable = /CDP connection closed/.test(String((e && e.message) || '')) || (e && (e.code === 'STATION_PROXY_DOWN' || e.code === 'TARGET_DETACHED'));
           if (!revivable || !reviveIfDead()) throw e;
           d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
           if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
