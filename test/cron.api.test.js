@@ -109,6 +109,28 @@ function boot(port, workspaces, attemptsLeft) {
     // remove the tz job so the persistence/removal counts below (which pin an exact job total) stay stable.
     await j('POST', '/api/cron/remove', { id: tzCreate.body.job.id });
 
+    // ---- create: enabledToolsets is normalized to real family ids, never silently emptied (#58 class) ----
+    // A console label, a tool name and a wrong case all mean the family; a typo is REFUSED by name (it used to be
+    // dropped/kept as an unknown family and the routine fired with no web tools); [] means no restriction.
+    const toolsetCases = [
+      [['Web & Browser'], ['web'], 'Label mapping', 'the TOOLSETS console label maps to its family'],
+      [['web_request'], ['web'], 'Tool name family', 'a tool name maps to its family'],
+      [['Web'], ['web'], 'Casefold check', 'a family id in any case is that family'],
+      [['web', 'cabinet'], ['web', 'cabinet'], 'Two families kept', 'valid family ids are stored unchanged'],
+      [['web', 'todo'], ['web'], 'Freebie entry', 'a computer freebie (always kept) adds nothing'],
+      [[], null, 'Empty restriction', 'an empty list is NO restriction, never "restrict to nothing"']
+    ];
+    for (let i = 0; i < toolsetCases.length; i++) {
+      const [input, want, name, why] = toolsetCases[i];
+      const made = await j('POST', '/api/cron', { name: name, prompt: 'p', schedule: 'every 1h', agentId: 'cron_brief', enabledToolsets: input });
+      A.eq(made.status, 200, 'toolsets ' + JSON.stringify(input) + ' -> 200');
+      A.eq(JSON.stringify(made.body.job && made.body.job.enabledToolsets), JSON.stringify(want), why);
+      if (made.body.job) await j('POST', '/api/cron/remove', { id: made.body.job.id });
+    }
+    const badToolset = await j('POST', '/api/cron', { name: 'Toolset typo', prompt: 'p', schedule: 'every 1h', agentId: 'cron_brief', enabledToolsets: ['nonsense'] });
+    A.eq(badToolset.status, 400, 'an unknown toolset is refused (400), never dropped');
+    A.ok(/unknown toolset "nonsense"/.test(String(badToolset.body && badToolset.body.error)) && /\bweb\b/.test(String(badToolset.body && badToolset.body.error)), 'the refusal names the bad entry and the valid ids');
+
     // ---- create: bad inputs are refused (not silently stored as un-fireable) ----
     const badSched = await j('POST', '/api/cron', { name: 'x', prompt: 'y', schedule: 'whenever i feel like it' });
     A.eq(badSched.status, 400, 'unparseable schedule -> 400');
@@ -167,6 +189,14 @@ function boot(port, workspaces, attemptsLeft) {
     A.eq(updBadAgent.status, 400, 'update rejects a malformed agentId');
     const updBadProvider = await j('POST', '/api/cron/update', { id, patch: { provider: 'bad-provider' } });
     A.eq(updBadProvider.status, 400, 'update rejects an unknown provider');
+    const updBadToolset = await j('POST', '/api/cron/update', { id, patch: { enabledToolsets: ['bogus'] } });
+    A.eq(updBadToolset.status, 400, 'update refuses an unknown toolset');
+    const afterBad = (await j('GET', '/api/cron')).body.jobs.find(x => x.id === id);
+    A.eq(afterBad && afterBad.enabledToolsets, null, 'a refused toolset update leaves the routine unchanged');
+    const updToolset = await j('POST', '/api/cron/update', { id, patch: { enabledToolsets: ['WEB & BROWSER'] } });
+    A.eq(JSON.stringify(updToolset.body.job && updToolset.body.job.enabledToolsets), '["web"]', 'update normalizes a console label to its family');
+    const updToolsetClear = await j('POST', '/api/cron/update', { id, patch: { enabledToolsets: [] } });
+    A.eq(updToolsetClear.body.job && updToolsetClear.body.job.enabledToolsets, null, 'update with [] clears the restriction');
 
     // ---- run-now: guarded (no provider credentials -> 400; unknown id -> 404) — zero spend ----
     const runNoKey = await j('POST', '/api/cron/run', { id });

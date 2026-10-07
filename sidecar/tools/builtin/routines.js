@@ -283,7 +283,7 @@
           ,skills: { type: 'array', items: { type: 'string' }, maxItems: 8, description: 'Saved runtime skills to preload on every run.' }
           ,contextFrom: { type: 'array', items: { type: 'string' }, maxItems: 8, description: 'Routine ids whose latest successful outputs feed this routine.' }
           ,monitorMode: { type: 'boolean', description: 'When true with contextFrom, run only after the durable upstream source hash changes.' }
-          ,enabledToolsets: { type: 'array', items: { type: 'string' }, maxItems: 16, description: 'Optional restriction-only list of capability families for this routine.' }
+          ,enabledToolsets: { type: 'array', items: { type: 'string' }, maxItems: 16, description: 'Only these toolset ids (e.g. web, cabinet); omit = station defaults.' }
         }
       },
       run: async (args, ctx) => {
@@ -316,7 +316,7 @@
           skills: Array.isArray(args && args.skills) ? args.skills.slice(0, 8) : [],
           contextFrom: Array.isArray(args && args.contextFrom) ? args.contextFrom.slice(0, 8) : null,
           monitorMode: !!(args && args.monitorMode),
-          enabledToolsets: Array.isArray(args && args.enabledToolsets) ? args.enabledToolsets.slice(0, 16) : null,
+          enabledToolsets: Array.isArray(args && args.enabledToolsets) && args.enabledToolsets.length ? args.enabledToolsets.slice(0, 16) : null,   // [] = no restriction, never "no tools"
           repeat: { times: repeatTimes == null ? null : Math.max(1, parseInt(repeatTimes, 10) || 1) }
         };
         const job = await createRoutine(spec);
