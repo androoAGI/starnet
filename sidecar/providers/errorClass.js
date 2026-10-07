@@ -254,11 +254,15 @@
      created team doesn't have any credits yet. You can purchase credits on https://console.x.ai/…") or
      "…has either used all available credits or reached its monthly spending limit". The plain status read called
      that `auth`, and the user was told no model was connected. */
-  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?/;
+  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?|credit balance is too low/;
 
   function classify400(low, code, ctx) {
     const c = String(code || '').toLowerCase();
     if (REJECTED_KEY_RE.test(low)) return 'auth';
+    /* Anthropic refuses an empty wallet with HTTP 400 invalid_request_error "Your credit balance is too low to
+       access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits." That read as
+       format_error and reached the user as "Something went wrong — try again" (2026-10-07 report, three runs). */
+    if (NO_CREDIT_RE.test(low)) return 'billing';
     if (/context_length|context_window|max.*token/.test(c)) return 'context_overflow';
     if (/content_policy|moderation/.test(c)) return 'content_policy_blocked';
     if (OVERFLOW_RE.test(low)) return 'context_overflow';

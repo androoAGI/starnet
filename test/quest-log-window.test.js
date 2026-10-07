@@ -75,6 +75,14 @@ A.ok(/function signatureOf/.test(journey) && /JSON\.stringify\(journey\)/.test(j
 A.ok(/sig === lastSig/.test(journey), 'an unchanged journey (same signature, new object) repaints NOTHING');
 A.eq((journey.match(/lastSig = null/g) || []).length >= 2, true, 'BOTH reset paths clear the signature (a re-init must not suppress the first repaint)');
 A.ok(/function rerender\(key, swap\)/.test(station), 'StationUI.rerender accepts the data-poke form (swap=false → no body crossfade)');
+// 2026-10-07 QUEST LOG lag: buildQuests resyncs every quest store, and a store poking rerender('quests') mid-build
+// recursed through the synchronous rerender ~1,600 frames deep. A poke during a build is owed ONE follow-up paint.
+{
+  const rb = (station.match(/let building = false, owed = false;\s*w\._render = \(swap\) => \{[\s\S]*?\n    \};/) || [''])[0];
+  A.ok(/if \(building\) \{ owed = true; return; \}/.test(rb), 'a rerender landing while the window is still building never re-enters the builder');
+  A.ok(/paint\(swap\);\s*if \(owed\) \{ owed = false; paint\(false\); \}/.test(rb), 'a poke owed mid-build gets exactly one follow-up data paint');
+  A.ok(/finally \{ building = false; owed = false; \}/.test(rb), 'a builder that throws can never wedge the window in "building"');
+}
 for (const f of ['goalstore', 'journeystore', 'maintqueststore', 'stationqueststore', 'workqueststore', 'queststatestore', 'questledgerstore', 'questrefreshstore']) {
   const src = read('frontend/app/' + f + '.js');
   A.ok(!/StationUI\.rerender\('quests'\)(?!, )/.test(src.replace(/StationUI\.rerender\('quests', false\)/g, '')), f + ': every background poke is a DATA poke (rerender(\'quests\', false)) — no crossfade blink from a poll');

@@ -106,6 +106,39 @@ ring = [diag('budget'), diag('budget')];
 MaintQuestStore.sync();
 A.eq(MaintQuestStore.quests().some(q => q.id === 'mq:slag:budget'), false, 'the same cause after reload NEVER re-mints (stop forever)');
 
+/* ---------- an UNCHANGED recurring cause never saves + pokes (the 2026-10-07 QUEST LOG lag) ----------
+   buildQuests calls sync(), and StationUI.rerender is synchronous: a sync that poked on every call re-entered the
+   builder ~1,600 frames deep per poke, and the 1s tick re-armed it every second while the log was open. */
+ring = [diag('error', 'errored out', 'top it up'), diag('error', 'errored out', 'top it up'), diag('error', 'errored out', 'top it up')];
+MaintQuestStore.sync();
+A.ok(MaintQuestStore.quests().some(q => q.id === 'mq:slag:error' && q.status === 'open'), 'three errored runs mint the fix-it quest');
+rerenders.length = 0;
+const savesBefore = global.localStorage.getItem('starnet.maintquests.v1');
+MaintQuestStore.sync(); MaintQuestStore.sync(); MaintQuestStore.sync();
+A.eq(rerenders.length, 0, 'an idle sync with the same recurring cause pokes NO rerender (was: one per sync, forever)');
+A.eq(global.localStorage.getItem('starnet.maintquests.v1'), savesBefore, 'an idle sync writes nothing new');
+ring.push(diag('error', 'errored out', 'top it up'));
+MaintQuestStore.sync();
+A.ok(rerenders.length === 1 && /4 runs/.test(MaintQuestStore.quests().find(q => q.id === 'mq:slag:error').title), 'a REAL change (a 4th failure) still pokes once');
+
+/* ---------- a clean finish settles the failing agent's post-mortems (the ring holds only failures) ---------- */
+const runEnd = p => (listeners['agent.run.end'] || []).forEach(fn => fn(p));
+A.eq((listeners['agent.run.end'] || []).length, 1, 'the store listens for run ends (subscription only)');
+ring = [Object.assign(diag('max_iters', 'looped without finishing', 'Split it.'), { agentId: 'a1' }),
+  Object.assign(diag('max_iters', 'looped without finishing', 'Split it.'), { agentId: 'a1' })];
+MaintQuestStore.sync();
+A.eq(MaintQuestStore.quests().find(q => q.id === 'mq:slag:max_iters').status, 'open', 'two max_iters failures by a1 reopen the fix-it');
+runEnd({ agentId: 'a2', runId: 'x', reason: 'done' });
+A.eq(MaintQuestStore.quests().find(q => q.id === 'mq:slag:max_iters').status, 'open', 'ANOTHER agent finishing clean does not clear a1\'s problem');
+runEnd({ agentId: 'a1', runId: 'y', reason: 'error' });
+A.eq(MaintQuestStore.quests().find(q => q.id === 'mq:slag:max_iters').status, 'open', 'a failed run settles nothing');
+runEnd({ agentId: 'a1', runId: 'z', reason: 'done' });
+A.eq(MaintQuestStore.quests().find(q => q.id === 'mq:slag:max_iters').status, 'done', 'a1 finishing clean clears its fix-it — the line runs clean again');
+A.eq(ring.length, 2, 'settling never edits the ring (the LOGBOOK still shows the history)');
+ring.push(Object.assign(diag('max_iters'), { agentId: 'a1' }), Object.assign(diag('max_iters'), { agentId: 'a1' }));
+MaintQuestStore.sync();
+A.eq(MaintQuestStore.quests().find(q => q.id === 'mq:slag:max_iters').status, 'open', 'NEW failures after the clean run reopen it (only post-settle failures count)');
+
 /* ---------- reset: the new-hero clean slate ---------- */
 MaintQuestStore.reset();
 A.eq(global.localStorage.getItem('starnet.maintquests.v1'), null, 'reset removes the self-persisted key');
