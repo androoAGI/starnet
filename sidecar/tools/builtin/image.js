@@ -6,9 +6,10 @@
    paired with their provider endpoint.
 
      image_generate  : POST /chat/completions with modalities:['image','text']. The model returns a
-                       base64 data-URL PNG in choices[0].message.images[]; we decode it and save it into
-                       the agent's JAILED workspace (same guard as fs.write), emit a 'deliverable' event so
-                       the UI shows it, and hand back the /api/file?agent=…&path=… viewer URL.
+                       base64 data-URL PNG in choices[0].message.images[]; we decode it and save it through
+                       the same guard as fs.write (a relative path lands in the project folder of a project-
+                       scoped run, else the agent's JAILED workspace — issue #77), emit a 'deliverable' event so
+                       the UI shows it, and hand back the absolute location + the /api/file viewer URL.
                        Default model: google/gemini-2.5-flash-image (override via args.model — e.g.
                        black-forest-labs/flux.2-pro, recraft/recraft-v4).
                        TRANSPARENCY: args.transparent (or a prompt that plainly asks for a transparent background)
@@ -360,8 +361,11 @@
     // host). Used when no OpenRouter key exists — and as the rescue when the OpenRouter call FAILS (dead key,
     // out of credits, model rot) — so vision never dead-ends on one vendor.
     const auxVision = typeof deps.auxVision === 'function' ? deps.auxVision : null;
-    // reuse the ONE workspace jail (fs.js) so generated/analyzed paths can't escape the agent's directory
-    const jail = fsMod.makeFsTools({ fsp, pathMod: P, root: ROOT })._internals;
+    // reuse the ONE workspace jail (fs.js) so generated/analyzed paths can't escape the agent's directory.
+    // pathTrust (issue #77): the run's path-trust guard, the same one fs.* gets. With it, a relative path in a
+    // project-scoped run lands IN the project (where the lead's fs.read and the shell look), and an absolute path
+    // inside a trusted project is allowed; without it (tests, bare rigs) every path stays in the private jail.
+    const jail = fsMod.makeFsTools({ fsp, pathMod: P, root: ROOT, pathTrust: typeof deps.pathTrust === 'function' ? deps.pathTrust : undefined })._internals;
 
     function emitDeliverable(ctx, aid, rel) {
       if (!ctx || typeof ctx.emit !== 'function') return;
@@ -454,7 +458,8 @@
     // ---------------- image_generate ----------------
     const generateTool = {
       name: 'image_generate', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: GEN_TIMEOUT_MS + 15000,
-      description: 'Generate an image from a text prompt and SAVE it into your workspace (returns the saved path + a viewer URL). ' +
+      description: 'Generate an image from a text prompt and SAVE it to a file (returns the absolute saved location + a viewer URL). ' +
+        'A relative "path" lands in the project folder when this conversation is scoped to a trusted project, otherwise in your private workspace; an absolute "path" inside a trusted project folder saves there. ' +
         'Use for any "draw / create / generate an image of …" request. Optional "model" picks the image model: ' +
         (gptImageRoute
           ? 'default ' + OPENAI_IMAGE_MODEL + (isCodex ? ' through the signed-in ChatGPT plan (no API key; about 40s per image). ' : ' through the connected OpenAI Images API. ') + 'Optional "path" sets the output filename. '
@@ -601,7 +606,9 @@
           const h = require('node:crypto').createHash('sha1').update(buffer).digest('hex').slice(0, 12);
           rel = 'images/gen-' + h + ext;
         }
-        const { abs } = await jail.resolveInside(aid, rel);   // throws on jail escape / abs / '..'
+        // project-scoped run: a relative path lands in the project folder (issue #77, same rule as fs.write #60)
+        const placed = await jail.resolveInside(aid, rel, { scope: 'write', ctx });   // throws on escape / '..' / untrusted
+        const abs = placed.abs;
         checkCancelled(signal);
         await fsp.mkdir(P.dirname(abs), { recursive: true });
         checkCancelled(signal);
@@ -619,30 +626,33 @@
             if (!e || e.code !== 'ENOENT') require('../../failopen.js').note('image.staging-cleanup', e);
           });
         }
-        const viewer = '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel);
+        const where = await jail.outputPlacement(aid, placed);
+        const viewer = where.viewer;
         const caption = textFromResponse(data);
         const kb = (buffer.length / 1024).toFixed(0) + ' KB';
         return {
           content: 'Generated and saved ' + rel + ' (' + kb + ', ' + mime + ', model ' + model + shapeNote + sizeNote + ').' +
             (switchNote ? '\nModel: ' + switchNote + '.' : '') + alphaNote +
-            '\nView: ' + viewer + (caption ? '\nModel note: ' + caption : ''),
+            '\n' + where.line +
+            (viewer ? '\nView: ' + viewer : '') + (caption ? '\nModel note: ' + caption : ''),
           summary: 'image → ' + rel
         };
       }
     };
 
     // ---------------- image_analyze ----------------
-    async function imageToUrl(aid, image) {
+    async function imageToUrl(aid, image, ctx) {
       const s = String(image || '').trim();
       if (!s) throw new Error('image is required (a workspace path or an http(s) URL)');
       if (/^data:/i.test(s)) return s;                          // already a data URL
       if (/^https?:\/\//i.test(s)) return s;                    // public URL — OpenRouter fetches it server-side
       if (/^[a-z]+:\/\//i.test(s)) throw new Error('only http(s) URLs, data URLs, or workspace paths are allowed');
-      // else: a workspace-relative path -> read + base64
-      const { abs } = await jail.resolveInside(aid, s);
+      // else: a file path -> read + base64. Relative = the project folder in a project-scoped run, else the private
+      // workspace (the same base image_generate and fs.read use, issue #77); absolute = path trust.
+      const { abs } = await jail.resolveInside(aid, s, { scope: 'read', ctx });
       let buf;
       try { buf = await fsp.readFile(abs); }
-      catch (e) { if (e && e.code === 'ENOENT') throw new Error('no such file in workspace: ' + s); throw e; }
+      catch (e) { if (e && e.code === 'ENOENT') throw new Error('no such file: ' + s + ' (looked at ' + abs + ')'); throw e; }
       if (buf.length > MAX_IMAGE_BYTES) throw new Error('image too large to analyze (' + buf.length + ' bytes)');
       const mime = MIME_BY_EXT[extOf(P, abs)] || 'image/png';
       return 'data:' + mime + ';base64,' + buf.toString('base64');
@@ -691,7 +701,7 @@
 
     const analyzeTool = {
       name: 'image_analyze', capability: 'studio', scope: 'read', requiresConsent: false, timeoutMs: ANALYZE_TIMEOUT_MS + 15000,
-      description: 'Look at an image and answer a question about it (vision). "image" is EITHER a file in your workspace ' +
+      description: 'Look at an image and answer a question about it (vision). "image" is EITHER a file (relative = the project folder in a project-scoped conversation, else your workspace) ' +
         '(e.g. "images/gen-ab12cd.png") OR a public http(s) image URL. Optional "prompt" is the question (default: a ' +
         'detailed description). Optional "model" overrides the vision model. Works with the session\'s own model when ' +
         'no dedicated vision key is configured — NEVER ask the user for an API key to look at an image.',
@@ -702,7 +712,7 @@
       } },
       run: async (args, ctx) => {
         const aid = (ctx && ctx.agentId) || 'agent';
-        const url = await imageToUrl(aid, args.image);
+        const url = await imageToUrl(aid, args.image, ctx);
         const full = await analyzeImageUrl(url, args.prompt, args.model);
         const out = clip(full);
         return { content: out, fullContent: out === full ? undefined : full, summary: 'analyzed image (' + full.length + ' chars)' };
