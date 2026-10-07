@@ -124,6 +124,9 @@
       const m = String(cause.message).match(/(?:^|\s)([a-z0-9-]+(?:\.[a-z0-9-]+){1,})(?::\d+)?(?:\s|$)/i);
       if (m) host = m[1];
     }
+    // TLS-alert and socket causes name no host at all — fall back to the hostname the adapter / tool stamped on the
+    // error (provider.js stampRequestHost: hostname only, never a URL). LAST, so a cause's own host keeps priority.
+    if (!host && err && typeof err.requestHost === 'string') host = err.requestHost;
     host = String(host || '').trim();
     if (!code && !host) return '';
     return code && host ? code + ' ' + host : (code || host);
