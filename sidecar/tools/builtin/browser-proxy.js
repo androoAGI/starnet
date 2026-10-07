@@ -88,8 +88,13 @@ async function startPinnedProxy({ validate, resolve }) {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolveReady);
   });
+  // After listen: a runtime server error (rare — an fd/socket failure) must never end the station; it marks the proxy
+  // dead instead, and the driver reads listening() to treat its browser as dead and start a fresh one (#61).
+  let failed = false;
+  server.on('error', () => { failed = true; try { server.close(); } catch (_) {} });
   return {
     port: server.address().port,
+    listening: () => !failed && server.listening,
     allowLocal(url) { localOrigins.add(new URL(url).origin); },
     close: () => new Promise(resolveClose => server.close(resolveClose))
   };

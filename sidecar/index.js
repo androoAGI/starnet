@@ -4669,6 +4669,8 @@ const browserViews = makeBrowserViews({
     return !!chromiumInstaller.platformKey;   // none installed: one is downloaded on first use
   },
   browserSetup: () => chromiumInstaller.status(),
+  // #61 RESET STATION BROWSER: end only an orphaned StarNet browser on the durable profile (never ours, never the Commander's)
+  sweepStationProfile: () => require('./tools/builtin/browser-orphans.js').sweep({ profileDir: BROWSER_PROFILE_DIR }),
   handoffLive: runId => browserHandoffs.isLive(runId),
   attended: stationBrowserLogin,
   // the driving agent's own jail: a download must land where that agent can read it back
