@@ -68,7 +68,7 @@
 
   // kind -> beginner-facing copy + whether a plain retry helps + where to send them instead.
   // action: 'settings' (fix the model key) · 'refit' (place the missing gear) · 'skills' (toggle a skill
-  //   family) · 'store' (top up managed credit) · null (just retry / nothing).
+  //   family) · 'store' (top up managed credit) · 'budget' (SETTINGS › SPENDING LIMITS) · null (just retry / nothing).
   const KINDS = {
     // ONLY for a fault PROVEN local: the raw carries "sidecar http 5xx" (our own service answered 500). A
     // provider's 5xx/overloaded must never land here — a message naming a component owes proof it is at fault,
@@ -126,7 +126,13 @@
     // crash+respawn the page still holds the OLD X-StarNet-Token, so EVERY action 403s. Retrying is doomed and
     // "add a key" is the wrong door — the page needs the fresh boot token, which only a reload fetches.
     stale_session: { retryable: false, action: 'reload',   msg: 'The station restarted — reload this page to reconnect.' },
-    unknown:       { retryable: true,  action: null,       msg: 'Something went wrong on that turn — try again.' }
+    /* StarNet's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
+       spend_history_unavailable): a limit the Commander chose can't be checked, so the run was stopped. NOT a provider
+       out of credit (never `billing`), and never the generic "Something went wrong — try again": a retry hits the same
+       refusal until the cause is fixed. The copy is REBUILT per cause in friendlyError() (spendUnknownMessage); this is
+       the fallback. The door is SETTINGS › SPENDING LIMITS, where the cause and its fix are listed. */
+    spend_unknown: { retryable: false, action: 'budget',   msg: "Your spending limits can't be checked because StarNet's spend history is unknown, so this run was stopped — open SETTINGS › SPENDING LIMITS to fix it." },
+    unknown:      { retryable: true,  action: null,       msg: 'Something went wrong on that turn — try again.' }
   };
 
   // the sidecar classifier speaks in `reason`s; map each onto our UI kind. Its whole domain is the PROVIDER
@@ -255,6 +261,21 @@
      names grok MODELS too, and sending that user to "add an xAI key" is a door onto the room they are already in. */
   const GROK_OAUTH_VOICE_RE = /grok \(xai\) http|grok[ _-]?oauth|grok sign-?in|xai[ _]oauth/;
   const GROK_ALLOWLIST_RE = /allowlist|not allowed|not enabled|not available|unavailable|access forbidden|\bforbidden\b|\b403\b/;
+  /* StarNet's OWN spend-ledger refusal (sidecar/loop.js stopForSpend → failureCode spend_history_unavailable; every
+     cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
+     "spend history is unavailable" wording. Local by construction — never a provider's billing. */
+  const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
+  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door
+  function spendUnknownMessage(raw) {
+    const low = String(raw || '').toLowerCase();
+    if (/interrupted before its spend was recorded/.test(low)) {
+      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+    }
+    if (/could not be saved to disk/.test(low)) {
+      return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";
+    }
+    return KINDS.spend_unknown.msg;
+  }
 
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
@@ -379,6 +400,10 @@
       // BEFORE delegating: the sidecar API classifier would read a bare 403 as provider `auth` and the error row
       // would offer "🔑 Add a key", the wrong door (EL-11 FIX 2). The only fix is the fresh boot token → reload.
       kind = 'stale_session';
+    } else if (SPEND_UNKNOWN_RE.test(raw.toLowerCase())) {
+      // StarNet's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
+      // offer a doomed RETRY) — caught before delegating so both paths open SPENDING LIMITS.
+      kind = 'spend_unknown';
     } else if (classifyApiError) {
       // delegate to the single-sourced truth table; synthesize the err shape it expects (status + message).
       try {
@@ -453,6 +478,9 @@
         userMessage = 'The provider rejected the API key — check it, or paste a new one under SETTINGS → AI & MODELS.';
       }
       return { userMessage: userMessage, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
+    }
+    if (kind === 'spend_unknown') {
+      return { userMessage: spendUnknownMessage(raw), kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // transport loss: the ONE kind whose copy names a component, so it is the one kind that owes proof. The
     // measured verdict rides along on `engineAlive` so a diagnostic report can state what was actually probed.
@@ -617,6 +645,10 @@
       case 'store':
         // this door opens the PROVIDERS section (there is no "store") — name it truthfully with a CRT glyph.
         return { label: '▸ OPEN AI & MODELS', run: () => openSettings('providers') };
+      case 'budget':
+        // spend_unknown: SETTINGS › SPENDING LIMITS lists the interrupted runs to settle (or says restart) — the
+        // only surface that clears the refusal. No retry chip rides with it: a retry hits the same refusal.
+        return { label: '$ OPEN SPENDING LIMITS', run: () => openSettings('budget') };
       case 'skills':
         return { label: '✦ OPEN SKILL LIBRARY', run: () => { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('skills'); } catch (_) {} } };   // 'skills' aliases into ABILITIES ▸ SKILL LIBRARY (NAV CONDENSE 2)
       default:

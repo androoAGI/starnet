@@ -99,6 +99,26 @@ async function armAndStatus(B) {
     }
   }
 
+  // ===== 2b. spend history UNKNOWN (an interrupted run's dispatch receipt) under a CHOSEN cap → 'spend-unknown', never
+  //          'budget': the budget is not exhausted, and no resume or cap change would clear it =====
+  {
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-unknown-'));
+    const dir = path.join(ws, '.spend-pending');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, require('crypto').createHash('sha256').update('interrupted').digest('hex') + '.json'), JSON.stringify({ runId: 'interrupted', agentId: 'agent' }));
+    const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_BUDGET_PER_DAY: '40' };
+    let { child, port } = await boot(9000 + (process.pid % 25), env, 20);
+    const B = 'http://' + HOST + ':' + port;
+    try {
+      const s = await armAndStatus(B);
+      A.eq(s.binding, 'spend-unknown', 'unknown spend history under a chosen cap → binding:spend-unknown (not an "exhausted" budget)');
+      A.eq(s.beatsUsedToday, 0, 'the spend-unknown stand-down spent no leash');
+    } finally {
+      await kill(child);
+      try { fs.rmSync(ws, { recursive: true, force: true }); } catch (_) {}
+    }
+  }
+
   // ===== 3. PRECHECK INSPECTION FAILURE -> fail closed, spend nothing, and leave a truthful durable decision =====
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-precheck-fault-'));
