@@ -1604,6 +1604,7 @@
         : 'the first browser tab was closed; the next open tab is now tab 0 - take a fresh browser.snapshot');
       err.code = 'TARGET_DETACHED';
       err.cause = cause;
+      if (pageLost && attachPort !== null) err.revealTools = ['browser.detach', 'browser.attach'];   // deferred: the hint must make them callable
       return err;
     }
     async function page() {
@@ -3566,6 +3567,8 @@
       exec('browser.click', 'Click a visible element by ref from the latest browser.snapshot. If the click downloads a file, the result waits for Chromium and verifies the saved file under downloads/; pass that exact path to fs.read (Word .docx files are extracted automatically).', { type: 'object', required: ['ref'], properties: { ref: { type: 'string' } } },
         async a => {
           const content = await session.click(a.ref);
+          // the new-tab note names browser.tab_select / browser.tabs, which are deferred: the hint must make them callable
+          if (/opened a NEW tab/.test(content)) return { content, summary: 'clicked, opened a new tab', control: { revealTools: ['browser.tab_select', 'browser.tabs'] } };
           return { content, summary: /Download completed/.test(content) ? 'download completed' : 'clicked' };
         }),
       exec('browser.type', 'Click/focus an element by ref from the latest browser.snapshot, then type text into it.', { type: 'object', required: ['ref', 'text'], properties: { ref: { type: 'string' }, text: { type: 'string' } } },

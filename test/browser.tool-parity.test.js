@@ -70,14 +70,15 @@ const fakeDriver = () => ({
 
   /* Every browser.<name> the module's own text points an agent at must be a tool that exists. The eval refusal told
      agents to use "browser.test_eval", which was never registered (10-07). A failNote tag or the file's own name is
-     not a tool mention; those few are listed here, and a hyphenated tag (browser.kill-tree) never matches. */
+     not a tool mention; those few are listed here, and a hyphenated tag (browser.kill-tree) never matches. A name
+     that ends a sentence ("use browser.test_eval.") still counts: only a dot followed by more name (a.b.c) is skipped. */
   {
     const fs = require('fs');
     const path = require('path');
     const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'browser.js'), 'utf8');
     const NOT_TOOLS = new Set(['browser.js', 'browser.orphans']);
     const mentioned = new Set();
-    for (const m of src.matchAll(/\bbrowser\.[a-z_]+(?![\w.-])/g)) mentioned.add(m[0]);
+    for (const m of src.matchAll(/\bbrowser\.[a-z_]+(?![\w-]|\.\w)/g)) mentioned.add(m[0]);
     const ghosts = Array.from(mentioned).filter(n => !live.has(n) && !NOT_TOOLS.has(n)).sort();
     A.eq(ghosts, [], 'every browser.* name browser.js mentions is a registered tool (no ghost tools in hints)');
   }

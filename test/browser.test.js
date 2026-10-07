@@ -969,6 +969,7 @@ function fakeDriver() {
       A.eq(R.d.alive(), false, 'attached: tab 0 closing is an honest loss, not a silent switch to a random signed-in tab');
       let err = null; try { await R.d.snapshot(10).then(() => R.d.navigate('https://x.test/')); } catch (e) { err = e; }
       A.ok(/browser\.attach/.test(String(err && err.message)), 'and it says how to pick the tab back up');
+      A.eq(err && err.revealTools, ['browser.detach', 'browser.attach'], 'and reveals the deferred detach/attach it names');
       await R.d.close();
     }
   }
@@ -1148,6 +1149,20 @@ function fakeDriver() {
     const named = (refusedEval.content.match(/browser\.[a-z_]+/g) || []).filter((n, i, all) => all.indexOf(n) === i);
     const registeredNames = new Set(S2.tools.map(t => t.name));
     A.eq(named.filter(n => !registeredNames.has(n)), [], 'every browser.* tool the refusal names is a registered tool (' + named.join(', ') + ')');
+
+    // The click's NEW-TAB note points at browser.tab_select / browser.tabs, both DEFERRED: the result reveals them.
+    const popper = fakeDriver();
+    popper.click = async () => 'clicked\nThis click opened a NEW tab (index 1). You are still on tab 0; use browser.tab_select 1 to read it (browser.tabs lists every tab).';
+    const P = makeBrowserTools({ driver: popper });
+    const popReg = makeRegistry();
+    P.register(popReg);
+    const popSnap = await popReg.dispatch(call('browser.snapshot', {}));
+    const popRef = (popSnap.content.match(/(b\d+) \[button\] Search/) || [])[1];
+    const popped = await popReg.dispatch(call('browser.click', { ref: popRef }));
+    A.eq([popped.isError, popped.control && popped.control.revealTools], [false, ['browser.tab_select', 'browser.tabs']], 'a click that opened a new tab reveals the deferred tab tools its note names');
+    popper.click = async () => 'clicked';
+    const plainClick = await popReg.dispatch(call('browser.click', { ref: popRef }));
+    A.eq(plainClick.control, null, 'an ordinary click reveals nothing');
 
     A.eq(E.tools.find(t => t.name === 'browser.eval').requiresConsent, true, 'eval is consent-gated even when allowed');
     A.eq(E.tools.find(t => t.name === 'browser.inspect').requiresConsent, false, 'inspect is a read, so it is not consent-gated');
