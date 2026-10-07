@@ -61,12 +61,70 @@ const Topbar = (() => {
     try { if (typeof World !== 'undefined' && World.linkState) return World.linkState(); } catch (_) {}
     return null;
   }
+  /* LINK DOWN → WHY + A WAY OUT (link-down 2026-10-07). A red LINK DOWN that never said why and offered nothing
+     left customers hunting for a way to quit or restart. Once the link has stayed down DOWN_ESCALATE_MS, the chip
+     asks the service itself (Harness.engineState, bounded, at most every PROBE_EVERY_MS) and its tip carries THAT
+     answer verbatim — the sidecar's own 503 'degraded: …' line or the guardian's halt, never an invented cause.
+     On the desktop, while the service is not answering healthily, the connection box becomes the RESTART door
+     (Harness.restartEngine — the same shell command the boot recovery screen uses). It is user-initiated only: a
+     slow service may still be finishing live work. The World bridge reconnects on its own after a respawn (same
+     port, same per-launch token), so there is no reload. A browser has nothing to restart: the tip names the step. */
+  const DOWN_ESCALATE_MS = 15000, PROBE_EVERY_MS = 10000;
+  let downSince = 0, lastProbeAt = 0, probing = false, engine = null, restarting = false, recoverable = false;
+  const DOWN_TIP = 'lost the connection to StarNet’s background service — live numbers pause until it’s back (is the app still running?)';
+  const BROWSER_STEP = ' — if you launched with `npm start`, check that terminal; otherwise open the desktop app';
+  function canRestart() { try { return typeof Harness !== 'undefined' && !!Harness.canRestartEngine && Harness.canRestartEngine(); } catch (_) { return false; } }
+  function probeEngine() {
+    if (probing || typeof Harness === 'undefined' || !Harness.engineState) return;
+    probing = true; lastProbeAt = Date.now();
+    Promise.resolve(Harness.engineState()).then(s => { engine = s || null; }, () => { engine = null; })
+      .finally(() => { probing = false; try { paintSig(); } catch (_) {} });
+  }
+  function downTip(desktop) {
+    if (!engine) return DOWN_TIP;
+    if (engine.state === 'ok') return 'lost the live link to StarNet’s background service — the service itself is answering, so this window is reconnecting on its own';
+    const what = engine.reason || (engine.state === 'silent' ? 'StarNet’s background service isn’t answering (it may be stuck)' : 'StarNet’s background service isn’t running');
+    return what + (desktop ? ' — click to restart the station service' : BROWSER_STEP);
+  }
+  function connectionBox(el) { return (el && el.closest && el.closest('.tb-connection')) || el; }
+  function setRecoverable(el, on) {
+    if (recoverable === on) return;
+    recoverable = on;
+    const box = connectionBox(el);
+    if (!box) return;
+    box.classList.toggle('recoverable', on);
+    if (on) { box.setAttribute('role', 'button'); box.tabIndex = 0; box.setAttribute('aria-label', 'LINK DOWN — restart the station service'); }
+    else { box.removeAttribute('role'); box.removeAttribute('tabindex'); box.removeAttribute('aria-label'); }
+  }
+  function notifyUser(text, cls) { try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(text, cls); } catch (_) {} }
+  async function restartFromChip() {
+    const ls = linkNow();
+    if (!recoverable || restarting || !ls || !ls.down || typeof Harness === 'undefined' || !Harness.restartEngine) return;
+    restarting = true;
+    notifyUser('restarting the station service…', 'warn');
+    let ok = false;
+    try { ok = await Harness.restartEngine(); } catch (_) { ok = false; }
+    if (!ok) notifyUser('the station service could not be restarted — quit StarNet fully (tray → Quit) and open it again. Your save is untouched.', 'warn');
+    else {
+      // A respawn that comes straight back degraded (a workspace owned by another process, a crash at boot) is not
+      // healed: say what the service now says instead of claiming success.
+      let after = null;
+      try { after = await Harness.engineState(); } catch (_) { after = null; }
+      if (after && after.state === 'degraded' && after.reason) notifyUser('restarted, but the station service still reports: ' + after.reason, 'warn');
+      else notifyUser('station service restarted — reconnecting…', 'good');
+    }
+    // give the bridge a full escalation window to reconnect before the door is offered again
+    downSince = Date.now(); engine = null; lastProbeAt = 0; restarting = false;
+    paintSig();
+  }
+
   function paintSig() {
     const el = $('#sig'); if (!el) return;
     const bars = el.querySelector('b'); if (!bars) return;
     const ls = linkNow();
     // no world / never bridged / deliberately paused → neutral standby (never a false ONLINE-green,
     // never a false DOWN-red). Only a genuinely bridged-but-dead link paints the red fault state.
+    if (!ls || !ls.bridged || ls.paused || !ls.down) { downSince = 0; engine = null; setRecoverable(el, false); }
     if (!ls || !ls.bridged || ls.paused) {
       el.classList.remove('down');
       el.classList.add('standby');
@@ -78,9 +136,15 @@ const Topbar = (() => {
     if (ls.down) {
       el.classList.remove('standby');
       el.classList.add('down');
-      el.childNodes[0].nodeValue = 'LINK DOWN ';
       bars.textContent = SIG_DOWN;
-      el.title = 'lost the connection to StarNet’s background service — live numbers pause until it’s back (is the app still running?)';
+      const now = Date.now();
+      if (!downSince) downSince = now;
+      const held = now - downSince >= DOWN_ESCALATE_MS;
+      if (held && !restarting && now - lastProbeAt >= PROBE_EVERY_MS) probeEngine();
+      const door = held && canRestart() && !!engine && engine.state !== 'ok';
+      setRecoverable(el, door || restarting);
+      el.childNodes[0].nodeValue = restarting ? 'RESTARTING… ' : door ? 'LINK DOWN · RESTART ' : 'LINK DOWN ';
+      el.title = held ? downTip(canRestart()) : DOWN_TIP;
     } else {
       el.classList.remove('down', 'standby');
       el.childNodes[0].nodeValue = 'UPLINK ';
@@ -100,6 +164,13 @@ const Topbar = (() => {
       const go = () => { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('quests', 'progress'); };
       chip.addEventListener('click', go);
       chip.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
+    }
+
+    // LINK DOWN restart door: wired once on the connection box, live only while paintSig marks it recoverable.
+    const box = connectionBox($('#sig'));
+    if (box && box.addEventListener) {
+      box.addEventListener('click', () => { restartFromChip(); });
+      box.addEventListener('keydown', ev => { if (recoverable && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); restartFromChip(); } });
     }
 
     // first paints (may run before any event — honest current level)
@@ -131,7 +202,7 @@ const Topbar = (() => {
   }
 
   // expose a tiny read-only surface for dev/verification (mirrors testapi.js style; inert otherwise)
-  return { init, _paintXp: paintXp, _paintSig: paintSig };
+  return { init, _paintXp: paintXp, _paintSig: paintSig, _restartFromChip: restartFromChip };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { Topbar };

@@ -5247,15 +5247,11 @@ const App = (() => {
     // produced by the sidecar from its own ledger, so it is proof, not a guess. Likewise, if the desktop guardian
     // has HALTED respawns (starnet_sidecar_status.halted), say so — the retry poll can never heal that on its own.
     let degradedReason = '';
+    // The reading itself is shared with the in-game LINK DOWN chip (Harness.engineState): the same verbatim 503 text
+    // or guardian halt, now bounded so a hung service cannot leave the probe pending.
     const probeDegraded = async () => {
       let reason = '';
-      try {
-        const r = await fetch('/api/health', { cache: 'no-store' });
-        if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) reason = t; }
-      } catch (_) { reason = ''; }
-      if (!reason && core && core.invoke) {
-        try { const g = await core.invoke('starnet_sidecar_status'); if (g && g.halted && g.reason) reason = 'station service halted: ' + String(g.reason); } catch (_) {}
-      }
+      try { reason = String(((await Harness.engineState()) || {}).reason || ''); } catch (_) { reason = ''; }
       if (reason === degradedReason) return reason;
       degradedReason = reason;
       if (sub) { if (reason) sub.textContent = reason; else if (/^(degraded|station service halted)/i.test(sub.textContent)) sub.textContent = 'station service not answering'; }
@@ -5309,7 +5305,7 @@ const App = (() => {
       if (restartBtn) restartBtn.disabled = true;
       setStatus((auto ? 'still unreachable — ' : '') + 'restarting the station service…');
       let up = false;
-      try { up = await core.invoke('starnet_restart_sidecar'); } catch (_) { up = false; }
+      try { up = await Harness.restartEngine(); } catch (_) { up = false; }   // the same single-flight door the LINK DOWN chip uses
       if (up) { setStatus('station service restarted — reconnecting…'); attempt(); }
       else setStatus('the station service could not be restarted — quit StarNet fully (Cmd+Q / tray → Quit) and open it again. Your save is untouched.');
       restarting = false;
