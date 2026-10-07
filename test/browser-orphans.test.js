@@ -196,7 +196,20 @@ function fakeFs(files) {
     A.ok(err && /could not load www\.etsy\.com: net::ERR_PROXY_CONNECTION_FAILED/.test(err.message), 'the message names the host and the real network error: ' + (err && err.message));
     A.ok(err && !/unsafe redirect|only http\(s\)/.test(err.message), 'and it is NOT reported as an unsafe redirect');
     A.ok(!d.alive(), 'a browser whose proxy is down reads as dead, so the session starts a fresh browser + proxy');
+    A.ok(err && !err.revealTools, 'StarNet restarts its own browser itself, so nothing is pointed at browser.reset');
     await d.close();
+    // a browser started by an EARLIER StarNet session is the one case told to run browser.reset - which is deferred,
+    // so the error must also make it callable (the registry carries revealTools onto the error result)
+    const earlier = T.makeCdpDriver({
+      attachPort: 9373, syntheticInputOnly: false, timeoutMs: 400,
+      fetchImpl: async () => ({ json: async () => [{ type: 'page', webSocketDebuggerUrl: 'ws://down' }] }),
+      WebSocketImpl: ProxyDownWS
+    });
+    let err2 = null;
+    try { await earlier.navigate('https://www.etsy.com/listing/123'); } catch (e) { err2 = e; }
+    A.ok(err2 && /run browser\.reset/.test(err2.message), 'the earlier-session browser is told to run browser.reset');
+    A.eq(err2 && err2.revealTools, ['browser.reset'], 'and the error reveals browser.reset');
+    await earlier.close();
     clearInterval(keepAlive);
   }
 
@@ -211,6 +224,11 @@ function fakeFs(files) {
   }
   A.ok(/^could not load www\.etsy\.com: the page never loaded/.test(await verdict('about:blank')), 'about:blank after a navigation = the page never loaded (was: "blocked unsafe redirect")');
   A.ok(!/unsafe redirect/.test(await verdict('about:blank')), 'about:blank is not called a redirect');
+  {
+    let blankErr = null;
+    try { await sessionReturning('about:blank').navigate('https://www.etsy.com/listing/123'); } catch (e) { blankErr = e; }
+    A.eq(blankErr && blankErr.revealTools, ['browser.reset'], 'the never-loaded error that says "run browser.reset" also reveals it (it is deferred)');
+  }
   A.eq(await verdict('https://www.etsy.com/listing/123?ref=x'), 'ok', 'a normal landing passes');
   A.eq(await verdict('HTTPS://WWW.ETSY.COM/listing/123'), 'ok', 'an UPPERCASE scheme/host is normalized by URL, not refused');
   A.ok(/blocked unsafe redirect: only http\(s\) URLs are allowed/.test(await verdict('data:text/html,<h1>x</h1>')), 'a real data: destination is still refused');
