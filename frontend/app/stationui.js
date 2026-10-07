@@ -6312,6 +6312,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // .msg is red by default; the `ok` modifier turns it gold. So a success passes ok=true, an error passes nothing.
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     let loaded = false;
+    // what each input was last painted with (+ whether that value was saved here) and the env defaults: SAVE posts only
+    // what the Commander changed — a posted untouched field became a SAVED cap, and a saved PER DAY is strict.
+    let painted = {}, paintedEnv = {};
     const enable = value => { if (saveBtn) saveBtn.disabled = !value; if (resetBtn) resetBtn.disabled = !value; };
     enable(false);
     // paint the inputs + spend readout + reset visibility from a /api/budget/status payload.
@@ -6321,6 +6324,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
+      painted = {}; paintedEnv = envd;
       BG_KEYS.forEach(k => {
         const el = inputOf(k); if (!el) return;
         // show the EFFECTIVE cap (persisted-or-env). An empty string can't represent "0 = no cap", so always fill.
@@ -6336,6 +6340,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // hover title. Truthful precedence: a saved value WINS here (env is only the fallback default, never an
         // override that silences a saved cap), so the badge says "environment default" — not "ignored".
         const savedHere = Object.prototype.hasOwnProperty.call(saved, k);
+        painted[k] = { v: Number(v), saved: savedHere };
         el.title = savedHere ? 'saved on this machine' : 'environment default (not yet saved here)';
         const badge = body.querySelector('#bg-src-' + k);
         if (badge) {
@@ -6412,11 +6417,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       for (const k of BG_KEYS) {
         const el = inputOf(k); if (!el) continue;
         const raw = String(el.value).trim();
-        if (raw === '') { payload[k] = 0; continue; }   // blank -> "no cap" (0), matching the placeholder semantics
-        const n = Number(raw);
+        const n = raw === '' ? 0 : Number(raw);   // blank -> "no cap" (0), matching the placeholder semantics
         if (!isFinite(n) || n < 0) { setMsg(k + ': enter a number ≥ 0 (leave blank or 0 for no cap)'); sfx('bad'); el.focus(); return; }
+        const was = painted[k];
+        // Only a value the Commander CHANGED is a choice. Saving an untouched field turned the shipped soft day rail
+        // into a strict saved cap (fail-closed whenever spend history is uncertain — DECISIONS.md "Strict vs soft").
+        if (was && n === was.v) continue;
+        // Typing the environment default back into a SAVED limit clears the override, so "back to default" is the real
+        // default (the day rail soft again), not a saved copy of it.
+        if (was && was.saved && typeof paintedEnv[k] === 'number' && n === paintedEnv[k]) { payload[k] = null; continue; }
         payload[k] = n;
       }
+      if (!Object.keys(payload).length) { setMsg('no changes to save', true); return; }
       setMsg('saving…');
       Harness.api.post('/api/budget/caps', payload)
         .then(({ ok, j }) => {
