@@ -1,0 +1,12 @@
+# Cloudflare Pages redirects for starnetos.com.
+# StarNet Credits accounts live on a separate host (account.starnetos.com, the starnet-cloud service). People
+# who look for "login" on the marketing site type these paths and used to land on the 404 page (issue #76).
+/login       https://account.starnetos.com/login 302
+/log-in      https://account.starnetos.com/login 302
+/signin      https://account.starnetos.com/login 302
+/sign-in     https://account.starnetos.com/login 302
+/signup      https://account.starnetos.com/login 302
+/sign-up     https://account.starnetos.com/login 302
+/register    https://account.starnetos.com/login 302
+/account     https://account.starnetos.com/account 302
+/account/*   https://account.starnetos.com/account/:splat 302

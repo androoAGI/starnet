@@ -79,6 +79,13 @@
     let generation = 0;
     let lastTransition = null;
     let recovering = false;
+    // Boot self-heal retry (issue #76, 2026-10-06): the heal used to be ONE-SHOT at boot, so a cloud that was slow
+    // or down at that moment left a paid, keychain-authorized station looking unlinked for the whole session —
+    // hours — even after the cloud recovered. A TRANSIENT refusal (unreachable / 5xx / 429) now arms a retry the
+    // host can take on the next credits read, at most once per healRetryMs. Definitive refusals never re-arm.
+    const healRetryMs = (typeof deps.healRetryMs === 'number' && isFinite(deps.healRetryMs) && deps.healRetryMs >= 0)
+      ? Math.floor(deps.healRetryMs) : 30000;
+    let healInflight = null, healRetryArmed = false, lastHealAt = 0;
     function transition(state) { lastTransition = { state, at: now() }; }
     let mutation = Promise.resolve();
     function mutate(fn) {
@@ -297,10 +304,15 @@
       const timer = ctl ? setTimeout(() => ctl.abort(), requestTimeoutMs) : null;
       try {
         r = await doFetch(cloudUrl + '/v1/whoami', { headers: { 'Authorization': 'Bearer ' + envToken, 'Accept': 'application/json' }, signal: ctl ? ctl.signal : undefined });
-        if (!r || !r.ok) return { healed: false, reason: r && r.status === 401 ? 'token_revoked' : ('whoami http ' + (r && r.status)) };
+        if (!r || !r.ok) {
+          const status = Number(r && r.status) || 0;
+          // 5xx / 429 / no status = the cloud is degraded, not a verdict on this token: worth asking again later.
+          return { healed: false, reason: status === 401 ? 'token_revoked' : ('whoami http ' + (r && r.status)),
+            retryable: status !== 401 && (status === 0 || status === 429 || status >= 500) };
+        }
         j = (await r.json()) || {};
       } catch (e) {
-        return { healed: false, reason: 'unreachable', error: (e && e.message) || String(e) };
+        return { healed: false, reason: 'unreachable', retryable: true, error: (e && e.message) || String(e) };
       } finally { if (timer) clearTimeout(timer); }
       if (ticket !== generation) return { healed: false, reason: 'superseded' };
       const accountId = str(j.accountId).trim();
@@ -313,10 +325,23 @@
       return { healed: true, accountId };
     }
 
-    async function healFromEnv() {
+    function healFromEnv() {
+      if (healInflight) return healInflight;   // boot + a credits read may ask at once: one whoami, one answer
       recovering = true;
-      try { return await healFromEnvInner(); }
-      finally { recovering = false; }
+      healInflight = (async () => {
+        try {
+          const r = await healFromEnvInner();
+          lastHealAt = now();
+          healRetryArmed = !!(r && !r.healed && r.retryable);
+          return r;
+        } finally { recovering = false; healInflight = null; }
+      })();
+      return healInflight;
+    }
+    // True when the last heal failed TRANSIENTLY and the retry spacing has elapsed. Every other guard (a link now
+    // exists, an unlink happened, a tombstone appeared) is re-checked by healFromEnvInner itself on the retry.
+    function healRetryDue() {
+      return healRetryArmed && !healInflight && !unlinked && (now() - lastHealAt) >= healRetryMs;
     }
 
     // Only observable shape leaves this module. An injected/session token does not prove the OS
@@ -338,7 +363,7 @@
     }
 
     return {
-      configured, cloudUrl: () => cloudUrl, start, poll, persist, loadSavedSync, hasSaved, tokenAtRest, clearSaved, healFromEnv, diagnosticState,
+      configured, cloudUrl: () => cloudUrl, start, poll, persist, loadSavedSync, hasSaved, tokenAtRest, clearSaved, healFromEnv, healRetryDue, diagnosticState,
       _internals: { file, tombstone, pending }
     };
   }

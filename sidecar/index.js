@@ -1089,6 +1089,8 @@ function budgetScopeIsExplicit(scope) {
 const creditsLink = makeCreditsLink({
   cloudUrl: CLOUD_URL, fetch: globalThis.fetch, fsp, fs, pathMod: path,
   dir: path.join(WORKSPACES, '.secrets'), now: () => Date.now(), envToken: CREDITS_TOKEN,
+  // spacing between self-heal retries after a transient cloud failure (default 30s; tests shorten it)
+  healRetryMs: (v => (v != null && v !== '' && Number(v) >= 0) ? Number(v) : undefined)(ENV('CREDITS_HEAL_RETRY_MS')),
   note: failNote   // best-effort seams (tombstone IO, cloud-side revoke) fail counted, never silently
 });
 // Resolve the credits adapter config. PRECEDENCE (additive, never breaks an env deploy): env CREDITS_* wins
@@ -1158,12 +1160,20 @@ userProps.resume();
    still its own (/v1/whoami; every refusal path — tombstone, revoked token, live link — heals nothing).
    Skipped under an env CREDITS_* override, which outranks device linking everywhere else too. Post-boot
    and fail-open: an unreachable cloud just leaves the station honestly unlinked, as before. */
-if (!CREDITS_URL && !credits.configured()) {
-  setImmediate(() => creditsLink.healFromEnv().then(r => {
+function runCreditsSelfHeal() {
+  return creditsLink.healFromEnv().then(r => {
     if (r && r.healed) { console.log('  · credits link self-healed from keychain token (account ' + r.accountId + ')'); return rebuildCredits(); }
-    if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason);
+    if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason + (r.retryable ? ' (will retry on the next credits check)' : ''));
     return null;
-  }).catch(swallow('credits.link.selfheal', null)));
+  }).catch(swallow('credits.link.selfheal', null));
+}
+if (!CREDITS_URL && !credits.configured()) setImmediate(runCreditsSelfHeal);
+// Issue #76: a boot heal that met a slow/down cloud used to leave the station unlinked until the app restarted.
+// The credits status reads (STORE, genesis/RESUME, WAKE) take the armed retry here — bounded by the link client's
+// request timeout, spaced by its retry interval, and only ever for a TRANSIENT refusal.
+function retryCreditsSelfHealIfDue() {
+  if (CREDITS_URL || credits.configured() || !creditsLink.healRetryDue()) return Promise.resolve(null);
+  return runCreditsSelfHeal();
 }
 
 /* ---- P0-2 budget-caps persistence (SETTINGS → Budget). The four USD caps were env-only; now they persist in a
@@ -12651,6 +12661,7 @@ function handleBudgetStatus(req, res) {
    HONESTY LAW: 404s when managed credits are NOT configured, so the frontend renders no STORE card and shows no
    dead balance. Never emits a secret (no api key, no account internals beyond the display id). Read-only. ---- */
 async function handleCredits(req, res) {
+  await retryCreditsSelfHealIfDue();
   if (!credits.configured()) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ configured: false })); }
   const summaryOnly = /(?:\?|&)history=0(?:&|$)/.test(String(req && req.url || ''));
   // History is display-only. Start it beside the authoritative balance read so a slow activity endpoint cannot
@@ -12722,7 +12733,8 @@ async function handleCredits(req, res) {
    creditsLink's memory). link/poll on 'confirmed' rebuilds the live credits adapter — no restart. ---- */
 function creditsJson(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 
-function handleCreditsLinkable(req, res) {
+async function handleCreditsLinkable(req, res) {
+  await retryCreditsSelfHealIfDue();
   // available: the cloud is wired AND we are not already configured (env or an existing link). When already
   // configured, /api/credits carries the balance + the `linked` flag — there is no separate LINK card to show.
   // A definitive cloud rejection overrides local token presence: that station is linkable again without first
