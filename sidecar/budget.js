@@ -85,6 +85,13 @@
       return ledger && typeof ledger.health === 'function' ? ledger.health() : { complete: true, durable: true };
     }
     function unknown() { const h = accounting(); return !h.complete || !h.durable; }
+    // WHY history is unknown, so a refusal names the fix that works: 'write' (a restart replays the journaled
+    // settlement), 'unsettled' (an interrupted run's charge — settle it in SPENDING LIMITS; a restart changes
+    // nothing), or 'read' (the spend record itself could not be read).
+    function unknownCause() {
+      const h = accounting();
+      return h.writeError ? 'write' : (h.readError === 'UNSETTLED_SPEND' ? 'unsettled' : 'read');
+    }
     function sumLive() { let t = 0; for (const v of live.values()) t += num(v); return t; }
     // live $ for ONE agent: sum the in-flight runs whose runId maps to that agentId (the calling run included).
     function sumLiveForAgent(agentId) {
@@ -122,7 +129,8 @@
 
     // Consulted by the loop's guards each turn BEFORE any paid call. Records this run's live spend, emits any
     // fresh warn/cap crossings via the per-run `emit`, and returns null to proceed or { scope, usd, cap } to stop.
-    function check(runId, agentId, spentThisRun, now, emit) {
+    // receiptMeta (optional, object or getter) rides into the dispatch receipt — see ledger.beginRun.
+    function check(runId, agentId, spentThisRun, now, emit, receiptMeta) {
       now = num(now) || clock.now();
       noteLive(runId, spentThisRun);
       if (runId != null && agentId != null && String(agentId) !== '') liveAgentOf.set(String(runId), String(agentId));
@@ -132,9 +140,9 @@
       catch (_) { strict = governed; }   // a broken classifier fails CLOSED: every governed scope counts as strict
       const softOnly = !!governed && !strict;
       if (governed && unknown()) {
-        if (!softOnly) return { scope: strict, unknown: true, code: 'spend_history_unavailable' };
+        if (!softOnly) return { scope: strict, unknown: true, code: 'spend_history_unavailable', cause: unknownCause() };
         // SOFT-only: record the dispatch receipt as usual, then proceed; the rail resumes once history is known.
-        if (runId != null && ledger && typeof ledger.beginRun === 'function') ledger.beginRun(runId, agentId);
+        if (runId != null && ledger && typeof ledger.beginRun === 'function') ledger.beginRun(runId, agentId, receiptMeta);
         return null;
       }
       const t = totals(now, agentId);
@@ -152,8 +160,8 @@
         }
       }
       if (ev.blocked) { const s = ev.scopes[ev.blocked]; return { scope: ev.blocked, usd: s.usd, cap: s.cap }; }
-      if (runId != null && ledger && typeof ledger.beginRun === 'function' && !ledger.beginRun(runId, agentId)) {
-        if (!softOnly) return { unknown: true, code: 'spend_history_unavailable' };
+      if (runId != null && ledger && typeof ledger.beginRun === 'function' && !ledger.beginRun(runId, agentId, receiptMeta)) {
+        if (!softOnly) return { unknown: true, code: 'spend_history_unavailable', cause: unknownCause() };
       }
       return null;
     }

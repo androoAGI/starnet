@@ -370,7 +370,7 @@ const { makeTerminalTools } = require('./tools/builtin/terminal.js');
 const { makeProcLedger } = require('./procledger.js');              // persistent child-PID ledger — boot sweep reaps force-kill orphans
 const { makeWin32ProcessTable } = require('./proctree.js');         // h2: bounded process-table snapshot (orphan walk + verified kills)
 const { makeInputGuard } = require('./inputguard.js');              // stuck cursor-confinement (ClipCursor) release — 2026-07-12 incident
-const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
+const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, TOOLSET_FREEBIES, makeRunAuthority, runInputContext, impactOfTool, normalizeUnattendedGrants, backgroundOwnsLocalUrl, makeLoopbackListenerProbe } = require('./inputpolicy.js'); // per-run user-control authority + synthetic CDP policy
 const { makeEnvironmentManager, sanitizeChildEnv } = require('./environment.js');     // execution backend boundary (reference-harness-style)
 const { makeExecutionRouter } = require('./execution-router.js');                     // per-agent profile -> real backend routing
 const executionProfiles = require('./execution-profiles.js');       // per-agent runtime/scope envelope; approval + desktop lease stay separate
@@ -1042,8 +1042,21 @@ const SPEND_PENDING_DIR = path.join(WORKSPACES, '.spend-pending');
 function spendPendingPath(runId) { return path.join(SPEND_PENDING_DIR, crypto.createHash('sha256').update(String(runId)).digest('hex') + '.json'); }
 let ledgerAppendFails = 0;                 // consecutive ledger append failures; reset on any success
 const LEDGER_FAIL_ALERT = 5;               // after this many in a row, surface ONCE into the diagnostics ring
+// runId -> the dispatch receipt of a run that was interrupted before it booked its spend (found by readAll at boot).
+// Kept on disk until the Commander settles it in SETTINGS › SPENDING LIMITS (POST /api/budget/settle).
+const unsettledSpendReceipts = new Map();
+function unsettledReceiptOf(receipt) {
+  const r = { runId: String(receipt.runId), agentId: String(receipt.agentId || '').slice(0, 80) };
+  if (typeof receipt.ts === 'number' && Number.isFinite(receipt.ts) && receipt.ts > 0) r.ts = receipt.ts;
+  if (typeof receipt.provider === 'string' && receipt.provider.trim()) r.provider = receipt.provider.trim().slice(0, 40);
+  if (typeof receipt.model === 'string' && receipt.model.trim()) r.model = receipt.model.trim().slice(0, 80);
+  if (receipt.managed === true) r.managed = true;
+  if (typeof receipt.runCapUsd === 'number' && Number.isFinite(receipt.runCapUsd) && receipt.runCapUsd > 0) r.runCapUsd = receipt.runCapUsd;
+  return r;
+}
 const ledgerIo = {
   readAll() {
+    unsettledSpendReceipts.clear();
     const rows = loadBounded({ fs, strict: true }, LEDGER_FILE, LOG_MAX_BYTES).map(line => {
       const row = JSON.parse(line);
       if (!row || typeof row !== 'object' || Array.isArray(row) || typeof row.usd !== 'number' || !Number.isFinite(row.usd) || row.usd < 0) throw new Error('invalid spend history row');
@@ -1065,11 +1078,21 @@ const ledgerIo = {
         if (prior && JSON.stringify(prior) !== JSON.stringify(receipt.entry)) throw Object.assign(new Error('Spend settlement receipt conflicts with ledger'), { code: 'SPEND_RECEIPT_CONFLICT' });
         if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); settled.add(receipt.runId); }
       }
-      if (!receipt || !receipt.runId || !settled.has(receipt.runId)) throw Object.assign(new Error('An interrupted run has unsettled spend; reconcile its provider usage before continuing with spending limits.'), { code: 'UNSETTLED_SPEND' });
+      // Damage, not an interrupted run: a receipt naming no run, or a settlement journal that could not be replayed.
+      // Still fail the read (spend unknown) — there is no run for the Commander to settle.
+      if (!receipt || !receipt.runId) throw Object.assign(new Error('A spend receipt names no run.'), { code: 'SPEND_RECEIPT_DAMAGED' });
+      if (!settled.has(receipt.runId)) {
+        if (receipt.entry) throw Object.assign(new Error('A spend settlement receipt could not be replayed.'), { code: 'SPEND_RECEIPT_DAMAGED' });
+        // A dispatch-only receipt: that run's spend is unknown. Keep the receipt (never guessed $0) and list it for the
+        // Commander to settle; keep reading so every other receipt is still reconciled.
+        unsettledSpendReceipts.set(String(receipt.runId), unsettledReceiptOf(receipt));
+        continue;
+      }
       fs.unlinkSync(path.join(SPEND_PENDING_DIR, file));
     }
     return rows;
   },
+  unsettled() { return [...unsettledSpendReceipts.values()]; },
   beginRun(receipt) {
     fs.mkdirSync(SPEND_PENDING_DIR, { recursive: true });
     writeFileDurable({ fs, path }, spendPendingPath(receipt.runId), JSON.stringify(receipt));
@@ -1194,7 +1217,9 @@ userProps.resume();
    and fail-open: an unreachable cloud just leaves the station honestly unlinked, as before. */
 function runCreditsSelfHeal() {
   return creditsLink.healFromEnv().then(r => {
-    if (r && r.healed) { console.log('  · credits link self-healed from keychain token (account ' + r.accountId + ')'); return rebuildCredits(); }
+    // A heal resolves {healed:true} only once rebuildCredits() has settled: that rebuild already made the balance
+    // read on the new adapter, so a status read that triggered it can skip its own (handleCredits).
+    if (r && r.healed) { console.log('  · credits link self-healed from keychain token (account ' + r.accountId + ')'); return rebuildCredits().then(() => ({ healed: true })); }
     if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason + (r.retryable ? ' (will retry on the next credits check)' : ''));
     return null;
   }).catch(swallow('credits.link.selfheal', null));
@@ -3290,7 +3315,7 @@ async function runBackgroundSkillReview(o) {
   if (!unmetered) {
     let blocked = null;
     try { blocked = budget.check(null, String(agentId || 'agent'), 0, Date.now(), null); } catch (_) { blocked = null; }
-    if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': the spending cap is reached'); return null; }
+    if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': ' + (blocked.unknown ? 'spend history is unavailable' : 'the spending cap is reached')); return null; }
   }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
@@ -4761,7 +4786,10 @@ const executionEnvironmentDeps = { spawn: childSpawn, fs: fs, pathMod: path, roo
   ledger: procLedger,   // h2 F2: the LOCAL backend receipts foreground shell children for the boot orphan sweep
   serviceEnv: (surface) => serviceKeysMod.runEnv(serviceKeys, process.env, { reservedEnv: SERVICEKEYS_RESERVED_ENV, surface: surface }),
   idleCleanupMs: () => Number(executionSettings.idleCleanupMinutes || 0) * 60000,
-  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId) };
+  sshConfig: (agentId) => executionSettingsMod.targetFor(executionSettings, agentId),
+  // station-wide reap (E-STOP / Quit / shutdown): every agent with a configured remote target, read lazily so a
+  // target saved after boot is included — remote jobs outlive a profile switch, so not the current profile
+  sshAgentIds: () => Object.keys((executionSettings && executionSettings.sshTargets) || {}) };
 const configuredExecutionBackend = String(process.env.STARNET_EXEC_BACKEND || process.env.SKYNET_EXEC_BACKEND || 'local').trim().toLowerCase();
 if (configuredExecutionBackend !== 'local' && configuredExecutionBackend !== 'docker' && configuredExecutionBackend !== 'ssh') throw new Error('unknown execution backend "' + configuredExecutionBackend + '" (expected local, docker, or ssh)');
 const executionEnvironments = {
@@ -4835,6 +4863,45 @@ function cronStringList(v, max, pattern) {
     if (out.length >= max) break;
   }
   return out;
+}
+/* A routine's enabledToolsets is a restriction-only list of toolset FAMILY ids (enforceEnabledToolsets). It was only
+   pattern-filtered, so the TOOLSETS console label a user copies ('WEB & BROWSER') was dropped to [] and a tool name
+   ('web_request') or 'Web' kept as an unknown family — each stored as "restrict to (almost) nothing", and the routine
+   fired with no web tools (#58 class). Normalize the RAW entries before any pattern filter: a family id (any case),
+   a console label, or a tool name maps to its family; anything else is REFUSED by name (400 / tool error), never
+   dropped. A computer freebie is always kept, so naming one adds nothing (only freebies named = freebies only). An
+   empty list means NO restriction (null): "nothing listed" is never "restrict to nothing". */
+let cronToolsetIndex = null;
+function cronToolsetList(v) {
+  if (v == null) return null;
+  if (!Array.isArray(v)) throw new Error('enabledToolsets must be a list of toolset ids');
+  if (!cronToolsetIndex) {
+    const valid = TOGGLEABLE_CAPS.concat(['connectors']);
+    const byLabel = new Map(), byTool = new Map();
+    for (const row of toolsetRows(CAP_REGISTRY)) byLabel.set(String(row.label).toLowerCase(), row.id);
+    for (const objectType of Object.keys(CAP_REGISTRY)) {
+      for (const g of (CAP_REGISTRY[objectType] || [])) {
+        const t = String(g.tool || '').toLowerCase();
+        if (t && !byTool.has(t)) { byTool.set(t, g.capId); byTool.set(t.replace(/\./g, '_'), g.capId); }
+      }
+    }
+    cronToolsetIndex = { valid, validSet: new Set(valid), byLabel, byTool };
+  }
+  const ix = cronToolsetIndex, out = [];
+  let named = false;
+  for (const raw of v) {
+    const s = String(raw == null ? '' : raw).trim();
+    if (!s) continue;
+    named = true;
+    const k = s.toLowerCase();
+    let family = ix.validSet.has(k) ? k : (ix.byLabel.get(k) || ix.byTool.get(k) || '');
+    if (!family && /^(mcp|plugin)[:_]/.test(k)) family = 'connectors';
+    if (family === 'compute' || TOOLSET_FREEBIES.has(family)) continue;
+    if (!ix.validSet.has(family)) throw new Error('unknown toolset "' + s.slice(0, 80) + '" — valid: ' + ix.valid.join(', '));
+    if (out.indexOf(family) < 0) out.push(family);
+    if (out.length >= 16) break;
+  }
+  return named ? out : null;
 }
 function cronContextCycle(jobId, refs) {
   const visiting = new Set([String(jobId)]), visited = new Set();
@@ -7476,10 +7543,12 @@ function nightshiftPrecheck() {
     // → no live note, emit=null → no threshold crossing) and stand down BEFORE the spend. Returns a blocked
     // {scope,usd,cap} (truthy) or null. Checked FIRST so an exhausted pool names the ACTIONABLE reason ('budget',
     // which the Commander clears by resume/raising the cap) rather than a downstream 'no-provider'/'readiness'.
+    // Spend history it cannot see binds 'spend-unknown' instead: no resume or cap change clears that, and claiming an
+    // exhausted budget would assert spend nobody can prove.
     let b = null;
     try { b = budget.check(null, NIGHTSHIFT_AGENT, 0, Date.now(), null); }
     catch (_) { return { ok: false, reason: 'precheck-error' }; }
-    if (b) return { ok: false, reason: 'budget' };
+    if (b) return { ok: false, reason: b.unknown ? 'spend-unknown' : 'budget' };
     // LANE L — CAPABILITY GATE (pre-spend, same wart): with no runnable provider/credential a beat stands down at
     // 'no-capability' AFTER the leash was spent (runNightshiftBeat). Read it locally (no model call) and decline
     // before the spend. A lookup hiccup stands down visibly; uncertainty is not unattended-work permission.
@@ -9184,7 +9253,7 @@ async function runQuestRefreshCycle(why) {
       catch (_) { blocked = { unknown: true }; }
       if (blocked) {
         questRefreshNote({ outcome: 'skipped', reason: blocked.unknown
-          ? 'spend history is unavailable — restore accounting before refreshing quests'
+          ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
           : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
         return;
       }
@@ -10997,6 +11066,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/remote/device', h: handleRemoteDevice },    // one phone: ALWAYS ASK, or the desk's own permissions  // forget a phone; its sessions end at once
   { m: 'POST', exact: '/api/budget/caps', h: handleBudgetCaps },
   { m: 'POST', exact: '/api/budget/resume', h: handleBudgetResume },
+  { m: 'POST', exact: '/api/budget/settle', h: handleBudgetSettle },   // the Commander books an interrupted run's real charge (SPENDING LIMITS)
   { m: 'GET', exact: '/api/fallback/chain', h: handleFallbackStatus },
   { m: 'POST', exact: '/api/fallback/chain', h: handleFallbackChain },
   { m: 'POST', exact: '/api/config/export', h: handleConfigExport },   // P1-7 station backup
@@ -11631,7 +11701,20 @@ function gracefulShutdown(signal) {
   let browserClosing = Promise.resolve();
   try { browserClosing = Promise.resolve(browserViews.closeAll()).catch(e => failNote('shutdown.station-browser', e)); }
   catch (e) { failNote('shutdown.station-browser', e); }
-  const afterBrowser = fn => Promise.race([browserClosing, new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
+  // The runs aborted above still have to BOOK what they spent: their finalizer's ledger.record clears the dispatch
+  // receipt. Exiting first stranded that receipt, so a plain Quit with a run in flight left spend history unknown and
+  // every chosen limit refusing after the next start. Wait for them inside the same bound; a finalizer that cannot
+  // finish in time leaves its receipt honestly unsettled for SETTINGS › SPENDING LIMITS.
+  const runsBooked = new Promise(r => {
+    const poll = () => {
+      let open = 0;
+      try { open = ledger.pendingRuns(); } catch (e) { failNote('shutdown.spend-settle', e); }
+      if (!open) return r();
+      const t = setTimeout(poll, 25); if (t.unref) t.unref();
+    };
+    poll();
+  });
+  const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
   try {
     if (typeof server !== 'undefined' && server && server.close) {
       server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(0); }));   // stop accepting; exit once connections drain + the browser closed
@@ -12432,7 +12515,9 @@ const stationOneShots = new Set();
 async function stationOneShot(prompt, tag, failLead) {
   let blocked = null;
   try { blocked = budget.check(null, 'agent', 0, Date.now(), null); } catch (_) { blocked = null; }
-  if (blocked) return { ok: false, status: 409, error: 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
+  if (blocked) return { ok: false, status: 409, error: blocked.unknown
+    ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
+    : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
   let cfg = null;
   try { cfg = sampleRunConfigFor('agent'); } catch (e) { cfg = null; }
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };
@@ -12699,21 +12784,39 @@ function handleBudgetStatus(req, res) {
     managedRunDefaultUsd: (credits.configured() && MANAGED_PER_RUN_DEFAULT > 0) ? MANAGED_PER_RUN_DEFAULT : null,
     spentToday: known ? ledger.usdForDay(now) : null,
     lifetime: known ? ledger.totalUsd() : null,
-    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null
+    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null,
+    // Interrupted runs whose charge was never booked — what SPENDING LIMITS lists for the Commander to settle. The
+    // exact totals above stay null while any is open; the booked rows are still real, so they read as a floor.
+    unsettled: budgetUnsettledRuns(),
+    atLeast: (accounting.readError === 'UNSETTLED_SPEND' && accounting.durable)
+      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null
   })));
+}
+function budgetUnsettledRuns() {
+  return ledger.unsettledRuns().map(r => {
+    let title = '';
+    try { const row = runStore.latest(r.runId); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
+    return {
+      runId: r.runId, agentId: r.agentId || '', ts: r.ts || null, title: title.slice(0, 120),
+      provider: r.provider || null, model: r.model || null, managed: r.managed === true,
+      runCapUsd: (typeof r.runCapUsd === 'number' && r.runCapUsd > 0) ? r.runCapUsd : null
+    };
+  });
 }
 /* ---- GET /api/credits — the managed-credit STORE surface (balance + recent history + the external purchase URL).
    HONESTY LAW: 404s when managed credits are NOT configured, so the frontend renders no STORE card and shows no
    dead balance. Never emits a secret (no api key, no account internals beyond the display id). Read-only. ---- */
 async function handleCredits(req, res) {
-  await retryCreditsSelfHealIfDue();
+  const heal = await retryCreditsSelfHealIfDue();
   if (!credits.configured()) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify({ configured: false })); }
   const summaryOnly = /(?:\?|&)history=0(?:&|$)/.test(String(req && req.url || ''));
   // History is display-only. Start it beside the authoritative balance read so a slow activity endpoint cannot
   // double the STORE wait; the creator/WAKE summary path skips it entirely.
   const adapter = credits;
   const historyPromise = summaryOnly ? Promise.resolve({ entries: [] }) : adapter.history(null, 20).catch(() => ({ entries: [] }));
-  await adapter.refresh().catch(swallow('credits.refresh'));   // adapter owns the active bearer+account identity
+  // A heal that just ran already read /v1/balance on this exact adapter (rebuildCredits). A second sequential
+  // 8s read after the 8s /v1/whoami pushed the WAKE read past its client wait ("couldn't confirm your balance").
+  if (!(heal && heal.healed)) await adapter.refresh().catch(swallow('credits.refresh'));   // adapter owns the active bearer+account identity
   const hist = await historyPromise;
   // A status read may span unlink/relink while waiting for balance or activity. Never return the
   // old account's cached zero/history, nor combine it with the new adapter's identity.
@@ -12869,7 +12972,22 @@ async function handleCreditsLinkStart(req, res) {
     const r = await creditsLink.start(body && body.deviceName);
     if (!r || !r.ok) return creditsJson(res, 502, { error: (r && r.error) || 'link_start_failed' });
     return creditsJson(res, 200, { code: r.code, verifyUrl: r.verifyUrl, expiresAt: r.expiresAt });   // pollSecret intentionally withheld
-  } catch (e) { return creditsJson(res, 502, { error: (e && e.message) || 'link_start_failed' }); }
+  } catch (e) { return creditsJson(res, 502, linkStartFailure(e)); }
+}
+// Why a pairing start failed, as a stable machine-readable `reason` the UI switches on (never a regex of raw text):
+// undici says only "fetch failed" — the DNS / timeout / TLS-interception cause lives on err.cause, and each needs a
+// different fix from the Commander. `detail` is the transport code + host only (never a token or the pollSecret).
+function linkStartFailure(e) {
+  const EC = require('./providers/errorClass.js');
+  const msg = String((e && e.message) || '');
+  const status = Number(e && e.status) || 0;
+  const code = String(EC._internals.transportCode(e) || '');
+  const reason = EC._internals.isTlsFailure(e, msg.toLowerCase()) ? 'tls'
+    : (e && e.name === 'AbortError') ? 'timeout'
+    : (code === 'ENOTFOUND' || code === 'EAI_AGAIN') ? 'dns'
+    : !status ? 'unreachable'
+    : status >= 500 ? 'cloud_5xx' : ('cloud_' + status);
+  return { error: msg || 'link_start_failed', reason, status, detail: EC.transportDetail(e) };
 }
 
 async function handleCreditsLinkPoll(req, res) {
@@ -12991,8 +13109,44 @@ async function handleBudgetResume(req, res) {
   const scope = String(body.scope || '').trim();
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
   const cap = budget.resume(scope);
-  if (cap == null) return json(409, { error: 'that budget scope is not governed (no cap set)' });
+  if (cap == null) {
+    // resume never adds headroom over spend it cannot see — say THAT, not "not governed"
+    const h = ledger.health();
+    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — see SETTINGS › SPENDING LIMITS', code: 'spend_history_unavailable' });
+    return json(409, { error: 'that budget scope is not governed (no cap set)' });
+  }
   json(200, { resumed: scope, cap, status: budget.status(Date.now()) });
+}
+/* ---- POST /api/budget/settle { runId, usd } | { runId, mode: 'limit' } — the Commander's ONE way to clear an
+   interrupted run's unknown spend: book what the provider dashboard shows (usd), or count it at the per-run limit the
+   run started with ('limit', only when its receipt recorded one). Only a run found unsettled at boot is accepted (404
+   otherwise — a live run books itself); the row is journaled-then-appended through the ledger's strict path and the
+   receipt removed, so history is complete again and stays so across restarts. Deliberately NOT a station-control
+   action: attesting what a provider charged belongs to the Commander, never to an agent. ---- */
+async function handleBudgetSettle(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  const runId = String(body.runId || '').trim();
+  if (!runId) return json(400, { error: 'runId is required' });
+  const open = ledger.unsettledRuns().find(r => r.runId === runId);
+  if (!open) return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
+  let usd;
+  if (body.mode === 'limit') {
+    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
+    usd = open.runCapUsd;
+  } else {
+    usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
+    if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
+  }
+  try { ledger.settleUnsettled(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); }
+  catch (e) {
+    if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
+    if (e && e.code === 'bad_usd') return json(400, { error: 'enter the charge in USD (0 or more)' });
+    failNote('budget.settle', e);
+    return json(500, { error: 'the settlement could not be saved to disk — restart StarNet to recover it', code: 'spend_history_unavailable' });
+  }
+  console.log('[budget] interrupted run ' + runId + ' settled at $' + usd + (body.mode === 'limit' ? ' (its per-run limit)' : ' (entered by the Commander)'));
+  return handleBudgetStatus(req, res);
 }
 
 /* ---- best-effort catalog for fallback-id validation. Returns a Set of known OpenRouter model ids from the WARM
@@ -14718,7 +14872,7 @@ async function createCronJobFromSpec(body) {
     for (const ref of body.skills) if (!skillStore.view(agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + agentId);
     body.contextFrom = cronStringList(body.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
     for (const ref of body.contextFrom) if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref);
-    body.enabledToolsets = body.enabledToolsets == null ? null : cronStringList(body.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/);
+    body.enabledToolsets = cronToolsetList(body.enabledToolsets);
     body.workdir = cronCanonicalWorkdir(body.workdir);
     body.noAgent = body.noAgent === true;
     body.attachToSession = body.attachToSession === true;
@@ -14824,7 +14978,7 @@ function handleCronUpdate(req, res) {
       const current = cronStore.getJob(cronJobs, id), aid = patch.agentId || current.agentId;
       if (Object.prototype.hasOwnProperty.call(patch, 'skills')) { patch.skills = cronStringList(patch.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/); for (const ref of patch.skills) if (!skillStore.view(aid, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '"'); }
       if (Object.prototype.hasOwnProperty.call(patch, 'contextFrom')) { patch.contextFrom = cronStringList(patch.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/); for (const ref of patch.contextFrom) { if (ref === id) throw new Error('a routine cannot depend on itself'); if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref); } if (cronContextCycle(id, patch.contextFrom)) throw new Error('routine context dependencies cannot form a cycle'); }
-      if (Object.prototype.hasOwnProperty.call(patch, 'enabledToolsets')) patch.enabledToolsets = patch.enabledToolsets == null ? null : cronStringList(patch.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/);
+      if (Object.prototype.hasOwnProperty.call(patch, 'enabledToolsets')) patch.enabledToolsets = cronToolsetList(patch.enabledToolsets);
       if (Object.prototype.hasOwnProperty.call(patch, 'deliver')) {
         const mode = String(patch.deliver || 'local');
         if (mode === 'all') { const map = channelStore.loadChatMap(); patch.deliver = 'targets:' + Object.keys((map && map.chats) || {}).slice(0, 16).join(','); }
@@ -15057,6 +15211,9 @@ async function handleCronRun(req, res) {
       reasoningEffort: (() => { const ri = !(job.model && String(job.model).trim()) ? cronIdentityFor(job.agentId) : null; return ri && ri.followsStation ? ri.reasoningEffort : undefined; })(),
       // LINE WATCH: the row records the bay + line this Run Now's crate named (placeCronWorkitem above)
       lineId: (cronItems.get(runId) || {}).lineId || undefined, dockId: (cronItems.get(runId) || {}).dockId || undefined,
+      // per-bay capability isolation (B5): Run Now runs in the SAME bay room the scheduled fire gets (cron-driver.js
+      // resolveStation) — never the broad autonomous default office, which handed Run Now a dish/cabinet the bay lacks.
+      station: (job.dockId ? router.stationFor(job.agentId, job.dockId) : router.stationFor(job.agentId)) || undefined,
       reflect: true,   // Run Now must match the scheduled fire's posture exactly, memory included (see the reflect note on /api/run)
       // Run Now must exercise the REAL unattended posture, grant included — otherwise "test it now" would
       // prove a capability set the scheduled fire does not get (the whole point of this route).
@@ -17335,7 +17492,7 @@ const slashActions = slashActionsMod.makeSlashActions({
   budget: {
     snapshot: async (agentId) => {
       const health = ledger.health();
-      if (!health.complete || !health.durable) return { ok: false, error: 'Spend history is unavailable or not durably saved.' };
+      if (!health.complete || !health.durable) return { ok: false, error: 'Spend history is unavailable or not durably saved. See SETTINGS › SPENDING LIMITS.' };
       const t = Date.now();
       return {
         ok: true,
@@ -18360,6 +18517,10 @@ async function runOnceCore(o) {
     }
     return after;
   };
+  // The taint this run was HANDED (caller's initialTaint: a delegated worker inherits its lead's latch) and the one
+  // it STARTED with (set once the replay proof below has run): a refusal under either must not claim this run read anything.
+  const taintHandedIn = execution.taintedBy();
+  let taintAtStart = null;
   // One sequence across provider and tool recovery. Adapter-local counters restart at one, but the durable run
   // record must preserve the actual cross-stage order in which recovery actions happened.
   const recordRunRecoveryAttempt = (attempt) => {
@@ -19020,6 +19181,7 @@ async function runOnceCore(o) {
       for (const ref of skillRefs) if (!skillStore.view(spec.agentId, ref, { bump: false })) throw new Error('unknown runtime skill "' + ref + '" for ' + spec.agentId);
       const contextRefs = cronStringList(spec.contextFrom, 8, /^[A-Za-z0-9_-]{1,40}$/);
       for (const ref of contextRefs) if (!cronStore.getJob(cronJobs, ref)) throw new Error('unknown upstream routine ' + ref);
+      const toolsetRefs = cronToolsetList(spec.enabledToolsets);
       await withCronWrite(jobs => {
         const next = cronStore.createJob(jobs, {
           id: id, name: spec.name, prompt: spec.prompt, schedule: schedule,
@@ -19028,7 +19190,7 @@ async function runOnceCore(o) {
           origin: spec.origin, attachToSession: spec.attachToSession,
           skills: skillRefs, contextFrom: contextRefs,
           monitorMode: spec.monitorMode === true,
-          enabledToolsets: spec.enabledToolsets == null ? null : cronStringList(spec.enabledToolsets, 16, /^[A-Za-z0-9:_-]{1,80}$/)
+          enabledToolsets: toolsetRefs
         }, { id: id, now: Date.now(), defaultTz: CRON_HOST_TZ });
         return next;
       });
@@ -19428,13 +19590,19 @@ async function runOnceCore(o) {
          carry why and how to enable it. An unknown signal leaves the tool advertised.
      KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, these included, exactly as before deferral. */
   const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  /* DIRECT-DOMAIN WITHHOLDING — what a bounded one-host check may not even see: delegation and open web search, the
+     two typo-cascade routes. web_request (issue #58) and the browser stay ADVERTISED; the dispatch guards below
+     confine their URL-taking calls to the named host + subdomains (DomainTask.isTargetRequest / isTargetNavigate).
+     Declared before the deferred pool is settled so tool.search can never offer — and announce as "Now available"
+     — a name the loop will not reveal and dispatch would refuse. */
+  const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || name === 'web_search');
   let connectorDeferral = { deferred: [], servers: [] };
   let unavailable = { byTool: {}, bySignal: {} };
   {
     const granted = new Set(resolved.tools);
     // A deferred name must be a GRANTED one. enforceRunAuthority narrows `tools` but not `deferred`, and a name
     // left behind would be offered by tool.search (and named in the prompt) and then refused by the gate.
-    const deferred = (resolved.deferred || []).filter(n => granted.has(n));
+    const deferred = (resolved.deferred || []).filter(n => granted.has(n) && !directDomainWithheld(n));
     if (isTask && !deferralOff) {
       try {
         const entries = [];
@@ -19466,7 +19634,7 @@ async function runOnceCore(o) {
       }, granted);
     }
     const extra = connectorDeferral.deferred.concat(Object.keys(unavailable.byTool));
-    resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0));
+    resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0 && !directDomainWithheld(n)));
     resolved.unavailable = unavailable.byTool;
     const footprintSig = JSON.stringify([connectorDeferral.servers, unavailable.bySignal]);
     if (footprintSig !== lastToolFootprintLog) {
@@ -19544,6 +19712,12 @@ async function runOnceCore(o) {
     // Host-minted routine identity for routine.notepad. Interactive/model-authored runs cannot name another
     // job: only the autonomous schedule path receives this context field.
     cronJobId: (surface === 'autonomous' && trigger === 'schedule') ? String(o.cronJobId || '') : '',
+    // tool.search explains what the direct-domain policy keeps off this run (resolved.deferred already excludes it)
+    policyWithheld: directDomainTask ? {
+      names: (resolved.tools || []).filter(directDomainWithheld),
+      why: 'this request names one exact host (' + directDomainTask.host + '), so this run checks only that host',
+      enable: 'read ' + directDomainTask.host + ' with web_fetch or the browser (browser.navigate to that host), or ask the Commander to widen the request beyond that one site'
+    } : null,
     origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }),   // stamped onto notebook.write records: WHICH surface formed this belief
     deliveryOrigin: o.deliveryOrigin || (streamId ? { streamId: streamId, sessionId: streamId, sessionTitle: o.sessionTitle || '' } : null),
     authorize: userControlAuthority.authorize,
@@ -19878,7 +20052,10 @@ async function runOnceCore(o) {
   // emits any threshold crossing down THIS run's bus and returns a block when a soft pool cap is hit.
   // An unmetered (OAuth-subscription) run is exempt from the cross-run $ pools too — its estimates would
   // otherwise block runs against caps that guard money it isn't spending (2026-07-23, with the perRun exemption).
-  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit) };
+  // The dispatch receipt names where this run's charge will show (provider/model it started on, managed or not) and the
+  // per-run limit it started with, so an interrupted run can be settled by the Commander from the right dashboard.
+  const runReceiptMeta = () => ({ provider: providerId, model, managed: managedRun, runCapUsd });
+  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit, runReceiptMeta) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
@@ -19904,10 +20081,11 @@ async function runOnceCore(o) {
   // advertises everything, exactly as before this feature — the escape hatch for an operator whose model is
   // one of those, and the A/B control for measuring whether deferral (rather than the model) caused a miss.
   // (`deferralOff` is read once, above at TOOL FOOTPRINT, so the connector/availability deferrals obey it too.)
-  // web_request stays ADVERTISED (issue #58): the dispatch guard below confines it to the named host + subdomains
-  const directDomainWithheld = (name) => !!directDomainTask && (/^team\./.test(name) || /^browser\./.test(name) || name === 'web_search');
+  // (`directDomainWithheld` is declared there too: tool.search's pool and these wire lists apply ONE predicate.)
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !directDomainWithheld(n)));
   const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !directDomainWithheld(n));
+  // tool.search names a listed tool as callable instead of offering the nearest hidden one (see listedMatch)
+  capCtx.advertised = isTask ? coreNames : [];
   const toolDefs = isTask ? registry.wireFormat(registry.list(new Set(coreNames))) : [];
   const deferredToolDefs = isTask ? registry.wireFormat(registry.list(deferredNames)) : [];
   // A tool deferred because it CANNOT work this run keeps that fact on its own declaration, so a model that
@@ -20028,7 +20206,10 @@ async function runOnceCore(o) {
         content: 'WITHHELD: this run was started from a paired phone or by someone other than the station owner, so it cannot set up or restart work that runs on its own later (a routine, a loop, a line trigger or a line test) — that work would run with the station standing Full Access. Pausing, stopping or removing it is fine. Tell the Commander exactly what to set up so they can do it at the desk; do NOT retry.' };
     }
     if (directDomainTask && directDomainWithheld(c.name)) {
-      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + directDomainTask.host + '. Do not delegate, search, browse, or call archives; fetch that host directly with web_fetch.' };
+      return { ok: false, isError: true, summary: 'direct-domain-local', content: 'This is a bounded check of the exact host ' + directDomainTask.host + '. Do not delegate or run web searches/archives; read that host directly with web_fetch or the browser.' };
+    }
+    if (directDomainTask && (c.name === 'browser.navigate' || c.name === 'browser.login') && !DomainTask.isTargetNavigate(c, directDomainTask)) {
+      return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': the browser may open that host (or its subdomains) only. Do not open search engines, archives, or spelling variants unless the Commander asks.' };
     }
     if (directDomainTask && c.name === 'web_request' && !DomainTask.isTargetRequest(c, directDomainTask)) {
       return { ok: false, isError: true, summary: 'direct-domain-target-only', content: 'This task is about ' + directDomainTask.host + ': web_request may call that host (or its own API subdomains) only.' };
@@ -20063,13 +20244,39 @@ async function runOnceCore(o) {
     }
     const postTaintConfirmed = postTaint.oneShot;
     if (!postTaint.allow) {
+      // WHERE the lock came from, truthfully: this run's own read, or context it STARTED with (a lead's latch handed
+      // to a worker, an attachment, replayed history, scheduled context). Same lock either way — only the words differ,
+      // and the remedy is the structural one (taint-replay.js DECAY): a session whose history never held the content.
+      const ownTaint = execution.taintedBy();
+      const startedLocked = ownTaint ? (!!taintAtStart && ownTaint === taintAtStart) : !!inheritedTaint;
+      const fromLead = !!o.delegatedBy && (ownTaint ? (!!taintHandedIn && ownTaint === taintHandedIn) : !!inheritedTaint);
+      // team.resume: the stored task carries the taint of the chat that FIRST handed it over (resumeConnectorOptions),
+      // so the lock follows the task into any session that resumes it — the resuming lead's chat may be clean.
+      const resumedTaint = o.resumedTaint ? String(o.resumedTaint) : '';
+      const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;
+      const taintCause = fromResume
+        ? 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
+          + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
+          + 'telling this agent not to read that content does not lift it.'
+        : fromLead
+          ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
+            + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+            + 'telling this agent not to read that content does not lift it.'
+          : startedLocked
+            ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
+            : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. This run has already read '
-          + 'outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it. '
+        content: 'BLOCKED: "' + c.name + '" is no longer available on this run. ' + taintCause + ' '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
-          + 'run needs a fresh confirmation for this exact call after the outside content was read. Retrying without '
-          + 'that confirmation will not help: finish what you can and report the withheld step plainly.'
+          + 'run needs a fresh confirmation for this exact call. For the Commander: a watched chat can ask to approve '
+          + 'this exact call, or '
+          + (resumedTaint
+            ? 'hand the task over fresh (not resumed) from a new session whose history has no attachments or outside pages; that starts unlocked. '
+            : 'a new session whose history has no attachments or outside pages (given the task directly, or handed over '
+              + 'fresh by a lead in that session) starts unlocked. ')
+          + 'Retrying without that confirmation will not help: '
+          + 'finish what you can and report the withheld step plainly.'
       };
     }
     const internalBriefControl = internalBriefTools.indexOf(c.name) >= 0;
@@ -20212,7 +20419,7 @@ async function runOnceCore(o) {
           });
         }
       }
-      if (DomainTask.isTargetFetch(c, directDomainTask) && DomainTask.isDomainMissing(r)) {
+      if ((DomainTask.isTargetFetch(c, directDomainTask) || DomainTask.isTargetNavigate(c, directDomainTask)) && DomainTask.isDomainMissing(r)) {
         r = Object.assign({}, r, { control: Object.assign({}, r && r.control, DomainTask.stopControl(directDomainTask)) });
       }
       // Persist the full model-visible result before the loop advances to another call/turn. Once dispatch is
@@ -20720,7 +20927,7 @@ async function runOnceCore(o) {
     // unavailable line above says it can't work. Connector tools deferred only for SIZE still work via tool_search.
     + summarizeCapabilities((resolved.unavailable && Object.keys(resolved.unavailable).length)
         ? Object.assign({}, resolved, { tools: resolved.tools.filter(n => !Object.prototype.hasOwnProperty.call(resolved.unavailable, n)) })
-        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow(), delegatedBy: o.delegatedBy || '' }) + skillBlock;
+        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow(), delegatedBy: o.delegatedBy || '', toolless: !isTask }) + skillBlock;
   const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
     + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
@@ -20762,7 +20969,8 @@ async function runOnceCore(o) {
   try {
     const replayed = replayedTaint({ recovery: o.recovery, streamId, msgs });
     if (replayed) execution.latchTaint(replayed);
-  } catch (e) { failNote('taint.replay', e); }
+  } catch (e) { failNote('taint.replay', e); execution.latchTaint('replayed context (taint check failed)'); }   // unprovable = tainted (fail closed)
+  taintAtStart = execution.taintedBy();
   // Cortex (M-mem.3): surface the agent's OWN memory in-prompt — RANK it by relevance to this message
   // (BM25 + recency/trust/pin), inject the top few as a recalled-memory fence before the triggering user
   // message, and emit memory.used per surfaced record (-> useCount/trust + the XP reuse path). The recency
@@ -22756,7 +22964,7 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
-  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes
+  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
   try { inputGuard.observe('halt').catch(() => {}); } catch (_) {}   // diagnostic only: never release an unowned global clip

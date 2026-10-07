@@ -65,6 +65,20 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
     A.eq(body.routedTo, 'researcher-2', 'tool result reports the routed agent');
     A.eq(body.schedulerArmed, true, 'tool result reports the scheduler armed state');
     A.eq(body.job.id, 'job_1', 'tool result carries the created routine');
+    A.eq(createdSpec.enabledToolsets, null, 'no toolset list means station defaults (null)');
+  }
+
+  // ---- enabledToolsets: an explicit [] is NO restriction, never "restrict to nothing" (#58 class) ----
+  {
+    let spec = null;
+    const tsTools = makeRoutineTools({
+      roster: () => roster, listJobs: () => [], schedulerState: () => true, armScheduler: () => true,
+      createRoutine: (s) => { spec = s; return { id: 'job_ts', name: s.name, agentId: s.agentId, enabled: true, state: 'scheduled' }; }
+    });
+    await tsTools.createTool.run({ name: 'Empty toolset list', prompt: 'p', schedule: 'every 1h', agentId: 'agent', enabledToolsets: [] }, { agentId: 'agent' });
+    A.eq(spec.enabledToolsets, null, 'routine.create passes an empty toolset list on as null (no restriction)');
+    await tsTools.createTool.run({ name: 'Web only list', prompt: 'p', schedule: 'every 1h', agentId: 'agent', enabledToolsets: ['web'] }, { agentId: 'agent' });
+    A.eq(JSON.stringify(spec.enabledToolsets), '["web"]', 'a real toolset list reaches the host validator unchanged');
   }
 
   // ---- a scheduled run gets one bounded job-local notepad; callers cannot name a different job ----

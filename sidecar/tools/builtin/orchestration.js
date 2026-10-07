@@ -309,7 +309,9 @@
     if (lim.untrustedEntry) a.untrustedEntry = true;
     if (lim.withholdTaste) a.withholdTaste = true;
     if (lim.taintedBy) { const prev = a.taintedBy; a.taintedBy = () => (typeof prev === 'function' && prev()) || lim.taintedBy; }
-    return { connectorAuthority: a, initialTaint: base.initialTaint || lim.taintedBy || null };
+    // resumedTaint: the STORED task's own taint, so a refusal can say the lock rides the task (any session that
+    // resumes it), not the resuming lead's chat — a clean lead resuming it has nothing to fix in its own session.
+    return { connectorAuthority: a, initialTaint: base.initialTaint || lim.taintedBy || null, resumedTaint: lim.taintedBy || null };
   }
   function connectorOptions(ctx) {
     // Functions are supplied by the host context, never by tool arguments or a persisted worker record.

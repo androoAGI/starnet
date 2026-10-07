@@ -105,6 +105,47 @@ const tools = (routes) => makeWebTools({ fetchImpl: stubFetch(routes), lookup: n
     A.ok(/not a malfunction/.test(r.content), 'the answer says out loud that nothing is broken');
   }
 
+  // ---- F2. NO engine could be reached (offline / TLS broken here) is a FAULT, never "throttling" ----
+  // (2026-10-07) a machine whose outbound TLS failed was told "temporary throttling ... not a malfunction".
+  const reset = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
+  {
+    const { searchTool } = tools([['mojeek.com', { reject: reset() }], ['duckduckgo.com', { reject: reset() }]]);
+    let err = null;
+    try { await searchTool.run({ query: 'anything' }, {}); } catch (e) { err = e; }
+    A.ok(err, 'an all-transport-failed chain THROWS (isError, loop-guard protection) instead of answering ok');
+    A.ok(err && /ECONNRESET/.test(err.message), 'the error names the transport cause code');
+    A.ok(err && /www\.mojeek\.com/.test(err.message), 'and the host that was dialled (the cause named none)');
+    A.ok(err && /could not reach any search engine/.test(err.message), 'it says no engine was reachable');
+    A.ok(err && !/not a malfunction|temporary throttling|temporarily unavailable/.test(err.message),
+      'it never claims throttling / "not a malfunction"');
+    A.ok(err && err.__allFailed === true && err.__unreachable === true, 'the raw flags: __allFailed AND __unreachable');
+  }
+  // ---- F3. mixed: one engine ANSWERED (202 anomaly) -> still the throttle answer, now with the cause named ----
+  {
+    const { searchTool } = tools([['mojeek.com', { reject: reset() }], ['duckduckgo.com', { status: 202, body: 'anomaly' }]]);
+    const r = await searchTool.run({ query: 'anything' }, {});
+    A.eq(r.summary, 'engines throttled — no results', 'an engine that answered keeps the calm throttle answer');
+    A.ok(/mojeek: fetch failed \(ECONNRESET www\.mojeek\.com\)/.test(r.content), 'the per-engine detail names code + host');
+  }
+  // ---- F4. the reader rung's empty result is NEUTRAL: offline + Chrome installed still throws ----
+  {
+    const rd = { available: () => ({ ok: true }), search: async () => ({ engine: '', results: [] }) };
+    const { searchTool } = makeWebTools({ fetchImpl: stubFetch([['mojeek.com', { reject: reset() }], ['duckduckgo.com', { reject: reset() }]]), lookup: null, reader: rd });
+    let err = null;
+    try { await searchTool.run({ query: 'anything' }, {}); } catch (e) { err = e; }
+    A.ok(err && err.__unreachable === true, 'reader "0 results" is not proof the web answered — still unreachable');
+  }
+  // ---- F5. a cancelled run is a cancel, never "no results": no engine is dialled after the abort ----
+  {
+    let fetches = 0;
+    const { searchTool } = makeWebTools({ fetchImpl: async () => { fetches++; throw reset(); }, lookup: null });
+    const ac = new AbortController(); ac.abort();
+    let err = null, r = null;
+    try { r = await searchTool.run({ query: 'anything' }, { signal: ac.signal }); } catch (e) { err = e; }
+    A.ok(err && !r, 'an already-aborted search throws instead of answering');
+    A.eq(fetches, 0, 'zero fetches after the abort');
+  }
+
   // ---- G. the RAW fns keep the strict throwing contract (internal callers + older tests) ----
   {
     const w = tools([['dead.example', { status: 404 }]]);

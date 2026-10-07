@@ -224,7 +224,10 @@
       const allowed = reasoningEffortsForModel(req.model, meta);
       const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta);
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
-      const body = { model: req.model, messages: applyCacheControl(preserveClaudeContinuations(provider.prepareWireMessages(req.messages, 'chat'), req.model), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
+      // Strict upstreams behind OpenRouter must never see StarNet's own bookkeeping keys on a message (ts, streamId,
+      // agentId, sourceRunId, error, stopped, attachments) — only Chat Completions message keys leave, projected
+      // BEFORE applyCacheControl so its cache_control anchors are stamped inside the content parts of clean copies.
+      const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(preserveClaudeContinuations(provider.prepareWireMessages(req.messages, 'chat'), req.model)), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
@@ -244,7 +247,7 @@
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }  // cancel during the POST/backoff -> end cleanly so the loop reports 'cancelled', not 'error'
       // idle watchdog: no bytes for SKYNET_PROVIDER_IDLE_MS -> cancel the reader + throw a `timeout` error (a hung
       // stream must not pin a paid run forever). A user-cancel via req.signal still surfaces as an AbortError below.
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
       const dec = new TextDecoder();
       let buf = '';
       const started = {};   // index -> true once tool_start has been emitted
@@ -390,6 +393,7 @@
           });
         } catch (e) {
           if (isAbort(e, signal)) throw e;
+          provider.runtime.stampRequestHost(e, baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
           if (!classifyApiError(e, { model: body.model }).retryable) throw e;
           if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }   // network error / connect timeout -> retry

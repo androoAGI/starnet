@@ -547,11 +547,18 @@ const Chat = (() => {
     return 'started';
   }
 
+  let lastDegradedLine = '';   // the degraded reason already named in COMMS (once per reason, reset when the service answers)
   async function probeReconnect() {
     if (!interruptedStreams.size) { reconnectTimer = 0; return; }
-    let alive = false;
-    try { const r = await fetch('/api/health', { cache: 'no-store' }); alive = !!(r && r.ok); } catch (_) { alive = false; }
+    let alive = false, degraded = '';
+    try {
+      const r = await fetch('/api/health', { cache: 'no-store' }); alive = !!(r && r.ok);
+      // A service that is up but holding itself degraded (crash-loop breaker, workspace-owner hold) says why in its
+      // 503 text. Name it once instead of polling silently forever (link-down 2026-10-07).
+      if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) degraded = t; }
+    } catch (_) { alive = false; }
     if (alive) {
+      lastDegradedLine = '';
       // report each interrupted stream once. Only the DISPLAYED stream draws a line (same rule as tool/error
       // lines); a background stream's flag is cleared quietly — its error row already recorded the failure.
       const wasActive = activeWs && interruptedStreams.has(activeWs.id);
@@ -563,6 +570,10 @@ const Chat = (() => {
         if (outcome === 'none' || outcome === 'unavailable') toolLine('connection restored — no safe automatic continuation was available; use Try again.', true);
       }
     } else {
+      if (degraded && degraded !== lastDegradedLine && activeWs && interruptedStreams.has(activeWs.id)) {
+        lastDegradedLine = degraded;
+        toolLine('station service ' + degraded + (Harness.canRestartEngine && Harness.canRestartEngine() ? ' — restart it from LINK DOWN at the top.' : ''), true);
+      }
       reconnectTimer = setTimeout(probeReconnect, 3000);   // still down — keep watching
     }
   }
@@ -7452,12 +7463,16 @@ const Chat = (() => {
     b.textContent = '⧉ copy diagnostics for a bug report';   // ⧉ = the house copy glyph (not the 📋 emoji)
     b.addEventListener('click', () => {
       b.disabled = true;
-      Diag.copy({ notify: false, context: context }).then(ok => {
-        b.textContent = ok ? '✓ diagnostics copied — paste into your report' : 'copy failed — try again';
-        if (!ok) { b.disabled = false; return; }
+      // onDone carries the report text: when the clipboard refuses (WebKit after the fetch), the report renders
+      // in this row as selectable text with its own in-gesture "copy again" — a retry of this button would only
+      // repeat the refusal, so it stays disabled and says where the report went.
+      Diag.copy({ notify: false, context: context, onDone: (ok, text) => {
+        b.textContent = ok ? '✓ diagnostics copied — paste into your report' : (text ? 'copy blocked — report shown below' : 'could not read diagnostics');
+        if (!ok && !text) { b.disabled = false; return; }   // nothing was read — a later retry can still succeed
+        if (!ok) { if (Diag.showBlock) { Diag.showBlock(rowEl, { text: text }); autoscroll(); } return; }
         if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
         setTimeout(() => { try { rowEl.remove(); } catch (_) {} }, 2600);
-      });
+      } });
     });
     rowEl.appendChild(b);
     log.appendChild(rowEl); autoscroll();
