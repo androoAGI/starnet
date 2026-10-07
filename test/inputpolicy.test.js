@@ -7,7 +7,7 @@ const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeConsentBroker } = require('../sidecar/permissions.js');
 const { makeComputerTools } = require('../sidecar/tools/builtin/computer.js');
 const { makeDesktopTools } = require('../sidecar/tools/builtin/desktop.js');
-const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, runInputContext, impactOfTool, makeRunAuthority, IMPACTS, backgroundOwnsLoopbackUrl, backgroundOwnsLocalUrl, makeLoopbackListenerProbe, normalizeUnattendedGrants, isConnectorTool } = require('../sidecar/inputpolicy.js');
+const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, TOOLSET_FREEBIES, runInputContext, impactOfTool, makeRunAuthority, IMPACTS, backgroundOwnsLoopbackUrl, backgroundOwnsLocalUrl, makeLoopbackListenerProbe, normalizeUnattendedGrants, isConnectorTool } = require('../sidecar/inputpolicy.js');
 
 const station = {
   agents: { ag: { id: 'ag', room: 'r' } },
@@ -57,6 +57,29 @@ A.ok(legacyRaw.tools.includes('computer.use') && legacyRaw.tools.includes('deskt
   A.ok(onlyWeb.tools.includes('quest.update') && onlyWeb.tools.includes('tool.search'), 'non-toggleable computer freebies remain available');
   A.eq(onlyWeb.approvalRules['shell.exec'], undefined, 'parallel approval map is attenuated with tool names');
   A.eq(enforceEnabledToolsets(projected, { get: n => defs[n] }, null), projected, 'null keeps legacy station grants unchanged');
+  // The computer freebies no switch can turn off survive a restriction too (a routine keeps its own notepad).
+  const FREEBIE_TOOLS = ['quest.update', 'tool.search', 'todo', 'deliverable_note', 'station.inspect', 'manual.read', 'routine.notepad'];
+  for (const t of FREEBIE_TOOLS) {
+    A.ok(safe.tools.includes(t), 'fixture: the computer grants ' + t);
+    A.ok(onlyWeb.tools.includes(t), 'a restriction-only toolset list keeps the computer freebie ' + t);
+  }
+  A.ok(safe.tools.includes('code.run') && !onlyWeb.tools.includes('code.run'), 'code.run (execute + consent) is NOT a freebie: a restriction strips it');
+  const appTools = (safe.tools || []).concat(safe.deferred || []).filter(n => n.indexOf('app.') === 0);
+  A.ok(appTools.length > 0, 'fixture: the computer grants the apps family');
+  for (const t of appTools) A.ok(!onlyWeb.tools.includes(t) && !(onlyWeb.deferred || []).includes(t), 'apps (' + t + ') is NOT a freebie: a restriction strips it');
+  A.eq(onlyWeb.approvalRules['todo'], projected.approvalRules['todo'], 'a kept freebie carries its approval rule');
+  A.eq(onlyWeb.approvalRules['code.run'], undefined, 'a stripped code.run carries no approval rule');
+  const none = enforceEnabledToolsets(projected, { get: n => defs[n] }, []);
+  A.eq(none.tools.slice().sort().join(','), FREEBIE_TOOLS.slice().sort().join(','), 'an empty restriction keeps exactly the freebies');
+  // Drift lock: every non-toggleable computer family is classified on purpose — a future freebie is never dropped silently.
+  const { CAP_REGISTRY } = require('../sidecar/capability/registry.js');
+  const { toggleableCaps } = require('../sidecar/capability/toolsets.js');
+  const toggleable = new Set(toggleableCaps(CAP_REGISTRY));
+  const STRIPPED = new Set(['code', 'apps']);
+  for (const g of CAP_REGISTRY.computer) {
+    if (g.capId === 'compute' || toggleable.has(g.capId)) continue;
+    A.ok(TOOLSET_FREEBIES.has(g.capId) || STRIPPED.has(g.capId), 'computer family "' + g.capId + '" is classified as a toolset freebie or as deliberately stripped');
+  }
 }
 
 for (const [surface, isTask] of [['interactive', true], ['autonomous', true], ['test', false]]) {

@@ -267,12 +267,20 @@ function enforceSyntheticOnly(resolved, remoteDesktopAuthorized) {
   });
 }
 
+/* The computer-object freebies (capability/registry.js) with no TOOLSETS_META row. No switch can turn them off,
+   so a restriction-only list must not either: a routine restricted to ['web'] still keeps its own notepad
+   (routine.notepad), task plan (todo), deliverable naming and the station self-knowledge tools (station.inspect,
+   manual.read) its prompt tells it to call. Named, never derived ("every family without a row"): that would fail
+   OPEN for 'code' (execute + consent, the SECURITY STOPGAP in tools/builtin/code.js) and 'apps' (deferred write
+   tools), which a restricted routine deliberately does NOT keep — and for any family added later. */
+const TOOLSET_FREEBIES = new Set(['quest', 'toolsearch', 'taskplan', 'deliverable', 'stationinfo', 'routinescratch']);
+
 /* Per-run toolsets are attenuation only: null preserves the station grant, while an explicit array
-   intersects it. Compute and the two computer freebies are not toggleable tool families. */
+   intersects it. Compute and the TOOLSET_FREEBIES above are not toggleable tool families. */
 function enforceEnabledToolsets(resolved, registry, enabledToolsets) {
   if (enabledToolsets == null) return resolved;
   const enabled = new Set(Array.isArray(enabledToolsets) ? enabledToolsets.map(String) : []);
-  const free = new Set(['quest', 'toolsearch']);
+  const free = TOOLSET_FREEBIES;
   const allowed = new Set();
   for (const name of ((resolved && resolved.tools) || [])) {
     const tool = registry && typeof registry.get === 'function' ? registry.get(name) : null;
@@ -370,4 +378,4 @@ async function backgroundOwnsLocalUrl(status, rawUrl, listenerProbe) {
   try { return await listenerProbe(status, rawUrl) === true; } catch (_) { return false; }
 }
 
-module.exports = { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, runInputContext, impactOfTool, makeRunAuthority, IMPACTS, backgroundOwnsLoopbackUrl, backgroundOwnsLocalUrl, makeLoopbackListenerProbe, REAL_DESKTOP_TOOLS, GRANTABLE_UNATTENDED, normalizeUnattendedGrants, isConnectorTool };
+module.exports = { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, TOOLSET_FREEBIES, runInputContext, impactOfTool, makeRunAuthority, IMPACTS, backgroundOwnsLoopbackUrl, backgroundOwnsLocalUrl, makeLoopbackListenerProbe, REAL_DESKTOP_TOOLS, GRANTABLE_UNATTENDED, normalizeUnattendedGrants, isConnectorTool };
