@@ -137,6 +137,8 @@
       const text = adopt(el);
       // adopt() first (it silences the OS bubble); then no card over an open dock menu
       if (!text || el.getAttribute('aria-expanded') === 'true') return;
+      // a control with a glossary hint speaks through hint.js only — no second card stacked on it
+      if (el.hasAttribute('data-hint')) return;
       hide();
       if (immediate) show(el, text);
       else { pending = el; timer = setTimeout(() => { timer = null; show(el, text); }, SHOW_DELAY); }

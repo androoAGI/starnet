@@ -108,6 +108,7 @@
   }
 
   function show(anchor) {
+    if (doc && doc.body && doc.body.classList.contains('no-hints')) return;   // Settings › HINTS is off
     const term = anchor && anchor.getAttribute && anchor.getAttribute('data-hint');
     const msg = copyFor(term);
     if (!msg) return;                       // unknown term → nothing (never an empty bubble)
