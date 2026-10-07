@@ -669,6 +669,7 @@ test/stationbake.seam.test.js
 test/stationbake.connections.test.mjs
 test/stationbake.hull.test.js
 test/canvas-loss-recovery.test.js
+test/render-pacing.test.js
 test/stage-context-loss.test.js
 test/conveyor.test.js
 test/pipeline.test.js
