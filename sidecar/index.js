@@ -72,7 +72,8 @@ const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
 const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
-const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');   // certain-unavailability signals -> deferred with the fix named
+const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
+const { withheldCommandTools } = require('./capability/withheld.js');   // issue #77: why a placed command tool is withheld this run, and what works   // certain-unavailability signals -> deferred with the fix named
 const CodeMode = require('./tools/builtin/code.js');                      // code.run: bounded JS composition over this run's read-only grants
 const { makeCodeTools } = CodeMode;
 const { makeSkillTools } = require('./tools/builtin/skills.js');    // H4: the agent's reusable skill library tools
@@ -18719,7 +18720,10 @@ async function runOnceCore(o) {
   };
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage });
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage,
+    // issue #77: the SAME path-trust guard fs.* gets (runPathTrust is bound below; this thunk only runs at tool time), so a
+    // project-scoped run's relative image path lands in the project folder, not the private workspace the lead cannot read
+    pathTrust: (abs, o2) => runPathTrust(abs, o2) });
   // browser.vision uses the SAME vision model as image_analyze when a key exists; with no key it
   // reports "unavailable" honestly (never a success-shaped stub). Pass the dep only when usable.
   // An interactive run drives the STATION browser — the one the Commander sees and uses — when it is free. Anything
@@ -18821,7 +18825,7 @@ async function runOnceCore(o) {
   // STUDIO, third skill: voice_generate — the agent MAKES a clip (voiceover, narration, audio message) into its
   // workspace. It drives the SAME media-service ladder /api/tts does (keyed neural chain, then the
   // free keyless Edge floor), so it needs no voice-specific credential and a zero-key station can still record.
-  makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES }).register(registry);
+  makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
   // runs a fixed embedded Python bridge (never a shell). Media paths outside the workspace go through this run's path-trust.
   makeResolveTools({ fsp, pathMod: path, root: WORKSPACES, spawn: childSpawn, pathTrust: runPathTrust, envFor: () => sanitizeChildEnv(process.env), config: { ffprobe: ENV('FFPROBE'), python: ENV('RESOLVE_PYTHON') } }).register(registry);
@@ -19324,8 +19328,19 @@ async function runOnceCore(o) {
   // Connector projection happens after the base office is resolved. Re-apply the host floor so
   // no dynamic server or future registration order can restore a real-screen tool by name.
   resolved = enforceSyntheticOnly(resolved, realDesktopAuthority);
+  const preAuthorityTools = resolved.tools.slice();
   resolved = enforceRunAuthority(resolved, registry, userControlAuthority);
   resolved = enforceEnabledToolsets(resolved, registry, unrestrictedHostNow() ? null : o.enabledToolsets);
+  /* WITHHELD COMMANDS, EXPLAINED (issue #77). The authority above removes workspace-process tools (shell.exec,
+     verify.run, terminal.start …) from an ASK-mode non-interactive run even with a WORKBENCH placed — by design.
+     Record which ones it removed (and the toolset switch would otherwise have allowed) so tool.search, the
+     capability note and the WITHHELD reply can say why and what works, instead of the agent concluding "no shell". */
+  try {
+    const kept = new Set(resolved.tools);
+    const stripped = enforceEnabledToolsets({ tools: preAuthorityTools.filter(n => !kept.has(n)) }, registry, unrestrictedHostNow() ? null : o.enabledToolsets).tools;
+    resolved.withheld = withheldCommandTools(stripped, { impactOf: n => impactOfTool(registry.get(n)),
+      opts: { delegatedBy: o.delegatedBy || '', routine: surface === 'autonomous' && trigger === 'schedule' } });
+  } catch (e) { failNote('tools.withheld', e); resolved.withheld = {}; }
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
     emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
@@ -19967,9 +19982,12 @@ async function runOnceCore(o) {
             ? 'this is an UNATTENDED ' + surface + ' run (scheduled/background, nobody watching) and this tool needs a watched session'
               + ' — placing station objects cannot grant it here'
             : 'its capability was not granted to this run';
+      // a delegated worker's withheld command names its real cause and the route that works (issue #77, withheld.js)
+      const gap = o.delegatedBy && resolved.withheld && Object.prototype.hasOwnProperty.call(resolved.withheld, realName) ? resolved.withheld[realName] : null;
       return {
         ok: false, isError: true, summary: 'withheld',
-        content: 'WITHHELD: "' + realName + '" exists but is not available to you on this run, because ' + why + '. '
+        content: 'WITHHELD: "' + realName + '" exists but is not available to you on this run, because ' + (gap ? gap.why : why) + '. '
+          + (gap ? 'What works instead: ' + gap.enable + '. ' : '')
           + 'Do NOT retry it and do NOT report its work as done. Do everything you genuinely can with the tools you were given, '
           + 'then state plainly which step you could not do and why.'
       };
@@ -20671,7 +20689,7 @@ async function runOnceCore(o) {
     // unavailable line above says it can't work. Connector tools deferred only for SIZE still work via tool_search.
     + summarizeCapabilities((resolved.unavailable && Object.keys(resolved.unavailable).length)
         ? Object.assign({}, resolved, { tools: resolved.tools.filter(n => !Object.prototype.hasOwnProperty.call(resolved.unavailable, n)) })
-        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow() }) + skillBlock;
+        : resolved, { surface, ownerTrusted, unrestrictedHost: unrestrictedHostNow(), delegatedBy: o.delegatedBy || '' }) + skillBlock;
   const taskSystem = FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
     + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
     + deliverableNote + runtimeBlock, { isTask, internal, tools: resolved.tools });

@@ -42,7 +42,9 @@
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root;
     if (!fsp || !P || !ROOT) throw new Error('voice.js requires { fsp, pathMod, root }');
     const synth = typeof deps.synth === 'function' ? deps.synth : null;
-    const jail = fsMod.makeFsTools({ fsp, pathMod: P, root: ROOT })._internals;
+    // pathTrust (issue #77): with the run's guard wired, a relative path in a project-scoped run lands IN the
+    // project and an absolute path inside a trusted project is allowed, exactly like fs.write / image_generate.
+    const jail = fsMod.makeFsTools({ fsp, pathMod: P, root: ROOT, pathTrust: typeof deps.pathTrust === 'function' ? deps.pathTrust : undefined })._internals;
 
     function emitDeliverable(ctx, aid, rel) {
       if (!ctx || typeof ctx.emit !== 'function') return;
@@ -79,7 +81,7 @@
           text: { type: 'string', description: 'what to say — plain prose, no SSML' },
           voice: { type: 'string', description: 'optional named voice' },
           style: { type: 'string', description: 'optional delivery direction, e.g. "warm, unhurried"' },
-          path: { type: 'string', description: 'optional output filename inside your workspace' }
+          path: { type: 'string', description: 'optional output filename: relative = the project folder in a project-scoped conversation, else your private workspace; or an absolute path inside a trusted project folder' }
         }
       },
       run: async (args, ctx) => {
@@ -109,17 +111,19 @@
           const h = nodeCrypto ? nodeCrypto.createHash('sha1').update(buffer).digest('hex').slice(0, 12) : 'take';
           rel = 'audio/voice-' + h + ext;
         }
-        const { abs } = await jail.resolveInside(aid, rel);   // throws on jail escape / abs / '..'
+        const placed = await jail.resolveInside(aid, rel, { scope: 'write', ctx });   // throws on escape / '..' / untrusted
+        const abs = placed.abs;
         await fsp.mkdir(P.dirname(abs), { recursive: true });
         await fsp.writeFile(abs, buffer);
         emitDeliverable(ctx, aid, rel);
 
-        const viewer = '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel);
+        const where = await jail.outputPlacement(aid, placed);
+        const viewer = where.viewer;
         const kb = (buffer.length / 1024).toFixed(0) + ' KB';
         const via = str(r.provider);
         return {
           content: 'Spoke ' + text.length + ' characters and saved ' + rel + ' (' + kb + ', ' + mime
-            + (via ? ', via ' + via : '') + ').\nPlay: ' + viewer,
+            + (via ? ', via ' + via : '') + ').\n' + where.line + (viewer ? '\nPlay: ' + viewer : ''),
           summary: 'voice → ' + rel
         };
       }
