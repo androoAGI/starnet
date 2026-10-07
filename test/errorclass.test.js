@@ -48,7 +48,7 @@ const R = (err, ctx) => classifyApiError(err, ctx || {});
   A.eq(R(broke).reason, 'billing', 'xAI no-credits 403 -> billing (was auth: "No model is connected yet")');
   A.eq(R(xaiErr(403, { error: 'Your team has either used all available credits or reached its monthly spending limit.' })).reason, 'billing', 'xAI spent-credits 403 -> billing');
   A.eq(R(xaiErr(403, { error: 'The caller does not have permission to execute the specified operation' })).reason, 'auth', 'a plain permission 403 stays auth');
-  A.ok(R(new Error('An interrupted run has unsettled spend; reconcile its provider usage before continuing with spending limits.')).reason !== 'billing', 'a local spend-ledger error is not provider billing');
+  A.ok(R(new Error('An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.')).reason !== 'billing', 'a local spend-ledger error is not provider billing');
   A.eq(R(httpErr(400, 'Invalid value for messages[0].role')).reason, 'format_error', 'an ordinary malformed 400 is still format_error');
 }
 

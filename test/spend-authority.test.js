@@ -40,3 +40,62 @@ assert.equal(noReceipt.health().durable,false);
 const unicodeFs={readFileSync(p){return p.endsWith('.1')?'éé\n':'éé\n';}};
 assert.throws(()=>loadBounded({strict:true,fs:unicodeFs},'ledger',8),/truncat/i,'combined strict bound counts bytes');
 console.log('spend admission: receipt failure, repeated checks, independent settlement identity and Unicode bounds PASS');
+// An interrupted run's receipt is ONE run's unknown spend: rows stay, strict caps refuse, and only the Commander's
+// settle (an amount, never a guess) makes history complete again.
+{
+  const appended=[], finished=[], begun=[];
+  const io={readAll:()=>[{runId:'old',agentId:'a',usd:1,ts:99000}],unsettled:()=>[{runId:'x',agentId:'a',ts:50,runCapUsd:0.5}],
+    append(e){appended.push(e);},finishRun(e){finished.push(e.runId);},beginRun(r){begun.push(r);}};
+  const L=makeLedger({clock,io,nextId:()=> 'settle-'+appended.length});
+  assert.equal(L.count(),1,'the readable rows are kept');assert.equal(L.totalUsd(),1);
+  assert.deepEqual([L.health().complete,L.health().readError,L.health().unsettledRuns],[false,'UNSETTLED_SPEND',1]);
+  const blk=makeBudget({clock,ledger:L,caps:{day:5}}).check('r','a',0);
+  assert.equal(blk.unknown,true,'a chosen cap stays fail-closed while a run is unsettled');assert.equal(blk.cause,'unsettled');
+  assert.equal(makeBudget({clock,ledger:L,caps:{day:5},strictScope:()=>false}).check('s','a',0),null,'the soft shipped rail still proceeds');
+  for(const bad of [NaN,-1,'0.3',Infinity,undefined]) assert.throws(()=>L.settleUnsettled('x',bad),e=>e.code==='bad_usd','refuses '+String(bad));
+  assert.throws(()=>L.settleUnsettled('nope',0.3),e=>e.code==='not_unsettled','only a run found unsettled at boot');
+  assert.throws(()=>L.settleUnsettled('s',0.3),e=>e.code==='not_unsettled','a run this process dispatched books itself');
+  assert.equal(appended.length,0,'refusals book nothing');
+  const row=L.settleUnsettled('x',0.3);
+  assert.deepEqual([row.runId,row.agentId,row.usd,row.turns,row.ts,row.attested,row.model],['x','a',0.3,0,50,true,'(unknown)'],'one attested row at the dispatch time');
+  assert.equal(appended.length,1);assert.deepEqual(finished,['x'],'the receipt is removed through finishRun');
+  assert.deepEqual([L.health().complete,L.health().readError,L.health().unsettledRuns],[true,null,0],'history is complete again');
+  assert.equal(L.unsettledRuns().length,0);assert.throws(()=>L.settleUnsettled('x',0.3),e=>e.code==='not_unsettled','never twice');
+  assert.equal(makeBudget({clock,ledger:L,caps:{day:5}}).check('t','a',0),null,'the chosen cap works again');
+}
+{
+  // a run that is live in this process can never be settled from outside, even under a boot receipt's runId
+  const L=makeLedger({clock,io:{readAll:()=>[],unsettled:()=>[{runId:'x',agentId:'a'}],append(){},beginRun(){},finishRun(){}}});
+  L.beginRun('x','a');assert.throws(()=>L.settleUnsettled('x',1),e=>e.code==='not_unsettled');
+  // a booked row for that run settles it exactly as the next boot would read it
+  L.record({runId:'x',usd:0.2});assert.equal(L.unsettledRuns().length,0);assert.equal(L.health().complete,true);
+  assert.equal(L.pendingRuns(),0,'a booked run is no longer pending');
+}
+{
+  // a failed settlement write may have journaled: never offer a second booking; say a restart recovers it
+  const L=makeLedger({clock,io:{readAll:()=>[],unsettled:()=>[{runId:'x',agentId:'a'}],append(){throw Object.assign(new Error('disk full'),{code:'ENOSPC'});}}});
+  assert.throws(()=>L.settleUnsettled('x',1),e=>e.code==='settle_write_failed');
+  assert.equal(L.unsettledRuns().length,0);assert.equal(L.health().durable,false);
+  assert.equal(makeBudget({clock,ledger:L,caps:{day:5}}).check('r','a',0).cause,'write','a write failure names restart as the fix');
+  // real damage keeps no rows and offers nothing to settle
+  const D=makeLedger({clock,io:{readAll(){throw Object.assign(new Error('bad'),{code:'SPEND_RECEIPT_CONFLICT'});},unsettled:()=>[{runId:'x'}],append(){}}});
+  assert.deepEqual([D.count(),D.unsettledRuns().length,D.health().readError],[0,0,'SPEND_RECEIPT_CONFLICT']);
+  assert.equal(makeBudget({clock,ledger:D,caps:{day:5}}).check('r','a',0).cause,'read');
+}
+{
+  // the dispatch receipt names where the charge will show and the per-run limit the run started with — nothing else
+  const receipts=[];
+  const L=makeLedger({clock,io:{readAll:()=>[],append(){},beginRun(r){receipts.push(r);},finishRun(){}}});
+  const B=makeBudget({clock,ledger:L,caps:{}});
+  B.check('m1','a',0,0,null,()=>({provider:'openrouter',model:' test/m ',managed:true,runCapUsd:0.75,key:'sk-secret'}));
+  B.check('m2','a',0,0,null,()=>({provider:'openrouter',runCapUsd:Infinity}));
+  B.check('m3','a',0,0,null,()=>{throw new Error('meta boom');});
+  assert.deepEqual(receipts[0],{runId:'m1',agentId:'a',ts:100000,provider:'openrouter',model:'test/m',managed:true,runCapUsd:0.75},'only the allowed fields reach disk');
+  assert.deepEqual(receipts[1],{runId:'m2',agentId:'a',ts:100000,provider:'openrouter'},'an unlimited run claims no limit');
+  assert.deepEqual(receipts[2],{runId:'m3',agentId:'a',ts:100000},'a throwing meta getter still begins the run');
+  assert.equal(L.pendingRuns(),3);
+  const soft=[];const S=makeLedger({clock,io:{readAll:()=>[],unsettled:()=>[{runId:'z'}],append(){},beginRun(r){soft.push(r);}}});
+  makeBudget({clock,ledger:S,caps:{day:5},strictScope:()=>false}).check('s1','a',0,0,null,{provider:'p'});
+  assert.equal(soft[0].provider,'p','the soft-unknown path forwards the receipt meta too');
+}
+console.log('spend recovery: kept rows, strict refusal, Commander settle, live-run guard, write failure, receipt meta PASS');

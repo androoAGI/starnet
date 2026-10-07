@@ -1042,8 +1042,21 @@ const SPEND_PENDING_DIR = path.join(WORKSPACES, '.spend-pending');
 function spendPendingPath(runId) { return path.join(SPEND_PENDING_DIR, crypto.createHash('sha256').update(String(runId)).digest('hex') + '.json'); }
 let ledgerAppendFails = 0;                 // consecutive ledger append failures; reset on any success
 const LEDGER_FAIL_ALERT = 5;               // after this many in a row, surface ONCE into the diagnostics ring
+// runId -> the dispatch receipt of a run that was interrupted before it booked its spend (found by readAll at boot).
+// Kept on disk until the Commander settles it in SETTINGS › SPENDING LIMITS (POST /api/budget/settle).
+const unsettledSpendReceipts = new Map();
+function unsettledReceiptOf(receipt) {
+  const r = { runId: String(receipt.runId), agentId: String(receipt.agentId || '').slice(0, 80) };
+  if (typeof receipt.ts === 'number' && Number.isFinite(receipt.ts) && receipt.ts > 0) r.ts = receipt.ts;
+  if (typeof receipt.provider === 'string' && receipt.provider.trim()) r.provider = receipt.provider.trim().slice(0, 40);
+  if (typeof receipt.model === 'string' && receipt.model.trim()) r.model = receipt.model.trim().slice(0, 80);
+  if (receipt.managed === true) r.managed = true;
+  if (typeof receipt.runCapUsd === 'number' && Number.isFinite(receipt.runCapUsd) && receipt.runCapUsd > 0) r.runCapUsd = receipt.runCapUsd;
+  return r;
+}
 const ledgerIo = {
   readAll() {
+    unsettledSpendReceipts.clear();
     const rows = loadBounded({ fs, strict: true }, LEDGER_FILE, LOG_MAX_BYTES).map(line => {
       const row = JSON.parse(line);
       if (!row || typeof row !== 'object' || Array.isArray(row) || typeof row.usd !== 'number' || !Number.isFinite(row.usd) || row.usd < 0) throw new Error('invalid spend history row');
@@ -1065,11 +1078,21 @@ const ledgerIo = {
         if (prior && JSON.stringify(prior) !== JSON.stringify(receipt.entry)) throw Object.assign(new Error('Spend settlement receipt conflicts with ledger'), { code: 'SPEND_RECEIPT_CONFLICT' });
         if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); settled.add(receipt.runId); }
       }
-      if (!receipt || !receipt.runId || !settled.has(receipt.runId)) throw Object.assign(new Error('An interrupted run has unsettled spend; reconcile its provider usage before continuing with spending limits.'), { code: 'UNSETTLED_SPEND' });
+      // Damage, not an interrupted run: a receipt naming no run, or a settlement journal that could not be replayed.
+      // Still fail the read (spend unknown) — there is no run for the Commander to settle.
+      if (!receipt || !receipt.runId) throw Object.assign(new Error('A spend receipt names no run.'), { code: 'SPEND_RECEIPT_DAMAGED' });
+      if (!settled.has(receipt.runId)) {
+        if (receipt.entry) throw Object.assign(new Error('A spend settlement receipt could not be replayed.'), { code: 'SPEND_RECEIPT_DAMAGED' });
+        // A dispatch-only receipt: that run's spend is unknown. Keep the receipt (never guessed $0) and list it for the
+        // Commander to settle; keep reading so every other receipt is still reconciled.
+        unsettledSpendReceipts.set(String(receipt.runId), unsettledReceiptOf(receipt));
+        continue;
+      }
       fs.unlinkSync(path.join(SPEND_PENDING_DIR, file));
     }
     return rows;
   },
+  unsettled() { return [...unsettledSpendReceipts.values()]; },
   beginRun(receipt) {
     fs.mkdirSync(SPEND_PENDING_DIR, { recursive: true });
     writeFileDurable({ fs, path }, spendPendingPath(receipt.runId), JSON.stringify(receipt));
@@ -9184,7 +9207,7 @@ async function runQuestRefreshCycle(why) {
       catch (_) { blocked = { unknown: true }; }
       if (blocked) {
         questRefreshNote({ outcome: 'skipped', reason: blocked.unknown
-          ? 'spend history is unavailable — restore accounting before refreshing quests'
+          ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
           : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
         return;
       }
@@ -10997,6 +11020,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/remote/device', h: handleRemoteDevice },    // one phone: ALWAYS ASK, or the desk's own permissions  // forget a phone; its sessions end at once
   { m: 'POST', exact: '/api/budget/caps', h: handleBudgetCaps },
   { m: 'POST', exact: '/api/budget/resume', h: handleBudgetResume },
+  { m: 'POST', exact: '/api/budget/settle', h: handleBudgetSettle },   // the Commander books an interrupted run's real charge (SPENDING LIMITS)
   { m: 'GET', exact: '/api/fallback/chain', h: handleFallbackStatus },
   { m: 'POST', exact: '/api/fallback/chain', h: handleFallbackChain },
   { m: 'POST', exact: '/api/config/export', h: handleConfigExport },   // P1-7 station backup
@@ -12699,8 +12723,24 @@ function handleBudgetStatus(req, res) {
     managedRunDefaultUsd: (credits.configured() && MANAGED_PER_RUN_DEFAULT > 0) ? MANAGED_PER_RUN_DEFAULT : null,
     spentToday: known ? ledger.usdForDay(now) : null,
     lifetime: known ? ledger.totalUsd() : null,
-    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null
+    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null,
+    // Interrupted runs whose charge was never booked — what SPENDING LIMITS lists for the Commander to settle. The
+    // exact totals above stay null while any is open; the booked rows are still real, so they read as a floor.
+    unsettled: budgetUnsettledRuns(),
+    atLeast: (accounting.readError === 'UNSETTLED_SPEND' && accounting.durable)
+      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null
   })));
+}
+function budgetUnsettledRuns() {
+  return ledger.unsettledRuns().map(r => {
+    let title = '';
+    try { const row = runStore.latest(r.runId); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
+    return {
+      runId: r.runId, agentId: r.agentId || '', ts: r.ts || null, title: title.slice(0, 120),
+      provider: r.provider || null, model: r.model || null, managed: r.managed === true,
+      runCapUsd: (typeof r.runCapUsd === 'number' && r.runCapUsd > 0) ? r.runCapUsd : null
+    };
+  });
 }
 /* ---- GET /api/credits — the managed-credit STORE surface (balance + recent history + the external purchase URL).
    HONESTY LAW: 404s when managed credits are NOT configured, so the frontend renders no STORE card and shows no
@@ -12991,8 +13031,44 @@ async function handleBudgetResume(req, res) {
   const scope = String(body.scope || '').trim();
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
   const cap = budget.resume(scope);
-  if (cap == null) return json(409, { error: 'that budget scope is not governed (no cap set)' });
+  if (cap == null) {
+    // resume never adds headroom over spend it cannot see — say THAT, not "not governed"
+    const h = ledger.health();
+    if (!h.complete || !h.durable) return json(409, { error: 'spend history is unavailable, so a pool cannot be resumed — see SETTINGS › SPENDING LIMITS', code: 'spend_history_unavailable' });
+    return json(409, { error: 'that budget scope is not governed (no cap set)' });
+  }
   json(200, { resumed: scope, cap, status: budget.status(Date.now()) });
+}
+/* ---- POST /api/budget/settle { runId, usd } | { runId, mode: 'limit' } — the Commander's ONE way to clear an
+   interrupted run's unknown spend: book what the provider dashboard shows (usd), or count it at the per-run limit the
+   run started with ('limit', only when its receipt recorded one). Only a run found unsettled at boot is accepted (404
+   otherwise — a live run books itself); the row is journaled-then-appended through the ledger's strict path and the
+   receipt removed, so history is complete again and stays so across restarts. Deliberately NOT a station-control
+   action: attesting what a provider charged belongs to the Commander, never to an agent. ---- */
+async function handleBudgetSettle(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  const runId = String(body.runId || '').trim();
+  if (!runId) return json(400, { error: 'runId is required' });
+  const open = ledger.unsettledRuns().find(r => r.runId === runId);
+  if (!open) return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
+  let usd;
+  if (body.mode === 'limit') {
+    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
+    usd = open.runCapUsd;
+  } else {
+    usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
+    if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
+  }
+  try { ledger.settleUnsettled(runId, usd); }
+  catch (e) {
+    if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
+    if (e && e.code === 'bad_usd') return json(400, { error: 'enter the charge in USD (0 or more)' });
+    failNote('budget.settle', e);
+    return json(500, { error: 'the settlement could not be saved to disk — restart StarNet to recover it', code: 'spend_history_unavailable' });
+  }
+  console.log('[budget] interrupted run ' + runId + ' settled at $' + usd + (body.mode === 'limit' ? ' (its per-run limit)' : ' (entered by the Commander)'));
+  return handleBudgetStatus(req, res);
 }
 
 /* ---- best-effort catalog for fallback-id validation. Returns a Set of known OpenRouter model ids from the WARM
@@ -17335,7 +17411,7 @@ const slashActions = slashActionsMod.makeSlashActions({
   budget: {
     snapshot: async (agentId) => {
       const health = ledger.health();
-      if (!health.complete || !health.durable) return { ok: false, error: 'Spend history is unavailable or not durably saved.' };
+      if (!health.complete || !health.durable) return { ok: false, error: 'Spend history is unavailable or not durably saved. See SETTINGS › SPENDING LIMITS.' };
       const t = Date.now();
       return {
         ok: true,
@@ -19877,7 +19953,10 @@ async function runOnceCore(o) {
   // emits any threshold crossing down THIS run's bus and returns a block when a soft pool cap is hit.
   // An unmetered (OAuth-subscription) run is exempt from the cross-run $ pools too — its estimates would
   // otherwise block runs against caps that guard money it isn't spending (2026-07-23, with the perRun exemption).
-  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit) };
+  // The dispatch receipt names where this run's charge will show (provider/model it started on, managed or not) and the
+  // per-run limit it started with, so an interrupted run can be settled by the Commander from the right dashboard.
+  const runReceiptMeta = () => ({ provider: providerId, model, managed: managedRun, runCapUsd });
+  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit, runReceiptMeta) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
