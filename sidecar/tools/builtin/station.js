@@ -115,6 +115,23 @@
       }
     };
 
+    /* station.status (issue #55, idea by @xLagerFeuer): the page's own station-wide snapshot — the SAME
+       VoiceLive.statusSnapshot() voice answers from (stationcommands.js 'station.status'), passed through
+       unchanged, so a lead asked "is anything waiting on me?" reads which sessions are busy or held at an approval
+       instead of guessing from its own thread. No page → REFUSED, never an implied state. */
+    const statusTool = {
+      name: 'station.status', capability: 'orchestrator', scope: 'read', requiresConsent: false,
+      description: 'Read the live station snapshot: the Commander\'s active session and, per open session, whether it is busy and whether it waits on an approval. Call it before answering what the station or crew is doing or what waits on the Commander; never infer other sessions\' state from your own thread.',
+      schema: { type: 'object', properties: {} },
+      run: async () => {
+        const out = await ask('station.status', {});
+        if (!out.ok) return refuse(out.error);
+        const ws = (out.result && out.result.workstreams) || [];
+        const busy = ws.filter(w => w && w.busy).length, held = ws.filter(w => w && w.approvalRequired).length;
+        return { content: JSON.stringify(out.result), summary: ws.length + ' session(s), ' + busy + ' busy' + (held ? ', ' + held + ' awaiting approval' : '') };
+      }
+    };
+
     const taskListTool = {
       name: 'task.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
       description: 'List the durable cards on the Commander\'s task board. Use this for requests about board cards or tasks; sessions are separate and come from session.list.',
@@ -599,9 +616,9 @@
     };
 
     return {
-      agentConfigTool, agentConfigureTool, layoutTool, mapTool, planTool, buildTool, makePropTool, testLineTool, startLineTool, planSummaryFor,
+      statusTool, agentConfigTool, agentConfigureTool, layoutTool, mapTool, planTool, buildTool, makePropTool, testLineTool, startLineTool, planSummaryFor,
       listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool,
-      register(reg) { [listTool, createTool, peekTool, focusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool, layoutTool, mapTool, planTool, buildTool, makePropTool, testLineTool, startLineTool].forEach(t => reg.register(t)); return reg; }
+      register(reg) { [listTool, createTool, peekTool, focusTool, statusTool, taskListTool, taskCreateTool, taskManageTool, agentConfigTool, agentConfigureTool, layoutTool, mapTool, planTool, buildTool, makePropTool, testLineTool, startLineTool].forEach(t => reg.register(t)); return reg; }
     };
   }
 
