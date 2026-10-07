@@ -216,11 +216,11 @@ test('managed HTTP 400 keeps local, relay and upstream correlation through resta
 // session — a keychain-authorized station stayed "not linked" on the RESUME screen until the app was restarted, even
 // after the cloud recovered. The credits status read now takes a spaced retry of a TRANSIENT heal failure.
 test('a boot self-heal that met a down cloud retries on the next credits read once the cloud is back', { timeout: 30000 }, async () => {
-  let healthy = false, whoamiCalls = 0;
+  let healthy = false, whoamiCalls = 0, balanceCalls = 0;
   const server = http.createServer((req, res) => {
     const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
     if (req.url === '/v1/whoami') { whoamiCalls++; return healthy ? json(200, { ok: true, accountId: 'acct-recovered' }) : json(502, { error: 'bad gateway' }); }
-    if (req.url.startsWith('/v1/balance')) return json(200, { balanceUsd: 12.5 });
+    if (req.url.startsWith('/v1/balance')) { balanceCalls++; return json(200, { balanceUsd: 12.5 }); }
     if (req.url.startsWith('/v1/history')) return json(200, { entries: [] });
     res.writeHead(404); res.end();
   });
@@ -240,13 +240,18 @@ test('a boot self-heal that met a down cloud retries on the next credits read on
     assert.equal(during.status, 404, 'still unlinked while the cloud is down');
     healthy = true;
     await new Promise(r => setTimeout(r, 250));
+    balanceCalls = 0;
     const after = await fixture.json('GET', '/api/credits?history=0');
     assert.equal(after.status, 200, after.text);
     assert.equal(after.body.configured, true, 'the station relinked itself without a restart');
     assert.equal(after.body.balanceUsd, 12.5, 'and reads the real balance');
+    // The heal's rebuild already read /v1/balance on the new adapter; a second sequential read on the same request
+    // chained whoami + balance + balance (3 × 8s worst case) past WAKE's wait.
+    assert.equal(balanceCalls, 1, 'the healing read makes exactly one balance read');
     const calls = whoamiCalls;
     await fixture.json('GET', '/api/credits?history=0');
     assert.equal(whoamiCalls, calls, 'a healed station never asks whoami again');
+    assert.equal(balanceCalls, 2, 'a normal read still refreshes the balance');
   } finally {
     await fixture.dispose(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   }

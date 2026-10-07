@@ -2493,9 +2493,11 @@ const App = (() => {
     const priorLinked = starnetLinked, priorPurchaseUrl = starnetPurchaseUrl;
     let timeout = null;
     try {
+      // The wait must outlast the sidecar's own bounded worst case, so its answer always lands first: a link
+      // self-heal retry's /v1/whoami (8s) + one /v1/balance read (8s). 10s used to lose that race on WAKE.
       j = await Promise.race([
         Harness.api.get('/api/credits?history=0'),
-        new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 10000); })
+        new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 20000); })
       ]);
       answered = !!(j && typeof j.configured === 'boolean');
     }

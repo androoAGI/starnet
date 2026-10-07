@@ -79,6 +79,14 @@ ok(/typeof j\.balanceUsd === 'number'/.test(app) && /typeof p\.balanceUsd === 'n
   'creator and link responses accept only numeric balances — malformed strings never become $0');
 ok(/\/api\/credits\?history=0/.test(app) && /credits status timeout/.test(app),
   'WAKE uses a bounded balance-only status request and cannot be stranded behind activity history');
+// The WAKE wait must outlast the sidecar's own worst case (heal whoami 8s + one balance read 8s), or a healing
+// read answers after WAKE already said "couldn't confirm your credit balance" (link-down F6, 2026-10-07).
+{
+  const m = /new Error\('credits status timeout'\)\),\s*(\d+)\)/.exec(app);
+  ok(m && Number(m[1]) >= 16000, 'the WAKE credits status wait outlasts the sidecar heal + balance budget (16s)');
+}
+ok(/if \(!\(heal && heal\.healed\)\) await adapter\.refresh\(\)/.test(host) && /rebuildCredits\(\)\.then\(\(\) => \(\{ healed: true \}\)\)/.test(host),
+  'a credits read that just healed the link reuses the heal\'s balance read instead of chaining a second one');
 ok(/_starnetLinkPollBusy/.test(app) && /generation !== _starnetLinkGeneration/.test(app),
   'slow link polling is single-flight and an old consumed response cannot overwrite a successful relink');
 ok(/seq !== _starnetStatusSeq[\s\S]{0,180}answered: false/.test(app),
