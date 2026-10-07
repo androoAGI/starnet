@@ -18,6 +18,7 @@ const { makeAnthropicProvider } = require('../sidecar/providers/anthropic.js');
 const { makeGeminiProvider } = require('../sidecar/providers/gemini.js');
 const { makeCodexProvider } = require('../sidecar/providers/codex.js');
 const { makeOpenAICompatibleProvider } = require('../sidecar/providers/openai-compatible.js');
+const { makeOpenRouterProvider } = require('../sidecar/providers/openrouter.js');
 
 const ANTHROPIC_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const sse = lines => new Response(lines.join('\n') + '\n', { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
@@ -60,6 +61,16 @@ async function chatBody(messages) {
     return sse(['data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }), 'data: [DONE]']);
   } });
   for await (const _ of p.stream({ model: 'm', messages })) { /* drain */ }
+  return body;
+}
+async function openRouterBody(messages, model) {
+  let body = null;
+  const p = makeOpenRouterProvider({ key: 'k', fetch: async (url, init) => {
+    if (!init || !init.body) return new Response('{"data":[]}', { status: 200 });
+    body = JSON.parse(init.body);
+    return sse(['data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }), 'data: [DONE]']);
+  } });
+  for await (const _ of p.stream({ model, messages })) { /* drain */ }
   return body;
 }
 
@@ -279,6 +290,44 @@ const text = v => JSON.stringify(v);
     A.eq(text(comms), snapshot, "the caller's transcript is not mutated");
     const clean = [{ role: 'user', content: 'u' }];
     A.ok(provider.chatWireMessages(clean) === clean, 'a clean transcript returns by identity');
+  }
+
+  // ---- 7. The OpenRouter adapter builds its own Chat Completions body: the same projection, and the Claude
+  //      cache_control anchors still land inside the content parts of the clean copies ----
+  {
+    const comms = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'hello', ts: 1, streamId: 'ws-1', agentId: 'agent', attachments: [] },
+      { role: 'assistant', content: '', ts: 2, sourceRunId: 'r1', reasoning: [{ type: 'reasoning_content', text: 'x' }], tool_calls: [call('call_1', 'web', { q: 1 })] },
+      { role: 'tool', tool_call_id: 'call_1', content: 'one', ts: 3 },
+      { role: 'assistant', content: '⚠ failed', error: true, stopped: true, agentId: 'a2', ts: 4 },
+      { role: 'user', content: [{ type: 'text', text: 'see' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA' } }], ts: 5, streamId: 'ws-1' }
+    ];
+    const snapshot = text(comms);
+    const leakedKeys = body => {
+      const leaked = [];
+      body.messages.forEach((m, i) => { for (const k of Object.keys(m)) if (!provider.CHAT_WIRE_KEYS.has(k)) leaked.push(i + '.' + k); });
+      return leaked;
+    };
+    const plain = await openRouterBody(comms, 'openai/gpt-4o');
+    A.eq(leakedKeys(plain), [], 'OpenRouter: no non-wire key rides a message');
+    A.eq(plain.messages.map(m => m.role), ['system', 'user', 'assistant', 'tool', 'assistant', 'user'], 'OpenRouter: every turn still rides, in order');
+    A.eq(plain.messages[2].tool_calls, comms[2].tool_calls, 'OpenRouter: tool_calls ride verbatim');
+    A.eq(plain.messages[3].tool_call_id, 'call_1', 'OpenRouter: a tool result keeps its call id');
+    A.eq(plain.messages[5].content, comms[5].content, 'OpenRouter: content parts ride verbatim');
+
+    const claude = await openRouterBody(comms, 'anthropic/claude-sonnet-4.6');
+    A.eq(leakedKeys(claude), [], 'OpenRouter (Claude): no non-wire key rides a message');
+    const sys = claude.messages[0].content;
+    A.ok(Array.isArray(sys) && sys[sys.length - 1].cache_control && sys[sys.length - 1].cache_control.type === 'ephemeral',
+      'OpenRouter (Claude): the system anchor is still stamped inside its content part');
+    const tailStamped = claude.messages.slice(1).filter(m => Array.isArray(m.content) && m.content.length
+      && m.content[m.content.length - 1].cache_control).length;
+    A.ok(tailStamped >= 1, 'OpenRouter (Claude): the sliding tail anchors survive the projection');
+    A.eq(text(comms), snapshot, "OpenRouter: the caller's transcript is not mutated");
+
+    const clean = [{ role: 'user', content: 'u' }];
+    A.eq((await openRouterBody(clean, 'openai/gpt-4o')).messages, clean, 'OpenRouter: a clean transcript rides unchanged');
   }
 
   A.report('provider.wire-sanitize.test');
