@@ -268,24 +268,35 @@
         blockedOpen = function () { return null; };
         Object.defineProperty(globalThis, 'open', { configurable: false, writable: false, value: blockedOpen });
       }
+      /* A LINK OR FORM AIMED AT A NEW WINDOW OPENS IN THIS TAB. These used to be cancelled outright (preventDefault +
+         stopImmediatePropagation), from before popups could be adopted - so an Etsy result (target="etsy.123") or any
+         target=_blank link did nothing at all while browser.click said "clicked". Retargeting to _self loads the page in
+         this already-shimmed tab whether or not adoption is armed, and the page's own handlers still run. A target that
+         names a frame ON this page (<iframe name=pf>, <a target=pf>) is not a new window, so it is left alone. */
+      // by the frame ELEMENTS' names, never window[name]: named access also returns any element with that id. Only while
+      // popups are adopted - with them blocked, a page that removed the frame mid-click must still not get a new window.
+      const inPageFrame = n => ALLOW_POPUPS && !!n && !!document.querySelectorAll && Array.prototype.some.call(document.querySelectorAll('iframe[name],frame[name]'), f => f.name === n);
       const escapesTarget = (el, override) => {
         const base=document.querySelector&&document.querySelector('base[target]');
-        const t=String(override||el&&el.target||base&&base.target||'').trim().toLowerCase();
-        return !!t && t !== '_self' && t !== '_top' && t !== '_parent';
+        const raw=String(override||el&&el.target||base&&base.target||'').trim();
+        const t=raw.toLowerCase();
+        return !!t && t !== '_self' && t !== '_top' && t !== '_parent' && !inPageFrame(raw);
       };
+      const toSelf = (el, attr) => { if (el && el.setAttribute) el.setAttribute(attr, '_self'); };
       globalThis.addEventListener('click', e => {
         const p=typeof e.composedPath==='function'?e.composedPath():[];
         const el=p.find(x => x instanceof HTMLAnchorElement || x instanceof HTMLAreaElement);
-        if(escapesTarget(el)){e.preventDefault();e.stopImmediatePropagation();}
+        if(escapesTarget(el)) toSelf(el, 'target');
       }, true);
       globalThis.addEventListener('submit', e => {
         const ft=e.submitter&&(e.submitter.formTarget||e.submitter.getAttribute&&e.submitter.getAttribute('formtarget'));
-        if(escapesTarget(e.target,ft)){e.preventDefault();e.stopImmediatePropagation();}
+        if(ft&&escapesTarget(e.target,ft)) toSelf(e.submitter, 'formtarget');
+        else if(!ft&&escapesTarget(e.target)) toSelf(e.target, 'target');
       }, true);
       if (globalThis.HTMLFormElement) {
         const nativeSubmit=HTMLFormElement.prototype.submit;
         Object.defineProperty(HTMLFormElement.prototype,'submit',{configurable:false,writable:false,value:function(){
-          if(escapesTarget(this)) return undefined;
+          if(escapesTarget(this)) toSelf(this, 'target');
           return nativeSubmit.call(this);
         }});
       }
@@ -1812,6 +1823,7 @@
     async function click(node) {
       const c = await page();
       const downloadCursor = downloads ? downloads.cursor() : 0;
+      const tabsBefore = new Set(pageSessions.keys());
       const x = node.x + Math.max(1, Math.floor(node.w / 2));
       const y = node.y + Math.max(1, Math.floor(node.h / 2));
       await movePointer(c, { x, y }, 'none');
@@ -1831,6 +1843,15 @@
         if (receipt && receipt.status === 'canceled') return 'clicked\nDownload canceled. No saved path was claimed.';
         if (receipt && receipt.status === 'unverified') return 'clicked\nChromium reported the download complete, but the host could not verify a readable saved file. Do not claim it was saved.';
         return 'clicked\nDownload started but did not complete within the browser action budget. No saved path was claimed. Use fs.list on downloads/ later to check for a completed file.';
+      }
+      /* A popup the page opened (window.open: a checkout, SSO, a PDF viewer) is adopted as a NEW tab, and switching is
+         never implicit - so "clicked" alone left the agent reading the old page, unaware the result was elsewhere. */
+      const sessions = tabSessions();
+      const opened = sessions.findIndex((sid, i) => i > 0 && !tabsBefore.has(sid));
+      if (opened > 0) {
+        const here = Math.max(0, sessions.indexOf(activeSession || openerSession));
+        return 'clicked\nThis click opened a NEW tab (index ' + opened + '). You are still on tab ' + here
+          + '; use browser.tab_select ' + opened + ' to read it (browser.tabs lists every tab).';
       }
       return 'clicked';
     }
@@ -3517,7 +3538,7 @@
         async a => ({ content: 'Viewport is now ' + await session.viewport(a.width, a.height, { mobile: a.mobile === true, scale: a.scale }) + ' — take a fresh browser.snapshot.', summary: 'viewport' }), false),
       exec('browser.forward', 'Go forward in browser history (the counterpart of browser.back).', { type: 'object', properties: {} },
         async () => ({ content: 'Browser moved forward to ' + await session.forward(), summary: 'forward' }), false),
-      read('browser.tabs', 'List the browser tabs. A link with target="_blank", a checkout popup or a PDF opens a NEW tab — it is listed here, and browser.tab_select switches to it. Tab 0 is the one you started in.', { type: 'object', properties: {} },
+      read('browser.tabs', 'List the browser tabs. A popup the page opens (window.open: a checkout, an SSO sign-in, a PDF viewer) becomes a NEW tab — it is listed here, browser.click says when one opened, and browser.tab_select switches to it. A link with target="_blank" opens in the current tab. Tab 0 is the one you started in.', { type: 'object', properties: {} },
         async () => {
           const list = await session.tabs();
           // FENCED: a tab TITLE is `document.title` — fully attacker-controlled, and a popup a hostile page

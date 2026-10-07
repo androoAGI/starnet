@@ -59,7 +59,11 @@ const ROUTES = {
     '<script>fetch("/api/ok");fetch("/api/missing");fetch("http://127.0.0.1:1/dead").catch(function(){});</script>') }),
   '/api/ok': () => ({ status: 200, body: 'ok' }),
   '/api/missing': () => ({ status: 404, body: 'nope' }),
-  '/blank': () => ({ status: 200, body: PAGE('<a id=open href="/second" target="_blank">Open receipt</a>') }),
+  '/blank': () => ({ status: 200, body: PAGE('<a id=open href="/second" target="_blank">Open receipt</a>' +
+    '<p><button id=pop onclick="window.open(\'/second\',\'_blank\')">Pop receipt</button></p>') }),
+  // a form aimed at a new window, and a link aimed at a frame ON the page (not a new window at all)
+  '/blankform': () => ({ status: 200, body: PAGE('<form action="/second" target="_blank"><button>Send form</button></form>') }),
+  '/framelink': () => ({ status: 200, body: PAGE('<iframe name=pf src="about:blank" style="width:300px;height:120px"></iframe><p><a href="/second" target="pf">Into frame</a></p>') }),
   '/second': () => ({ status: 200, body: PAGE('<h1>Receipt</h1><button id=print>Print receipt</button>', '<title>Receipt</title>') }),
   '/click': () => ({ status: 200, body: PAGE('<button id=go>Load</button><div id=out></div>',
     '<script>addEventListener("click",function(e){if(e.target.id==="go"){setTimeout(function(){document.getElementById("out").innerHTML="<button id=next>Second step</button>";},300);}})</script>') }),
@@ -360,12 +364,11 @@ const ROUTES = {
         'the snapshot AFTER a click sees what the click produced — this is the pre-click-DOM bug, gone');
     }
 
-    /* 6. TABS — a target="_blank" link opens a real second tab the agent can drive.
+    /* 6. TABS — a popup the page opens becomes a real second tab the agent can drive.
        This is the payoff of adoption: a new page target used to be Target.closeTarget'd while still
        paused, so a checkout, a receipt or an SSO popup read to the agent as "the link did nothing".
        window.open is no longer neutralised, because every new page target is now paused before its
-       first statement, shimmed, and only then resumed - a stronger guarantee than the old block,
-       which never covered _blank links at all. */
+       first statement, shimmed, and only then resumed. */
     {
       await driver.navigate(base + '/blank');
       const nodes = await driver.snapshot(40);
@@ -375,18 +378,39 @@ const ROUTES = {
       A.eq(before.length, 1, 'one tab to begin with');
       A.eq(before[0].active, true, 'the original tab is the active one');
 
-      /* MEASURED, on BOTH binaries: a target="_blank" LINK CLICK spawns no page target under
-         --headless=new, while window.open does. So the popup is driven the way SSO windows, checkout
-         windows and print views actually drive it - window.open - and the _blank click is asserted
-         for what it really does here rather than what we might wish. */
+      /* A target="_blank" LINK opens in THIS tab (10-07). The page shim used to cancel the click outright - which
+         is what this section once blamed on headless Chrome - so an Etsy result did nothing while click said
+         "clicked". The shim now retargets it to _self: the page loads here, already shimmed, one tab. */
       await driver.click(link);
-      await new Promise(r => setTimeout(r, 600));
-      A.eq((await driver.tabs()).length, 1, 'a _blank LINK CLICK spawns no target in headless (browser behaviour, not a driver gap)');
+      A.eq((await driver.tabs()).length, 1, 'a _blank LINK CLICK stays in one tab');
+      A.ok(/\/second$/.test(await driver.testEval('location.href')), 'and it actually navigated that tab to the link');
+      A.ok(/Receipt/.test(await driver.getText()), 'get_text reads the page the link opened');
 
+      // a form aimed at a new window submits in this tab too
+      await driver.navigate(base + '/blankform');
+      const send = (await driver.snapshot(40)).find(n => /Send form/.test(n.text || ''));
+      A.ok(!!send, 'the _blank form button is in the snapshot');
+      await driver.click(send);
+      A.ok(/\/second\??$/.test(await driver.testEval('location.href')), 'a target=_blank FORM submits in this tab instead of doing nothing');
+      A.eq((await driver.tabs()).length, 1, 'and opens no extra tab');
+
+      // a link aimed at a frame ON the page is not a new window: it loads into that frame, the top page stays
+      await driver.navigate(base + '/framelink');
+      const into = (await driver.snapshot(40)).find(n => /Into frame/.test(n.text || ''));
+      A.ok(!!into, 'the frame-targeted link is in the snapshot');
+      await driver.click(into);
+      await new Promise(r => setTimeout(r, 400));
+      A.ok(/\/framelink$/.test(await driver.testEval('location.href')), 'a link targeting an in-page frame leaves the top page where it was');
+      A.eq(await driver.testEval('frames[0].location.pathname'), '/second', 'and loads into that frame');
+
+      await driver.navigate(base + '/blank');
       A.eq((await driver.testState(null)).popupBlocked, false,
         'browser-level opener attachment is proven before the immutable page shim allows popups');
-      await driver.testEval('void window.open("/second","_blank")');
+      const pop = (await driver.snapshot(40)).find(n => /Pop receipt/.test(n.text || ''));
+      A.ok(!!pop, 'the window.open button is in the snapshot');
+      const popped = await driver.click(pop);
       const adopted = await driver.waitForTabCount(2, 10000);
+      A.ok(/opened a NEW tab \(index 1\)\. You are still on tab 0/.test(popped), 'click SAYS it opened a new tab and that it did not switch (' + JSON.stringify(popped) + ')');
       const list = await driver.tabs();
       A.eq(adopted, true, 'popup adoption reaches the driver within its bounded event wait');
       A.eq(list.length, 2, 'a popup is ADOPTED as a REAL second tab instead of being killed');

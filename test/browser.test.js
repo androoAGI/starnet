@@ -973,6 +973,73 @@ function fakeDriver() {
     }
   }
 
+  // ---- A NEW-WINDOW LINK OPENS IN THIS TAB (Etsy results, 10-07) ---------------------------------
+  // The page shim cancelled every target=_blank / named-target link and form (preventDefault + stopImmediatePropagation)
+  // even with popup adoption armed, so the click did nothing while browser.click said "clicked". It now retargets to
+  // _self and lets the event run. Run the REAL shim source in a minimal fake DOM, both popup modes.
+  {
+    const vm = require('node:vm');
+    function shimRealm(allowPopups) {
+      const listeners = {};
+      class Element { constructor(attrs) { this.attrs = Object.assign({}, attrs || {}); } getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; } setAttribute(k, v) { this.attrs[k] = String(v); } get target() { return this.attrs.target || ''; } get name() { return this.attrs.name || ''; } }
+      class Document {}
+      class HTMLAnchorElement extends Element {}
+      class HTMLAreaElement extends Element {}
+      class HTMLFormElement extends Element {}
+      class HTMLIFrameElement extends Element {}
+      let submitted = 0;
+      HTMLFormElement.prototype.submit = function () { submitted++; };
+      const frames = [];
+      const document = Object.assign(new Document(), {
+        querySelector: () => null,
+        querySelectorAll: sel => /iframe/.test(sel) ? frames : [],
+        dispatchEvent: () => true
+      });
+      const ctx = { Element, Document, HTMLAnchorElement, HTMLAreaElement, HTMLFormElement, Event: class { constructor(n) { this.type = n; } }, document, navigator: {}, queueMicrotask, Promise, Object, Array, String, Error };
+      ctx.globalThis = ctx;
+      ctx.addEventListener = (n, fn) => { (listeners[n] = listeners[n] || []).push(fn); };
+      vm.createContext(ctx);
+      const src = allowPopups ? T.SYNTHETIC_INPUT_BOOTSTRAP.replace('const ALLOW_POPUPS = false;', 'const ALLOW_POPUPS = true;') : T.SYNTHETIC_INPUT_BOOTSTRAP;
+      vm.runInContext(src, ctx);
+      const fire = (name, extra) => {
+        const ev = Object.assign({ defaultPrevented: false, stopped: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } }, extra);
+        for (const fn of listeners[name] || []) fn(ev);
+        return ev;
+      };
+      return { ctx, fire, frames, HTMLAnchorElement, HTMLFormElement, HTMLIFrameElement, Element, submitted: () => submitted };
+    }
+    for (const allow of [false, true]) {
+      const R = shimRealm(allow);
+      const mode = allow ? ' (popups adopted)' : ' (popups blocked)';
+      const a = new R.HTMLAnchorElement({ href: '/second', target: '_blank' });
+      const ev = R.fire('click', { composedPath: () => [a] });
+      A.eq([ev.defaultPrevented, ev.stopped], [false, false], 'a target=_blank link click is no longer cancelled' + mode);
+      A.eq(a.getAttribute('target'), '_self', 'it is retargeted to this tab' + mode);
+      const named = new R.HTMLAnchorElement({ href: '/listing/1', target: 'etsy.123' });
+      R.fire('click', { composedPath: () => [named] });
+      A.eq(named.getAttribute('target'), '_self', 'an Etsy-style named target opens in this tab too' + mode);
+      const plain = new R.HTMLAnchorElement({ href: '/x' });
+      R.fire('click', { composedPath: () => [plain] });
+      A.eq(plain.getAttribute('target'), null, 'an ordinary link is left untouched' + mode);
+      R.frames.push(new R.HTMLIFrameElement({ name: 'pf' }));
+      const intoFrame = new R.HTMLAnchorElement({ href: '/x', target: 'pf' });
+      R.fire('click', { composedPath: () => [intoFrame] });
+      A.eq(intoFrame.getAttribute('target'), allow ? 'pf' : '_self', allow
+        ? 'a link aimed at a frame ON the page still loads into that frame'
+        : 'with popups blocked even a frame-named target is kept in this tab (fail closed)');
+      const form = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const sub = R.fire('submit', { target: form, submitter: null });
+      A.eq([sub.defaultPrevented, form.getAttribute('target')], [false, '_self'], 'a target=_blank form submits in this tab' + mode);
+      const form2 = new R.HTMLFormElement({ action: '/second' });
+      const btn = new R.Element({ formtarget: '_blank' });
+      R.fire('submit', { target: form2, submitter: btn });
+      A.eq([btn.getAttribute('formtarget'), form2.getAttribute('target')], ['_self', null], 'a submitter formtarget=_blank is retargeted on the submitter' + mode);
+      const form3 = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      form3.submit();
+      A.eq([R.submitted(), form3.getAttribute('target')], [1, '_self'], 'form.submit() on a _blank form submits here instead of silently doing nothing' + mode);
+    }
+  }
+
   // ---- the SESSION recovers ONCE from a closed tab 0 on navigate --------------------------------
   {
     const built = [];
