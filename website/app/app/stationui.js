@@ -1391,7 +1391,22 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         } catch (_) { /* a rebuilt control that refuses restore is no worse than the old wipe */ }
       }
     };
+    /* REENTRANCY: a builder that resyncs stores can make one of them poke rerender(key) for THIS window while
+       it is still building. rerender is synchronous, so that poke used to recurse into the builder until the stack
+       overflowed — and the swallowed RangeError then let every one of those ~1,600 frames finish a full paint
+       (QUEST LOG, 2026-10-07: "the whole program started lagging … 10-20 seconds to even click"). A poke landing
+       mid-build is now owed ONE follow-up paint after this build finishes; pokes during that follow-up are
+       already reflected in it or ride the next tick, so no store can ever loop the window. */
+    let building = false, owed = false;
     w._render = (swap) => {
+      if (building) { owed = true; return; }
+      building = true;
+      try {
+        paint(swap);
+        if (owed) { owed = false; paint(false); }
+      } finally { building = false; owed = false; }
+    };
+    const paint = (swap) => {
       const keep = swap === false ? captureForms() : null;   // background poke: preserve what the Commander typed
       builder(body);
       if (keep && keep.length) restoreForms(keep);
