@@ -551,7 +551,7 @@
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
       // Native NDJSON is translated into the chat-completions chunk shape, so everything below parses one format.
       const translate = (wire && wire.native) ? ollamaNative.makeChunkTranslator() : null;
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
       const dec = new TextDecoder();
       let buf = '';
       const started = {};
@@ -703,6 +703,7 @@
           });
         } catch (e) {
           if (isAbort(e, signal)) throw e;
+          provider.runtime.stampRequestHost(e, native ? nativeBase : baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // Local Ollama silent past the connect ceiling: say where the model actually runs (one /api/ps read).
           // Appended, so the message still reads "timed out" and classifies exactly as before.
           if (native && e && e.timeout && e.phase === 'connect' && !e.ollamaPlacement) {

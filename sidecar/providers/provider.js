@@ -166,6 +166,21 @@
     } catch (_) {}
     return e;
   }
+  /* A TLS-handshake or socket failure names no destination: undici's cause for ERR_SSL_TLSV1_ALERT_DECODE_ERROR or
+     UND_ERR_SOCKET carries no hostname, so a customer's diagnostics read "fetch failed (ERR_SSL_…)" and nobody
+     could tell WHICH service broke (macOS report, 2026-10-07). The adapter knows the URL it dialled: stamp its
+     HOSTNAME (never the URL — keys ride query strings and user:pass@ base URLs) so errorClass can name it. A host
+     the cause already carries still wins there; an abort is a cancel, not a destination fault, and stays bare. */
+  function requestHostOf(url) {
+    if (!url) return '';
+    try { return new URL(String(url)).hostname || ''; } catch (_) { return ''; }
+  }
+  function stampRequestHost(error, url) {
+    if (!error || typeof error !== 'object' || error.requestHost || isAbort(error)) return error;
+    const host = requestHostOf(url);
+    if (host) { try { error.requestHost = host; } catch (_) { return error; } }
+    return error;
+  }
   /* How many pre-stream retries THIS request may make. Adapters default to their own ladder (RETRY_DELAYS); the
      loop sends req.preStreamRetries = 0 once its ladder owns the turn's pacing, so every rung it sleeps is exactly
      ONE request instead of one request plus the adapter's two quick re-sends. A request can only LOWER the
@@ -242,6 +257,10 @@
         if (cancelled) throw timeoutError(ms, 'idle');
         if (signal && signal.aborted) throw makeAbortError();
         return r;
+      } catch (e) {
+        // a socket dropped mid-response ("terminated", cause UND_ERR_SOCKET) surfaces HERE, not in the
+        // adapter's fetch catch — name the destination host on it too (opts.url; hostname only, see stampRequestHost)
+        throw stampRequestHost(e, opts.url);
       } finally {
         if (timer) clearTimeout(timer);
         if (onAbort && signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort);
@@ -252,7 +271,7 @@
   }
 
   const timeouts = { envInt, connectMs, idleMs, connectSignal, connectGuard, idleGuardedReader, timeoutError, makeAbortError };
-  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries };
+  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries, stampRequestHost };
 
   function recoveredToolContent(callId, content) {
     let body;

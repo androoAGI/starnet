@@ -38,6 +38,54 @@ function undiciError(causeMessage, extra) {
   A.ok(/UND_ERR_CONNECT_TIMEOUT/.test(classifyApiError(timeout, {}).message), 'an undici connect timeout is named');
 }
 
+// ---- 1b. TLS-alert and socket causes carry NO host: the adapter-stamped requestHost names it (2026-10-07) ----
+// A macOS customer's report read "fetch failed (ERR_SSL_TLSV1_ALERT_DECODE_ERROR)" — no way to tell which service.
+{
+  const OPENSSL = 'C0:error:0A000432:SSL routines:ssl3_read_bytes:tlsv1 alert decode error:../deps/openssl/openssl/ssl/record/rec_layer_s3.c:1605:SSL alert number 50';
+  const bare = undiciError(OPENSSL, { code: 'ERR_SSL_TLSV1_ALERT_DECODE_ERROR' });
+  A.eq(classifyApiError(bare, {}).message, 'fetch failed (ERR_SSL_TLSV1_ALERT_DECODE_ERROR)',
+    'unstamped: the openssl path in the cause message is NOT mistaken for a host');
+  const tls = undiciError(OPENSSL, { code: 'ERR_SSL_TLSV1_ALERT_DECODE_ERROR' });
+  tls.requestHost = 'api.example.com';
+  const tv = classifyApiError(tls, {});
+  A.eq(tv.message, 'fetch failed (ERR_SSL_TLSV1_ALERT_DECODE_ERROR api.example.com)', 'stamped: the TLS failure names its host');
+  A.eq(tv.reason, classifyApiError(bare, {}).reason, 'the host never moves the verdict');
+
+  const sock = new TypeError('terminated');
+  sock.cause = Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+  sock.requestHost = 'api.example.com';
+  const sv = classifyApiError(sock, {});
+  A.eq(sv.message, 'terminated (UND_ERR_SOCKET api.example.com)', 'a mid-stream socket drop names its host');
+  A.eq(sv.reason, 'timeout', 'and keeps its transport verdict');
+
+  const own = undiciError('getaddrinfo ENOTFOUND api.openai.com', { code: 'ENOTFOUND', hostname: 'api.openai.com' });
+  own.requestHost = 'stamped.example.com';
+  A.eq(classifyApiError(own, {}).message, 'fetch failed (ENOTFOUND api.openai.com)', 'a host the cause carries still wins');
+}
+
+// ---- 1c. the adapter seam: stampRequestHost keeps the HOSTNAME only (keys ride query strings / userinfo) ----
+let readerStamp = Promise.resolve();   // the async leg below; report() waits for it
+{
+  const { runtime, timeouts } = require('../sidecar/providers/provider.js');
+  const e = runtime.stampRequestHost(new TypeError('fetch failed'), 'https://user:pass@gen.example.com:8443/v1beta/models/x:stream?alt=sse&key=SECRET');
+  A.eq(e.requestHost, 'gen.example.com', 'only the hostname is stamped — no port, path, query or userinfo');
+  const ab = Object.assign(new Error('aborted'), { name: 'AbortError' });
+  A.eq(runtime.stampRequestHost(ab, 'https://x.example.com/').requestHost, undefined, 'a cancel is never stamped');
+  A.eq(runtime.stampRequestHost(new Error('x'), 'not a url').requestHost, undefined, 'an unparseable URL stamps nothing');
+  A.eq(runtime.stampRequestHost('str', 'https://x.example.com/'), 'str', 'a non-object passes through');
+
+  // a socket dropped MID-STREAM throws from the guarded reader, not the adapter's fetch catch — it is stamped there
+  readerStamp = (async () => {
+    const drop = new TypeError('terminated');
+    drop.cause = Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+    const r = timeouts.idleGuardedReader({ read: async () => { throw drop; }, cancel: async () => {} }, { idleMs: 5000, url: 'https://api.example.com/v1' });
+    let got = null;
+    try { await r.read(); } catch (err) { got = err; }
+    A.eq(got && got.requestHost, 'api.example.com', 'the mid-stream reader stamps the host it was opened on');
+    A.eq(classifyApiError(got, {}).message, 'terminated (UND_ERR_SOCKET api.example.com)', 'so the run error names it');
+  })().catch(err => A.ok(false, 'reader stamp threw: ' + (err && err.stack || err)));
+}
+
 // ---- 2. annotation must NEVER change the verdict, and never bury a real provider explanation ----
 {
   /* `reason` is picked from the RAW message BEFORE annotation runs, so the appended text can never be
@@ -111,4 +159,4 @@ function undiciError(causeMessage, extra) {
     'routed is always false until real proxy routing exists');
 }
 
-A.report('outbound-failure-diagnosability.test');
+readerStamp.then(() => A.report('outbound-failure-diagnosability.test'));
