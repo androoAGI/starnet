@@ -224,6 +224,19 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
     A.eq(replay({ recovery: { sourceRunId: 'src1' }, streamId: 'S', msgs: [{ role: 'user', content: 'x' }] }), 'resumed run (tainted by web_fetch)', 'an interrupted-run continuation starts tainted');
     A.eq(replay({ recovery: { sourceRunId: 'clean' }, msgs: [] }), null, 'continuing a clean run stays clean');
   } finally { rm(dir); }
+
+  // UNPROVABLE = TAINTED: an unreadable source journal never starts the continuation clean, and it never
+  // skips the transcript proof (a concrete source still wins over the unverifiable reason)
+  const busyJournal = { inspect() { throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }); } };
+  const busy = makeReplayedTaint({ journal: busyJournal, transcript: null });
+  const busyReason = busy({ recovery: { sourceRunId: 'x' }, msgs: [] });
+  A.ok(busyReason && /taint unverifiable/.test(busyReason) && /EBUSY/.test(busyReason), 'an unreadable source journal fails CLOSED: the continuation starts tainted (' + busyReason + ')');
+  const busyWithHit = makeReplayedTaint({ journal: busyJournal, transcript: { taintOf() { return 'web_fetch'; } } });
+  A.eq(busyWithHit({ recovery: { sourceRunId: 'x' }, streamId: 'S', msgs: [{ role: 'user', content: 'x' }] }), 'replayed history (tainted by web_fetch)',
+    'a journal error still runs the transcript proof, and its concrete source wins');
+  const busyNoHit = makeReplayedTaint({ journal: busyJournal, transcript: { taintOf() { return null; } } });
+  A.ok(/taint unverifiable/.test(busyNoHit({ recovery: { sourceRunId: 'x' }, streamId: 'S', msgs: [{ role: 'user', content: 'x' }] }) || ''),
+    'a clean transcript cannot clear an unverifiable journal');
 }
 
 // ===== 3. HOP HISTORY is keyed by chat lineage, never shared across chats of the same agent =====
@@ -283,6 +296,7 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
   A.ok(/taint: \(\) => execution\.taintedBy\(\)/.test(src), 'transcript rows are written with the run\'s live taint');
   A.ok(/appendNew\(o\.streamId, agentId, result\.messages, \{ taint: execution\.taintedBy\(\) \}\)/.test(src), 'the run-end transcript fallback writes taint too');
   A.ok(/const replayed = replayedTaint\(\{ recovery: o\.recovery, streamId, msgs \}\);\s*if \(replayed\) execution\.latchTaint\(replayed\);/.test(src), 'a run latches replayed taint before its first model call');
+  A.ok(/catch \(e\) \{ failNote\('taint\.replay', e\); execution\.latchTaint\('replayed context \(taint check failed\)'\); \}/.test(src), 'a replay check that throws starts the run tainted (fail closed), still noted for diagnostics');
   A.ok(src.indexOf("initialTaint: execution.taintedBy() || ''") > 0, 'the journal begin meta records the start taint');
   A.ok(/runJournal\.taint\(runId, \{ source: after \}\)/.test(src), 'a mid-run latch is journaled');
   A.ok(/taintedBy: execution\.taintedBy\(\) \|\| '' \}\);/.test(src), 'the run row records its taint');

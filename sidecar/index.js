@@ -20764,7 +20764,7 @@ async function runOnceCore(o) {
   try {
     const replayed = replayedTaint({ recovery: o.recovery, streamId, msgs });
     if (replayed) execution.latchTaint(replayed);
-  } catch (e) { failNote('taint.replay', e); }
+  } catch (e) { failNote('taint.replay', e); execution.latchTaint('replayed context (taint check failed)'); }   // unprovable = tainted (fail closed)
   // Cortex (M-mem.3): surface the agent's OWN memory in-prompt — RANK it by relevance to this message
   // (BM25 + recency/trust/pin), inject the top few as a recalled-memory fence before the triggering user
   // message, and emit memory.used per surfaced record (-> useCount/trust + the XP reuse path). The recency
