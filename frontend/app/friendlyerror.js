@@ -462,6 +462,25 @@
     return { userMessage: k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
   }
 
+  /* ---- Why a STARNET account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
+     "could not reach the link service", which blamed the cloud for a dead LOCAL engine and gave support nothing.
+     `info` is what the caller saw: { local:true } when the station's own POST never answered (refused, non-JSON, or
+     Harness.api's deadline), else { status, j } from the sidecar — j.reason is its stable classification of the
+     cloud failure (sidecar/index.js linkStartFailure). Lower-case lead, no trailing period (callers add their own). */
+  function linkStartFailure(info) {
+    const i = info || {}, j = i.j || {};
+    if (i.local) return 'StarNet\'s engine on this computer isn\'t answering, so the link could not start — restart StarNet, then try again';
+    if (i.status === 503 && j.degraded) return 'StarNet\'s engine on this computer stopped after an error, so the link could not start — restart StarNet, then try again';
+    if (i.status === 404 && j.error === 'linking_unavailable') return 'account linking isn\'t available in this build of StarNet';
+    const detail = j.detail ? ' (' + String(j.detail) + ')' : '';
+    if (j.reason === 'tls') return 'security software on this computer (an antivirus HTTPS scan or a proxy) is blocking StarNet\'s secure connection to the StarNet account service' + detail + ' — allow StarNet, then try again';
+    if (j.reason === 'timeout') return 'the StarNet account service did not answer in time — check a VPN or firewall, then try again';
+    if (j.reason === 'dns' || j.reason === 'unreachable') return 'StarNet could not reach the StarNet account service from this computer' + detail + ' — check a VPN or firewall, then try again';
+    if (j.reason === 'cloud_5xx') return 'the StarNet account service is having trouble right now — try again in a minute';
+    if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the StarNet account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
+    return 'could not reach the link service — try again';
+  }
+
   /* ---- The DOOR: map a verdict to a ready-to-wire action button { label, run }. ONE place owns every
      error→surface route, so the consumer (chat.js offerRetry) never re-derives per-action labels/wiring, and a
      new door is added here alone. Returns null when the verdict has no actionable door (a plain retry / nothing).
@@ -605,6 +624,6 @@
     }
   }
 
-  return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, KINDS, CAP_INFO,
+  return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, linkStartFailure, KINDS, CAP_INFO,
     _internals: { kindFromRaw, isTransportLoss, isUpstreamFetchFailure, isUserAbort, REASON_TO_KIND, capFromRaw, capdeniedMessage, codexConnected, transportMessage } };
 });
