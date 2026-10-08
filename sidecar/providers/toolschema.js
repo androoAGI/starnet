@@ -206,8 +206,37 @@
   /* normalize() + drop every field Gemini's Schema does not define. */
   function forGemini(schema) {
     const norm = normalize(schema);
-    const out = prune(norm, 0);
+    const out = arrayItems(prune(norm, 0));
     if (out.type === undefined && out.anyOf === undefined) out.type = 'object';
+    return out;
+  }
+
+  /* AN ARRAY ALWAYS SAYS WHAT IT HOLDS (2026-10-08). Gemini refuses the WHOLE request when any declared array has no
+     `items` ("…properties[shape].items: missing field", INVALID_ARGUMENT) — station.plan's `shape: {type:'array'}` killed
+     every Gemini run whose tool.search revealed it (real-model run: clear notifications, pin, E-STOP all "Something went
+     wrong"). `items: {}` (anything) is accepted everywhere and changes no meaning. Returns the SAME object when nothing
+     was missing, so callers can keep their identity checks. */
+  function arrayItems(node, depth) {
+    depth = depth || 0;
+    if (!isPlainObject(node) || depth > 32) return node;
+    let out = node;
+    const set = (k, v) => { if (out === node) out = Object.assign({}, node); out[k] = v; };
+    const isArr = node.type === 'array' || (Array.isArray(node.type) && node.type.indexOf('array') >= 0);
+    if (isArr && node.items === undefined && node.prefixItems === undefined) set('items', {});
+    for (const k of ['items', 'additionalProperties', 'not']) {
+      if (isPlainObject(node[k])) { const v = arrayItems(node[k], depth + 1); if (v !== node[k]) set(k, v); }
+    }
+    for (const k of ['properties', '$defs', 'definitions']) {
+      if (!isPlainObject(node[k])) continue;
+      let m = null;
+      for (const key of Object.keys(node[k])) { const v = arrayItems(node[k][key], depth + 1); if (v !== node[k][key]) { m = m || Object.assign({}, node[k]); m[key] = v; } }
+      if (m) set(k, m);
+    }
+    for (const k of ['anyOf', 'oneOf', 'allOf']) {
+      if (!Array.isArray(node[k])) continue;
+      const arr = node[k].map(b => arrayItems(b, depth + 1));
+      if (arr.some((b, i) => b !== node[k][i])) set(k, arr);
+    }
     return out;
   }
 
@@ -532,7 +561,7 @@
       const fn = t && t.function;
       if (!fn || typeof fn !== 'object') return t;
       let params = fn.parameters;
-      if (isPlainObject(params)) params = sanitizeKeys(params);
+      if (isPlainObject(params)) params = arrayItems(sanitizeKeys(params));   // Gemini behind OpenRouter rejects an item-less array
       if (moonshot) params = forMoonshot(params);
       if (params === fn.parameters) return t;
       changed = true;
@@ -543,6 +572,6 @@
 
   return { normalize, forGemini, isEmptyObjectSchema,
     sanitizeKeys, restoreArgumentKeys, argKeyPlan, restoreToolArgKeys, withRestoredArgKeys,
-    forMoonshot, isMoonshotModel, isMoonshotRoute, wireTools,
+    forMoonshot, isMoonshotModel, isMoonshotRoute, wireTools, arrayItems,
     _internals: { pointerLookup, collapseNullUnion, prune, GEMINI_FIELDS, propertyRenames, PROP_KEY_RE, restoreArgsText } };
 });

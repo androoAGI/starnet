@@ -457,7 +457,7 @@
       schema: { type: 'object', properties: {
         layout: { type: 'object', properties: { pattern: { type: 'string' }, around: { type: 'string' }, side: { type: 'string' }, rooms: { type: 'array', items: { type: 'object' } } } },
         replace: { type: 'boolean' }, rooms: { type: 'array', items: { type: 'object' } }, hallways: { type: 'array', items: { type: 'object' } },
-        line: { type: 'string' }, shape: { type: 'array' }, purpose: { type: 'string' }, steps: { type: 'array', items: { type: 'object' } }, dailyCap: {}, tries: { type: 'integer' },
+        line: { type: 'string' }, shape: { type: 'array', items: {} }, purpose: { type: 'string' }, steps: { type: 'array', items: { type: 'object' } }, dailyCap: {}, tries: { type: 'integer' },
         kit: { type: 'string' }, preset: { type: 'string' }, zones: { type: 'array', items: { type: 'object' } }, restyle: { type: 'object' }, remove: {}, refurnish: { type: 'object' }, clear: {}, add: { type: 'object' }, seat: { type: 'object' }, move: { type: 'object' }, staff: { type: 'object' }, undo: { type: 'boolean' }, refit: { type: 'array', items: { type: 'object' } },
         where: { type: 'string' }, name: { type: 'string' }, size: {}, beside: { type: 'string' }, side: { type: 'string' }, hallway: {}, type: { type: 'string' }, floorStyle: { type: 'string' }, floorMat: { type: 'string' } } },
       run: async (args) => {
