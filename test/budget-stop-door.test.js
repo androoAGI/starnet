@@ -82,9 +82,35 @@ for (const [scope, cap, want] of [
   A.ok(/budgetStopLine\(budgetScope, budgetCapUsd, budgetCapIsBalance\)/.test(chat) && /offerBudgetDoor\(budgetCapIsBalance\)/.test(chat), 'COMMS passes it to the stop line and the door');
   // the sidecar owns the fact: admission's clamp sets it, the lead's own per-run stop at that ceiling carries it
   const idx = read('sidecar/index.js');
-  A.ok(/runCapUsd = budgetCaps\.managedRunCapUsd\([^\n]*\);\n(?:    \/\/[^\n]*\n)*    runCapIsBalance = runCapUsd > 0 && runCapUsd >= avail;/.test(idx), 'managed admission marks a ceiling clamped to the reported balance');
+  A.ok(/const chosenCapUsd = \(runCapUsd > 0 && isFinite\(runCapUsd\)\) \? runCapUsd : 0;[^\n]*\n    runCapUsd = budgetCaps\.managedRunCapUsd\([^\n]*\);\n(?:    \/\/[^\n]*\n)*    runCapIsBalance = budgetCaps\.managedCapIsBalance\(chosenCapUsd, runCapUsd, avail\);/.test(idx),
+    'managed admission marks a ceiling the clamp set to the reported balance (from the cap chosen before the clamp)');
+  // which ceilings ARE the balance (review 2026-10-08: a PER RUN that merely equals the wallet is the user's cap)
+  const bc = require('../sidecar/budgetcaps.js');
+  const D = bc.DEFAULT_MANAGED_PER_RUN_USD;
+  const isBal = (chosen, bal) => bc.managedCapIsBalance(chosen, bc.managedRunCapUsd(chosen, bal, D), bal);
+  A.eq(isBal(100, 79.24), true, 'a $100 PER RUN clamped to a $79.24 wallet is a balance stop');
+  A.eq(isBal(5, 5), false, 'a $5 PER RUN on a $5 wallet stops at the cap the user chose (a top-up would not lift it)');
+  A.eq(isBal(5, 79), false, 'a PER RUN under the wallet is a cap stop');
+  A.eq(isBal(0, 1.5), true, 'no PER RUN, a wallet under the $' + D + ' default: the wallet is the ceiling');
+  A.eq(isBal(0, D), true, 'no PER RUN, a wallet exactly at the default: raising PER RUN cannot help — the balance is the ceiling');
+  A.eq(isBal(0, 79), false, 'no PER RUN, a big wallet: the managed default is the ceiling, not the balance');
+  A.eq([bc.managedCapIsBalance(0, 0, 0), bc.managedCapIsBalance(5, 5, NaN), bc.managedCapIsBalance(5, 5, null)], [false, false, false], 'an empty or unknown wallet never marks a balance stop');
   A.ok(/if \(runCapIsBalance && name === 'agent\.run\.end' && payload && payload\.runId === runId && payload\.reason === 'budget' && payload\.budgetScope === 'run'\n\s+&& typeof payload\.budgetCapUsd === 'number' && Math\.abs\(payload\.budgetCapUsd - runCapUsd\) < 1e-9\) payload = Object\.assign\(\{\}, payload, \{ budgetCapIsBalance: true \}\);/.test(idx),
     'loopEmit stamps budgetCapIsBalance only on the run\'s own per-run stop at that exact ceiling');
+}
+
+// ---- the SLAG toast (world.js → SlagLog) on the same stop: it must not tell a balance stop to "raise the budget" ----
+{
+  const SlagLog = require('../frontend/app/slaglog.js');
+  const bal = SlagLog.diagnose('budget', { atBalance: true, cacheFrac: 0.05 });
+  const line = SlagLog.line(bal);
+  A.eq(bal.reason, 'budget', 'a balance stop is still a budget post-mortem (the maintenance quest keys on the reason)');
+  A.ok(/StarNet balance/.test(line) && /add credits under SETTINGS → AI & MODELS/i.test(line) && !/raise/i.test(line), 'a balance stop toast names the balance and the top-up door: ' + line);
+  A.ok(/^hit the budget cap — Raise the budget/.test(SlagLog.line(SlagLog.diagnose('budget', { atBalance: false }))), 'a stop at a chosen cap keeps its own post-mortem');
+  A.ok(/cold cache/.test(SlagLog.diagnose('budget', { cacheFrac: 0.05 }).title), 'and the cold-cache lesson is unchanged for a cap stop');
+  const world = read('frontend/app/world.js');
+  A.ok(/slaglog\.record\(r, \{ cacheFrac: lastCacheFrac, turns: p && p\.turns, usd: p && p\.usd, error, agentId: p && p\.agentId, atBalance: !!\(p && p\.budgetCapIsBalance === true\) \}\)/.test(world),
+    'the floor passes the run end\'s budgetCapIsBalance into the post-mortem');
 }
 
 // ---- messaging channels ----

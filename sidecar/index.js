@@ -758,7 +758,7 @@ const num = (v, d) => { if (v == null || String(v).trim() === '') return d; cons
 // SKYNET_CONNECTOR_DEFER_BYTES / _TOOLS override; 0 switches that axis off (both 0 = never defer a connector).
 const CONNECTOR_DEFER = { bytes: num(ENV('CONNECTOR_DEFER_BYTES'), 8192), tools: num(ENV('CONNECTOR_DEFER_TOOLS'), 12) };
 let lastToolFootprintLog = '';   // de-dupes the [tools] footprint log line to changes, not every run
-// Users may retune any cap in SETTINGS → BUDGET (0/blank = no cap); environment variables
+// Users may retune any cap in SETTINGS › SPENDING LIMITS (0/blank = no cap); environment variables
 // still override for locked-down deploys. Unmetered subscription runs remain ungoverned.
 const BUDGET_SHIPPED = budgetCaps.shippedDefaults();
 const BUDGET_CAPS = {
@@ -18734,11 +18734,13 @@ async function runOnceCore(o) {
     // ONLY a number the service reported is a balance. A failed refresh leaves null, and Number(null) is 0 — that
     // read a slow/5xx/revoked balance check as a known $0 and told funded customers they were out of credit.
     const avail = (snap && typeof snap.balanceUsd === 'number' && isFinite(snap.balanceUsd)) ? snap.balanceUsd : NaN;
+    const chosenCapUsd = (runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0;   // the cap in force BEFORE the wallet clamp
     runCapUsd = budgetCaps.managedRunCapUsd((runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT);
-    // The clamp never returns more than the reported balance, so a ceiling AT the balance means the wallet, not a cap
-    // the user chose, is what this run may spend. Its 'run' stop then says "reached your StarNet balance — add
-    // credits", never "hit the $X per-run spend cap — raise it" (raising PER RUN does nothing there). loopEmit stamps it.
-    runCapIsBalance = runCapUsd > 0 && runCapUsd >= avail;
+    // When the clamp LOWERED a chosen cap to the balance (or no cap was chosen and the default reached it), the wallet,
+    // not a cap the user chose, is what this run may spend. Its 'run' stop then says "used what was left on your
+    // StarNet balance — add credits", never "hit the $X per-run spend cap — raise it" (raising PER RUN does nothing
+    // there). A PER RUN that merely EQUALS the wallet stays a cap stop. loopEmit stamps it.
+    runCapIsBalance = budgetCaps.managedCapIsBalance(chosenCapUsd, runCapUsd, avail);
     // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
     // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
     // A reported $0 that this station's OWN running StarNet runs hold (a proxy-off backend books each reservation as a
