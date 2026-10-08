@@ -1658,8 +1658,11 @@ const World = (() => {
      every click, keystroke and COMMS token queued behind it. The interval stretches to drawCost / BUDGET_SHARE
      (never below BUDGET_MIN_FPS) so the UI always keeps the rest; a cheap station never notices (drawCost 10ms ->
      14ms, under the 33ms pace). The simulation reads the real clock and is sliced (simSlices), so nothing moves
-     slower. Replaces the 10-04 per-vsync budget (agent/restore-lag), which predates this time-based pacer. */
-  const BUDGET_SHARE = 0.7, BUDGET_MIN_FPS = 12, BUDGET_SAMPLE_MAX_MS = 120;
+     slower. Replaces the 10-04 per-vsync budget (agent/restore-lag), which predates this time-based pacer.
+     The floor is LOW on purpose (2026-10-08, CPU throttled 4x on that station: one draw ~140ms): a 12 fps floor could
+     not be met anyway (4-6 draws/s) and only kept the thread 100% busy — click waits p50 ~270ms; at 5 fps the same
+     4 draws/s leave the UI a third of the thread (65-73% busy, p50 56-103ms). At 2x nothing changes (21 draws/s). */
+  const BUDGET_SHARE = 0.7, BUDGET_MIN_FPS = 5, BUDGET_SAMPLE_MAX_MS = 250;
   let drawCostMs = 0;
   function noteDrawCost(ms) {
     if (!(ms >= 0)) return;
