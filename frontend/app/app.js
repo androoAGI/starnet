@@ -1558,7 +1558,12 @@ const App = (() => {
       stationSaveQueued = true;
       // Coalesce the synchronous mutations of one gesture (e.g. place + assign a desk),
       // but save before the next browser event. Do not wait for SAVE & EXIT or a chat turn.
-      queueMicrotask(() => { stationSaveQueued = false; persist(); });
+      queueMicrotask(() => {
+        stationSaveQueued = false; persist();
+        // a desk that just landed (a WHO SITS HERE chip, PLACE ITS DESK, the overseer's station op) retires the open
+        // COMMS "nowhere to sit" line now, not only when BUILD MODE closes: it is a derived floor claim (chat.js re-reads it)
+        if (typeof Chat !== 'undefined' && Chat.retireDeskPrompt) { try { Chat.retireDeskPrompt(); } catch (_) {} }
+      });
     });
   }
 
@@ -2477,7 +2482,8 @@ const App = (() => {
   }
   async function revealStarnetGenesis(autoPick) {
     let linked = false, linkable = false;
-    try { const j = await Harness.api.get('/api/credits?history=0'); linked = !!(j && j.configured); } catch (_) {}
+    // the same wait as WAKE's status read below: the first read can be the one that self-heals the link (~16s)
+    try { const j = await Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }); linked = !!(j && j.configured); } catch (_) {}
     if (!linked) { try { const j = await Harness.api.get('/api/credits/linkable'); linkable = !!(j && j.available); } catch (_) {} }
     starnetLinked = linked;
     const b = document.querySelector('.provider-row .prov[data-prov="starnet"]');
@@ -2499,8 +2505,10 @@ const App = (() => {
     try {
       // The wait must outlast the sidecar's own bounded worst case, so its answer always lands first: a link
       // self-heal retry's /v1/whoami (8s) + one /v1/balance read (8s). 10s used to lose that race on WAKE.
+      // api.get's OWN deadline (15s by default) is the one that fires, so it carries the 20s (E29, 10-07); the race
+      // below is only a backstop at the same bound, for an api.get that ever loses its deadline.
       j = await Promise.race([
-        Harness.api.get('/api/credits?history=0'),
+        Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }),
         new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 20000); })
       ]);
       answered = !!(j && typeof j.configured === 'boolean');

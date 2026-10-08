@@ -129,6 +129,7 @@ test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js
 test/station-recovery.e2e.test.js
 test/paid-link-lifecycle.e2e.test.js
+test/credits-heal-join.e2e.test.js
 test/routing.persist.e2e.test.js
 test/run-recovery.api.test.js
 test/routing.sample.e2e.test.js

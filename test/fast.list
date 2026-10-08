@@ -332,6 +332,7 @@ test/deliverable-provenance.test.js
 test/deliverable-note.test.js
 test/deliverables-ui.test.js
 test/deliverables-open.test.js
+test/selectable-windows-87.test.js
 test/work-recap.test.js
 test/qa-ledger.test.js
 test/qa-saboteur.test.js
@@ -350,6 +351,7 @@ test/website-pricing-hold.test.js
 test/website-docs-navigation.test.js
 test/website-skill-market.test.js
 test/genesis-starnet-link.test.js
+test/credits-status-wait.test.js
 test/qa-product-perfect-provenance.test.js
 test/qa-cartographer.test.js
 test/golden.test.js
@@ -581,6 +583,7 @@ test/floorstats.test.js
 test/insights.test.js
 test/settle-restamps-run.test.js
 test/slaglog.test.js
+test/slag-known-error-kinds.test.js
 test/xp.test.js
 test/xp-crewsplit.test.js
 test/xpstore.test.js
@@ -649,6 +652,8 @@ test/projects-view.test.js
 test/prepare-node.test.js
 test/summon.id.test.js
 test/summon-desk-prompt.test.js
+test/desk-assign-easy.test.js
+test/desk-one-per-agent.test.js
 test/recruit-identity-ui.test.js
 test/subagents.test.js
 test/orchestration.test.js

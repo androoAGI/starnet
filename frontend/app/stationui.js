@@ -4771,7 +4771,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function refreshCreditsProvider() {
     const prior = creditsProv;
-    return Harness.api.get('/api/credits?history=0').catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
+    // the STORE's wait (wireCredits): a read that self-heals the link takes ~16s, past api.get's 15s default
+    return Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }).catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
       .then(j => {
         if (j && j.configured) {
           publishCreditsConfigured(true);
@@ -6065,7 +6066,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
-    return Harness.api.get('/api/credits').catch(error => {
+    // The wait outlasts the sidecar's worst case for this FULL read: a link self-heal (/v1/whoami 8s + one /v1/balance
+    // 8s), then the activity history on the healed adapter (8s) = 24s. api.get's 15s default gave up first and painted
+    // "could not check" over a funded account that was about to answer (E29, 10-07).
+    return Harness.api.get('/api/credits', { timeoutMs: 26000 }).catch(error => {
       if (/http 404\b/.test(String(error && error.message || error))) return { configured: false };
       throw error;
     })
