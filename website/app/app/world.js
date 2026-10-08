@@ -8907,6 +8907,7 @@ const World = (() => {
   }
   let floor = null, lastSlagAt = -1e9;   // FloorStats: the factory-floor economy fold + a fresh-slag pulse clock
   let slaglog = null, lastCacheFrac = null;   // SlagLog: wasted-spend post-mortems + the last reconciled cache ratio (for the diagnosis)
+  const slagErrText = new Map();              // runId -> its agent.run.error message, read (and dropped) at that run's end
 
   // a belt tile on/adjacent to a footprint (its tiles + a 1-tile ring), used as a box spawn point (local frame)
   function beltTileNear(tx, ty, tw, th) {
@@ -10242,9 +10243,18 @@ const World = (() => {
     // since the box's belt-ride spans real wall-clock seconds) to fold items/min + time-on-line.
     U.bus.on('workitem.placed', p => { if (floor) floor.onEvent('workitem.placed', p, Date.now()); });
     U.bus.on('workitem.delivered', p => { if (floor) floor.onEvent('workitem.delivered', p, Date.now()); });
+    // the run's own error text (agent.run.error lands before its run.end), so the post-mortem can name a KNOWN
+    // cause (empty provider wallet, unavailable model, …) instead of "send it again, report it if it repeats".
+    U.bus.on('agent.run.error', p => {
+      if (!p || !p.runId) return;
+      slagErrText.set(p.runId, String(p.message || ''));
+      if (slagErrText.size > 64) slagErrText.delete(slagErrText.keys().next().value);
+    });
     U.bus.on('agent.run.end', p => {
       if (floor) floor.onEvent('agent.run.end', p, Date.now());
       const r = p && p.reason;
+      const errText = (p && p.runId) ? slagErrText.get(p.runId) : undefined;
+      if (p && p.runId) slagErrText.delete(p.runId);
       // A clean finish that PROVABLY WORKED ships: one product crate leaves the producing agent's bay
       // and rides to the OUTBOX. A done-but-workless run ("I couldn't do that") ships NOTHING.
       if (r === 'done' && runWorked(p)) shipProductCrate(p);
@@ -10261,7 +10271,11 @@ const World = (() => {
       // lesson lands regardless of belts; the belt only shows it.
       lastSlagAt = performance.now();
       if (!slaglog) return;
-      const diag = slaglog.record(r, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd });
+      let error = null;
+      if (r === 'error' && errText && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
+        try { const v = Friendly.friendlyError(new Error(errText)); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
+      }
+      const diag = slaglog.record(r, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd, error, agentId: p && p.agentId });
       // an 'error' run has ALREADY announced itself (⚠ error row, its own toast, the RUN FAULT tick,
       // the desk strobe) — a simultaneous SLAG toast made ONE failure read as two (2026-07-31). The
       // post-mortem record + slag crate below still happen for every dead reason; only the duplicate

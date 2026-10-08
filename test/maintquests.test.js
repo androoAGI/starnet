@@ -83,4 +83,16 @@ const junk = MQ.hydrate({ quests: { 'mq:bad': { /* no firstSeenAt */ }, 'mq:ok':
 A.eq(Object.keys(junk.quests).length, 1, 'an entry with no firstSeenAt is dropped');
 A.eq(junk.quests['mq:ok'].completedAt, null, 'null completedAt round-trips as null (never a 0-epoch resurrection)');
 
+// the errored-run fix is ~166 chars and a classified cause's copy runs ~230: the old 160 cap cut the card's
+// last instruction mid-word ("…from the failed reply and repo", 2026-10-07). It must survive record + reload whole.
+{
+  const SlagLog = require('../frontend/app/slaglog.js');
+  const longFix = SlagLog.diagnose('error', {}).fix;
+  const st = MQ.fresh();
+  MQ.record(st, { cause: 'slag:error', title: '3 runs errored out', fix: longFix, hits: 3 }, 1);
+  A.eq(st.quests['mq:slag:error'].fix, longFix, 'the full errored-run fix is kept (no mid-word cut)');
+  A.eq(MQ.hydrate(JSON.parse(JSON.stringify(st))).quests['mq:slag:error'].fix, longFix, 'and survives a reload whole');
+  A.ok(/report it\.$/.test(MQ.project(st)[0].desc), 'the card ends on its real last words');
+}
+
 A.report('maintquests.test');

@@ -4,7 +4,8 @@
      • the SLAG SIGNAL — on every sync it re-reads the live SlagLog ring (World.slagPostmortems) and tallies it
        by cause. A cause biting at least MaintQuests.MIN_HITS times mints ONE fix-it quest carrying the
        diagnosis + the actionable fix. It clears (honest completion) the instant the cause falls back below the
-       threshold in the ring — the operator fixed the line. Threshold-gated (a one-off never nags), deduped (one
+       threshold in the ring — the operator fixed the line — and a clean finish by the failing agent settles its
+       earlier post-mortems (the ring holds only failures, so nothing else ever pushes them out). Threshold-gated (a one-off never nags), deduped (one
        quest per cause), dismissible forever.
      • the CRON-JAM SIGNAL (feature 4a) — subscribes to `cron.skipped` on U.bus (the tick driver broadcasts it
        over SSE; it already reaches the browser, no tee change). A routine skipped REPEATEDLY (backlogged /
@@ -39,8 +40,26 @@ const MaintQuestStore = (() => {
   /* ---------- the SLAG source: tally the live ring, mint recurring causes, clear cleared ones ---------- */
   function ring() { try { return (typeof World !== 'undefined' && World.slagPostmortems) ? (World.slagPostmortems() || []) : []; } catch (_) { return []; } }
 
+  /* SETTLED post-mortems: the ring records ONLY unproductive runs, so a clean run never pushed a failure out of
+     it and a fix-it quest could never clear — three billing errors from days earlier still read "3 runs errored
+     out" on a station whose runs had long since been finishing (2026-10-07). A clean finish (`done`) by an agent
+     now settles every earlier post-mortem of THAT agent (an entry with no agent settles on any clean run). The
+     ring itself is untouched — the LOGBOOK's SLAG tab still shows the history; only the live tally forgets. */
+  let settled = new WeakSet();
+  function onRunEnd(p) {
+    if (!p || p.reason !== 'done') return;
+    let any = false;
+    for (const d of ring()) {
+      if (!d || typeof d !== 'object' || settled.has(d)) continue;
+      if (d.agentId && p.agentId && d.agentId !== p.agentId) continue;
+      settled.add(d); any = true;
+    }
+    if (any) sync();
+  }
+  const liveRing = () => ring().filter(d => !(d && typeof d === 'object' && settled.has(d)));
+
   // the current per-cause tally of the live ring — the mint threshold + the completion predicate both read it.
-  function slagTally() { return (typeof MaintQuests !== 'undefined' && MaintQuests.tally) ? MaintQuests.tally(ring()) : {}; }
+  function slagTally() { return (typeof MaintQuests !== 'undefined' && MaintQuests.tally) ? MaintQuests.tally(liveRing()) : {}; }
 
   /* ---------- the CRON-JAM source (feature 4a): a repeatedly-skipped routine ----------
      Every cron.skipped stamps the routine's skip streak. A streak of ≥ JAM_MIN_SKIPS recent skips reads as a
@@ -94,7 +113,11 @@ const MaintQuestStore = (() => {
   function sync() {
     if (!ready()) return;
     const min = MIN();
-    let changed = false;
+    // MaintQuests.record returns the id for an UNCHANGED repeat too (an idempotent label refresh), so "record
+    // returned an id" is not "something changed". Compare the persisted slice instead: an idle sync with the same
+    // recurring cause must not save + poke, or the 1s tick (and every quest-log build, which calls sync) repaints
+    // the open log forever — the 2026-10-07 QUEST LOG lag.
+    const before = JSON.stringify(state.quests);
 
     // 1) SLAG causes over threshold → mint (record dedups; the store passes hits so the card reads "N runs …").
     const t = slagTally();
@@ -102,8 +125,7 @@ const MaintQuestStore = (() => {
       const c = t[reason];
       if (c.count < min) continue;
       const title = c.title ? (c.count + ' runs ' + firstWordLower(c.title)) : (c.count + ' runs died on ' + reason);
-      const rec = MaintQuests.record(state, { cause: 'slag:' + reason, title, fix: c.fix, hits: c.count }, nowMs());
-      if (rec) changed = true;
+      MaintQuests.record(state, { cause: 'slag:' + reason, title, fix: c.fix, hits: c.count }, nowMs());
     }
 
     // 2) CRON-JAM causes → mint (a jammed routine is a live maintenance issue, folded through the same engine).
@@ -111,8 +133,7 @@ const MaintQuestStore = (() => {
       const why = JAM_REASON_WORD[jam.reason] || String(jam.reason || 'backlogged');
       const title = jobName(jam.jobId) + ' keeps getting skipped — ' + why;
       const fix = 'the routine is backed up (' + why + '). space its schedule out, or raise the concurrency cap.';
-      const rec = MaintQuests.record(state, { cause: 'cron-jam:' + jam.jobId, title, fix, hits: jam.skips }, nowMs());
-      if (rec) changed = true;
+      MaintQuests.record(state, { cause: 'cron-jam:' + jam.jobId, title, fix, hits: jam.skips }, nowMs());
     }
 
     // 3) resolve OPEN quests against the live signal → flip cleared ones done (the celebration rides QuestState).
@@ -127,7 +148,7 @@ const MaintQuestStore = (() => {
       }
       return true;   // unknown cause shape → keep it open (never a false "fixed!")
     }, nowMs());
-    if (changed || closed.length) { save(); poke(); }
+    if (closed.length || JSON.stringify(state.quests) !== before) { save(); poke(); }
   }
 
   // "looped without finishing" → "looped without finishing" (already lower); guard the leading capital of a
@@ -154,6 +175,7 @@ const MaintQuestStore = (() => {
       U.bus.on('cron.skipped', onCronSkipped);   // subscription only — NEVER an emit (the frozen contract stands)
       U.bus.on('cron.fire', onCronCleared);
       U.bus.on('cron.result', onCronCleared);
+      U.bus.on('agent.run.end', onRunEnd);       // a clean finish settles that agent's earlier post-mortems
       bound = true;
     }
   }
@@ -166,11 +188,11 @@ const MaintQuestStore = (() => {
 
   // a NEW AGENT starts with no maintenance history (own key — Save.clear() only wipes starnet.save; mirrors
   // StationQuestStore.reset). The next init() hydrates clean.
-  function reset() { state = null; jamByJob.clear(); try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { state = null; jamByJob.clear(); settled = new WeakSet(); try { localStorage.removeItem(KEY); } catch (_) {} }
 
   return { init, sync, quests, openCount, dismiss, isDismissed, jammedJobs, reset,
     // exposed for tests: the pure-ish seams the browser flow drives
-    _onCronSkipped: onCronSkipped, _slagTally: slagTally };
+    _onCronSkipped: onCronSkipped, _onRunEnd: onRunEnd, _slagTally: slagTally };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { MaintQuestStore };

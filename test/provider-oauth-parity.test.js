@@ -149,4 +149,20 @@ for (const p of OAUTH) {
   }
 }
 
+// Anthropic picks + offline fallback name only SERVED models: claude-opus-4-1 retired 2026-08-05 and Haiku 3.5 is
+// retired, so a chip or fallback naming either 404s on the first send (2026-10-07 report).
+{
+  const picks = (appSrc.match(/const MODEL_PICKS = Object\.freeze\(\{[\s\S]*?\n  \}\);/) || [''])[0];
+  const fallback = (appSrc.match(/const FALLBACK_MODELS = Object\.freeze\(\{[\s\S]*?\n  \}\);/) || [''])[0];
+  const anthPicks = (picks.match(/\n    anthropic: \[[\s\S]*?\n    \],/) || [''])[0];
+  const anthFallback = (fallback.match(/\n    anthropic: \[[^\]]*\]/) || [''])[0];
+  A.ok(anthPicks && anthFallback, 'app.js still declares the Anthropic picks + fallback');
+  for (const dead of ['claude-opus-4-1', 'claude-3-5-haiku']) {
+    A.ok(!anthPicks.includes(dead) && !anthFallback.includes(dead), 'no retired Anthropic id (' + dead + ') in the picks or fallback');
+  }
+  for (const id of (anthPicks.match(/id: '([^']+)'/g) || []).map(s => s.slice(5, -1))) {
+    A.ok(anthFallback.includes("'" + id + "'"), 'Anthropic pick ' + id + ' is also in the offline fallback list');
+  }
+}
+
 A.report('provider-oauth-parity.test');

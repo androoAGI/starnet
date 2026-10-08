@@ -57,4 +57,18 @@ A.eq(log.recent().length, 0, 'reset clears the ring');
   const e = SlagLog.diagnose('error', {});
   A.ok(!/agent log/i.test(e.fix) && /RECORD/.test(e.fix) && /send the request again/i.test(e.fix) && /diagnostics/.test(e.fix), 'errored-run fix points at RECORD, a resend and copy diagnostics: ' + e.fix);
 }
+
+// a KNOWN error class names its own door — never "send it again, report it" for an empty wallet (2026-10-07)
+{
+  const billing = SlagLog.diagnose('error', { error: { kind: 'billing', msg: 'Your provider account is out of credit — top it up, then try again.' } });
+  A.eq(billing.title, 'errored out', 'a known-cause error keeps the errored-out title (the quest still reads "N runs errored out")');
+  A.ok(/out of credit/.test(billing.fix) && !/report/i.test(billing.fix) && !/diagnostics/.test(billing.fix), 'an empty wallet names the top-up, not a bug report: ' + billing.fix);
+  const unknown = SlagLog.diagnose('error', { error: { kind: 'unknown', msg: 'Something went wrong on that turn — try again.' } });
+  A.ok(/diagnostics/.test(unknown.fix) && /report/.test(unknown.fix), 'an UNKNOWN error keeps the resend + report fix (it may be our bug)');
+  const local = SlagLog.diagnose('error', { error: { kind: 'server_error', msg: 'The local StarNet service hit an error' } });
+  A.ok(/report/.test(local.fix), 'a local server_error keeps the report fix');
+  const rec = SlagLog.create(); rec.record('error', { agentId: 'hero' }); rec.record('budget', {});
+  A.eq(rec.recent()[0].agentId, 'hero', 'a recorded post-mortem remembers which agent failed');
+  A.eq(rec.recent()[1].agentId, undefined, 'no agent given → none invented');
+}
 A.report('slaglog.test');

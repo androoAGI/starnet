@@ -48,6 +48,10 @@ const R = (err, ctx) => classifyApiError(err, ctx || {});
   A.eq(R(broke).reason, 'billing', 'xAI no-credits 403 -> billing (was auth: "No model is connected yet")');
   A.eq(R(xaiErr(403, { error: 'Your team has either used all available credits or reached its monthly spending limit.' })).reason, 'billing', 'xAI spent-credits 403 -> billing');
   A.eq(R(xaiErr(403, { error: 'The caller does not have permission to execute the specified operation' })).reason, 'auth', 'a plain permission 403 stays auth');
+  // Anthropic refuses an empty wallet with a 400 invalid_request_error (2026-10-07 report: three runs read "Something went wrong")
+  const anthroBroke = Object.assign(new Error('anthropic http 400 - Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'), { status: 400 });
+  A.eq(R(anthroBroke).reason, 'billing', 'Anthropic "credit balance is too low" 400 -> billing (was format_error)');
+  A.eq(R(Object.assign(new Error('anthropic http 400 - messages.0.content: field required'), { status: 400 })).reason, 'format_error', 'a malformed-request 400 stays format_error');
   A.ok(R(new Error('An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.')).reason !== 'billing', 'a local spend-ledger error is not provider billing');
   A.eq(R(httpErr(400, 'Invalid value for messages[0].role')).reason, 'format_error', 'an ordinary malformed 400 is still format_error');
 }
@@ -335,6 +339,11 @@ const F = (err, status, opts) => friendlyError(err, status, opts);
     'browser: xAI bad-key 400 -> auth, not an unknown retry');
   A.eq(B(new Error('openai-compatible http 403 - {"code":"The caller does not have permission to execute the specified operation","error":"Your newly created team doesn\'t have any credits yet. You can purchase credits on https://console.x.ai/team/x."}')).kind, 'billing',
     'browser: xAI no-credits 403 -> billing, not "no model connected"');
+  // Anthropic's empty wallet is a 400: the browser ladder must not call it `unknown` → "try again" (2026-10-07)
+  const anthroBroke = 'anthropic http 400 - Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.';
+  A.eq(B(new Error(anthroBroke)).kind, 'billing', 'browser: Anthropic credit-balance 400 -> billing, not an unknown retry');
+  A.eq(B(new Error(anthroBroke)).retryable, false, 'browser: Anthropic out of credit offers no doomed retry');
+  A.ok(/out of credit/i.test(B(new Error(anthroBroke)).userMessage), 'browser: the Anthropic empty-wallet copy says the account is out of credit');
 }
 
 /* ---- a TRANSPORT status beats a policy WORD in the message ----
