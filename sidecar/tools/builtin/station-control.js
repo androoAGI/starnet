@@ -76,9 +76,12 @@
     card: a => 'change the station\'s look: ' + clip(Object.keys(a.look || {}).map(k => k + ' ' + (typeof a.look[k] === 'object' ? JSON.stringify(a.look[k]) : a.look[k])).join(', ') || 'nothing named', 160) + '.' });
 
   // ---- spending (Settings › SPENDING LIMITS, AI & MODELS › backup models) ----
-  def('budget.set', { takes: '{perRun?, perAgent?, perDay?, global?} in dollars (0 = no cap, null = back to default)', power: () => true,
-    card: a => 'set your spending limits: ' + ['perRun', 'perAgent', 'perDay', 'global'].filter(k => k in a).map(k => k + ' ' + (a[k] === 0 ? 'NO CAP' : a[k] == null ? 'default' : '$' + a[k])).join(', ') + '.',
-    run: (a, env) => env.route('POST', '/api/budget/caps', pick(a, ['perRun', 'perAgent', 'perDay', 'global'])) });
+  // "5" / "$5" from a model is the number it means (the card and the saved value read it the same way); anything else
+  // reaches the route's own strict parse exactly as sent
+  const dollars = a => { const o = pick(a, ['perRun', 'perAgent', 'perDay', 'global']); for (const k of Object.keys(o)) if (typeof o[k] === 'string' && /^\s*\$?\d+(\.\d+)?\s*$/.test(o[k])) o[k] = Number(o[k].replace(/[\s$]/g, '')); return o; };
+  def('budget.set', { takes: '{perRun?, perAgent?, perDay?, global?} in dollars (0 = no cap, null = back to default)', power: () => true, keys: ['perRun', 'perAgent', 'perDay', 'global'],
+    card: a => { const d = dollars(a); return 'set your spending limits: ' + Object.keys(d).map(k => k + ' ' + (d[k] === 0 ? 'NO CAP' : d[k] == null ? 'default' : '$' + d[k])).join(', ') + '.'; },
+    run: (a, env) => env.route('POST', '/api/budget/caps', dollars(a)) });
   def('budget.resume', { takes: '{scope: day|global}', power: () => true, card: a => 'grant one more cap\'s worth of headroom on the ' + clip(a.scope, 10) + ' spending pool.',
     run: (a, env) => env.route('POST', '/api/budget/resume', { scope: a.scope }) });
   def('fallback.set', { takes: '{models: ["model id", …] | null}', card: a => a.models ? 'set your backup models to ' + clip((a.models || []).join(', '), 160) + '.' : 'reset your backup models to the default.',
@@ -284,7 +287,7 @@
     run: (a, env) => env.route('POST', '/api/hooks/revoke', { event: a.event, command: a.command }) });
   def('hook.delete', { takes: '{event, command}', power: () => true, card: a => 'DELETE the automatic command "' + clip(a.command, 120) + '" on ' + clip(a.event, 30) + ' (if it is a guard, it stops guarding).',
     run: (a, env) => env.route('POST', '/api/hooks/delete', { event: a.event, command: a.command }) });
-  def('limits.set', { takes: '{maxIters? 0-200, maxConcurrentAgents? 0-32, consentTimeoutMs? 5000-600000, cronTickMs? 5000-600000} (0 = UNLIMITED, null = default; most apply at the next start)', power: () => true,
+  def('limits.set', { takes: '{maxIters? 0-200, maxConcurrentAgents? 0-32, consentTimeoutMs? 5000-600000, cronTickMs? 5000-600000} (0 = UNLIMITED, null = default; most apply at the next start)', power: () => true, keys: ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs'],
     card: a => 'change the station\'s runtime limits: ' + clip(['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs'].filter(k => k in a).map(k => k + ' ' + (a[k] === 0 ? 'UNLIMITED' : a[k] == null ? 'default' : a[k])).join(', ') || 'nothing named', 160) + ' (most take effect at the next start).',
     run: (a, env) => env.route('POST', '/api/runtime/knobs', pick(a, ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs'])) });
 
@@ -298,6 +301,22 @@
     if ('on' in o) o.on = onOff(o.on);
     for (const k of ['reach', 'mode', 'decision']) if (typeof o[k] === 'string') o[k] = o[k].trim().toLowerCase();
     return o;
+  }
+  /* ONE reading of the CALL (real-model run 2026-10-08: Claude Haiku 4.5, asked for "a daily spending limit of $5", sent
+     station.control {setting: "budget.set", limit: "5", period: "daily"} — no `action`, no `args` — was refused as invalid
+     arguments, and fell back to opening the window for the Commander). The action may arrive as action | setting | name
+     (a KNOWN action name only), and its args flat beside it instead of under `args`. The approval card, the tier check and
+     the run all read the call HERE, so the card always names the change that will run. */
+  const CALL_KEYS = ['action', 'setting', 'name'];
+  function readCall(input) {
+    const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
+    let action = '', from = 'action';
+    for (const k of CALL_KEYS) if (typeof i[k] === 'string' && A[i[k].trim()]) { action = i[k].trim(); from = k; break; }
+    if (!action) action = String(i.action == null ? '' : i.action).trim();
+    if (i.args && typeof i.args === 'object' && !Array.isArray(i.args)) return { action, args: i.args };
+    const args = {};
+    for (const k of Object.keys(i)) if (k !== from && k !== 'action' && k !== 'args') args[k] = i[k];
+    return { action, args };
   }
   // the standing grants (null = unreadable); a listing check that returns a refusal when nothing matches, or null to go on
   async function heldGrants(env) { const r = await env.route('GET', '/api/permissions'); return r && r.status < 400 && r.json && Array.isArray(r.json.grants) ? r.json.grants : null; }
@@ -315,16 +334,18 @@
      the catalog, never the model's own framing. A verb phrase: the COMMS card reads "<AGENT> wants to <this>" and a
      paired phone's lock screen shows the same words. */
   function cardFor(args) {
-    const spec = A[String((args && args.action) || '')];
+    const call = readCall(args);
+    const spec = A[call.action];
     if (!spec) return 'make an unknown station change (it will be refused, and nothing will change)';
-    const a = normArgs((args && args.args && typeof args.args === 'object') ? args.args : {});
+    const a = normArgs(call.args);
     try { return spec.card(a).replace(/\.$/, ''); } catch (_) { return 'make the station change ' + spec.name; }
   }
 
   /* READS for station.settings: one section at a time, so a 32k model is not handed every store at once */
   const SECTIONS = {
     crew: { page: true },   // crew, sessions, look + the options for each (the page's own state)
-    spending: [['GET', '/api/budget/status', j => ({ caps: j.caps, envDefaults: j.envDefaults, spentToday: j.spentToday, lifetime: j.lifetime })], ['GET', '/api/fallback/chain']],
+    // unsettled: interrupted runs whose spend is unknown — the Commander settles them in SPENDING LIMITS, never an agent
+    spending: [['GET', '/api/budget/status', j => ({ caps: j.caps, envDefaults: j.envDefaults, spentToday: j.spentToday, lifetime: j.lifetime, unsettled: j.unsettled })], ['GET', '/api/fallback/chain']],
     permissions: [['GET', '/api/permissions'], ['GET', '/api/halt', j => ({ halted: j.halted })]],
     autonomy: [['GET', '/api/autonomy/posture', j => ({ summary: j.summary })], ['GET', '/api/cron', j => ({ routinesOn: j.enabled, halted: j.halted, jobs: (j.jobs || []).length })], ['GET', '/api/nightshift/focus'], ['GET', '/api/halt', j => ({ halted: j.halted })]],
     memory: [['GET', a => '/api/memory/records?agent=' + enc(a.agent || 'agent'), j => ({ agentId: j.agentId, records: (j.records || []).slice(0, 60).map(r => ({ id: r.id, kind: r.kind, title: r.title, body: clip(r.body, 160), pinned: !!r.pinned })) })],
@@ -411,11 +432,16 @@
         description: isPower
           ? 'ESCALATE a station setting for the Commander — only what widens access or spending: agent.approval full, agent.reach trusted-project/this-computer, agent.away_work on, fullpower.set on, budget.set, budget.resume, autonomy.set, scheduler.set on, permission.grant, key.unattended on, key.set on, ability.set on, skill.install, deliverable.decide keep, project.trust, plugin.approve|revoke|delete, hook.approve|revoke|delete, limits.set. Only when the Commander asked for it in this conversation; refused on runs nobody is watching. Same {action, args} as station.control.'
           : 'CHANGE a station setting for the Commander when they ask — the same change their button makes, proven saved. {action, args}: agent.model|personality|rename|skin|approval|reach|away_work|delete, session.rename|pin|archive|delete, look.set, fallback.set, permission.revoke, fullpower.set off, nightshift.focus|avoid, memory.forget|pin|edit|reset|settings, learning.set|wipe, connector.remove|refresh, ability.set, skill.set|install|uninstall, key.set|remove, spotify.disconnect, channels.notify, app.delete|rename, project.untrust|forget, checkpoint.restore, deliverable.decide, deliverables.cleanup|restore, away.queue|remove, quest.dismiss|later, channel.disconnect, browser.mode, group.configure, notifications.read|clear, estop.engage (the Commander alone resumes). station.settings section "actions" lists what each takes; read the current value first. Widening access or spending goes through station.power instead.',
-        schema: { type: 'object', required: ['action'], properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: 'object' } } },
+        schema: { type: 'object', properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: 'object' } } },
         run: async (input) => {
-          const spec = A[String((input && input.action) || '')];
-          if (!spec) return refuse('there is no station action "' + clip(input && input.action, 40) + '"; station.settings section "actions" lists them');
-          const a = normArgs((input && input.args && typeof input.args === 'object' && !Array.isArray(input.args)) ? input.args : {});
+          const call = readCall(input);
+          const spec = A[call.action];
+          if (!spec) return refuse((call.action ? 'there is no station action "' + clip(call.action, 40) + '"' : 'no action was named')
+            + ' — call it as {action, args}, e.g. {"action": "budget.set", "args": {"perDay": 5}}; station.settings section "actions" lists every action and what it takes');
+          const a = normArgs(call.args);
+          // a call that names none of the action's own fields would save an empty patch and read back as "done"
+          if (spec.keys && !spec.keys.some(k => k in a)) return refuse(spec.name + ' takes ' + spec.takes + ' — none of those was given'
+            + (Object.keys(a).length ? ' (got ' + clip(Object.keys(a).join(', '), 80) + ')' : '') + ', so nothing was changed');
           const escalates = !!spec.power(a);
           if (escalates && !isPower) return refuse(spec.name + ' with these values widens what agents may do or spend: call station.power with the same {action, args} (the Commander approves it separately)');
           if (isPower && !escalates) return refuse(spec.name + ' with these values does not widen access: use station.control');

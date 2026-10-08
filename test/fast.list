@@ -894,6 +894,7 @@ test/station-tools.test.js
 test/station-control.test.js
 test/station-show.test.js
 test/station-control-gaps.test.js
+test/station-call-shapes.test.js
 test/station-power-consent.test.js
 test/station-control-contracts.test.js
 test/team-configure-guard.test.js

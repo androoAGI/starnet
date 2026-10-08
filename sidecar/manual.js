@@ -145,13 +145,14 @@ const CONCEPTS =
   'CONCEPTS — what each StarNet thing is, where it lives [the station.show place], what you can do about it from chat, and the trap:\n' +
   '- CREW: the OVERSEER (the lead, agent id "agent") splits jobs and hands them to SPECIALISTS summoned from classes in the ' +
   'Recruitment Bay [recruit] (or the ＋ BUILD A CUSTOM CLASS tile). You: team.summon by class; team.dispatch to hand work out; ' +
-  'station.control agent.* to rename/re-model/re-skin/delete. Trap: a summoned agent gets its own desk automatically; team.spawn ' +
-  'helpers vanish after their task and never join the crew.\n' +
+  'station.control agent.* to rename/re-model/re-skin/delete; station.build {op:"agent", prop, agent} sits an agent at a desk (the ' +
+  'Commander: select the desk in BUILD MODE [build-mode], WHO SITS HERE). Trap: a summoned agent gets its own desk automatically; an ' +
+  'agent works at the FIRST desk it is bound to; team.spawn helpers vanish after their task and never join the crew.\n' +
   '- PROPS = POWERS: props in the room with an agent\'s desk grant its tools, re-checked every turn (see the props section). ' +
   'BUILD MODE [build-mode] lays out rooms, surfaces and props. You: station.map → station.plan → station.build (one undo), ' +
   'station.make_prop draws a new prop for StarNet credits. Trap: a platform is NEVER connected by placing a prop; under FULL ' +
   'POWER an agent has every power regardless of props.\n' +
-  '- WORKFLOWS / LINES: a line is machines on the floor joined by belts — INTAKE (where work comes in: schedule, chat, watched ' +
+  '- WORKFLOWS / LINES (the build library calls them CONVEYOR LINES — "a conveyor" is a line): a line is machines on the floor joined by belts — INTAKE (where work comes in: schedule, chat, watched ' +
   'folder, app), BAY (one step, done by the agent placed there), FILTER (sorts by kind onto belts), MERGER (belts share one), ' +
   'SPLITTER (one belt to several; with a JOINER after it every branch gets a copy), JOINER (waits for every branch, sends one ' +
   'result), LOOP (sends work back until the reviewer approves), OUTBOX (where the result comes out). [workflows] has SEND A JOB. ' +
@@ -171,10 +172,12 @@ const CONCEPTS =
   'You: routine.create/manage, loop.create/manage (if you have them); station.power agent.away_work on; station.control away.queue / ' +
   'away.remove fill and trim an agent\'s away queue. Trap: read ' +
   'routine.create\'s scheduler note before saying "it will run" — scheduling can be off (▶ ENABLE SCHEDULING) or stopped by ' +
-  'an E-STOP, and you can never lift an E-STOP.\n' +
+  'an E-STOP, and you can never lift an E-STOP. A routine runs on the key the STATION holds: if a run says it has no key, the ' +
+  'Commander saves it again in [settings-ai]. routine.create enabledToolsets takes toolset ids ([] = no limit).\n' +
   '- TASKS vs SESSIONS: the task board [tasks] holds planned work cards (todo / active / shipped; START sends one to its agent). ' +
   'Chats, routine runs and away runs are SESSIONS on the COMMS rail. You: task.list/create/manage; session.list/create/peek/' +
-  'focus. Trap: call session.peek before saying what another session did — your thread does not contain it.\n' +
+  'focus; station.status (if you have it) is a live snapshot of every session. Trap: call session.peek before saying what another ' +
+  'session did — your thread does not contain it.\n' +
   '- COMMS: the chat. Clicking an agent (or its crew row) focuses it, and messages go to the focused agent. GROUP CHAT: "+ Add ' +
   'agents" in the COMMS bar (or @-mentioning an agent) turns a direct chat into a group; the lead answers anything unaddressed ' +
   'and cannot be removed. Enter while an agent is working QUEUES the message; /steer <text> steers the live run; /stop stops it. ' +
@@ -194,8 +197,11 @@ const CONCEPTS =
   'resumes; /stop stops just one run.\n' +
   '- SPENDING [settings-spending]: caps per run, per agent, per day and overall, in dollars (0 = no cap); a capped day pauses ' +
   'with a one-click RESUME. On StarNet credits a run with no per-run cap still stops at $2; runs on the Commander\'s own key or ' +
-  'subscription do not. Backup models live in SETTINGS › AI & MODELS [settings-ai]. You: station.power budget.set|resume (even to ' +
-  'lower a cap); station.control fallback.set.\n' +
+  'subscription do not. Backup models live in SETTINGS › AI & MODELS [settings-ai]. You: station.power {action:"budget.set", ' +
+  'args:{perDay:5}} (perRun / perAgent / perDay / global; budget.resume the same way; even to lower a cap); station.control ' +
+  'fallback.set. Trap: an interrupted run whose spend is unknown waits in SPENDING LIMITS to be SETTLED — the Commander alone ' +
+  'settles it (station.settings spending lists it as unsettled). On StarNet credits, money HELD by other live runs (a per-run cap ' +
+  'reserves its whole amount) cannot be spent: wait, lower PER RUN, or top up in the STORE [settings-ai].\n' +
   '- MEMORY [agent-memory]: what an agent keeps — beliefs to pin / edit / forget, and new ones awaiting the Commander\'s keep or ' +
   'discard. Ratings on finished work become feedback memories. You: notebook.* (with memory gear); station.control memory.*, ' +
   'learning.set (interest personalization) — reflection is memory.settings. Trap: learning ≠ reflection.\n' +
@@ -211,14 +217,20 @@ const CONCEPTS =
   'CONNECTIONS [api-connections]), skills (SKILL MARKET [skill-market], LIBRARY, AGENT SKILLS, EXCHANGE), built-in abilities and ' +
   'their kill-switches, COMPUTER CONTROL, EXTENSIONS. Connectors are account-wide: no prop. CHANNELS [channels] is the inbound ' +
   'direction (message agents from Telegram, Discord, Slack…). You: connectors.list (with goal = a CONNECT button), station.control ' +
-  'connector/skill/key/ability changes, skill.write. Trap: you never enter or read a key.\n' +
+  'connector/skill/key/ability changes, skill.write. Trap: you never enter or read a key; a connector showing SIGN IN needs the ' +
+  'Commander\'s own sign-in in their browser (connector.refresh only reconnects).\n' +
   '- APPS [apps] / BROWSER [browser] / STEP-IN: NEW APP builds a small app in its own session (APPS appears once one exists). ' +
   'STEP-IN lets the Commander take an agent\'s browser for a sign-in or CAPTCHA, then hand it back. You: app.create…publish; ' +
-  'browser.need_human to ask for a step-in.\n' +
+  'browser.need_human to ask for a step-in; a stuck browser: browser.reset (the Commander: RESET STATION BROWSER in ' +
+  '[settings-browser]) closes it and ends leftover browser processes — sign-ins are kept.\n' +
+  '- LOOK & SOUND [settings-look]: theme, lighting, CRT effects, sound, agent voices and HINTS (the hover explanations of station ' +
+  'words). You: station.control look.set {look:{hints:false}} — station.settings crew lists every look key and value.\n' +
   '- DOSSIER: an agent\'s file — BRIEF (who it is, CAN DO) [agent], GROWTH (level, XP) [agent-growth], RECORD (runs, failures, ' +
   'restore points) [agent-record], MEMORY [agent-memory], CONFIG (instructions, model, personality, access, look) [agent-config]. ' +
   'YOU [you] is the Commander\'s own dossier (about them, aims, preferences, what agents are told). REMOTE [settings-remote] pairs ' +
-  'a phone; APP & BACKUP [settings-app] exports the station (never keys); UPDATES [updates] installs a new build.\n';
+  'a phone; APP & BACKUP [settings-app] exports the station (never keys), and holds START FRESH (sets the old station aside) and ' +
+  'ERASE EVERYTHING (deletes every bit of StarNet data — the Commander alone, never you); UPDATES [updates] installs a new build ' +
+  '(installing stops every live run).\n';
 const TROUBLESHOOTING =
   'TROUBLESHOOTING — when the Commander is stuck, name the concrete fix:\n' +
   '- “How do I connect <platform>?” / “can you use my Google Drive?” → open CONNECT › ABILITIES, search the name ' +
