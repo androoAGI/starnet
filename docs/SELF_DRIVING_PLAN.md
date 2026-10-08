@@ -79,13 +79,18 @@ Each ask in a FRESH COMMS session, plain words, no tool names; every result chec
 | Monday 9am motivational routine | Sonnet 4.5 | ✅ cron 0 9 * * 1, next Mon Oct 12 | 2 / 26 s |
 | hit the emergency stop | Sonnet 4.5 | ✅ /api/halt all halted; COMMS names the E-STOP, no TRY AGAIN | 3–12 / 22–34 s |
 | pin this chat to the top of my sessions list | Sonnet 4.5 | ✅ session.pin, no id → this conversation | 6 / 36 s |
-| pin this conversation | Haiku + Sonnet | ❌ both write a notebook memory (the Task Brief frames "pin" as memory) | 2 / 20 s |
+| pin this conversation | Haiku + Sonnet | ❌ both wrote a notebook memory → ✅ 8/8 (4 phrasings × 2 models) pinned their OWN session | 3–5 / 18–42 s |
 Fixes the runs drove: station.control/power read action|setting|name and flat or stringified args (the card reads the
 call the same way); budget.set/limits.set with none of their fields are refused, never an empty "done"; "$5" saves as 5;
 station.settings answers carry `toChange` (the actions, tool and args that change that section) and accept look /
 sessions / agents / budget / all; station.show reads place|target|id|window|page|section and its result says opening is
 not doing a change; NAVIGATION says CHANGE = station.control/power and never the shell, files or a web request to the
-station; session.* default to this conversation; a run stopped by its own E-STOP says so, no TRY AGAIN.
-Known, not fixed: "pin this conversation" (plain) → notebook memory on both models; Sonnet paused a routine by hand before
+station; session.* default to this conversation; a run stopped by its own E-STOP says so, no TRY AGAIN; an inline SESSIONS
+rule (every COMMS chat is a rail session — pin/rename/archive with station.control session.*, never a memory note), paid for
+by a tighter TOC (system 24727/24750 · 24948/24950 — ~2 chars left on the granted floor); session.list marks
+`thisConversation`; session_id/sessionId read as session.
+Known, not fixed: Sonnet paused a routine by hand before
 pressing the E-STOP (the pause outlives RESUME); a model may name tool ids in a reply (station.build) — prompt-level.
 Not a bug: after an agent E-STOP in a HIDDEN tab, RESUME AUTOMATION appears on the next focus (it polls only while visible).
+Repeatable: `node dev/self-driving-proof.mjs [port] [--estop]` against a running scratch station (close other tabs on it).
+Not yet proven: ASK mode (every run above had full access — no approval cards), and any non-Anthropic model live.
