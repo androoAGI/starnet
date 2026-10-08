@@ -53,7 +53,9 @@
       : scope === 'day' ? 'hit the ' + cap + 'daily spend cap'
       : scope === 'global' ? 'hit the ' + cap + 'all-time spend cap'
       : 'hit a spend cap';
-    return '\n\n(' + what + ' — raise or remove it in the app under MISSION CONTROL → BUDGET.)';
+    // the caps live in SETTINGS › SPENDING LIMITS (MISSION CONTROL is only a room label). A per-RUN stop says
+    // "raise", never "remove" — on StarNet credits PER RUN 0 still stops at the managed default (mirrors chat.js).
+    return '\n\n(' + what + (scope === 'run' ? ' — raise it' : ' — raise or remove it') + ' in the app under SETTINGS › SPENDING LIMITS.)';
   }
   function endNote(reason, state) {
     if (reason === 'max_iters') return '\n\n(reached the step limit — message "continue" to keep going.)';

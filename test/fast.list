@@ -38,6 +38,7 @@ test/ledger.test.js
 test/logbound.test.js
 test/budget.test.js
 test/budget-caps.test.js
+test/budget-stop-door.test.js
 test/fallback-chain.test.js
 test/configexport.test.js
 test/harness-import.test.js

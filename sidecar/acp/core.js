@@ -236,7 +236,7 @@
      Returned as a plain sentence appended as a final agent message chunk. */
   function endNote(reason) {
     const r = str(reason);
-    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under MISSION CONTROL → BUDGET.)';
+    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under SETTINGS › SPENDING LIMITS.)';
     if (r === 'max_iters') return '\n\n(stopped: reached the step limit for one turn — send "continue" to keep going.)';
     if (r === 'error') return '\n\n(stopped: the run failed inside StarNet — check the station log for the error.)';
     return '';
