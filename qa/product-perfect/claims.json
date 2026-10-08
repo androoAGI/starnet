@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "5f282a2acde1650c1c37768a564e2b4a9ccc5bf0",
+    "sourceCommit": "a8effe4d562bb62fe113510f894441b48277806f",
     "pathSetSha256": "9d1a8c60b20ee9ffa8edfe1a6fc1ca368f057a7b93f20a8e5d0e2959336fdc66",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 427906,
-        "sha256": "60d89b111f272bfb8b4c6c0f615166d8113acee447d02da4879695cdfcce5048"
+        "bytes": 428241,
+        "sha256": "3efe364aab9b311b328af1ae027f107e9161aa04ca8b1d3f9e7d815bba0f0314"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -333,8 +333,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 572604,
-        "sha256": "cbf55b449b7f1a5e507adb2156250a9f5418c20e4ed8e5cd0ac25be59cbfa16d"
+        "bytes": 573778,
+        "sha256": "4f6d0ed0aa364784746e8600858c0cd3874b6c29f06e04fa46bef8c9290c92d5"
       },
       {
         "path": "frontend/app/channels.js",
@@ -343,8 +343,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 718245,
-        "sha256": "60d4b5b5353a13609c55b248cea43f95e2d36346c6d68e5502388b5a5f5d05b3"
+        "bytes": 718247,
+        "sha256": "4e828ff6ea1e51279f23e7ef276dfd6ce0c41de193afe3bdbd6f3a63ecd47abd"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -1648,8 +1648,8 @@
       },
       {
         "path": "frontend/css/refit-easy.css",
-        "bytes": 10136,
-        "sha256": "d8273c095034109965a07b827d7836dfbe16bb46ff79336d44272bb9f7f49aad"
+        "bytes": 11195,
+        "sha256": "97e52fd189e6c81aa42dd1fa739ec5c6e9aa07c5db3e80d4895de1bc04541ae9"
       },
       {
         "path": "frontend/css/refit-kit.css",
