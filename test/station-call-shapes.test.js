@@ -92,6 +92,19 @@ const refused = r => /^REFUSED: /.test(r.content);
     A.ok(j.toChange.some(x => /settled by the Commander alone/.test(x)), 'and that an unsettled run is the Commander\'s');
     const keys = Object.keys(j); A.eq(keys[keys.length - 1], 'toChange', 'toChange comes last (a clipped answer loses the hint first)');
   }
+  // ---- "pin this conversation": no session named = the run's own ----
+  {
+    const s = stubs(); const t = make(s);
+    A.eq(cardFor({ action: 'session.pin', args: {} }), 'pin this conversation', 'the card says this conversation');
+    A.eq(cardFor({ action: 'session.pin', args: { session: 'this' } }), 'pin this conversation', '"this" reads the same');
+    const r = await t.controlTool.run({ action: 'session.pin', args: {} }, { streamId: 'ws_here', runId: 'r1' });
+    A.ok(!refused(r), 'session.pin with no session is done');
+    A.eq(s.pages[0].args, { session: 'ws_here', action: 'session.pin' }, 'the page is asked to pin the run\'s own session');
+    const r2 = await t.controlTool.run({ action: 'session.pin', args: { session: 'current' } }, {});
+    A.ok(refused(r2) && /name the session/.test(r2.content), 'a run with no conversation of its own must name one');
+    const r3 = await t.controlTool.run({ action: 'session.rename', args: { session: 'Taxes', title: 'Taxes 2026' } }, { streamId: 'ws_here' });
+    A.ok(!refused(r3) && s.pages[s.pages.length - 1].args.session === 'Taxes', 'a named session is left as named');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);
@@ -104,16 +117,17 @@ const refused = r => /^REFUSED: /.test(r.content);
     const t = makeStationShowTool({ station: s.station }).tool;
     A.ok(!t.schema.required, 'station.show requires no single key name (the run reads the aliases)');
     const ctx = { streamId: 'ws1', runId: 'r1' };
-    for (const k of ['place', 'target', 'id', 'window']) {
+    for (const k of ['place', 'target', 'id', 'window', 'page']) {
       const r = await t.run({ [k]: 'settings-spending' }, ctx);
       A.ok(/^OPEN on the Commander's screen: SETTINGS › SPENDING LIMITS/.test(r.content), 'station.show {' + k + '} opens the place');
+      A.ok(/opening it is not doing it/.test(r.content), 'and says opening is not doing a change');
     }
-    A.eq(s.pages.map(p => p.args.place), ['settings-spending', 'settings-spending', 'settings-spending', 'settings-spending'], 'the page is asked for the catalog id every time');
+    A.eq(s.pages.map(p => p.args.place), Array(5).fill('settings-spending'), 'the page is asked for the catalog id every time');
     const bad = await t.run({ target: 'the spending page' }, ctx);
     A.ok(/^REFUSED: there is no StarNet place "the spending page" — call it as \{place: "<id>"\}/.test(bad.content), 'free text never opens anything, and the refusal says how to call it');
     const none = await t.run({}, ctx);
     A.ok(/^REFUSED: no place was named/.test(none.content), 'no place named is refused');
-    A.eq(s.pages.length, 4, 'refusals never reach the page');
+    A.eq(s.pages.length, 5, 'refusals never reach the page');
   }
   A.report('station-call-shapes');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

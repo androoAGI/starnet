@@ -66,10 +66,14 @@
   def('agent.delete', { page: true, takes: '{agent}', card: a => 'DELETE ' + q(a.agent) + ' from the crew (its notebook and workspace are archived, not wiped).' });
 
   // ---- sessions (page: the rail's ⋯ menu) ----
-  def('session.rename', { page: true, takes: '{session, title}', card: a => 'rename the session ' + q(a.session) + ' to ' + q(a.title) + '.' });
-  def('session.pin', { page: true, takes: '{session, pinned?}', card: a => (a.pinned === false ? 'unpin ' : 'pin ') + 'the session ' + q(a.session) + '.' });
-  def('session.archive', { page: true, takes: '{session, archived?}', card: a => (a.archived === false ? 'restore ' : 'archive ') + 'the session ' + q(a.session) + '.' });
-  def('session.delete', { page: true, takes: '{session}', card: a => 'DELETE the session ' + q(a.session) + ' and its conversation.' });
+  /* no session named (or "this" / "current") = THIS conversation: the run fills in its own session id (real-model run
+     2026-10-08: "pin this conversation" had no id to give, so the model wrote a notebook memory and called it pinned) */
+  const THIS_SESSION = /^\s*(this|current|here|this (conversation|chat|session)|the current (conversation|chat|session))?\s*$/i;
+  const sess = a => (a.session == null || THIS_SESSION.test(String(a.session))) ? 'this conversation' : 'the session ' + q(a.session);
+  def('session.rename', { page: true, takes: '{session? (default: this conversation), title}', card: a => 'rename ' + sess(a) + ' to ' + q(a.title) + '.' });
+  def('session.pin', { page: true, takes: '{session? (default: this conversation), pinned?}', card: a => (a.pinned === false ? 'unpin ' : 'pin ') + sess(a) + '.' });
+  def('session.archive', { page: true, takes: '{session? (default: this conversation), archived?}', card: a => (a.archived === false ? 'restore ' : 'archive ') + sess(a) + '.' });
+  def('session.delete', { page: true, takes: '{session? (default: this conversation)}', card: a => 'DELETE ' + sess(a) + ' and its conversation.' });
 
   // ---- look & sound (page: Settings › LOOK & SOUND) ----
   def('look.set', { page: true, takes: '{look: {theme?, textScale?, crtGlass?, flicker?, sound?, roomLighting?, backdrop?, …}} (station.settings lists every key and value)',
@@ -458,7 +462,7 @@
           ? 'ESCALATE a station setting for the Commander — only what widens access or spending: agent.approval full, agent.reach trusted-project/this-computer, agent.away_work on, fullpower.set on, budget.set, budget.resume, autonomy.set, scheduler.set on, permission.grant, key.unattended on, key.set on, ability.set on, skill.install, deliverable.decide keep, project.trust, plugin.approve|revoke|delete, hook.approve|revoke|delete, limits.set. Only when the Commander asked for it in this conversation; refused on runs nobody is watching. Same {action, args} as station.control.'
           : 'CHANGE a station setting for the Commander when they ask — the same change their button makes, proven saved. {action, args}: agent.model|personality|rename|skin|approval|reach|away_work|delete, session.rename|pin|archive|delete, look.set, fallback.set, permission.revoke, fullpower.set off, nightshift.focus|avoid, memory.forget|pin|edit|reset|settings, learning.set|wipe, connector.remove|refresh, ability.set, skill.set|install|uninstall, key.set|remove, spotify.disconnect, channels.notify, app.delete|rename, project.untrust|forget, checkpoint.restore, deliverable.decide, deliverables.cleanup|restore, away.queue|remove, quest.dismiss|later, channel.disconnect, browser.mode, group.configure, notifications.read|clear, estop.engage (the Commander alone resumes). station.settings section "actions" lists what each takes; read the current value first. Widening access or spending goes through station.power instead.',
         schema: { type: 'object', properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: ['object', 'string'] } } },
-        run: async (input) => {
+        run: async (input, ctx) => {
           const call = readCall(input);
           const spec = A[call.action];
           if (!spec) return refuse((call.action ? 'there is no station action "' + clip(call.action, 40) + '"' : 'no action was named')
@@ -467,6 +471,10 @@
           // a call that names none of the action's own fields would save an empty patch and read back as "done"
           if (spec.keys && !spec.keys.some(k => k in a)) return refuse(spec.name + ' takes ' + spec.takes + ' — none of those was given'
             + (Object.keys(a).length ? ' (got ' + clip(Object.keys(a).join(', '), 80) + ')' : '') + ', so nothing was changed');
+          if (/^session\./.test(spec.name) && (a.session == null || THIS_SESSION.test(String(a.session)))) {
+            if (!(ctx && ctx.streamId)) return refuse('this run has no conversation of its own: name the session (session.list lists them)');
+            a.session = String(ctx.streamId);
+          }
           const escalates = !!spec.power(a);
           if (escalates && !isPower) return refuse(spec.name + ' with these values widens what agents may do or spend: call station.power with the same {action, args} (the Commander approves it separately)');
           if (isPower && !escalates) return refuse(spec.name + ' with these values does not widen access: use station.control');

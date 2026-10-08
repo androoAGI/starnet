@@ -44,7 +44,9 @@ const NAV_HEAD =
   'NAVIGATION — the controls the Commander uses. When they ask where something is or to see it, OPEN it for them with ' +
   'station.show (any window, tab or settings section below, an agent\'s dossier tab or desk, BUILD MODE, the Recruitment Bay) ' +
   'instead of describing the clicks; it opens on their screen only while they are watching your conversation, so if it is ' +
-  'refused, tell them where it is:\n';
+  'refused, tell them where it is. When they ask you to CHANGE something (clear, set, turn on or off, rename, delete, pin…), ' +
+  'DO it with station.control / station.power (tool.search "station control" if they are not in your list; station.settings ' +
+  'section "actions" lists every change) — opening the window is not doing it:\n';
 const NAV_COMMS =
   '- COMMS: the chat panel. The Commander types a request and hits Enter to task the focused agent. ' +
   'Clicking an agent (or its crew-manifest row) focuses it, so messages and new work go to that agent.\n';

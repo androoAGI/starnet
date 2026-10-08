@@ -31,7 +31,7 @@ function makeStationShowTool(deps) {
     // invalid arguments — the place is read from place | target | id | window here, and only a catalog id ever opens
     schema: { type: 'object', properties: { place: { type: 'string', enum: Places.ids() }, agent: { type: 'string' } } },
     run: async (args, ctx) => {
-      const asked = ['place', 'target', 'id', 'window'].map(k => args && args[k]).find(v => typeof v === 'string' && v.trim()) || '';
+      const asked = ['place', 'target', 'id', 'window', 'page'].map(k => args && args[k]).find(v => typeof v === 'string' && v.trim()) || '';
       const place = Places.get(asked);
       if (!place) return refuse((asked ? 'there is no StarNet place "' + asked + '"' : 'no place was named') + ' — call it as {place: "<id>"} with an id from this tool\'s list');
       const agent = String((args && args.agent) || '').trim();
@@ -44,7 +44,10 @@ function makeStationShowTool(deps) {
       if (!out || !out.ok) return refuse(String((out && out.error) || 'the station did not answer'));
       const r = out.result || {};
       const where = place.words + (r.agentName ? ' for ' + r.agentName : '');
-      return { content: 'OPEN on the Commander\'s screen: ' + where + ' — ' + place.about + '.', summary: 'showed ' + where };
+      // real-model run 2026-10-08: "clear my notifications" opened NOTIFICATIONS and told the Commander to clear them by hand
+      return { content: 'OPEN on the Commander\'s screen: ' + where + ' — ' + place.about + '. If they asked you to CHANGE something '
+        + 'here, opening it is not doing it: do the change with station.control / station.power if you have them (tool.search '
+        + '"station control").', summary: 'showed ' + where };
     }
   };
   return { tool, register(reg) { reg.register(tool); return reg; } };
