@@ -1652,9 +1652,24 @@ const World = (() => {
   function pageFocused() {
     try { return typeof document === 'undefined' || typeof document.hasFocus !== 'function' || document.hasFocus(); } catch (_) { return true; }
   }
+  /* FRAME BUDGET (2026-10-07, "laggy" reports on 0.13): the floor may hold at most BUDGET_SHARE of the main thread.
+     The pace above is only a CEILING on the draw rate. A big station draws slowly (a 26-agent, 200-light station
+     took ~22ms a draw on a fast desktop, and a laptop is 2-3x that), so at 30 draws/s the world owned the thread and
+     every click, keystroke and COMMS token queued behind it. The interval stretches to drawCost / BUDGET_SHARE
+     (never below BUDGET_MIN_FPS) so the UI always keeps the rest; a cheap station never notices (drawCost 10ms ->
+     14ms, under the 33ms pace). The simulation reads the real clock and is sliced (simSlices), so nothing moves
+     slower. Replaces the 10-04 per-vsync budget (agent/restore-lag), which predates this time-based pacer. */
+  const BUDGET_SHARE = 0.7, BUDGET_MIN_FPS = 12, BUDGET_SAMPLE_MAX_MS = 120;
+  let drawCostMs = 0;
+  function noteDrawCost(ms) {
+    if (!(ms >= 0)) return;
+    ms = Math.min(BUDGET_SAMPLE_MAX_MS, ms);   // one page-in stall (a restore from minimized) must not park the loop
+    drawCostMs = drawCostMs ? drawCostMs * 0.9 + ms * 0.1 : ms;
+  }
+  function budgetMs() { return Math.min(drawCostMs / BUDGET_SHARE, 1000 / BUDGET_MIN_FPS); }
   function paceMs(now) {
-    if (frameCapMs) return Math.max(frameCapMs, PACE_FOCUS_MS);
-    return (now < engagedUntil || pageFocused()) ? PACE_FOCUS_MS : PACE_BLUR_MS;
+    const base = frameCapMs ? Math.max(frameCapMs, PACE_FOCUS_MS) : (now < engagedUntil || pageFocused()) ? PACE_FOCUS_MS : PACE_BLUR_MS;
+    return Math.max(base, budgetMs());
   }
   function cancelScheduled() {
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
@@ -1678,7 +1693,7 @@ const World = (() => {
      long stall never teleports anyone). While the pacer holds a low rate it is the real elapsed time cut into
      <= SIM_SLICE_MS slices, so bodies and crates cover the same ground per wall-second as at 30 fps. */
   function simSlices(gap, now) {
-    if (!(paceLowRate && gap > 64 && gap <= SIM_CATCHUP_MAX_MS)) return [[Math.min(64, gap), now]];
+    if (!((paceLowRate || budgetMs() > 64) && gap > 64 && gap <= SIM_CATCHUP_MAX_MS)) return [[Math.min(64, gap), now]];
     const n = Math.ceil(gap / SIM_SLICE_MS), step = gap / n, out = [];
     for (let i = n - 1; i >= 0; i--) out.push([step, now - i * step]);
     return out;
@@ -1688,7 +1703,8 @@ const World = (() => {
   function renderPace() {
     const now = performance.now(), pace = running ? paceMs(now) : 0;
     return { running, focused: pageFocused(), engaged: now < engagedUntil, paceMs: +pace.toFixed(1),
-      mode: !running ? 'stopped' : frameCapMs ? 'capped' : pace >= PACE_BLUR_MS ? 'blur' : 'focus',
+      mode: !running ? 'stopped' : frameCapMs ? 'capped' : pace >= PACE_BLUR_MS ? 'blur' : pace > PACE_FOCUS_MS + 0.5 ? 'budget' : 'focus',
+      drawCostMs: +drawCostMs.toFixed(2), budgetMs: +budgetMs().toFixed(1),
       draws: pacedDraws, simMs: Math.round(simMs), timerWait: !!paceTimer };
   }
   /* OVERLAYS (HUD widget, 2026-09-30): the station's in-world readouts — run clocks, tool tickers, await tags,
@@ -6376,7 +6392,8 @@ const World = (() => {
     if (force !== true && now - lastDrawnAt < pace - 1) { scheduleFrame(pace); return; }   // RENDER PACING: not this vsync
     lastDrawnAt = now; pacedDraws++;
     scheduleFrame(pace);   // schedule next frame FIRST — a throw below can't kill the loop
-    const reviewStart=reviewPerformance.enabled?performance.now():0;
+    const drawStart = performance.now();
+    const reviewStart=reviewPerformance.enabled?drawStart:0;
     reviewParts=reviewPerformance.enabled?{}:null;reviewStamp=reviewStart;
     try {
       frameBody(now);
@@ -6387,6 +6404,7 @@ const World = (() => {
       if (msg !== lastFaultMsg) { lastFaultMsg = msg; try { console.error('[world] render frame threw (x' + renderFaults + '):', e); } catch (_) {} }
       if (renderFaults >= RENDER_FAULT_LIMIT) { try { drawRenderFault(); } catch (_) {} }
     } finally {
+      noteDrawCost(performance.now() - drawStart);   // FRAME BUDGET: what this draw really cost the main thread
       if(reviewPerformance.enabled && reviewPerformance.samples.length<3600)reviewPerformance.samples.push({t:now,ms:performance.now()-reviewStart,parts:reviewParts});
       reviewParts=null;
     }

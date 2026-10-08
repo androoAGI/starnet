@@ -40,9 +40,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext('let frameCapMs = 0, lastDrawnAt = 0, running = true, raf = 0; function frame() {}\n' + world.slice(from, to) +
-  '\nthis.api = { paceMs, simSlices, easeK, scheduleFrame, paceWake, paceEngage,' +
+  '\nthis.api = { paceMs, simSlices, easeK, scheduleFrame, paceWake, paceEngage, noteDrawCost, budgetMs, resetBudget: () => { drawCostMs = 0; },' +
   ' set: o => { if ("cap" in o) frameCapMs = o.cap; if ("low" in o) paceLowRate = o.low; if ("drawn" in o) lastDrawnAt = o.drawn; if ("raf" in o) raf = o.raf; },' +
-  ' timer: () => paceTimer, consts: { PACE_FOCUS_MS, PACE_BLUR_MS, SIM_SLICE_MS, SIM_CATCHUP_MAX_MS } };', sandbox);
+  ' timer: () => paceTimer, consts: { PACE_FOCUS_MS, PACE_BLUR_MS, SIM_SLICE_MS, SIM_CATCHUP_MAX_MS, BUDGET_SHARE, BUDGET_MIN_FPS } };', sandbox);
 const W = sandbox.api;
 
 A.eq(Math.round(W.paceMs(env.now)), 33, 'focused: the world is drawn at most 30x a second');
@@ -69,6 +69,27 @@ A.eq(W.simSlices(30000, 5000)[0][0], 64, '...as one clamped 64ms step');
 W.set({ low: false });
 A.eq(JSON.stringify(W.simSlices(200, 5000)), JSON.stringify([[64, 5000]]), 'at draw rate the step is the old single clamped dt (focused behaviour unchanged)');
 A.eq(JSON.stringify(W.simSlices(16, 5000)), JSON.stringify([[16, 5000]]), 'a normal frame is one step of its own dt');
+
+// FRAME BUDGET (2026-10-07): an expensive draw stretches the interval so the world keeps at most BUDGET_SHARE of the
+// main thread; a cheap one changes nothing; one stall cannot park the loop; the floor never drops below BUDGET_MIN_FPS
+env.focused = true; env.now += 10000;
+for (let i = 0; i < 60; i++) W.noteDrawCost(10);
+A.eq(Math.round(W.paceMs(env.now)), 33, 'a 10ms draw: the 30 fps pace is untouched (budget 14ms < 33ms)');
+for (let i = 0; i < 60; i++) W.noteDrawCost(30);
+A.ok(Math.abs(W.paceMs(env.now) - 30 / W.consts.BUDGET_SHARE) < 0.5, 'a 30ms draw: the interval stretches to drawCost / share');
+A.ok(30 / W.paceMs(env.now) <= W.consts.BUDGET_SHARE + 0.01, '...so the world holds at most its share of the thread');
+for (let i = 0; i < 200; i++) W.noteDrawCost(500);
+A.ok(Math.abs(W.paceMs(env.now) - 1000 / W.consts.BUDGET_MIN_FPS) < 1e-9, 'a pathological draw cost still draws BUDGET_MIN_FPS times a second');
+W.resetBudget(); for (let i = 0; i < 60; i++) W.noteDrawCost(10);
+W.noteDrawCost(5000);
+A.ok(W.paceMs(env.now) < 40, 'one 5s stall (a restore from minimized) nudges the budget, it does not park the loop');
+W.resetBudget(); for (let i = 0; i < 80; i++) W.noteDrawCost(56);
+A.ok(W.budgetMs() > 64, 'a budget past the 64ms step clamp...');
+W.set({ low: false });
+const bs = W.simSlices(80, 9000);
+A.ok(bs.length > 1 && Math.abs(bs.reduce((t, [d]) => t + d, 0) - 80) < 1e-9, '...advances the simulation in real-time slices (no slow motion)');
+W.resetBudget();
+A.eq(JSON.stringify(W.simSlices(200, 5000)), JSON.stringify([[64, 5000]]), 'with no budget the focused step is the old clamped dt again');
 
 // a per-frame ease tuned at 60 Hz keeps its wall-clock speed at any draw rate
 A.ok(Math.abs(W.easeK(0.08, 1000 / 60) - 0.08) < 1e-12, 'easeK at 60 Hz is the original constant');
@@ -107,6 +128,8 @@ A.ok(/function stop\(\)\s*\{[^}]*cancelScheduled\(\)/.test(code), 'stop() cancel
 A.ok(/addEventListener\('focus', paceWake\)/.test(code) && /if \(!document\.hidden\) paceWake\(\)/.test(code), 'focus and becoming visible wake the loop');
 A.ok(/\['pointermove', 'pointerdown', 'wheel', 'keydown'\]\) window\.addEventListener\(ev, paceEngage/.test(code), 'input on the window engages full pace');
 A.ok(/renderPace,/.test(code), 'World.renderPace() is exported for live verification');
+A.ok(/finally \{\s*noteDrawCost\(performance\.now\(\) - drawStart\)/.test(frameSrc) && frameSrc.indexOf('const drawStart = performance.now()') < frameSrc.indexOf('frameBody(now)'),
+  'every draw (a throwing one included) reports its real cost to the frame budget');
 
 // ---- 3. compositor: no infinite full-screen flicker; decorative loops rest while unfocused --------------------
 const appCode = strip(appCss);
