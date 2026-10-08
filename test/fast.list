@@ -261,6 +261,8 @@ test/autopilot-focus.test.js
 test/autopilot-focus-veto.test.js
 test/apiauth.test.js
 test/provider-key-check.test.js
+test/engine-credential.test.js
+test/engine-key-sync.test.js
 test/kimi-region.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js
@@ -632,6 +634,7 @@ test/taint-lineage.test.js
 test/taint-refusal-copy.test.js
 test/taint-entry-origin.test.js
 test/routine-tools.test.js
+test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
