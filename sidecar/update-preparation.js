@@ -59,13 +59,18 @@ function makeUpdatePreparation(deps) {
     const o = opts || {};
     if (frozen && receipt) return { ok: true, frozen: true, receipt: receipt, reused: true };
     if (frozen) return { ok: false, frozen: true, code: 'UPDATE_PREPARATION_IN_PROGRESS' };
-    frozen = true;
+    frozen = true;   // the HTTP + new-run barrier: nothing NEW starts from here
     try {
-      onFreeze();
       if (Number(liveRuns()) > 0) {
         if (!o.force) throw Object.assign(new Error('agent runs are still active'), { code: 'UPDATE_RUNS_ACTIVE' });
+        // INSTALL ANYWAY: abort and DRAIN before freezing durable writes. An aborted run's finalizer books its spend
+        // through the freezing writer; freezing first made that write throw and stranded the settlement receipt
+        // across the upgrade ("Spend history is unavailable" on the next boot).
         abortRuns();
+        const drained = await waitForQuiescence(o.timeoutMs);
+        if (!drained) throw Object.assign(new Error('aborted agent runs did not finish before the update deadline'), { code: 'UPDATE_QUIESCENCE_TIMEOUT' });
       }
+      onFreeze();
       const quiet = await waitForQuiescence(o.timeoutMs);
       if (!quiet) throw Object.assign(new Error('workspace did not become quiescent before the update deadline'), { code: 'UPDATE_QUIESCENCE_TIMEOUT' });
 

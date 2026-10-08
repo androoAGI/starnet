@@ -65,6 +65,70 @@ const { makeUpdatePreparation } = require('../sidecar/update-preparation.js');
     A.eq(aborted, 1, 'live runs were actually aborted');
     A.eq(forced.receipt.liveRuns, 0, 'forced receipt is still quiescent, never best-effort');
 
+    // B10: INSTALL ANYWAY aborts and DRAINS before it freezes durable writes. An aborted run's finalizer books its
+    // spend through the freezing writer (index.js writeFileDurable -> ledger settlement journal); freezing first
+    // made that write throw, stranding the receipt across the upgrade -> "Spend history is unavailable" on next boot.
+    {
+      const events = [];
+      let liveB = 2, frozenB = false, clockB = 2000, finalizer = null;
+      const settlement = path.join(workspace, 'spend-pending', 'settlement-run-b10.json');
+      const guardedWrite = (file, text) => {   // the same contract as index.js writeFileDurable
+        if (frozenB) throw Object.assign(new Error('durable writes are frozen for update'), { code: 'UPDATE_MUTATIONS_FROZEN' });
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        writeFileDurable({ fs, path }, file, text);
+      };
+      const prepB = makeUpdatePreparation({
+        fs, path, recovery: Recovery, writeDurable: writeFileDurable, workspaceRoot: workspace,
+        now: () => clockB, newId: () => 'b10', appVersion: () => '1.2.3', liveRuns: () => liveB,
+        abortRuns: () => {
+          events.push('abort');
+          // the abort signal lands; the run's finalizer settles a tick later, then the registry drops it
+          finalizer = () => {
+            try { guardedWrite(settlement, JSON.stringify({ runId: 'run-b10', entry: { usd: 0.42 } })); events.push('settled'); }
+            catch (e) { events.push('settle-failed:' + e.code); }
+            liveB = 0;
+          };
+        },
+        onFreeze: () => { events.push('freeze'); frozenB = true; }, onThaw: () => { events.push('thaw'); frozenB = false; },
+        sleep: async () => { clockB += 25; if (finalizer) { const fn = finalizer; finalizer = null; fn(); } }
+      });
+      const forcedB = await prepB.prepare({ targetVersion: '1.3.0', force: true, browserStore: {} });
+      A.eq(forcedB.ok, true, 'INSTALL ANYWAY still produces a verified recovery point');
+      A.eq(events, ['abort', 'settled', 'freeze'], 'INSTALL ANYWAY: abort, let the aborted run settle its spend, THEN freeze durable writes');
+      A.ok(fs.existsSync(settlement), 'the aborted run\'s spend settlement is on disk, not stranded');
+      const snapB = Recovery.readBundle(forcedB.receipt.snapshot.file);
+      A.eq(snapB.files.some(row => row.path === 'spend-pending/settlement-run-b10.json'), true, 'and it rides inside the pre-update recovery point');
+      A.eq(forcedB.receipt.liveRuns, 0, 'the forced receipt is quiescent');
+      A.eq(frozenB, true, 'durable writes are frozen once the recovery point exists');
+      prepB.cancel();
+      fs.rmSync(path.join(workspace, 'spend-pending'), { recursive: true, force: true });
+    }
+
+    // A run that ignores the abort never gets durable writes frozen under it: the bounded drain times out and the
+    // station stays fully writable (no recovery point, no install).
+    {
+      const events = [];
+      let clockC = 9000;
+      const prepC = makeUpdatePreparation({
+        fs, path, recovery: Recovery, writeDurable: writeFileDurable, workspaceRoot: workspace,
+        now: () => clockC, newId: () => 'stuck', liveRuns: () => 1, abortRuns: () => { events.push('abort'); },
+        onFreeze: () => { events.push('freeze'); }, onThaw: () => { events.push('thaw'); },
+        sleep: async () => { clockC += 25; }
+      });
+      const stuck = await prepC.prepare({ targetVersion: '1.3.0', force: true, timeoutMs: 500, browserStore: {} });
+      A.eq(stuck.ok, false, 'a run that never drains refuses the update');
+      A.eq(stuck.code, 'UPDATE_QUIESCENCE_TIMEOUT', 'with the quiescence code');
+      A.eq(events.includes('freeze'), false, 'durable writes were never frozen while the run was still live');
+      A.eq(prepC.isFrozen(), false, 'the HTTP barrier is released');
+      A.eq(prepC.beginRequest('POST', '/api/roster').ok, true, 'mutations work again');
+      const refused = await makeUpdatePreparation({
+        fs, path, recovery: Recovery, writeDurable: writeFileDurable, workspaceRoot: workspace,
+        liveRuns: () => 1, abortRuns: () => { events.push('abort-unforced'); }, sleep: async () => {}
+      }).prepare({ targetVersion: '1.3.0', browserStore: {} });
+      A.eq(refused.code, 'UPDATE_RUNS_ACTIVE', 'without INSTALL ANYWAY live runs still refuse the update');
+      A.eq(events.includes('abort-unforced'), false, 'and nothing is aborted');
+    }
+
     A.report('update-preparation.test');
   } finally {
     try {
