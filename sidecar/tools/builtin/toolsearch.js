@@ -32,8 +32,13 @@
     'my', 'is', 'it', 'that', 'this', 'can', 'use', 'used', 'get', 'tool', 'tools']);
 
   function terms(s) {
-    return String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9_.]+/)
+    const out = String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9_.]+/)
       .filter(t => t && t.length > 1 && !STOP.has(t));
+    /* a model searches by the WIRE name it was shown ("station_control"), which is the registry's dotted name with '_'
+       for '.' — the search found "no match" for it (Gemini real-model run, 2026-10-08). Each underscored term also
+       searches as its dotted twin; the original stays, because some real names have underscores (web_search). */
+    for (const t of out.slice()) if (t.indexOf('_') >= 0) { const d = t.replace(/_/g, '.'); if (out.indexOf(d) < 0) out.push(d); }
+    return out;
   }
 
   /* Score a tool against the query. The LEAF of a dotted name ('browser.screenshot' -> 'screenshot') is what
