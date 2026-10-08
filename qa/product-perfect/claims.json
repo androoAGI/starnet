@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "12a242aadb88ce5a44fabbb857febfcb12d3ea40",
+    "sourceCommit": "2cf71035830c59c99e8ddc9468bd4b9397ae23fc",
     "pathSetSha256": "02b89ce2d893cfb89a028e02d127dfe9f73466048d2fc0c7572bba244cdfea2f",
     "files": [
       {
@@ -768,8 +768,8 @@
       },
       {
         "path": "frontend/app/places.js",
-        "bytes": 11093,
-        "sha256": "267cc0249d557e0b97c0fc95739a4d13252e29fca121a9b78df91c904a642fae"
+        "bytes": 11262,
+        "sha256": "537d1abb29c9346cb3fa3dd059611f4ed0738e3d0069a32ce0954108e2d99eac"
       },
       {
         "path": "frontend/app/planpreview.js",
