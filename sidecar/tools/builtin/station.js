@@ -49,6 +49,14 @@
       return out && out.ok ? { ok: true, result: out.result } : { ok: false, error: String((out && out.error) || 'the station did not answer') };
     }
     const refuse = (error, summary) => ({ content: 'REFUSED: ' + error + ' — do not report this action as done.', summary: summary || 'refused' });
+    // {from, to} when `next` is `prev` with ONE word replaced everywhere (a name swap), else null — the first differing word decides
+    function nameSwap(prev, next) {
+      if (typeof prev !== 'string' || typeof next !== 'string' || prev === next) return null;
+      let i = 0; while (i < prev.length && i < next.length && prev[i] === next[i]) i++;
+      while (i > 0 && /[\w-]/.test(prev[i - 1])) i--;
+      const from = (prev.slice(i).match(/^[\w-]+/) || [])[0], to = (next.slice(i).match(/^[\w-]+/) || [])[0];
+      return from && to && from !== to && prev.split(from).join(to) === next ? { from, to } : null;
+    }
 
     const listTool = {
       name: 'session.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
@@ -203,6 +211,15 @@
         previousText: { type: 'string' }, text: { type: 'string', maxLength: 20000 }
       } },
       run: async (args) => {
+        /* A RENAME IS NOT A PERSONA EDIT (approval-mode run 2026-10-08, Claude Haiku 4.5): "rename NOVA to VEGA" rewrote the
+           identity text ("You are NOVA…" → "You are VEGA…") and reported "renamed" while the crew list still said NOVA. An
+           identity edit whose ONLY change is one word swapped everywhere is refused toward the real rename. */
+        const swap = args && args.field === 'identity' ? nameSwap(args.previousText, args.text) : null;
+        if (swap) {
+          return refuse('this edit only swaps "' + swap.from + '" for "' + swap.to + '" inside the identity text, which does not rename the agent — '
+            + 'its name is changed with station.control {"action": "agent.rename", "args": {"agent": "' + String(args.agentId || '') + '", "name": "' + swap.to + '"}} '
+            + '(tool.search "station control" if you do not have it)', 'a rename, not a persona edit');
+        }
         if (scanText && args && typeof args.text === 'string') {
           let scan; try { scan = scanText(args.text); } catch (e) { scan = { ok: false, error: 'the instruction scan failed' }; }
           if (!scan || scan.ok !== true) {

@@ -145,6 +145,22 @@ const refused = r => /^REFUSED: /.test(r.content);
     const src = require('fs').readFileSync(require('path').join(__dirname, '../frontend/app/stationcommands.js'), 'utf8');
     A.ok(/if \(!a\.look \|\| typeof a\.look !== 'object' \|\| !Object\.keys\(a\.look\)\.length\) throw new Error/.test(src), 'and the page itself refuses an empty look');
   }
+  // ---- "rename NOVA to VEGA" through team.configure's identity text is refused toward agent.rename ----
+  {
+    const { makeStationTools } = require('../sidecar/tools/builtin/station.js');
+    const calls = [];
+    const bridge = { request: async (verb, a) => { calls.push(verb); return { ok: true, result: { saved: true } }; } };
+    const cfg = makeStationTools({ station: bridge }).agentConfigureTool;
+    const prev = 'You are NOVA, the resident generalist. NOVA keeps answers short.';
+    const swap = await cfg.run({ agentId: 'agent', field: 'identity', previousText: prev, text: prev.split('NOVA').join('VEGA') });
+    A.ok(/^REFUSED: this edit only swaps "NOVA" for "VEGA"/.test(swap.content) && /"action": "agent\.rename", "args": \{"agent": "agent", "name": "VEGA"\}/.test(swap.content),
+      'a pure name swap in the identity text is refused, naming the exact agent.rename call');
+    A.eq(calls.length, 0, 'and nothing reaches the page');
+    const real = await cfg.run({ agentId: 'agent', field: 'identity', previousText: prev, text: 'You are VEGA, a careful researcher. VEGA cites sources.' });
+    A.ok(!/^REFUSED/.test(real.content) && calls.length === 1, 'a real persona rewrite (more than a name) still saves');
+    const purpose = await cfg.run({ agentId: 'agent', field: 'purpose', previousText: 'Help NOVA', text: 'Help VEGA' });
+    A.ok(!/^REFUSED/.test(purpose.content), 'only the identity field is guarded');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);
