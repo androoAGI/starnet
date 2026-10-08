@@ -259,6 +259,9 @@ function fakeStack(tools) {
   A.eq(popularGroups([{ category: 'Other', connectors: [{ id: 'custom' }] }])[0].category, 'Other', 'no empty popular heading');
   const keyCard = renderCatalog({ id: 'key', name: 'Key service', authType: 'apikey', homepage: 'https://example.com', blurb: 'test' });
   A.ok(keyCard.includes('SET UP API KEY') && keyCard.includes('Paste it below, then choose CONNECT'), 'key setup states the next action before submission');
+  const viaCard = renderCatalog({ id: 'supliful', name: 'Supliful', platformApi: true, apiVia: 'Shopify Admin API', authType: 'apikey', blurb: 'test' });
+  A.ok(viaCard.includes('via Shopify Admin API') && !viaCard.includes('✓ official API'), 'a platform with no API of its own never claims a first-party API');
+  A.ok(renderCatalog({ id: 'printify', name: 'Printify', platformApi: true, authType: 'apikey', blurb: 'test' }).includes('✓ official API'), 'first-party platform APIs keep their badge');
   A.ok(/state === 'up'/.test(station), 'the connect result badge reflects the real manager state, not an assumption');
   // on-theme styling for the new cards
   A.ok(/\.cc-card/.test(css) && /\.cc-grid/.test(css) && /\.cc-chip/.test(css), 'catalog card styles present');
@@ -345,6 +348,16 @@ function fakeStack(tools) {
   A.ok(rejectedRow.includes('Sign in below') && rejectedRow.includes('data-act="resign"'), 'rejected OAuth grant has a visible recovery instruction and sign-in action');
   A.ok(rejectedRow.includes('Error &amp; connection details') && rejectedRow.includes('Rejected &lt;grant>'), 'complete error stays inspectable and escaped');
   A.ok(!rejectedRow.includes('· OAuth authorized'), 'stored rejected OAuth grant does not claim authorization');
+  // A saved-token row whose catalog entry now signs in (Intercom 2026-10-07) gets the SAME sign-in engine and says the
+  // token survives until approval — EDIT → OAUTH, the only other route, drops the token before the browser opens.
+  const switchRow = renderService({id:'intercom',label:'Intercom',catalogSignIn:true,enabled:true,state:'up',hasToken:true,url:'https://mcp.intercom.com/mcp',toolCount:15},0);
+  A.ok(switchRow.includes('data-act="resign"') && switchRow.includes('⏼ SIGN IN') && switchRow.includes('only after you approve'),
+    'a saved-token row on a now-OAuth catalog service offers a sign-in that keeps the token until approval');
+  A.ok(!renderService({id:'docs',enabled:true,state:'up',hasToken:true,url:'https://example.test'},0).includes('data-act="resign"'), 'an ordinary token row offers no sign-in');
+  for (const src of [station, webStation]) {
+    A.ok(/const c = found && found\.oauth \? found : null;/.test(A.fnBody(src, 'async function ccSignIn(')),
+      'the sign-in poll counts only an OAuth row as signed in (a saved-token row is already up before consent)');
+  }
   const toolsRow = renderService({id:'docs',state:'up',enabled:true,tools:['read_docs','search_docs'],toolCount:2,url:'https://example.test'},0);
   A.ok(toolsRow.includes('2 tools') && /<details[\s\S]*read_docs[\s\S]*search_docs[\s\S]*<\/details>/.test(toolsRow), 'tools remain fully inspectable without an always-expanded tool wall');
   A.ok(/\.mc-row\s*\{[^}]*flex-direction:\s*column/.test(css), 'shared record cards stack instead of inheriting the legacy horizontal header');

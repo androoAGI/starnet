@@ -239,6 +239,18 @@ const SPRITES = (() => {
   function releaseBodyLight(canvas) { canvas.width = canvas.height = 1; }
   function dropBodyLight(key, canvas) { bodyLights.delete(key); bodyLightPixels -= canvas.width * canvas.height; releaseBodyLight(canvas); }
   function lightLive(c) { const g = c.getContext('2d'); return !!(g && !(g.isContextLost && g.isContextLost())); }
+  /* A GPU reset (sleep, driver update) loses every canvas at once, and a RESTORED context comes back blank while
+     isContextLost() reads false again: a kept frame would then draw an idle body as nothing, for as long as it stays
+     kept. Any light canvas reporting loss or restoration drops both tiers — every pair rebuilds on its next draw. */
+  function flushBodyLights() {
+    for (const c of bodyLights.values()) releaseBodyLight(c);
+    for (const t of probation.values()) releaseBodyLight(t.c);
+    bodyLights.clear(); probation.clear(); lightPool.length = 0; bodyLightPixels = 0;
+  }
+  function watchLight(c) {
+    try { c.addEventListener('contextlost', flushBodyLights); c.addEventListener('contextrestored', flushBodyLights); } catch (_) {}
+    return c;
+  }
   function lightFrame(frame, light, nowMs) {
     if (!light) return frame;
     let id = frameIds.get(frame);
@@ -269,7 +281,7 @@ const SPRITES = (() => {
       const w = frame.width | 0, h = frame.height | 0;
       if (!w || !h || w * h > 262144) return frame;
       canvas = lightPool.pop();
-      if (canvas) bodyLightRecycled++; else canvas = document.createElement('canvas');
+      if (canvas) bodyLightRecycled++; else canvas = watchLight(document.createElement('canvas'));
       canvas.width = w; canvas.height = h;   // also clears a recycled bitmap and resets its state
       const g = canvas.getContext('2d');
       if (!g || (g.isContextLost && g.isContextLost())) { releaseBodyLight(canvas); return frame; }

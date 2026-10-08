@@ -461,9 +461,11 @@ const Conveyor = (() => {
         return;
       }
       let view = views.get(cv);
-      if (!view) views.set(cv, view = { a: 0, e: 0, f: 0, still: 0, atlas: null });
-      const same = view.a === m.a && view.e === m.e && view.f === m.f;
-      view.still = same ? view.still + 1 : 0; view.a = m.a; view.e = m.e; view.f = m.f;
+      if (!view) views.set(cv, view = { a: 0, e: 0, f: 0, w: 0, h: 0, belts: null, still: 0, atlas: null });
+      // still = the camera, the canvas size AND the layout held for this draw (a BUILD-mode paint-drag lays a new
+      // belts array per tile: no sheet is built for a layout that changes again next frame)
+      const same = view.a === m.a && view.e === m.e && view.f === m.f && view.w === cv.width && view.h === cv.height && view.belts === belts;
+      view.still = same ? view.still + 1 : 0; view.a = m.a; view.e = m.e; view.f = m.f; view.w = cv.width; view.h = cv.height; view.belts = belts;
       if (!same) dropAtlas(view);
       const s = m.a, W = cv.width, H = cv.height, tilePx = T * s, shown = [];
       for (const b of belts) {
@@ -505,6 +507,10 @@ const Conveyor = (() => {
       if (sheet) { const g = sheet.getContext('2d'); if (!g || (g.isContextLost && g.isContextLost())) { dropAtlas(view); return false; } }
       else {
         sheet = document.createElement('canvas'); sheet.width = at.cols * at.S; sheet.height = at.rows * at.S;
+        // a GPU reset loses the sheet, and a RESTORED one comes back blank while isContextLost() reads false: either
+        // event drops this atlas, so a still camera never blits empty belts (the next still draw rebuilds it)
+        const lose = () => { if (view.atlas === at) dropAtlas(view); };
+        try { sheet.addEventListener('contextlost', lose); sheet.addEventListener('contextrestored', lose); } catch (_) {}
         const g = sheet.getContext('2d');
         if (!g) return false;
         const nowQ = q * ROLL_MS / at.phases;

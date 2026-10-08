@@ -590,7 +590,7 @@ A.eq(Conveyor.weightForUsd(0.004), 0.004, 'a sub-cent run reads as a near-weight
   };
   const sheets = [];
   const prevDoc = global.document;
-  global.document = { createElement: tag => { const c = { tag, width: 0, height: 0, ctx: rec() }; c.getContext = () => c.ctx; c.ctx.canvas = c; sheets.push(c); return c; } };
+  global.document = { createElement: tag => { const c = { tag, width: 0, height: 0, ctx: rec(), on: {} }; c.getContext = () => c.ctx; c.ctx.canvas = c; c.addEventListener = (n, f) => { (c.on[n] = c.on[n] || []).push(f); }; c.emit = n => (c.on[n] || []).forEach(f => f()); sheets.push(c); return c; } };
   const stage = rec(); stage.canvas = { width: 400, height: 300 };
   const belts = [{ x: 0, y: 0, dir: 'E' }, { x: 1, y: 0, dir: 'E' }, { x: 2, y: 0, dir: 'E' }, { x: 90, y: 90, dir: 'E' }];   // the last is far off-canvas
   const cv = Conveyor.create(), draw = (t, tf) => { stage.ops.length = 0; stage.tf = tf; cv.drawBelts(stage, t, 12, belts, null); return stage.ops; };
@@ -616,6 +616,23 @@ A.eq(Conveyor.weightForUsd(0.004), 0.004, 'a sub-cent run reads as a near-weight
   const moved = draw(300, [0.8, 0, 0, 0.8, 11, 20.5]);
   A.ok(moved.some(o => o[0] === 'fill') && !moved.some(o => o[0] === 'img'), 'a moving camera draws live again');
   A.ok(sheets.slice(0, made + 1).every(c => c.width === 1), '...and frees the still camera\'s sheets');
+  // a layout edit under a still camera (BUILD mode laying belts): live until the new layout has held for two draws
+  const edit = Conveyor.create(); stage.tf = tf;
+  for (let i = 0; i < 3; i++) { stage.ops.length = 0; edit.drawBelts(stage, 500 + i * 33, 12, belts, null); }
+  const before = sheets.length, laid = belts.concat([{ x: 3, y: 0, dir: 'E' }]);
+  stage.ops.length = 0; edit.drawBelts(stage, 600, 12, laid, null);
+  A.ok(stage.ops.some(o => o[0] === 'fill') && !stage.ops.some(o => o[0] === 'img') && sheets.length === before, 'a fresh layout draws live and builds no sheet');
+  stage.ops.length = 0; edit.drawBelts(stage, 633, 12, laid, null); stage.ops.length = 0; edit.drawBelts(stage, 666, 12, laid, null);
+  A.eq(stage.ops.filter(o => o[0] === 'img').length, 4, '...and blits once it has held still (four shown tiles)');
+  // a GPU reset: a restored sheet is blank while its context reads alive — the event drops the atlas
+  const gpu = Conveyor.create(); stage.tf = tf;
+  for (let i = 0; i < 3; i++) { stage.ops.length = 0; gpu.drawBelts(stage, 700, 12, belts, null); }
+  const held = stage.ops.find(o => o[0] === 'img')[1];
+  held.emit('contextrestored');
+  A.eq(held.width, 1, 'a restored (blank) sheet is released');
+  stage.ops.length = 0; gpu.drawBelts(stage, 700, 12, belts, null);
+  const rebuilt = stage.ops.find(o => o[0] === 'img');
+  A.ok(rebuilt && rebuilt[1] !== held, '...and the still camera blits from a freshly drawn sheet, never the blank one');
   const cold = Conveyor.create(); stage.tf = tf;
   for (let i = 0; i < 3; i++) { stage.ops.length = 0; cold.drawBelts(stage, 100 + i * 40, 12, belts, {}); }
   const coldSheets = sheets.length;

@@ -158,7 +158,15 @@ const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 {
   A.ok(C.categories().indexOf('Design') >= 0, 'Design category present (Canva/Webflow/Wix)');
   for (const id of ['gitlab', 'vercel', 'asana', 'canva', 'paypal', 'square', 'neon', 'netlify', 'monday', 'webflow', 'wix']) A.eq((C.get(id) || {}).authType, 'oauth', id + ' is an oauth connector');
-  for (const id of ['airtable', 'prisma', 'intercom']) A.eq((C.get(id) || {}).authType, 'apikey', id + ' is a paste-a-key connector');
+  for (const id of ['airtable', 'prisma']) A.eq((C.get(id) || {}).authType, 'apikey', id + ' is a paste-a-key connector');
+  // Intercom accepts ANY bearer for initialize + tools/list and rejects a bad one only at tools/call, so a pasted
+  // token could never prove itself at connect time (green card, every call failing). It signs in with OAuth+DCR.
+  A.eq((C.get('intercom') || {}).authType, 'oauth', 'intercom signs in with OAuth (a pasted token is unverifiable at connect)');
+  A.eq(C.installConfig('intercom'), null, 'the OAuth start/callback flow owns Intercom setup (no paste-a-key install)');
+  // saved Intercom key rows may switch to sign-in; only a row that RETIRED key auth carries the flag (GitHub's PAT stays a choice)
+  A.eq(C.get('intercom').keyAuthRetired, true, 'intercom marks its retired paste-a-key tier');
+  A.ok(C.list().filter(e => e.keyAuthRetired).every(e => e.authType === 'oauth' && !!e.url), 'only reachable OAuth rows carry keyAuthRetired');
+  A.ok(!('keyAuthRetired' in C.get('github')) && !('keyAuthRetired' in C.get('notion')), 'rows that never retired key auth carry no flag (no extra bytes)');
   for (const id of ['cloudflare-docs', 'microsoft-learn']) { const e = C.get(id); A.eq(e.authType, 'none', id + ' is zero-setup'); A.eq(e.installable, true, id + ' installs with no key'); }
   A.ok(C.list().length >= 30, 'catalog now carries a substantial verified set (30+)');
 }
