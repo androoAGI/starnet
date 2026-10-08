@@ -286,9 +286,15 @@
       url: 'https://mcp.squareup.com/mcp', official: true, homepage: 'https://squareup.com',
       blurb: 'Payments, catalog, and orders on Square. Needs Square sign-in (OAuth).' },
     // CRM & Sales
-    { id: 'intercom', name: 'Intercom', category: 'CRM & Sales', authType: 'apikey', transport: 'http',
+    /* intercom: retiered apikey → oauth 2026-10-07. Live probe: the server 401s a keyless initialize but answers
+       initialize + tools/list 200 for ANY bearer and only rejects a bad one at tools/call ("Access Token Invalid"
+       inside an isError result) — so a mistyped pasted token showed a green, fully-listed connector whose every
+       call failed. OAuth+DCR live-probed the same day: RFC 7591 registration MINTS a public PKCE client against
+       the loopback redirect, and the authorize URL renders Intercom's "StarNet wants to access your Intercom
+       workspace" consent page. A signed-in grant is a real account, so `up` means usable again. */
+    { id: 'intercom', name: 'Intercom', category: 'CRM & Sales', authType: 'oauth', transport: 'http',
       url: 'https://mcp.intercom.com/mcp', official: true, homepage: 'https://intercom.com',
-      blurb: 'Search Intercom conversations, contacts, and articles. Paste an Intercom access token.' },
+      blurb: 'Search Intercom conversations, contacts, and articles. Needs Intercom sign-in (OAuth).' },
 
     /* ── WAVE 4 (all live-probed 2026-08-28 with the sidecar's own handshake — initialize → RFC 9728/8414
        discovery → RFC 7591 registration MINTING a real PKCE client against the loopback redirect; the open
