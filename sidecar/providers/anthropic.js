@@ -105,10 +105,13 @@
      adaptive/enabled thinking, and sending it WITHOUT the beta header is itself a 400 — so the two always travel
      together. Conservative list: the models the docs name as enforcing (Mythos 5.1 accepts it without enforcing).
      Anything else that still answers "bound to a different conversation" is caught by the strip-and-retry rescue in
-     wireStream, so an unlisted future model degrades to one extra request, never a dead run. */
+     wireStream, so an unlisted future model degrades to one extra request, never a dead run.
+     Haiku 5.5 runs the same check (claude-api skill, model-migration "Migrating to Claude Haiku 5.5"); its OFF is a
+     plain `disabled`, which never carries block_binding (applyThinking returns before adding it). */
   const BINDING_CLAUDE = [
     'claude-fable-5-1', 'claude-fable-5.1', 'claude-mythos-5-1', 'claude-mythos-5.1',
-    'claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-sonnet-5.5'
+    'claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-sonnet-5.5',
+    'claude-haiku-5-5', 'claude-haiku-5.5'
   ];
   const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
 
@@ -425,6 +428,12 @@
     let catalogPromise = null;
     let catalogRewarmAt = 0;
     let rewarmKicked = false;
+    // #90: the HTTP status of the last /models answer the API REFUSED (401 bad key, 403 wrong scope …); 0 when the
+    // last answer loaded or never arrived. The catalog stays [] either way — only the key check reads this.
+    let catalogStatus = 0;
+    // and the error of the last /models request that never got an answer (DNS, refused connection, proxy): the key
+    // check names THAT cause (#62 wording) instead of blaming the key. null once anything answered.
+    let catalogError = null;
 
     function maybeRewarmCatalog() {
       if (catalog && catalog.length) return;
@@ -833,13 +842,15 @@
       if (catalog && catalog.length) return catalog;
       if (!catalogPromise) {
         catalogPromise = (async () => {
+          let res = null;
           try {
-            const res = await doFetch(baseUrl + '/models', { headers: headerBag(key, 'application/json') });
-            if (!res.ok) return [];
+            catalogStatus = 0; catalogError = null;
+            res = await doFetch(baseUrl + '/models', { headers: headerBag(key, 'application/json') });
+            if (!res.ok) { catalogStatus = Number(res.status) || 0; return []; }
             const j = await res.json();
             const raw = Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : []);
             return raw.map(normalizeModel).filter(Boolean);
-          } catch (_) { return []; }
+          } catch (e) { if (!res) catalogError = e; return []; }
         })();
       }
       catalog = await catalogPromise;
@@ -847,6 +858,8 @@
       return catalog;
     }
     async function listModels() { return (await loadCatalog()).map(m => Object.assign({}, m)); }
+    function catalogHttpStatus() { return catalogStatus; }
+    function catalogFetchError() { return catalogError; }
     function findModel(id) { return catalog ? catalog.find(m => m.id === id) : null; }
     function contextLimit(id) { const m = findModel(id); return (m && m.context_length) || defaultContext; }
     // Anthropic's API never reports a price, and returning null here left spentUsd at 0.00 for the whole run
@@ -859,7 +872,7 @@
     // dock asks this before a catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return effortsFor(id); }
 
-    return { stream, listModels, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    return { stream, listModels, catalogHttpStatus, catalogFetchError, contextLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag } };
