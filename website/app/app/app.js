@@ -1221,8 +1221,11 @@ const App = (() => {
   // auto-requisitioned — it opens the agent-binding picker on placement; the Commander places + binds it by hand,
   // which is the honest one desk-per-agent path). Degrades safely: if any control isn't found we still leave BUILD MODE
   // open on its default tool, which is already a real improvement over the old unclickable "Open BUILD MODE" sentence.
-  function openDeskPlacement() {
+  function openDeskPlacement(agentId) {
     if (typeof Build === 'undefined' || !Build.open) return;
+    // (2026-10-07) BUILD MODE arms the desk FOR this agent: the next floor click drops it and seats them there —
+    // no CONFIGURE step. The DOM drive below stays only as the fallback for a Build without placeDeskFor.
+    if (agentId && Build.placeDeskFor) { try { if (Build.placeDeskFor(agentId)) return; } catch (_) {} }
     try { if (!Build.isOpen || !Build.isOpen()) Build.open(); } catch (_) { return; }
     // BUILD MODE builds its palette synchronously in open()->buildDOM, but retarget across a couple of rAFs to be safe
     // against any deferred render. Each pass clicks only what isn't already active, so it's idempotent + cheap.
