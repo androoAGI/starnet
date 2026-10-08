@@ -9108,6 +9108,9 @@ const Chat = (() => {
     const callNames = {};   // callId -> tool name (the frozen agent.tool_result has no name field)
     const seenDeliv = {};   // title -> true (one openable row per produced file)
     let runToolsOk = 0, runDeliv = 0, thisRunId = null;   // per-run work tally → the "rate the work" beat's size + delivery gate
+    // this run's own station.control estop.engage came back OK (its result names the action): the halt it scheduled is what
+    // cancels it a moment later, so its stop line says so and offers no TRY AGAIN (a retry would press the E-STOP again)
+    let runPressedEstop = false;
     let runStartedAt = 0;   // P3.2: this lead run's start wall-clock → the window claimCrew uses to attribute forwarded worker spend
     activeLiveRow = streamingAgent();
     let acc = '';
@@ -9227,7 +9230,7 @@ const Chat = (() => {
         // sse.js:runTeeView — so the in-band stream stays the richest source for the page that started the run.)
         // callId joins it to its tool_call; isError drives the success-vs-failure surge. `summary`/`ms` ride
         // along per the frozen event shape so any consumer sees the result's own words, never a bare 'error'.
-        onToolResult: ev => { if (!ev.isError) runToolsOk++; const nm = callNames[ev.callId] || 'tool'; Channels.addToolResult(ws.id, { callId: ev.callId, name: nm, summary: ev.summary, isError: ev.isError, ms: ev.ms }); presenceToolResult(ws); if (isActiveWs(ws)) resolveChip(ev, nm); if (typeof U !== 'undefined' && U.bus && ev.callId) U.bus.emit('agent.tool_result', { name: nm, agentId: ws.agentId, runId: ev.runId, callId: ev.callId, ok: !ev.isError, isError: !!ev.isError, summary: ev.summary, ms: ev.ms }); },   // runId rides along: a runId-less copy reset xp.js's per-run buffer (freshRun(undefined)) and wiped buffered memory-reuse credit
+        onToolResult: ev => { if (!ev.isError) runToolsOk++; const nm = callNames[ev.callId] || 'tool'; if (!ev.isError && /^station[._]control$/.test(nm) && ev.summary === 'estop.engage') runPressedEstop = true; Channels.addToolResult(ws.id, { callId: ev.callId, name: nm, summary: ev.summary, isError: ev.isError, ms: ev.ms }); presenceToolResult(ws); if (isActiveWs(ws)) resolveChip(ev, nm); if (typeof U !== 'undefined' && U.bus && ev.callId) U.bus.emit('agent.tool_result', { name: nm, agentId: ws.agentId, runId: ev.runId, callId: ev.callId, ok: !ev.isError, isError: !!ev.isError, summary: ev.summary, ms: ev.ms }); },   // runId rides along: a runId-less copy reset xp.js's per-run buffer (freshRun(undefined)) and wiped buffered memory-reuse credit
         onDeliverable: ev => {
           // BROWSER window: every write (not just the first per run) — it live-reloads the page on screen and, with
           // FOLLOW on, shows a new web page as it's made. Before the per-run dedupe on purpose.
@@ -9351,13 +9354,13 @@ const Chat = (() => {
           // budget door) or a reason the label doesn't name. Your own interrupt → the card alone tells the truth.
           const stopLine = endReason === 'max_iters' ? 'reached the step limit — say "continue" to keep going'
             : endReason === 'budget' ? budgetStopLine(budgetScope, budgetCapUsd, budgetCapIsBalance)
-            : endReason === 'cancelled' ? (interrupted.has(ws.id) ? '' : 'run cancelled')
+            : endReason === 'cancelled' ? (interrupted.has(ws.id) ? '' : runPressedEstop ? 'stopped by the E-STOP this run pressed — RESUME AUTOMATION (top bar) is yours alone' : 'run cancelled')
             : 'stopped (' + endReason + ')';
           if (isActiveWs(ws)) { breakLive(); if (stopLine) toolLine('⏹ ' + stopLine); }
           markStoppedTurn(ws, replyText);
           // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the StarNet
           // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
-          if (isActiveWs(ws)) { if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
+          if (isActiveWs(ws) && !(endReason === 'cancelled' && runPressedEstop)) { if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? 'run stopped: ' + endReason
             : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),
             'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
