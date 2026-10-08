@@ -158,6 +158,17 @@
       recordStrict,
       settleUnsettled,
       unsettledRuns() { return [...unsettled.values()].map(r => Object.assign({}, r)); },
+      // the Commander's settlement of an interrupted run, or null: { usd, attestedAs } from its attested row (the run
+      // history reads this to stop calling a settled run spend-unknown). Newest-first, no copy of the whole log.
+      attestedFor(runId) {
+        const id = str(runId);
+        if (!id) return null;
+        for (let i = rows.length - 1; i >= 0; i--) {
+          const r = rows[i];
+          if (r && r.runId === id && r.attested === true) return { usd: num(r.usd), attestedAs: r.attestedAs === 'limit' ? 'limit' : 'entered' };
+        }
+        return null;
+      },
       pendingRuns() { return pending.size; },
       all() { return rows.map(r => Object.assign({}, r)); },
       count() { return rows.length; },

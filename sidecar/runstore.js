@@ -56,6 +56,7 @@
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
   const REASONS = new Set(['done', 'max_iters', 'budget', 'cancelled', 'error', 'empty', 'refusal', 'clarifying', 'interrupted']);
   const RECOVERY_STATUSES = new Set(['recoverable', 'needs_review', 'resolved', 'recovering', 'continued', 'forensic']);
+  const SETTLED_AS = new Set(['entered', 'limit']);   // how an interrupted run's spend was settled (ledger attestedAs)
   const ERROR_MAX = 240;
   const DEFAULT_LIMIT = 200;        // a sane cap so list() never returns an unbounded history
   const TITLE_MAX = 120;
@@ -306,7 +307,17 @@
       if (REASONS.has(e.continuedReason)) entry.continuedReason = e.continuedReason;
       const recoveryOf = str(e.recoveryOf).slice(0, 100);
       if (recoveryOf) entry.recoveryOf = recoveryOf;
-      if (e.spendUnknown === true) entry.spendUnknown = true;
+      // SETTLED SPEND (additive, 2026-10-08): the Commander settled this interrupted run's unknown spend in SETTINGS ›
+      // SPENDING LIMITS, so `usd` is the booked figure and `spendSettled` says how ('entered' | 'limit' — mirrors the
+      // ledger's attestedAs). A settlement is a fact about money; a later recovery-status update for the same run is
+      // not, so it inherits the settlement instead of re-opening the spend as unknown.
+      const prior = (e.reason === 'interrupted' && entry.runId) ? chains.get(entry.runId) : null;
+      const settledAs = SETTLED_AS.has(e.spendSettled) ? e.spendSettled
+        : (prior && prior.latest && SETTLED_AS.has(prior.latest.spendSettled) ? prior.latest.spendSettled : '');
+      if (settledAs) {
+        entry.spendSettled = settledAs;
+        if (!SETTLED_AS.has(e.spendSettled)) entry.usd = num(prior.latest.usd);
+      } else if (e.spendUnknown === true) entry.spendUnknown = true;
       // ROUTINE HISTORY (additive, 2026-10-01): the scheduled routine this run fired for, so a routine's past runs are
       // one filter away (GET /api/cron/history). Present only on scheduled runs; every other row stays byte-identical.
       const cronJobId = str(e.cronJobId).slice(0, 100);
@@ -364,8 +375,22 @@
       return null;
     }
 
+    /* settleSpend(runId, usd, how) — the Commander settled an interrupted run's unknown spend (POST /api/budget/settle,
+       after the ledger booked it). Appends ONE superseding row for the run's interrupted chain carrying the booked
+       figure, so INSIGHTS and the run row stop calling it spend-unknown; every other field is the run's served row.
+       Only a served interrupted row whose spend is still unknown qualifies (null otherwise): a settled run is never
+       settled twice and an ordinary run's history is never rewritten. */
+    function settleSpend(runId, usd, how) {
+      const row = latest(runId);
+      if (!row || row.reason !== 'interrupted' || row.spendUnknown !== true || !SETTLED_AS.has(how)) return null;
+      if (typeof usd !== 'number' || !isFinite(usd) || usd < 0) return null;
+      const next = Object.assign({}, row, { usd, spendSettled: how });
+      delete next.spendUnknown; delete next.ts;   // ts: this update's own time (reads serve the chain's first ts)
+      return record(next);
+    }
+
     return {
-      record, list, latest,
+      record, list, latest, settleSpend,
       all() { return rows.filter(r => !updates.has(r)).map(view); },
       count() { return rows.length - updates.size; }
     };

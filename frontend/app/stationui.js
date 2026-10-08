@@ -6462,8 +6462,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const row = document.createElement('div');
         row.className = 'set-row bg-unsettled';
         const where = [r.provider, r.model].filter(Boolean).join(' · ');
-        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' + (where ? ' (it started on ' + where + ')' : '') +
-          '. Enter the charge your provider dashboard shows for it: StarNet books it once and your spending limits can be checked again.');
+        // WHERE the charge is: a run on StarNet credits (receipt managed:true) was billed to the managed account, so its
+        // charge is in the STORE's RECENT ACTIVITY (AI & MODELS), which lists each charge with its run id — on a linked
+        // station and an operator (env) one alike — not on a provider dashboard the user never had.
+        const managed = r.managed === true;
+        const chargedBy = managed ? 'what StarNet charged' : 'what your provider charged';
+        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' +
+          (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
+          (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as run ' + String(r.runId).slice(0, 8)
+            : '. Enter the charge your provider dashboard shows for it') + ': StarNet books it once and your spending limits can be checked again.');
         const what = document.createElement('span');
         what.className = 'bg-un-what';
         const name = document.createElement('b');
@@ -6475,7 +6482,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         usd.className = 'key-input bg-cap bg-un-usd';
         usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
         usd.setAttribute('inputmode', 'decimal'); usd.setAttribute('autocomplete', 'off');
-        usd.setAttribute('aria-label', 'what your provider charged for this run, in USD');
+        usd.setAttribute('aria-label', chargedBy + ' for this run, in USD');
         const btn = document.createElement('button');
         btn.className = 'bb sm'; btn.textContent = 'SETTLE';
         btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
@@ -6484,13 +6491,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
           capBtn = document.createElement('button');
           capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
-          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so your provider dashboard has the exact charge');
+          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so ' + (managed ? 'the STORE’s RECENT ACTIVITY' : 'your provider dashboard') + ' has the exact charge');
           btns.push(capBtn);
         }
         btn.addEventListener('click', () => {
           const raw = String(usd.value).trim();
           const n = raw === '' ? NaN : Number(raw);
-          if (!Number.isFinite(n) || n < 0) { setMsg('enter what your provider charged for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
+          if (!Number.isFinite(n) || n < 0) { setMsg('enter ' + chargedBy + ' for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
           settleRun(r, { usd: n }, btns);
         });
         if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));

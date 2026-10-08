@@ -3145,6 +3145,14 @@ const App = (() => {
           refreshStarnetGenesisStatus();
           return false;
         }
+        // the balance is HELD by this station's own running StarNet runs (friendlyerror's managed_credit_held, audit
+        // B11): it reads $0 but it was read, so it is neither "no credits" nor "couldn't read" — waiting frees it
+        if (/Managed credits are held|balance is held by/i.test(wire.why)) {
+          msg.textContent = 'your StarNet balance is held by runs still working on this station — each refunds what it doesn’t spend. Wait for them to finish, then WAKE again'
+            + (pickedProvider === 'starnet' ? ' (or press ＄ ADD CREDITS above).' : ', or use your own provider key.');
+          refreshStarnetGenesisStatus();
+          return false;
+        }
         msg.textContent = /Out of managed credit/i.test(wire.why)
           ? 'your StarNet account has no credits — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'
           : 'StarNet couldn’t read your credit balance right now — try WAKE again in a moment, or use your own provider key.';

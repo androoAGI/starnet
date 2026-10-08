@@ -770,7 +770,7 @@ const num = (v, d) => { if (v == null || String(v).trim() === '') return d; cons
 // SKYNET_CONNECTOR_DEFER_BYTES / _TOOLS override; 0 switches that axis off (both 0 = never defer a connector).
 const CONNECTOR_DEFER = { bytes: num(ENV('CONNECTOR_DEFER_BYTES'), 8192), tools: num(ENV('CONNECTOR_DEFER_TOOLS'), 12) };
 let lastToolFootprintLog = '';   // de-dupes the [tools] footprint log line to changes, not every run
-// Users may retune any cap in SETTINGS → BUDGET (0/blank = no cap); environment variables
+// Users may retune any cap in SETTINGS › SPENDING LIMITS (0/blank = no cap); environment variables
 // still override for locked-down deploys. Unmetered subscription runs remain ungoverned.
 const BUDGET_SHIPPED = budgetCaps.shippedDefaults();
 const BUDGET_CAPS = {
@@ -2604,7 +2604,7 @@ function providerCredentialError(provider) {
   if (registryProviderUsesDeviceOAuth(id)) return 'sign in to ' + label + ' first - a signed-in subscription + model are required';
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
   // are remedies that do not exist for it — the one real remedy is (re)linking the station.
-  if (id === 'starnet') return 'link this station to a StarNet account (SETTINGS -> PROVIDERS -> STARNET MANAGED) to run on credits';
+  if (id === 'starnet') return 'link this station to a StarNet account (SETTINGS -> AI & MODELS -> STARNET MANAGED) to run on credits';
   if (providerRequiresBaseUrl(id)) return 'configure the ' + label + ' base URL';
   if (providerRequiresKey(id)) return 'connect a ' + label + ' API key';
   return 'provider is not configured';
@@ -13223,7 +13223,8 @@ async function handleBudgetSettle(req, res) {
   if (!open) return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
   let usd;
   if (body.mode === 'limit') {
-    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
+    // a StarNet-credit receipt's charge is in the STORE's RECENT ACTIVITY (listed by run id), not on a provider dashboard
+    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: open.managed === true ? 'this run recorded no per-run limit — enter what StarNet charged for it (SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists each charge with its run id)' : 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
     usd = open.runCapUsd;
   } else {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
@@ -13236,6 +13237,10 @@ async function handleBudgetSettle(req, res) {
     failNote('budget.settle', e);
     return json(500, { error: 'the settlement could not be saved to disk — restart StarNet to recover it', code: 'spend_history_unavailable' });
   }
+  // The spend is KNOWN now: restamp the run's history row (fsync'd append) so INSIGHTS and the run row stop calling it
+  // spend-unknown. The ledger row above is the authority — a row this could not restamp (not scanned yet, or a failed
+  // append) is healed from it by syncInterruptedRunHistory at the next scan/boot.
+  try { runStore.settleSpend(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); } catch (e) { failNote('budget.settle.history', e); }
   console.log('[budget] interrupted run ' + runId + ' settled at $' + usd + (body.mode === 'limit' ? ' (its per-run limit)' : ' (entered by the Commander)'));
   return handleBudgetStatus(req, res);
 }
@@ -18844,6 +18849,7 @@ async function runOnceCore(o) {
   let runCapUsd = (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd
     : (providerUnmetered ? Infinity
     : ((effectiveCaps.perRun > 0 && isFinite(effectiveCaps.perRun)) ? effectiveCaps.perRun : Infinity));
+  let runCapIsBalance = false;   // managed admission: the ceiling IS the reported StarNet balance (set below)
   // o.ceilingUsd (a line hop: what is left of the line's $ ceiling) only ever LOWERS the cap (QA 2026-10-02)
   if (!providerUnmetered && typeof o.ceilingUsd === 'number' && isFinite(o.ceilingUsd) && o.ceilingUsd >= 0 && !(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);
   // Same rule as o.maxCostUsd for the TURN budget: an explicit caller cap (o.maxIters -- e.g. a delegated
@@ -18872,18 +18878,23 @@ async function runOnceCore(o) {
     // ONLY a number the service reported is a balance. A failed refresh leaves null, and Number(null) is 0 — that
     // read a slow/5xx/revoked balance check as a known $0 and told funded customers they were out of credit.
     const avail = (snap && typeof snap.balanceUsd === 'number' && isFinite(snap.balanceUsd)) ? snap.balanceUsd : NaN;
+    const chosenCapUsd = (runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0;   // the cap in force BEFORE the wallet clamp
     runCapUsd = budgetCaps.managedRunCapUsd((runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT);
+    // When the clamp LOWERED a chosen cap to the balance (or no cap was chosen and the default reached it), the wallet,
+    // not a cap the user chose, is what this run may spend. Its 'run' stop then says "used what was left on your
+    // StarNet balance — add credits", never "hit the $X per-run spend cap — raise it" (raising PER RUN does nothing
+    // there). A PER RUN that merely EQUALS the wallet stays a cap stop. loopEmit stamps it.
+    runCapIsBalance = budgetCaps.managedCapIsBalance(chosenCapUsd, runCapUsd, avail);
     // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
     // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
+    // A reported $0 that this station's OWN running StarNet runs hold (a proxy-off backend books each reservation as a
+    // debit) is not an empty wallet: it says "held by N running runs — wait, lower PER RUN, or top up" (audit B11),
+    // never "out of credit". budgetCaps.managedRefusalMessage owns the wording; credits.held() + the balance are the proof.
     const refuseManaged = (exhausted) => {
       const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
-      const msg = exhausted
-        ? 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).'
-        : linkRefused
-          ? 'Managed credits are unavailable — your StarNet account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).'
-          : 'Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).';
+      const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null, balanceUsd: avail });
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !exhausted && !linkRefused, reason: 'billing', message: msg });
+      emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     };
     if (!(runCapUsd > 0)) {
@@ -21252,6 +21263,11 @@ async function runOnceCore(o) {
     // LINE WATCH: the loop's own run.start is the normal path's — it must name the bay/crate like every early-exit
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.dockId || runStartExtra.workitemId)) payload = Object.assign({}, payload, runStartExtra);
+    // BALANCE CEILING (additive, like completionVerdict below): this run's per-run stop fired at the ceiling admission
+    // clamped to the StarNet balance, so every stop line names the balance + the top-up door, not a cap to raise.
+    // A failover's own (lower) ceiling or the unpriced-token seatbelt carries a different cap and is left alone.
+    if (runCapIsBalance && name === 'agent.run.end' && payload && payload.runId === runId && payload.reason === 'budget' && payload.budgetScope === 'run'
+      && typeof payload.budgetCapUsd === 'number' && Math.abs(payload.budgetCapUsd - runCapUsd) < 1e-9) payload = Object.assign({}, payload, { budgetCapIsBalance: true });
     if (((taskBrief || imageTask) || o.postconditions != null) && name === 'agent.run.end' && payload && payload.runId === runId && payload.reason === 'done') {
       bufferedTaskEnd = payload; return;
     }
@@ -24985,13 +25001,19 @@ function syncInterruptedRunHistory(r) {
   const next = interruptedRecoveryState(r);
   const continuedRunId = String(next.continuedRunId || '');
   const continuedReason = String(next.continuedReason || '');
+  // A run the Commander SETTLED (SETTINGS › SPENDING LIMITS) has known spend: the ledger's attested row is the
+  // authority, so a row written before/without the settle's restamp converges to it (runstore keeps it across later
+  // status updates). Unsettled stays spendUnknown — never a guessed $0.
+  let settled = null;
+  if (!(existing && existing.spendSettled)) { try { settled = ledger.attestedFor(r.runId); } catch (e) { failNote('run-history.settled', e); } }
   if (existing && existing.recoveryStatus === next.status && String(existing.continuedRunId || '') === continuedRunId
-    && String(existing.continuedReason || '') === continuedReason) return null;
+    && String(existing.continuedReason || '') === continuedReason && !settled) return null;
   const startedAt = Number(meta.startedAt || r.firstTs || 0) || 0;
   const endedAt = Math.max(startedAt, Number(r.lastTs || 0) || 0);   // the last durable journal record = last proof of life
   return runStore.record({
     runId: r.runId, agentId: String(meta.agentId || 'agent'), provider: String(meta.provider || ''),
-    reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0, usd: 0, spendUnknown: true,
+    reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0,
+    usd: settled ? settled.usd : 0, spendUnknown: !settled, spendSettled: settled ? settled.attestedAs : '',
     title: String(meta.userTitle || ''), streamId: String(meta.streamId || ''), model: String(meta.model || ''),
     surface: meta.surface, recoveryOf: String(meta.recoveryOf || ''), parentRunId: String(meta.parentRunId || ''),
     startedAt, endedAt, durationMs: endedAt - startedAt,

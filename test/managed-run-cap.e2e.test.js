@@ -77,6 +77,7 @@ const CALL_USD = 0.75;   // what the relay charges per completion in this fixtur
     assert.equal(r.end.reason, 'budget', 'the run stops at the per-run ceiling with reason budget (got ' + r.end.reason + ')');
     assert.equal(r.end.budgetScope, 'run', 'the stop names the per-RUN cap');
     assert.equal(r.end.budgetCapUsd, 2, 'the stop carries the $2 cap it hit, so the chat line can say so');
+    assert.equal(r.end.budgetCapIsBalance, undefined, 'a $2 ceiling under a $10 wallet is a cap, not the balance');
     assert.ok(charged <= 2 + CALL_USD + 1e-9, 'total charged stays within the cap plus one in-flight completion (charged $' + charged + ' over ' + chatCalls + ' calls)');
     assert.ok(balance >= 10 - 2 - CALL_USD - 1e-9, 'most of the wallet is left ($' + balance + ')');
 
@@ -91,6 +92,9 @@ const CALL_USD = 0.75;   // what the relay charges per completion in this fixtur
     assert.equal(reserveOf(), 1.2, 'a $1.20 wallet reserves $1.20 (clamped), it is not refused as out of credit');
     assert.equal(r.end.reason, 'budget', 'the small-wallet run ends at its ceiling, honestly (got ' + r.end.reason + ')');
     assert.ok(!/Out of managed credit/.test(r.text), 'a funded wallet is never told it is out of credit');
+    // spend-truth B4: that ceiling WAS the wallet, so the stop says so (the COMMS line names the balance + top-up door)
+    assert.equal(r.end.budgetScope, 'run'); assert.equal(r.end.budgetCapUsd, 1.2);
+    assert.equal(r.end.budgetCapIsBalance, true, 'a ceiling clamped to the balance is marked as the balance on agent.run.end');
 
     // ---- 3. a SAVED per-run cap is authoritative: higher ($5) and lower ($1) both replace the default ----
     let save = await fixture.json('POST', '/api/budget/caps', { perRun: 5 });
@@ -100,6 +104,16 @@ const CALL_USD = 0.75;   // what the relay charges per completion in this fixtur
     assert.equal(reserveOf(), 5, 'a saved $5 per-run cap reserves $5');
     assert.equal(r.end.reason, 'budget'); assert.equal(r.end.budgetCapUsd, 5, 'and stops at the user\'s $5, not the $2 default');
     assert.ok(chatCalls > Math.ceil(2 / CALL_USD), 'the higher saved cap really allowed more work than the default (' + chatCalls + ' calls)');
+    assert.equal(r.end.budgetCapIsBalance, undefined, 'a chosen $5 cap under a $10 wallet is not the balance');
+    // a saved cap ABOVE the wallet (customer report 2026-10-06: PER RUN $100 on $79) reserves the wallet and its stop
+    // says it used the balance — "raise your $100 cap" would be advice that does nothing
+    save = await fixture.json('POST', '/api/budget/caps', { perRun: 100 });
+    assert.equal(save.status, 200, 'saving a $100 per-run cap succeeds');
+    reset(4);
+    r = await run('saved-above-wallet');
+    assert.equal(reserveOf(), 4, 'a $100 cap on a $4 wallet reserves the $4 wallet');
+    assert.equal(r.end.reason, 'budget'); assert.equal(r.end.budgetCapUsd, 4, 'and stops at the wallet');
+    assert.equal(r.end.budgetCapIsBalance, true, 'and the stop is marked as the balance, not the $100 cap');
     save = await fixture.json('POST', '/api/budget/caps', { perRun: 1 });
     assert.equal(save.status, 200, 'saving a $1 per-run cap succeeds');
     reset(10);

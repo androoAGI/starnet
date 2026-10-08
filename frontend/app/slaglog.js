@@ -43,6 +43,12 @@
           cause: 'The agent ran ' + (turns ? 'all ' + turns + ' turns' : 'its full iteration budget') + ' but never closed out the task.',
           fix: 'Tighten the ask, or give its bay the tool it kept reaching for — a cabinet for files, a console for compute.' };
       case 'budget':
+        // a StarNet run whose ceiling was the WALLET (agent.run.end budgetCapIsBalance — admission clamped it to the
+        // reported balance): raising a budget buys nothing there, and COMMS already says "add credits" for the same stop
+        if (ctx.atBalance === true)
+          return { reason, title: 'used the rest of the StarNet balance',
+            cause: 'The run used what was left on your StarNet balance before it delivered.',
+            fix: 'Add credits under SETTINGS → AI & MODELS to keep going, or split the work into smaller work-items.' };
         if (cacheKnown && Number(ctx.cacheFrac) < COLD_CACHE)
           return { reason, title: 'budget cap on a cold cache',
             cause: 'The run hit its cap with the prompt-cache cold (' + cachePct + '%), so repeated input could not reuse much cache.',
