@@ -17,9 +17,9 @@
    `unpriced` rather than being guessed at, exactly like the Perplexity entry in registry.js.
 
    KNOWN IMPRECISION, stated rather than hidden:
-     · Long-context tiers are not modelled. Gemini 2.5 Pro and the Claude 1M-context beta bill a higher rate
-       above a prompt threshold, so a very long prompt UNDER-reports here (the cap fires later than it
-       should, never earlier).
+     · Long-context tiers are not modelled. Gemini 2.5 Pro, the Claude 1M-context beta and Claude Haiku 5.5
+       (5x above a 100K-token prompt) bill a higher rate above a prompt threshold, so a very long prompt
+       UNDER-reports here (the cap fires later than it should, never earlier).
      · Cache reads/writes bill at different rates than fresh input. This IS now modelled (see CACHE below)
        for the families whose rates are published — anthropic.js asks for prompt caching, so leaving it
        unmodelled would have overstated most of the input bill on every run. A family with no CACHE entry
@@ -53,13 +53,16 @@
 
   // [pattern, { in, out }] — USD per MILLION tokens. Order matters: specific before family fallback.
   const ANTHROPIC = [
-    // Claude 5 family (claude-api skill reference, 2026-06-24; models.dev 2026-08-21 concurs)
-    [/^claude-fable-5/i,             { in: 10.00, out: 50.00 }],
+    // Claude 5 family (claude-api skill reference, 2026-06-24; models.dev 2026-08-21 concurs). The 5.5 rows and Sonnet 5
+    // re-checked 2026-10-08 against the claude-api skill "Current Models" table (cached 2026-10-06).
+    [/^claude-fable-5/i,             { in: 10.00, out: 50.00 }],  // fable 5 / 5.1 (5.1 cache reads are 0.025x: the family 0.10x over-reports them)
     [/^claude-mythos-5/i,            { in: 10.00, out: 50.00 }],  // Project Glasswing — same rate as Fable 5 (skill ref)
     [/^claude-mythos/i,              { in: 10.00, out: 50.00 }],  // mythos-preview: priced at the Fable/Mythos 5 rate (unverified id)
+    [/^claude-opus-5[-.]5/i,         { in: 4.00, out: 20.00 }],   // opus 5.5 (cache reads 0.05x: the family 0.10x over-reports them)
     [/^claude-opus-5/i,              { in: 5.00, out: 25.00 }],
-    [/^claude-sonnet-5/i,            { in: 3.00, out: 15.00 }],   // LIST rate; $2/$10 intro through 2026-08-31 — over-reports until then
+    [/^claude-sonnet-5/i,            { in: 2.00, out: 10.00 }],   // sonnet 5 and 5.5 share a rate ("at the same prices", skill ref)
     [/^claude-opus-4-[5678]/i,       { in: 5.00, out: 25.00 }],   // opus 4.5 / 4.6 / 4.7 / 4.8 share a rate
+    [/^claude-haiku-5[-.]5/i,        { in: 0.10, out: 0.50 }],    // prompts <= 100K tokens; longer prompts bill $0.50/$2.50 (see header)
     [/^claude-haiku-4-5/i,           { in: 1.00, out: 5.00 }],
     [/^claude-sonnet-4/i,            { in: 3.00, out: 15.00 }],   // sonnet 4 / 4.5 / 4.6 share a rate
     [/^claude-opus-4/i,              { in: 15.00, out: 75.00 }],  // opus 4 / 4.1 (4.5+ matched above)
