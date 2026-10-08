@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "726a842603fbe090e820accb626f500edd48dc10",
+    "sourceCommit": "608e6249138bc214d3c90daf6d2dee378471c471",
     "pathSetSha256": "9d1a8c60b20ee9ffa8edfe1a6fc1ca368f057a7b93f20a8e5d0e2959336fdc66",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 428081,
-        "sha256": "3f1c3c5a94cea2b4699fc1a75ec0d1754a22c71eebb81ab96ce1b3de69edf7e6"
+        "bytes": 428416,
+        "sha256": "a6cc3532f1c21cd9fcd43636a9b81063dab5ccdea678c3553c886b249a9352b2"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -333,8 +333,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 572604,
-        "sha256": "cbf55b449b7f1a5e507adb2156250a9f5418c20e4ed8e5cd0ac25be59cbfa16d"
+        "bytes": 573778,
+        "sha256": "4f6d0ed0aa364784746e8600858c0cd3874b6c29f06e04fa46bef8c9290c92d5"
       },
       {
         "path": "frontend/app/channels.js",
@@ -343,8 +343,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 718245,
-        "sha256": "60d4b5b5353a13609c55b248cea43f95e2d36346c6d68e5502388b5a5f5d05b3"
+        "bytes": 718247,
+        "sha256": "4e828ff6ea1e51279f23e7ef276dfd6ce0c41de193afe3bdbd6f3a63ecd47abd"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -503,8 +503,8 @@
       },
       {
         "path": "frontend/app/friendlyerror.js",
-        "bytes": 56700,
-        "sha256": "8e55eadc1e26fca2fa02fc2fe793278b484eb2170c2028bec548e5e32315fae5"
+        "bytes": 55321,
+        "sha256": "4d8f28028a9d384a55a577c00fecc1987e4a8079591b43314661246fff2fcacc"
       },
       {
         "path": "frontend/app/fullscreen.js",
@@ -1648,8 +1648,8 @@
       },
       {
         "path": "frontend/css/refit-easy.css",
-        "bytes": 10136,
-        "sha256": "d8273c095034109965a07b827d7836dfbe16bb46ff79336d44272bb9f7f49aad"
+        "bytes": 11195,
+        "sha256": "97e52fd189e6c81aa42dd1fa739ec5c6e9aa07c5db3e80d4895de1bc04541ae9"
       },
       {
         "path": "frontend/css/refit-kit.css",
