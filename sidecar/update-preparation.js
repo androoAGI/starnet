@@ -94,6 +94,8 @@ function makeUpdatePreparation(deps) {
         snapshot: { file: bundleFile, bytes: written.bytes, sha256: written.sha256, manifestSha256: written.manifestSha256 },
         semanticFingerprint: fingerprint,
         requirements: readBack.report && readBack.report.requirements || [],
+        // entries the capture could not read (#91: vanished/locked/unresolvable) — the receipt never implies a byte-complete station
+        unreadable: (readBack.report && Array.isArray(readBack.report.skipped) ? readBack.report.skipped : []).filter(s => /^unreadable: /.test(String(s && s.reason))),
         browserKeys: Array.isArray(readBack.browser) ? readBack.browser.length : 0
       };
       writeDurable({ fs: fs, path: path }, receiptFile, JSON.stringify(nextReceipt, null, 2) + '\n');
