@@ -23741,6 +23741,10 @@ async function handleProviderValidate(req, res) {
     }
     const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
     const models = await provider.listModels();
+    // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
+    // models" — same words as the credential-probe branch above. Adapters that keep no status keep the old line.
+    const refusedStatus = !models.length && typeof provider.catalogHttpStatus === 'function' ? Number(provider.catalogHttpStatus()) || 0 : 0;
+    if (refusedStatus) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: refusedStatus, error: refusedStatus === 401 || refusedStatus === 403 ? 'provider rejected this key (HTTP ' + refusedStatus + ')' : 'credential probe HTTP ' + refusedStatus });
     if (!models.length) return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: 'provider returned no usable models for this key' });
     // A custom endpoint may expose /models without authenticating it. When a candidate key was supplied, prove
     // the actual inference wire with a bounded tiny response before allowing replacement.
