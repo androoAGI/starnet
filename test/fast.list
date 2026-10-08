@@ -326,6 +326,7 @@ test/deliverable-provenance.test.js
 test/deliverable-note.test.js
 test/deliverables-ui.test.js
 test/deliverables-open.test.js
+test/selectable-windows-87.test.js
 test/work-recap.test.js
 test/qa-ledger.test.js
 test/qa-saboteur.test.js
