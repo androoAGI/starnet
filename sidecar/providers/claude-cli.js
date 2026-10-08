@@ -70,7 +70,34 @@
     '--no-session-persistence'
   ];
 
-  function textOf(content) {
+  /* IMAGES (2026-10-08). The CLI's stream-json INPUT takes Anthropic content blocks, images included (proven live:
+     Opus read a thumbnail's headline through `claude -p --input-format stream-json`). Plain text input has no image
+     channel, so a turn that carries an image rides stream-json and every other turn keeps the plain text stdin.
+     An image the API cannot take (an unsupported type, an unreadable reference, past the per-turn cap) keeps a note
+     in its place: the model is told a picture was there, never handed a description of one it did not get. */
+  const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const MAX_IMAGES = 20;   // the newest are sent; the loop already ages old screenshots out (TOOL_IMAGE_KEEP)
+  const IMAGE_MARK = '\u0000starnet-image-';
+  function imageBlockOf(p) {
+    let s = p && p.type === 'image_url' ? (p.image_url && (p.image_url.url != null ? p.image_url.url : p.image_url)) : null;
+    if (p && p.type === 'image' && p.source && typeof p.source === 'object') {
+      const src = p.source;
+      if (src.type === 'base64' && IMAGE_TYPES.indexOf(String(src.media_type || '').toLowerCase()) >= 0 && src.data) return { type: 'image', source: { type: 'base64', media_type: String(src.media_type).toLowerCase(), data: String(src.data) } };
+      if (src.type === 'url' && /^https?:\/\//i.test(String(src.url || ''))) return { type: 'image', source: { type: 'url', url: String(src.url) } };
+      return null;
+    }
+    s = String(s == null ? '' : s);
+    const m = /^data:([^;,]*?);base64,([\s\S]+)$/i.exec(s);
+    if (m) {
+      const media = (m[1] || '').toLowerCase().replace('image/jpg', 'image/jpeg');
+      return IMAGE_TYPES.indexOf(media) >= 0 ? { type: 'image', source: { type: 'base64', media_type: media, data: m[2].replace(/\s+/g, '') } } : null;
+    }
+    if (/^https?:\/\//i.test(s)) return { type: 'image', source: { type: 'url', url: s } };
+    return null;
+  }
+
+  // `images`, when given, collects each sendable image and leaves a mark where it sat (buildPrompt resolves the marks).
+  function textOf(content, images) {
     if (content == null) return '';
     if (typeof content === 'string') return content;
     if (!Array.isArray(content)) return typeof content.text === 'string' ? content.text : '';
@@ -78,8 +105,11 @@
     for (const p of content) {
       if (typeof p === 'string') parts.push(p);
       else if (p && typeof p.text === 'string') parts.push(p.text);
-      // The CLI's text input has no image channel: say so rather than silently dropping the attachment.
-      else if (p && (p.type === 'image_url' || p.type === 'image')) parts.push('[image attachment omitted — the Claude Code brain cannot see images]');
+      else if (p && (p.type === 'image_url' || p.type === 'image')) {
+        const block = images ? imageBlockOf(p) : null;
+        if (block) { parts.push(IMAGE_MARK + images.length + '\u0000'); images.push(block); }
+        else parts.push('[image attachment omitted — it could not be sent to the Claude Code brain]');
+      }
     }
     return parts.join('\n');
   }
@@ -158,11 +188,12 @@
     if (note) system.splice(0, system.length, prefix, ...(tp ? [tp] : []), DYNAMIC_BOUNDARY + '\n' + note);
     else if (tp) system.push(tp);
     const rest = messages.slice(i).filter(m => m && typeof m === 'object');
-    if (rest.length === 1 && rest[0].role === 'user') return { system: system.join('\n\n'), input: textOf(rest[0].content) };
+    const images = [];
+    if (rest.length === 1 && rest[0].role === 'user') return withImages({ system: system.join('\n\n'), input: textOf(rest[0].content, images) }, images);
     const lines = ['<conversation>'];
     for (const m of rest) {
-      if (m.role === 'user') lines.push('<user>\n' + textOf(m.content) + '\n</user>');
-      else if (m.role === 'system') lines.push('<system_note>\n' + textOf(m.content) + '\n</system_note>');
+      if (m.role === 'user') lines.push('<user>\n' + textOf(m.content, images) + '\n</user>');
+      else if (m.role === 'system') lines.push('<system_note>\n' + textOf(m.content, images) + '\n</system_note>');
       else if (m.role === 'tool') lines.push('<tool_result id="' + String(m.tool_call_id || '') + '">\n' + inertTags(textOf(m.content)) + '\n</tool_result>');
       else if (m.role === 'assistant') {
         let body = textOf(m.content);
@@ -179,7 +210,25 @@
     }
     lines.push('</conversation>');
     lines.push('Continue as the assistant: write only your next reply.');
-    return { system: system.join('\n\n'), input: lines.join('\n') };
+    return withImages({ system: system.join('\n\n'), input: lines.join('\n') }, images);
+  }
+
+  /* Resolve the image marks. No image: the plain text stdin, byte-identical to before. Images: the newest MAX_IMAGES
+     become numbered blocks after the text ("[image 1 — attached below]" in place), older ones a note; `input` is
+     then one stream-json user message and `streamJson` asks for --input-format stream-json. */
+  function withImages(prompt, images) {
+    if (!images.length) return prompt;
+    const first = Math.max(0, images.length - MAX_IMAGES);
+    const blocks = [];
+    const text = prompt.input.replace(/\u0000starnet-image-(\d+)\u0000/g, (_, k) => {
+      const idx = Number(k);
+      if (idx < first) return '[earlier image no longer attached]';
+      const n = idx - first + 1;
+      blocks.push({ type: 'text', text: 'Image ' + n + ':' }, images[idx]);
+      return '[image ' + n + ' — attached below]';
+    });
+    const content = [{ type: 'text', text }].concat(blocks);
+    return { system: prompt.system, input: JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n', streamJson: true, imageCount: blocks.length / 2 };
   }
 
   /* STREAMING CALL READER. Prose passes through as soon as it cannot be the start of a call; a call is announced
@@ -585,6 +634,7 @@
       const turn = ++seq;
       const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
       const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'], NO_TOOLS_ARGS);
+      if (prompt.streamJson) args.push('--input-format', 'stream-json');   // the turn carries images (see IMAGES)
       if (req.model) args.push('--model', String(req.model));
       const effort = String(req.reasoningEffort || '').trim().toLowerCase();
       if (EFFORTS.indexOf(effort) >= 0) args.push('--effort', effort);
@@ -766,9 +816,9 @@
       // The CLI reports its own billed cost per turn (see COST TRUTH above); there is no list-rate table here.
       priceOf() { return null; },
       supportsTools() { return true; },
-      // the CLI's text input has no image channel (textOf replaces an image with a note): a caller that needs the model to
-      // SEE an image must ask first — image_analyze used to report a confident description of a picture never sent
-      supportsImages() { return false; },
+      // a turn with an image rides the CLI's stream-json input as real image blocks (see IMAGES), so image_analyze's
+      // session fallback can use a Claude Code agent's own model
+      supportsImages() { return true; },
       reasoningEfforts() { return EFFORTS.slice(); }
     };
   }
