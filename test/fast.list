@@ -634,6 +634,7 @@ test/comms-tools.test.js
 test/acp-core.test.js
 test/workstreams.test.js
 test/workstreams.search-perf.test.js
+test/workstreams.latest-visible.test.js
 test/session-power-tools.test.js
 test/session-creation.test.js
 test/projects-view.test.js
