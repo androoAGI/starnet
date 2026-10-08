@@ -47,4 +47,32 @@ function resolveConnectorOauthTarget(id, catalog, configs) {
   };
 }
 
-module.exports = { sameEndpoint, resolveConnectorOauthTarget };
+/* A saved token-based HTTP row whose catalog entry now signs in with OAuth (Intercom, 2026-10-07: its server accepts
+   ANY bearer until tools/call, so a pasted key could never prove itself). The row keeps running on its token; this
+   only says the panel may offer SIGN IN. That path goes through resolveConnectorOauthTarget above (the saved row is
+   not custom, so the catalog entry wins) and the callback swaps token for grant in one durable write after consent —
+   unlike EDIT → OAUTH, which saves oauth:true and drops the token before the browser opens. */
+function catalogSignInAvailable(row, catalog) {
+  if (!row || row.oauth || row.transport !== 'http' || !row.url) return false;
+  const entry = catalog && typeof catalog.get === 'function' ? catalog.get(String(row.id || '')) : null;
+  // keyAuthRetired: the catalog itself stopped offering key auth for this service. GitHub still offers a PAT beside its
+  // device sign-in, so a PAT row there is a choice, not a leftover — it must not be told to switch.
+  return !!(entry && entry.authType === 'oauth' && entry.keyAuthRetired === true && entry.url && sameEndpoint(row.url, entry.url));
+}
+
+/* The config the OAuth callback persists with the new grant. OAuth always uses the protected token store, so a
+   pasted key must not survive beside it in ANY form: cfg.token is cleared and every Authorization header is dropped
+   (the upsert route already strips them for OAuth rows; a row arriving from a saved key could otherwise send
+   "Bearer <old>, Bearer <grant>" when the header was stored lowercase). A missing field only a pasted key could fill
+   (token, an Authorization header) is satisfied by the grant; other missing fields still keep the row disabled. */
+function signedInConfig(currentCfg, pending) {
+  const cur = currentCfg && typeof currentCfg === 'object' ? currentCfg : {};
+  const keyOnly = f => f === 'oauth' || f === 'token' || /^header:authorization$/i.test(String(f));
+  const missingFields = Array.isArray(cur.missingFields) ? cur.missingFields.filter(f => !keyOnly(f)) : [];
+  const headers = Object.assign({}, cur.headers && typeof cur.headers === 'object' && !Array.isArray(cur.headers) ? cur.headers : {});
+  for (const k of Object.keys(headers)) if (String(k).toLowerCase() === 'authorization') delete headers[k];
+  return Object.assign({}, cur, { id: pending.id, transport: 'http', url: pending.serverUrl, token: '', headers: headers,
+    label: cur.label || pending.label, enabled: missingFields.length === 0, oauth: true, missingFields: missingFields });
+}
+
+module.exports = { sameEndpoint, resolveConnectorOauthTarget, catalogSignInAvailable, signedInConfig };

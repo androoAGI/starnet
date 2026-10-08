@@ -218,7 +218,7 @@ const Updates = (() => {
     let body = null;
     try { body = await r.json(); } catch (_) {}
     if (!r.ok || !body || body.ok !== true || !body.receipt) {
-      throw new Error((body && (body.error || body.code)) || ('update preparation HTTP ' + r.status));
+      throw Object.assign(new Error((body && (body.error || body.code)) || ('update preparation HTTP ' + r.status)), { code: (body && body.code) || '' });
     }
     state.preparationReceipt = body.receipt;
     return body.receipt;
@@ -296,6 +296,16 @@ const Updates = (() => {
       await prepareUpdate(!!opts.force);
     } catch (e) {
       state.phase = 'available';
+      // The SIDECAR is the authority on live runs: a routine, hop or background worker this window never lit still
+      // refuses a plain install. That is the GB-4 choice (WAIT / INSTALL ANYWAY), never a dead-end error card. At least
+      // one agent is working (the sidecar proved a live run), so the count is the confirmed busy agents or 1.
+      if (e && e.code === 'UPDATE_RUNS_ACTIVE' && !opts.force) {
+        state.confirmRuns = Math.max(1, liveRunCount());
+        busy = false;
+        notify('Update paused - ' + CORE.installBlockReason(state.confirmRuns, false), 'warn');
+        emit();
+        return snapshot();
+      }
       state.error = 'Pre-update recovery point failed - ' + cleanError(e);
       busy = false;
       notify('Update paused - no verified recovery point was created', 'warn');
@@ -494,6 +504,7 @@ const Updates = (() => {
 
   return {
     init, refreshStatus, check, install, preInstallDrain, snapshot, settingsHtml, wireSettings, render,
+    openReleasesPage,   // the full installer (keeps all data) — the forward-version gate's door, which has no Update Center
     phase: () => state.phase,
     // True once an update install has committed — quitguard.js reads this so it never blocks the
     // macOS/Linux app.restart() close (Windows exits before restart, so it never asks).

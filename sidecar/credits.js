@@ -47,6 +47,7 @@
       finishRun() { return { ok: true, settled: true, skipped: true }; },
       refresh() { return Promise.resolve(null); },
       snapshot() { return { configured: false, accountId: '', balanceUsd: null, purchaseUrl: '', authStatus: 'absent', lastErrorStatus: 0 }; },
+      held() { return { runs: 0, usd: 0, counted: false }; },
       history() { return Promise.resolve({ entries: [] }); }
     };
   }
@@ -108,6 +109,14 @@
     // the ACCOUNT is low; otherwise two concurrent healthy runs could make each other's temporary holds look
     // like settled spend. Admission continues to use the raw cache and therefore cannot oversubscribe funds.
     const reservations = new Map();
+    // Does the BACKEND book a reservation as a real debit? The proxy-metered cloud answers every reserve/settle POST
+    // with `advisory: true` and never lowers the balance for it; a proxy-off deploy debits for real. Learned from the
+    // backend's own debit answer (null until one arrives). Only when it is true can a reported $0 be "held by runs".
+    let holdsCounted = null;
+    // Runs whose hold is still WORKING: admitted, and finishRun not yet called. A settle that fails leaves its hold in
+    // `reservations` (the warning math must keep counting money that never came back), but that run is over — held()
+    // must never call it "running" (review 2026-10-08: a failed settle made every later $0 read "held by 1 run").
+    const liveHolds = new Set();
     const emitFn = typeof opts.emit === 'function' ? opts.emit : null;
     // number or getter — index.js passes a getter so a live per-run cap change is picked up without a restart
     function lowThreshold() {
@@ -274,6 +283,7 @@
         if (cache.balanceUsd != null) setBalance(Math.max(0, cache.balanceUsd - amt), false, false);
         postJson('/v1/debit', { account: acct(), usd: amt, meta: meta || {} })
           .then(body => {
+            if (body && typeof body === 'object') holdsCounted = body.advisory !== true;
             if (!body || body.balanceUsd == null) return;
             if (typeof body.balanceUsd !== 'number' || !isFinite(body.balanceUsd)) {
               const malformed = new Error('credits debit response contained a non-numeric balance');
@@ -317,12 +327,13 @@
       if (!(capUsd > 0)) return billing.beginRun({ mode: 'byok', runId: str(o.runId), agentId: str(o.agentId) });
       const out = billing.beginRun({ mode: 'managed', accountId: acct(), runId: str(o.runId), agentId: str(o.agentId), capUsd });
       const status = out && out.ok && out.managed ? billing.status(str(o.runId)) : null;
-      if (status && !status.settled) reservations.set(str(o.runId), num(out.reservedUsd));
+      if (status && !status.settled) { reservations.set(str(o.runId), num(out.reservedUsd)); liveHolds.add(str(o.runId)); }
       return out;
     }
     function finishRun(o) {
       o = o || {};
       const runId = str(o.runId);
+      liveHolds.delete(runId);   // the run has ended whether or not this settle succeeds
       const out = billing.finishRun(o);
       // Refunds synchronously update the cache before billing returns. Remove this run's hold, then evaluate
       // the settled account balance (raw availability + any OTHER live reservations). A run that consumes its
@@ -347,6 +358,14 @@
       accountId() { return accountId; },
       purchaseUrl() { return purchaseUrl; },
       beginRun, finishRun, refresh, history,
+      // StarNet runs this station has in flight and what they reserve (only runs still working: an ended run's hold is
+      // not counted, settled or not). `counted`: the backend books those reservations against the balance (see
+      // holdsCounted), so a $0 it reports can be a hold.
+      held() {
+        let runs = 0, usd = 0;
+        for (const [rid, v] of reservations) { if (v > 0 && liveHolds.has(rid)) { runs++; usd += v; } }
+        return { runs, usd, counted: holdsCounted === true };
+      },
       snapshot() {
         return {
           configured: true, accountId, balanceUsd: cache.balanceUsd, at: cache.at, purchaseUrl,

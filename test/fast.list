@@ -38,6 +38,7 @@ test/ledger.test.js
 test/logbound.test.js
 test/budget.test.js
 test/budget-caps.test.js
+test/budget-stop-door.test.js
 test/fallback-chain.test.js
 test/configexport.test.js
 test/harness-import.test.js
@@ -125,6 +126,7 @@ test/sanitize.test.js
 test/errorclass.test.js
 test/billing.test.js
 test/credits.test.js
+test/managed-credit-held.test.js
 test/credits-link.test.js
 test/credits-store-recovery.test.js
 test/friendlyerror.test.js
@@ -261,6 +263,8 @@ test/autopilot-focus.test.js
 test/autopilot-focus-veto.test.js
 test/apiauth.test.js
 test/provider-key-check.test.js
+test/engine-credential.test.js
+test/engine-key-sync.test.js
 test/kimi-region.test.js
 test/apitickets.test.js
 test/outputbrowser.test.js
@@ -308,7 +312,9 @@ test/rename-migrate.test.js
 test/update-state-parity.test.js
 test/update-continuity.test.js
 test/update-preparation.test.js
+test/update-drain-wiring.test.js
 test/updates-install.test.js
+test/future-gate-update-door.test.js
 test/roster-clause.test.js
 test/agent-config-target.test.js
 test/notebookrestore.test.js
@@ -326,6 +332,7 @@ test/deliverable-provenance.test.js
 test/deliverable-note.test.js
 test/deliverables-ui.test.js
 test/deliverables-open.test.js
+test/selectable-windows-87.test.js
 test/work-recap.test.js
 test/qa-ledger.test.js
 test/qa-saboteur.test.js
@@ -344,6 +351,7 @@ test/website-pricing-hold.test.js
 test/website-docs-navigation.test.js
 test/website-skill-market.test.js
 test/genesis-starnet-link.test.js
+test/credits-status-wait.test.js
 test/qa-product-perfect-provenance.test.js
 test/qa-cartographer.test.js
 test/golden.test.js
@@ -573,7 +581,9 @@ test/ctx-model-catalog.test.js
 test/ctx-conversation-scope.test.js
 test/floorstats.test.js
 test/insights.test.js
+test/settle-restamps-run.test.js
 test/slaglog.test.js
+test/slag-known-error-kinds.test.js
 test/xp.test.js
 test/xp-crewsplit.test.js
 test/xpstore.test.js
@@ -627,8 +637,10 @@ test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js
 test/taint-lineage.test.js
+test/taint-refusal-copy.test.js
 test/taint-entry-origin.test.js
 test/routine-tools.test.js
+test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
@@ -641,6 +653,8 @@ test/projects-view.test.js
 test/prepare-node.test.js
 test/summon.id.test.js
 test/summon-desk-prompt.test.js
+test/desk-assign-easy.test.js
+test/desk-one-per-agent.test.js
 test/recruit-identity-ui.test.js
 test/subagents.test.js
 test/orchestration.test.js
@@ -888,6 +902,7 @@ test/code-mode.test.js
 test/output-artifacts.test.js
 test/station-recovery.test.js
 test/station-recovery-cli.test.js
+test/station-recovery-unreadable.test.js
 test/execution-profiles.test.js
 test/execution-settings.test.js
 test/execution-router.test.js
@@ -978,6 +993,7 @@ test/spend-authority.test.js
 test/workspace-probe-errors.test.js
 test/cdp-lifecycle.test.js
 test/budget-authority-ui.test.js
+test/settle-managed-copy.test.js
 test/staging-development-closure.test.js
 test/overseer-ui.test.js
 test/workspace-owner-election.test.js
@@ -1062,6 +1078,7 @@ test/userprops.test.js
 test/userprops-catalog.test.js
 test/userprops-side.test.js
 test/userprops-sweep.test.js
+test/starnet-door-names.test.js
 test/starnet-run-id-header.test.js
 test/tierlist.test.js
 test/model-tier-badges.test.js

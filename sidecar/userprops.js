@@ -136,13 +136,13 @@ function makeUserProps(deps) {
     if (!noun) return { ok: false, code: 'empty', message: 'Describe an object.' };
     if (noun.length > 60) return { ok: false, code: 'too_long', message: 'Keep it under 60 characters.' };
     const c = cloudCfg();
-    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 PROVIDERS first.' };
+    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
     let r;
     try { r = await request('POST', c.url + '/v1/props/preview', c.token, { noun }, START_TIMEOUT_MS); }
     catch (e) { note('userprops.preview.start', e); return { ok: false, code: 'unreachable', message: 'StarNet could not be reached. Check your connection and try again.' }; }
     const cloudMsg = r.j && r.j.error && r.j.error.message ? String(r.j.error.message).slice(0, 200) : '';
-    if (r.status === 402) return { ok: false, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 PROVIDERS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 PROVIDERS.' };
-    if (r.status === 401 || r.status === 403) return { ok: false, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 PROVIDERS.' };
+    if (r.status === 402) return { ok: false, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 401 || r.status === 403) return { ok: false, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
     if (r.status === 429) return { ok: false, code: 'busy', message: cloudMsg || 'Too many props right now. Try again shortly.' };
     if (r.status === 400) return { ok: false, code: (r.j && r.j.error && r.j.error.code) || 'invalid', message: cloudMsg || 'That description was not accepted.' };
     if (r.status === 404) return { ok: false, code: 'unsupported', message: 'Your StarNet account server does not offer previews yet.' };
@@ -181,9 +181,9 @@ function makeUserProps(deps) {
   // refusal (nothing was started, the claim can go); otherwise the start MAY have been accepted and is retried.
   function startAnswer(r, what) {
     const cloudMsg = r.j && r.j.error && r.j.error.message ? String(r.j.error.message).slice(0, 200) : '';
-    if (r.status === 402) return { ok: false, final: true, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 PROVIDERS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 PROVIDERS.' };
-    if (r.status === 401) return { ok: false, final: true, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 PROVIDERS.' };
-    if (r.status === 403) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'not_linked', message: cloudMsg || 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 PROVIDERS.' };
+    if (r.status === 402) return { ok: false, final: true, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 401) return { ok: false, final: true, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 403) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'not_linked', message: cloudMsg || 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
     if (r.status === 429) return { ok: false, final: true, code: 'busy', message: cloudMsg || 'Too many props right now. Try again shortly.' };
     if (r.status === 400 || r.status === 413) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'invalid', message: cloudMsg || 'That description was not accepted.' };
     if (r.status === 404) return { ok: false, final: true, code: 'unsupported', message: 'Your StarNet account server does not offer ' + what + ' yet.' };
@@ -195,7 +195,7 @@ function makeUserProps(deps) {
   // duplicate check BEFORE the network call; the cloud dedupes on the key, so a retried POST returns the same job.
   async function paidStart(claim, endpoint, body, what, isDuplicate) {
     const c = cloudCfg();
-    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 PROVIDERS first.' };
+    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
     const key = newKey();
     const entry = { ...claim, key, status: 'starting', startedAt: now(), endpoint, body };
     const claimed = await serial(() => {

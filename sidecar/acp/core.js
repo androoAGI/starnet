@@ -234,9 +234,12 @@
 
   /* A terminal reason the user must be TOLD about, because the transcript alone looks like a normal stop.
      Returned as a plain sentence appended as a final agent message chunk. */
-  function endNote(reason) {
+  function endNote(reason, atBalance) {
     const r = str(reason);
-    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under MISSION CONTROL → BUDGET.)';
+    // a StarNet run whose ceiling admission clamped to the balance (agent.run.end budgetCapIsBalance): raising a cap
+    // does nothing — the wallet ran out
+    if (r === 'budget' && atBalance === true) return '\n\n(stopped: this run used what was left on your StarNet balance — add credits in StarNet under SETTINGS → AI & MODELS.)';
+    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under SETTINGS › SPENDING LIMITS.)';
     if (r === 'max_iters') return '\n\n(stopped: reached the step limit for one turn — send "continue" to keep going.)';
     if (r === 'error') return '\n\n(stopped: the run failed inside StarNet — check the station log for the error.)';
     return '';
@@ -391,11 +394,15 @@
 
       let runId = '';
       let answer = '';
+      let leadRunId = '';
+      let stopAtBalance = false;   // this run's own budget stop was the StarNet balance (agent.run.end budgetCapIsBalance)
       const seen = new Map();   // callId -> { name, args }
 
       const onEvent = (name, payload) => {
         const q = payload || {};
-        if (name === 'agent.run.start') { runId = str(q.runId); return; }
+        if (name === 'agent.run.start') { runId = str(q.runId); if (!leadRunId) leadRunId = runId; return; }
+        // only the LEAD's end speaks for this turn (a delegated worker's run.end rides the same stream)
+        if (name === 'agent.run.end') { if (leadRunId && str(q.runId) === leadRunId) stopAtBalance = q.budgetCapIsBalance === true; return; }
 
         if (name === 'agent.token') {
           const delta = str(q.delta);
@@ -507,7 +514,7 @@
         s.run = null;
       }
 
-      const note = endNote(reason);
+      const note = endNote(reason, stopAtBalance);
       if (note) messageChunk(sessionId, note);
       if (answer.trim()) s.messages.push({ role: 'assistant', content: answer });
       if (s.messages.length > MAX_TURNS_KEPT) s.messages = s.messages.slice(-MAX_TURNS_KEPT);

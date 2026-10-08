@@ -286,9 +286,15 @@
       url: 'https://mcp.squareup.com/mcp', official: true, homepage: 'https://squareup.com',
       blurb: 'Payments, catalog, and orders on Square. Needs Square sign-in (OAuth).' },
     // CRM & Sales
-    { id: 'intercom', name: 'Intercom', category: 'CRM & Sales', authType: 'apikey', transport: 'http',
+    /* intercom: retiered apikey → oauth 2026-10-07. Live probe: the server 401s a keyless initialize but answers
+       initialize + tools/list 200 for ANY bearer and only rejects a bad one at tools/call ("Access Token Invalid"
+       inside an isError result) — so a mistyped pasted token showed a green, fully-listed connector whose every
+       call failed. OAuth+DCR live-probed the same day: RFC 7591 registration MINTS a public PKCE client against
+       the loopback redirect, and the authorize URL renders Intercom's "StarNet wants to access your Intercom
+       workspace" consent page. A signed-in grant is a real account, so `up` means usable again. */
+    { id: 'intercom', name: 'Intercom', category: 'CRM & Sales', authType: 'oauth', transport: 'http', keyAuthRetired: true,
       url: 'https://mcp.intercom.com/mcp', official: true, homepage: 'https://intercom.com',
-      blurb: 'Search Intercom conversations, contacts, and articles. Paste an Intercom access token.' },
+      blurb: 'Search Intercom conversations, contacts, and articles. Needs Intercom sign-in (OAuth).' },
 
     /* ── WAVE 4 (all live-probed 2026-08-28 with the sidecar's own handshake — initialize → RFC 9728/8414
        discovery → RFC 7591 registration MINTING a real PKCE client against the loopback redirect; the open
@@ -430,6 +436,9 @@
       id: e.id, name: e.name, category: e.category, authType: e.authType, transport: e.transport,
       url: e.url || '', googleApi: !!e.googleApi, deviceFlow: !!e.deviceFlow, official: !!e.official, homepage: e.homepage || '', blurb: e.blurb || '',
       via: e.via || '', keyHeader: e.keyHeader || '', local: !!e.local, appPassword: !!e.appPassword, installable: isInstallable(e),
+      // keyAuthRetired: this row USED to take a pasted key; saved key rows may switch to its sign-in (oauth-target.js).
+      // Emitted only where true so 70+ other cards carry no extra bytes.
+      ...(e.keyAuthRetired === true ? { keyAuthRetired: true } : {}),
       // staticOauth: fixed OAuth endpoints for an AS with no dynamic registration (Google). Deep-cloned.
       staticOauth: e.staticOauth ? {
         authorizationServer: e.staticOauth.authorizationServer,

@@ -149,7 +149,7 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   // team.resume: the stored task's taint rides along (resumeConnectorOptions resumedTaint) — never blame a clean resuming
   // lead's chat, and never promise that resuming from a new session unlocks it
   A.ok(/const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;/.test(src)
-    && /const taintCause = fromResume\s*\n\s*\? 'This run resumes a task first handed over from a chat with outside content/.test(src),
+    && /const taintCause = fromResume\s*\n\s*\? (?:\(unverified\s*\n\s*\? 'This run resumes a task whose original context StarNet could not verify[^\n]*\n[^\n]*\n\s*: )?'This run resumes a task first handed over from a chat with outside content/.test(src),
     'a resumed task\'s lock says it rides the stored task, checked BEFORE the handed-over-by-the-lead wording');
   A.ok(/resuming it stays under the same lock from any session/.test(src) && /\(resumedTaint\s*\n\s*\? 'hand the task over fresh \(not resumed\) from a new session/.test(src),
     'a resumed task\'s remedy is a fresh hand-over, not a resume from a new session');

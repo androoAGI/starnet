@@ -4771,7 +4771,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function refreshCreditsProvider() {
     const prior = creditsProv;
-    return Harness.api.get('/api/credits?history=0').catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
+    // the STORE's wait (wireCredits): a read that self-heals the link takes ~16s, past api.get's 15s default
+    return Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }).catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
       .then(j => {
         if (j && j.configured) {
           publishCreditsConfigured(true);
@@ -4924,8 +4925,23 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   // honest one-liner for where a just-saved key was stored. Falls back to the neutral "on this machine" until the
   // probe answers, so we never assert keychain-vs-browser before we actually know it.
-  function keyStoreClause() {
+  // #89: in the browser build a saved key / endpoint / backup pool / REMOVE is also handed to the station for routines
+  // (Harness resolves { engine }). When the station could NOT take that change, say what it means beside the result
+  // (a save: chat still works, unattended runs won't have it; a REMOVE: the station keeps using its copy). One toast
+  // slot, so an endpoint + key saved together never stack two copies of the same warning.
+  function warnIfStationLacksKey(res) {
+    const e = res && res.engine;
+    if (e && e.ok === false && e.error) notify('⚠ ' + e.error, 'warn', undefined, { key: 'engine-key' });
+  }
+  function keyStoreClause(res) {
     if (keychainModeKnown === true) return 'stored in your OS keychain';
+    // #89: the station proved it holds its own copy (presence only) — say both places, and which key routines use
+    const e = res && res.engine;
+    if (e && e.ok === true && !e.skipped && !e.stale) {
+      return e.keySource === 'environment'
+        ? 'stored in this browser and on this station (routines use the API key variable this station was started with)'
+        : 'stored in this browser and on this station, so routines can use it';
+    }
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
   }
@@ -5569,9 +5585,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // success UI waits for the PROVEN store: on desktop setKey resolves only after the keychain write lands
           // (browser localStorage resolves immediately). The old fire-and-forget toasted "✓ stored in your OS
           // keychain" over a rejected write — a keyless station that claimed connected with no re-entry hint.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
             invalidateProviderHealth(provider);
-            notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+            notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(res), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // clear the dock's no-key warning the instant a key lands
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();             // …and the world's keyless-brain banner
             rerender('settings');
@@ -5594,8 +5611,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const inp = body.querySelector('#pool-in-' + i);
           const keys = act === 'pool-clear' ? [] : String((inp && inp.value) || '').split(/[\n,;]+/).map(v => v.trim()).filter(Boolean);
           if (act === 'pool-save' && !keys.length) { notify('paste at least one backup key, or use CLEAR POOL', 'bad'); sfx('bad'); return; }
-          Promise.resolve(h.validateAndSetKeyPool ? h.validateAndSetKeyPool(keys, row.provider) : h.setKeyPool(keys, row.provider)).then(count => {
+          Promise.resolve(h.validateAndSetKeyPool ? h.validateAndSetKeyPool(keys, row.provider) : h.setKeyPool(keys, row.provider)).then(res => {
+            const count = (res && typeof res === 'object') ? Number(res.count) || 0 : res;   // { count, engine } (#89); a bare count from older hosts
             notify(count ? ('✓ ' + count + ' verified backup key' + (count === 1 ? '' : 's') + ' active only for ' + provName(row.provider)) : ('cleared backup keys for ' + provName(row.provider)), count ? 'good' : 'warn');
+            warnIfStationLacksKey(res);   // #89: …and whether the station's copy for routines followed
             rerender('settings');
           }).catch(err => { notify('✕ ' + ((err && err.message) || 'could not update backup keys'), 'bad'); sfx('bad'); });
         } else if (act === 'baseurl-edit') {
@@ -5615,7 +5634,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (inp) inp.value = norm;
           sfx('click');
           setMsg('saved — probing endpoint…', '');
-          Promise.resolve(h.setBaseUrl ? h.setBaseUrl(norm, row.provider) : null).then(() => {
+          Promise.resolve(h.setBaseUrl ? h.setBaseUrl(norm, row.provider) : null).then(res => {
+            warnIfStationLacksKey(res);   // #89: the endpoint saved, but the station could not keep its copy for routines
             invalidateProviderHealth(row.provider);
             // HONEST reachability check against the REAL endpoint — never claim connected without proof. probeProvider
             // round-trips /api/providers/probe; the same probe result feeds the provider card badge cache.
@@ -5631,9 +5651,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const v = inp ? inp.value.trim() : '';
           if (!v) { sfx('bad'); return; }
           // same proven-store contract as the add path: no success toast over a rejected keychain write.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(res => {
             invalidateProviderHealth(row.provider);
-            notify('✓ updated ' + provName(row.provider) + ' API key — ' + keyStoreClause(), 'good');
+            notify('✓ updated ' + provName(row.provider) + ' API key — ' + keyStoreClause(res), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // keep the dock's no-key warning honest after an edit
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
             rerender('settings');
@@ -5647,8 +5668,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // otherwise the armed confirm would "remove" nothing and the row would immortally re-render.
           const keylessCustomRm = row.provider === 'custom' && !row.key && !!row.baseUrl;
           if (b.dataset.armed) {
-            if (keylessCustomRm && h.setBaseUrl) { h.setBaseUrl('', 'custom'); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
-            else { if (h.setKey) h.setKey('', row.provider); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
+            if (keylessCustomRm && h.setBaseUrl) { Promise.resolve(h.setBaseUrl('', 'custom')).then(warnIfStationLacksKey); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
+            else { if (h.setKey) Promise.resolve(h.setKey('', row.provider)).then(warnIfStationLacksKey); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
             invalidateProviderHealth(row.provider); if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); sfx('bad'); rerender('settings'); return;
           }
           // Arm: make the destructive state impossible to miss — filled --bad button + pulse, red hairline on the row,
@@ -5682,9 +5703,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!v) { sfx('bad'); if (inp) inp.focus(); return; }
       if (!h || !h.setKey) { sfx('bad'); return; }
       // same proven-store contract as the key-list paths: success UI only after setKey resolves.
-      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
         invalidateProviderHealth(provider);
-        notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+        notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(res), 'good');
+        warnIfStationLacksKey(res);
         if (typeof ModelDock !== 'undefined' && ModelDock.reconcile) ModelDock.reconcile().catch(() => ModelDock.reflect && ModelDock.reflect());
         else if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
         if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
@@ -6044,7 +6066,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
-    return Harness.api.get('/api/credits').catch(error => {
+    // The wait outlasts the sidecar's worst case for this FULL read: a link self-heal (/v1/whoami 8s + one /v1/balance
+    // 8s), then the activity history on the healed adapter (8s) = 24s. api.get's 15s default gave up first and painted
+    // "could not check" over a funded account that was about to answer (E29, 10-07).
+    return Harness.api.get('/api/credits', { timeoutMs: 26000 }).catch(error => {
       if (/http 404\b/.test(String(error && error.message || error))) return { configured: false };
       throw error;
     })
@@ -6441,8 +6466,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const row = document.createElement('div');
         row.className = 'set-row bg-unsettled';
         const where = [r.provider, r.model].filter(Boolean).join(' · ');
-        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' + (where ? ' (it started on ' + where + ')' : '') +
-          '. Enter the charge your provider dashboard shows for it: StarNet books it once and your spending limits can be checked again.');
+        // WHERE the charge is: a run on StarNet credits (receipt managed:true) was billed to the managed account, so its
+        // charge is in the STORE's RECENT ACTIVITY (AI & MODELS), which lists each charge with its run id — on a linked
+        // station and an operator (env) one alike — not on a provider dashboard the user never had.
+        const managed = r.managed === true;
+        const chargedBy = managed ? 'what StarNet charged' : 'what your provider charged';
+        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' +
+          (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
+          (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as run ' + String(r.runId).slice(0, 8)
+            : '. Enter the charge your provider dashboard shows for it') + ': StarNet books it once and your spending limits can be checked again.');
         const what = document.createElement('span');
         what.className = 'bg-un-what';
         const name = document.createElement('b');
@@ -6454,7 +6486,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         usd.className = 'key-input bg-cap bg-un-usd';
         usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
         usd.setAttribute('inputmode', 'decimal'); usd.setAttribute('autocomplete', 'off');
-        usd.setAttribute('aria-label', 'what your provider charged for this run, in USD');
+        usd.setAttribute('aria-label', chargedBy + ' for this run, in USD');
         const btn = document.createElement('button');
         btn.className = 'bb sm'; btn.textContent = 'SETTLE';
         btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
@@ -6463,13 +6495,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
           capBtn = document.createElement('button');
           capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
-          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so your provider dashboard has the exact charge');
+          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so ' + (managed ? 'the STORE’s RECENT ACTIVITY' : 'your provider dashboard') + ' has the exact charge');
           btns.push(capBtn);
         }
         btn.addEventListener('click', () => {
           const raw = String(usd.value).trim();
           const n = raw === '' ? NaN : Number(raw);
-          if (!Number.isFinite(n) || n < 0) { setMsg('enter what your provider charged for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
+          if (!Number.isFinite(n) || n < 0) { setMsg('enter ' + chargedBy + ' for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
           settleRun(r, { usd: n }, btns);
         });
         if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
@@ -11174,7 +11206,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

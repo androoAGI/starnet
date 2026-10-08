@@ -10296,7 +10296,7 @@ const World = (() => {
       if (r === 'error' && errText && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
         try { const v = Friendly.friendlyError(new Error(errText)); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
       }
-      const diag = slaglog.record(r, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd, error, agentId: p && p.agentId });
+      const diag = slaglog.record(r, { cacheFrac: lastCacheFrac, turns: p && p.turns, usd: p && p.usd, error, agentId: p && p.agentId, atBalance: !!(p && p.budgetCapIsBalance === true) });
       // an 'error' run has ALREADY announced itself (⚠ error row, its own toast, the RUN FAULT tick,
       // the desk strobe) — a simultaneous SLAG toast made ONE failure read as two (2026-07-31). The
       // post-mortem record + slag crate below still happen for every dead reason; only the duplicate

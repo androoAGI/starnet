@@ -24,6 +24,7 @@ function makeUpdatePreparation(deps) {
   let activeMutations = 0;
   let completedMutations = 0;
   let receipt = null;
+  let generation = 0;   // bumped by every prepare and every cancel: a prepare whose generation moved on was cancelled
 
   function isControl(url) {
     const bare = String(url || '').split('?')[0];
@@ -59,14 +60,27 @@ function makeUpdatePreparation(deps) {
     const o = opts || {};
     if (frozen && receipt) return { ok: true, frozen: true, receipt: receipt, reused: true };
     if (frozen) return { ok: false, frozen: true, code: 'UPDATE_PREPARATION_IN_PROGRESS' };
-    frozen = true;
+    frozen = true;   // the HTTP + new-run barrier: nothing NEW starts from here
+    const gen = ++generation;
+    const stillOurs = () => {
+      if (gen !== generation) throw Object.assign(new Error('the update was cancelled'), { code: 'UPDATE_PREPARATION_CANCELLED' });
+    };
     try {
-      onFreeze();
-      if (Number(liveRuns()) > 0) {
-        if (!o.force) throw Object.assign(new Error('agent runs are still active'), { code: 'UPDATE_RUNS_ACTIVE' });
-        abortRuns();
+      const live = Number(liveRuns());
+      if (live > 0 && !o.force) throw Object.assign(new Error('agent runs are still active'), { code: 'UPDATE_RUNS_ACTIVE' });
+      if (live > 0) abortRuns();   // INSTALL ANYWAY
+      // DRAIN BEFORE FREEZE, on every path: a run's finalizer (aborted or not) and an in-flight mutation (a /v1 run is
+      // only a mutation) book their spend through the freezing writer. Freezing first made that write throw and
+      // stranded the settlement receipt across the upgrade ("Spend history is unavailable" on the next boot).
+      const drained = await waitForQuiescence(o.timeoutMs);
+      stillOurs();
+      if (!drained) {
+        throw Object.assign(new Error(live > 0 ? 'aborted agent runs did not finish before the update deadline'
+          : 'workspace did not become quiescent before the update deadline'), { code: 'UPDATE_QUIESCENCE_TIMEOUT' });
       }
+      onFreeze();
       const quiet = await waitForQuiescence(o.timeoutMs);
+      stillOurs();
       if (!quiet) throw Object.assign(new Error('workspace did not become quiescent before the update deadline'), { code: 'UPDATE_QUIESCENCE_TIMEOUT' });
 
       const createdAt = Number(now());
@@ -94,6 +108,8 @@ function makeUpdatePreparation(deps) {
         snapshot: { file: bundleFile, bytes: written.bytes, sha256: written.sha256, manifestSha256: written.manifestSha256 },
         semanticFingerprint: fingerprint,
         requirements: readBack.report && readBack.report.requirements || [],
+        // entries the capture could not read (#91: vanished/locked/unresolvable) — the receipt never implies a byte-complete station
+        unreadable: (readBack.report && Array.isArray(readBack.report.skipped) ? readBack.report.skipped : []).filter(s => /^unreadable: /.test(String(s && s.reason))),
         browserKeys: Array.isArray(readBack.browser) ? readBack.browser.length : 0
       };
       writeDurable({ fs: fs, path: path }, receiptFile, JSON.stringify(nextReceipt, null, 2) + '\n');
@@ -108,6 +124,8 @@ function makeUpdatePreparation(deps) {
       receipt = nextReceipt;
       return { ok: true, frozen: true, receipt: nextReceipt };
     } catch (e) {
+      // cancelled mid-drain: cancel() already thawed, and the barrier may now belong to a NEWER prepare — never touch it
+      if (gen !== generation) return { ok: false, frozen: frozen, code: 'UPDATE_PREPARATION_CANCELLED', error: 'the update was cancelled' };
       frozen = false;
       receipt = null;
       try { onThaw(); } catch (_) {}
@@ -115,7 +133,7 @@ function makeUpdatePreparation(deps) {
     }
   }
 
-  function cancel() { frozen = false; receipt = null; try { onThaw(); } catch (_) {} return { ok: true, frozen: false }; }
+  function cancel() { generation++; frozen = false; receipt = null; try { onThaw(); } catch (_) {} return { ok: true, frozen: false }; }
   function status() { return { frozen: frozen, activeMutations: activeMutations, completedMutations: completedMutations, receipt: receipt }; }
 
   return { beginRequest: beginRequest, prepare: prepare, cancel: cancel, status: status, isFrozen: function () { return frozen; } };

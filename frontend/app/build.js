@@ -628,7 +628,8 @@ const Build = (() => {
     }
     const door = root.querySelector('#refit-makeprop-door');
     const cta = root.querySelector('#refit-makeprop-cta');
-    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : !(makeCredits.balanceUsd > 0) ? 'topup' : '';
+    // TOP UP only for a balance the service REPORTED at <= 0: an unknown balance (a failed check) is not an empty wallet
+    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : (makeCredits.balanceUsd != null && !(makeCredits.balanceUsd > 0)) ? 'topup' : '';
     if (cta) {
       cta.hidden = !need;
       if (need) {
@@ -781,7 +782,8 @@ const Build = (() => {
     if (makeCreditsAsked || typeof Harness === 'undefined' || !Harness.api) return;
     makeCreditsAsked = true;
     Harness.api.get('/api/credits?history=0').then((j) => {
-      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : 0 };
+      // a failed balance check answers balanceUsd:null: keep it unknown, never a $0 that tells a funded user to top up
+      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : null };
     }, (e) => {   // /api/credits 404s by design when no account is linked: a definitive "not linked"
       if (/http 404\b/.test(String((e && e.message) || e))) makeCredits = { linked: false, balanceUsd: 0 };
     }).then(() => {
@@ -3221,13 +3223,10 @@ const Build = (() => {
      A workstation carries an agentId exactly like a bay does (assignPropAgent is type-agnostic); world.js seats the agent
      at the FIRST workstation bound to it (deskPropFor). So giving an agent this desk must also take it off any OTHER
      workstation it holds — otherwise it keeps walking to the old one and the click looked like it did nothing. One
-     transaction = one UNDO. The choice lives IN the selected-object card (renderSelection), one click per agent. */
+     transaction = one UNDO. The choice lives IN the selected-object card (renderSelection), one click per agent.
+     The rule itself is the station's (worldmodel.js assignDesk), shared with the overseer's station-control 'agent' op. */
   function assignDesk(propId, aid) {
-    const id = String(aid || '');
-    return station.transact(() => {
-      if (id) for (const q of station.propsByAgent(id)) if (q.id !== propId && WORKSTATION_TYPES[q.t]) station.assignPropAgent(q.id, '');
-      return station.assignPropAgent(propId, id);
-    });
+    return station.assignDesk(propId, String(aid || ''));
   }
   // the agent a "PLACE ITS DESK" door is placing a desk FOR (placeDeskFor) — the next workstation dropped is theirs
   let deskOwner = null;
@@ -3277,6 +3276,16 @@ const Build = (() => {
     propCat = 'all'; propQuery = '';
     selectTool('prop', { silent: true });
     return true;
+  }
+  // the desk that click drops: added, then seated through the same one-desk rule as the chips (station.assignDesk),
+  // all in one transaction — one UNDO takes back the desk AND the move, and a refused drop changes nothing
+  function addOwnedDesk(placement, owner) {
+    return station.transact(() => {
+      const added = station.addProp(placement);
+      if (!added || !added.ok) return added;
+      const seat = station.assignDesk(added.id, owner);
+      return seat && seat.ok ? added : seat;
+    });
   }
 
   /* ---------- FILTER junction editor (Polish P1): make content-routing reachable from the UI.
@@ -5391,7 +5400,7 @@ const Build = (() => {
     const owner = WORKSTATION_TYPES[propType] ? deskOwner : null;   // PLACE ITS DESK: this desk is that agent's, and their only one
     if (owner) placement.agentId = owner;
     const res = owner
-      ? station.transact(() => { for (const q of station.propsByAgent(owner)) if (WORKSTATION_TYPES[q.t]) station.assignPropAgent(q.id, ''); return station.addProp(placement); })
+      ? addOwnedDesk(placement, owner)
       : station.addProp(placement);
     if (res && !res.ok) res.msg = placementReason({v:res,rects:[{x1:px,y1:py,x2:px+s.w-1,y2:py+s.h-1}]});
     if (res && res.ok) {

@@ -133,7 +133,7 @@ function staleHistory() {
   }
 
   // ---- 2. binding generation on adaptive thinking: block_binding + the beta header travel together ----
-  for (const model of ['claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'anthropic/claude-opus-5.5']) {
+  for (const model of ['claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'anthropic/claude-opus-5.5', 'claude-haiku-5-5', 'claude-haiku-5.5']) {
     const up = fakeServer(() => [{ type: 'text', text: 'ok' }]);
     await collect(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'high' }), { model, messages: [{ role: 'user', content: 'hi' }] });
     A.eq(up.posts[0].body.thinking, { type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } }, model + ' -> adaptive + drop_block binding');
@@ -145,6 +145,21 @@ function staleHistory() {
     await collect(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'off' }), { model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }] });
     A.eq(up.posts[0].body.output_config, { effort: 'low' }, 'Opus 5.5 OFF keeps its clamp to low');
     A.ok(up.posts[0].body.thinking.block_binding, 'and carries drop_block');
+  }
+  {
+    /* Haiku 5.5 runs the same history-editing check as Fable 5.1 / Opus 5.5 / Sonnet 5.5 (claude-api skill,
+       model-migration.md "Migrating to Claude Haiku 5.5"), and block_binding is valid only with adaptive thinking.
+       Its OFF is a plain {type:'disabled'} (accepted at high or below) that must NOT carry block_binding. */
+    const up = fakeServer(() => [{ type: 'text', text: 'ok' }]);
+    await collect(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'none' }), { model: 'claude-haiku-5-5', messages: [{ role: 'user', content: 'hi' }] });
+    A.eq(up.posts[0].body.thinking, { type: 'disabled' }, 'Haiku 5.5 OFF stays a bare disable (no block_binding beside it)');
+    A.eq(up.posts[0].headers['anthropic-beta'], undefined, 'Haiku 5.5 OFF sends no binding beta');
+    // a stale replayed block on Haiku 5.5: drop_block covers it in ONE request (was: a 400 + a strip-and-resend)
+    const up2 = fakeServer(() => [{ type: 'text', text: 'done' }]);
+    const evs = await collect(makeAnthropicProvider({ fetch: up2.fetch, key: 'k', reasoningEffort: 'medium' }), { model: 'claude-haiku-5-5', messages: staleHistory(), tools: [fsTool] });
+    A.eq(up2.posts.length, 1, 'Haiku 5.5 history edit: ONE request, no 400 and no rescue round-trip');
+    A.eq(evs.find(e => e.type === 'done').thinkingDropped, 1, 'Haiku 5.5: the dropped block is reported');
+    A.eq(thinkingCount(up2.posts[0].body), 1, 'Haiku 5.5: the block was still sent (never pre-emptively stripped)');
   }
   for (const model of ['claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-haiku-4-5', 'claude-sonnet-4-6', 'some-vendor/mixtral']) {
     const up = fakeServer(() => [{ type: 'text', text: 'ok' }]);

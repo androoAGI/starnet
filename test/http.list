@@ -67,6 +67,7 @@ test/e2e.connector-readback.test.js
 test/recipe-drift.http.test.js
 test/cron.api.test.js
 test/cron.run-now.e2e.test.js
+test/routine-keys.e2e.test.js
 test/cancel-host-run.e2e.test.js
 test/cron.station-default.e2e.test.js
 test/cron.degraded.e2e.test.js
@@ -128,6 +129,7 @@ test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js
 test/station-recovery.e2e.test.js
 test/paid-link-lifecycle.e2e.test.js
+test/credits-heal-join.e2e.test.js
 test/routing.persist.e2e.test.js
 test/run-recovery.api.test.js
 test/routing.sample.e2e.test.js
@@ -154,6 +156,7 @@ test/tool-projection.e2e.test.js
 test/request-idempotency.e2e.test.js
 test/output-only-repair.e2e.test.js
 test/saved-provider-fallback.e2e.test.js
+test/provider-validate-rejected.http.test.js
 test/delegated-connectors.e2e.test.js
 test/prompt-cache-prefix.e2e.test.js
 test/e2e.overseer.test.js
