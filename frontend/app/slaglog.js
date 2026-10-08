@@ -23,10 +23,15 @@
   'use strict';
 
   const COLD_CACHE = 0.15;   // below this the prompt-cache is basically cold (the smelter is dark)
+  // FriendlyError kinds whose message already names the real door (friendlyerror.js KINDS, retryable:false).
+  // Absent on purpose: unknown + server_error (plausibly StarNet's own fault — those keep "report it").
+  const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
+    quota_exhausted: 1, model_not_found: 1, context_overflow: 1, content_policy_blocked: 1, capdenied: 1,
+    spotify_not_connected: 1, stale_session: 1, spend_unknown: 1 };
 
   function clampFrac(n) { n = Number(n); if (!isFinite(n) || n < 0) return 0; return n > 1 ? 1 : n; }
 
-  // reason + run signals -> a real, fixable post-mortem. ctx = { cacheFrac, turns, usd }, all optional.
+  // reason + run signals -> a real, fixable post-mortem. ctx = { cacheFrac, turns, usd, error: { kind, msg } }, all optional.
   function diagnose(reason, ctx) {
     ctx = ctx || {};
     const turns = Math.max(0, ctx.turns | 0);
@@ -46,6 +51,15 @@
           cause: 'The run reached its envelope before it delivered.',
           fix: 'Raise the budget for this kind of order, or split it into smaller work-items.' };
       case 'error':
+        // the run's OWN error, already classified by the caller (FriendlyError over its agent.run.error message):
+        // a KNOWN cause — an empty provider wallet, a model the key can't use, a missing key — names its real
+        // fix. "send it again, then report it" is wrong there: a resend hits the same wall and the "bug" is the
+        // account (2026-10-07: three Anthropic "credit balance is too low" runs became a quest telling the
+        // Commander to report StarNet).
+        if (ctx.error && ctx.error.msg && KNOWN_ERROR_KINDS[ctx.error.kind])
+          return { reason, title: 'errored out',
+            cause: 'The run stopped before doing any work, for a reason a resend will not fix.',
+            fix: String(ctx.error.msg) };
         return { reason, title: 'errored out',
           cause: 'The run failed partway, so no useful work was produced.',
           // no "agent log" exists and the cause is often the station's own bug (first-hour walk 2026-09-28): name
@@ -74,6 +88,8 @@
     let recent = [];
     function record(reason, ctx) {
       const d = diagnose(reason, ctx);
+      // which agent's run died — the maintenance quest needs it to tell when THAT line runs clean again
+      if (ctx && ctx.agentId) d.agentId = String(ctx.agentId);
       recent.push(d);
       if (recent.length > cap) recent = recent.slice(-cap);
       return d;

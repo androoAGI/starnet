@@ -258,7 +258,7 @@
      answers a bad key with HTTP 400 "Incorrect API key provided", and a team with no prepaid credits with 403
      "…doesn't have any credits yet. You can purchase credits on https://console.x.ai/…" (2026-09-27). */
   const REJECTED_KEY_RE = /incorrect api key|invalid api key|api key (?:is )?(?:invalid|not valid|incorrect)|invalid x-api-key/;
-  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?/;
+  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?|credit balance is too low/;
   // the ONE sentence both classifier paths use for "no model is picked": the sidecar guard and the page preflight
   const NO_MODEL_RE = /\bno model selected\b/;
   /* WHICH grok failures mean "this account can't use Grok sign-in" (the allowlist yank)? Only ones that carry the
@@ -331,6 +331,9 @@
         return /sidecar http/.test(low) ? 'server_error' : 'provider_server_error';
       }
       if (s === 400 && REJECTED_KEY_RE.test(low)) return 'auth';
+      // Anthropic's empty wallet is a 400 ("Your credit balance is too low … purchase credits"), not a bad request:
+      // it read as `unknown` → "Something went wrong — try again" + report it (2026-10-07). Mirrors classify400.
+      if (s === 400 && NO_CREDIT_RE.test(low)) return 'billing';
       if (s === 400 || s === 413 || s === 422) return /context length|maximum context|context window|too many tokens|reduce the length/.test(low) ? 'context_overflow' : 'unknown';
     }
     // message patterns (no status / in-band error text)
