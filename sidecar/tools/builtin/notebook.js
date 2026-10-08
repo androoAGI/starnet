@@ -142,7 +142,7 @@
           distinct: { type: 'boolean', description: 'Only for a genuinely separate fact, never a correction to an existing fact.' },
           replaceId: { type: 'string', description: 'Existing note id to correct in place instead of appending a contradictory entry.' },
           previousBody: { type: 'string', description: 'Exact current body from notebook.read; required with replaceId to prevent overwriting a newer edit.' },
-          pinned: { type: 'boolean', description: 'Keep an explicit reusable preference or approved requirement in context within its scope.' },
+          pinned: { type: 'boolean', description: 'Keep a reusable preference or approved requirement in context in its scope (pinning a chat is station_control session.pin).' },
           scope: { type: 'string', enum: ['stream', 'global'], description: 'stream for this project/task, global only for user preferences applying across projects.' }
         }
       },
