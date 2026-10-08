@@ -963,6 +963,8 @@ const StationCommands = (() => {
       if (/^session\./.test(act)) return sessionControl(act, a);
       if (act === 'look.set') {
         if (typeof StationUI === 'undefined' || !StationUI.setLook) throw new Error('the look settings are not loaded on this page');
+        // an empty look changes nothing — never answer it as saved (it read back "done" while hints stayed on, 2026-10-08)
+        if (!a.look || typeof a.look !== 'object' || !Object.keys(a.look).length) throw new Error('no look setting was named, so nothing changed');
         const r = StationUI.setLook(a.look);
         if (!r.saved) throw new Error('the look changed on screen but this browser did not keep it (local storage refused) — it will reset on restart; do not report it as saved');
         return r;
