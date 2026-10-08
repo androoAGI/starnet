@@ -64,6 +64,15 @@
 .refit-overlay .refit-selection .refit-position { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; color: var(--ph-dim); }
 .refit-overlay .refit-selection .refit-position label { margin: 0; }
 .refit-overlay .refit-selection .refit-sel-pos[aria-expanded="true"] { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.45); }
+/* WHO SITS HERE (build.js sitsRow): a workstation's agent, picked in its own card — one chip per crew member */
+.refit-overlay .refit-sel-sits { display: grid; gap: 5px; }
+.refit-overlay .refit-sel-sits-k { font-size: 13px; letter-spacing: .8px; color: var(--ph-dim); }
+.refit-overlay .refit-sel-sits-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.refit-overlay .refit-sel-sits-row small { font-size: 14px; color: var(--ph-dim); }
+.refit-overlay .refit-selection .refit-sit { min-height: 30px; max-width: 100%; padding: 4px 10px; font-size: 14px; letter-spacing: .4px; border: 1px solid var(--refit-edge); border-radius: 8px;
+  background: var(--refit-glass); text-shadow: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.refit-overlay .refit-selection .refit-sit:hover { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.45); background: rgba(var(--ph-rgb),.1); }
+.refit-overlay .refit-selection .refit-sit.active { color: var(--ph-bright); border-color: rgba(var(--ph-rgb),.7); background: rgba(var(--ph-rgb),.16); }
 
 /* ---- the Edit tab: the editor's keys as key caps (build.js renderPalette, THE TABS SHOW THEIR THINGS) */
 .refit-overlay .refit-keycard { gap: 10px; }
