@@ -10,14 +10,18 @@
 
      strict(v)  -> null | family ids     create/update: an unknown entry THROWS (refused by name, never dropped)
      lenient(v) -> { list, dropped }     a list already on disk: an unknown entry is DROPPED and reported, never
-                                         thrown — a stored routine is never made unloadable by its own field
+                                         thrown — a stored routine is never made unloadable by its own field — and
+                                         the repair NEVER WIDENS: a list of only unknown entries (0.13.1's free-text
+                                         field took 'browser', 'shell', 'files') ran with the freebies only, so it
+                                         keeps exactly that. Only the bare [] artifact heals to null.
      healJobs(jobs) -> { jobs, healed }  lenient() over every stored routine; `healed` names each one that changed
 
    One contract for both: a family id (any case), a console label, or a tool name maps to its family; an empty list
    is NO restriction (null) — "nothing listed" is never "restrict to nothing". Naming only freebies (the computer's
    own tools, which no switch can turn off) keeps those freebie ids, so a stored [] can only ever mean a list that
    lost its entries — which is what lets a load heal [] to null without widening a real restriction. A freebie named
-   beside a real family adds nothing and is dropped. lenient(strict(v)) === strict(v): healing is idempotent.
+   beside a real family adds nothing and is dropped. 'compute' (the model's own gate, not a toolset) is never stored:
+   naming only it stores the freebies. lenient(strict(v)) === strict(v): healing is idempotent.
 
    Pure: same registry -> same answers. The registry, the TOOLSETS rows, the toggleable set and the freebies are
    injected by sidecar/index.js. */
@@ -43,6 +47,7 @@ function makeRoutineToolsets(deps) {
     return index;
   }
   // one entry -> { family, free } | null (unknown). `free` marks the compute gate + the computer freebies.
+  const freeOnly = () => Array.from(freebies);   // "the always-on tools and nothing else", as a stored list
   function familyOf(raw) {
     const k = String(raw == null ? '' : raw).trim().toLowerCase();
     if (!k) return null;
@@ -60,12 +65,13 @@ function makeRoutineToolsets(deps) {
       if (!String(raw == null ? '' : raw).trim()) continue;
       named = true;
       const f = familyOf(raw);
+      if (f.family === 'compute') continue;   // not a toolset: no switch governs it, so it is never a stored id
       const into = f.free ? free : out;
       if (into.indexOf(f.family) < 0) into.push(f.family);
       if (out.length >= 16 || free.length >= 16) break;
     }
     if (!named) return null;
-    return out.length ? out : free;
+    return out.length ? out : (free.length ? free : freeOnly());
   }
   function strict(v) {
     if (v == null) return null;
@@ -84,6 +90,8 @@ function makeRoutineToolsets(deps) {
       if (!s) continue;
       if (familyOf(s)) kept.push(s); else dropped.push(s.slice(0, 80));
     }
+    // only unknown entries: the fire paths enforced them as "freebies only" — keep that, never the full grant
+    if (!kept.length && dropped.length) return { list: freeOnly(), dropped };
     return { list: build(kept), dropped };
   }
   const same = (a, b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
@@ -97,9 +105,11 @@ function makeRoutineToolsets(deps) {
       // An unknown entry is dropped, not guessed at: say so on the routine's own row (the ROUTINES window shows
       // lastError) unless that row is already reporting a real failure, which stays the louder truth.
       if (r.dropped.length && !job.lastError) {
+        const onlyFree = Array.isArray(r.list) && r.list.every(f => freebies.has(f));
         out.lastError = 'toolset list repaired: dropped unknown ' + (r.dropped.length === 1 ? 'entry' : 'entries') + ' ' +
-          r.dropped.map(s => '"' + s + '"').join(', ') + ' — this routine now runs with ' +
-          (r.list ? 'only ' + r.list.join(', ') : 'its agent\'s full station tools');
+          r.dropped.map(s => '"' + s + '"').join(', ') + ' — ' + (onlyFree
+            ? 'this routine still runs with only its always-on tools, as before; to give it a toolset, create it again with valid ids (' + ix().valid.join(', ') + ')'
+            : 'this routine now runs with ' + (r.list ? 'only ' + r.list.join(', ') : 'its agent\'s full station tools'));
       }
       healed.push({ id: job.id, from: job.enabledToolsets, to: r.list, dropped: r.dropped });
       return out;

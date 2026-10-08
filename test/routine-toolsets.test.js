@@ -6,7 +6,9 @@
    toolsets, and cron.jobs.json was never migrated — so an upgrader's routine stayed broken (A3). Locks:
      · strict(): the create/update contract (labels/tool names/case -> family; unknown REFUSED; [] -> null) — and
        naming only freebies keeps those freebie ids, so a stored [] can only be a list that lost its entries
-     · lenient(): the same rules for a list already on disk, dropping (and reporting) an unknown entry, never throwing
+     · lenient(): the same rules for a list already on disk, dropping (and reporting) an unknown entry, never throwing —
+       and NEVER WIDENING: a list of only unknown entries (0.13.1's free-text field took 'browser', 'shell', 'files')
+       ran with the always-on freebies only, so it keeps exactly that; only the bare [] artifact heals to null
      · healJobs(): repairs every stored routine, notes a dropped entry on the routine's row, and is idempotent
      · index.js routes create/update/routine.manage AND every cron.jobs.json load through this one module.
    The live proof (a legacy [] routine fires WITH web tools after a restart) is test/routine-keys.e2e.test.js. */
@@ -21,6 +23,7 @@ const { makeRoutineToolsets } = require('../sidecar/routine-toolsets.js');
 
 const T = makeRoutineToolsets({ capRegistry: CAP_REGISTRY, toolsetRows, toggleableCaps, freebies: TOOLSET_FREEBIES });
 const J = v => JSON.stringify(v);
+const FREE_ONLY = Array.from(TOOLSET_FREEBIES);   // what "the always-on tools and nothing else" stores
 
 /* ---------- strict(): the create/update contract (same cases test/cron.api.test.js drives over HTTP) ---------- */
 A.eq(T.strict(null), null, 'no list -> no restriction');
@@ -31,6 +34,9 @@ A.eq(J(T.strict(['Web'])), '["web"]', 'a family id in any case is that family');
 A.eq(J(T.strict(['web', 'cabinet'])), '["web","cabinet"]', 'valid family ids are stored unchanged');
 A.eq(J(T.strict(['web', 'todo'])), '["web"]', 'a computer freebie beside a real family adds nothing');
 A.eq(J(T.strict(['mcp:github'])), '["connectors"]', 'a connector tool maps to the connectors family');
+A.eq(J(T.strict(['compute'])), J(FREE_ONLY), '"compute" (the model\'s own gate) is never stored as a family: naming only it is freebies-only');
+A.eq(J(T.strict(['web', 'compute'])), '["web"]', '"compute" beside a real family adds nothing');
+A.ok(T.strict(['compute', 'todo']).indexOf('compute') < 0, '"compute" never lands in a stored list');
 let threw = '';
 try { T.strict(['nonsense']); } catch (e) { threw = e.message; }
 A.ok(/unknown toolset "nonsense"/.test(threw) && /\bweb\b/.test(threw), 'an unknown entry is refused by name with the valid ids: ' + threw);
@@ -51,7 +57,13 @@ A.ok(Array.isArray(freeOnly) && freeOnly.length === 1 && TOOLSET_FREEBIES.has(fr
 A.eq(J(T.lenient([])), J({ list: null, dropped: [] }), 'a stored [] (the broken WEB & BROWSER save) heals to no restriction');
 A.eq(J(T.lenient(['WEB & BROWSER'])), J({ list: ['web'], dropped: [] }), 'a stored console label heals to its family');
 A.eq(J(T.lenient(['web_request'])), J({ list: ['web'], dropped: [] }), 'a stored tool name heals to its family');
-A.eq(J(T.lenient(['bogus'])), J({ list: null, dropped: ['bogus'] }), 'a list of only unknown entries heals to no restriction and reports them');
+A.eq(J(T.lenient(['bogus'])), J({ list: FREE_ONLY, dropped: ['bogus'] }), 'a list of only unknown entries keeps the freebies-only restriction it ran with, and reports them');
+for (const legacy of [['browser'], ['shell'], ['files'], ['WEB_BROWSER'], ['search', 'files']]) {
+  const r = T.lenient(legacy);
+  A.ok(Array.isArray(r.list) && r.list.every(f => TOOLSET_FREEBIES.has(f)) && r.dropped.length === legacy.length, '0.13.1 free text ' + J(legacy) + ' is never widened to the full station grant: ' + J(r));
+}
+A.eq(J(T.lenient(['compute'])), J({ list: FREE_ONLY, dropped: [] }), 'a stored ["compute"] reads as freebies-only (never a stored family)');
+A.eq(J(T.lenient(['', '  '])), J({ list: null, dropped: [] }), 'a list of blanks is the [] artifact: no restriction');
 A.eq(J(T.lenient(['web', 'bogus'])), J({ list: ['web'], dropped: ['bogus'] }), 'an unknown entry beside a real one is dropped, the real one kept');
 A.eq(J(T.lenient(['todo'])), J({ list: freeOnly, dropped: [] }), 'an old freebies-only list stays freebies-only (never widened)');
 A.eq(J(T.lenient(null)), J({ list: null, dropped: [] }), 'no list stays no list');
@@ -80,8 +92,15 @@ for (const input of [['Web & Browser'], ['web', 'cabinet'], ['todo'], ['mcp:x'],
   A.eq(by('empty').enabledToolsets, null, '[] heals to null');
   A.eq(J(by('label').enabledToolsets), '["web"]', 'label heals to web');
   A.eq(J(by('tool').enabledToolsets), '["web"]', 'tool name heals to web');
-  A.eq(by('unknown').enabledToolsets, null, 'an all-unknown list heals to null');
-  A.ok(/dropped unknown entry "bogus"/.test(by('unknown').lastError) && /full station tools/.test(by('unknown').lastError), 'the dropped entry is named on the routine row: ' + by('unknown').lastError);
+  A.eq(J(by('unknown').enabledToolsets), J(FREE_ONLY), 'an all-unknown list keeps its freebies-only restriction (never widened to the full grant)');
+  A.ok(/dropped unknown entry "bogus"/.test(by('unknown').lastError) && /always-on tools/.test(by('unknown').lastError) && !/full station tools/.test(by('unknown').lastError), 'the dropped entry is named on the routine row, with what it still runs with: ' + by('unknown').lastError);
+  A.ok(/create it again/.test(by('unknown').lastError) && /\bweb\b/.test(by('unknown').lastError), 'and the real way out (no UI edits toolsets): ' + by('unknown').lastError);
+  {
+    // enforced exactly as the 0.13.1 list was: the freebies, nothing else
+    const registry = { get: n => ({ 'web.request': { capability: 'web' }, 'todo.write': { capability: 'taskplan' }, 'fs.read': { capability: 'cabinet' } })[n] || null };
+    const resolved = { tools: ['web.request', 'todo.write', 'fs.read'] };
+    A.eq(J(enforceEnabledToolsets(resolved, registry, by('unknown').enabledToolsets).tools), J(enforceEnabledToolsets(resolved, registry, ['bogus']).tools), 'the healed list enforces exactly what the stored unknown list did');
+  }
   A.eq(by('failing').lastError, 'provider HTTP 500', 'a real failure on the row is never overwritten by the repair note');
   A.ok(by('fine') === jobs[5] && by('none') === jobs[6] && by('legacyNoField') === jobs[7], 'routines that need nothing are returned untouched (same object)');
   A.eq(r.healed.map(h => h.id).join(','), 'empty,label,tool,unknown,failing', 'healed names exactly the routines that changed');

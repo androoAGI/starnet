@@ -4,7 +4,8 @@
    Boots the actual sidecar (no env key, a mock OpenRouter) and drives the exact surfaces the reports named:
      1. Run Now with no station key -> 400 with the ONE shared sentence (names SETTINGS → AI & MODELS + the env var)
      2. legacy toolset lists written straight into cron.jobs.json ([], 'WEB & BROWSER', 'web_request', 'bogus', a
-        freebies-only list) -> after a restart GET /api/cron shows them healed AND the file on disk was rewritten
+        freebies-only list) -> after a restart GET /api/cron shows them healed AND the file on disk was rewritten;
+        an all-unknown list keeps the freebies-only restriction it ran with (never widened to the full grant)
      3. POST /api/providers/engine-key while the store path is blocked -> the route SAYS it failed, and Run Now is
         still refused (nothing unproven was adopted) — the write-failure path, live
      4. the same POST once the disk works -> presence-only answer; Run Now fires on the page key, and the routine
@@ -94,8 +95,9 @@ const toolNames = call => ((call && call.body.tools) || []).map(t => (t && t.fun
     A.eq(job('empty').enabledToolsets, null, 'a stored [] (the broken WEB & BROWSER save) heals to no restriction');
     A.eq(job('label').enabledToolsets, ['web'], 'a stored console label heals to its family');
     A.eq(job('tool').enabledToolsets, ['web'], 'a stored tool name heals to its family');
-    A.eq(job('unknown').enabledToolsets, null, 'an unknown entry is dropped (never a boot failure)');
-    A.ok(/dropped unknown entry "bogus"/.test(String(job('unknown').lastError || '')), 'the ROUTINES row says what was dropped: ' + job('unknown').lastError);
+    const unknownList = job('unknown').enabledToolsets;
+    A.ok(Array.isArray(unknownList) && unknownList.length > 0 && unknownList.indexOf('web') < 0, 'an all-unknown list keeps its freebies-only restriction (dropped, never a boot failure, never widened): ' + JSON.stringify(unknownList));
+    A.ok(/dropped unknown entry "bogus"/.test(String(job('unknown').lastError || '')) && /always-on tools/.test(String(job('unknown').lastError || '')), 'the ROUTINES row says what was dropped and what it still runs with: ' + job('unknown').lastError);
     A.ok(Array.isArray(job('free').enabledToolsets) && job('free').enabledToolsets.length === 1 && job('free').enabledToolsets[0] !== 'web', 'a freebies-only list stays restricted (never widened): ' + JSON.stringify(job('free').enabledToolsets));
     const disk = JSON.parse(fs.readFileSync(cronFile, 'utf8')).jobs;
     A.eq((disk.find(j => j.id === ids.empty) || {}).enabledToolsets, null, 'the repair was written back to cron.jobs.json (persisted once)');
