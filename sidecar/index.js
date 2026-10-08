@@ -18741,15 +18741,14 @@ async function runOnceCore(o) {
     runCapIsBalance = runCapUsd > 0 && runCapUsd >= avail;
     // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
     // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
+    // A reported $0 that this station's OWN running StarNet runs hold (a proxy-off backend books each reservation as a
+    // debit) is not an empty wallet: it says "held by N running runs — wait, or lower PER RUN" (audit B11), never
+    // "add credits". budgetCaps.managedRefusalMessage owns the wording; credits.held() is the proof.
     const refuseManaged = (exhausted) => {
       const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
-      const msg = exhausted
-        ? 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).'
-        : linkRefused
-          ? 'Managed credits are unavailable — your StarNet account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).'
-          : 'Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).';
+      const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null });
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !exhausted && !linkRefused, reason: 'billing', message: msg });
+      emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
     };
     if (!(runCapUsd > 0)) {

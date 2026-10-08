@@ -126,6 +126,7 @@ test/sanitize.test.js
 test/errorclass.test.js
 test/billing.test.js
 test/credits.test.js
+test/managed-credit-held.test.js
 test/credits-link.test.js
 test/credits-store-recovery.test.js
 test/friendlyerror.test.js

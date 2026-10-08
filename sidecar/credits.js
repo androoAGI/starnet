@@ -47,6 +47,7 @@
       finishRun() { return { ok: true, settled: true, skipped: true }; },
       refresh() { return Promise.resolve(null); },
       snapshot() { return { configured: false, accountId: '', balanceUsd: null, purchaseUrl: '', authStatus: 'absent', lastErrorStatus: 0 }; },
+      held() { return { runs: 0, usd: 0, counted: false }; },
       history() { return Promise.resolve({ entries: [] }); }
     };
   }
@@ -108,6 +109,10 @@
     // the ACCOUNT is low; otherwise two concurrent healthy runs could make each other's temporary holds look
     // like settled spend. Admission continues to use the raw cache and therefore cannot oversubscribe funds.
     const reservations = new Map();
+    // Does the BACKEND book a reservation as a real debit? The proxy-metered cloud answers every reserve/settle POST
+    // with `advisory: true` and never lowers the balance for it; a proxy-off deploy debits for real. Learned from the
+    // backend's own debit answer (null until one arrives). Only when it is true can a reported $0 be "held by runs".
+    let holdsCounted = null;
     const emitFn = typeof opts.emit === 'function' ? opts.emit : null;
     // number or getter — index.js passes a getter so a live per-run cap change is picked up without a restart
     function lowThreshold() {
@@ -274,6 +279,7 @@
         if (cache.balanceUsd != null) setBalance(Math.max(0, cache.balanceUsd - amt), false, false);
         postJson('/v1/debit', { account: acct(), usd: amt, meta: meta || {} })
           .then(body => {
+            if (body && typeof body === 'object') holdsCounted = body.advisory !== true;
             if (!body || body.balanceUsd == null) return;
             if (typeof body.balanceUsd !== 'number' || !isFinite(body.balanceUsd)) {
               const malformed = new Error('credits debit response contained a non-numeric balance');
@@ -347,6 +353,13 @@
       accountId() { return accountId; },
       purchaseUrl() { return purchaseUrl; },
       beginRun, finishRun, refresh, history,
+      // StarNet runs this station has in flight and what they reserve (settled runs leave the map). `counted`: the
+      // backend books those reservations against the balance (see holdsCounted), so a $0 it reports can be a hold.
+      held() {
+        let runs = 0, usd = 0;
+        for (const v of reservations.values()) { if (v > 0) { runs++; usd += v; } }
+        return { runs, usd, counted: holdsCounted === true };
+      },
       snapshot() {
         return {
           configured: true, accountId, balanceUsd: cache.balanceUsd, at: cache.at, purchaseUrl,
