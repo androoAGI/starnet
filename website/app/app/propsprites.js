@@ -11916,15 +11916,14 @@ const PropSprites = (() => {
     return USER_ID.test(String(t || '')) ? { mount: null, stack: false, surface: false, flat: false } : null;
   }
   if (typeof PropRemaster !== 'undefined') {
-    // ONE live MediaQueryList: matchMedia() builds a new one per call, and this runs for every prop every frame
-    const reducedMq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     for (const c of [...CATALOG,{id:'seatchair',artId:'chair'}]) {
       for (const facing of ['s','n','e','w']) {
         const key = facing === 's' ? c.id : viewKey(c.id,facing), native = F[key];
         if (!native) continue; // never invent an unsupported upright facing
         F[key] = (x,y,w,h,o={}) => {
           if (nativeSkinDepth) return native(x,y,w,h,o);
-          const still = o.still || (reducedMq && reducedMq.matches);
+          const still = o.still || (typeof window !== 'undefined' && window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches);
           const paintNative = target => {
             const previous = ctx, previousNow = now;
             ctx = target; nativeSkinDepth++;
