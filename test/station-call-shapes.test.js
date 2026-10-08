@@ -131,6 +131,20 @@ const refused = r => /^REFUSED: /.test(r.content);
     const bare = JSON.parse((await makeStationTools({ station: bridge }).listTool.run({}, {})).content);
     A.ok(bare.sessions.every(x => !x.thisConversation), 'a run with no conversation marks none (never a guess)');
   }
+  // ---- look.set from a real model in ASK mode: flat or stringified — the card names it, the page gets {look}, empty is refused ----
+  {
+    const s = stubs(); const t = make(s);
+    for (const args of [{ hints: false }, '{"hints": false}', { look: { hints: false } }, { look: '{"hints": false}' }]) {
+      A.eq(cardFor({ action: 'look.set', args }), 'change the station\'s look: hints false', 'look.set card names the change for ' + JSON.stringify(args));
+    }
+    const r = await t.controlTool.run({ action: 'look.set', args: '{"hints": false}' });
+    A.ok(!refused(r), 'a stringified flat look is done');
+    A.eq(s.pages[0].args, { look: { hints: false }, action: 'look.set' }, 'the page gets the look under `look`');
+    const empty = await t.controlTool.run({ action: 'look.set', args: {} });
+    A.ok(refused(empty) && /named no look setting/.test(empty.content) && s.pages.length === 1, 'an empty look is refused before the page (never a saved "done")');
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../frontend/app/stationcommands.js'), 'utf8');
+    A.ok(/if \(!a\.look \|\| typeof a\.look !== 'object' \|\| !Object\.keys\(a\.look\)\.length\) throw new Error/.test(src), 'and the page itself refuses an empty look');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);

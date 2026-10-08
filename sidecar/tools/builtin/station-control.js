@@ -76,7 +76,13 @@
   def('session.delete', { page: true, takes: '{session? (default: this conversation)}', card: a => 'DELETE ' + sess(a) + ' and its conversation.' });
 
   // ---- look & sound (page: Settings › LOOK & SOUND) ----
-  def('look.set', { page: true, takes: '{look: {theme?, textScale?, crtGlass?, flicker?, sound?, roomLighting?, backdrop?, …}} (station.settings lists every key and value)',
+  /* the look arrives as {look: {...}} — or, from a real model in ASK mode (2026-10-08), flat ({hints: false}) or as a JSON
+     string; folded into `look` here so the approval card names the change that will run (it read "nothing named" four
+     times while the page saved an empty look and reported success) */
+  const lookOf = a => { let l = a.look; if (typeof l === 'string' && /^\s*\{/.test(l)) { try { l = JSON.parse(l); } catch (_) { l = null; } }
+    if (l && typeof l === 'object' && !Array.isArray(l)) return l; const flat = Object.assign({}, a); delete flat.look; return flat; };
+  def('look.set', { page: true, takes: '{look: {theme?, textScale?, crtGlass?, flicker?, sound?, roomLighting?, backdrop?, hints?, …}} (station.settings lists every key and value)',
+    shape: a => ({ look: lookOf(a) }), needs: a => Object.keys(a.look || {}).length ? '' : 'look.set named no look setting (e.g. {"look": {"hints": false}})',
     card: a => 'change the station\'s look: ' + clip(Object.keys(a.look || {}).map(k => k + ' ' + (typeof a.look[k] === 'object' ? JSON.stringify(a.look[k]) : a.look[k])).join(', ') || 'nothing named', 160) + '.' });
 
   // ---- spending (Settings › SPENDING LIMITS, AI & MODELS › backup models) ----
@@ -328,6 +334,8 @@
     for (const k of Object.keys(i)) if (k !== from && k !== 'action' && k !== 'args') args[k] = i[k];
     return { action, args };
   }
+  // the args an action actually runs with — the generic reading, then the action's own shape (look.set) — for the card AND the run
+  function argsFor(spec, raw) { const a = normArgs(raw); return spec && spec.shape ? spec.shape(a) : a; }
   // the standing grants (null = unreadable); a listing check that returns a refusal when nothing matches, or null to go on
   async function heldGrants(env) { const r = await env.route('GET', '/api/permissions'); return r && r.status < 400 && r.json && Array.isArray(r.json.grants) ? r.json.grants : null; }
   async function listed(env, url, field, match) {
@@ -347,7 +355,7 @@
     const call = readCall(args);
     const spec = A[call.action];
     if (!spec) return 'make an unknown station change (it will be refused, and nothing will change)';
-    const a = normArgs(call.args);
+    const a = argsFor(spec, call.args);
     try { return spec.card(a).replace(/\.$/, ''); } catch (_) { return 'make the station change ' + spec.name; }
   }
 
@@ -474,7 +482,9 @@
           const spec = A[call.action];
           if (!spec) return refuse((call.action ? 'there is no station action "' + clip(call.action, 40) + '"' : 'no action was named')
             + ' — call it as {action, args}, e.g. {"action": "budget.set", "args": {"perDay": 5}}; station.settings section "actions" lists every action and what it takes');
-          const a = normArgs(call.args);
+          const a = argsFor(spec, call.args);
+          const missing = spec.needs ? spec.needs(a) : '';
+          if (missing) return refuse(missing + ', so nothing was changed');
           // a call that names none of the action's own fields would save an empty patch and read back as "done"
           if (spec.keys && !spec.keys.some(k => k in a)) return refuse(spec.name + ' takes ' + spec.takes + ' — none of those was given'
             + (Object.keys(a).length ? ' (got ' + clip(Object.keys(a).join(', '), 80) + ')' : '') + ', so nothing was changed');
