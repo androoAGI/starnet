@@ -308,7 +308,9 @@ test/rename-migrate.test.js
 test/update-state-parity.test.js
 test/update-continuity.test.js
 test/update-preparation.test.js
+test/update-drain-wiring.test.js
 test/updates-install.test.js
+test/future-gate-update-door.test.js
 test/roster-clause.test.js
 test/agent-config-target.test.js
 test/notebookrestore.test.js
@@ -887,6 +889,7 @@ test/code-mode.test.js
 test/output-artifacts.test.js
 test/station-recovery.test.js
 test/station-recovery-cli.test.js
+test/station-recovery-unreadable.test.js
 test/execution-profiles.test.js
 test/execution-settings.test.js
 test/execution-router.test.js

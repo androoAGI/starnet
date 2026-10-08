@@ -5178,6 +5178,28 @@ const App = (() => {
     const msg = el('future-msg');
     const btn = el('btn-future-update');
     const hasUpdater = (typeof Updates !== 'undefined') && (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core);
+    // #91: Updates.install() PAUSES by RETURNING its snapshot (a failed pre-update recovery point, an unverified save,
+    // an agent still working) instead of throwing, and the Update Center is unreachable from this gate. Name the pause
+    // here; when the in-app path failed, offer the full installer beside UPDATE STARNET (reinstalling keeps the station).
+    const offerInstaller = () => {
+      let dl = el('btn-future-download');
+      if (!dl && btn && btn.parentNode) {
+        dl = document.createElement('button');
+        dl.id = 'btn-future-download'; dl.className = 'btn-xl'; dl.textContent = 'DOWNLOAD LATEST ▸';
+        btn.parentNode.appendChild(dl);
+      }
+      if (dl) dl.onclick = () => { SFX.click && SFX.click(); try { Updates.openReleasesPage(); } catch (_) {} };
+    };
+    const installOutcome = (snap, thrown) => {
+      if (!msg) return;
+      const runs = (snap && snap.confirmRuns) | 0;
+      if (thrown || (snap && snap.error)) {
+        msg.textContent = 'the update could not install' + (snap && snap.error ? ' — ' + snap.error : '') + '. Download the full installer instead: reinstalling over the top keeps your station.';
+        offerInstaller();
+      } else if (runs > 0) msg.textContent = (runs === 1 ? '1 agent is' : runs + ' agents are') + ' still working — installing now would kill ' + (runs === 1 ? 'its run' : 'their runs') + '. Try again when ' + (runs === 1 ? 'it finishes.' : 'they finish.');
+      else if (snap && /^(downloading|installing|restarting)$/.test(String(snap.phase || ''))) msg.textContent = 'installing the update — StarNet restarts on its own when it is done.';
+      else msg.textContent = 'the update did not start — try again in a moment.';
+    };
     if (btn) {
       btn.onclick = async () => {
         SFX.click && SFX.click();
@@ -5192,7 +5214,7 @@ const App = (() => {
             // re-click while a check is in flight returns the busy snapshot immediately). This gate is a HARD
             // STOP on a save this build cannot read: a false "check back shortly" strands the user with no
             // idea that the one action on the screen didn't work. Name each state for what it is.
-            if (phase === 'available') { try { await Updates.install(); } catch (e) { if (msg) msg.textContent = 'update found, but the install failed — open the Update Center and retry.'; } }
+            if (phase === 'available') { let after = null, thrown = false; try { after = await Updates.install(); } catch (e) { thrown = true; } installOutcome(after, thrown); }
             else if (phase === 'current') { if (msg) msg.textContent = 'no newer build is published yet — check back shortly.'; }
             else if (phase === 'error') { if (msg) msg.textContent = 'the update check failed' + (snap && snap.error ? ' — ' + snap.error : '') + '. Check your connection and try again.'; }
             else if (phase === 'checking' || phase === 'downloading' || phase === 'installing' || phase === 'restarting') { if (msg) msg.textContent = 'an update check is already running — one moment…'; }
