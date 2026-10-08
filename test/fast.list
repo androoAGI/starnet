@@ -1061,6 +1061,7 @@ test/userprops.test.js
 test/userprops-catalog.test.js
 test/userprops-side.test.js
 test/userprops-sweep.test.js
+test/starnet-door-names.test.js
 test/starnet-run-id-header.test.js
 test/tierlist.test.js
 test/model-tier-badges.test.js
