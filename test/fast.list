@@ -575,6 +575,7 @@ test/ctx-conversation-scope.test.js
 test/floorstats.test.js
 test/insights.test.js
 test/slaglog.test.js
+test/slag-known-error-kinds.test.js
 test/xp.test.js
 test/xp-crewsplit.test.js
 test/xpstore.test.js

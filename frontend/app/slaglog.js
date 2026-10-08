@@ -25,9 +25,14 @@
   const COLD_CACHE = 0.15;   // below this the prompt-cache is basically cold (the smelter is dark)
   // FriendlyError kinds whose message already names the real door (friendlyerror.js KINDS, retryable:false).
   // Absent on purpose: unknown + server_error (plausibly StarNet's own fault — those keep "report it").
-  const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
+  const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, managed_credit_link: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
     quota_exhausted: 1, model_not_found: 1, context_overflow: 1, content_policy_blocked: 1, capdenied: 1,
     spotify_not_connected: 1, stale_session: 1, spend_unknown: 1 };
+  // …and the retryable kinds whose message names a door that is NOT StarNet's bug: an unanswered StarNet balance check,
+  // a provider's outage or rate limit, an agent still busy with its last run. Their own message is the fix; a resend in a
+  // moment CAN go through, so the cause must not say it won't (2026-10-08: a refused link / an unanswered balance check
+  // became "copy the diagnostics … report it"). network + timeout stay generic with unknown/server_error.
+  const RETRY_ERROR_KINDS = { managed_credit_unavailable: 1, provider_server_error: 1, provider_unreachable: 1, rate_limit: 1, agent_busy: 1 };
 
   function clampFrac(n) { n = Number(n); if (!isFinite(n) || n < 0) return 0; return n > 1 ? 1 : n; }
 
@@ -59,6 +64,10 @@
         if (ctx.error && ctx.error.msg && KNOWN_ERROR_KINDS[ctx.error.kind])
           return { reason, title: 'errored out',
             cause: 'The run stopped before doing any work, for a reason a resend will not fix.',
+            fix: String(ctx.error.msg) };
+        if (ctx.error && ctx.error.msg && RETRY_ERROR_KINDS[ctx.error.kind])
+          return { reason, title: 'errored out',
+            cause: 'The run was stopped by a temporary problem outside the task, so a resend in a moment can go through.',
             fix: String(ctx.error.msg) };
         return { reason, title: 'errored out',
           cause: 'The run failed partway, so no useful work was produced.',
