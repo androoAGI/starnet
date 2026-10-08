@@ -2492,7 +2492,7 @@
         {
           "kind": "contains",
           "path": "frontend/app/deliverables.js",
-          "needle": "<h3>DELIVERABLES</h3>"
+          "needle": "<div class=\"cfg dlv\">"
         },
         {
           "kind": "contains",
