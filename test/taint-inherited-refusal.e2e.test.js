@@ -106,6 +106,9 @@ function toolResult(requests, callId) {
     A.ok(inherited && /new session whose history has no attachments or outside pages/.test(inherited), 'the refusal names the structural way to an unlocked run');
     A.ok(inherited && inherited.indexOf('has already read outside content') < 0, 'it never claims a worker that read nothing "has already read outside content"');
     A.ok(inherited && /report the withheld step plainly/.test(inherited), 'the worker is still told to report the withheld step');
+    // a worker runs surface 'autonomous' with no run prompt: no approval can ever reach this web_request, so none is offered
+    A.ok(inherited && inherited.indexOf('ask to approve this exact call') < 0 && inherited.indexOf('without that confirmation') < 0,
+      'a delegated worker is never offered an approval it cannot receive');
 
     /* ---- 2. own read: a CLEAN lead in a new session hands over; the worker itself reads a document ---- */
     const r2 = await fixture.json('POST', '/api/run', { key: 'sk-or-v1-fake', model: 'test/model', provider: 'openrouter', agentId: 'lead-1', isTask: true, streamId: 'S-own',

@@ -48,4 +48,13 @@ function makeReplayedTaint(deps) {
   };
 }
 
-module.exports = { makeReplayedTaint };
+/* UNVERIFIED ≠ READ. The fail-closed reasons (the unreadable journal above, and index.js's fixed 'replayed context
+   (taint check failed)' latch) prove only that the earlier context could not be checked — never that outside content
+   was in it. The lock stays; the refusal must say "could not verify", not "outside content was there". Matched
+   anywhere in the reason, so a chained replay of such a run ('replayed history (tainted by …taint check failed)')
+   keeps telling the same truth. */
+function isUnverifiedTaint(reason) {
+  return /taint unverifiable|taint check failed/.test(String(reason == null ? '' : reason));
+}
+
+module.exports = { makeReplayedTaint, isUnverifiedTaint };

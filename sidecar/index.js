@@ -1532,6 +1532,7 @@ const RUN_JOURNAL_DIR = path.join(WORKSPACES, '.run-journal');
 const runJournal = makeRunJournal({ dir: RUN_JOURNAL_DIR, fs, path, clock: { now: () => Date.now() }, redact });
 // sec-taint 09-25: a continuation / resumed conversation starts tainted when what it replays was (taint-replay.js)
 const replayedTaint = require('./taint-replay.js').makeReplayedTaint({ journal: runJournal, transcript: transcriptStore });
+const { isUnverifiedTaint } = require('./taint-replay.js');   // a fail-closed replay proved nothing was read: the refusal says so
 // Was the run a recovery continuation resumes STARTED by third-party content? Read from the source's journal; an
 // unreadable journal answers true when the run IS a continuation (narrowing is the only safe failure).
 function recoverySourceEntryUntrusted(o) {
@@ -20253,28 +20254,39 @@ async function runOnceCore(o) {
       // so the lock follows the task into any session that resumes it — the resuming lead's chat may be clean.
       const resumedTaint = o.resumedTaint ? String(o.resumedTaint) : '';
       const fromResume = !!resumedTaint && !!ownTaint && ownTaint === taintHandedIn && taintHandedIn === resumedTaint;
+      // A fail-closed replay (taint-replay.js UNPROVABLE = TAINTED) proves only that the earlier context could not be
+      // checked: same lock, but the words never claim outside content was in it.
+      const unverified = isUnverifiedTaint(taintSource);
       const taintCause = fromResume
         ? 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
           + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
           + 'telling this agent not to read that content does not lift it.'
         : fromLead
-          ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
-            + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
-            + 'telling this agent not to read that content does not lift it.'
+          ? (unverified
+            ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose earlier context StarNet could not verify, '
+              + 'so it is treated as outside content (via ' + taintSource + ') and this run is under the same lock.'
+            : 'This run started from a task handed over by ' + o.delegatedBy + ', whose chat has outside content in its context (via '
+              + taintSource + '). The handed-over instructions may carry that content, so this run is under the same lock; '
+              + 'telling this agent not to read that content does not lift it.')
           : startedLocked
-            ? 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.'
+            ? (unverified
+              ? 'StarNet could not verify this run\'s earlier context, so it is treated as outside content (via ' + taintSource + ').'
+              : 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.')
             : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
+      // A delegated worker runs surface 'autonomous' with no run prompt (orchestration.js): unless THIS call reached a
+      // live confirmation (a connector call forwarded to a watched lead's prompt), there is no approval to offer it.
+      const offerApproval = !o.delegatedBy || (effectSurface === 'interactive' && typeof effectPrompt === 'function');
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
         content: 'BLOCKED: "' + c.name + '" is no longer available on this run. ' + taintCause + ' '
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
-          + 'run needs a fresh confirmation for this exact call. For the Commander: a watched chat can ask to approve '
-          + 'this exact call, or '
+          + 'run needs a fresh confirmation for this exact call. For the Commander: '
+          + (offerApproval ? 'a watched chat can ask to approve this exact call, or ' : '')
           + (resumedTaint
             ? 'hand the task over fresh (not resumed) from a new session whose history has no attachments or outside pages; that starts unlocked. '
             : 'a new session whose history has no attachments or outside pages (given the task directly, or handed over '
               + 'fresh by a lead in that session) starts unlocked. ')
-          + 'Retrying without that confirmation will not help: '
+          + (offerApproval ? 'Retrying without that confirmation will not help: ' : 'Retrying will not help: ')
           + 'finish what you can and report the withheld step plainly.'
       };
     }
