@@ -37,7 +37,7 @@ const BUCKET = {
   billing: 'NAMED', managed_credit: 'NAMED', managed_credit_link: 'NAMED', auth: 'NAMED', no_model: 'NAMED', oauth: 'NAMED',
   grok_oauth_unavailable: 'NAMED', quota_exhausted: 'NAMED', model_not_found: 'NAMED', context_overflow: 'NAMED',
   content_policy_blocked: 'NAMED', capdenied: 'NAMED', spotify_not_connected: 'NAMED', stale_session: 'NAMED', spend_unknown: 'NAMED',
-  managed_credit_unavailable: 'RETRY', provider_server_error: 'RETRY', provider_unreachable: 'RETRY', rate_limit: 'RETRY', agent_busy: 'RETRY',
+  managed_credit_unavailable: 'RETRY', managed_credit_held: 'RETRY', provider_server_error: 'RETRY', provider_unreachable: 'RETRY', rate_limit: 'RETRY', agent_busy: 'RETRY',
   unknown: 'GENERIC', server_error: 'GENERIC', network: 'GENERIC', timeout: 'GENERIC',
   user_abort: 'NOT_A_FAILURE'
 };
@@ -62,11 +62,16 @@ for (const kind of Object.keys(BUCKET)) {
 }
 
 /* ---- 2. the sidecar's real admission refusals → Friendly → SlagLog ---- */
-const sidecarMsg = (re) => { const m = host.match(re); return m ? m[1].replace(/\\'/g, "'") : ''; };
-const refusedLink = sidecarMsg(/\? '(Managed credits are unavailable — your StarNet account refused this station\\'s link.*?)'\n/);
-const unanswered = sidecarMsg(/: '(Managed credits are unavailable right now.*?)';\n/);
-const outOf = sidecarMsg(/\? '(Out of managed credit.*?)'\n/);
-A.ok(refusedLink && unanswered && outOf, 'the sidecar still emits the refused-link, unanswered and out-of-credit refusals');
+// the refusal wording lives in budgetcaps.managedRefusalMessage (moved there with audit B11's held refusal); the
+// admission path must still build its refusal from it, so these are the sidecar's real strings
+A.ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: [^\n]*\}\)/.test(host), 'refuseManaged builds its refusal from budgetcaps.managedRefusalMessage');
+const refusalOf = require(path.join(__dirname, '..', 'sidecar', 'budgetcaps.js')).managedRefusalMessage;
+const refusedLink = refusalOf({ linkRefused: true }).message;
+const unanswered = refusalOf({}).message;
+const outOf = refusalOf({ exhausted: true }).message;
+const heldBy = refusalOf({ exhausted: true, held: { counted: true, runs: 2, usd: 4 }, balanceUsd: 0 }).message;
+A.ok(/refused this station's link/.test(refusedLink) && /did not answer/.test(unanswered) && /^Out of managed credit/.test(outOf) && /held by 2 running StarNet runs/.test(heldBy),
+  'the sidecar still emits the refused-link, unanswered, out-of-credit and held refusals');
 const postMortem = (text) => {
   const v = Friendly.friendlyError(new Error(text));
   return { kind: v.kind, d: SlagLog.diagnose('error', { error: { kind: v.kind, msg: v.userMessage } }) };
@@ -88,6 +93,12 @@ const postMortem = (text) => {
   const r = postMortem(outOf);
   A.eq(r.kind, 'managed_credit', 'a reported empty wallet classifies as managed_credit');
   A.ok(/out of StarNet credits/.test(r.d.fix), 'only a reported empty wallet says top up');
+}
+{
+  const r = postMortem(heldBy);
+  A.eq(r.kind, 'managed_credit_held', 'a balance held by running runs classifies as managed_credit_held');
+  A.ok(/still working/.test(r.d.fix) && !/out of StarNet credits|report it|diagnostics/.test(r.d.fix), 'a held balance says wait, never empty or report it: ' + r.d.fix);
+  A.ok(!NOT_FIXABLE_BY_RESEND.test(r.d.cause) && /resend in a moment/.test(r.d.cause), 'a held balance is a retry: a resend after the runs settle can go through');
 }
 
 /* ---- 3. a stalled BUILD names the run's own error door (workqueststore.js stallBeat) ---- */
