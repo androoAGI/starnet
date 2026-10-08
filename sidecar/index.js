@@ -20258,9 +20258,12 @@ async function runOnceCore(o) {
       // checked: same lock, but the words never claim outside content was in it.
       const unverified = isUnverifiedTaint(taintSource);
       const taintCause = fromResume
-        ? 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
-          + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
-          + 'telling this agent not to read that content does not lift it.'
+        ? (unverified
+          ? 'This run resumes a task whose original context StarNet could not verify, so it is treated as outside content (via '
+            + taintSource + '); resuming it stays under the same lock from any session.'
+          : 'This run resumes a task first handed over from a chat with outside content in its context (via ' + taintSource
+            + '). The stored task carries that content, so resuming it stays under the same lock from any session; '
+            + 'telling this agent not to read that content does not lift it.')
         : fromLead
           ? (unverified
             ? 'This run started from a task handed over by ' + o.delegatedBy + ', whose earlier context StarNet could not verify, '
@@ -20272,7 +20275,9 @@ async function runOnceCore(o) {
             ? (unverified
               ? 'StarNet could not verify this run\'s earlier context, so it is treated as outside content (via ' + taintSource + ').'
               : 'This run started with outside content already in its context (via ' + taintSource + '), which could contain instructions from whoever wrote it.')
-            : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.';
+            : (unverified   // a mid-run unverified latch is relayed worker output (taint.js relayedTaint)
+              ? 'This run read output from a run whose earlier context StarNet could not verify, so it is treated as outside content (via ' + taintSource + ').'
+              : 'This run has already read outside content (via ' + taintSource + '), which could contain instructions from whoever wrote it.');
       // A delegated worker runs surface 'autonomous' with no run prompt (orchestration.js): unless THIS call reached a
       // live confirmation (a connector call forwarded to a watched lead's prompt), there is no approval to offer it.
       const offerApproval = !o.delegatedBy || (effectSurface === 'interactive' && typeof effectPrompt === 'function');

@@ -90,7 +90,38 @@ for (const reason of ['resumed run (taint unverifiable: run journal unreadable E
   A.ok(handed.indexOf(OFFER) < 0, 'and offers the worker no approval');
 }
 
-// ---- 4. the owner-facing remedies never point at a taint-clearing control or Full Access ----
+// ---- 4. team.resume of a task whose STORED taint is the fail-closed reason: the lock rides the task, the words say
+//         "could not verify" (a lead whose journal was unreadable delegated it; a clean lead resumes it later) ----
+{
+  const unv = 'resumed run (taint unverifiable: run journal unreadable EBUSY)';
+  const resumed = refuse({ label: 'resume unverified', own: unv, handedIn: unv, o: { delegatedBy: 'lead-2', resumedTaint: unv } });
+  A.ok(/This run resumes a task whose original context StarNet could not verify, so it is treated as outside content/.test(resumed),
+    'a resumed task with an unverified stored taint says StarNet could not verify it: ' + resumed);
+  A.ok(resumed.indexOf('(via ' + unv + ')') >= 0, 'and still names the exact reason for diagnostics');
+  A.ok(resumed.indexOf('with outside content in its context') < 0, 'never claims the first chat HAD outside content');
+  A.ok(/resuming it stays under the same lock from any session/.test(resumed), 'the lock still rides the stored task');
+  A.ok(/hand the task over fresh \(not resumed\) from a new session/.test(resumed), 'the remedy is still a fresh hand-over');
+  A.ok(resumed.indexOf(OFFER) < 0, 'a resumed worker is offered no approval');
+  const proven = refuse({ label: 'resume proven', own: 'user attachment', handedIn: 'user attachment', o: { delegatedBy: 'lead-2', resumedTaint: 'user attachment' } });
+  A.ok(/This run resumes a task first handed over from a chat with outside content in its context \(via user attachment\)/.test(proven),
+    'a PROVEN stored taint keeps the resumed-task wording');
+  A.ok(proven.indexOf('could not verify') < 0, 'and is not softened into "could not verify"');
+}
+
+// ---- 5. a run that relays a worker's output whose own context could not be verified (latched mid-run) ----
+{
+  const relayed = 'worker output (tainted by resumed run (taint unverifiable: run journal unreadable EBUSY))';
+  const lead = refuse({ label: 'relayed unverified', own: relayed, atStart: null, surface: 'interactive', prompt: ask });
+  A.ok(/This run read output from a run whose earlier context StarNet could not verify, so it is treated as outside content \(via worker output/.test(lead),
+    'relayed unverified output says StarNet could not verify that run: ' + lead);
+  A.ok(lead.indexOf('has already read outside content') < 0, 'never claims this run read outside content');
+  A.ok(lead.indexOf('could contain instructions from whoever wrote it') < 0, 'never describes an author of content nobody saw');
+  A.ok(lead.indexOf(OFFER) >= 0, 'a watched lead keeps its one-call approval offer');
+  const proven = refuse({ label: 'relayed proven', own: 'worker output (tainted by web_fetch)', atStart: null, surface: 'interactive', prompt: ask });
+  A.ok(/This run has already read outside content \(via worker output \(tainted by web_fetch\)\)/.test(proven), 'relayed PROVEN output keeps the own-read wording');
+}
+
+// ---- 6. the owner-facing remedies never point at a taint-clearing control or Full Access ----
 A.ok(!/clear (the )?taint|turn on Full Access/i.test(block), 'the refusal never suggests clearing taint or Full Access as the way out');
 
 A.report('taint-refusal-copy.test');
