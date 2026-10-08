@@ -4924,6 +4924,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   // honest one-liner for where a just-saved key was stored. Falls back to the neutral "on this machine" until the
   // probe answers, so we never assert keychain-vs-browser before we actually know it.
+  // #89: in the browser build a saved key is also handed to the station for routines (Harness resolves { engine }).
+  // When the station could NOT keep that copy, say so beside the success: chat still works, unattended runs won't.
+  function warnIfStationLacksKey(res) {
+    const e = res && res.engine;
+    if (e && e.ok === false && e.error) notify('⚠ ' + e.error, 'warn');
+  }
   function keyStoreClause() {
     if (keychainModeKnown === true) return 'stored in your OS keychain';
     if (keychainModeKnown === false) return 'stored locally in this browser';
@@ -5569,9 +5575,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // success UI waits for the PROVEN store: on desktop setKey resolves only after the keychain write lands
           // (browser localStorage resolves immediately). The old fire-and-forget toasted "✓ stored in your OS
           // keychain" over a rejected write — a keyless station that claimed connected with no re-entry hint.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
             invalidateProviderHealth(provider);
             notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // clear the dock's no-key warning the instant a key lands
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();             // …and the world's keyless-brain banner
             rerender('settings');
@@ -5631,9 +5638,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const v = inp ? inp.value.trim() : '';
           if (!v) { sfx('bad'); return; }
           // same proven-store contract as the add path: no success toast over a rejected keychain write.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(res => {
             invalidateProviderHealth(row.provider);
             notify('✓ updated ' + provName(row.provider) + ' API key — ' + keyStoreClause(), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // keep the dock's no-key warning honest after an edit
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
             rerender('settings');
@@ -5648,7 +5656,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const keylessCustomRm = row.provider === 'custom' && !row.key && !!row.baseUrl;
           if (b.dataset.armed) {
             if (keylessCustomRm && h.setBaseUrl) { h.setBaseUrl('', 'custom'); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
-            else { if (h.setKey) h.setKey('', row.provider); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
+            else { if (h.setKey) Promise.resolve(h.setKey('', row.provider)).then(warnIfStationLacksKey); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
             invalidateProviderHealth(row.provider); if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); sfx('bad'); rerender('settings'); return;
           }
           // Arm: make the destructive state impossible to miss — filled --bad button + pulse, red hairline on the row,
@@ -5682,9 +5690,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!v) { sfx('bad'); if (inp) inp.focus(); return; }
       if (!h || !h.setKey) { sfx('bad'); return; }
       // same proven-store contract as the key-list paths: success UI only after setKey resolves.
-      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
         invalidateProviderHealth(provider);
         notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+        warnIfStationLacksKey(res);
         if (typeof ModelDock !== 'undefined' && ModelDock.reconcile) ModelDock.reconcile().catch(() => ModelDock.reflect && ModelDock.reflect());
         else if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
         if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();

@@ -223,6 +223,7 @@ const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bo
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const { makeChannelRegistry, wireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
+const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
 const { makeConnectGateway } = require('./channels/discord.gateway.js');           // P2-E: the real Discord gateway WS client (inbound)
 const { makeSseHub, runTeeView } = require('./channels/sse.js');
@@ -1006,6 +1007,17 @@ function saveCredentialRemovalVerified(file, value, proof, tag) {
   if (!r.ok) console.warn('[' + (tag || 'credentials') + '] removal persist UNVERIFIED after retry (' + (r.error || '?') + ')');
   return r.ok;
 }
+/* #89 THE PAGE'S KEY, KEPT FOR UNATTENDED RUNS. A browser page (npm start / source build) keeps its BYOK key in
+   localStorage and hands the station a copy through POST /api/providers/engine-key (see engine-credential.js), so a
+   routine, Run Now, the night shift or a line hop can run on the key the Commander connected. It lives in .secrets/
+   (the protected sibling of the fs jail; station-recovery skips it, /api/file cannot reach it) and is written to main
+   AND .bak with both read back — saveResilient would snapshot a REPLACED key into .bak, and a key the Commander
+   replaced or removed must not survive anywhere. The desktop app keeps keys in the OS keychain: never read here. */
+const ENGINE_KEYS_FILE = path.join(WORKSPACES, '.secrets', 'provider-keys.json');
+const engineKeys = engineCredential.makeEngineKeys({
+  load: () => DESKTOP_SHELL ? undefined : loadResilient(ENGINE_KEYS_FILE, 'engine-keys'),
+  persist: (envelope) => saveCredentialRemovalVerified(ENGINE_KEYS_FILE, envelope, null, 'engine-keys')
+});
 function reportDomainStoreIssue(tag) {
   return function onDomainStoreIssue(status, detail) {
     const file = detail && detail.file;
@@ -2435,6 +2447,13 @@ function providerRuntimeKey(provider, explicitKey) {
   if (explicit) return explicit;
   const runtime = String(runtimeKeys[id] || '').trim();
   if (runtime) return runtime;
+  const operator = providerOperatorKey(id);
+  // #89: the key a browser page handed the station (engine-credential.js) fills the gap an operator left; an env var
+  // (OPENROUTER_API_KEY …) or the desktop keychain push above is a deliberate deployment choice and keeps priority.
+  return operator || String((engineKeys.get(id) || {}).key || '');
+}
+// the env-var key an operator set for this provider (OPENROUTER_KEY/OPENROUTER_API_KEY …); '' when none
+function providerOperatorKey(id) {
   const profile = getProviderProfile(id);
   if (id === 'openrouter') return runtimeKey || envFirst(profile && profile.keyEnv);
   return envFirst(profile && profile.keyEnv);
@@ -2445,8 +2464,16 @@ function providerRuntimeKeyPool(provider, explicitPool) {
     ? explicitPool
     : (Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
       ? runtimeKeyPools[id]
-      : String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(','));
+      : providerFallbackKeyPool(id));
   return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
+}
+// the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only while the page copy's key is the
+// one the station runs on (backups for someone else's key would rotate a run onto a different account)
+function providerFallbackKeyPool(id) {
+  const env = String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(',').filter(k => String(k || '').trim());
+  if (env.length) return env;
+  const saved = engineKeys.get(id);
+  return (saved && saved.key && saved.keyPool && !String(runtimeKeys[id] || '').trim() && !providerOperatorKey(id)) ? saved.keyPool : [];
 }
 function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
   const id = normalizeProvider(provider);
@@ -2464,7 +2491,9 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
-  return envFirst(profile && profile.baseUrlEnv) || (profile && profile.baseUrl) || '';
+  // #89: the page's endpoint (a CUSTOM/local base URL saved in the browser) ranks under the operator's env var and
+  // over the profile default — the same order the key follows
+  return envFirst(profile && profile.baseUrlEnv) || String((engineKeys.get(id) || {}).baseUrl || '') || (profile && profile.baseUrl) || '';
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
@@ -2638,7 +2667,7 @@ function cronProviderFor(job) {
   if (explicit) return explicit;
   // Back-compat for already-persisted rosters/jobs from before provider was mirrored: if there is no
   // OpenRouter key but a ChatGPT OAuth token exists, inherit the only runnable provider.
-  if (!runtimeKey && codexTokens && codexTokens.access_token) return 'codex';
+  if (!providerRuntimeKey('openrouter', '') && codexTokens && codexTokens.access_token) return 'codex';
   return 'openrouter';
 }
 function cronKeyFor(provider) {
@@ -2648,11 +2677,22 @@ function cronHasCredential(provider, key) {
   return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, ''));
 }
 function cronCredentialError(provider, what) {
-  // "scheduled routine" so the line explains itself even when it surfaces outside the ROUTINES panel
-  // (e.g. the quest log shows a skipped scheduled job) — UX sweep 2026-07-15.
   // `what` names the job the credential is for — it surfaces verbatim in user-facing panels
   // (the QUEST LOG's refresh is NOT a routine; calling it one crossed the vocabularies).
-  return providerCredentialError(provider) + ' to run ' + (what || 'this scheduled routine');
+  return engineCredentialError(provider, what || 'this routine');
+}
+/* #89 THE ONE "no credential" SENTENCE for every run with no page attached — the scheduled fire (cron-driver
+   credentialError), Run Now and the quest refresh (cronCredentialError). It says what the station is missing and the
+   two real ways out: re-saving the key in the page (which now hands the station its copy) or the operator's env var.
+   The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). */
+function engineCredentialError(provider, what) {
+  const id = normalizeProvider(provider);
+  const profile = getProviderProfile(id);
+  const envOf = names => { const list = Array.isArray(names) ? names : []; return list.find(n => /_API_KEY$/.test(n)) || list[0] || ''; };
+  const kind = registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
+    : (providerRequiresBaseUrl(id) && !providerRuntimeBaseUrl(id, '')) ? 'baseUrl' : providerRequiresKey(id) ? 'key' : 'other';
+  return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what,
+    env: envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv) });
 }
 
 // PERSISTENT agent save (M-save) — a durable mirror of the browser's localStorage save envelope, written to
@@ -5367,6 +5407,7 @@ function stationSecretValues() { return collectSecretValues([
   { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
   { values: Object.values(runtimeKeys) },
   { values: Object.values(runtimeKeyPools) },
+  { values: engineKeys.secretValues() },        // #89: the page's provider keys the station keeps for unattended runs
   { values: Object.values(channelTokenRuntime) },
   { keyed: channelSecrets },
   { keyed: codexTokens },
@@ -6190,6 +6231,7 @@ const cronDriver = makeCronDriver({
   getKey: (provider) => cronKeyFor(provider),
   providerForJob: (job) => cronProviderFor(job),
   hasCredential: (provider, key) => cronHasCredential(provider, key),
+  credentialError: (provider) => engineCredentialError(provider, 'this scheduled routine'),   // #89: the ONE sentence Run Now says too
   defaultModel: CRON_DEFAULT_MODEL, maxRunMs: CRON_MAX_RUN_MS, maxConsecutiveFailures: CRON_MAX_CONSECUTIVE_FAILURES,
   maxWallMs: CRON_MAX_WALL_MS,                             // a run that keeps heartbeating but never ends is stopped here
   // NS-0 lease heartbeat: reclaim on stale-heartbeat, not fixed wall-clock age (a live long run fires exactly once).
@@ -9176,7 +9218,7 @@ async function runQuestRefreshCycle(why) {
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
   const baseUrl = providerRuntimeBaseUrl(providerId, '');
   const key = cronKeyFor(providerId);
-  if (!cronHasCredential(providerId, key)) { questRefreshNote({ outcome: 'skipped', reason: 'no provider credential — ' + cronCredentialError(providerId, 'the quest refresh') }); return; }
+  if (!cronHasCredential(providerId, key)) { questRefreshNote({ outcome: 'skipped', reason: cronCredentialError(providerId, 'the quest refresh') }); return; }
   const model = resolveAuxModel() || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);   // aux-tier: the ONE aux-model resolution (STARNET_AUX_MODEL, legacy REFLECT_MODEL)
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
   const ac = new AbortController();
@@ -11113,6 +11155,7 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/model-tiers', h: handleModelTiers },   // the cloud's editorial tier list (picker badges); {ok:false, reason} when unreachable
   { m: 'POST', exact: '/api/providers/probe', h: handleProviderProbe },
   { m: 'POST', exact: '/api/providers/validate', h: handleProviderValidate },
+  { m: 'POST', exact: '/api/providers/engine-key', h: handleEngineKeySet },   // #89: the page's key, kept for unattended runs
   // /api/models/openrouter is served by this same prefix (id='openrouter'). handleProviderModels answers 200
   // with {models:[]} + error on any catalog failure, so it never throws into the central guard.
   { m: 'GET', qprefix: '/api/models/', h: handleProviderModels },
@@ -13609,6 +13652,37 @@ async function handleSetKey(req, res) {
   const baseUrl = providerRuntimeBaseUrl(id, '');
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   return res.end(JSON.stringify({ ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length }));
+}
+
+/* #89 POST /api/providers/engine-key { provider, key, keyPool?, baseUrl? } — a BROWSER page (npm start / source build)
+   hands the station its copy of the provider config it just saved or removed (and once per page boot for configs it
+   already holds), so a scheduled routine, Run Now, the night shift, the quest refresh, a line hop or a phone task can
+   run on the key the Commander connected. The body is the page's FULL config for that provider; an all-empty body is
+   REMOVE. Gated like every /api/* mutation (launch token + loopback Host + Origin allow-list, the central gate in
+   createServer), the same seam the channel connects already use to persist a page-sent key. The station adopts the
+   change only after the write is read back from disk, and the answer is PRESENCE ONLY — never a key, pool or URL.
+   A failed save says so (chat in the page still works — it sends its key with every run — routines will not). */
+async function handleEngineKeySet(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  if (DESKTOP_SHELL) return json(409, { ok: false, error: 'this station is the StarNet desktop app — it keeps provider keys in your OS keychain, so connect the key in the app itself' });
+  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
+  const id = normalizeProviderIdFromRegistry(body.provider, '');
+  if (!id || !getProviderProfile(id) || id === 'starnet' || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json(400, { ok: false, error: 'this provider does not take a key from the page' });
+  const r = engineKeys.put(id, { key: body.key, keyPool: body.keyPool, baseUrl: body.baseUrl });
+  if (r.invalid) return json(400, { ok: false, provider: id, error: r.error });
+  if (!r.ok) return json(500, { ok: false, provider: id, persisted: false, error: 'the station could not save this ' + providerLabelOf(id) + ' setting to disk (its log has the reason) — chat in this browser still works, but routines and other unattended runs will not see the change until a save succeeds' });
+  return json(200, Object.assign({ ok: true, provider: id, persisted: true, changed: !!r.changed }, engineKeyPresence(id)));
+}
+function providerLabelOf(id) { const p = getProviderProfile(id); return (p && p.label) || id; }
+// what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
+function engineKeyPresence(id) {
+  const saved = engineKeys.get(id) || {};
+  const operator = !!(String(runtimeKeys[id] || '').trim() || providerOperatorKey(id));
+  return {
+    saved: { key: !!saved.key, alternates: (saved.keyPool || []).length, baseUrl: !!saved.baseUrl },
+    keySource: operator ? 'environment' : (saved.key ? 'station' : 'none'),
+    unattendedReady: providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, ''))
+  };
 }
 
 /* desktop channel-token push (T1.4): the parent shell stores a bot token in the OS keychain and pushes it here

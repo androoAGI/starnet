@@ -320,7 +320,7 @@ const Harness = (() => {
     // they are configured identically in a browser build and a packaged one. Probing after the return would
     // leave configured('starnet') false forever anywhere that isn't Tauri — including every dev session.
     await refreshCreditsConfigured();
-    if (!DESKTOP) return;
+    if (!DESKTOP) { syncEngineKeysOnBoot(); return; }   // #89: never awaited — boot must not wait on it
     let loaded = false;
     try {
       const status = await invoke('harness_provider_key_status');
@@ -491,6 +491,7 @@ const Harness = (() => {
         .catch(e => { setDesktopConfigured(p, false); throw e; });
     }
     writeScoped(LS.key, p, k || '');
+    return syncEngineKey(p).then(engine => ({ engine }));   // #89: resolves (never rejects) with whether routines have it
   };
   function keyPoolSize(provider) {
     const p = normalizeProviderId(provider || getProv());
@@ -505,7 +506,56 @@ const Harness = (() => {
         .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return count; });
     }
     writeScoped(LS.keyPool, p, JSON.stringify(cleaned));
-    return Promise.resolve(cleaned.length);
+    return syncEngineKey(p).then(() => cleaned.length);   // #89: the station's copy follows the backups too
+  }
+  /* #89 THE STATION KEEPS A COPY. In the browser build a key lives in this page's localStorage and rides each
+     interactive /api/run — so chat works — but a scheduled routine, Run Now, the night shift or a line hop runs with
+     no page attached and resolves its key on the station. So whenever a provider's key, backups or endpoint change
+     here (and once per page boot for what is already saved), hand the station that provider's FULL config through the
+     token-gated /api/providers/engine-key; an all-empty config removes the station's copy. The desktop app (keychain)
+     and dev (server-held key) never call it, nor do the sign-in providers. Never rejects — the key is already saved in
+     this browser either way — and resolves { ok, error? }: whether unattended runs have it (presence only; the station
+     never echoes a key back). */
+  const ENGINE_SYNC_SKIP = { codex: 1, grok: 1, kimi: 1, starnet: 1, 'claude-cli': 1 };
+  function engineConfigOf(p) {
+    let keyPool = [];
+    try { const pool = JSON.parse(readScoped(LS.keyPool, p) || '[]'); if (Array.isArray(pool)) keyPool = pool; } catch (_) { keyPool = []; }
+    return { provider: p, key: readScoped(LS.key, p) || '', keyPool, baseUrl: readScoped(LS.baseUrl, p) || '' };
+  }
+  async function syncEngineKey(provider) {
+    const p = normalizeProviderId(provider || getProv());
+    if (DESKTOP || DEVMODE || ENGINE_SYNC_SKIP[p]) return { ok: true, skipped: true };
+    let out;
+    try {
+      const r = await fetch('/api/providers/engine-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(engineConfigOf(p)) });
+      const text = await r.text().catch(() => '');
+      let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
+      out = (r.ok && j.ok) ? { ok: true, keySource: String(j.keySource || ''), unattendedReady: !!j.unattendedReady }
+        : { ok: false, error: j.error ? String(j.error) : 'the station refused to keep a copy for routines (HTTP ' + r.status + ') — chat in this browser still works; re-save the key to retry' };
+    } catch (_) {
+      out = { ok: false, error: 'the station could not be reached to keep a copy for routines — chat in this browser still works; re-save the key once it is back' };
+    }
+    if (!out.ok) console.warn('[harness] ' + p + ': ' + out.error);
+    return out;
+  }
+  // once per page boot: every provider this browser holds a key, backup pool or endpoint for. Boot never REMOVES — a
+  // browser with nothing saved must not wipe what another browser handed the station (the last explicit save wins).
+  function syncEngineKeysOnBoot() {
+    if (DESKTOP || DEVMODE) return Promise.resolve([]);
+    const seen = new Set();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = String(localStorage.key(i) || '');
+        if (k === LS.key || k === LS.keyPool || k === LS.baseUrl) seen.add('openrouter');
+        for (const base of [LS.key, LS.keyPool, LS.baseUrl]) if (k.indexOf(base + '.') === 0) seen.add(normalizeProviderId(k.slice(base.length + 1)));
+      }
+    } catch (_) { return Promise.resolve([]); }   // storage unavailable: nothing saved here to hand over
+    const jobs = [];
+    for (const p of seen) {
+      const c = engineConfigOf(p);
+      if (c.key || c.keyPool.length || c.baseUrl) jobs.push(syncEngineKey(p));
+    }
+    return Promise.all(jobs);
   }
   // #62: no provider key contains whitespace — a key pasted out of a narrow SSH terminal can carry a line wrap (or a
   // zero-width char from a web page) in its MIDDLE, which .trim() never removed. Strip them all (the sidecar does too).
@@ -575,6 +625,7 @@ const Harness = (() => {
     if (DESKTOP) {
       return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' }).catch(() => {});
     }
+    return syncEngineKey(p);   // #89: an endpoint saved here reaches unattended runs too
   };
   function defaultReasoningEffortForProvider(provider) {
     const p = normalizeProviderId(provider);
@@ -787,8 +838,8 @@ const Harness = (() => {
     if (!r.ok || !j.credentialVerified) {
       throw new Error(keyCheckFailure(r.status, j, text) + ' — your previous key is unchanged');
     }
-    await Promise.resolve(setKey(candidate, p));
-    return Object.assign({}, j, { stored: true });
+    const stored = await Promise.resolve(setKey(candidate, p));
+    return Object.assign({}, j, { stored: true }, (stored && stored.engine) ? { engine: stored.engine } : {});
   }
 
   // PURE (test-locked in harness-internal.test.js): fold a sidecar error-response body into the human tail of

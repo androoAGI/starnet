@@ -67,6 +67,7 @@ test/e2e.connector-readback.test.js
 test/recipe-drift.http.test.js
 test/cron.api.test.js
 test/cron.run-now.e2e.test.js
+test/routine-keys.e2e.test.js
 test/cancel-host-run.e2e.test.js
 test/cron.station-default.e2e.test.js
 test/cron.degraded.e2e.test.js
