@@ -9355,8 +9355,8 @@ const Chat = (() => {
             : 'stopped (' + endReason + ')';
           if (isActiveWs(ws)) { breakLive(); if (stopLine) toolLine('⏹ ' + stopLine); }
           markStoppedTurn(ws, replyText);
-          // a budget stop's honest door is the BUDGET settings section, not a doomed retry (the same cap fires
-          // again immediately); every other stop keeps the plain retry chip.
+          // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the StarNet
+          // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
           if (isActiveWs(ws)) { if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? 'run stopped: ' + endReason
             : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),

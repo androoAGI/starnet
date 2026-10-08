@@ -108,12 +108,12 @@
     // The balance check FAILED (the account service was slow, erroring or unreachable) — the balance is unknown, NOT
     // $0. Reading this as managed_credit told a customer holding $79.24 to top up (2026-10-06). Retry is the door.
     managed_credit_unavailable: { retryable: true, action: null, msg: "StarNet couldn't check your credit balance just now — your credits are safe and nothing was charged. Try again in a moment." },
-    // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
-    // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
     // The service reported $0 because THIS station's running StarNet runs hold the balance (each reserves up to its PER
     // RUN limit and refunds what it doesn't spend; budgetcaps.managedRefusalMessage). Topping up is not the fix —
     // waiting is (retry), or lowering PER RUN so runs can share the balance (the SPENDING LIMITS door). Audit B11.
     managed_credit_held: { retryable: true, action: 'budget', msg: "Your StarNet balance is held by StarNet runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, or lower PER RUN in SETTINGS › SPENDING LIMITS." },
+    // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
+    // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
     managed_credit_link: { retryable: false, action: 'store', msg: "Your StarNet account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → STARNET MANAGED." },
     // capdenied copy is REBUILT per-error in friendlyError() to name the exact power + gear; this is the fallback
     // when the capability can't be parsed. The door is BUILD MODE (place the gear), NOT the SKILLS list.
