@@ -36,6 +36,10 @@
     readiness: 'the station doesn’t know you well enough yet to act unattended — run a few real tasks (or answer its questions) so it learns',
     // NS-2 pre-spend gates the precheck can also bind on (they flow through statusDecision as bindings):
     budget: 'the spending budget is exhausted — raise the cap or resume to let jobs run',
+    // NOT an exhausted budget: spend history is uncertain (usually an interrupted run that never recorded its spend), so
+    // a limit the Commander chose can't be checked. Raising the cap or resuming changes nothing; SPENDING LIMITS names
+    // the cause and its fix (settle that run, or restart after a failed save).
+    'spend-unknown': 'StarNet can’t verify past spending (usually a run that was interrupted before it recorded its spend), so your spending limits can’t be checked — see SETTINGS › SPENDING LIMITS',
     'no-provider': 'no runnable provider/model is configured — add a key so jobs can run',
     cooldown: 'it wasn’t time for the next job yet',
     concurrency: 'the desk was busy with another run',

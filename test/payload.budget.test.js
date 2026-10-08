@@ -49,10 +49,15 @@ const HOST = '127.0.0.1';
    (git describe), whose length changes as other lanes add tags. It took trunk from 24,795 to 24,833 on the floor
    with no prompt change (038a62983). Measured 24,612 + 39 / 24,833 + 39; the system budgets move by 50 again.
    PINNED BUILD ID 2026-10-03: the run's build id is now a fixed release-shaped label (STARNET_BUILD_DESCRIBE below), so a
-   tag elsewhere can never move this number again (an archive tag took the floor to 24,902 with no prompt change). */
+   tag elsewhere can never move this number again (an archive tag took the floor to 24,902 with no prompt change).
+   10-06 ISSUE BATCH (#77, already on trunk e5e95c76b): team_dispatch's description now says where a worker's relative
+   files land in a project-scoped conversation and why an ASK-mode worker has no shell (+570), image tools name the
+   absolute location (+~130): trunk measured 65,999 tool bytes, over the 65,300 budget, and the HTTP gate went red.
+   Intended growth: the byte budget moves to 66,100. station.status (#55) is DEFERRED for exactly this reason — it
+   adds no schema, only ", station_status" (+16) to the deferred index: 24,694 / 24,915. System budgets move by 50. */
 const BUDGET = {
-  'default-new-install': { systemChars: 24700, tools: 84, toolBytes: 65300 },
-  'fully-granted-floor': { systemChars: 24900, tools: 84, toolBytes: 65300 }
+  'default-new-install': { systemChars: 24750, tools: 84, toolBytes: 66100 },
+  'fully-granted-floor': { systemChars: 24950, tools: 84, toolBytes: 66100 }
 };
 
 (async () => {

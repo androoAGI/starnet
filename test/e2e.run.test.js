@@ -307,6 +307,7 @@ function boot(port, env, attemptsLeft) {
       const firstDomainReq = domainMain[0];
       const offered = ((firstDomainReq && firstDomainReq.tools) || []).map(t => t && t.function && t.function.name);
       A.ok(offered.indexOf('team_dispatch') < 0 && offered.indexOf('web_search') < 0, 'lead is not offered delegation or expansive search for a single-host check');
+      A.ok(offered.indexOf('browser_navigate') >= 0, 'the placed DISH keeps the browser on a single-host check (saw: ' + offered.join(', ') + ')');
       const runId = ((evs.find(e => e.name === 'agent.run.start') || {}).payload || {}).runId;
       const runs = await (await fetch(B + '/api/runs?agent=e2e-domain&runId=' + encodeURIComponent(runId), { headers: { 'X-StarNet-Token': token, Origin: B } })).json();
       const row = (runs.runs || [])[0];

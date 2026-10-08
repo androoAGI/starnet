@@ -22,6 +22,7 @@ test/diagnostics.test.js
 test/diagnostics-support-email.test.js
 test/diagnostics-build.test.js
 test/diagnostics-dead-engine.test.js
+test/diagnostics-copy-gesture.test.js
 test/bootguard.test.js
 test/mac-boot-compat.test.js
 test/live-doctor.test.js
@@ -279,6 +280,7 @@ test/skill-frontmatter.test.js
 test/skill-export.test.js
 test/skill-market.test.js
 test/skill-market-catalog.test.js
+test/skill-uploads-pull.test.js
 test/skill-market-signing.test.js
 test/skill-market-tools.test.js
 test/skill-guard-remote-install.test.js
@@ -647,6 +649,7 @@ test/comms-presence.test.js
 test/comms-convo.test.js
 test/comms-busy-age.test.js
 test/comms-link-honesty.test.js
+test/link-down-recovery.test.js
 test/app-boot-provider-truth.test.js
 test/steer-idle-honesty.test.js
 test/model-ack-honesty.test.js
@@ -823,6 +826,7 @@ test/textsize-screen-space.test.js
 test/mobile-control-reachability.test.js
 test/station-tooltip.test.js
 test/hint-input-mode.test.js
+test/hints-setting.test.js
 test/toast-live-region.test.js
 test/toast-seat.test.js
 test/channels.discord-wire.test.js

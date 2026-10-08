@@ -805,6 +805,7 @@
     const clock = deps.clock || { now: function () { return 0; } };
     const cfg = deps.config || {};
     const targetFn = typeof deps.sshConfig === 'function' ? deps.sshConfig : function () { return null; };
+    const agentIdsFn = typeof deps.sshAgentIds === 'function' ? deps.sshAgentIds : function () { return []; };   // agents with a configured target (station-wide reap)
     const serviceEnvFn = typeof deps.serviceEnv === 'function' ? deps.serviceEnv : null;
     const states = new Map();
     const sessions = new Map();
@@ -1188,14 +1189,30 @@
         return result.exitCode === 0 ? { ok: true, bgId: String(bgId), killed: true } : { ok: false, error: result.exitCode === 44 ? 'no such background process' : 'remote kill could not be verified' };
       });
     }
-    function killAllBackground(agentId) {
+    function killAllForAgent(agentId) {
       const aid = safeAgentId(agentId || 'agent');
+      // no owner-configured target = no remote root this station could have started a job under: nothing to reap
+      let row = null;
+      try { row = target(aid); } catch (_) { return Promise.resolve(0); }
       return enqueue(aid, async function () {
-        const row = target(aid), root = row.remoteRoot + '/.starnet/jobs';
+        const root = row.remoteRoot + '/.starnet/jobs';
         const script = 'n=0\nfor d in ' + quote(root) + '/sshbg_*; do test -d "$d" || continue; pid=$(cat "$d/pid" 2>/dev/null || true); want=$(cat "$d/identity" 2>/dev/null || true); got=$(ps -o lstart= -p "$pid" 2>/dev/null | sha256sum | cut -d" " -f1); if test -n "$pid" && test -n "$want" && test "$want" = "$got" && kill -0 "$pid" 2>/dev/null; then kill "$pid" 2>/dev/null && n=$((n+1)); printf killed > "$d/exit"; fi; done\nprintf "STARNET_KILLED\\t%s\\n" "$n"\n';
         const result = await runSsh(row, script, { timeoutMs: 30000, maxBytes: 4096 });
         const m = /STARNET_KILLED\t(\d+)/.exec(String(result.out || '')); return m ? Number(m[1]) : 0;
       });
+    }
+    // Station-wide (no agentId: E-STOP / Quit / shutdown): remote jobs are per agent (per-agent target +
+    // remoteRoot) and restart-persistent, so reap under EVERY agent with a configured target — not the
+    // current profile (a job outlives a profile switch or a Full Power reroute). Never rejects: one
+    // unreachable host is noted and counted 0, it must not become a process-level unhandledRejection.
+    function killAllBackground(agentId) {
+      if (agentId != null) return killAllForAgent(agentId);
+      let ids = [];
+      try { ids = Array.from(new Set((agentIdsFn() || []).map(String))).filter(function (id) { return AID_RE.test(id); }); }
+      catch (e) { envFailNote('environment.ssh.killAll.roster', e); }
+      return Promise.all(ids.map(function (id) {
+        return Promise.resolve(id).then(killAllForAgent).then(function (n) { return Number(n) || 0; }, function (e) { envFailNote('environment.ssh.killAll', e); return 0; });
+      })).then(function (counts) { return counts.reduce(function (a, n) { return a + n; }, 0); });
     }
     function describe(agentId) {
       let row = null, state = null;

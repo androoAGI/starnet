@@ -111,7 +111,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // panelBright (−100…100, default 0) is the tube's BRIGHTNESS knob: above 0 it lifts the panel glass's black
   // level toward the phosphor colour (never toward white); below 0 it takes the panels DOWN toward true black
   // (Andrew 10-01: "it doesnt get dark enough"). 0 = the shipped look, untouched.
-  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
+  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
   // Raise overall room exposure without changing the distribution of its lights.
   // Existing saves retain their chosen level; missing values start at LOW.
   const ROOM_LIGHTING_STEPS = [
@@ -437,6 +437,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     }
     document.body.classList.toggle('no-flicker', !s.flicker);
     armFlickerClock(); armMotionRest();
+    // HINTS off: hint.js shows no glossary bubble (it reads this class); clear one already on screen
+    document.body.classList.toggle('no-hints', !s.hints);
+    if (!s.hints && typeof Hint === 'object' && Hint.hide) Hint.hide();
     if (typeof SFX === 'object') SFX.on = !!s.sound;
     syncKeepAwake(!!s.keepComputerAwake);
   }
@@ -6239,10 +6242,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const btn = host.querySelector('#credits-link');
     if (btn) btn.disabled = true;
     if (state) state.innerHTML = '<div class="set-row dim">Requesting a link code…</div>';
+    // Same failure facts as the genesis LINK (app.js startStarnetLink): a dead local engine is never "the link service".
+    const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r.ok) throw new Error('start failed'); return r.j; })
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+        () => { throw startFail({ local: true }); })
       .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
-      .catch(() => { if (generation === _creditsLinkGeneration) renderCreditsLinkCard(body, host, 'Could not reach the link service — try again.'); });
+      .catch(e => {
+        if (generation !== _creditsLinkGeneration) return;
+        const why = (typeof Friendly !== 'undefined' && Friendly.linkStartFailure) ? Friendly.linkStartFailure(e && e.linkStart) : 'could not reach the link service — try again';
+        renderCreditsLinkCard(body, host, why.charAt(0).toUpperCase() + why.slice(1) + '.');
+      });
   }
 
   // Show the STAR-XXXX code prominently (VT323/CRT), open the verify page, and poll every 2s until linked/expired.
@@ -6312,6 +6322,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // .msg is red by default; the `ok` modifier turns it gold. So a success passes ok=true, an error passes nothing.
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     let loaded = false;
+    // what each input was last painted with (+ whether that value was saved here) and the env defaults: SAVE posts only
+    // what the Commander changed — a posted untouched field became a SAVED cap, and a saved PER DAY is strict.
+    let painted = {}, paintedEnv = {};
     const enable = value => { if (saveBtn) saveBtn.disabled = !value; if (resetBtn) resetBtn.disabled = !value; };
     enable(false);
     // paint the inputs + spend readout + reset visibility from a /api/budget/status payload.
@@ -6321,6 +6334,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
+      painted = {}; paintedEnv = envd;
       BG_KEYS.forEach(k => {
         const el = inputOf(k); if (!el) return;
         // show the EFFECTIVE cap (persisted-or-env). An empty string can't represent "0 = no cap", so always fill.
@@ -6336,6 +6350,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // hover title. Truthful precedence: a saved value WINS here (env is only the fallback default, never an
         // override that silences a saved cap), so the badge says "environment default" — not "ignored".
         const savedHere = Object.prototype.hasOwnProperty.call(saved, k);
+        painted[k] = { v: Number(v), saved: savedHere };
         el.title = savedHere ? 'saved on this machine' : 'environment default (not yet saved here)';
         const badge = body.querySelector('#bg-src-' + k);
         if (badge) {
@@ -6359,14 +6374,94 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const anySaved = BG_KEYS.some(k => Object.prototype.hasOwnProperty.call(saved, k));
       if (resetBtn) resetBtn.style.display = anySaved ? '' : 'none';
-      if (spendEl && st.accounting && (!st.accounting.complete || !st.accounting.durable)) {
-        spendEl.textContent = 'Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.';
+      const acc = st.accounting;
+      if (spendEl && acc && (!acc.complete || !acc.durable)) {
+        // name the cause and the fix that works for it: a restart replays a failed save, never an interrupted run
+        const open = Array.isArray(st.unsettled) ? st.unsettled.length : 0;
+        const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
+        spendEl.textContent = acc.writeError
+          ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
+          : (acc.readError === 'UNSETTLED_SPEND' && open)
+            ? 'Spend history unavailable — ' + (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent') +
+              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+            : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
         const runs = (st && typeof st.runs === 'number') ? st.runs : 0;
         spendEl.innerHTML = 'SPENT TODAY <b>' + today + '</b> &nbsp;·&nbsp; LIFETIME <b>' + life + '</b> <span class="dim">(' + runs + ' run' + (runs === 1 ? '' : 's') + ')</span>';
       }
+      paintUnsettled(st);
       paintPools(st);
+    };
+    // INTERRUPTED RUNS — a run that stopped before its spend was booked leaves that spend unknown, and a limit the
+    // Commander chose refuses every paid run until it is known. One row per run (/api/budget/status `unsettled`, only
+    // runs found at boot), settled ONLY by the amount the Commander enters from the provider dashboard, or — when the run
+    // started under a per-run limit — counted at that limit. Never a guessed figure (DECISIONS.md "Strict vs soft").
+    const unsettledEl = body.querySelector('#budget-unsettled');
+    const whenOf = ts => {
+      if (!(typeof ts === 'number' && ts > 0)) return 'time unknown';
+      try { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return new Date(ts).toISOString(); }
+    };
+    const settleRun = (r, payload, btns) => {
+      btns.forEach(b => { b.disabled = true; }); setMsg('settling…');
+      Harness.api.post('/api/budget/settle', Object.assign({ runId: r.runId }, payload))
+        .then(({ ok, j }) => {
+          if (!ok) {
+            setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; });
+            // a failed settle still changed the server (a failed write drops the run and turns accounting into a write
+            // error; a 404 means it was already settled or gone): repaint the rows + spend line from the server's truth
+            refresh();
+            return;
+          }
+          paint(j); setMsg('✓ interrupted run settled — its spend is in your history', true); sfx('click');
+        })
+        .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); });
+    };
+    const paintUnsettled = (st) => {
+      if (!unsettledEl) return;
+      unsettledEl.textContent = '';
+      const list = (st && Array.isArray(st.unsettled)) ? st.unsettled : [];
+      for (const r of list) {
+        if (!r || !r.runId) continue;
+        const row = document.createElement('div');
+        row.className = 'set-row bg-unsettled';
+        const where = [r.provider, r.model].filter(Boolean).join(' · ');
+        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' + (where ? ' (it started on ' + where + ')' : '') +
+          '. Enter the charge your provider dashboard shows for it: StarNet books it once and your spending limits can be checked again.');
+        const what = document.createElement('span');
+        what.className = 'bg-un-what';
+        const name = document.createElement('b');
+        name.textContent = String(r.title || r.agentId || 'a run').slice(0, 80);
+        what.appendChild(document.createTextNode('INTERRUPTED — '));
+        what.appendChild(name);
+        what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
+        const usd = document.createElement('input');
+        usd.className = 'key-input bg-cap bg-un-usd';
+        usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
+        usd.setAttribute('inputmode', 'decimal'); usd.setAttribute('autocomplete', 'off');
+        usd.setAttribute('aria-label', 'what your provider charged for this run, in USD');
+        const btn = document.createElement('button');
+        btn.className = 'bb sm'; btn.textContent = 'SETTLE';
+        btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
+        const btns = [btn];
+        let capBtn = null;
+        if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
+          capBtn = document.createElement('button');
+          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
+          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so your provider dashboard has the exact charge');
+          btns.push(capBtn);
+        }
+        btn.addEventListener('click', () => {
+          const raw = String(usd.value).trim();
+          const n = raw === '' ? NaN : Number(raw);
+          if (!Number.isFinite(n) || n < 0) { setMsg('enter what your provider charged for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
+          settleRun(r, { usd: n }, btns);
+        });
+        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
+        row.appendChild(what); row.appendChild(usd); row.appendChild(btn);
+        if (capBtn) row.appendChild(capBtn);
+        unsettledEl.appendChild(row);
+      }
     };
     // Soft-pool truth + the one-click RESUME. /api/budget/status carries the governor's live pool reads
     // (day/global: {usd, cap, base} — null when ungoverned). A pool is HIT when spend reached its session cap;
@@ -6412,11 +6507,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       for (const k of BG_KEYS) {
         const el = inputOf(k); if (!el) continue;
         const raw = String(el.value).trim();
-        if (raw === '') { payload[k] = 0; continue; }   // blank -> "no cap" (0), matching the placeholder semantics
-        const n = Number(raw);
+        const n = raw === '' ? 0 : Number(raw);   // blank -> "no cap" (0), matching the placeholder semantics
         if (!isFinite(n) || n < 0) { setMsg(k + ': enter a number ≥ 0 (leave blank or 0 for no cap)'); sfx('bad'); el.focus(); return; }
+        const was = painted[k];
+        // Only a value the Commander CHANGED is a choice. Saving an untouched field turned the shipped soft day rail
+        // into a strict saved cap (fail-closed whenever spend history is uncertain — DECISIONS.md "Strict vs soft").
+        if (was && n === was.v) continue;
+        // Typing the environment default back into a SAVED limit clears the override, so "back to default" is the real
+        // default (the day rail soft again), not a saved copy of it.
+        if (was && was.saved && typeof paintedEnv[k] === 'number' && n === paintedEnv[k]) { payload[k] = null; continue; }
         payload[k] = n;
       }
+      if (!Object.keys(payload).length) { setMsg('no changes to save', true); return; }
       setMsg('saving…');
       Harness.api.post('/api/budget/caps', payload)
         .then(({ ok, j }) => {
@@ -6700,19 +6802,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     btn.addEventListener('click', () => {
       if (typeof Diag === 'undefined' || !Diag.copy) { setMsg('diagnostics unavailable', false); return; }
       btn.disabled = true; sfx('click');
-      Diag.copy({ notify: false }).then(ok => {
+      Diag.copy({ notify: false, onDone: (ok, text) => {
         btn.disabled = false;
         // Name the support address only when one is really configured (Diag.supportEmail() gates out the unset/
         // placeholder case); otherwise just confirm the copy — never point a user at a fake/placeholder address.
         const diagDest = (typeof Diag !== 'undefined' && Diag.supportEmail) ? Diag.supportEmail() : '';
-        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : 'copy failed — try again', ok);
-        // Clipboard-failure fallback: if Lane A's on-screen renderer is present, show the report block so the user can
-        // select-and-copy it by hand. Defensive: the helper may not exist in this build yet — keep current behavior then.
-        // (Orchestrator reconciles the exact API at merge.)
+        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : (text ? 'copy blocked — report shown below' : 'could not read diagnostics — try again'), ok);
+        // Clipboard-failure fallback: show the report the failed copy already read (onDone's text — no second fetch)
+        // as a selectable block, so the user can select-and-copy it by hand.
         if (!ok && typeof Diag !== 'undefined' && typeof Diag.showBlock === 'function') {
-          try { Diag.showBlock(body.querySelector('#diag-block') || body); } catch (_) {}
+          try { Diag.showBlock(body.querySelector('#diag-block') || body, { text }); } catch (_) {}
         }
-      });
+      } });
     });
 
     // LIVE DOCTOR: explicit second consent, then one bounded host request. Results stay visible and copyable;
@@ -6768,7 +6869,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         sessionRow: store.settings.sessionRow,
         flicker: store.settings.flicker, crtGlass: store.settings.crtGlass,
         staticLevel: store.settings.staticLevel,
-        sound: store.settings.sound, keepComputerAwake: store.settings.keepComputerAwake
+        sound: store.settings.sound, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
       }, notifyPrefs: Object.assign({}, store.settings.notifyPrefs || notifyDefaults()) };
       try { if (typeof AutonomyStore !== 'undefined' && AutonomyStore.exportState) out.autonomy = AutonomyStore.exportState(); } catch (_) {}
       return out;
@@ -7008,6 +7109,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
       '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
+      '<div id="budget-unsettled"></div>' +   // interrupted runs whose charge is unknown + their SETTLE (only rendered when one exists)
       '<div id="budget-pools"></div>' +   // soft-pool cap state + the one-click RESUME (only rendered when a pool is actually hit)
       '<div class="mc-form" id="budget-form">' +
         '<div class="set-row"><label for="bg-perRun">PER RUN <span class="src-badge" id="bg-src-perRun" hidden></span></label><input id="bg-perRun" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
@@ -7132,6 +7234,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         return '<button class="set-theme ' + (cur === v ? 'sel' : '') + '" aria-pressed="' + (cur === v ? 'true' : 'false') + '" data-sdock="' + v + '">' + name + '</button>';
       }).join('') +
       '</div>' +
+      // HINTS (hint.js) — the glossary bubble on hover; once the station's words are familiar it can go quiet.
+      '<label class="set-row"><input type="checkbox" id="set-hints" ' + (s.hints ? 'checked' : '') + '> HINTS <span class="dim">— explain station terms when you hover them</span></label>' +
       // CRT — its own section, and a LEVEL rather than a named mode. Framing this as an
       // accessibility fix ("easy read") tells the people who like the tube that they are enduring
       // something, which is not what most of them report. There is no OFF: the station is a CRT.
@@ -7418,7 +7522,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireSlider(brightIn, v => { s.panelBright = clampN(v, -100, 100, 0); sliderVal('#set-bright-val', s.panelBright + '%'); });
     wireSlider(host.querySelector('#set-static'), v => { s.staticLevel = clampN(v, 0, 200, 100); sliderVal('#set-static-val', s.staticLevel + '%'); });
     const bind = (id, key) => host.querySelector(id).addEventListener('change', ev => { s[key] = ev.target.checked; applySettings(); save(); flashSaved(appMsg()); });
-    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound');
+    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-hints', 'hints');
     const lightingChips = host.querySelectorAll('#set-lighting [data-lighting]');
     lightingChips.forEach(b => b.addEventListener('click', () => {
       s.roomLighting = resolveRoomLighting(b.dataset.lighting);
@@ -11006,12 +11110,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const bds = typeof SpaceBG === 'undefined' ? [] : [].concat(SpaceBG.list()).concat(typeof Terrain === 'undefined' || !Terrain.list ? [] : Terrain.list());
     return { theme: THEMES.map(([n]) => n).concat('custom'), themeHue: '0-359', themeSat: '0-100', themeGlow: '0-150', panelBright: '-100-100',
       roomLighting: ROOM_LIGHTING_STEPS.map(([id]) => id), textScale: TEXT_SCALES.map(([v, n]) => v + ' (' + n + ')'), flicker: 'true|false',
-      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
+      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
       notifyPrefs: Object.keys(notifyDefaults()).join('|') + ': true|false' };
   }
   function lookNow() {
     const s = store.settings, out = {};
-    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
+    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
     out.notifyPrefs = Object.assign({}, s.notifyPrefs);
     return out;
   }
@@ -11034,7 +11138,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       else if (k === 'sessionRow') pick(k, ROW_STEPS.map(([id]) => id));
       else if (k === 'backdrop') pick(k, opts.backdrop);
       else if (k === 'textScale') { const v = Number(patch[k]); if (!TEXT_SCALES.some(([n]) => n === v)) throw new Error('textScale must be one of: ' + TEXT_SCALES.map(([n, l]) => n + ' (' + l + ')').join(', ')); next[k] = v; }
-      else if (k === 'flicker' || k === 'sound') bool(k);
+      else if (k === 'flicker' || k === 'sound' || k === 'hints') bool(k);
       else if (k === 'notifyPrefs') {
         const np = patch[k]; if (!np || typeof np !== 'object') throw new Error('notifyPrefs takes { runComplete, needsApproval, cronDigest, sound } as true/false');
         const d = notifyDefaults(); next[k] = Object.assign({}, store.settings.notifyPrefs);

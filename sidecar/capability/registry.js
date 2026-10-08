@@ -291,6 +291,9 @@
       // "what did the researcher do?" answered from assumption and denied real finished work (2026-07-30).
       { capId: 'orchestrator', tool: 'session.peek', scope: 'read', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'session.focus', scope: 'write', requiresConsent: false, network: false },
+      // station.status: the page's station-wide snapshot (busy / awaiting approval per session), read-only (#55). Deferred:
+      // the tool budget is spent, so it costs every run one name in the deferred index, not a schema (tool_search "status").
+      { capId: 'orchestrator', tool: 'station.status', scope: 'read', requiresConsent: false, network: false, deferred: true },
       // TASK BOARD: cards are the page's canonical kind:'task' Workstreams and are persisted through the same
       // agent save the board renders. Creation is reversible and spends nothing; management is consent-gated
       // because its action set includes shipping, archiving, reassignment, and deletion.

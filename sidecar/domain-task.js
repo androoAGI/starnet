@@ -36,6 +36,12 @@
      hardest: their whole spec is one message, where an interactive chat's follow-up rarely repeats the URL. */
   const API_CALL_RE = /\$\{[A-Za-z_][A-Za-z0-9_]*\}|\bweb_request\b|\b(?:endpoints?|webhooks?|bearer|graphql|api[\s_-]?(?:keys?|tokens?|calls?|requests?)|(?:get|post|put|patch|delete|http|rest)\s+requests?)\b|\b(?:call|calls|calling|hit|query|using|via|through)\s+(?:the\s+|their\s+|its\s+|an?\s+)?(?:[\w-]+\s+)?apis?\b|https?:\/\/api\.|https?:\/\/[^\s\/]+\/(?:[^\s]*\/)?(?:api|v\d+)(?:[\/?#\s]|$)/i;
   const HTTP_METHOD_RE = /\b(?:GET|POST|PUT|PATCH|DELETE)\b/;   // case-sensitive: "read the latest post" stays a page read
+  /* AN INTERACTIVE VISIT IS NOT A PAGE READ. "open amazon.com and search for usb cables" / "browse github.com and log
+     in" / "visit example.com and click the pricing page" matched DIRECT_RE, so the run was confined to one host's
+     page read — and the next message without a host was not, which read to the Commander as tools that come and go.
+     Clicking, typing, signing in and searching a site are browser work, not the typo-cascade case this module bounds.
+     Imperative forms only: "the order status", "the press release", "what type of site" stay bounded page reads. */
+  const INTERACTIVE_RE = /\b(?:log\s?(?:in|into|on)|sign\s?(?:in|into|up|on)|click(?:s|ing)?|tap\s+(?:on\s+)?(?:the|a|an)|fill\s+(?:in|out)|type\s+(?:in|into|my|the|a|an|our|your)|press\s+(?:the|a|an|enter|return)|submit|scroll|screenshots?|add\s+(?:\S+\s+){0,4}?to\s+(?:the\s+|my\s+|a\s+)?(?:cart|basket|bag|wishlist)|(?:buy|purchase|order|book)\s+(?:me\s+)?(?:a|an|the|some|\d+|it|them|this|that)|search\s+(?:for|on|it|there)|(?:in|with|using|through)\s+(?:the\s+|a\s+)?browser|browser[._]\w+|navigate\s+(?:to|through|around)|interact\s+with)\b/i;
   const WORKER_MAX_ITERS = 3;
   const WORKER_MAX_TOOLS = 3;
   const WORKER_MAX_MS = 45000;
@@ -70,7 +76,7 @@
     const src = String(text || '').trim();
     const hosts = hostsOf(src);
     if (hosts.length !== 1 || !DIRECT_RE.test(src) || EXPANSIVE_RE.test(src)) return null;
-    if (API_CALL_RE.test(src) || HTTP_METHOD_RE.test(src)) return null;
+    if (API_CALL_RE.test(src) || HTTP_METHOD_RE.test(src) || INTERACTIVE_RE.test(src)) return null;
     return {
       kind: 'direct-domain', host: hosts[0],
       workerMaxIters: WORKER_MAX_ITERS, workerMaxTools: WORKER_MAX_TOOLS, workerMaxMs: WORKER_MAX_MS
@@ -99,18 +105,37 @@
     return !!h && !!want && (h === want || h.endsWith('.' + want));
   }
 
+  /* The browser stays ADVERTISED on a direct-domain run: a storefront behind a bot wall, a JS-rendered page or a
+     search box is exactly what web_fetch cannot read, and withholding every browser.* tool left the agent with no
+     tool that could do the job. Its URL-taking entry points (navigate, login) are confined to the named host and
+     its subdomains — the same bound as isTargetRequest — so a typo still cannot cascade into engines or archives. */
+  function isTargetNavigate(call, policy) {
+    if (!call || !policy || policy.kind !== 'direct-domain') return false;
+    const name = String(call.name || '').replace(/_/g, '.');
+    if (name !== 'browser.navigate' && name !== 'browser.login') return false;
+    const h = urlHost(call.args && call.args.url), want = normalizeHost(policy.host);
+    return !!h && !!want && (h === want || h.endsWith('.' + want));
+  }
+
   function isDomainMissing(result) {
     const summary = String((result && result.summary) || '').toLowerCase();
     const content = String((result && result.content) || '').toLowerCase();
+    const failed = !!(result && (result.isError || result.ok === false));
     return summary === 'domain not found'
       || /\bdomain\b[^\n]{0,160}\bdoes not resolve\b/.test(content)
-      || /\bnxdomain\b/.test(content);
+      || /\bnxdomain\b/.test(content)
+      // browser.navigate resolves the name in node before Chrome loads anything ("getaddrinfo ENOTFOUND <host>");
+      // a later hop through the station proxy surfaces Chrome's own net::ERR_NAME_NOT_RESOLVED. Only a FAILED call
+      // counts: a page that loaded fine can quote "getaddrinfo ENOTFOUND" (node/npm error docs, an issue thread),
+      // and stopping that run would tell the Commander a live host does not exist.
+      || (failed && (/\benotfound\b/.test(content) || /\berr_name_not_resolved\b/.test(content)));
   }
 
   function prompt(policy) {
     if (!policy) return '';
     return '[DIRECT DOMAIN CHECK — HOST POLICY] The Commander named one exact host: ' + policy.host + '. '
-      + 'Check that host yourself with web_fetch; do not delegate this single-host lookup. If the fetch reports '
+      + 'Check that host yourself with web_fetch, or with the browser (browser.navigate to that host) when the page '
+      + 'needs searching, clicking, or a bot wall blocks the fetch; do not delegate this single-host lookup. If the fetch or navigation reports '
       + 'that the domain does not resolve / NXDOMAIN, that is terminal evidence for this request: make no more '
       + 'web, DNS, archive, WHOIS, certificate, or spelling-variant calls. Report the unavailable host and ask '
       + 'for the corrected URL. Only search for alternatives when the Commander explicitly asked you to find them.';
@@ -127,7 +152,7 @@
   }
 
   return {
-    classify, hostsOf, normalizeHost, isTargetFetch, isTargetRequest, isDomainMissing, prompt, stopControl,
+    classify, hostsOf, normalizeHost, isTargetFetch, isTargetRequest, isTargetNavigate, isDomainMissing, prompt, stopControl,
     WORKER_MAX_ITERS, WORKER_MAX_TOOLS, WORKER_MAX_MS
   };
 });

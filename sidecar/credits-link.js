@@ -85,6 +85,12 @@
     // host can take on the next credits read, at most once per healRetryMs. Definitive refusals never re-arm.
     const healRetryMs = (typeof deps.healRetryMs === 'number' && isFinite(deps.healRetryMs) && deps.healRetryMs >= 0)
       ? Math.floor(deps.healRetryMs) : 30000;
+    // Pairing-start retry (link-down 2026-10-07): ONE transient blip (abort, transport error, 5xx) used to end the
+    // pairing with "could not reach the link service". start() now takes one spaced second attempt. A 4xx (429
+    // included: a fixed wait would only meet the same limit) is a verdict and is never retried. An aborted first
+    // attempt may leave a code minted in the cloud with no pollSecret here — harmless, it simply expires.
+    const linkRetryMs = (typeof deps.linkRetryMs === 'number' && isFinite(deps.linkRetryMs) && deps.linkRetryMs >= 0)
+      ? Math.floor(deps.linkRetryMs) : 1500;
     let healInflight = null, healRetryArmed = false, lastHealAt = 0;
     function transition(state) { lastTransition = { state, at: now() }; }
     let mutation = Promise.resolve();
@@ -124,7 +130,19 @@
       const ticket = ++generation;
       transition('pairing_started');
       pending.clear();
-      const j = await postJson('/v1/link/start', { deviceName: str(deviceName) || 'StarNet Station' });
+      const payload = { deviceName: str(deviceName) || 'StarNet Station' };
+      let j;
+      try { j = await postJson('/v1/link/start', payload); }
+      catch (e) {
+        const status = Number(e && e.status) || 0;
+        const transient = !!doFetch && ((e && e.name === 'AbortError') || status === 0 || status >= 500);
+        if (!transient) throw e;
+        await new Promise(resolve => setTimeout(resolve, linkRetryMs));
+        // An unlink or a newer start during the backoff wins: never mint a second code for a dead attempt.
+        if (ticket !== generation) return { ok: false, error: 'superseded' };
+        try { j = await postJson('/v1/link/start', payload); }
+        catch (e2) { if (e2 && typeof e2 === 'object') e2.attempts = 2; throw e2; }
+      }
       if (ticket !== generation) return { ok: false, error: 'superseded' };
       const code = str(j.code);
       if (!code) return { ok: false, error: 'no_code' };

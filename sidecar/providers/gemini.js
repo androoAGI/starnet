@@ -336,7 +336,7 @@
       let res;
       try { res = await requestWithRetry(req.model, body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length)); }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
       const dec = new TextDecoder();
       let buf = '';
       const toolIndexOf = new Map();
@@ -478,6 +478,7 @@
           });
         } catch (e) {
           if (isAbort(e, signal)) throw e;
+          provider.runtime.stampRequestHost(e, baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
           if (!classifyApiError(e, { model }).retryable) throw e;
           if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }

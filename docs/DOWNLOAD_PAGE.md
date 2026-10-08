@@ -22,7 +22,7 @@ Pick the asset for your platform:
 | Platform | Download this asset |
 | --- | --- |
 | **Windows** (10/11, 64-bit) | `StarNet_<version>_x64-setup.exe` |
-| **macOS — Apple Silicon** (M1–M4) | `StarNet_<version>_aarch64.dmg` |
+| **macOS — Apple Silicon** (M1 or later) | `StarNet_<version>_aarch64.dmg` |
 | **macOS — Intel** | `StarNet_<version>_x64.dmg` |
 
 > **Apple Silicon Macs: use the native `aarch64` DMG.** Avoid the `x64` DMG on Apple Silicon:

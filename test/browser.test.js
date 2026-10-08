@@ -835,6 +835,597 @@ function fakeDriver() {
     await d.close();
   }
 
+  // ---- TAB 0 GOES AWAY (customer, 0.13.1 macOS) ------------------------------------------------
+  // Under browser-level attach even the original tab is a session. When ITS target went away (the Commander closed
+  // the tab or the window; macOS keeps Chrome running with no window), openerSession kept the dead id: every call
+  // failed "Session with given id not found" while alive() still said true, so nothing ever started a fresh page.
+  {
+    function openerRig(port, extra) {
+      const sent = [], gone = new Set(), urls = new Map();
+      class OWS {
+        constructor() { this.handlers = {}; OWS.last = this; setTimeout(() => this.fire('open', {}), 0); }
+        addEventListener(n, fn) { (this.handlers[n] = this.handlers[n] || []).push(fn); }
+        fire(n, v) { for (const fn of this.handlers[n] || []) fn(v); }
+        emit(method, params) { this.fire('message', { data: JSON.stringify({ method, params }) }); }
+        send(raw) {
+          const m = JSON.parse(raw); sent.push(m);
+          if (m.sessionId && gone.has(m.sessionId)) {
+            setTimeout(() => this.fire('message', { data: JSON.stringify({ id: m.id, error: { code: -32001, message: 'Session with given id not found: ' + m.sessionId } }) }), 0);
+            return;
+          }
+          const sid = m.sessionId || '';
+          const expr = String((m.params && m.params.expression) || '');
+          let result = {};
+          if (m.method === 'Page.navigate') { urls.set(sid, m.params.url); result = { frameId: 'F-' + sid }; }
+          else if (m.method === 'Page.getFrameTree') result = { frameTree: { frame: { id: sid === 'opener' ? 'T0' : 'F-' + sid } } };
+          else if (m.method === 'DOM.getFrameOwner') result = { backendNodeId: 7 };
+          else if (m.method === 'DOM.getBoxModel') result = { model: { content: [100, 200, 400, 200, 400, 400, 100, 400] } };
+          else if (m.method === 'Runtime.evaluate') {
+            let value = null;
+            if (/return \{ready:/.test(expr)) value = { ready: true, error: null };
+            else if (/document\.readyState/.test(expr)) value = { ok: true, ready: 'complete', n: 0 };
+            else if (expr === 'location.href') value = urls.get(sid) || 'about:blank';
+            else if (/location\.href, title/.test(expr)) value = { url: urls.get(sid) || 'https://x.test/' + sid, title: sid };
+            else if (/role="button"/.test(expr)) value = [{ index: 0, role: 'button', text: 'In ' + sid, x: 1, y: 1, w: 9, h: 9 }];
+            result = { result: { value } };
+          }
+          setTimeout(() => this.fire('message', { data: JSON.stringify({ id: m.id, result }) }), 0);
+          if (m.method === 'Target.setAutoAttach' && !m.sessionId) setTimeout(() => this.emit('Target.attachedToTarget', { sessionId: 'opener', waitingForDebugger: false, targetInfo: { type: 'page', targetId: 'T0' } }), 0);
+        }
+        close() {}
+      }
+      const d = T.makeCdpDriver(Object.assign({
+        chrome: 'fake-chrome.exe', forceHeadless: true, syntheticInputOnly: true, timeoutMs: 1000, cdpPort: port,
+        settleQuietPolls: 1, settleNavBudgetMs: 300, settleActionBudgetMs: 300, settleMinObserveMs: 0, settleEmptyGraceMs: 0,
+        fetchImpl: async url => ({ json: async () => url.endsWith('/json/version') ? { webSocketDebuggerUrl: 'ws://browser' } : [{ type: 'page', webSocketDebuggerUrl: 'ws://page' }] }),
+        WebSocketImpl: OWS,
+        spawn: () => ({ pid: 92, on(ev, fn) { if (ev === 'close') this._c = fn; }, kill() { if (this._c) queueMicrotask(() => this._c(0)); } })
+      }, extra || {}));
+      return { d, sent, gone, ws: () => OWS.last };
+    }
+    const lastButtons = sent => sent.filter(m => m.method === 'Runtime.evaluate' && /role="button"/.test(String(m.params.expression))).pop();
+    const tick = ms => new Promise(r => setTimeout(r, ms || 60));
+
+    // (a) another tab is still open: it becomes tab 0, and the driver keeps working on it
+    {
+      const R = openerRig(9361);
+      await R.d.navigate('https://x.test/');
+      A.ok(R.sent.some(m => m.sessionId === 'opener' && m.method === 'Page.navigate'), 'tab 0 is a session under browser-level attach (the production path)');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      A.eq((await R.d.tabs()).length, 2, 'a second tab was adopted');
+      R.ws().emit('Network.requestWillBeSent', { requestId: 'stuck', request: { method: 'GET', url: 'https://x.test/slow' } });
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      const list = await R.d.tabs();
+      A.eq(list.length, 1, 'the closed tab 0 leaves the list');
+      A.eq(list[0].active, true, 'and the surviving tab is now tab 0, active');
+      A.eq(R.d.alive(), true, 'a browser with a drivable tab is still alive');
+      A.eq((await R.d.snapshot(10))[0].text, 'In tab-2', 'snapshot reads the surviving tab');
+      A.eq(lastButtons(R.sent).sessionId, 'tab-2', 'page commands carry the promoted session, never the dead one');
+      A.ok(R.sent.some(m => m.sessionId === 'tab-2' && m.method === 'Network.enable'), 'the promoted tab gets the Network domain, so its HTTP status is observed');
+      R.ws().emit('Network.responseReceived', { requestId: 'doc2', type: 'Document', frameId: 'T2', response: { status: 404, url: 'https://x.test/receipt' } });
+      A.eq(R.d.lastResponse().status, 404, 'the promoted tab\'s document status is reported (mainFrameId follows tab 0)');
+      await R.d.close();
+    }
+
+    // (b) no other tab: the driver reads as dead, so the session starts a fresh browser
+    {
+      const R = openerRig(9362);
+      await R.d.navigate('https://x.test/');
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      A.eq(R.d.alive(), false, 'with no page left to drive, alive() is false (it said true forever before)');
+      let err = null; try { await R.d.navigate('https://x.test/again'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'a page call says the tab is gone, with a code the session can act on');
+      A.ok(/tab was closed/.test(String(err && err.message)) && !/given id/.test(String(err && err.message)), 'in plain words, not a raw protocol error');
+      await R.d.close();
+    }
+
+    // (c) no detach event ever arrived: Chrome's -32001 on tab 0 is the proof
+    {
+      const R = openerRig(9363);
+      await R.d.navigate('https://x.test/');
+      R.gone.add('opener');
+      let err = null; try { await R.d.navigate('https://x.test/again'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'the backstop recognises a dead tab 0 from the reply itself');
+      A.eq(R.d.alive(), false, 'and the driver then reads as dead');
+      await R.d.close();
+
+      const S = openerRig(9364);
+      await S.d.navigate('https://x.test/');
+      S.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      S.gone.add('opener');
+      let err2 = null; try { await S.d.navigate('https://x.test/again'); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'TARGET_DETACHED', 'the backstop also fires with another tab open');
+      A.eq(S.d.alive(), true, '…which then takes tab 0');
+      A.eq(await S.d.navigate('https://x.test/promoted'), 'https://x.test/promoted', 'and the next navigate lands on it');
+      A.ok(S.sent.some(m => m.sessionId === 'tab-2' && m.method === 'Page.navigate'), 'on the promoted session');
+      await S.d.close();
+    }
+
+    // (d) a stale IFRAME session says nothing about the page: it must never latch the driver dead
+    {
+      const R = openerRig(9365);
+      await R.d.navigate('https://x.test/');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'frame-1', targetInfo: { type: 'iframe', targetId: 'FR1' } });
+      await tick();
+      R.gone.add('frame-1');
+      await R.d.snapshot(10);
+      A.eq(R.d.alive(), true, 'a -32001 on an explicit iframe session leaves the driver alive');
+      A.eq((await R.d.tabs()).length, 1, 'and tab 0 untouched');
+      await R.d.close();
+    }
+
+    // (e) the Commander's OWN Chrome is never re-pointed at another of their tabs: the loss is reported instead
+    {
+      const R = openerRig(9366, { attachPort: 9366, headed: true });
+      await R.d.tabs();
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'their-other-tab', targetInfo: { type: 'page', targetId: 'TX' } });
+      await tick();
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      A.eq(R.d.alive(), false, 'attached: tab 0 closing is an honest loss, not a silent switch to a random signed-in tab');
+      let err = null; try { await R.d.snapshot(10).then(() => R.d.navigate('https://x.test/')); } catch (e) { err = e; }
+      A.ok(/browser\.attach/.test(String(err && err.message)), 'and it says how to pick the tab back up');
+      A.eq(err && err.revealTools, ['browser.detach', 'browser.attach'], 'and reveals the deferred detach/attach it names');
+      await R.d.close();
+    }
+
+    // (f) REFS NEVER CROSS A CLOSED TAB (review 10-07). Nodes act by x/y on whatever tab is current, so a ref minted on
+    // the dead tab 0 clicked the PROMOTED tab (a signed-in checkout/SSO popup the agent never snapshotted) and reported
+    // "clicked". Through the real session layer: the old ref is refused, no input is dispatched anywhere, and a fresh
+    // snapshot's refs still work.
+    const presses = sent => sent.filter(m => m.method === 'Input.dispatchMouseEvent' && m.params && m.params.type === 'mousePressed');
+    const inputs = sent => sent.filter(m => /^Input\./.test(m.method)).length;
+    const sessionOn = R => T.makeBrowserSession({ makeDriver: () => R.d, lookup: null });
+    {
+      const R = openerRig(9367);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      const old = (await s.snapshot())[0].ref;
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      const before = inputs(R.sent);
+      let err = null; try { await s.click(old); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a ref from the closed tab 0 is refused (it clicked the promoted tab before)');
+      A.ok(/tab that snapshot was taken on was closed/.test(String(err && err.message)) && /fresh browser\.snapshot/.test(String(err && err.message)), 'and says why, and what to do');
+      let terr = null; try { await s.type(old, 'secret'); } catch (e) { terr = e; }
+      A.eq(terr && terr.code, 'REF_TAB_CLOSED', 'type with the same ref is refused too');
+      A.eq(inputs(R.sent), before, 'no input reached ANY tab');
+      const fresh = (await s.snapshot())[0];
+      A.eq(fresh.text, 'In tab-2', 'a fresh snapshot reads the promoted tab');
+      let err2 = null; try { await s.click(old); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'REF_TAB_CLOSED', 'the old ref stays refused after a fresh snapshot');
+      A.eq(await s.click(fresh.ref), 'clicked', '…which does not kill the fresh refs: they click');
+      A.eq(presses(R.sent).map(m => m.sessionId), ['tab-2'], 'exactly one press, on the tab the agent snapshotted');
+      await R.d.close();
+    }
+
+    // (g) the BACKSTOP path (no detach event; Chrome's -32001 is the proof): the failing call refuses, and a plain
+    // retry of the same ref is refused too rather than landing on the promoted tab.
+    {
+      const R = openerRig(9368);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      const old = (await s.snapshot())[0].ref;
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      R.gone.add('opener');
+      let err = null; try { await s.click(old); } catch (e) { err = e; }
+      A.ok(err, 'the click on a dead tab 0 fails');
+      A.eq(presses(R.sent).filter(m => m.sessionId !== 'opener').length, 0, 'and presses nothing on the promoted tab');
+      const before = inputs(R.sent);
+      let err2 = null; try { await s.click(old); } catch (e) { err2 = e; }
+      A.eq(err2 && err2.code, 'REF_TAB_CLOSED', 'a retry of the same ref is refused, not re-aimed at the promoted tab');
+      A.eq(inputs(R.sent), before, 'and the retry dispatches no input');
+      await R.d.close();
+    }
+
+    // (h) the same for a SELECTED tab that went away on its own (an SSO popup closing itself): its refs never land on tab 0
+    {
+      const R = openerRig(9369);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      await s.selectTab(1);
+      const old = (await s.snapshot())[0];
+      A.eq(old.text, 'In tab-2', 'the ref is minted on the selected tab');
+      R.gone.add('tab-2');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'tab-2' });
+      const before = inputs(R.sent);
+      let err = null; try { await s.click(old.ref); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a ref from the closed selected tab is refused');
+      A.eq(inputs(R.sent), before, 'and nothing is pressed on tab 0');
+      await R.d.close();
+    }
+
+    /* (i) PINNED INPUT (review 10-07). The ref check runs once, at the start; the input is many paced sends, and each
+       one re-picked the tab. A probe closed tab 0 after the first character of a typed password: 36 of 37 characters
+       went to the promoted tab and the call said "typed". Now the action stays on the tab it started on: the rest is
+       refused, nothing reaches another tab, and the call fails saying how much was typed. The tab is closed from
+       inside the socket the moment the first input goes out, so there is no race with the paced input. */
+    const closeOnFirst = (R, method, sid) => {
+      const ws = R.ws(), send = ws.send.bind(ws);
+      let done = false;
+      ws.send = raw => {
+        send(raw);
+        if (done || JSON.parse(raw).method !== method) return;
+        done = true;
+        R.gone.add(sid);
+        setTimeout(() => ws.emit('Target.detachedFromTarget', { sessionId: sid }), 0);
+      };
+    };
+    const inputsOff = (sent, sid) => sent.filter(m => /^Input\./.test(m.method) && m.sessionId !== sid);
+    // an action that must SUCCEED: a refusal becomes a failed assertion naming it, never a crash that hides the rest
+    const attempt = async f => { try { return await f(); } catch (e) { return 'threw ' + ((e && e.code) || '') + ': ' + ((e && e.message) || e); } };
+    const withTab2 = async port => {
+      const R = openerRig(port);
+      const s = sessionOn(R);
+      await s.navigate('https://x.test/');
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-2', targetInfo: { type: 'page', targetId: 'T2' } });
+      await tick();
+      return { R, s };
+    };
+    {
+      const { R, s } = await withTab2(9370);
+      const ref = (await s.snapshot())[0].ref;
+      const secret = 'hunter2-my-secret-password-0123456789';
+      closeOnFirst(R, 'Input.insertText', 'opener');
+      let err = null; try { await s.type(ref, secret); } catch (e) { err = e; }
+      const typed = R.sent.filter(m => m.method === 'Input.insertText');
+      A.ok(typed.length >= 1 && typed[0].sessionId === 'opener', 'the first characters reached the tab the ref was minted on');
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'type FAILS when its tab closes part-way (it reported "typed" before)');
+      A.eq(inputsOff(R.sent, 'opener').map(m => m.method), [], 'not one keystroke reached the promoted tab (36 of 37 characters did before)');
+      A.ok(String(err && err.message).indexOf(typed.length + ' of ' + secret.length + ' characters were typed') === 0, 'and it says how much of the text reached its tab');
+      A.ok(/NOT sent/.test(String(err && err.message)) && /fresh browser\.snapshot/.test(String(err && err.message)), 'that the rest was not sent, and what to do');
+      await R.d.close();
+    }
+    {
+      // the same with NO detach event (Chrome's -32001 is the only proof): the pinned send is the backstop now
+      const { R, s } = await withTab2(9381);
+      const ref = (await s.snapshot())[0].ref;
+      const ws = R.ws(), send = ws.send.bind(ws);
+      ws.send = raw => { send(raw); if (JSON.parse(raw).method === 'Input.insertText') R.gone.add('opener'); };
+      let err = null; try { await s.type(ref, 'swordfish'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'type on a tab 0 that died silently fails as a lost tab');
+      A.ok(/^1 of 9 characters were typed before the tab closed/.test(String(err && err.message)), 'saying how much of the text was typed');
+      A.eq(inputsOff(R.sent, 'opener').length, 0, 'nothing reached tab-2');
+      A.eq((await s.snapshot())[0].text, 'In tab-2', 'and the driver moved on to the promoted tab (no wedge on the dead session)');
+      await R.d.close();
+    }
+    {
+      const { R, s } = await withTab2(9371);
+      const ref = (await s.snapshot())[0].ref;
+      closeOnFirst(R, 'Input.dispatchMouseEvent', 'opener');   // the first step of the pointer path
+      let err = null; try { await s.click(ref); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a click whose tab closes on the way to the target fails');
+      A.eq(presses(R.sent).length, 0, 'and presses NOTHING (it pressed the promoted tab before)');
+      A.eq(inputsOff(R.sent, 'opener').length, 0, 'no pointer event reached the promoted tab');
+      await R.d.close();
+    }
+    {
+      const { R, s } = await withTab2(9372);
+      await s.snapshot();
+      closeOnFirst(R, 'Input.dispatchKeyEvent', 'opener');   // keyDown on tab 0, then tab 0 goes
+      let err = null; try { await s.press('Enter'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'a press whose tab closes between keyDown and keyUp fails');
+      A.eq(inputsOff(R.sent, 'opener').length, 0, 'and its keyUp never reaches the promoted tab');
+      await R.d.close();
+    }
+    // …while an action on a SELECTED tab is not disturbed by an unrelated tab 0 closing under it
+    {
+      const { R, s } = await withTab2(9373);
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-3', targetInfo: { type: 'page', targetId: 'T3' } });
+      await tick();
+      await s.selectTab(2);
+      const ref = (await s.snapshot())[0].ref;
+      closeOnFirst(R, 'Input.insertText', 'opener');
+      A.eq(await attempt(() => s.type(ref, 'hello world')), 'typed', 'typing on tab-3 completes when tab 0 closes mid-way');
+      A.eq(R.sent.filter(m => m.method === 'Input.insertText').map(m => m.sessionId).filter(x => x !== 'tab-3'), [], 'every character went to tab-3');
+      A.eq(R.sent.filter(m => m.method === 'Input.insertText').map(m => m.params.text).join(''), 'hello world', 'all of them');
+      await R.d.close();
+    }
+
+    /* (j) REF-LESS INPUT (review 10-07): press and scroll take no ref, so nothing checked them - after tab 0 was promoted,
+       press Enter went to the promoted tab (it could submit a form the agent never read). They now refuse until the
+       agent reads the page in front (snapshot, find, navigate, tab_select). */
+    {
+      const { R, s } = await withTab2(9374);
+      await s.snapshot();
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      await tick();
+      let err = null; try { await s.press('Enter'); } catch (e) { err = e; }
+      A.eq(err && err.code, 'REF_TAB_CLOSED', 'press after tab 0 was promoted is refused (it pressed Enter on the promoted tab)');
+      A.ok(/tab you last read was closed/.test(String(err && err.message)) && /fresh browser\.snapshot/.test(String(err && err.message)), 'and says why, and what to do');
+      let serr = null; try { await s.scroll(0, 400); } catch (e) { serr = e; }
+      A.eq(serr && serr.code, 'REF_TAB_CLOSED', 'scroll is refused the same way');
+      A.eq(R.sent.filter(m => /^Input\./.test(m.method)).length, 0, 'no key or wheel event reached any tab');
+      let again = null; try { await s.press('Enter'); } catch (e) { again = e; }
+      A.eq(again && again.code, 'REF_TAB_CLOSED', 'and it stays refused until the agent reads the new page');
+      A.eq((await s.snapshot())[0].text, 'In tab-2', 'a fresh snapshot reads the promoted tab');
+      A.eq(await attempt(() => s.press('Enter')), 'pressed Enter', '…after which press works');
+      A.eq(R.sent.filter(m => m.method === 'Input.dispatchKeyEvent').map(m => m.sessionId), ['tab-2', 'tab-2'], 'on the tab the agent read');
+      await R.d.close();
+    }
+    {
+      const { R, s } = await withTab2(9375);
+      await s.navigate('https://x.test/start');   // no snapshot: a navigate is the agent reading the page too
+      A.eq(await attempt(() => s.press('Tab')), 'pressed Tab', 'press right after a navigate is not refused');
+      await R.d.close();
+    }
+
+    /* (k) NO FALSE REFUSALS (review 10-07). openerLost bumped the tab epoch whenever tab 0 went away, so an agent on a
+       SELECTED tab was told "the tab that snapshot was taken on was closed" about a tab that never closed. */
+    {
+      const { R, s } = await withTab2(9376);
+      R.ws().emit('Target.attachedToTarget', { sessionId: 'tab-3', targetInfo: { type: 'page', targetId: 'T3' } });
+      await tick();
+      await s.selectTab(2);
+      const snap = (await s.snapshot())[0];
+      A.eq(snap.text, 'In tab-3', 'the ref is minted on the selected tab-3');
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      await tick();
+      A.eq(await attempt(() => s.click(snap.ref)), 'clicked', 'an UNRELATED tab 0 closing leaves tab-3\'s refs working');
+      A.eq(presses(R.sent).map(m => m.sessionId), ['tab-3'], 'and the click lands on tab-3');
+      A.eq(await attempt(() => s.press('Enter')), 'pressed Enter', 'press on the still-open tab-3 is not refused either');
+      await R.d.close();
+    }
+    {
+      const { R, s } = await withTab2(9377);
+      await s.selectTab(1);
+      const snap = (await s.snapshot())[0];
+      R.gone.add('opener');
+      R.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      await tick();
+      A.eq(await attempt(() => s.click(snap.ref)), 'clicked', 'the agent\'s own tab promoted to tab 0 is the SAME page: its refs still work');
+      A.eq(presses(R.sent).map(m => m.sessionId), ['tab-2'], 'on that page');
+      const list = await s.tabs();
+      A.eq(list.length === 1 && list[0].active, true, 'and it reads as tab 0, active');
+      await R.d.close();
+    }
+
+    /* (l) selectTab(0) WEDGE (regression from the tab-0 promotion fix): selectTab stored the opener's session id for tab 0;
+       when tab 0 then died through the backstop, openerLost cleared the selection only if it named the PROMOTED tab, so
+       the driver stayed on the dead session: every navigate "Session with given id not found", tabs() with no active tab,
+       snapshot [] - read as an empty page. */
+    {
+      const { R, s } = await withTab2(9378);
+      await s.selectTab(0);
+      const old = (await s.snapshot())[0];
+      R.gone.add('opener');   // no detach event: the backstop is the only proof
+      let err = null; try { await s.click(old.ref); } catch (e) { err = e; }
+      A.ok(err, 'the click on the dead tab 0 fails');
+      const fresh = await s.snapshot();
+      A.eq(fresh.length && fresh[0].text, 'In tab-2', 'a fresh snapshot reads the promoted tab (it returned [] - an "empty page")');
+      const list = await s.tabs();
+      A.eq(list.length === 1 && list[0].active, true, 'tabs() shows the promoted tab as active (none was)');
+      A.eq(await attempt(() => s.navigate('https://x.test/again')), 'https://x.test/again', 'navigate works (every one failed "Session with given id not found")');
+      A.ok(R.sent.some(m => m.sessionId === 'tab-2' && m.method === 'Page.navigate' && m.params.url === 'https://x.test/again'), 'on the promoted tab');
+      await R.d.close();
+    }
+
+    /* (m) A SNAPSHOT OF A TAB THAT IS GONE says so. evalIn swallowed the backstop's "tab gone" error, so the read
+       answered [] - an empty page - for a tab that no longer existed. */
+    {
+      const { R } = await withTab2(9379);
+      R.gone.add('opener');   // no detach event
+      let err = null, got = null; try { got = await R.d.snapshot(10); } catch (e) { err = e; }
+      A.eq(err && err.code, 'TARGET_DETACHED', 'the snapshot reports the lost tab (it returned ' + JSON.stringify(got) + ')');
+      A.eq((await R.d.snapshot(10))[0].text, 'In tab-2', 'and the next one reads the promoted tab');
+      await R.d.close();
+
+      const L = openerRig(9380);
+      await L.d.navigate('https://x.test/');
+      L.gone.add('opener');
+      L.ws().emit('Target.detachedFromTarget', { sessionId: 'opener' });
+      let lerr = null; try { await L.d.snapshot(10); } catch (e) { lerr = e; }
+      A.eq(lerr && lerr.code, 'TARGET_DETACHED', 'with no tab left, a snapshot says the tab was closed instead of returning []');
+      await L.d.close();
+    }
+  }
+
+  // ---- REFS DIE WITH THE PAGE, EVEN WHEN THE CALL THAT CHANGED IT FAILED (review 10-07) ---------------------------
+  // version moved without navEpoch (relaunch), or neither moved (navigate's error paths), so an old ref was either
+  // role+text "re-found" on a different browser or clicked at its coordinates on the page the failure left behind.
+  {
+    let failHeaded = 0;
+    const made = [];
+    const mk = extra => T.makeBrowserSession(Object.assign({
+      lookup: null, env: {},   // never inherit a headless pin from the shell: the relaunches below need a headed request
+      makeDriver: d => {
+        if (d.headed && failHeaded > 0) { failHeaded--; throw new Error('no window could be opened'); }
+        const drv = fakeDriver(); drv.headed = !!d.headed; drv.visible = () => !!d.headed; drv.close = () => {}; made.push(drv); return drv;
+      }
+    }, extra || {}));
+    const lastClicked = () => made[made.length - 1].log.clicked;
+
+    // relaunch that fails to start the new browser: the refs belong to the torn-down one
+    {
+      const s = mk();
+      await s.navigate('https://example.com/');
+      const old = (await s.snapshot())[0];
+      failHeaded = 1;
+      await rejects(s.navigate('https://example.com/watch', { visible: true }), /no window could be opened/, 'the headed relaunch fails');
+      await rejects(s.click(old.ref), /stale browser ref/, 'a ref from the torn-down browser is refused on the next one');
+      A.eq(lastClicked(), [], 'nothing was clicked on the new browser (it clicked "Search" there before)');
+    }
+    // login relaunches twice (a headed window, then back): an old ref is not "re-found" on the last browser
+    {
+      const s = mk({ attendedLogin: { prompt: async () => 'once' } });
+      await s.navigate('https://example.com/');
+      const old = (await s.snapshot())[0];
+      A.eq((await s.login('https://example.com/login')).status, 'done', 'the attended login ran');
+      await rejects(s.click(old.ref), /page navigated since that snapshot/, 'an old ref is refused across the relaunch (it was role+text recovered onto the new browser)');
+      A.eq(lastClicked(), [], 'and nothing was clicked');
+    }
+    // navigate's error paths: the page changed before the error
+    for (const [label, url, answer] of [
+      ['an error page', 'https://example.com/down', 'chrome-error://chromewebdata/'],
+      ['a tab still on about:blank', 'https://example.com/blank', 'about:blank'],
+      ['a blocked redirect', 'https://example.com/redirect-private', null]
+    ]) {
+      const s = mk();
+      await s.navigate('https://example.com/');
+      const old = (await s.snapshot())[0];
+      const drv = made[made.length - 1];
+      if (answer) { const real = drv.navigate; drv.navigate = async u => (u === url ? answer : real(u)); }
+      let err = null; try { await s.navigate(url); } catch (e) { err = e; }
+      A.ok(err, label + ': the navigate fails');
+      await rejects(s.click(old.ref), /stale browser ref/, label + ': a ref from before it is refused (it clicked at its coordinates on the page the failure left)');
+      A.eq(drv.log.clicked, [], label + ': nothing was clicked');
+    }
+  }
+
+  // ---- A NEW-WINDOW LINK OPENS IN THIS TAB (Etsy results, 10-07) ---------------------------------
+  // The page shim cancelled every target=_blank / named-target link and form (preventDefault + stopImmediatePropagation)
+  // even with popup adoption armed, so the click did nothing while browser.click said "clicked". With adoption armed it
+  // now retargets to _self and lets the event run; with popups BLOCKED it still cancels (a page listener could re-aim a
+  // live event at an unshimmed window) and loads the destination in this tab itself. Run the REAL shim source in a
+  // minimal fake DOM, both popup modes.
+  {
+    const vm = require('node:vm');
+    function shimRealm(allowPopups) {
+      const listeners = {};
+      const assigned = [];
+      class Element { constructor(attrs) { this.attrs = Object.assign({}, attrs || {}); this.kids = []; } getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; } setAttribute(k, v) { this.attrs[k] = String(v); } removeAttribute(k) { delete this.attrs[k]; } hasAttribute(k) { return k in this.attrs; } appendChild(c) { this.kids.push(c); c.parent = this; return c; } remove() { if (this.parent) this.parent.kids.splice(this.parent.kids.indexOf(this), 1); } get target() { return this.attrs.target || ''; } get name() { return this.attrs.name || ''; } set name(v) { this.attrs.name = v; } get href() { return this.attrs.href || ''; } get value() { return this.attrs.value || ''; } set value(v) { this.attrs.value = v; } }
+      class Document {}
+      class HTMLAnchorElement extends Element {}
+      class HTMLAreaElement extends Element {}
+      class HTMLFormElement extends Element {}
+      class HTMLIFrameElement extends Element {}
+      const submitted = [];
+      // what a real submission would read: the form's target/action/method and its fields AT the moment of the call
+      HTMLFormElement.prototype.submit = function () {
+        submitted.push({ target: this.getAttribute('target'), action: this.getAttribute('action'), method: this.getAttribute('method'), fields: this.kids.map(k => k.name + '=' + k.value) });
+      };
+      const frames = [];
+      const document = Object.assign(new Document(), {
+        querySelector: () => null,
+        querySelectorAll: sel => /iframe/.test(sel) ? frames : [],
+        createElement: () => new Element(),
+        dispatchEvent: () => true
+      });
+      const location = { assign: u => { assigned.push(u); } };
+      const ctx = { Element, Document, HTMLAnchorElement, HTMLAreaElement, HTMLFormElement, Event: class { constructor(n) { this.type = n; } }, document, location, navigator: {}, queueMicrotask, Promise, Object, Array, String, Error };
+      ctx.globalThis = ctx;
+      ctx.addEventListener = (n, fn) => { (listeners[n] = listeners[n] || []).push(fn); };
+      vm.createContext(ctx);
+      const src = allowPopups ? T.SYNTHETIC_INPUT_BOOTSTRAP.replace('const ALLOW_POPUPS = false;', 'const ALLOW_POPUPS = true;') : T.SYNTHETIC_INPUT_BOOTSTRAP;
+      vm.runInContext(src, ctx);
+      // a window capture listener the PAGE adds after the shim: it re-aims the link / form at a new window again
+      const pageRan = [];
+      const reAim = name => ctx.addEventListener(name, e => {
+        pageRan.push(name);
+        const el = name === 'click' ? e.composedPath()[0] : (e.submitter && e.submitter.hasAttribute('formtarget') ? e.submitter : e.target);
+        el.setAttribute(el === e.submitter ? 'formtarget' : 'target', '_blank');
+      });
+      const fire = (name, extra) => {
+        const ev = Object.assign({ defaultPrevented: false, stopped: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } }, extra);
+        for (const fn of listeners[name] || []) { fn(ev); if (ev.stopped) break; }
+        return ev;
+      };
+      return { ctx, fire, reAim, pageRan, frames, HTMLAnchorElement, HTMLFormElement, HTMLIFrameElement, Element, submitted, assigned };
+    }
+    for (const allow of [false, true]) {
+      const R = shimRealm(allow);
+      const mode = allow ? ' (popups adopted)' : ' (popups blocked)';
+      const a = new R.HTMLAnchorElement({ href: '/second', target: '_blank' });
+      const ev = R.fire('click', { composedPath: () => [a] });
+      if (allow) {
+        A.eq([ev.defaultPrevented, ev.stopped], [false, false], 'a target=_blank link click is no longer cancelled' + mode);
+        A.eq([a.getAttribute('target'), R.assigned.length], ['_self', 0], 'it is retargeted to this tab and the browser follows it' + mode);
+      } else {
+        A.eq([ev.defaultPrevented, ev.stopped], [true, true], 'a target=_blank link click is still cancelled before any page listener' + mode);
+        A.eq(R.assigned, ['/second'], 'and this tab loads the destination itself' + mode);
+      }
+      const named = new R.HTMLAnchorElement({ href: '/listing/1', target: 'etsy.123' });
+      R.fire('click', { composedPath: () => [named] });
+      A.ok(allow ? named.getAttribute('target') === '_self' : R.assigned[R.assigned.length - 1] === '/listing/1', 'an Etsy-style named target opens in this tab too' + mode);
+      const plain = new R.HTMLAnchorElement({ href: '/x' });
+      const plainEv = R.fire('click', { composedPath: () => [plain] });
+      A.eq([plain.getAttribute('target'), plainEv.defaultPrevented], [null, false], 'an ordinary link is left untouched' + mode);
+      const js = new R.HTMLAnchorElement({ href: 'javascript:alert(1)', target: '_blank' });
+      const before = R.assigned.length;
+      R.fire('click', { composedPath: () => [js] });
+      A.eq(R.assigned.length, before, 'a javascript: link aimed at a new window is never run by the shim' + mode);
+      R.frames.push(new R.HTMLIFrameElement({ name: 'pf' }));
+      const intoFrame = new R.HTMLAnchorElement({ href: '/x', target: 'pf' });
+      const frameEv = R.fire('click', { composedPath: () => [intoFrame] });
+      if (allow) A.eq([intoFrame.getAttribute('target'), frameEv.defaultPrevented], ['pf', false], 'a link aimed at a frame ON the page still loads into that frame');
+      else A.eq([frameEv.defaultPrevented, R.assigned[R.assigned.length - 1]], [true, '/x'], 'with popups blocked even a frame-named target is kept in this tab (fail closed)');
+      const form = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const sub = R.fire('submit', { target: form, submitter: null });
+      if (allow) A.eq([sub.defaultPrevented, form.getAttribute('target'), R.submitted.length], [false, '_self', 0], 'a target=_blank form submits in this tab' + mode);
+      else A.eq([sub.defaultPrevented, sub.stopped, R.submitted.slice(-1)[0].target], [true, true, '_self'], 'a target=_blank form is cancelled and submitted here by the shim' + mode);
+      const form2 = new R.HTMLFormElement({ action: '/second' });
+      const btn = new R.Element({ formtarget: '_blank', name: 'go', value: 'buy', formaction: '/checkout' });
+      R.fire('submit', { target: form2, submitter: btn });
+      if (allow) A.eq([btn.getAttribute('formtarget'), form2.getAttribute('target')], ['_self', null], 'a submitter formtarget=_blank is retargeted on the submitter' + mode);
+      else {
+        A.eq(R.submitted.slice(-1)[0], { target: '_self', action: '/checkout', method: null, fields: ['go=buy'] }, 'a submitter formtarget=_blank submits here with the button\'s name=value and formaction' + mode);
+        A.eq([form2.getAttribute('action'), form2.kids.length], ['/second', 0], 'and the form is put back afterwards' + mode);
+      }
+      const form3 = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const n3 = R.submitted.length;
+      form3.submit();
+      A.eq([R.submitted.length - n3, form3.getAttribute('target')], [1, '_self'], 'form.submit() on a _blank form submits here instead of silently doing nothing' + mode);
+
+      // THE PAGE RE-AIMS IN ITS OWN LISTENER (review, 10-07). Chrome reads the target when the default action runs, so a
+      // live event the page can still reach is a way out. Blocked: the page never sees it. Adopted: it may, and the
+      // window it opens is a tab the driver pauses and shims.
+      R.reAim('click'); R.reAim('submit');
+      const evil = new R.HTMLAnchorElement({ href: '/second', target: '_blank' });
+      const evilEv = R.fire('click', { composedPath: () => [evil] });
+      const evilForm = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+      const evilSub = R.fire('submit', { target: evilForm, submitter: null });
+      if (allow) A.eq(R.pageRan, ['click', 'submit'], 'popups adopted: the page\'s own listeners still run');
+      else {
+        A.eq(R.pageRan, [], 'popups blocked: a page listener never gets to re-aim the link or the form');
+        A.eq([evilEv.defaultPrevented, evilSub.defaultPrevented, R.assigned[R.assigned.length - 1], R.submitted.slice(-1)[0].target], [true, true, '/second', '_self'], 'both still land in THIS tab');
+      }
+      // a page that no-ops setAttribute cannot keep a form.submit() aimed at a new window
+      if (!allow) {
+        const nop = R.Element.prototype.setAttribute;
+        R.Element.prototype.setAttribute = function () {};
+        const stuck = new R.HTMLFormElement({ action: '/second', target: '_blank' });
+        const n4 = R.submitted.length;
+        stuck.submit();
+        R.Element.prototype.setAttribute = nop;
+        A.eq([R.submitted.length - n4, R.submitted.slice(-1)[0].target], [1, '_self'], 'the shim retargets with the NATIVE setAttribute it captured' + mode);
+      }
+    }
+  }
+
+  // ---- the SESSION recovers ONCE from a closed tab 0 on navigate --------------------------------
+  {
+    const built = [];
+    const make = () => {
+      const drv = { gone: false, promoted: false, url: '',
+        alive: () => !drv.gone,
+        navigate: async u => {
+          if (drv.failNext) { const how = drv.failNext; drv.failNext = null; if (how === 'dead') drv.gone = true; const e = new Error('the browser tab was closed'); e.code = 'TARGET_DETACHED'; throw e; }
+          drv.navs = (drv.navs || 0) + 1; drv.url = u; return u;
+        },
+        close: async () => {}, usingPersistentProfile: () => false, snapshot: async () => [], tabs: async () => [] };
+      built.push(drv); return drv;
+    };
+    const B = makeBrowserTools({ makeDriver: make, lookup: null });
+    await B.session.navigate('https://example.com/');
+    built[0].failNext = 'dead';
+    A.eq(await B.session.navigate('https://example.org/'), 'https://example.org/', 'a navigate whose only tab was closed lands anyway');
+    A.eq(built.length, 2, '…in a fresh browser on the same profile, once');
+    built[1].failNext = 'promoted';
+    A.eq(await B.session.navigate('https://example.net/'), 'https://example.net/', 'a navigate whose tab 0 was replaced by another open tab lands there');
+    A.eq(built.length, 2, '…without starting another browser');
+  }
+
   // ---- PAGE EVAL IS GATED ON WHICH PROFILE IS LIVE ------------------------------------------
   // The loopback-only gate cost real capability (computed style, data-*, shadow DOM). Lifting it
   // outright is not safe either: browser.login puts REAL signed-in sessions in the persistent
@@ -856,6 +1447,31 @@ function fakeDriver() {
       /refused|signed-in station profile/i, 'eval is REFUSED while the signed-in station profile is live');
     await rejects(S2.session.evalPublic('document.cookie'), /cookies and storage/i,
       'and the refusal says WHY, and names the tools that do work there');
+    /* The refusal named browser.inspect, which is DEFERRED (not callable until a tool_search reveals it), and
+       browser.test_eval, which never existed. Through the registry it now stays an error AND reveals inspect. */
+    const evalReg = makeRegistry();
+    S2.register(evalReg);
+    const refusedEval = await evalReg.dispatch(call('browser.eval', { expression: 'document.cookie' }));
+    A.eq([refusedEval.isError, refusedEval.summary], [true, 'eval refused'], 'the refusal is still an error, named as one');
+    A.eq(refusedEval.control && refusedEval.control.revealTools, ['browser.inspect'], 'and it reveals the deferred browser.inspect it points at');
+    A.ok(/browser\.inspect/.test(refusedEval.content) && !/test_eval/.test(refusedEval.content), 'it names only tools that exist (no browser.test_eval)');
+    const named = (refusedEval.content.match(/browser\.[a-z_]+/g) || []).filter((n, i, all) => all.indexOf(n) === i);
+    const registeredNames = new Set(S2.tools.map(t => t.name));
+    A.eq(named.filter(n => !registeredNames.has(n)), [], 'every browser.* tool the refusal names is a registered tool (' + named.join(', ') + ')');
+
+    // The click's NEW-TAB note points at browser.tab_select / browser.tabs, both DEFERRED: the result reveals them.
+    const popper = fakeDriver();
+    popper.click = async () => 'clicked\nThis click opened a NEW tab (index 1). You are still on tab 0; use browser.tab_select 1 to read it (browser.tabs lists every tab).';
+    const P = makeBrowserTools({ driver: popper });
+    const popReg = makeRegistry();
+    P.register(popReg);
+    const popSnap = await popReg.dispatch(call('browser.snapshot', {}));
+    const popRef = (popSnap.content.match(/(b\d+) \[button\] Search/) || [])[1];
+    const popped = await popReg.dispatch(call('browser.click', { ref: popRef }));
+    A.eq([popped.isError, popped.control && popped.control.revealTools], [false, ['browser.tab_select', 'browser.tabs']], 'a click that opened a new tab reveals the deferred tab tools its note names');
+    popper.click = async () => 'clicked';
+    const plainClick = await popReg.dispatch(call('browser.click', { ref: popRef }));
+    A.eq(plainClick.control, null, 'an ordinary click reveals nothing');
 
     A.eq(E.tools.find(t => t.name === 'browser.eval').requiresConsent, true, 'eval is consent-gated even when allowed');
     A.eq(E.tools.find(t => t.name === 'browser.inspect').requiresConsent, false, 'inspect is a read, so it is not consent-gated');

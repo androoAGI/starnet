@@ -108,6 +108,35 @@
   }
   function stripTags(s) { return decodeEntities(String(s).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim(); }
   function clamp(s, n) { s = String(s); return s.length > n ? s.slice(0, n).trimEnd() + ' …' : s; }
+  /* undici's whole message for ANY failed outbound fetch is "fetch failed"; the reason lives on .cause. Name its
+     code + host so a failure is diagnosable from the transcript instead of an unactionable slogan — the cause's
+     own host/IP first, else the host we DIALLED: a TLS-alert or socket cause (ERR_SSL_TLSV1_ALERT_DECODE_ERROR,
+     UND_ERR_SOCKET) carries no host at all, and "fetch failed (ERR_SSL_…)" left a customer unable to tell which
+     service broke (2026-10-07). Never the raw cause and never a URL: with auth.in:"query" the request URL carries
+     a key. Same shape as telegram.transport.js errOf. Returns e. */
+  function nameTransport(e, host) {
+    const c = e && e.cause;
+    if (c && e instanceof Error && /^fetch failed$/.test(e.message)) {
+      const detail = [c.code || c.name || '', c.hostname || c.address || host || ''].filter(Boolean).join(' ');
+      if (detail) e.message = 'fetch failed (' + detail + ')';
+    }
+    return e;
+  }
+  /* Did this failure happen BEFORE any server answered? (no connection, DNS, TLS, reset, no reply in time.)
+     An HTTP status or a DDG anomaly page is the web ANSWERING; these are not. Codes are read the same way
+     softFetchAnswer reads them (e, e.errors[], e.cause, e.cause.errors[]). */
+  const TRANSPORT_CODE_RE = /^(?:ECONNRESET|ECONNREFUSED|ECONNABORTED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|EPIPE|UND_ERR_\w+|ERR_SSL_\w+|ERR_TLS_\w+|CERT_\w+|\w*_SIGNATURE\w*|UNABLE_TO_\w+|DEPTH_ZERO_SELF_SIGNED_CERT|SELF_SIGNED_CERT_IN_CHAIN)$/;
+  function isTransportFault(e) {
+    if (!e) return false;
+    if (e.__timeout) return true;
+    if (/^fetch failed/.test(String(e.message || ''))) return true;
+    const c = e.cause;
+    const codes = [e.code].concat(
+      (e.errors || []).map(x => x && x.code),
+      c ? [c.code].concat((c.errors || []).map(x => x && x.code)) : []
+    );
+    return codes.some(x => typeof x === 'string' && TRANSPORT_CODE_RE.test(x));
+  }
 
   function waitAbortable(ms, signal) {
     return new Promise((resolve, reject) => {
@@ -460,15 +489,9 @@
         const r = await doFetch(u.href, dispatcher ? Object.assign({}, init, { dispatcher }) : init);
         return { status: r.status, ct: r.headers.get('content-type') || '', loc: r.headers.get('location') || '', body: await readBodyBounded(r) };
       } catch (e) {
-        // undici's whole message is "fetch failed"; the reason lives on .cause. Name its code + host (never the
-        // raw cause: with auth.in:"query" the request URL carries a key) so a failure is diagnosable from the
-        // transcript instead of an unactionable slogan. Same shape as telegram.transport.js errOf.
-        const c = e && e.cause;
-        if (c && e instanceof Error && /^fetch failed$/.test(e.message)) {
-          const detail = [c.code || c.name || '', c.hostname || c.address || ''].filter(Boolean).join(' ');
-          if (detail) e.message = 'fetch failed (' + detail + ')';
-        }
-        throw e;
+        // name the cause code + host (nameTransport). Cause host/IP FIRST, the requested hostname only as the
+        // fallback — never reorder: the pinned-dispatcher test expects the IP when the cause carries one.
+        throw nameTransport(e, u.hostname);
       } finally {
         if (dispatcher) await dispatcher.close();
       }
@@ -563,10 +586,11 @@
       if (!query) throw new Error('empty query');
       const parent = opts && opts.signal;   // the run/tool-timeout signal, threaded down so a cancel drops the fetch
       const errors = [];
+      // [source, run, the host it dials — named on a bare transport failure (nameTransport)]
       const chain = [
-        ['mojeek',          () => mojeekSearch(query, parent)],
-        ['duckduckgo-html', () => ddgSearch('https://html.duckduckgo.com/html/', parseDDGHtml, query, parent)],
-        ['duckduckgo-lite', () => ddgSearch('https://lite.duckduckgo.com/lite/', parseDDGLite, query, parent)]
+        ['mojeek',          () => mojeekSearch(query, parent), 'www.mojeek.com'],
+        ['duckduckgo-html', () => ddgSearch('https://html.duckduckgo.com/html/', parseDDGHtml, query, parent), 'html.duckduckgo.com'],
+        ['duckduckgo-lite', () => ddgSearch('https://lite.duckduckgo.com/lite/', parseDDGLite, query, parent), 'lite.duckduckgo.com']
       ];
       // The READER outranks the paid fallback: a real local Chrome sails past the fingerprint checks
       // that throttle the scrape endpoints, costs nothing, and keeps search working with zero keys.
@@ -574,18 +598,36 @@
         const r = await reader.search(query, { signal: parent });
         return (r && r.results) || [];
       }]);
-      if (or && or.apiKey) chain.push(['openrouter', () => openrouterSearch(query, parent)]);
-      for (const [source, fn] of chain) {
+      if (or && or.apiKey) chain.push(['openrouter', () => openrouterSearch(query, parent), 'openrouter.ai']);
+      /* Throttling vs. no connection (2026-10-07). "Every engine declined" is web weather only if some engine
+         ANSWERED (a status, an anomaly page, 0 results). When every HTTP engine failed before any server
+         answered (offline, DNS down, TLS broken on this machine), calling that throttling would be the harness
+         lying about its own connectivity. The reader rung is NEUTRAL: reader.search swallows Chrome's navigation
+         failures and resolves [] — that is no proof either way. A cancelled run is a cancel, never "no results". */
+      let httpTried = 0, httpTransport = 0;
+      for (const [source, fn, host] of chain) {
+        if (parent && parent.aborted) throw (parent.reason instanceof Error ? parent.reason : new Error('web_search cancelled'));
+        if (source !== 'browser') httpTried++;
         try {
           const results = await fn();
           if (results && results.length) return { results: results.slice(0, (opts && opts.limit) || 8), source };
           errors.push(source + ': 0 results');
-        } catch (e) { errors.push(source + ': ' + (e && e.message ? e.message : String(e))); }
+        } catch (e) {
+          if (parent && parent.aborted) throw e;
+          nameTransport(e, host);
+          if (source !== 'browser' && isTransportFault(e)) httpTransport++;
+          errors.push(source + ': ' + (e && e.message ? e.message : String(e)));
+        }
       }
-      const e = new Error('web_search failed (' + errors.join(' | ')
-        + '). Search providers are temporarily unavailable; do not immediately repeat the same search. '
-        + 'Use sources already returned, try a known direct URL with web_fetch, or finish with an explicit evidence limitation.');
-      e.__allFailed = true; e.__errors = errors.slice(); throw e;
+      const unreachable = httpTried > 0 && httpTransport === httpTried;
+      const e = new Error(unreachable
+        ? 'web_search could not reach any search engine (' + errors.join(' | ') + '). This machine\'s network '
+          + 'connection may be down, or something on it is blocking HTTPS; this is not engine throttling. Check '
+          + 'connectivity before searching again, or finish with an explicit evidence limitation.'
+        : 'web_search failed (' + errors.join(' | ')
+          + '). Search providers are temporarily unavailable; do not immediately repeat the same search. '
+          + 'Use sources already returned, try a known direct URL with web_fetch, or finish with an explicit evidence limitation.');
+      e.__allFailed = true; e.__unreachable = unreachable; e.__errors = errors.slice(); throw e;
     }
 
     // ====================================================================
@@ -748,8 +790,9 @@
         catch (e) {
           // An exhausted keyless chain is the engines' weather, not a harness fault — answer it as
           // information (see softFetchAnswer's rationale above). webSearch itself still throws, so
-          // programmatic callers and tests keep the strict contract.
-          if (e && e.__allFailed) return {
+          // programmatic callers and tests keep the strict contract. NOT when no engine could even be reached
+          // (__unreachable: offline / TLS broken here) — that is a genuine fault and stays an isError result.
+          if (e && e.__allFailed && !e.__unreachable) return {
             content: 'No results this time — every search engine declined (' + (e.__errors || []).join('; ') + '). ' +
                      'This is temporary throttling of the keyless engines, not a malfunction. Do not immediately ' +
                      'repeat the same search: use sources already gathered, web_fetch a known URL directly, or ' +
