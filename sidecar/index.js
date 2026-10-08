@@ -258,6 +258,7 @@ const { sameEndpoint, resolveConnectorOauthTarget } = require('./mcp/oauth-targe
 const connectorStateMod = require('./connectorstate.js');   // one transactional envelope for connector config + OAuth secrets
 const cron = require('./cron.js');                         // pure schedule math (parse/nextFire/planTick)
 const cronStore = require('./cron-store.js');              // pure CronJob lifecycle reducer
+const { makeRoutineToolsets } = require('./routine-toolsets.js');   // A3: the ONE enabledToolsets reader (create/update + load-time repair)
 const mintLedger = require('./mint-ledger.js');            // W6: pure dedup gate + per-agent mint ledger (never re-create what exists)
 const cronDriverMod = require('./cron-driver.js');
 const { makeCronDriver } = cronDriverMod;    // the autonomous tick driver (ambient deps injected here)
@@ -4864,45 +4865,12 @@ function cronStringList(v, max, pattern) {
   }
   return out;
 }
-/* A routine's enabledToolsets is a restriction-only list of toolset FAMILY ids (enforceEnabledToolsets). It was only
-   pattern-filtered, so the TOOLSETS console label a user copies ('WEB & BROWSER') was dropped to [] and a tool name
-   ('web_request') or 'Web' kept as an unknown family — each stored as "restrict to (almost) nothing", and the routine
-   fired with no web tools (#58 class). Normalize the RAW entries before any pattern filter: a family id (any case),
-   a console label, or a tool name maps to its family; anything else is REFUSED by name (400 / tool error), never
-   dropped. A computer freebie is always kept, so naming one adds nothing (only freebies named = freebies only). An
-   empty list means NO restriction (null): "nothing listed" is never "restrict to nothing". */
-let cronToolsetIndex = null;
-function cronToolsetList(v) {
-  if (v == null) return null;
-  if (!Array.isArray(v)) throw new Error('enabledToolsets must be a list of toolset ids');
-  if (!cronToolsetIndex) {
-    const valid = TOGGLEABLE_CAPS.concat(['connectors']);
-    const byLabel = new Map(), byTool = new Map();
-    for (const row of toolsetRows(CAP_REGISTRY)) byLabel.set(String(row.label).toLowerCase(), row.id);
-    for (const objectType of Object.keys(CAP_REGISTRY)) {
-      for (const g of (CAP_REGISTRY[objectType] || [])) {
-        const t = String(g.tool || '').toLowerCase();
-        if (t && !byTool.has(t)) { byTool.set(t, g.capId); byTool.set(t.replace(/\./g, '_'), g.capId); }
-      }
-    }
-    cronToolsetIndex = { valid, validSet: new Set(valid), byLabel, byTool };
-  }
-  const ix = cronToolsetIndex, out = [];
-  let named = false;
-  for (const raw of v) {
-    const s = String(raw == null ? '' : raw).trim();
-    if (!s) continue;
-    named = true;
-    const k = s.toLowerCase();
-    let family = ix.validSet.has(k) ? k : (ix.byLabel.get(k) || ix.byTool.get(k) || '');
-    if (!family && /^(mcp|plugin)[:_]/.test(k)) family = 'connectors';
-    if (family === 'compute' || TOOLSET_FREEBIES.has(family)) continue;
-    if (!ix.validSet.has(family)) throw new Error('unknown toolset "' + s.slice(0, 80) + '" — valid: ' + ix.valid.join(', '));
-    if (out.indexOf(family) < 0) out.push(family);
-    if (out.length >= 16) break;
-  }
-  return named ? out : null;
-}
+/* A routine's enabledToolsets is a restriction-only list of toolset FAMILY ids (enforceEnabledToolsets). Labels, tool
+   names and case map to their family; an unknown entry is REFUSED by name (400 / tool error), never dropped; an empty
+   list means NO restriction (null). The rules live in ONE place — sidecar/routine-toolsets.js — shared with the load-
+   time repair of routines saved before 0.13.2 (loadCronJobs), so create, update and a stored list can never disagree. */
+const routineToolsets = makeRoutineToolsets({ capRegistry: CAP_REGISTRY, toolsetRows, toggleableCaps, freebies: TOOLSET_FREEBIES });
+function cronToolsetList(v) { return routineToolsets.strict(v); }
 function cronContextCycle(jobId, refs) {
   const visiting = new Set([String(jobId)]), visited = new Set();
   function walk(id, firstRefs) {
@@ -5718,6 +5686,10 @@ const CRON_FILE = path.join(WORKSPACES, 'cron.jobs.json');
    the Commander acknowledges it or restores the quarantined file and restarts. Sticky for the process. */
 let cronDegraded = null;
 let cronJobs = [];
+// A3: how many stored routines the last load had to repair, and which ones were already logged (a failed boot
+// persist re-applies the repair on every load; it is logged once per routine, not once per load).
+let cronToolsetsRepairedOnLoad = 0;
+const cronToolsetsRepairNoted = new Set();
 function loadCronJobs() {
   try {
     const r = readJsonResilient({ fs: fs }, CRON_FILE);
@@ -5735,13 +5707,32 @@ function loadCronJobs() {
       console.error('[cron] ' + CRON_FILE + ' exists but is unreadable (' + ((r.err && r.err.code) || r.err) + ') — keeping the in-memory list, not treating as empty.');
       if (Array.isArray(cronJobs)) return cronJobs;
     }
-    return cronStore.loadEnvelope((r.status === 'ok' || r.status === 'recovered') ? r.value : undefined).jobs;
+    const loaded = cronStore.loadEnvelope((r.status === 'ok' || r.status === 'recovered') ? r.value : undefined).jobs;
+    /* A3 (#58): a routine saved before 0.13.2 can carry a toolset list the old pattern filter broke — [] from the
+       'WEB & BROWSER' label, 'web_request' kept as an unknown family — and every fire path reads the stored list raw
+       while no UI or routine.manage edits it, so re-saving was never a way out. Repair it HERE, on every load
+       (withCronWrite re-reads through this too); idempotent, and the boot pass below persists it once. */
+    const repaired = routineToolsets.healJobs(loaded);
+    cronToolsetsRepairedOnLoad = repaired.healed.length;
+    for (const h of repaired.healed) {
+      if (cronToolsetsRepairNoted.has(h.id)) continue;
+      cronToolsetsRepairNoted.add(h.id);
+      console.warn('[cron] repaired routine ' + h.id + ' toolset list ' + JSON.stringify(h.from) + ' -> ' + JSON.stringify(h.to) +
+        (h.dropped.length ? ' (dropped unknown ' + JSON.stringify(h.dropped) + ')' : ''));
+    }
+    return repaired.jobs;
   } catch (e) {
     console.warn('[cron] load failed:', (e && e.message) || e);
     return Array.isArray(cronJobs) ? cronJobs : [];
   }
 }
 cronJobs = loadCronJobs();
+// A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
+// healed list from disk. A failed write is not fatal: the repair re-applies on every load until one lands.
+if (cronToolsetsRepairedOnLoad) {
+  try { saveCronJobs(); console.warn('[cron] saved the repaired toolset list of ' + cronToolsetsRepairedOnLoad + ' routine(s)'); }
+  catch (e) { console.warn('[cron] toolset repair persist failed (re-applied on every load until a write lands):', (e && e.message) || e); }
+}
 /* W6 ONE-TIME SWEEP — on boot, collapse any accidental double-mints (jobs identical in agentId + normalized name
    + prompt), keeping the OLDEST, logging each removal plainly. This cleans up the pre-fix duplicate "ULTRON daily
    operating loop" pair the mint gate now prevents going forward. Only ever removes a true exact-triple dup, never

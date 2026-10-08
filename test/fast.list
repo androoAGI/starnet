@@ -629,6 +629,7 @@ test/untrusted-taint.test.js
 test/taint-lineage.test.js
 test/taint-entry-origin.test.js
 test/routine-tools.test.js
+test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
