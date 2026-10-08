@@ -628,7 +628,8 @@ const Build = (() => {
     }
     const door = root.querySelector('#refit-makeprop-door');
     const cta = root.querySelector('#refit-makeprop-cta');
-    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : !(makeCredits.balanceUsd > 0) ? 'topup' : '';
+    // TOP UP only for a balance the service REPORTED at <= 0: an unknown balance (a failed check) is not an empty wallet
+    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : (makeCredits.balanceUsd != null && !(makeCredits.balanceUsd > 0)) ? 'topup' : '';
     if (cta) {
       cta.hidden = !need;
       if (need) {
@@ -781,7 +782,8 @@ const Build = (() => {
     if (makeCreditsAsked || typeof Harness === 'undefined' || !Harness.api) return;
     makeCreditsAsked = true;
     Harness.api.get('/api/credits?history=0').then((j) => {
-      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : 0 };
+      // a failed balance check answers balanceUsd:null: keep it unknown, never a $0 that tells a funded user to top up
+      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : null };
     }, (e) => {   // /api/credits 404s by design when no account is linked: a definitive "not linked"
       if (/http 404\b/.test(String((e && e.message) || e))) makeCredits = { linked: false, balanceUsd: 0 };
     }).then(() => {

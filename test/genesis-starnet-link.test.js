@@ -110,6 +110,40 @@ ok(/managed credit\|Managed credits/.test(app), 'a billing refusal from the wire
 ok(/typeof res\.error === 'string' && res\.error\.trim\(\)\) \? res\.error/.test(app), 'preflightWire surfaces res.error (the refusal reason), not only res.text');
 ok(/stopStarnetBalancePoll\(\)/.test(app), 'the empty-wallet balance poll has a stop, wired on screen exit');
 
+// (2026-10-07) the WAKE billing ladder RUNS against the sidecar's real refusal strings: a refused link says relink
+// (never "try WAKE again" — a retry can't fix it), an unanswered check says retry, only a reported $0 says ADD CREDITS.
+{
+  const start = app.indexOf('if (/managed credit|Managed credits/i.test(wire.why)) {');
+  const end = app.indexOf("msg.textContent = 'your model didn’t answer'", start);
+  ok(start > 0 && end > start, 'the WAKE billing ladder is found in app.js');
+  const ladder = new Function('wire', 'msg', 'pickedProvider', 'refreshStarnetGenesisStatus', app.slice(start, end) + '\nreturn true;');
+  // the sidecar's three admission refusals, exactly as runOnceCore emits them
+  const sidecarMsg = (re) => { const m = host.match(re); return m ? m[1].replace(/\\'/g, "'") : ''; };
+  const refusedLink = sidecarMsg(/\? '(Managed credits are unavailable — your StarNet account refused this station\\'s link.*?)'\n/);
+  const unanswered = sidecarMsg(/: '(Managed credits are unavailable right now.*?)';\n/);
+  const outOf = sidecarMsg(/\? '(Out of managed credit.*?)'\n/);
+  ok(refusedLink && unanswered && outOf, 'the sidecar still emits the refused-link, unanswered and out-of-credit refusals');
+  // preflightWire collapses whitespace and keeps 160 chars: the WAKE screen only ever sees that much
+  const wake = (why, prov) => {
+    const msg = { textContent: '' }; let refreshed = 0;
+    const r = ladder({ why: why.replace(/\s+/g, ' ').slice(0, 160) }, msg, prov, () => { refreshed++; });
+    return { r, text: msg.textContent, refreshed };
+  };
+  for (const prov of ['starnet', 'openai']) {
+    const w = wake(refusedLink, prov);
+    ok(w.r === false && w.refreshed === 1, 'a refused link bounces WAKE and repaints the link state (' + prov + ')');
+    ok(/no longer accepts this station’s link/.test(w.text) && /credits are safe/.test(w.text), 'a refused link names the refused link (' + prov + ')');
+    ok(!/try WAKE again in a moment|couldn’t read your credit balance|no credits|ADD CREDITS/.test(w.text), 'a refused link is never "retry" or "out of credits" (' + prov + ')');
+  }
+  ok(/CONNECT STARNET ACCOUNT/.test(wake(refusedLink, 'starnet').text) && /id="btn-starnet-link" class="btn">CONNECT STARNET ACCOUNT/.test(index),
+    'on the STARNET pick the relink copy names the button that is actually on screen');
+  ok(!/CONNECT STARNET ACCOUNT/.test(wake(refusedLink, 'openai').text), 'another provider pick is never pointed at a STARNET button it is not showing');
+  ok(/couldn’t read your credit balance/.test(wake(unanswered, 'starnet').text), 'an unanswered balance check still says the balance could not be read');
+  ok(/no credits/.test(wake(outOf, 'starnet').text), 'only a reported empty wallet says ADD CREDITS');
+  ok(wake('rate limited', 'starnet').r === true, 'a non-billing failure falls through to the model-did-not-answer line');
+  ok(!/LINK YOUR STARNET ACCOUNT/.test(app), 'WAKE never names a LINK YOUR STARNET ACCOUNT button (the button reads CONNECT STARNET ACCOUNT)');
+}
+
 // REMOTE UNLINK (0.10.8 field regression): local keychain/file presence is not proof after the account page
 // revoked the device. The sidecar must project the cloud's 401/403 as configured:false, both first-run and
 // Settings must offer pairing again, and neither surface may turn the stale cached $0 into "no credits".

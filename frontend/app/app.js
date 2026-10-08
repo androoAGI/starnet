@@ -3065,7 +3065,7 @@ const App = (() => {
         msg.textContent = 'StarNet couldn’t confirm your credit balance right now. Your credits are safe — try WAKE again in a moment.';
         return false;
       }
-      if (!creditState.linked) { msg.textContent = 'link your StarNet account first — press 🔗 LINK YOUR STARNET ACCOUNT above.'; return false; }
+      if (!creditState.linked) { msg.textContent = 'link your StarNet account first — press CONNECT STARNET ACCOUNT above.'; return false; }
       if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
@@ -3134,6 +3134,14 @@ const App = (() => {
       // a BILLING refusal is not a model failure: managed admission refused the run before any model was
       // reached. Name the real cause and the real fix; "your model didn't answer" sends people model-hopping.
       if (/managed credit|Managed credits/i.test(wire.why)) {
+        // the account REFUSED this station's link: retrying can't fix it and the wallet isn't empty — relink is the
+        // door (friendlyerror's managed_credit_link; `.?` because a quote in a regex mis-slices the fnBody test helper)
+        if (/refused this station.?s link|relink/i.test(wire.why)) {
+          msg.textContent = 'your StarNet account no longer accepts this station’s link (it was unlinked, or belongs to another account) — your credits are safe. '
+            + (pickedProvider === 'starnet' ? 'Press CONNECT STARNET ACCOUNT above, then WAKE again.' : 'Relink this station to your StarNet account, or use your own provider key.');
+          refreshStarnetGenesisStatus();
+          return false;
+        }
         msg.textContent = /Out of managed credit/i.test(wire.why)
           ? 'your StarNet account has no credits — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'
           : 'StarNet couldn’t read your credit balance right now — try WAKE again in a moment, or use your own provider key.';
