@@ -79,10 +79,15 @@
 
     // Commerce & POD — the unique verticals: supplements, creator merch, jewelry, sustainable apparel.
     { id: 'supliful', name: 'Supliful', category: 'Commerce & Print-on-Demand', envVar: 'SUPLIFUL_API_KEY',
-      docsUrl: 'https://docs.supliful.com/', apiBase: 'https://app.supliful.com/api/v1',
+      /* 2026-10-07: docs.supliful.com no longer resolves (no DNS record) and app.supliful.com/api/v1 is the app's
+         login-gated internal API. Supliful's own help center documents ONE custom-app route: Shopify's Admin API
+         on a store with the Supliful app installed — orders created there are fulfilled by Supliful. */
+      docsUrl: 'https://help.supliful.com/en/articles/12459926-connect-your-custom-app-to-supliful-using-shopify-admin-api',
+      apiBase: 'https://{your-store}.myshopify.com/admin/api',
+      authHint: 'X-Shopify-Access-Token: ${SUPLIFUL_API_KEY}',
       aliases: ['pod', 'supplements', 'vitamins', 'skincare', 'coffee', 'private label'],
       blurb: 'Supplement, coffee, and skincare print-on-demand: white-label products, orders, fulfilment.',
-      note: 'Create an API key in the Supliful app. An agent can design labels, create products, and route orders.' },
+      note: 'Supliful publishes no public API of its own. Its documented route: install the Supliful app on a Shopify store, create a Shopify custom app there, and save that app’s Admin API access token here. Orders created in that store through the Admin API are fulfilled by Supliful.' },
     { id: 'fourthwall', name: 'Fourthwall', category: 'Commerce & Print-on-Demand', envVar: 'FOURTHWALL_API_KEY',
       docsUrl: 'https://docs.fourthwall.com/', apiBase: 'https://api.fourthwall.com/open-api/v1.0',
       aliases: ['pod', 'creator merch', 'merch storefront', 'fan shop'],
@@ -97,12 +102,12 @@
       aliases: ['pod', 'print on demand', 'spreadshirt', 'apparel'],
       blurb: 'Spreadshirt\'s print-on-demand engine: articles, orders, shipping, stock.' },
     { id: 'teemill', name: 'Teemill', category: 'Commerce & Print-on-Demand', envVar: 'TEEMILL_API_KEY',
-      docsUrl: 'https://teemill.com/api-info/', apiBase: 'https://api.teemill.com',
+      docsUrl: 'https://teemill.com/api-docs/', apiBase: 'https://api.teemill.com',   // api-info/ 404s since 2026-10
       authHint: 'Authorization: Bearer ${TEEMILL_API_KEY}',
       aliases: ['pod', 'sustainable', 'organic apparel', 'circular fashion'],
       blurb: 'Sustainable organic-cotton print-on-demand: create products from an image URL in one call.' },
     { id: 'zazzle', name: 'Zazzle', category: 'Commerce & Print-on-Demand', envVar: 'ZAZZLE_API_KEY',
-      docsUrl: 'https://www.zazzle.com/sell/developers/createaproduct', apiBase: 'https://www.zazzle.com/api/create',
+      docsUrl: 'https://www.zazzle.com/api', apiBase: 'https://www.zazzle.com/api/create',   // sell/developers/createaproduct 404s since 2026-10
       aliases: ['pod', 'print on demand', 'mugs', 'cards', 'gifts'],
       blurb: 'Create-a-Product across ~1,300 Zazzle product types (mugs, cards, wrapping paper, skateboards…).',
       note: 'Zazzle uses your associate/member ID in Create-a-Product URLs, not a secret header — save your associate ID as the key.' },
