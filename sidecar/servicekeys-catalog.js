@@ -18,6 +18,10 @@
      authHint — the header shape, ONLY where verified. Omitted rather than guessed: a wrong hint would send
                 every agent down a broken path, which is worse than no hint (the agent reads docsUrl).
      note     — anything that would otherwise surprise the user (e.g. OAuth, per-store hosts)
+     retiredDocsUrls — docs links this row USED to carry. A saved key stores its docsUrl and that copy is what
+                the prompt reads, so a key saved before a vendor moved its docs heals to docsUrl on load.
+     apiVia   — set ONLY when the vendor publishes no API of its own; names the API the row actually uses, and
+                the card says "via <apiVia>" instead of claiming a first-party API.
 
    Adding a platform is a DATA ROW here, never new code — same extension model as mcp/catalog.js. */
 'use strict';
@@ -83,6 +87,7 @@
          login-gated internal API. Supliful's own help center documents ONE custom-app route: Shopify's Admin API
          on a store with the Supliful app installed — orders created there are fulfilled by Supliful. */
       docsUrl: 'https://help.supliful.com/en/articles/12459926-connect-your-custom-app-to-supliful-using-shopify-admin-api',
+      retiredDocsUrls: ['https://docs.supliful.com/'], apiVia: 'Shopify Admin API',
       apiBase: 'https://{your-store}.myshopify.com/admin/api',
       authHint: 'X-Shopify-Access-Token: ${SUPLIFUL_API_KEY}',
       aliases: ['pod', 'supplements', 'vitamins', 'skincare', 'coffee', 'private label'],
@@ -102,12 +107,14 @@
       aliases: ['pod', 'print on demand', 'spreadshirt', 'apparel'],
       blurb: 'Spreadshirt\'s print-on-demand engine: articles, orders, shipping, stock.' },
     { id: 'teemill', name: 'Teemill', category: 'Commerce & Print-on-Demand', envVar: 'TEEMILL_API_KEY',
-      docsUrl: 'https://teemill.com/api-docs/', apiBase: 'https://api.teemill.com',   // api-info/ 404s since 2026-10
+      docsUrl: 'https://teemill.com/api-docs/', apiBase: 'https://api.teemill.com',
+      retiredDocsUrls: ['https://teemill.com/api-info/'],   // 404s since 2026-10
       authHint: 'Authorization: Bearer ${TEEMILL_API_KEY}',
       aliases: ['pod', 'sustainable', 'organic apparel', 'circular fashion'],
       blurb: 'Sustainable organic-cotton print-on-demand: create products from an image URL in one call.' },
     { id: 'zazzle', name: 'Zazzle', category: 'Commerce & Print-on-Demand', envVar: 'ZAZZLE_API_KEY',
-      docsUrl: 'https://www.zazzle.com/api', apiBase: 'https://www.zazzle.com/api/create',   // sell/developers/createaproduct 404s since 2026-10
+      docsUrl: 'https://www.zazzle.com/api', apiBase: 'https://www.zazzle.com/api/create',
+      retiredDocsUrls: ['https://www.zazzle.com/sell/developers/createaproduct'],   // 404s since 2026-10
       aliases: ['pod', 'print on demand', 'mugs', 'cards', 'gifts'],
       blurb: 'Create-a-Product across ~1,300 Zazzle product types (mugs, cards, wrapping paper, skateboards…).',
       note: 'Zazzle uses your associate/member ID in Create-a-Product URLs, not a secret header — save your associate ID as the key.' },
@@ -291,5 +298,13 @@
 
   function byId(id) { return PLATFORMS.find(p => p.id === String(id || '')) || null; }
 
-  return { PLATFORMS, CATEGORY_ORDER, categories, grouped, byId };
+  // A saved key carrying a docs link its row has retired gets the current link; anything else is returned as is.
+  function healDocsUrl(record) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+    const row = byId(record.id) || PLATFORMS.find(p => p.envVar === record.envVar);
+    if (!row || !Array.isArray(row.retiredDocsUrls) || row.retiredDocsUrls.indexOf(String(record.docsUrl || '').trim()) < 0) return record;
+    return Object.assign({}, record, { docsUrl: row.docsUrl });
+  }
+
+  return { PLATFORMS, CATEGORY_ORDER, categories, grouped, byId, healDocsUrl };
 });

@@ -272,6 +272,23 @@ const REDIRECT = 'http://127.0.0.1:8787/api/connectors/oauth/callback';
   A.ok(/unknown/.test(T.resolveConnectorOauthTarget('missing', catalog, []).error || ''), 'an id cannot smuggle an unsaved URL into OAuth start');
 }
 
+// ---- K. a saved-token row whose catalog entry now signs in (Intercom, 2026-10-07) ----
+{
+  const C = require('../sidecar/mcp/catalog.js');
+  const legacy = { id: 'intercom', label: 'Intercom', transport: 'http', url: 'https://mcp.intercom.com/mcp', token: 'pasted', oauth: false };
+  A.eq(T.catalogSignInAvailable(legacy, C), true, 'a saved Intercom token row may switch to the catalog sign-in');
+  A.eq(T.catalogSignInAvailable(Object.assign({}, legacy, { url: 'https://MCP.intercom.com/mcp/' }), C), true, 'the switch matches the endpoint, not its spelling');
+  A.eq(T.catalogSignInAvailable(Object.assign({}, legacy, { oauth: true }), C), false, 'an OAuth row is already signed in, not a switch candidate');
+  A.eq(T.catalogSignInAvailable(Object.assign({}, legacy, { url: 'https://intercom.self-hosted.example/mcp' }), C), false, 'another endpoint under the same id never borrows the vendor sign-in');
+  A.eq(T.catalogSignInAvailable({ id: 'tavily', transport: 'http', url: C.get('tavily').url, token: 'k' }, C), false, 'a key-tier catalog row offers no sign-in');
+  A.eq(T.catalogSignInAvailable({ id: 'mine', transport: 'http', url: 'https://mine.example/mcp', token: 'k' }, C), false, 'a non-catalog row offers no sign-in');
+  A.eq(T.catalogSignInAvailable({ id: 'intercom', transport: 'stdio', command: 'x' }, C), false, 'a stdio row offers no sign-in');
+  // the sign-in route binds that row to the vendor catalog entry (callback swaps token for grant after consent)
+  const target = T.resolveConnectorOauthTarget('intercom', C, [legacy]);
+  A.ok(!target.error && target.custom === false && target.entry && target.entry.url === 'https://mcp.intercom.com/mcp',
+    'OAuth start for a saved Intercom token row resolves to the catalog entry, not a custom target');
+}
+
 // ---- M. AS METADATA CHECKS (audit 2026-09-25 #21): issuer, PKCE S256, https/public endpoints ----
 {
   const base = {

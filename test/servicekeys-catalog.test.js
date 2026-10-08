@@ -133,4 +133,28 @@ for (const p of C.PLATFORMS) {
   A.ok(C.CATEGORY_ORDER.indexOf('Physical World') >= 0, 'Physical World category is declared in the order');
 }
 
+// ---- G. retired docs links heal; a vendor with no API of its own says so (2026-10-07 live audit) ----
+{
+  // a saved key stores its docsUrl and the prompt reads THAT copy — a moved vendor page must heal on load
+  for (const id of ['supliful', 'teemill', 'zazzle']) A.ok((C.byId(id).retiredDocsUrls || []).length > 0, id + ' lists the docs link it retired');
+  for (const p of C.PLATFORMS.filter(row => row.retiredDocsUrls)) {
+    const at = ' [' + p.id + ']';
+    A.ok(Array.isArray(p.retiredDocsUrls) && p.retiredDocsUrls.every(u => /^https:\/\//.test(u)), 'retired links are https strings' + at);
+    A.ok(p.retiredDocsUrls.indexOf(p.docsUrl) < 0, 'the current docs link is never listed as retired' + at);
+    for (const u of p.retiredDocsUrls) {
+      A.eq(C.healDocsUrl({ id: p.id, envVar: p.envVar, docsUrl: u }).docsUrl, p.docsUrl, 'a key saved with ' + u + ' heals' + at);
+      A.eq(C.healDocsUrl({ id: 'renamed-' + p.id, envVar: p.envVar, docsUrl: u + ' ' }).docsUrl, p.docsUrl, 'a key saved under another name heals by its env var' + at);
+    }
+  }
+  const typed = { id: 'supliful', envVar: 'SUPLIFUL_API_KEY', docsUrl: 'https://example.com/my-own-notes' };
+  A.eq(C.healDocsUrl(typed), typed, 'a docs link the Commander typed is never rewritten');
+  A.eq(C.healDocsUrl({ id: 'custom', envVar: 'CUSTOM_API_KEY', docsUrl: 'https://docs.supliful.com/' }).docsUrl, 'https://docs.supliful.com/', 'only the matching platform heals its own retired link');
+  A.eq(C.healDocsUrl(null), null, 'a missing record passes through');
+  // no public API of its own → the card must not claim one; the note says what the row really uses
+  A.eq(C.byId('supliful').apiVia, 'Shopify Admin API', 'Supliful names the API it actually uses');
+  for (const p of C.PLATFORMS.filter(row => row.apiVia)) {
+    A.ok(/no public API/i.test(p.note || '') && /\{your-store\}|https:\/\//.test(p.apiBase || ''), p.id + ' explains why it routes through ' + p.apiVia);
+  }
+}
+
 A.report('servicekeys-catalog.test.js');

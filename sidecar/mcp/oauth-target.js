@@ -47,4 +47,15 @@ function resolveConnectorOauthTarget(id, catalog, configs) {
   };
 }
 
-module.exports = { sameEndpoint, resolveConnectorOauthTarget };
+/* A saved token-based HTTP row whose catalog entry now signs in with OAuth (Intercom, 2026-10-07: its server accepts
+   ANY bearer until tools/call, so a pasted key could never prove itself). The row keeps running on its token; this
+   only says the panel may offer SIGN IN. That path goes through resolveConnectorOauthTarget above (the saved row is
+   not custom, so the catalog entry wins) and the callback swaps token for grant in one durable write after consent —
+   unlike EDIT → OAUTH, which saves oauth:true and drops the token before the browser opens. */
+function catalogSignInAvailable(row, catalog) {
+  if (!row || row.oauth || row.transport !== 'http' || !row.url) return false;
+  const entry = catalog && typeof catalog.get === 'function' ? catalog.get(String(row.id || '')) : null;
+  return !!(entry && entry.authType === 'oauth' && entry.url && sameEndpoint(row.url, entry.url));
+}
+
+module.exports = { sameEndpoint, resolveConnectorOauthTarget, catalogSignInAvailable };
