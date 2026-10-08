@@ -46,20 +46,23 @@
   // why a stopped run ended, as a short human note appended to the reply (mirrors chat.js endReason handling).
   // A 'budget' stop names WHICH spend cap fired (scope/cap ride the additive agent.run.end fields; absent on an
   // old payload → the generic money line) so a channel user isn't sent hunting through runtime settings.
-  function budgetNote(scope, capUsd) {
+  function budgetNote(scope, capUsd, atBalance) {
     const cap = (typeof capUsd === 'number' && isFinite(capUsd) && capUsd >= 0.01) ? '$' + capUsd.toFixed(2).replace(/\.00$/, '') + ' ' : '';   // sub-cent caps would read "$0.00"
     const what = scope === 'run' ? 'hit the ' + cap + 'per-run spend cap'
       : scope === 'agent' ? 'this agent hit its ' + cap + 'lifetime spend cap'
       : scope === 'day' ? 'hit the ' + cap + 'daily spend cap'
       : scope === 'global' ? 'hit the ' + cap + 'all-time spend cap'
       : 'hit a spend cap';
+    // a StarNet run whose ceiling admission clamped to the balance (agent.run.end budgetCapIsBalance) spent the wallet:
+    // the door is the top-up, not a cap to raise (mirrors chat.js budgetStopLine)
+    if (scope === 'run' && atBalance === true) return '\n\n(' + (cap ? 'used the ' + cap + 'left on your StarNet balance' : 'used what was left on your StarNet balance') + ' — add credits in the app under SETTINGS → AI & MODELS.)';
     // the caps live in SETTINGS › SPENDING LIMITS (MISSION CONTROL is only a room label). A per-RUN stop says
     // "raise", never "remove" — on StarNet credits PER RUN 0 still stops at the managed default (mirrors chat.js).
     return '\n\n(' + what + (scope === 'run' ? ' — raise it' : ' — raise or remove it') + ' in the app under SETTINGS › SPENDING LIMITS.)';
   }
   function endNote(reason, state) {
     if (reason === 'max_iters') return '\n\n(reached the step limit — message "continue" to keep going.)';
-    if (reason === 'budget') return budgetNote(state && state.budgetScope, state && state.budgetCapUsd);
+    if (reason === 'budget') return budgetNote(state && state.budgetScope, state && state.budgetCapUsd, !!(state && state.budgetCapIsBalance));
     if (reason === 'cancelled') return '';
     if (reason === 'clarifying') return '';   // a Task Brief question IS the reply — never a "(stopped: …)" note
     if (reason === 'refusal') return '';
@@ -1790,7 +1793,7 @@
           else if (name === 'agent.tool_call') state.buf = '';
           else if (name === 'agent.run.error') { state.errMsg = p.message || 'run error'; state.transient = !!p.transient; }
           else if (name === 'capdenied') state.errMsg = state.errMsg || ('no ' + (p.need || 'capability') + ' — ' + (p.reason || ''));
-          else if (name === 'agent.run.end') { state.reason = p.reason; state.budgetScope = p.budgetScope || null; state.budgetCapUsd = (typeof p.budgetCapUsd === 'number' && isFinite(p.budgetCapUsd)) ? p.budgetCapUsd : null; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd || 0, p.usd); }
+          else if (name === 'agent.run.end') { state.reason = p.reason; state.budgetScope = p.budgetScope || null; state.budgetCapUsd = (typeof p.budgetCapUsd === 'number' && isFinite(p.budgetCapUsd)) ? p.budgetCapUsd : null; state.budgetCapIsBalance = p.budgetCapIsBalance === true; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd || 0, p.usd); }
         };
 
         // CONSENT SURFACE (per-chat, default OFF — see /approvals). With it off nothing changes: the run stays

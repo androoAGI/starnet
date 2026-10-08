@@ -248,7 +248,7 @@ function ctxFor(runId) {
     A.ok(/if \(!taskQuestion && \(!endReason \|\| endReason === 'done'\)\) offerConnectorDoor\(thisRunId, ws\);/.test(src),
       'stored on the originating stream at clean run end, including background streams');
     const callAt = src.indexOf('offerConnectorDoor(thisRunId, ws)');
-    const stopAt = src.indexOf("if (endReason === 'budget') offerBudgetDoor(); else offerTryAgain();");
+    const stopAt = src.indexOf("if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain();");
     A.ok(stopAt > 0 && callAt > stopAt, 'the connect offer sits AFTER the stop-reason branch in the same run-end block');
     // A run that ends on a TASK_QUESTION owns the slot, but connectors.list already told the model the chip exists
     // (first-hour walk 2026-09-28: the agent said "tap the ⇄ CONNECT chip" three times and none was drawn).

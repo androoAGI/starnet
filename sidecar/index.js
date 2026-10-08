@@ -18700,6 +18700,7 @@ async function runOnceCore(o) {
   let runCapUsd = (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd
     : (providerUnmetered ? Infinity
     : ((effectiveCaps.perRun > 0 && isFinite(effectiveCaps.perRun)) ? effectiveCaps.perRun : Infinity));
+  let runCapIsBalance = false;   // managed admission: the ceiling IS the reported StarNet balance (set below)
   // o.ceilingUsd (a line hop: what is left of the line's $ ceiling) only ever LOWERS the cap (QA 2026-10-02)
   if (!providerUnmetered && typeof o.ceilingUsd === 'number' && isFinite(o.ceilingUsd) && o.ceilingUsd >= 0 && !(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);
   // Same rule as o.maxCostUsd for the TURN budget: an explicit caller cap (o.maxIters -- e.g. a delegated
@@ -18729,6 +18730,10 @@ async function runOnceCore(o) {
     // read a slow/5xx/revoked balance check as a known $0 and told funded customers they were out of credit.
     const avail = (snap && typeof snap.balanceUsd === 'number' && isFinite(snap.balanceUsd)) ? snap.balanceUsd : NaN;
     runCapUsd = budgetCaps.managedRunCapUsd((runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT);
+    // The clamp never returns more than the reported balance, so a ceiling AT the balance means the wallet, not a cap
+    // the user chose, is what this run may spend. Its 'run' stop then says "reached your StarNet balance — add
+    // credits", never "hit the $X per-run spend cap — raise it" (raising PER RUN does nothing there). loopEmit stamps it.
+    runCapIsBalance = runCapUsd > 0 && runCapUsd >= avail;
     // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
     // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
     const refuseManaged = (exhausted) => {
@@ -21092,6 +21097,11 @@ async function runOnceCore(o) {
     // LINE WATCH: the loop's own run.start is the normal path's — it must name the bay/crate like every early-exit
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.dockId || runStartExtra.workitemId)) payload = Object.assign({}, payload, runStartExtra);
+    // BALANCE CEILING (additive, like completionVerdict below): this run's per-run stop fired at the ceiling admission
+    // clamped to the StarNet balance, so every stop line names the balance + the top-up door, not a cap to raise.
+    // A failover's own (lower) ceiling or the unpriced-token seatbelt carries a different cap and is left alone.
+    if (runCapIsBalance && name === 'agent.run.end' && payload && payload.runId === runId && payload.reason === 'budget' && payload.budgetScope === 'run'
+      && typeof payload.budgetCapUsd === 'number' && Math.abs(payload.budgetCapUsd - runCapUsd) < 1e-9) payload = Object.assign({}, payload, { budgetCapIsBalance: true });
     if (((taskBrief || imageTask) || o.postconditions != null) && name === 'agent.run.end' && payload && payload.runId === runId && payload.reason === 'done') {
       bufferedTaskEnd = payload; return;
     }
