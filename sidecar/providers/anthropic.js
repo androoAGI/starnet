@@ -431,6 +431,9 @@
     // #90: the HTTP status of the last /models answer the API REFUSED (401 bad key, 403 wrong scope …); 0 when the
     // last answer loaded or never arrived. The catalog stays [] either way — only the key check reads this.
     let catalogStatus = 0;
+    // and the error of the last /models request that never got an answer (DNS, refused connection, proxy): the key
+    // check names THAT cause (#62 wording) instead of blaming the key. null once anything answered.
+    let catalogError = null;
 
     function maybeRewarmCatalog() {
       if (catalog && catalog.length) return;
@@ -839,14 +842,15 @@
       if (catalog && catalog.length) return catalog;
       if (!catalogPromise) {
         catalogPromise = (async () => {
+          let res = null;
           try {
-            catalogStatus = 0;
-            const res = await doFetch(baseUrl + '/models', { headers: headerBag(key, 'application/json') });
+            catalogStatus = 0; catalogError = null;
+            res = await doFetch(baseUrl + '/models', { headers: headerBag(key, 'application/json') });
             if (!res.ok) { catalogStatus = Number(res.status) || 0; return []; }
             const j = await res.json();
             const raw = Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : []);
             return raw.map(normalizeModel).filter(Boolean);
-          } catch (_) { return []; }
+          } catch (e) { if (!res) catalogError = e; return []; }
         })();
       }
       catalog = await catalogPromise;
@@ -855,6 +859,7 @@
     }
     async function listModels() { return (await loadCatalog()).map(m => Object.assign({}, m)); }
     function catalogHttpStatus() { return catalogStatus; }
+    function catalogFetchError() { return catalogError; }
     function findModel(id) { return catalog ? catalog.find(m => m.id === id) : null; }
     function contextLimit(id) { const m = findModel(id); return (m && m.context_length) || defaultContext; }
     // Anthropic's API never reports a price, and returning null here left spentUsd at 0.00 for the whole run
@@ -867,7 +872,7 @@
     // dock asks this before a catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return effortsFor(id); }
 
-    return { stream, listModels, catalogHttpStatus, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    return { stream, listModels, catalogHttpStatus, catalogFetchError, contextLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag } };

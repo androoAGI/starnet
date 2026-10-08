@@ -195,6 +195,20 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     online = false;
     await offline.listModels();
     A.eq(offline.catalogHttpStatus(), 0, 'a later network failure is NOT an HTTP refusal: the old status is not reported as current');
+    // the request never reached Anthropic (DNS / refused connection / proxy): keep THAT error, so the key check can name
+    // the network cause (#62 wording) instead of blaming the key
+    const netErr = Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+    let reach = false;
+    const unreached = makeAnthropicProvider({ fetch: async () => { if (!reach) throw netErr; return new Response(JSON.stringify({ data: [{ id: 'claude-x' }] }), { status: 200 }); }, key: 'KEY' });
+    A.eq(await unreached.listModels(), [], 'an unreachable /models is still an empty catalog');
+    A.ok(unreached.catalogFetchError() === netErr, 'the network error that kept the request from Anthropic is kept');
+    A.eq(unreached.catalogHttpStatus(), 0, 'and it is not reported as an HTTP refusal');
+    reach = true;
+    A.eq((await unreached.listModels()).length, 1, 'a later answer loads the catalog');
+    A.eq(unreached.catalogFetchError(), null, 'and clears the network error');
+    const garbled = makeAnthropicProvider({ fetch: async () => new Response('<html>proxy</html>', { status: 200 }), key: 'KEY' });
+    A.eq(await garbled.listModels(), [], 'an answer that is not a model list is an empty catalog');
+    A.eq(garbled.catalogFetchError(), null, 'an ANSWERED request is never reported as unreachable');
   }
 
   // E. max_tokens default is bumped high (no silent 4096 truncation); explicit + catalog ceilings honored.
