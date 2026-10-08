@@ -644,6 +644,40 @@
     }
     return addrs[0];
   }
+  /* The proxy's refusal behind a tunnel failure: the one for the host this navigation asked for, else the latest (a
+     redirect hop, e.g. etsy.com -> www.etsy.com, is refused under ITS name). */
+  function pickRefusal(list, url) {
+    if (!Array.isArray(list) || !list.length) return null;
+    let want = '';
+    try { want = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, ''); } catch (e) { failNote('browser.refusal.host', e); }
+    for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].host === want) return list[i];
+    return list[list.length - 1];
+  }
+  /* What the refusal means on THIS computer, in words a user can act on. The private-address case is the common one:
+     a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), a VPN, a security app or the hosts file answers
+     0.0.0.0 / a private address for a name. A browser with its own secure DNS (DoH) skips that resolver, which is why
+     the same site can open in the user's everyday browser. A lookup or dial failure may be passing: the session's one
+     retry for NAVIGATION_FAILED covers it. */
+  function explainRefusal(r) {
+    const reason = String((r && r.reason) || 'refused');
+    const host = String((r && r.host) || 'the site');
+    const priv = /resolves to private address (\S+)/.exec(reason);
+    if (priv) {
+      return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: this computer\'s DNS answered ' + priv[1] + ' for ' + host +
+        ', a private or blocked address. That answer usually comes from a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), ' +
+        'a VPN, a security app or the hosts file on this computer. A browser using its own secure DNS can still open the site, so it may work there. ' +
+        'StarNet\'s browser uses no outside proxy, VPN or gateway: it connects from this computer. Fix or allow ' + host + ' in that DNS filter.' };
+    }
+    if (/ENOTFOUND|EAI_AGAIN|ESERVFAIL|ETIMEOUT|ECONNREFUSED.*53|getaddrinfo|no verified DNS address/i.test(reason)) {
+      return { code: 'NAVIGATION_FAILED', text: 'this computer could not look up ' + host + ' (' + reason + '). Its DNS did not answer for that name; ' +
+        'if it keeps failing, check this computer\'s DNS or VPN settings.' };
+    }
+    if (r && r.code === 'DIAL_FAILED') {
+      return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: the address was found but did not answer. A firewall, VPN or security app ' +
+        'may be blocking StarNet\'s connection to ' + host + '.' };
+    }
+    return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: ' + reason };
+  }
   // Separate from assertSafeUrl: public browsing retains its SSRF boundary. Only the workbench-
   // scoped browser.test_navigate tool may use this validator, and only for an agent's local dev UI.
   function assertLoopbackUrl(raw) {
@@ -1735,6 +1769,7 @@
          Now: navigation gets its own larger budget, and on timeout we ALWAYS Page.stopLoading (best-effort,
          on a short budget of its own) so the session is usable for the very next call. */
       let navResult = null;
+      const refusalMark = (networkProxy && typeof networkProxy.refusalMark === 'function') ? networkProxy.refusalMark() : 0;
       try {
         navResult = await c.send('Page.navigate', { url }, undefined, navTimeoutMs);
       } catch (e) {
@@ -1759,6 +1794,20 @@
       if (navError && !/^https?:/i.test(String(finalUrl || ''))) {
         let host = url;
         try { host = new URL(url).host; } catch (e) { failNote('browser.load-fail.host', e); }
+        /* A TUNNEL FAILURE IS A REFUSAL, NOT A DEAD PROXY (the Etsy reports, 2026-10-08). Measured with real Chromium:
+           ERR_TUNNEL_CONNECTION_FAILED is our LIVE proxy answering the CONNECT with a refusal (its DNS answer was
+           private, the lookup failed, the address did not answer). Restarting the browser changes none of that, and
+           "not answering" sent users hunting for a VPN or a remote gateway StarNet does not have. Name the reason. */
+        const refusal = (attachPort === null && networkProxy && typeof networkProxy.refusalsSince === 'function' &&
+          /ERR_TUNNEL_CONNECTION_FAILED/i.test(navError)) ? pickRefusal(networkProxy.refusalsSince(refusalMark), url) : null;
+        if (refusal) {
+          const why = explainRefusal(refusal);
+          const err = new Error('could not load ' + host + ': ' + navError + ' - ' + why.text);
+          err.code = why.code;
+          err.navigationError = navError;
+          err.refusal = refusal.reason;
+          throw err;
+        }
         const viaProxy = /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED|ERR_MANDATORY_PROXY/i.test(navError);
         if (viaProxy && attachPort === null) proxyFailed = true;   // alive() turns false: the session starts a fresh browser + proxy
         const err = new Error('could not load ' + host + ': ' + navError + (viaProxy
@@ -2988,7 +3037,14 @@
       const local = opts.local === true;
       const validate = local ? assertLoopbackUrl : assertSafeUrl;
       const u = validate(url);
-      if (!local) await assertResolvedSafe(u, doLookup);   // refuse names that RESOLVE private (rebinding)
+      if (!local) {
+        try { await assertResolvedSafe(u, doLookup); }   // refuse names that RESOLVE private (rebinding)
+        catch (e) {
+          // a PUBLIC name answered privately is this computer's DNS filter/VPN far more often than an attack: say which
+          if (/resolves to private address/.test(String(e && e.message))) e.message += '. ' + explainRefusal({ host: hostOf(u), reason: e.message }).text;
+          throw e;
+        }
+      }
       const wantedMode = local ? false : ('visible' in opts ? !!opts.visible : undefined);
       let d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
       if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
@@ -3995,5 +4051,5 @@
     return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
-  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
+  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
 });
