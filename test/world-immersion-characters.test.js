@@ -56,7 +56,9 @@ class RecordingContext {
   isContextLost() { return this.lost; }
 }
 class RecordingCanvas {
-  constructor() { this._width = this._height = 0; this.context = new RecordingContext(this); }
+  constructor() { this._width = this._height = 0; this.context = new RecordingContext(this); this.on = {}; }
+  addEventListener(name, fn) { (this.on[name] ||= []).push(fn); }
+  emit(name) { for (const fn of this.on[name] || []) fn(); }
   set width(v) { this._width = v; this.context.reset(); }
   get width() { return this._width; }
   set height(v) { this._height = v; this.context.reset(); }
@@ -298,6 +300,21 @@ test('appearance cache: a frame still drawn after BODY_LIGHT_PROMOTE_MS is kept,
   for (let i = 0; i < 300; i++) draw(sprites, body(), 21000 + i * 33, lightN(i));
   assert.equal(draw(sprites, body(), 32000, idle).frame.image, a, 'a kept frame survives any amount of walker churn');
   assert.equal(sprites.bodyAppearanceStats().builds, 301, '...and was never rebuilt');
+});
+
+test('appearance cache: a GPU reset (restored, blank contexts) drops every cached frame so no body draws as nothing', async () => {
+  const { sprites } = await harness();
+  const idle = lightN(42);
+  const a = draw(sprites, body(), 1000, idle).frame.image;
+  draw(sprites, body(), 1700, idle);
+  assert.equal(sprites.bodyAppearanceStats().kept, 1);
+  a.emit('contextrestored');
+  const st = sprites.bodyAppearanceStats();
+  assert.equal(st.kept + st.probation, 0, 'both tiers are flushed');
+  assert.equal(a.width, 1, 'the blank bitmap is released');
+  const b = draw(sprites, body(), 1800, idle).frame.image;
+  assert.notEqual(b, a); assert.equal(b.width, 92, 'the next draw rebuilds the lit frame');
+  assert.equal(sprites.bodyAppearanceStats().builds, 2);
 });
 
 test('appearance cache: kept frames are bounded by pixels, release their bitmap on eviction, and a lost context rebuilds', async () => {
