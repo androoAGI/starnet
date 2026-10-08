@@ -71,6 +71,27 @@ const refused = r => /^REFUSED: /.test(r.content);
     const r2 = await t.controlTool.run({ action: 'budget.raise', args: {} });
     A.ok(refused(r2) && /no station action "budget\.raise"/.test(r2.content), 'an unknown action is named in the refusal');
   }
+  // ---- args serialised as a JSON string (the second real-model run sent args: "{\"perDay\": 5}") ----
+  {
+    const s = stubs(); const t = make(s);
+    const call = { action: 'budget.set', args: '{"perDay": 5}' };
+    A.eq(cardFor(call), 'set your spending limits: perDay $5', 'the card reads stringified args');
+    const r = await t.powerTool.run(call);
+    A.ok(!refused(r) && s.routes.length === 1 && s.routes[0].body.perDay === 5, 'stringified args are parsed and saved');
+    const bad = await t.powerTool.run({ action: 'budget.set', args: 'perDay five' });
+    A.ok(refused(bad) && s.routes.length === 1, 'args that are not a JSON object are refused (no fields), nothing saved');
+  }
+  // ---- reading a section says what changes it ----
+  {
+    const s = stubs(); s.route = async (method, url) => ({ status: 200, json: { caps: { perDay: 0 }, unsettled: [] } });
+    const t = makeStationControlTools({ station: s.station, route: s.route, surface: 'interactive' });
+    const j = JSON.parse((await t.settingsTool.run({ section: 'spending' })).content);
+    A.ok(Array.isArray(j.toChange) && j.toChange.some(x => /^station\.power \{"action": "budget\.set", "args": \{perRun\?/.test(x)),
+      'spending carries toChange: station.power budget.set with what it takes');
+    A.ok(j.toChange.some(x => /^station\.control \{"action": "fallback\.set"/.test(x)), 'and station.control fallback.set');
+    A.ok(j.toChange.some(x => /settled by the Commander alone/.test(x)), 'and that an unsettled run is the Commander\'s');
+    const keys = Object.keys(j); A.eq(keys[keys.length - 1], 'toChange', 'toChange comes last (a clipped answer loses the hint first)');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);

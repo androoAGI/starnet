@@ -313,7 +313,10 @@
     let action = '', from = 'action';
     for (const k of CALL_KEYS) if (typeof i[k] === 'string' && A[i[k].trim()]) { action = i[k].trim(); from = k; break; }
     if (!action) action = String(i.action == null ? '' : i.action).trim();
-    if (i.args && typeof i.args === 'object' && !Array.isArray(i.args)) return { action, args: i.args };
+    let given = i.args;
+    // a model that serialises the nested object (args: "{\"perDay\": 5}") means that object
+    if (typeof given === 'string' && /^\s*\{/.test(given)) { try { given = JSON.parse(given); } catch (_) { /* left as text: refused below as no args */ } }
+    if (given && typeof given === 'object' && !Array.isArray(given)) return { action, args: given };
     const args = {};
     for (const k of Object.keys(i)) if (k !== from && k !== 'action' && k !== 'args') args[k] = i[k];
     return { action, args };
@@ -370,6 +373,28 @@
     actions: { catalog: true }
   };
   const MAX_OUT = 14000;
+  /* WHAT CHANGES EACH SECTION (real-model run 2026-10-08: after reading `spending` the model invented
+     station.control {action: "update", key: "budget/caps/perDay"} — the read never said which action writes it). Each
+     section's answer carries its own actions as `toChange` (inside the JSON, so a reader that parses it still can), each
+     with its tool and args, from the catalog itself. */
+  const CHANGED_BY = {
+    crew: ['agent.', 'session.', 'look.set'], spending: ['budget.', 'fallback.set'], permissions: ['permission.', 'fullpower.set', 'agent.approval', 'agent.reach'],
+    autonomy: ['autonomy.set', 'scheduler.set', 'nightshift.', 'estop.engage'], memory: ['memory.', 'learning.'],
+    connections: ['connector.', 'key.', 'ability.set', 'spotify.disconnect'], skills: ['skill.'], apps: ['app.'], projects: ['project.'],
+    checkpoints: ['checkpoint.'], deliverables: ['deliverable.decide'], away: ['away.', 'agent.away_work'], library: ['deliverables.'],
+    quests: ['quest.'], groups: ['group.'], channels: ['channel.disconnect', 'channels.notify'], limits: ['limits.set', 'browser.mode'],
+    extensions: ['plugin.', 'hook.']
+  };
+  // toChange LAST, so the clip at MAX_OUT cuts the hint before it ever cuts the settings themselves
+  const withChanges = (obj, sec) => { const rows = changeLines(sec); return rows.length && obj && typeof obj === 'object' && !Array.isArray(obj) ? Object.assign({}, obj, { toChange: rows }) : obj; };
+  function changeLines(sec) {
+    const pre = CHANGED_BY[sec] || [];
+    const rows = Object.values(A).filter(x => pre.some(p => p.endsWith('.') ? x.name.startsWith(p) : x.name === p))
+      .map(x => (x.power({}) ? 'station.power' : 'station.control') + ' {"action": "' + x.name + '", "args": ' + x.takes + '}'
+        + (!x.power({}) && x.power({ mode: 'full', on: true, reach: 'this-computer' }) ? '  (station.power when it widens access)' : ''));
+    if (sec === 'spending') rows.push('an interrupted run listed in unsettled is settled by the Commander alone');
+    return rows;
+  }
 
   function makeStationControlTools(deps) {
     deps = deps || {};
@@ -409,7 +434,7 @@
         }
         if (spec.page) {
           const r = await page('station.settings', {});
-          return r.status === 200 ? { content: shape(r.json), summary: 'crew, sessions and look' } : refuse(errorOf(r));
+          return r.status === 200 ? { content: shape(withChanges(r.json, 'crew')), summary: 'crew, sessions and look' } : refuse(errorOf(r));
         }
         const out = {};
         for (const [method, url, view] of spec) {
@@ -419,7 +444,7 @@
           if (r.status >= 400 || !r.json || r.json.ok === false) { out[key] = { unreadable: errorOf(r) }; continue; }
           try { out[key] = view ? view(r.json) : r.json; } catch (_) { out[key] = r.json; }
         }
-        return { content: shape(out), summary: sec };
+        return { content: shape(withChanges(out, sec)), summary: sec };
       }
     };
 
@@ -432,7 +457,7 @@
         description: isPower
           ? 'ESCALATE a station setting for the Commander — only what widens access or spending: agent.approval full, agent.reach trusted-project/this-computer, agent.away_work on, fullpower.set on, budget.set, budget.resume, autonomy.set, scheduler.set on, permission.grant, key.unattended on, key.set on, ability.set on, skill.install, deliverable.decide keep, project.trust, plugin.approve|revoke|delete, hook.approve|revoke|delete, limits.set. Only when the Commander asked for it in this conversation; refused on runs nobody is watching. Same {action, args} as station.control.'
           : 'CHANGE a station setting for the Commander when they ask — the same change their button makes, proven saved. {action, args}: agent.model|personality|rename|skin|approval|reach|away_work|delete, session.rename|pin|archive|delete, look.set, fallback.set, permission.revoke, fullpower.set off, nightshift.focus|avoid, memory.forget|pin|edit|reset|settings, learning.set|wipe, connector.remove|refresh, ability.set, skill.set|install|uninstall, key.set|remove, spotify.disconnect, channels.notify, app.delete|rename, project.untrust|forget, checkpoint.restore, deliverable.decide, deliverables.cleanup|restore, away.queue|remove, quest.dismiss|later, channel.disconnect, browser.mode, group.configure, notifications.read|clear, estop.engage (the Commander alone resumes). station.settings section "actions" lists what each takes; read the current value first. Widening access or spending goes through station.power instead.',
-        schema: { type: 'object', properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: 'object' } } },
+        schema: { type: 'object', properties: { action: { type: 'string', enum: Object.keys(A) }, args: { type: ['object', 'string'] } } },
         run: async (input) => {
           const call = readCall(input);
           const spec = A[call.action];
