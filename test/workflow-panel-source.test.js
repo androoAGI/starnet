@@ -32,8 +32,9 @@ A.ok(/, 700\);/.test(panel), 'running sessions are polled every ~700 ms');
 A.ok(/H\.planGate\(comp\(\)\)\.then\(gate => \{[\s\S]{0,300}sessionCall\('rerun'\)/.test(panel), 'rewrite-brief-and-rerun flushes the plan post before the rerun');
 A.ok(/H\.planGate\(c\)\.then/.test(panel), 'every test run posts THIS floor first (the same gate the sample uses)');
 
-// the trigger
-A.ok(/api\('\/api\/cron', 'POST', \{ name, prompt, schedule, agentId, dockId, provider: H\.provider\(\), tz, runsLine: true \}\)/.test(panel), 'a schedule made here runs the line (runsLine), FIRES AT the chosen bay (dockId), and carries no unattended grants');
+// the trigger — no provider: the routine inherits its agent's model AND provider together (freezing the dock's current
+// wire paired one provider with another's model, #24 class)
+A.ok(/api\('\/api\/cron', 'POST', \{ name, prompt, schedule, agentId, dockId, tz, runsLine: true \}\)/.test(panel), 'a schedule made here runs the line (runsLine), FIRES AT the chosen bay (dockId), carries no unattended grants and no frozen provider');
 // SAVE SCHEDULE once threw a ReferenceError: the create handler called paintTrigger's local trgAgent(). The agent is
 // resolved inside wireScheduleForm from its OWN docks (the general scope law lives in test/sibling-scope.test.js)
 const wsf = (code.match(/function wireScheduleForm\(p, docks, dockHint\) \{[\s\S]*?\n  \}/) || [''])[0];
