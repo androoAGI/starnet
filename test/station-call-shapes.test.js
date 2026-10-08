@@ -105,6 +105,19 @@ const refused = r => /^REFUSED: /.test(r.content);
     const r3 = await t.controlTool.run({ action: 'session.rename', args: { session: 'Taxes', title: 'Taxes 2026' } }, { streamId: 'ws_here' });
     A.ok(!refused(r3) && s.pages[s.pages.length - 1].args.session === 'Taxes', 'a named session is left as named');
   }
+  // ---- the section names a model reaches for first ----
+  {
+    const s = stubs(); s.route = async () => ({ status: 200, json: { caps: { perDay: 0 } } });
+    const t = makeStationControlTools({ station: s.station, route: s.route, surface: 'interactive' });
+    for (const k of ['look', 'sessions', 'agents', 'budget', 'all']) A.ok(t.settingsTool.schema.properties.section.enum.includes(k), 'section "' + k + '" is accepted');
+    const look = await t.settingsTool.run({ section: 'look' });
+    A.ok(!refused(look) && s.pages.some(p => p.verb === 'station.settings'), '"look" reads the page settings (crew, sessions, look)');
+    A.ok(/look\.set/.test(look.content), 'and names look.set as the change');
+    const all = await t.settingsTool.run({ section: 'ALL' });
+    A.ok(/^station\.control \{action, args\}/.test(all.content), '"all" is the actions catalog');
+    const budget = JSON.parse((await t.settingsTool.run({ section: 'budget' })).content);
+    A.ok(budget['budget/status'] && Array.isArray(budget.toChange), '"budget" is the spending section');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);

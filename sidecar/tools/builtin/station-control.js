@@ -376,6 +376,10 @@
     extensions: [['GET', '/api/plugins', j => ({ plugins: (j.plugins || []).map(p => ({ id: p.id, name: p.name, active: !!p.active, approved: !p.pending, pending: !!p.pending })) })], ['GET', '/api/hooks', j => ({ hooks: j.hooks, pending: j.pending })]],
     actions: { catalog: true }
   };
+  /* the names a model reaches for first (real-model run 2026-10-08: "turn off the hover hints" asked for section "look",
+     then "all", was refused both times as invalid arguments, and went looking in the shell and the file system) */
+  const SECTION_ALIAS = { look: 'crew', sessions: 'crew', agents: 'crew', budget: 'spending', all: 'actions' };
+  const SECTION_NAMES = Object.keys(SECTIONS).concat(Object.keys(SECTION_ALIAS));
   const MAX_OUT = 14000;
   /* WHAT CHANGES EACH SECTION (real-model run 2026-10-08: after reading `spending` the model invented
      station.control {action: "update", key: "budget/caps/perDay"} — the read never said which action writes it). Each
@@ -426,9 +430,9 @@
     const settingsTool = {
       name: 'station.settings', capability: 'orchestrator', scope: 'read', requiresConsent: false, timeoutMs: 20000,
       description: 'READ the Commander\'s station settings before changing them with station.control / station.power. section: crew (each agent\'s model, approval, reach, personality, skin; every session; the look; the allowed values for each) | spending | permissions | autonomy | memory {agent} | connections | skills | apps | projects | checkpoints {agent} | deliverables {agent} (away-work results to decide) | library (finished work) | away {agent} (its queue) | quests | groups | channels | limits | extensions | actions (every change you can make and what it takes).',
-      schema: { type: 'object', properties: { section: { type: 'string', enum: Object.keys(SECTIONS) }, agent: { type: 'string' } } },
+      schema: { type: 'object', properties: { section: { type: 'string', enum: SECTION_NAMES }, agent: { type: 'string' } } },
       run: async (args) => {
-        const sec = String((args && args.section) || 'crew'), spec = SECTIONS[sec];
+        const asked = String((args && args.section) || 'crew').trim().toLowerCase(), sec = SECTION_ALIAS[asked] || asked, spec = SECTIONS[sec];
         if (!spec) return refuse('there is no settings section "' + clip(sec, 30) + '"; use one of ' + Object.keys(SECTIONS).join(', '));
         if (spec.catalog) {
           // [station.power] = always an escalation; [station.power when …] = only the value that widens access or spending

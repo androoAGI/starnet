@@ -40,8 +40,8 @@ const inline = M.MANUAL_SECTIONS.filter(s => s.kind !== 'reference');
 // Re-pinned 2026-10-05 (self-driving lane 2) for ONE deliberate addition: the agent learns EVERYTHING on demand — a CONCEPTS
 // reference section (every StarNet thing, its place, its tool, its trap), NAVIGATION's generated EVERY PLACE list (frontend/app/
 // places.js), and the dossier's CAN DO replaces the gone SKILLS tab. All reference: the inline form got SHORTER.
-A.eq(full.length, 25976,'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +13388: CONCEPTS + EVERY PLACE + the lane-3 actions + FIND, 2026-10-05; +1803: CONCEPTS learns the trunk since 10-04 (desk seats, SETTLE, held credits, browser reset, HINTS, ERASE EVERYTHING) + "conveyor" + the budget.set call shape, 2026-10-08; +287: NAVIGATION says changing is not opening, 2026-10-08)');
-A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '76f199cbf5e207414be7748885714718c6badc1f967cba3453d182446b2a1168',
+A.eq(full.length, 26119,'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +13388: CONCEPTS + EVERY PLACE + the lane-3 actions + FIND, 2026-10-05; +1803: CONCEPTS learns the trunk since 10-04 (desk seats, SETTLE, held credits, browser reset, HINTS, ERASE EVERYTHING) + "conveyor" + the budget.set call shape, 2026-10-08; +287: NAVIGATION says changing is not opening, 2026-10-08; +143: never around the station tools via shell/files/web, 2026-10-08)');
+A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '86ccdca7a15730e0b4cd319ebd292cd2b945a0b8dc045e01c88046b3da3a9aea',
   'the whole manual is byte-identical to the literal that shipped before the split');
 
 // ---- B. the sections partition the manual ----

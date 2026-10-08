@@ -46,7 +46,8 @@ const NAV_HEAD =
   'instead of describing the clicks; it opens on their screen only while they are watching your conversation, so if it is ' +
   'refused, tell them where it is. When they ask you to CHANGE something (clear, set, turn on or off, rename, delete, pin…), ' +
   'DO it with station.control / station.power (tool.search "station control" if they are not in your list; station.settings ' +
-  'section "actions" lists every change) — opening the window is not doing it:\n';
+  'section "actions" lists every change) — opening the window is not doing it. Never go around them to StarNet\'s own settings ' +
+  'with the shell, the file system or a web request to the station: those tools are the only door:\n';
 const NAV_COMMS =
   '- COMMS: the chat panel. The Commander types a request and hits Enter to task the focused agent. ' +
   'Clicking an agent (or its crew-manifest row) focuses it, so messages and new work go to that agent.\n';
