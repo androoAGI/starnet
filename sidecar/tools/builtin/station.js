@@ -197,7 +197,7 @@
     const scanText = typeof deps.scanText === 'function' ? deps.scanText : null;
     const agentConfigureTool = {
       name: 'team.configure', capability: 'orchestrator', consentKey: 'team.configure', taintLocked: true, scope: 'write', requiresConsent: true,
-      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text. An empty text explicitly clears the document. Uses the Dossier save path; applies to the next run, not a currently running turn. Requires an open station page. Does not change skills, permissions, Bay briefs, or layout. Never substitute notebook.write for this edit.',
+      description: 'Edit one existing crew member Dossier document, using the exact agentId and previousText from team.config. Preserve unrelated instructions in the replacement text. An empty text explicitly clears the document. Uses the Dossier save path; applies to the next run, not a currently running turn. Requires an open station page. Does not change the name (station.control agent.rename), skills, permissions, Bay briefs or layout. Never substitute notebook.write for this edit.',
       schema: { type: 'object', additionalProperties: false, required: ['agentId', 'field', 'previousText', 'text'], properties: {
         agentId: { type: 'string' }, field: { type: 'string', enum: ['identity', 'purpose', 'manual', 'context'] },
         previousText: { type: 'string' }, text: { type: 'string', maxLength: 20000 }
