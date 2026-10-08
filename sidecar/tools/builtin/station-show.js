@@ -27,11 +27,11 @@ function makeStationShowTool(deps) {
       + 'the clicks. place: ' + Places.PLACES.map(p => p.id + ' (' + p.words + ')').join(', ')
       + '. agent (name or id) is required for agent, agent-growth, agent-record, agent-memory, agent-config, agent-desk. '
       + 'Only works while the Commander is watching this conversation; if refused, tell them where it is.',
-    // no `required`: a real model (Claude Haiku 4.5, 2026-10-08) sent {target: "settings-spending"} and was turned away as
+    // no `required`: a real model (Claude Haiku 4.5, 2026-10-08) sent {target | window | page | section: "settings-…"} and was turned away as
     // invalid arguments — the place is read from place | target | id | window here, and only a catalog id ever opens
     schema: { type: 'object', properties: { place: { type: 'string', enum: Places.ids() }, agent: { type: 'string' } } },
     run: async (args, ctx) => {
-      const asked = ['place', 'target', 'id', 'window', 'page'].map(k => args && args[k]).find(v => typeof v === 'string' && v.trim()) || '';
+      const asked = ['place', 'target', 'id', 'window', 'page', 'section'].map(k => args && args[k]).find(v => typeof v === 'string' && v.trim()) || '';
       const place = Places.get(asked);
       if (!place) return refuse((asked ? 'there is no StarNet place "' + asked + '"' : 'no place was named') + ' — call it as {place: "<id>"} with an id from this tool\'s list');
       const agent = String((args && args.agent) || '').trim();

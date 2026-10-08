@@ -130,17 +130,17 @@ const refused = r => /^REFUSED: /.test(r.content);
     const t = makeStationShowTool({ station: s.station }).tool;
     A.ok(!t.schema.required, 'station.show requires no single key name (the run reads the aliases)');
     const ctx = { streamId: 'ws1', runId: 'r1' };
-    for (const k of ['place', 'target', 'id', 'window', 'page']) {
+    for (const k of ['place', 'target', 'id', 'window', 'page', 'section']) {
       const r = await t.run({ [k]: 'settings-spending' }, ctx);
       A.ok(/^OPEN on the Commander's screen: SETTINGS › SPENDING LIMITS/.test(r.content), 'station.show {' + k + '} opens the place');
       A.ok(/opening it is not doing it/.test(r.content), 'and says opening is not doing a change');
     }
-    A.eq(s.pages.map(p => p.args.place), Array(5).fill('settings-spending'), 'the page is asked for the catalog id every time');
+    A.eq(s.pages.map(p => p.args.place), Array(6).fill('settings-spending'), 'the page is asked for the catalog id every time');
     const bad = await t.run({ target: 'the spending page' }, ctx);
     A.ok(/^REFUSED: there is no StarNet place "the spending page" — call it as \{place: "<id>"\}/.test(bad.content), 'free text never opens anything, and the refusal says how to call it');
     const none = await t.run({}, ctx);
     A.ok(/^REFUSED: no place was named/.test(none.content), 'no place named is refused');
-    A.eq(s.pages.length, 5, 'refusals never reach the page');
+    A.eq(s.pages.length, 6, 'refusals never reach the page');
   }
   A.report('station-call-shapes');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });
