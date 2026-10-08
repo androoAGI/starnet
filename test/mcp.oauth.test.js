@@ -283,6 +283,28 @@ const REDIRECT = 'http://127.0.0.1:8787/api/connectors/oauth/callback';
   A.eq(T.catalogSignInAvailable({ id: 'tavily', transport: 'http', url: C.get('tavily').url, token: 'k' }, C), false, 'a key-tier catalog row offers no sign-in');
   A.eq(T.catalogSignInAvailable({ id: 'mine', transport: 'http', url: 'https://mine.example/mcp', token: 'k' }, C), false, 'a non-catalog row offers no sign-in');
   A.eq(T.catalogSignInAvailable({ id: 'intercom', transport: 'stdio', command: 'x' }, C), false, 'a stdio row offers no sign-in');
+  A.eq(T.catalogSignInAvailable({ id: 'github', transport: 'http', url: C.get('github').url, token: 'ghp_x' }, C), false,
+    'a GitHub PAT row is a choice the catalog still offers — never told to switch');
+  A.eq(T.catalogSignInAvailable({ id: 'notion', transport: 'http', url: C.get('notion').url, token: 'k' }, C), false,
+    'only a catalog row that retired key auth offers the switch');
+  // the config the callback persists with the grant: no pasted key survives in ANY form, everything else does
+  const pending = { id: 'intercom', serverUrl: 'https://mcp.intercom.com/mcp', label: 'Intercom' };
+  const fromKey = T.signedInConfig({ id: 'intercom', label: 'My Intercom', transport: 'http', url: 'https://mcp.intercom.com/mcp',
+    token: 'pasted', headers: { authorization: 'Bearer old', 'X-Trace': '1' }, timeoutMs: 90000, enabled: true }, pending);
+  A.eq(fromKey.token, '', 'the pasted token is cleared by the grant');
+  A.ok(!Object.keys(fromKey.headers).some(k => k.toLowerCase() === 'authorization') && fromKey.headers['X-Trace'] === '1',
+    'a pasted Authorization header (any case) is dropped; other custom headers are kept');
+  A.ok(fromKey.oauth === true && fromKey.enabled === true && fromKey.timeoutMs === 90000 && fromKey.label === 'My Intercom',
+    'the signed-in row keeps its label + timeout and is enabled');
+  const imported = T.signedInConfig({ id: 'intercom', transport: 'http', url: 'https://mcp.intercom.com/mcp', token: '', enabled: false,
+    headers: { Authorization: '<redacted>' }, missingFields: ['token', 'header:Authorization', 'oauth', 'header:X-Api-Version'] }, pending);
+  A.eq(imported.missingFields.join(','), 'header:X-Api-Version', 'only fields the grant cannot fill stay missing');
+  A.eq(imported.enabled, false, 'a row still missing a non-key field stays disabled');
+  A.eq(T.signedInConfig({ id: 'intercom', transport: 'http', url: 'https://mcp.intercom.com/mcp', missingFields: ['token'], enabled: false }, pending).enabled, true,
+    'an imported row missing only its key is enabled by the grant');
+  const fresh = T.signedInConfig(null, pending);
+  A.ok(fresh.label === 'Intercom' && fresh.enabled === true && fresh.url === 'https://mcp.intercom.com/mcp' && Object.keys(fresh.headers).length === 0,
+    'a first sign-in builds a clean OAuth row from the pending attempt');
   // the sign-in route binds that row to the vendor catalog entry (callback swaps token for grant after consent)
   const target = T.resolveConnectorOauthTarget('intercom', C, [legacy]);
   A.ok(!target.error && target.custom === false && target.entry && target.entry.url === 'https://mcp.intercom.com/mcp',

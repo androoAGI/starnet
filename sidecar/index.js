@@ -254,7 +254,7 @@ const connectorCatalog = require('./mcp/catalog.js');       // curated one-click
 const serviceKeysMod = require('./servicekeys.js');         // ABILITIES › SAVED API CONNECTIONS: custom service API keys (pure core — env injection + masked list)
 const serviceKeysCatalog = require('./servicekeys-catalog.js');   // SAVED API CONNECTIONS: the curated PLATFORM directory (pure data)
 const mcpOauth = require('./mcp/oauth.js');                 // generic OAuth 2.1 client for MCP connectors (discover/DCR/PKCE/refresh)
-const { sameEndpoint, resolveConnectorOauthTarget, catalogSignInAvailable } = require('./mcp/oauth-target.js');
+const { sameEndpoint, resolveConnectorOauthTarget, catalogSignInAvailable, signedInConfig } = require('./mcp/oauth-target.js');
 const connectorStateMod = require('./connectorstate.js');   // one transactional envelope for connector config + OAuth secrets
 const cron = require('./cron.js');                         // pure schedule math (parse/nextFire/planTick)
 const cronStore = require('./cron-store.js');              // pure CronJob lifecycle reducer
@@ -14280,12 +14280,10 @@ async function handleConnectorOauthCallback(req, res) {
     // "connected" — never assert durable state the harness can't prove. Roll the in-memory entry back so this session
     // is consistent with disk (unsigned) rather than a phantom-connected connector that vanishes on restart.
     // Preserve custom headers + timeout (and any catalog config refinements) across the callback. Only the auth
-    // fields are authoritative here: OAuth always uses the protected token store, never cfg.token.
-    const remainingMissing = Array.isArray(currentCfg && currentCfg.missingFields)
-      ? currentCfg.missingFields.filter(field => field !== 'oauth') : [];
-    const cfg = Object.assign({}, currentCfg || {}, { id: pending.id, transport: 'http', url: pending.serverUrl,
-      token: '', label: (currentCfg && currentCfg.label) || pending.label, enabled: remainingMissing.length === 0,
-      oauth: true, missingFields: remainingMissing });
+    // fields are authoritative here: OAuth always uses the protected token store, never cfg.token or a pasted
+    // Authorization header (mcp/oauth-target.js signedInConfig).
+    const cfg = signedInConfig(currentCfg, pending);
+    const remainingMissing = cfg.missingFields;
     let next = connectorStateMod.withOauthEntry(connectorStateMod.envelope(connectorConfigs, connectorOauth), pending.id, oauthEntry);
     next = connectorStateMod.upsertConfig(next, cfg);
     if (!persistConnectorState(next.configs, next.oauth)) {
