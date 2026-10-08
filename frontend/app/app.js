@@ -2482,7 +2482,8 @@ const App = (() => {
   }
   async function revealStarnetGenesis(autoPick) {
     let linked = false, linkable = false;
-    try { const j = await Harness.api.get('/api/credits?history=0'); linked = !!(j && j.configured); } catch (_) {}
+    // the same wait as WAKE's status read below: the first read can be the one that self-heals the link (~16s)
+    try { const j = await Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }); linked = !!(j && j.configured); } catch (_) {}
     if (!linked) { try { const j = await Harness.api.get('/api/credits/linkable'); linkable = !!(j && j.available); } catch (_) {} }
     starnetLinked = linked;
     const b = document.querySelector('.provider-row .prov[data-prov="starnet"]');

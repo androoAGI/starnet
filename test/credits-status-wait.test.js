@@ -20,8 +20,9 @@ const slice = (src, from, to) => {
   return src.slice(a, b);
 };
 const apiCode = slice(harnessSrc, '  async function requestJson(', '\n  // ONE fold point') + '\nthis.api = api;';
-const wakeCode = slice(appSrc, '  let starnetLinked = false;', '  // A station can be linked to a DIFFERENT StarNet login') + '\nthis.wake = { refreshStarnetGenesisStatus };';
+const wakeCode = slice(appSrc, '  let starnetLinked = false;', '  // A station can be linked to a DIFFERENT StarNet login') + '\nthis.wake = { refreshStarnetGenesisStatus, revealStarnetGenesis };';
 const storeCode = slice(stationuiSrc, '  let _creditsLinkPoll =', '  // BUDGET panel') + '\nthis.store = { wireCredits };';
+const provCode = slice(stationuiSrc, '  let creditsProv = {', '  // The rows CONNECTIONS should actually draw') + '\nthis.prov = { refreshCreditsProvider };';
 
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(setImmediate); };
 // a virtual clock shared by every lifted module: timers fire in due order, microtasks drain between them
@@ -44,12 +45,14 @@ function makeClock() {
     }
   };
 }
-// the station's /api/credits: answers `body` after `delayMs` of virtual time (Infinity = never), aborts like a real fetch
+// the station's /api/credits: answers `body` after `delayMs` of virtual time (Infinity = never), aborts like a real fetch.
+// /api/credits/linkable answers at once: a station that is already linked is not linkable.
 function makeApi(clock, delayMs, body) {
   const seen = { aborted: 0, routes: [] };
   const fetch = (route, init) => new Promise((resolve, reject) => {
     seen.routes.push(route);
-    const id = isFinite(delayMs) ? clock.setTimeout(() => resolve({ ok: true, status: 200, json: async () => body }), delayMs) : null;
+    const linkable = /^\/api\/credits\/linkable/.test(route), wait = linkable ? 10 : delayMs, reply = linkable ? { available: false, cloud: true } : body;
+    const id = isFinite(wait) ? clock.setTimeout(() => resolve({ ok: true, status: 200, json: async () => reply }), wait) : null;
     init.signal.addEventListener('abort', () => { seen.aborted++; if (id) clock.clearTimeout(id); reject(new Error('aborted')); }, { once: true });
   });
   const ctx = vm.createContext({ AbortController, fetch, setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout });
@@ -63,17 +66,28 @@ function node() {
 }
 const FUNDED = { configured: true, linked: true, linkSaved: true, linkStatus: 'linked', accountId: 'acct', balanceUsd: 79.24, purchaseUrl: 'https://starnetos.com/credits' };
 
-async function wake(delayMs) {
+async function wake(delayMs, opts) {
   const clock = makeClock(), { api, seen } = makeApi(clock, delayMs, FUNDED);
-  const els = {};
-  const ctx = vm.createContext({ Harness: { api }, el: id => (els[id] = els[id] || node()), document: { querySelector: () => null },
-    pickedProvider: 'starnet', userPickedProvider: false, selectProviderUI() {}, SFX: { click() {} }, openExternalUrl() {},
+  const els = {}, chip = node();
+  chip.classList.add('hidden');
+  const ctx = vm.createContext({ Harness: { api }, el: id => (els[id] = els[id] || node()), document: { querySelector: s => (/data-prov="starnet"/.test(s) ? chip : null) },
+    pickedProvider: (opts && opts.picked) || 'starnet', userPickedProvider: false, selectProviderUI() {}, SFX: { click() {} }, openExternalUrl() {},
     esc: s => String(s), setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout, setInterval: clock.setInterval, clearInterval: clock.clearInterval });
   vm.runInContext(wakeCode, ctx);
   let result = null;
-  ctx.wake.refreshStarnetGenesisStatus().then(r => { result = r; });
+  (opts && opts.reveal ? ctx.wake.revealStarnetGenesis(false) : ctx.wake.refreshStarnetGenesisStatus()).then(r => { result = r; });
   await clock.advanceTo(60000);
-  return { result, status: els['starnet-status'], seen, timersLeft: clock.pending() };
+  return { result, status: els['starnet-status'], chip, seen, timersLeft: clock.pending() };
+}
+async function providerCard(delayMs) {
+  const clock = makeClock(), { api, seen } = makeApi(clock, delayMs, FUNDED);
+  const published = [];
+  const ctx = vm.createContext({ Harness: { api }, H: () => ({ setDesktopConfigured: (p, v) => published.push(p + ':' + v) }) });
+  vm.runInContext(provCode, ctx);
+  let state = null;
+  ctx.prov.refreshCreditsProvider().then(s => { state = s; });
+  await clock.advanceTo(60000);
+  return { state, published, seen };
 }
 async function store(delayMs) {
   const clock = makeClock(), { api, seen } = makeApi(clock, delayMs, FUNDED);
@@ -125,6 +139,22 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; };
     const s = await store(Infinity);
     ok(s.painted.length === 1 && s.painted[0].what === 'unavailable', 'STORE: a read that never answers still ends in the honest "could not check" card');
     ok(s.seen.aborted === 1, 'STORE: the hung request is aborted');
+  }
+  // 4. the genesis reveal (is there a STARNET chip at all?) reads the same path: a slow heal must not hide a linked account
+  {
+    const w = await wake(16000, { reveal: true, picked: 'openai' });
+    ok(w.result === true && !w.chip.classList.contains('hidden'), 'GENESIS: a 16s healing answer still reveals the STARNET chip for a linked station');
+    ok(w.seen.aborted === 0 && w.seen.routes[0] === '/api/credits?history=0', 'GENESIS: the reveal waited out the heal on the summary read');
+  }
+  // 5. the SETTINGS provider card: a slow heal paints LINKED with the real balance, never "not linked" / hidden
+  {
+    const p = await providerCard(16000);
+    ok(p.state && p.state.state === 'linked' && p.state.balanceUsd === 79.24, 'PROVIDERS: a 16s healing answer paints the card LINKED (got ' + JSON.stringify(p.state) + ')');
+    ok(p.published.join() === 'starnet:true' && p.seen.aborted === 0, 'PROVIDERS: COMMS hears the definitive linked answer, and nothing was aborted');
+  }
+  {
+    const p = await providerCard(Infinity);
+    ok(p.seen.aborted === 1 && p.published.length === 0, 'PROVIDERS: a read that never answers is aborted and publishes nothing (an outage is not proof of unlinking)');
   }
   console.log('credits-status-wait.test.js OK -', n, 'assertions');
 })().catch(e => { console.error(e); process.exitCode = 1; });

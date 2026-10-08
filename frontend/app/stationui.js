@@ -4771,7 +4771,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function refreshCreditsProvider() {
     const prior = creditsProv;
-    return Harness.api.get('/api/credits?history=0').catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
+    // the STORE's wait (wireCredits): a read that self-heals the link takes ~16s, past api.get's 15s default
+    return Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }).catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
       .then(j => {
         if (j && j.configured) {
           publishCreditsConfigured(true);
