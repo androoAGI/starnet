@@ -1215,21 +1215,30 @@ userProps.resume();
    still its own (/v1/whoami; every refusal path — tombstone, revoked token, live link — heals nothing).
    Skipped under an env CREDITS_* override, which outranks device linking everywhere else too. Post-boot
    and fail-open: an unreachable cloud just leaves the station honestly unlinked, as before. */
+// ONE heal at a time, spanning the whoami AND the rebuild's balance read, so every reader can join it (E29 review).
+let creditsHealInflight = null;
 function runCreditsSelfHeal() {
-  return creditsLink.healFromEnv().then(r => {
+  if (creditsHealInflight) return creditsHealInflight;
+  creditsHealInflight = creditsLink.healFromEnv().then(r => {
     // A heal resolves {healed:true} only once rebuildCredits() has settled: that rebuild already made the balance
     // read on the new adapter, so a status read that triggered it can skip its own (handleCredits).
     if (r && r.healed) { console.log('  · credits link self-healed from keychain token (account ' + r.accountId + ')'); return rebuildCredits().then(() => ({ healed: true })); }
     if (r && r.reason && r.reason !== 'no_env_token' && r.reason !== 'not_configured') console.log('  · credits link self-heal declined: ' + r.reason + (r.retryable ? ' (will retry on the next credits check)' : ''));
     return null;
-  }).catch(swallow('credits.link.selfheal', null));
+  }).catch(swallow('credits.link.selfheal', null)).finally(() => { creditsHealInflight = null; });
+  return creditsHealInflight;
 }
 if (!CREDITS_URL && !credits.configured()) setImmediate(runCreditsSelfHeal);
 // Issue #76: a boot heal that met a slow/down cloud used to leave the station unlinked until the app restarted.
 // The credits status reads (STORE, genesis/RESUME, WAKE) take the armed retry here — bounded by the link client's
 // request timeout, spaced by its retry interval, and only ever for a TRANSIENT refusal.
+// A read that lands while a heal is already running (the boot heal, or SETTINGS' provider card + STORE reads sent
+// back to back) WAITS for that heal: skipping it answered "not linked" (404 → LINK STATION, WAKE "link first")
+// over a station the heal was seconds from linking.
 function retryCreditsSelfHealIfDue() {
-  if (CREDITS_URL || credits.configured() || !creditsLink.healRetryDue()) return Promise.resolve(null);
+  if (CREDITS_URL) return Promise.resolve(null);
+  if (creditsHealInflight) return creditsHealInflight;
+  if (credits.configured() || !creditsLink.healRetryDue()) return Promise.resolve(null);
   return runCreditsSelfHeal();
 }
 
