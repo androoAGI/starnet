@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "c11ee46d9e93d12bf7c1576d30a5c8151394e5e3",
+    "sourceCommit": "8b814f39d171527a4c4700b4466b8cda2c436e4c",
     "pathSetSha256": "9d1a8c60b20ee9ffa8edfe1a6fc1ca368f057a7b93f20a8e5d0e2959336fdc66",
     "files": [
       {
@@ -383,8 +383,8 @@
       },
       {
         "path": "frontend/app/conveyor.js",
-        "bytes": 48414,
-        "sha256": "9f8a7d7f1c93c07af94639b517a256e53705542ff534eb3506565d1a80357b6b"
+        "bytes": 49201,
+        "sha256": "506de96e6949faad9f19c156e868e138529c383db8a110d74c56e20623c81d07"
       },
       {
         "path": "frontend/app/cratecard.js",
@@ -1433,8 +1433,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 837629,
-        "sha256": "ba8e0b0ac11979839429acc97478a2330642f859f12ace7159da64b8a60f23e2"
+        "bytes": 837980,
+        "sha256": "1f9d278d72d702535cd68082f7a31d9716046eda08bb5a86e6c60a5398554ab2"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1798,8 +1798,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 51791,
-        "sha256": "a4a22ac6c63dd196569469a569a75364da5abae1f04581393c67b99868f9fe2b"
+        "bytes": 52579,
+        "sha256": "bcac8b2183cdf143c8e34c5ce6685f83c3b193e51a018af020df59655877c79f"
       },
       {
         "path": "frontend/js/audio.js",
