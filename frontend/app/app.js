@@ -4085,10 +4085,21 @@ const App = (() => {
   }
   // Compact excerpt of the latest visible turn; never an invented completion claim.
   // Share search/export filtering so hidden tool/system chatter stays hidden.
+  // The rail's 1s heartbeat asks this twice per row (the receipt line and the hover tip): read the newest message
+  // from the end of the history and re-excerpt only when that message's text changed (a 26-agent station spent
+  // ~18ms of every second copying whole histories and re-running these regexes over the same text).
+  const railExcerpts = new WeakMap();
   function railReceipt(w) {
-    const messages = Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : [];
-    const latest = messages.slice().reverse().find(m => m.content.trim());
+    const latest = Workstreams.latestVisibleMessage ? Workstreams.latestVisibleMessage(w)
+      : (Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : []).slice().reverse().find(m => m.content.trim());
     if (!latest) return 'No messages yet';
+    const memo = railExcerpts.get(latest);
+    if (memo && memo.content === latest.content && memo.role === latest.role) return memo.out;
+    const out = railExcerpt(latest);
+    railExcerpts.set(latest, { content: latest.content, role: latest.role, out });
+    return out;
+  }
+  function railExcerpt(latest) {
     const text = latest.content
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .replace(/(^|\n)\s{0,3}(?:#{1,6}\s+|[-*+]\s+|>\s*)/g, ' ')

@@ -451,9 +451,17 @@
   // Only actual Commander/agent dialogue belongs in search or export. Local/system records can contain
   // prompts, recovery markers, tool metadata, or other implementation state and must never leak through
   // a user-facing transcript surface.
+  const isVisibleMessage = m => !!(m && !m.sys && !m.hidden && !m.internal
+    && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
   function visibleMessages(w) {
-    return ((w && Array.isArray(w.history)) ? w.history : []).filter(m => m && !m.sys && !m.hidden && !m.internal
-      && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+    return ((w && Array.isArray(w.history)) ? w.history : []).filter(isVisibleMessage);
+  }
+  // the last message visibleMessages(w) holds whose text is not blank — read from the END, so the rail's 1s
+  // heartbeat costs a few rows per session instead of a copy of every session's whole history (2026-10-07)
+  function latestVisibleMessage(w) {
+    const h = (w && Array.isArray(w.history)) ? w.history : [];
+    for (let i = h.length - 1; i >= 0; i--) if (isVisibleMessage(h[i]) && h[i].content.trim()) return h[i];
+    return null;
   }
   const SECRET_RES = [
     /\bsk-[A-Za-z0-9_-]{16,}\b/g,
@@ -656,7 +664,7 @@
     appendRun, noteRunEnd, recordDeliverable, addCost, costOf, noteModel, modelOf,
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and
     // export already trust, so the count and the preview can never surface machine chatter.
-    visibleMessages, hasAgent,
+    visibleMessages, latestVisibleMessage, hasAgent,
     migrateV1, importTasks,
     LANES
   };
