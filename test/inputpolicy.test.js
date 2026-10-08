@@ -58,7 +58,7 @@ A.ok(legacyRaw.tools.includes('computer.use') && legacyRaw.tools.includes('deskt
   A.eq(onlyWeb.approvalRules['shell.exec'], undefined, 'parallel approval map is attenuated with tool names');
   A.eq(enforceEnabledToolsets(projected, { get: n => defs[n] }, null), projected, 'null keeps legacy station grants unchanged');
   // The computer freebies no switch can turn off survive a restriction too (a routine keeps its own notepad).
-  const FREEBIE_TOOLS = ['quest.update', 'tool.search', 'todo', 'deliverable_note', 'station.inspect', 'manual.read', 'routine.notepad'];
+  const FREEBIE_TOOLS = ['quest.update', 'tool.search', 'todo', 'deliverable_note', 'station.inspect', 'station.show', 'manual.read', 'routine.notepad'];   // station.show: the same stationinfo grant as station.inspect (read, no consent; it refuses any run nobody is watching)
   for (const t of FREEBIE_TOOLS) {
     A.ok(safe.tools.includes(t), 'fixture: the computer grants ' + t);
     A.ok(onlyWeb.tools.includes(t), 'a restriction-only toolset list keeps the computer freebie ' + t);
