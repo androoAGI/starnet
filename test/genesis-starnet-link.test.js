@@ -117,12 +117,16 @@ ok(/stopStarnetBalancePoll\(\)/.test(app), 'the empty-wallet balance poll has a 
   const end = app.indexOf("msg.textContent = 'your model didn’t answer'", start);
   ok(start > 0 && end > start, 'the WAKE billing ladder is found in app.js');
   const ladder = new Function('wire', 'msg', 'pickedProvider', 'refreshStarnetGenesisStatus', app.slice(start, end) + '\nreturn true;');
-  // the sidecar's three admission refusals, exactly as runOnceCore emits them
-  const sidecarMsg = (re) => { const m = host.match(re); return m ? m[1].replace(/\\'/g, "'") : ''; };
-  const refusedLink = sidecarMsg(/\? '(Managed credits are unavailable — your StarNet account refused this station\\'s link.*?)'\n/);
-  const unanswered = sidecarMsg(/: '(Managed credits are unavailable right now.*?)';\n/);
-  const outOf = sidecarMsg(/\? '(Out of managed credit.*?)'\n/);
-  ok(refusedLink && unanswered && outOf, 'the sidecar still emits the refused-link, unanswered and out-of-credit refusals');
+  // the sidecar's admission refusals, exactly as runOnceCore emits them: refuseManaged builds every one from the pure
+  // budgetcaps.managedRefusalMessage (the strings moved there with audit B11's held refusal)
+  ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: [^\n]*\}\)/.test(host), 'refuseManaged builds its refusal from budgetcaps.managedRefusalMessage');
+  const refusalOf = require(path.join(__dirname, '..', 'sidecar', 'budgetcaps.js')).managedRefusalMessage;
+  const refusedLink = refusalOf({ linkRefused: true }).message;
+  const unanswered = refusalOf({}).message;
+  const outOf = refusalOf({ exhausted: true }).message;
+  const held = refusalOf({ exhausted: true, balanceUsd: 0, held: { runs: 1, usd: 4, counted: true } }).message;
+  ok(/refused this station's link/.test(refusedLink) && /did not answer/.test(unanswered) && /^Out of managed credit/.test(outOf) && /^Managed credits are held/.test(held),
+    'the sidecar still emits the refused-link, unanswered, out-of-credit and held refusals');
   // preflightWire collapses whitespace and keeps 160 chars: the WAKE screen only ever sees that much
   const wake = (why, prov) => {
     const msg = { textContent: '' }; let refreshed = 0;
@@ -140,6 +144,15 @@ ok(/stopStarnetBalancePoll\(\)/.test(app), 'the empty-wallet balance poll has a 
   ok(!/CONNECT STARNET ACCOUNT/.test(wake(refusedLink, 'openai').text), 'another provider pick is never pointed at a STARNET button it is not showing');
   ok(/couldn’t read your credit balance/.test(wake(unanswered, 'starnet').text), 'an unanswered balance check still says the balance could not be read');
   ok(/no credits/.test(wake(outOf, 'starnet').text), 'only a reported empty wallet says ADD CREDITS');
+  // a balance HELD by this station's own running StarNet runs (audit B11) is neither empty nor unreadable
+  for (const prov of ['starnet', 'openai']) {
+    const w = wake(held, prov);
+    ok(w.r === false && w.refreshed === 1, 'a held balance bounces WAKE and repaints the balance (' + prov + ')');
+    ok(/held by runs still working/.test(w.text) && /wait for them to finish/i.test(w.text), 'a held balance says it is held and to wait (' + prov + '): ' + w.text);
+    ok(!/couldn’t read your credit balance|has no credits/.test(w.text), 'a held balance is never "could not read" or "no credits" (' + prov + ')');
+  }
+  ok(/＄ ADD CREDITS above/.test(wake(held, 'starnet').text) && !/＄ ADD CREDITS/.test(wake(held, 'openai').text),
+    'only the STARNET pick (which shows the ＄ ADD CREDITS button) is pointed at it; another pick is offered its own key');
   ok(wake('rate limited', 'starnet').r === true, 'a non-billing failure falls through to the model-did-not-answer line');
   ok(!/LINK YOUR STARNET ACCOUNT/.test(app), 'WAKE never names a LINK YOUR STARNET ACCOUNT button (the button reads CONNECT STARNET ACCOUNT)');
 }
