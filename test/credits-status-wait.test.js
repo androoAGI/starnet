@@ -128,12 +128,13 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; };
     ok(w.seen.aborted === 1, 'WAKE: the hung request is aborted, not left open');
     ok(w.timersLeft === 0, 'WAKE: no deadline timer outlives the read');
   }
-  // 3. the STORE reads /api/credits through the same heal path: a 16s answer paints the account, not "could not check"
-  {
-    const s = await store(16000);
+  // 3. the STORE's FULL read (with activity history) goes through the same heal path, and on a healed adapter the history
+  //    read (8s) only starts after the heal: 8 + 8 + 8 = 24s. Either answer paints the account, not "could not check"
+  for (const ms of [16000, 24000]) {
+    const s = await store(ms);
     ok(s.painted.length === 1 && s.painted[0].what === 'configured' && s.painted[0].balanceUsd === 79.24,
-      'STORE: a 16s healing credits answer paints the linked account (got ' + JSON.stringify(s.painted) + ')');
-    ok(s.seen.aborted === 0, 'STORE: the request was not aborted under the sidecar\'s own budget');
+      'STORE: a ' + ms / 1000 + 's healing credits answer paints the linked account (got ' + JSON.stringify(s.painted) + ')');
+    ok(s.seen.aborted === 0, 'STORE: the request was not aborted under the sidecar\'s own budget (' + ms / 1000 + 's)');
   }
   {
     const s = await store(Infinity);
