@@ -151,7 +151,8 @@ async function rejects(promise, msg) { try { await promise; A.ok(false, msg + ' 
     // issue #60: the receipt names WHERE the bytes went, so a verified write can't hide a wrong base folder
     A.ok(pw.content.indexOf('[location: ' + path.join(project, 'fix.txt') + ']') >= 0, 'project write receipt names the absolute project location');
     const privW = await PT.writeTool.run({ path: 'priv.txt', content: 'P' }, { agentId: 'project-agent' });
-    A.ok(/\[location: .*priv\.txt \(your private workspace, not a project folder\)\]/.test(privW.content), 'unscoped write receipt says it landed in the private workspace, not a project');
+    A.ok(/\[location: .*priv\.txt \(your private workspace, not a project folder;/.test(privW.content), 'unscoped write receipt says it landed in the private workspace, not a project');
+    A.ok(/absolute path inside it, or work from a conversation scoped to that project\)\]/.test(privW.content), 'and names the way into a project folder (absolute path, or a project-scoped conversation)');
     A.ok(!fs.existsSync(path.join(ROOT, 'project-agent', 'fix.txt')), 'project write does not silently land in the private workspace');
     A.ok(guarded.some(x => x.scope === 'read') && guarded.some(x => x.scope === 'write'), 'project-relative reads and writes still pass through path trust');
     await rejects(PT.readTool.run({ path: '../outside.txt' }, ctx), 'project-relative traversal remains illegal');

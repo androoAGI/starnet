@@ -33,7 +33,8 @@ ok(/id="btn-starnet-link"/.test(index) && /id="starnet-code"/.test(index) && /id
 // The reveal is keyed on the sidecar seam, not hardcoded on.
 ok(/async function revealStarnetGenesis\(/.test(app), 'genesis probes the cloud seam before offering the chip');
 ok(/\/api\/credits\/linkable/.test(app), 'the reveal asks /api/credits/linkable (the STORE reads the same pair)');
-ok(/Harness\.api\.get\('\/api\/credits\?history=0'\)/.test(app), 'the reveal uses the bounded summary endpoint and cannot be stalled by history');
+// (2026-10-08) it may pass its own wait (api.get's 15s default lost to a ~16s link self-heal) — RUN in credits-status-wait.test.js
+ok(/async function revealStarnetGenesis\([\s\S]{0,400}?Harness\.api\.get\('\/api\/credits\?history=0'(?:, \{ timeoutMs: \d+ \})?\)/.test(app), 'the reveal uses the bounded summary endpoint and cannot be stalled by history');
 ok(/revealStarnetGenesis\(!recovery\)/.test(app), 'the connect screen actually runs the reveal (auto-pick only on a fresh create)');
 
 // The pairing flow rides the SAME sidecar engine as the STORE — one implementation.
@@ -79,6 +80,14 @@ ok(/typeof j\.balanceUsd === 'number'/.test(app) && /typeof p\.balanceUsd === 'n
   'creator and link responses accept only numeric balances — malformed strings never become $0');
 ok(/\/api\/credits\?history=0/.test(app) && /credits status timeout/.test(app),
   'WAKE uses a bounded balance-only status request and cannot be stranded behind activity history');
+// The WAKE wait must outlast the sidecar's own worst case (heal whoami 8s + one balance read 8s), or a healing
+// read answers after WAKE already said "couldn't confirm your credit balance" (link-down F6, 2026-10-07).
+{
+  const m = /new Error\('credits status timeout'\)\),\s*(\d+)\)/.exec(app);
+  ok(m && Number(m[1]) >= 16000, 'the WAKE credits status wait outlasts the sidecar heal + balance budget (16s)');
+}
+ok(/if \(!\(heal && heal\.healed\)\) await adapter\.refresh\(\)/.test(host) && /rebuildCredits\(\)\.then\(\(\) => \(\{ healed: true \}\)\)/.test(host),
+  'a credits read that just healed the link reuses the heal\'s balance read instead of chaining a second one');
 ok(/_starnetLinkPollBusy/.test(app) && /generation !== _starnetLinkGeneration/.test(app),
   'slow link polling is single-flight and an old consumed response cannot overwrite a successful relink');
 ok(/seq !== _starnetStatusSeq[\s\S]{0,180}answered: false/.test(app),
@@ -101,6 +110,53 @@ ok(/managed credit\|Managed credits/.test(app), 'a billing refusal from the wire
 // "the provider returned an error" and the real reason never reaches the screen.
 ok(/typeof res\.error === 'string' && res\.error\.trim\(\)\) \? res\.error/.test(app), 'preflightWire surfaces res.error (the refusal reason), not only res.text');
 ok(/stopStarnetBalancePoll\(\)/.test(app), 'the empty-wallet balance poll has a stop, wired on screen exit');
+
+// (2026-10-07) the WAKE billing ladder RUNS against the sidecar's real refusal strings: a refused link says relink
+// (never "try WAKE again" — a retry can't fix it), an unanswered check says retry, only a reported $0 says ADD CREDITS.
+{
+  const start = app.indexOf('if (/managed credit|Managed credits/i.test(wire.why)) {');
+  const end = app.indexOf("msg.textContent = 'your model didn’t answer'", start);
+  ok(start > 0 && end > start, 'the WAKE billing ladder is found in app.js');
+  const ladder = new Function('wire', 'msg', 'pickedProvider', 'refreshStarnetGenesisStatus', app.slice(start, end) + '\nreturn true;');
+  // the sidecar's admission refusals, exactly as runOnceCore emits them: refuseManaged builds every one from the pure
+  // budgetcaps.managedRefusalMessage (the strings moved there with audit B11's held refusal)
+  ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: [^\n]*\}\)/.test(host), 'refuseManaged builds its refusal from budgetcaps.managedRefusalMessage');
+  const refusalOf = require(path.join(__dirname, '..', 'sidecar', 'budgetcaps.js')).managedRefusalMessage;
+  const refusedLink = refusalOf({ linkRefused: true }).message;
+  const unanswered = refusalOf({}).message;
+  const outOf = refusalOf({ exhausted: true }).message;
+  const held = refusalOf({ exhausted: true, balanceUsd: 0, held: { runs: 1, usd: 4, counted: true } }).message;
+  ok(/refused this station's link/.test(refusedLink) && /did not answer/.test(unanswered) && /^Out of managed credit/.test(outOf) && /^Managed credits are held/.test(held),
+    'the sidecar still emits the refused-link, unanswered, out-of-credit and held refusals');
+  // preflightWire collapses whitespace and keeps 160 chars: the WAKE screen only ever sees that much
+  const wake = (why, prov) => {
+    const msg = { textContent: '' }; let refreshed = 0;
+    const r = ladder({ why: why.replace(/\s+/g, ' ').slice(0, 160) }, msg, prov, () => { refreshed++; });
+    return { r, text: msg.textContent, refreshed };
+  };
+  for (const prov of ['starnet', 'openai']) {
+    const w = wake(refusedLink, prov);
+    ok(w.r === false && w.refreshed === 1, 'a refused link bounces WAKE and repaints the link state (' + prov + ')');
+    ok(/no longer accepts this station’s link/.test(w.text) && /credits are safe/.test(w.text), 'a refused link names the refused link (' + prov + ')');
+    ok(!/try WAKE again in a moment|couldn’t read your credit balance|no credits|ADD CREDITS/.test(w.text), 'a refused link is never "retry" or "out of credits" (' + prov + ')');
+  }
+  ok(/CONNECT STARNET ACCOUNT/.test(wake(refusedLink, 'starnet').text) && /id="btn-starnet-link" class="btn">CONNECT STARNET ACCOUNT/.test(index),
+    'on the STARNET pick the relink copy names the button that is actually on screen');
+  ok(!/CONNECT STARNET ACCOUNT/.test(wake(refusedLink, 'openai').text), 'another provider pick is never pointed at a STARNET button it is not showing');
+  ok(/couldn’t read your credit balance/.test(wake(unanswered, 'starnet').text), 'an unanswered balance check still says the balance could not be read');
+  ok(/no credits/.test(wake(outOf, 'starnet').text), 'only a reported empty wallet says ADD CREDITS');
+  // a balance HELD by this station's own running StarNet runs (audit B11) is neither empty nor unreadable
+  for (const prov of ['starnet', 'openai']) {
+    const w = wake(held, prov);
+    ok(w.r === false && w.refreshed === 1, 'a held balance bounces WAKE and repaints the balance (' + prov + ')');
+    ok(/held by runs still working/.test(w.text) && /wait for them to finish/i.test(w.text), 'a held balance says it is held and to wait (' + prov + '): ' + w.text);
+    ok(!/couldn’t read your credit balance|has no credits/.test(w.text), 'a held balance is never "could not read" or "no credits" (' + prov + ')');
+  }
+  ok(/＄ ADD CREDITS above/.test(wake(held, 'starnet').text) && !/＄ ADD CREDITS/.test(wake(held, 'openai').text),
+    'only the STARNET pick (which shows the ＄ ADD CREDITS button) is pointed at it; another pick is offered its own key');
+  ok(wake('rate limited', 'starnet').r === true, 'a non-billing failure falls through to the model-did-not-answer line');
+  ok(!/LINK YOUR STARNET ACCOUNT/.test(app), 'WAKE never names a LINK YOUR STARNET ACCOUNT button (the button reads CONNECT STARNET ACCOUNT)');
+}
 
 // REMOTE UNLINK (0.10.8 field regression): local keychain/file presence is not proof after the account page
 // revoked the device. The sidecar must project the cloud's 401/403 as configured:false, both first-run and

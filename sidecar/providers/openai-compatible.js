@@ -523,6 +523,9 @@
           && ((declared && declared.some(e => e !== 'none')) || emitsReasoning(baseUrl, req.model));
         body.messages = replayReasoningContent(body.messages, thinking, !!body.tools);
       }
+      // Strict Chat Completions endpoints (Mistral: 422 extra_forbidden) reject StarNet's own bookkeeping keys on a
+      // message (ts, streamId, agentId, the `reasoning` parking field) — only Chat Completions message keys leave.
+      body.messages = provider.chatWireMessages(body.messages);
       // OLLAMA NATIVE: size the window to THIS request before it leaves (the model's trained maximum is one local
       // /api/show, cached per model). requestWithRetry resizes once more if Ollama counts more tokens than estimated.
       let wire = null;
@@ -551,7 +554,7 @@
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
       // Native NDJSON is translated into the chat-completions chunk shape, so everything below parses one format.
       const translate = (wire && wire.native) ? ollamaNative.makeChunkTranslator() : null;
-      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal });
+      const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
       const dec = new TextDecoder();
       let buf = '';
       const started = {};
@@ -703,6 +706,7 @@
           });
         } catch (e) {
           if (isAbort(e, signal)) throw e;
+          provider.runtime.stampRequestHost(e, native ? nativeBase : baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // Local Ollama silent past the connect ceiling: say where the model actually runs (one /api/ps read).
           // Appended, so the message still reads "timed out" and classifies exactly as before.
           if (native && e && e.timeout && e.phase === 'connect' && !e.ollamaPlacement) {

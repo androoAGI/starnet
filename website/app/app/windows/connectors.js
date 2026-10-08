@@ -953,6 +953,7 @@
       const detail = (c.state === 'error' && c.detail) ? '<div class="mc-detail">' + esc(c.detail) + '</div>' : '';
       const next = c.releaseDeferred ? (c.credentialSaved ? 'Saved connection retained.' : 'Unavailable in this release.') : !c.enabled ? 'Turn on the switch above to let agents use this service.'
         : c.oauth && (c.authRequired || !c.oauthAuthorized) ? 'Sign in below to restore access to this account.'
+        : c.catalogSignIn ? 'This service now connects by browser sign-in. SIGN IN below replaces the saved token only after you approve.'
         : c.state === 'error' ? 'Open the error details below, then reload to retry.'
         : '';
       const where = c.transport === 'stdio'
@@ -983,7 +984,9 @@
           // http-bearer/stdio editor; there is no bearer to paste). A fresh browser consent is the only cure, so
           // the row always carries it — same engine as the catalog card's ▸ SIGN IN (ccSignIn), which is otherwise
           // unreachable here: the catalog card renders a disabled ✓ ADDED for every installed connector.
-          (c.oauth && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.id === 'google-files' ? 'choose files in Google’s picker">CHOOSE GOOGLE FILES' : c.oauthAuthorized
+          // catalogSignIn = a saved-token row whose catalog entry now signs in: the same engine, and its callback
+          // swaps the token for the grant only after consent (EDIT → OAUTH would drop the token first).
+          ((c.oauth || c.catalogSignIn) && !c.releaseDeferred ? '<button class="bb xs" data-act="resign" title="' + (c.id === 'google-files' ? 'choose files in Google’s picker">CHOOSE GOOGLE FILES' : c.oauthAuthorized
             ? 're-run the browser OAuth sign-in — the fix for a revoked or expired grant">⏼ RE-SIGN-IN'
             : 'open the browser OAuth sign-in">⏼ SIGN IN') + '</button>' : '') +
           (c.releaseDeferred ? '' :
@@ -1223,7 +1226,8 @@
         : e.appPassword ? ['', 'app password', 'var(--gold)']
         : (e.signInAvailable === false ? ['', e.releaseDeferred ? 'deferred' : 'sign-in unavailable', 'var(--gold)'] : (CC_CHIP[e.authType] || CC_CHIP.none));
       const origin = e.googleApi ? '<span class="cc-badge cc-official" title="StarNet connector using Google’s APIs">STARNET · GOOGLE API</span>' : e.platformApi
-        ? '<span class="cc-badge cc-official" title="first-party REST API documented by the vendor">✓ official API</span>'
+        ? (e.apiVia ? '<span class="cc-badge cc-community" title="this vendor publishes no API of its own">via ' + esc(e.apiVia) + '</span>'
+                    : '<span class="cc-badge cc-official" title="first-party REST API documented by the vendor">✓ official API</span>')
         : (e.official ? '<span class="cc-badge cc-official" title="first-party server, run by the vendor">✓ official</span>'
                       : '<span class="cc-badge cc-community" title="community-run server">community</span>');
       let action;
@@ -1520,7 +1524,10 @@
         tries++;
         try {
           const j = await Harness.api.get('/api/connectors');
-          const c = (j.connectors || []).find(x => x.id === id);
+          const found = (j.connectors || []).find(x => x.id === id);
+          // Only an OAuth row is proof of a finished sign-in: a saved-token row moving to sign-in (catalogSignIn) is
+          // already up — or already erroring — before consent, and stays non-oauth until the callback lands.
+          const c = found && found.oauth ? found : null;
           if (c && c.state === 'up') { stopCcPoll(id); ccPending.delete(id); ccPendingWin.delete(id); ccAttempts.delete(id); sfx('click'); notify('Connector "' + label + '" connected', 'good'); out.classList.add('ok'); out.textContent = '✓ ' + label + ' signed in — ' + (c.toolCount || 0) + ' tool(s)'; ccRefresh(); refresh(); try { if (win && !win.closed) win.close(); } catch (_) {} return; }
           if (c && c.state === 'error' && (!c.oauth || c.oauthAuthorized)) { stopCcPoll(id); ccPending.delete(id); ccPendingWin.delete(id); ccAttempts.delete(id); sfx('bad'); out.textContent = '✕ ' + label + ' — ' + (c.detail || 'connection failed'); ccRefresh(); refresh(); return; }
         } catch (_) {}

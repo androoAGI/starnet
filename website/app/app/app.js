@@ -1221,8 +1221,11 @@ const App = (() => {
   // auto-requisitioned — it opens the agent-binding picker on placement; the Commander places + binds it by hand,
   // which is the honest one desk-per-agent path). Degrades safely: if any control isn't found we still leave BUILD MODE
   // open on its default tool, which is already a real improvement over the old unclickable "Open BUILD MODE" sentence.
-  function openDeskPlacement() {
+  function openDeskPlacement(agentId) {
     if (typeof Build === 'undefined' || !Build.open) return;
+    // (2026-10-07) BUILD MODE arms the desk FOR this agent: the next floor click drops it and seats them there —
+    // no CONFIGURE step. The DOM drive below stays only as the fallback for a Build without placeDeskFor.
+    if (agentId && Build.placeDeskFor) { try { if (Build.placeDeskFor(agentId)) return; } catch (_) {} }
     try { if (!Build.isOpen || !Build.isOpen()) Build.open(); } catch (_) { return; }
     // BUILD MODE builds its palette synchronously in open()->buildDOM, but retarget across a couple of rAFs to be safe
     // against any deferred render. Each pass clicks only what isn't already active, so it's idempotent + cheap.
@@ -1555,7 +1558,12 @@ const App = (() => {
       stationSaveQueued = true;
       // Coalesce the synchronous mutations of one gesture (e.g. place + assign a desk),
       // but save before the next browser event. Do not wait for SAVE & EXIT or a chat turn.
-      queueMicrotask(() => { stationSaveQueued = false; persist(); });
+      queueMicrotask(() => {
+        stationSaveQueued = false; persist();
+        // a desk that just landed (a WHO SITS HERE chip, PLACE ITS DESK, the overseer's station op) retires the open
+        // COMMS "nowhere to sit" line now, not only when BUILD MODE closes: it is a derived floor claim (chat.js re-reads it)
+        if (typeof Chat !== 'undefined' && Chat.retireDeskPrompt) { try { Chat.retireDeskPrompt(); } catch (_) {} }
+      });
     });
   }
 
@@ -1594,7 +1602,8 @@ const App = (() => {
     grok: ['grok-4', 'grok-3', 'grok-code-fast-1'],
     kimi: ['kimi-for-coding', 'kimi-for-coding-highspeed', 'k3'],
     openai: ['gpt-5.5', 'gpt-5.4', 'gpt-4.1'],
-    anthropic: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-3-5-haiku-latest'],
+    // current ids (2026-10): claude-opus-4-1 retired 2026-08-05 and Haiku 3.5 is retired — an offline pick of either 404s
+    anthropic: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5'],
     gemini: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
     xai: ['grok-4.3', 'grok-4-fast', 'grok-4'],
     groq: ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile', 'meta-llama/llama-4-scout-17b-16e-instruct'],
@@ -1685,8 +1694,8 @@ const App = (() => {
       { label: 'GPT-5.4', id: 'gpt-5.4', tag: '' }
     ],
     anthropic: [
-      { label: 'Sonnet 4.5', id: 'claude-sonnet-4-5', tag: 'balanced' },
-      { label: 'Opus 4.1', id: 'claude-opus-4-1', tag: 'deepest' }
+      { label: 'Sonnet 5.5', id: 'claude-sonnet-5-5', tag: 'balanced' },
+      { label: 'Opus 5.5', id: 'claude-opus-5-5', tag: 'deepest' }   // was Opus 4.1 — retired 2026-08-05, the chip 404'd
     ],
     gemini: [
       { label: 'Gemini 2.5 Pro', id: 'gemini-2.5-pro', tag: 'deepest' },
@@ -2182,12 +2191,28 @@ const App = (() => {
         ? 'Uses the ChatGPT Plus/Pro account you already have — no API key, no billing setup. Prefer a key? Paste an OpenAI API key above instead.'
         : 'Uses the ' + c.sub + ' you already have — no API key, no billing setup. Prefer a key? Switch to OPENROUTER (or any provider) above.';
     }
+    paintKimiRegion(pid);
     // a stale code/status from the previously picked provider must never dress this one's block
     const codeEl = el('codex-code'), openBtn = el('btn-codex-open');
     if (codeEl) codeEl.classList.add('hidden');
     if (openBtn) openBtn.classList.add('hidden');
     const statusEl = el('codex-status');
     if (statusEl) { statusEl.textContent = 'checking…'; statusEl.className = 'codex-status'; }
+  }
+
+  // KIMI ACCOUNT REGION (#70): shown only while Kimi is picked. The pick is what the NEXT sign-in sends (the shared
+  // engine reads KimiRegion.get()); the sidecar stores it with the credential and routes refresh + inference to it.
+  function paintKimiRegion(pid) {
+    const box = el('kimi-region');
+    if (!box) return;
+    const on = pid === 'kimi' && typeof KimiRegion !== 'undefined';
+    box.classList.toggle('hidden', !on);
+    if (!on) return;
+    const cur = KimiRegion.get();
+    box.querySelectorAll('[data-kimi-region]').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.kimiRegion === cur));
+      b.onclick = () => { if (KimiRegion.set(b.dataset.kimiRegion)) { SFX.click(); paintKimiRegion('kimi'); } };
+    });
   }
 
   // GET /api/auth/<pid>/status → paint the shared sign-in block for THIS provider (mirrors refreshCodexStatus,
@@ -2199,7 +2224,9 @@ const App = (() => {
     try { const r = await fetch('/api/auth/' + pid + '/status'); j = await r.json(); } catch (_) {}
     oauthConnected[pid] = !!j.connected;
     if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, oauthConnected[pid]);
+    if (pid === 'kimi' && j.region && typeof KimiRegion !== 'undefined') KimiRegion.noteSignedIn(j.region);   // #70: default the next sign-in to the stored one's region
     if (pickedProvider !== pid) return;   // the pick moved on while we awaited — never paint another provider's block
+    if (pid === 'kimi') paintKimiRegion('kimi');
     const statusEl = el('codex-status'), signinBtn = el('btn-codex-signin'), logoutBtn = el('btn-codex-logout');
     if (!statusEl || !signinBtn || !logoutBtn) return;
     if (oauthConnected[pid]) {
@@ -2207,7 +2234,7 @@ const App = (() => {
         statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + ' — but the sign-in could not be saved to disk; you may need to re-sign in after a restart';
         statusEl.className = 'codex-status warn';
       } else {
-        statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + ' — your agents can run on your subscription';
+        statusEl.innerHTML = '<span class="conn-dot"></span>connected to ' + esc(c.name) + (pid === 'kimi' && j.region && typeof KimiRegion !== 'undefined' ? ' (' + esc(KimiRegion.label(j.region)) + ')' : '') + ' — your agents can run on your subscription';
         statusEl.className = 'codex-status ok';
       }
       signinBtn.textContent = '↻ RE-SIGN IN';
@@ -2455,7 +2482,8 @@ const App = (() => {
   }
   async function revealStarnetGenesis(autoPick) {
     let linked = false, linkable = false;
-    try { const j = await Harness.api.get('/api/credits?history=0'); linked = !!(j && j.configured); } catch (_) {}
+    // the same wait as WAKE's status read below: the first read can be the one that self-heals the link (~16s)
+    try { const j = await Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }); linked = !!(j && j.configured); } catch (_) {}
     if (!linked) { try { const j = await Harness.api.get('/api/credits/linkable'); linkable = !!(j && j.available); } catch (_) {} }
     starnetLinked = linked;
     const b = document.querySelector('.provider-row .prov[data-prov="starnet"]');
@@ -2475,9 +2503,13 @@ const App = (() => {
     const priorLinked = starnetLinked, priorPurchaseUrl = starnetPurchaseUrl;
     let timeout = null;
     try {
+      // The wait must outlast the sidecar's own bounded worst case, so its answer always lands first: a link
+      // self-heal retry's /v1/whoami (8s) + one /v1/balance read (8s). 10s used to lose that race on WAKE.
+      // api.get's OWN deadline (15s by default) is the one that fires, so it carries the 20s (E29, 10-07); the race
+      // below is only a backstop at the same bound, for an api.get that ever loses its deadline.
       j = await Promise.race([
-        Harness.api.get('/api/credits?history=0'),
-        new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 10000); })
+        Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }),
+        new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 20000); })
       ]);
       answered = !!(j && typeof j.configured === 'boolean');
     }
@@ -2572,8 +2604,12 @@ const App = (() => {
     if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your StarNet account…'; }
     const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); if (progress) { progress.className = 'msg bad'; progress.textContent = t; } };
     statusEl.textContent = 'requesting a link code…'; statusEl.className = 'codex-status';
+    // A failure keeps WHAT failed (Friendly.linkStartFailure words it): the station's own POST never answering is a
+    // local-engine fault, not "the link service"; a sidecar reply carries its classification of the cloud failure.
+    const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw new Error('start failed'); return r.j; })
+      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+        () => { throw startFail({ local: true }); })
       .then(j => {
         if (generation !== _starnetLinkGeneration) return;
         if (!j || !j.code) throw new Error('no code');
@@ -2621,7 +2657,10 @@ const App = (() => {
         };
         _starnetLinkPoll = setInterval(tick, 2000);
       })
-      .catch(() => { if (generation === _starnetLinkGeneration) fail('could not reach the link service — try again'); })
+      .catch(e => {
+        if (generation !== _starnetLinkGeneration) return;
+        fail((typeof Friendly !== 'undefined' && Friendly.linkStartFailure) ? Friendly.linkStartFailure(e && e.linkStart) : 'could not reach the link service — try again');
+      })
       .finally(() => { if (generation === _starnetLinkGeneration) _starnetLinkStarting = false; });
   }
 
@@ -2900,10 +2939,20 @@ const App = (() => {
   // BACK from the connect screen. With the title screen gone there's nowhere to retreat TO, so BACK is a
   // context move: in RESUME it re-runs auto-resume (a fresh credential check may now pass straight in); on a
   // fresh first run it's a no-op beyond dropping any in-flight codex poll (the create screen is the root).
-  function onConnectBack() {
+  async function onConnectBack() {
     SFX.click(); stopCodexPoll();
     const saved = Save.has() ? Save.load() : null;
-    if (saved && saved.agent) { reentry(); return; }
+    if (saved && saved.agent) {
+      // RETRY must re-ask, not re-read. A StarNet station's "configured" flag is read ONCE at boot; when the
+      // account service was down then (issue #76), retry kept consulting that stale false and bounced straight
+      // back to this screen even after the link was healthy again. Re-read the sidecar's live answer first.
+      if (savedStationProv(saved) === 'starnet' && Harness.refreshCreditsConfigured) {
+        const back = el('btn-back'); if (back) back.disabled = true;
+        try { await Harness.refreshCreditsConfigured(); } catch (_) {}
+        finally { if (back) back.disabled = false; }
+      }
+      reentry(); return;
+    }
     // fresh first run — nothing behind the create screen; just stay put.
   }
 
@@ -3024,7 +3073,7 @@ const App = (() => {
         msg.textContent = 'StarNet couldn’t confirm your credit balance right now. Your credits are safe — try WAKE again in a moment.';
         return false;
       }
-      if (!creditState.linked) { msg.textContent = 'link your StarNet account first — press 🔗 LINK YOUR STARNET ACCOUNT above.'; return false; }
+      if (!creditState.linked) { msg.textContent = 'link your StarNet account first — press CONNECT STARNET ACCOUNT above.'; return false; }
       if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
@@ -3046,8 +3095,11 @@ const App = (() => {
       wireVia = 'your ChatGPT sign-in';
     } else {
       const key = el('in-key').value.trim();
+      // #89 (browser build): each save also hands the station its copy for routines; when it could not, the same
+      // warning SETTINGS shows says so — the wake goes on (chat carries its key), but routines would not have it
+      const warnStation = res => { if (typeof StationUI !== 'undefined' && StationUI.warnIfStationLacksKey) StationUI.warnIfStationLacksKey(res); };
       if (providerNeedsBaseUrl(pickedProvider)) {
-        if (Harness.setBaseUrl) await Harness.setBaseUrl(baseUrl, pickedProvider);
+        if (Harness.setBaseUrl) warnStation(await Harness.setBaseUrl(baseUrl, pickedProvider));
       }
       // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
       const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
@@ -3074,7 +3126,7 @@ const App = (() => {
       }
       // Only (re)store when a key was actually typed — desktop keeps the existing keychain key on blank.
       // setKey is async in desktop (writes the keychain + pushes it to the sidecar); await so the run has it.
-      if (key) await (Harness.validateAndSetKey ? Harness.validateAndSetKey(key, pickedProvider) : Harness.setKey(key, pickedProvider));
+      if (key) warnStation(await (Harness.validateAndSetKey ? Harness.validateAndSetKey(key, pickedProvider) : Harness.setKey(key, pickedProvider)));
       Harness.setModel(model); Harness.setProv(pickedProvider);
       if (pickedProvider === 'openai') wireVia = key ? 'the OpenAI API key you typed' : 'the OpenAI API key stored on this station';
     }
@@ -3093,6 +3145,22 @@ const App = (() => {
       // a BILLING refusal is not a model failure: managed admission refused the run before any model was
       // reached. Name the real cause and the real fix; "your model didn't answer" sends people model-hopping.
       if (/managed credit|Managed credits/i.test(wire.why)) {
+        // the account REFUSED this station's link: retrying can't fix it and the wallet isn't empty — relink is the
+        // door (friendlyerror's managed_credit_link; `.?` because a quote in a regex mis-slices the fnBody test helper)
+        if (/refused this station.?s link|relink/i.test(wire.why)) {
+          msg.textContent = 'your StarNet account no longer accepts this station’s link (it was unlinked, or belongs to another account) — your credits are safe. '
+            + (pickedProvider === 'starnet' ? 'Press CONNECT STARNET ACCOUNT above, then WAKE again.' : 'Relink this station to your StarNet account, or use your own provider key.');
+          refreshStarnetGenesisStatus();
+          return false;
+        }
+        // the balance is HELD by this station's own running StarNet runs (friendlyerror's managed_credit_held, audit
+        // B11): it reads $0 but it was read, so it is neither "no credits" nor "couldn't read" — waiting frees it
+        if (/Managed credits are held|balance is held by/i.test(wire.why)) {
+          msg.textContent = 'your StarNet balance is held by runs still working on this station — each refunds what it doesn’t spend. Wait for them to finish, then WAKE again'
+            + (pickedProvider === 'starnet' ? ' (or press ＄ ADD CREDITS above).' : ', or use your own provider key.');
+          refreshStarnetGenesisStatus();
+          return false;
+        }
         msg.textContent = /Out of managed credit/i.test(wire.why)
           ? 'your StarNet account has no credits — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'
           : 'StarNet couldn’t read your credit balance right now — try WAKE again in a moment, or use your own provider key.';
@@ -3720,7 +3788,7 @@ const App = (() => {
       // writeFile = the token-gated, consent-broker-gated, checkpointed server write (/api/autonomy/write). A failed
       // or denied write just degrades to a desk draft (the act() branch handles the fallback).
       canWriteFiles: () => { try { return (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) ? (PermissionsStore.snapshot().grants || []).indexOf('cabinet:write') >= 0 : false; } catch (_) { return false; } },
-      hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).indexOf('cabinet') >= 0 : false; } catch (_) { return false; } },
+      hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).some(c => (c && (c.objectType || c)) === 'cabinet') : false; } catch (_) { return false; } },   // heroCaps returns [{objectType}]: an indexOf('cabinet') never matched
       writeFile: (req) => fetch('/api/autonomy/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content }) }).then(r => r.ok ? r.json() : { ok: false }).catch(() => ({ ok: false })),
       // leave the result on the Commander's desk: a persistent toast + the live "working" cue + a gentle COMMS beat
       // that, on accept, posts the work into the feed. If it WROTE a real file (B2) the copy says so + names the path;
@@ -4044,10 +4112,21 @@ const App = (() => {
   }
   // Compact excerpt of the latest visible turn; never an invented completion claim.
   // Share search/export filtering so hidden tool/system chatter stays hidden.
+  // The rail's 1s heartbeat asks this twice per row (the receipt line and the hover tip): read the newest message
+  // from the end of the history and re-excerpt only when that message's text changed (a 26-agent station spent
+  // ~18ms of every second copying whole histories and re-running these regexes over the same text).
+  const railExcerpts = new WeakMap();
   function railReceipt(w) {
-    const messages = Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : [];
-    const latest = messages.slice().reverse().find(m => m.content.trim());
+    const latest = Workstreams.latestVisibleMessage ? Workstreams.latestVisibleMessage(w)
+      : (Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : []).slice().reverse().find(m => m.content.trim());
     if (!latest) return 'No messages yet';
+    const memo = railExcerpts.get(latest);
+    if (memo && memo.content === latest.content && memo.role === latest.role) return memo.out;
+    const out = railExcerpt(latest);
+    railExcerpts.set(latest, { content: latest.content, role: latest.role, out });
+    return out;
+  }
+  function railExcerpt(latest) {
     const text = latest.content
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .replace(/(^|\n)\s{0,3}(?:#{1,6}\s+|[-*+]\s+|>\s*)/g, ' ')
@@ -5118,6 +5197,28 @@ const App = (() => {
     const msg = el('future-msg');
     const btn = el('btn-future-update');
     const hasUpdater = (typeof Updates !== 'undefined') && (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core);
+    // #91: Updates.install() PAUSES by RETURNING its snapshot (a failed pre-update recovery point, an unverified save,
+    // an agent still working) instead of throwing, and the Update Center is unreachable from this gate. Name the pause
+    // here; when the in-app path failed, offer the full installer beside UPDATE STARNET (reinstalling keeps the station).
+    const offerInstaller = () => {
+      let dl = el('btn-future-download');
+      if (!dl && btn && btn.parentNode) {
+        dl = document.createElement('button');
+        dl.id = 'btn-future-download'; dl.className = 'btn-xl'; dl.textContent = 'DOWNLOAD LATEST ▸';
+        btn.parentNode.appendChild(dl);
+      }
+      if (dl) dl.onclick = () => { SFX.click && SFX.click(); try { Updates.openReleasesPage(); } catch (_) {} };
+    };
+    const installOutcome = (snap, thrown) => {
+      if (!msg) return;
+      const runs = (snap && snap.confirmRuns) | 0;
+      if (thrown || (snap && snap.error)) {
+        msg.textContent = 'the update could not install' + (snap && snap.error ? ' — ' + snap.error : '') + '. Download the full installer instead: reinstalling over the top keeps your station.';
+        offerInstaller();
+      } else if (runs > 0) msg.textContent = (runs === 1 ? '1 agent is' : runs + ' agents are') + ' still working — installing now would kill ' + (runs === 1 ? 'its run' : 'their runs') + '. Try again when ' + (runs === 1 ? 'it finishes.' : 'they finish.');
+      else if (snap && /^(downloading|installing|restarting)$/.test(String(snap.phase || ''))) msg.textContent = 'installing the update — StarNet restarts on its own when it is done.';
+      else msg.textContent = 'the update did not start — try again in a moment.';
+    };
     if (btn) {
       btn.onclick = async () => {
         SFX.click && SFX.click();
@@ -5132,7 +5233,7 @@ const App = (() => {
             // re-click while a check is in flight returns the busy snapshot immediately). This gate is a HARD
             // STOP on a save this build cannot read: a false "check back shortly" strands the user with no
             // idea that the one action on the screen didn't work. Name each state for what it is.
-            if (phase === 'available') { try { await Updates.install(); } catch (e) { if (msg) msg.textContent = 'update found, but the install failed — open the Update Center and retry.'; } }
+            if (phase === 'available') { let after = null, thrown = false; try { after = await Updates.install(); } catch (e) { thrown = true; } installOutcome(after, thrown); }
             else if (phase === 'current') { if (msg) msg.textContent = 'no newer build is published yet — check back shortly.'; }
             else if (phase === 'error') { if (msg) msg.textContent = 'the update check failed' + (snap && snap.error ? ' — ' + snap.error : '') + '. Check your connection and try again.'; }
             else if (phase === 'checking' || phase === 'downloading' || phase === 'installing' || phase === 'restarting') { if (msg) msg.textContent = 'an update check is already running — one moment…'; }
@@ -5210,15 +5311,11 @@ const App = (() => {
     // produced by the sidecar from its own ledger, so it is proof, not a guess. Likewise, if the desktop guardian
     // has HALTED respawns (starnet_sidecar_status.halted), say so — the retry poll can never heal that on its own.
     let degradedReason = '';
+    // The reading itself is shared with the in-game LINK DOWN chip (Harness.engineState): the same verbatim 503 text
+    // or guardian halt, now bounded so a hung service cannot leave the probe pending.
     const probeDegraded = async () => {
       let reason = '';
-      try {
-        const r = await fetch('/api/health', { cache: 'no-store' });
-        if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) reason = t; }
-      } catch (_) { reason = ''; }
-      if (!reason && core && core.invoke) {
-        try { const g = await core.invoke('starnet_sidecar_status'); if (g && g.halted && g.reason) reason = 'station service halted: ' + String(g.reason); } catch (_) {}
-      }
+      try { reason = String(((await Harness.engineState()) || {}).reason || ''); } catch (_) { reason = ''; }
       if (reason === degradedReason) return reason;
       degradedReason = reason;
       if (sub) { if (reason) sub.textContent = reason; else if (/^(degraded|station service halted)/i.test(sub.textContent)) sub.textContent = 'station service not answering'; }
@@ -5272,7 +5369,7 @@ const App = (() => {
       if (restartBtn) restartBtn.disabled = true;
       setStatus((auto ? 'still unreachable — ' : '') + 'restarting the station service…');
       let up = false;
-      try { up = await core.invoke('starnet_restart_sidecar'); } catch (_) { up = false; }
+      try { up = await Harness.restartEngine(); } catch (_) { up = false; }   // the same single-flight door the LINK DOWN chip uses
       if (up) { setStatus('station service restarted — reconnecting…'); attempt(); }
       else setStatus('the station service could not be restarted — quit StarNet fully (Cmd+Q / tray → Quit) and open it again. Your save is untouched.');
       restarting = false;

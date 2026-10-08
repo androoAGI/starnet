@@ -93,7 +93,8 @@ A.ok(v1.report.reauthentication.some(x => x.kind === 'service-key' && x.id === '
 A.ok(v1.report.reauthentication.some(x => x.kind === 'provider' && x.id === 'grok'), 'Grok OAuth tokens are excluded with a reauthentication receipt');
 A.ok(v1.report.reauthentication.some(x => x.kind === 'provider' && x.id === 'kimi'), 'Kimi OAuth tokens are excluded with a reauthentication receipt');
 A.ok(v1.report.reauthentication.some(x => x.kind === 'project-path' && x.id === 'C:/Projects/demo'), 'machine-specific project authority requires explicit reauthorization');
-A.ok(v1.report.skipped.some(x => x.path === '.browser-profile/Cookies'), 'browser cookie profile is explicitly skipped');
+// the profile is skipped WHOLE (never walked: a live Chrome profile vanishing mid-walk cannot abort the capture, #91)
+A.ok(v1.report.skipped.some(x => x.path === '.browser-profile'), 'browser cookie profile is explicitly skipped');
 A.ok(v1.report.skipped.some(x => x.path === 'proc-ledger.json'), 'ephemeral process ownership is explicitly skipped');
 A.eq(R.validate(v1).ok, true, 'fresh bundle validates');
 

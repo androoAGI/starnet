@@ -338,7 +338,7 @@ function makeSlashActions(deps) {
     if (Number(caps.perRun) > 0) capBits.push('per run ' + usd(caps.perRun));
     if (Number(caps.perDay) > 0) capBits.push('per day ' + usd(caps.perDay));
     if (Number(caps.global) > 0) capBits.push('total ' + usd(caps.global));
-    lines.push(capBits.length ? ('Caps: ' + capBits.join(' · ') + '.') : 'No spend caps are set — SETTINGS → BUDGET.');
+    lines.push(capBits.length ? ('Caps: ' + capBits.join(' · ') + '.') : 'No spend caps are set — SETTINGS › SPENDING LIMITS.');
     // The point of moving this server-side: say WHOSE numbers these are, so the figure is not read as
     // "what I watched happen in this window".
     lines.push('From the station ledger — includes routines, away shifts and messaging runs, not just this window.');

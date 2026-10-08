@@ -27,6 +27,8 @@
                            -> string             // selected runtime provider ('openrouter' or 'codex')
      deps.hasCredential(provider, key, job)
                            -> bool               // OAuth providers can be runnable without a BYOK key
+     deps.credentialError(provider, job)
+                           -> string             // the station's ONE no-credential sentence (index.js engineCredentialError)
      deps.defaultModel     -> string             // boot-frozen SKYNET_DEFAULT_MODEL fallback when job.model is null
      deps.identityForAgent -> (agentId, job) -> { system?, model? } | null
                                                  // optional selected-agent identity (browser roster / persisted mirror)
@@ -76,6 +78,8 @@
   const cronGuard = (typeof require === 'function')
     ? require('./cron-guard.js')
     : ((root.SK && root.SK.cronGuard) || { scanAssembled: function () { return { ok: true }; } });
+  // #89: the ONE no-credential sentence builder (pure); index.js injects the registry-aware form as deps.credentialError
+  const engineCredential = (typeof require === 'function') ? require('./engine-credential.js') : (root.SK && root.SK.engineCredential);
 
   function makeCronDriver(deps) {
     const d = deps || {};
@@ -87,6 +91,10 @@
     const getKey = typeof d.getKey === 'function' ? d.getKey : function () { return ''; };
     const providerForJob = typeof d.providerForJob === 'function' ? d.providerForJob : function () { return 'openrouter'; };
     const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : function (_provider, key) { return !!key; };
+    // #89: the blocked-config reason is the SAME sentence Run Now and the quest refresh say (index.js injects the
+    // registry-aware form); a host that injects nothing gets the same builder with only the provider id
+    const credentialError = typeof d.credentialError === 'function' ? d.credentialError
+      : function (provider) { return engineCredential.credentialError({ id: provider, what: 'this scheduled routine' }); };
     const defaultModel = d.defaultModel || '';
     const identityForAgent = typeof d.identityForAgent === 'function' ? d.identityForAgent : function () { return null; };
     const agentExists = typeof d.agentExists === 'function' ? d.agentExists : null;
@@ -380,7 +388,7 @@
       const key = getKey(provider, job);
       let configIssue = null;
       if (!job.noAgent && !model) configIssue = { code: 'missing-model', reason: 'no model is configured; choose a model for this routine or its assigned agent' };
-      else if (!job.noAgent && !hasCredential(provider, key, job)) configIssue = { code: 'missing-credential', reason: 'provider "' + provider + '" has no usable credential; connect it or choose a configured provider' };
+      else if (!job.noAgent && !hasCredential(provider, key, job)) configIssue = { code: 'missing-credential', reason: String(credentialError(provider, job)) };
       if (!configIssue && preflightConfig) {
         try {
           const checked = preflightConfig(job, { provider: provider, model: model, key: key, identity: ident });

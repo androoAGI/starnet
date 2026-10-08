@@ -218,7 +218,12 @@ become true:
 
 ## Deleting your data
 
-Your data is just files. To wipe it, uninstall StarNet and delete the `ai.skynet.harness`
+Your data is just files. In the desktop app, **Settings → APP & BACKUP → ERASE EVERYTHING** deletes
+all of it on this computer (station data, the app window's own storage, the voice-model download and
+the credentials StarNet saved in the OS keychain), lists anything it could not remove, and restarts at
+first run. Project folders you let agents use are never touched. The full per-OS list of locations is in
+the [troubleshooting guide](https://starnetos.com/docs/troubleshooting.html#where-starnet-keeps-your-data).
+To wipe it by hand, uninstall StarNet and delete the `ai.skynet.harness`
 app-data folder for your OS — Windows: `%APPDATA%\ai.skynet.harness\`
 (`C:\Users\<you>\AppData\Roaming\ai.skynet.harness\`); macOS:
 `~/Library/Application Support/ai.skynet.harness/`; Linux: `~/.local/share/ai.skynet.harness/`.

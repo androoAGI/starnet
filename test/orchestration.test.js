@@ -287,6 +287,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     A.eq(out.summary, 'resumed', 'team.resume restarts the interrupted worker');
     await tick(); await tick();
     A.eq(ro.calls[0].maxIters, 7, 'resumed worker receives the configured iteration cap');
+    A.ok(!ro.calls[0].resumedTaint, 'a clean stored task carries no resumed taint');
     A.eq(ro.calls[0].projectRoot, '/original/project', 'resume retains the original project from its durable record');
     A.eq(ro.calls[0].workdir, '/original/project/package', 'resume retains the original execution directory');
   } finally {
@@ -316,6 +317,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     A.ok(a && a.withholdHostPower === true && a.untrustedEntry === true && a.withholdTaste === true && a.fullAccess() === false && a.taintedBy() === 'web_fetch',
       'a resumed worker keeps the restrictions it started under, whoever resumes it: ' + JSON.stringify(a && { w: a.withholdHostPower, u: a.untrustedEntry, t: a.withholdTaste }));
     A.eq(ro.calls[0].initialTaint, 'web_fetch', 'and starts tainted, as it was');
+    A.eq(ro.calls[0].resumedTaint, 'web_fetch', 'and the run is told the taint rides the STORED task, so its refusal never blames the clean resuming lead');
     A.ok(leadAuthority.withholdHostPower === false, 'the resuming lead\'s own authority object is not mutated');
   } finally {
     try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}

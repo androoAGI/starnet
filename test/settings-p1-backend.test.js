@@ -51,7 +51,7 @@ ok(/CRON_MAX_PARALLEL\s*=\s*num\(ENV\('CRON_MAX_PARALLEL'\), 0\)/.test(src), 'P1
 ok(/LOOP_MAX_PARALLEL\s*=\s*num\(ENV\('LOOP_MAX_PARALLEL'\), 0\)/.test(src), 'P1-9: standing-loop concurrency defaults to unlimited');
 // ---- managed credits stay functional with no opt-in cap: an uncapped run reserves min(managed default, wallet),
 // never refuses a funded wallet — and never the WHOLE wallet (issue #53: one prompt drained a $10 top-up) ----
-ok(/runCapUsd = budgetCaps\.managedRunCapUsd\(0, avail, MANAGED_PER_RUN_DEFAULT\);/.test(src), 'managed credits: an uncapped run reserves the managed per-run default, clamped to the available balance');
+ok(/runCapUsd = budgetCaps\.managedRunCapUsd\(\(runCapUsd > 0 && isFinite\(runCapUsd\)\) \? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT\);/.test(src),'managed credits: an uncapped run reserves the managed per-run default, clamped to the available balance');
 ok(require('../sidecar/budgetcaps.js').managedRunCapUsd(0, 0.5, 2) === 0.5, 'managed credits: a wallet below the default still runs (clamped, not refused)');
 ok(!/Managed credits need a per-run budget cap/.test(src), 'managed credits: the set-an-env-var refusal is gone — no cap is required to run');
 ok(/if \(!\(runCapUsd > 0\)\) \{[\s\S]{0,1200}return;[\s\S]{0,300}const adm = credits\.beginRun\(\{ runId, agentId, capUsd: runCapUsd \}\);/.test(src), 'managed credits: an unknown/empty balance still fails CLOSED before any reservation (never spends against an unknown wallet)');

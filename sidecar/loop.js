@@ -1488,7 +1488,13 @@
       if (budget) {
         const b = budget.check(spentUsd);
         if (b && b.unknown) {
-          emit('agent.run.error', { agentId, runId, message: 'Spend history is unavailable or not durably saved. Restore the ledger and restart StarNet before continuing with spending limits.', transient: false });
+          // name the fix that works for THIS cause: a restart replays a failed save, but never settles an interrupted run
+          const message = b.cause === 'unsettled'
+            ? 'An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.'
+            : b.cause === 'write'
+              ? 'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.'
+              : 'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.';
+          emit('agent.run.error', { agentId, runId, message, transient: false });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
         }
         if (b) return end('budget', { budgetScope: b.scope, budgetCapUsd: b.cap });

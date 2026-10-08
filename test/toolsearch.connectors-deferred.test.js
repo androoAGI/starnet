@@ -135,7 +135,10 @@ function cleanEnv(extra) {
   }
   return Object.assign(env, {
     SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0', SKYNET_THREAD_MINE: '0',
-    STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', STARNET_LIVE_PRICES: '0'
+    STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', STARNET_LIVE_PRICES: '0',
+    // The [RUNTIME] block names the harness build; unpinned, each boot runs its own 2s `git describe --dirty`, and
+    // on a loaded box one boot timed out to the package version — the byte-identity check then failed on that line.
+    STARNET_BUILD_DESCRIBE: 'connector-defer-fixture'
   }, extra || {});
 }
 

@@ -53,7 +53,7 @@ function stubBridge(impl) {
 // ---- ⛔ the honesty contract: every failure is an explicit REFUSED, never a soft nothing ----
 {
   const t = makeStationTools({});   // no bridge at all (bare host / headless composition)
-  for (const [tool, args] of [[t.listTool, {}], [t.createTool, { title: 'x' }], [t.focusTool, { session: 'x' }], [t.peekTool, { session: 'x' }], [t.taskListTool, {}], [t.taskCreateTool, { title: 'x' }], [t.taskManageTool, { task: 'x', action: 'archive' }]]) {
+  for (const [tool, args] of [[t.listTool, {}], [t.createTool, { title: 'x' }], [t.focusTool, { session: 'x' }], [t.peekTool, { session: 'x' }], [t.taskListTool, {}], [t.taskCreateTool, { title: 'x' }], [t.taskManageTool, { task: 'x', action: 'archive' }], [t.statusTool, {}]]) {
     const out = await tool.run(args);
     A.ok(/^REFUSED:/.test(out.content), tool.name + ' without a bridge refuses explicitly');
     A.ok(/do not report this action as done/.test(out.content), 'and tells the model not to claim it');
@@ -67,6 +67,27 @@ function stubBridge(impl) {
   const thrown = makeStationTools({ station: { request: async () => { throw new Error('bus is down'); } } });
   const boom = await thrown.listTool.run({});
   A.ok(/REFUSED: bus is down/.test(boom.content), 'a throwing bridge refuses instead of crashing the run');
+}
+
+// ---- station.status (#55): the page's station-wide snapshot, passed through UNCHANGED ----
+{
+  const snap = { active: 'a', workstreams: [{ id: 'a', title: 'research', lane: null, busy: true, status: 'working', approvalRequired: false },
+    { id: 'b', title: 'General', lane: null, busy: false, status: 'idle', approvalRequired: true }] };
+  const bridge = stubBridge(verb => (verb === 'station.status' ? { ok: true, result: snap } : { ok: false, error: 'unknown' }));
+  const t = makeStationTools({ station: bridge });
+  const out = await t.statusTool.run({ active: 'forged' });
+  A.eq(bridge.seen[0].verb, 'station.status', 'station.status asks the page verb voice already answers from');
+  A.eq(JSON.stringify(bridge.seen[0].args), '{}', 'no model argument reaches the page');
+  A.eq(out.content, JSON.stringify(snap), 'the snapshot comes back byte-for-byte, nothing synthesized');
+  A.eq(out.summary, '2 session(s), 1 busy, 1 awaiting approval', 'the summary counts only what the snapshot says');
+  const quiet = makeStationTools({ station: stubBridge(() => ({ ok: true, result: { active: 'b', workstreams: [{ id: 'b', busy: false }] } })) });
+  A.eq((await quiet.statusTool.run({})).summary, '1 session(s), 0 busy', 'no approval clause when nothing waits');
+  const starting = makeStationTools({ station: stubBridge(() => ({ ok: false, error: 'the station is still starting up — no sessions are readable yet' })) });
+  A.ok(/^REFUSED: the station is still starting up/.test((await starting.statusTool.run({})).content), "the page's not-ready refusal reaches the model, never an empty 'all quiet'");
+  const headless = makeStationTools({ station: stubBridge(() => ({ ok: false, error: 'no station page answered — open StarNet to run station commands', unattended: true })) });
+  A.ok(/^REFUSED: no station page answered/.test((await headless.statusTool.run({})).content), 'no live page → explicit REFUSED, no implied station state');
+  A.eq([t.statusTool.capability, t.statusTool.scope, t.statusTool.requiresConsent].join(','), 'orchestrator,read,false', 'lead-only, read-only, consent-free');
+  A.ok(/never infer other sessions/i.test(t.statusTool.description), 'its description carries the anti-guessing rule');
 }
 
 // ---- input hygiene runs before the bridge is ever bothered ----
@@ -114,7 +135,7 @@ function stubBridge(impl) {
     "peek's description carries the anti-guessing rule — the tool exists because a lead denied real work");
   const reg = { registered: [], register(x) { this.registered.push(x.name); } };
   t.register(reg);
-  A.eq(reg.registered.join(','), 'session.list,session.create,session.peek,session.focus,task.list,task.create,task.manage,team.config,team.configure,station.layout,station.map,station.plan,station.build,station.make_prop,station.test_line,station.start_line', 'register() installs session, task, crew configuration, floor layout and station builder verbs');
+  A.eq(reg.registered.join(','), 'session.list,session.create,session.peek,session.focus,station.status,task.list,task.create,task.manage,team.config,team.configure,station.layout,station.map,station.plan,station.build,station.make_prop,station.test_line,station.start_line', 'register() installs session, task, crew configuration, floor layout and station builder verbs');
 }
 
 /* ---- ⛔ THE CAPABILITY REGISTRY IS AN ALLOWLIST. A tool registered with the host but not declared in
@@ -124,9 +145,10 @@ function stubBridge(impl) {
 {
   const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'sidecar', 'capability', 'registry.js'), 'utf8');
   const orch = src.slice(src.indexOf('orchestrator: ['), src.indexOf(']', src.indexOf('orchestrator: [')));
-  for (const name of ['session.list', 'session.create', 'session.peek', 'session.focus', 'task.list', 'task.create', 'task.manage']) {
+  for (const name of ['session.list', 'session.create', 'session.peek', 'session.focus', 'station.status', 'task.list', 'task.create', 'task.manage']) {
     A.ok(orch.indexOf("tool: '" + name + "'") >= 0, name + ' is DECLARED in the orchestrator capability allowlist (registration alone exposes nothing)');
   }
+  A.ok(/tool: 'station\.status', scope: 'read', requiresConsent: false, network: false, deferred: true \}/.test(orch), 'station.status is declared read-only and consent-free, deferred (one name in the index, no schema on every run)');
   A.ok(/tool: 'session\.create', scope: 'write', requiresConsent: false/.test(orch), 'session.create is consent-free (spends nothing, reversible)');
 }
 

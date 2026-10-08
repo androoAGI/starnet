@@ -146,6 +146,78 @@
       + '"create an issue") and the matching tools become callable immediately. ';
   }
 
+  /* WITHHELD MATCHES (issue #77). ctx.withheld (name -> { why, enable }) holds tools this agent's floor grants but the
+     run authority removed from THIS run — shell.exec on a delegated ASK-mode worker. They are never revealed (the gate
+     would refuse them), so they stay out of the deferred pool and its IDF scoring, which is byte-identical with or
+     without them. A query that names one (a query term inside a withheld tool's name) or asks for commands in plain words —
+     gets ONE note listing every withheld tool (they share one cause on a run), why, and what works instead. Before,
+     "run a shell command" answered with an unrelated browser tool and the worker reported the shell as gone. */
+  const COMMAND_WORDS = /\b(?:shell|command|commands|cmd|terminal|bash|powershell|exec|execute|script|run)\b/i;
+  function withheldNote(q, ctx) {
+    const withheld = (ctx && ctx.withheld && typeof ctx.withheld === 'object') ? ctx.withheld : null;
+    const names = withheld ? Object.keys(withheld).sort() : [];
+    if (!names.length) return '';
+    const qs = terms(q);
+    const hit = COMMAND_WORDS.test(String(q)) || names.some(n => qs.some(w => String(n).toLowerCase().indexOf(w) >= 0));
+    if (!hit) return '';
+    const first = withheld[names[0]] || {};
+    return 'WITHHELD on this run (these exist on this station, but you cannot call them here): ' + names.join(', ')
+      + '. Why: ' + first.why + '. What works instead: ' + first.enable + '.';
+  }
+
+  /* RUN-POLICY WITHHOLDING (direct-domain). ctx.policyWithheld ({ names, why, enable }) lists GRANTED tools this run's
+     own policy keeps off the wire — web_search and delegation on a bounded one-host check. The host already removed
+     them from ctx.deferred, so they can never be offered as "Now available"; this is only the explanation, kept apart
+     from ctx.withheld (issue #77) because the two have different causes and withheldNote prints ONE cause for all. */
+  const POLICY_WORDS = /\b(?:search|google|bing|web|delegate|delegation|team|teammate|worker|dispatch)\b/i;
+  function policyNote(q, ctx) {
+    const p = (ctx && ctx.policyWithheld && typeof ctx.policyWithheld === 'object') ? ctx.policyWithheld : null;
+    const names = p && Array.isArray(p.names) ? p.names.slice().sort() : [];
+    if (!names.length) return '';
+    const qs = terms(q);
+    const hit = POLICY_WORDS.test(String(q)) || names.some(n => qs.some(w => String(n).toLowerCase().indexOf(w) >= 0));
+    if (!hit) return '';
+    return 'WITHHELD on this run (granted, but this run\'s policy keeps them off): ' + names.join(', ')
+      + '. Why: ' + p.why + '. What works instead: ' + p.enable + '.';
+  }
+
+  /* ALREADY LISTED. ctx.advertised names what this run already sends the model. Those tools are never in the hidden
+     pool, so a model that missed one in its list ("browser navigate read text") was answered with the nearest HIDDEN
+     tool — browser.test_navigate, which only opens localhost — as if that were the way to browse. Listed and hidden
+     tools are ranked TOGETHER here: listed ones in the same league as the best match are named first, as callable
+     now, and a hidden one that only clears the floor against the hidden shelf (but not against the listed tools) is
+     not revealed. Absent ctx.advertised (or no listed match): { note: '', keep: null } and the search is unchanged. */
+  const MAX_LISTED = 4;
+  function listedMatch(q, ctx, registry, pool) {
+    const none = { note: '', keep: null };
+    const listed = (ctx && Array.isArray(ctx.advertised)) ? ctx.advertised : [];
+    if (!listed.length || !registry || typeof registry.get !== 'function') return none;
+    const hidden = new Set(pool.map(t => t.name));
+    const shown = [];
+    for (const n of listed) {
+      if (n === 'tool.search' || hidden.has(n)) continue;
+      const t = registry.get(n);
+      if (t) shown.push(t);
+    }
+    if (!shown.length) return none;
+    const all = pool.concat(shown);
+    const weighted = weigh(all, terms(q));
+    let best = 0;
+    for (const t of all) best = Math.max(best, score(t, weighted));
+    if (!best) return none;
+    const hits = shown
+      .map(t => ({ t, s: score(t, weighted) }))
+      .filter(h => h.s > 0 && h.s * 3 >= best)
+      .sort((a, b) => (b.s - a.s) || (a.t.name < b.t.name ? -1 : a.t.name > b.t.name ? 1 : 0))
+      .slice(0, MAX_LISTED);
+    if (!hits.length) return none;
+    return {
+      note: 'Already in your tool list (call it directly — no search needed):\n'
+        + hits.map(h => '· ' + h.t.name + ' ' + required(h.t) + ' — ' + gist(h.t)).join('\n'),
+      keep: t => score(t, weighted) * 3 >= best
+    };
+  }
+
   function makeToolSearchTool(deps) {
     const registry = (deps || {}).registry;
 
@@ -165,16 +237,20 @@
       run: async (args, ctx) => {
         const q = args && args.query != null ? String(args.query) : '';
         const names = (ctx && Array.isArray(ctx.deferred)) ? ctx.deferred : [];
-        if (!names.length) {
-          return { content: 'Every tool you have been granted is already listed — there is nothing further to find.', summary: 'none hidden' };
-        }
-        if (!q.trim()) return { content: 'Provide a `query` describing the capability you want.', summary: 'no query' };
-
+        const blocked = q.trim() ? [withheldNote(q, ctx), policyNote(q, ctx)].filter(Boolean).join('\n') : '';
         const pool = [];
         for (const n of names) {
           const t = registry && typeof registry.get === 'function' ? registry.get(n) : null;
           if (t) pool.push(t);
         }
+        const match = q.trim() ? listedMatch(q, ctx, registry, pool) : { note: '', keep: null };
+        const listed = match.note;
+        if (!names.length) {
+          if (blocked || listed) return { content: [blocked, listed].filter(Boolean).join('\n'), summary: blocked ? 'withheld' : 'already listed' };
+          return { content: 'Every tool you have been granted is already listed — there is nothing further to find.', summary: 'none hidden' };
+        }
+        if (!q.trim()) return { content: 'Provide a `query` describing the capability you want.', summary: 'no query' };
+
         const weighted = weigh(pool, terms(q));
         const scored = pool
           .map(t => ({ t, s: score(t, weighted) }))
@@ -184,8 +260,9 @@
         // sibling's description otherwise drags the family along, quietly re-advertising on the first search
         // the very set the deferral exists to withhold.
         const best = scored.length ? scored[0].s : 0;
-        const hits = scored.filter(h => h.s * 3 >= best).slice(0, MAX_HITS);
+        const hits = scored.filter(h => h.s * 3 >= best && (!match.keep || match.keep(h.t))).slice(0, MAX_HITS);
 
+        if (!hits.length && (blocked || listed)) return { content: [blocked, listed].filter(Boolean).join('\n'), summary: blocked ? 'withheld' : 'already listed' };
         if (!hits.length) {
           // Name the shelf rather than dead-ending: a miss usually means wrong vocabulary, not absent capability.
           const sample = pool.map(t => t.name).sort().slice(0, 12).join(', ');
@@ -206,7 +283,7 @@
         };
         const lines = hits.map(h => '· ' + h.t.name + ' ' + required(h.t) + ' — ' + gist(h.t) + caveat(h.t.name));
         return {
-          content: 'Now available to call for the rest of this run:\n' + lines.join('\n'),
+          content: (blocked ? blocked + '\n' : '') + (listed ? listed + '\n' : '') + 'Now available to call for the rest of this run:\n' + lines.join('\n'),
           summary: hits.length + ' revealed',
           // The loop reads this and adds these tools to the advertised set. Names only — the loop owns
           // turning them into wire declarations, so this tool never has to know the provider format.

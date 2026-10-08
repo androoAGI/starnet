@@ -25,6 +25,7 @@ test/roster-envelope.http.test.js
 test/full-access.e2e.test.js
 test/output-recovery.e2e.test.js
 test/project-root.e2e.test.js
+test/e2e.worker-project-files.test.js
 test/live-doctor.e2e.test.js
 test/report-0110.e2e.test.js
 test/scout.http.test.js
@@ -51,6 +52,7 @@ test/find-window.e2e.test.mjs
 test/station-builder.e2e.test.mjs
 test/e2e.worker-access.test.js
 test/taint-lineage.e2e.test.js
+test/taint-inherited-refusal.e2e.test.js
 test/e2e.trigger-fullaccess-taint.test.js
 test/e2e.pathtrust.test.js
 test/e2e.subagent-background.test.js
@@ -68,6 +70,7 @@ test/e2e.connector-readback.test.js
 test/recipe-drift.http.test.js
 test/cron.api.test.js
 test/cron.run-now.e2e.test.js
+test/routine-keys.e2e.test.js
 test/cancel-host-run.e2e.test.js
 test/cron.station-default.e2e.test.js
 test/cron.degraded.e2e.test.js
@@ -129,6 +132,7 @@ test/atlas-events.emit.e2e.test.js
 test/openai-compat.e2e.test.js
 test/station-recovery.e2e.test.js
 test/paid-link-lifecycle.e2e.test.js
+test/credits-heal-join.e2e.test.js
 test/routing.persist.e2e.test.js
 test/run-recovery.api.test.js
 test/routing.sample.e2e.test.js
@@ -155,6 +159,7 @@ test/tool-projection.e2e.test.js
 test/request-idempotency.e2e.test.js
 test/output-only-repair.e2e.test.js
 test/saved-provider-fallback.e2e.test.js
+test/provider-validate-rejected.http.test.js
 test/delegated-connectors.e2e.test.js
 test/prompt-cache-prefix.e2e.test.js
 test/e2e.overseer.test.js
@@ -175,6 +180,7 @@ test/payload.budget.test.js
 test/prompt-on-demand.e2e.test.js
 test/byok-linked-credit.e2e.test.js
 test/managed-run-cap.e2e.test.js
+test/managed-credit-refusal.e2e.test.js
 test/workflow-project.e2e.test.js
 test/workflow-project-multibay.e2e.test.js
 test/routing.linestats.e2e.test.js

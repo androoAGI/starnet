@@ -150,6 +150,9 @@
          which is also the moment a human is around to answer its consent card. */
       { capId: 'web', tool: 'browser.attach', scope: 'execute', requiresConsent: true, network: true, deferred: true },
       { capId: 'web', tool: 'browser.detach', scope: 'execute', requiresConsent: false, network: true, deferred: true },
+      /* #61: the supported recovery for a wedged station browser (ends only StarNet's own orphaned browser on the
+         station profile). Deferred: a repair move, found through tool.search when a browser error names it. */
+      { capId: 'web', tool: 'browser.reset', scope: 'execute', requiresConsent: false, network: true, deferred: true },
       /* Deferred, same reasoning as attach: specialist moves, not the ordinary browse loop. pdf is a
          READ (render what is already on screen into the jail); intercept/emulate reshape only the
          STATION browser and both refuse in attached mode (ownership — the Commander's own Chrome is
@@ -293,6 +296,9 @@
       // "what did the researcher do?" answered from assumption and denied real finished work (2026-07-30).
       { capId: 'orchestrator', tool: 'session.peek', scope: 'read', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'session.focus', scope: 'write', requiresConsent: false, network: false },
+      // station.status: the page's station-wide snapshot (busy / awaiting approval per session), read-only (#55). Deferred:
+      // the tool budget is spent, so it costs every run one name in the deferred index, not a schema (tool_search "status").
+      { capId: 'orchestrator', tool: 'station.status', scope: 'read', requiresConsent: false, network: false, deferred: true },
       // TASK BOARD: cards are the page's canonical kind:'task' Workstreams and are persisted through the same
       // agent save the board renders. Creation is reversible and spends nothing; management is consent-gated
       // because its action set includes shipping, archiving, reassignment, and deletion.

@@ -111,7 +111,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // panelBright (−100…100, default 0) is the tube's BRIGHTNESS knob: above 0 it lifts the panel glass's black
   // level toward the phosphor colour (never toward white); below 0 it takes the panels DOWN toward true black
   // (Andrew 10-01: "it doesnt get dark enough"). 0 = the shipped look, untouched.
-  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
+  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 'low', textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
   // Raise overall room exposure without changing the distribution of its lights.
   // Existing saves retain their chosen level; missing values start at LOW.
   const ROOM_LIGHTING_STEPS = [
@@ -262,6 +262,66 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   const PRESET_HS = { amber: [35, 100], green: [136, 100], blue: [198, 100], purple: [270, 100], red: [3, 100], white: [120, 8] };
 
   /* ---------- settings → DOM ---------- */
+  /* SCREEN FLICKER clock (#69): the station's 7s CRT flicker used to be an `infinite` CSS opacity animation on the
+     whole game screen, which made the compositor redraw the full window every vsync all day for a dip that lasts
+     280ms. Now this clock plays the dip once per 7s (app.css .flick-dip) and the compositor rests in between.
+     Same look; the SETTINGS toggle (body.no-flicker) still turns it off; a hidden page skips it. */
+  let flickerClock = 0;
+  function armFlickerClock() {
+    if (flickerClock || typeof setInterval !== 'function' || typeof document === 'undefined') return;
+    flickerClock = setInterval(() => { try {
+      if (document.hidden || document.body.classList.contains('no-flicker')) return;
+      const g = document.getElementById('screen-game');
+      if (!g || !g.classList.contains('active')) return;
+      g.classList.add('flick-dip');
+      setTimeout(() => g.classList.remove('flick-dip'), 400);
+    } catch (_) {} }, 7000);
+    if (flickerClock && flickerClock.unref) flickerClock.unref();   // never hold a headless test process open
+  }
+
+  /* MOTION REST (#69): any running `infinite` CSS animation — a status pulse, a blinking caret, the stale save-dot —
+     makes the compositor produce a new frame every vsync, and a station left open all day on a high-refresh panel
+     spent most of a GPU core on that alone (measured: one 2.4s pulse on a 12px dot = ~0.6 GPU-process cores).
+     While the window is visible but NOT focused and untouched for REST_AFTER_MS, the decorative loops hold still;
+     focus, a pointer or a key resumes every one of them immediately. Only infinite loops are touched: one-shot
+     entrances/vanishes (which other code waits on via animationend) always run to completion, and no class or
+     text changes — the state a loop decorates stays exactly what the harness reported. A hidden page needs none
+     of this (the browser stops animating it). */
+  const REST_AFTER_MS = 2500;
+  let motionRestClock = 0, motionEngagedUntil = 0;
+  const restingAnims = new Set();
+  function motionAtRest() {
+    try { return !document.hidden && !document.hasFocus() && performance.now() >= motionEngagedUntil; } catch (_) { return false; }
+  }
+  function motionWake() {
+    for (const a of restingAnims) { try { if (a.playState === 'paused') a.play(); } catch (_) {} }
+    restingAnims.clear();
+  }
+  function motionSweep() {
+    if (!motionAtRest()) { if (restingAnims.size) motionWake(); return; }
+    // a held loop whose node left the page (a finished run's card) is dropped, never kept alive all day
+    for (const a of restingAnims) { const el = a.effect && a.effect.target; if (a.playState === 'idle' || !el || !el.isConnected) restingAnims.delete(a); }
+    for (const a of document.getAnimations()) {
+      if (a.playState !== 'running' || restingAnims.has(a)) continue;
+      const t = a.effect && a.effect.getTiming ? a.effect.getTiming() : null;
+      if (!t || t.iterations !== Infinity) continue;
+      try { a.pause(); restingAnims.add(a); } catch (_) {}
+    }
+  }
+  function motionEngage() { try { motionEngagedUntil = performance.now() + REST_AFTER_MS; } catch (_) {} if (restingAnims.size) motionWake(); }
+  function armMotionRest() {
+    if (motionRestClock || typeof setInterval !== 'function' || typeof document === 'undefined' || typeof document.getAnimations !== 'function') return;
+    motionEngage();
+    motionRestClock = setInterval(() => { try { motionSweep(); } catch (_) {} }, 1000);
+    if (motionRestClock && motionRestClock.unref) motionRestClock.unref();
+    try {
+      window.addEventListener('focus', motionEngage);
+      for (const ev of ['pointermove', 'pointerdown', 'wheel', 'keydown']) window.addEventListener(ev, motionEngage, { passive: true, capture: true });
+    } catch (_) {}
+  }
+  /** test/QA readout: how many decorative loops are holding still right now */
+  function motionRestState() { return { atRest: motionAtRest(), resting: restingAnims.size }; }
+
   function applySettings() {
     const s = store.settings;
     applyRoomLighting(s.roomLighting);
@@ -376,6 +436,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       });
     }
     document.body.classList.toggle('no-flicker', !s.flicker);
+    armFlickerClock(); armMotionRest();
+    // HINTS off: hint.js shows no glossary bubble (it reads this class); clear one already on screen
+    document.body.classList.toggle('no-hints', !s.hints);
+    if (!s.hints && typeof Hint === 'object' && Hint.hide) Hint.hide();
     if (typeof SFX === 'object') SFX.on = !!s.sound;
     syncKeepAwake(!!s.keepComputerAwake);
   }
@@ -1327,7 +1391,22 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         } catch (_) { /* a rebuilt control that refuses restore is no worse than the old wipe */ }
       }
     };
+    /* REENTRANCY: a builder that resyncs stores can make one of them poke rerender(key) for THIS window while
+       it is still building. rerender is synchronous, so that poke used to recurse into the builder until the stack
+       overflowed — and the swallowed RangeError then let every one of those ~1,600 frames finish a full paint
+       (QUEST LOG, 2026-10-07: "the whole program started lagging … 10-20 seconds to even click"). A poke landing
+       mid-build is now owed ONE follow-up paint after this build finishes; pokes during that follow-up are
+       already reflected in it or ride the next tick, so no store can ever loop the window. */
+    let building = false, owed = false;
     w._render = (swap) => {
+      if (building) { owed = true; return; }
+      building = true;
+      try {
+        paint(swap);
+        if (owed) { owed = false; paint(false); }
+      } finally { building = false; owed = false; }
+    };
+    const paint = (swap) => {
       const keep = swap === false ? captureForms() : null;   // background poke: preserve what the Commander typed
       builder(body);
       if (keep && keep.length) restoreForms(keep);
@@ -4721,7 +4800,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function refreshCreditsProvider() {
     const prior = creditsProv;
-    return Harness.api.get('/api/credits?history=0').catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
+    // the STORE's wait (wireCredits): a read that self-heals the link takes ~16s, past api.get's 15s default
+    return Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }).catch(e => ({ configured: false, unavailable: !/http 404\b/.test(String((e && e.message) || e)) }))
       .then(j => {
         if (j && j.configured) {
           publishCreditsConfigured(true);
@@ -4831,12 +4911,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       .then(j => {
         // carry the WHOLE truth shape (connected + expired + reason), exactly like codex — a lone bool can't
         // distinguish "never signed in" from the dead-refresh-token death the row must render differently.
-        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '' };
+        const next = { connected: !!(j && j.connected), expired: !!(j && j.expired), reason: (j && j.reason) || '', region: (j && j.region) || '' };
+        // kimi (#70): the stored sign-in's region seeds the next sign-in's default (unless the Commander picked one)
+        if (pid === 'kimi' && next.region && typeof KimiRegion !== 'undefined') KimiRegion.noteSignedIn(next.region);
         // Same rule as codex above: compare what the row will actually DRAW, so a cold "not connected" answer
         // that matches the fallback does not force a full pane rebuild (and its fan-out) for nothing.
-        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid);
+        const wasConnected = oauthProvConnected(pid), wasExpired = oauthProvExpired(pid), wasRegion = oauthStatus[pid] ? oauthStatus[pid].region : '';
         oauthStatus[pid] = next;
-        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired) scheduleSettingsRepaint();
+        if (oauthProvConnected(pid) !== wasConnected || oauthProvExpired(pid) !== wasExpired || next.region !== wasRegion) scheduleSettingsRepaint();
       })
       .catch(() => {})
       .finally(() => { oauthChecking[pid] = false; });
@@ -4872,8 +4954,23 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   // honest one-liner for where a just-saved key was stored. Falls back to the neutral "on this machine" until the
   // probe answers, so we never assert keychain-vs-browser before we actually know it.
-  function keyStoreClause() {
+  // #89: in the browser build a saved key / endpoint / backup pool / REMOVE is also handed to the station for routines
+  // (Harness resolves { engine }). When the station could NOT take that change, say what it means beside the result
+  // (a save: chat still works, unattended runs won't have it; a REMOVE: the station keeps using its copy). One toast
+  // slot, so an endpoint + key saved together never stack two copies of the same warning.
+  function warnIfStationLacksKey(res) {
+    const e = res && res.engine;
+    if (e && e.ok === false && e.error) notify('⚠ ' + e.error, 'warn', undefined, { key: 'engine-key' });
+  }
+  function keyStoreClause(res) {
     if (keychainModeKnown === true) return 'stored in your OS keychain';
+    // #89: the station proved it holds its own copy (presence only) — say both places, and which key routines use
+    const e = res && res.engine;
+    if (e && e.ok === true && !e.skipped && !e.stale) {
+      return e.keySource === 'environment'
+        ? 'stored in this browser and on this station (routines use the API key variable this station was started with)'
+        : 'stored in this browser and on this station, so routines can use it';
+    }
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
   }
@@ -4950,6 +5047,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      device-code engine (OAuthAccounts.for). The list is backend truth (/api/auth/<pid>/accounts: stored tokens, a
      recorded dead sign-in, the station's cooldown) and is re-read at most every 5s while Settings repaints, so a
      DISCONNECT or RE-SIGN-IN of the primary elsewhere on this page shows up without its own wiring. */
+  /* KIMI ACCOUNT REGION (#70): a Kimi account lives in ONE deployment — Global (kimi.ai) or China (kimi.com) — and can
+     only sign in there. This strip picks where the NEXT sign-in (⏼ SIGN IN, RE-SIGN-IN, ＋ ADD ACCOUNT) goes and says
+     which region the stored sign-in belongs to (the sidecar's status `region`, never a guess). */
+  function kimiRegionHtml() {
+    if (typeof KimiRegion === 'undefined') return '';
+    const next = KimiRegion.get();
+    const s = oauthStatus.kimi;
+    const stored = s && (s.connected || s.expired) && s.region ? KimiRegion.label(s.region) : '';
+    return '<div class="prov-region" role="group" aria-label="Kimi account region">' +
+      '<span class="dim">ACCOUNT REGION</span>' +
+      KimiRegion.OPTIONS.map(o => '<button class="bb sm' + (o.id === next ? ' active' : '') + '" data-act="kimi-region" data-region="' + esc(o.id) + '" aria-pressed="' + (o.id === next) + '"' +
+        ' title="sign in with a ' + esc(o.host) + ' account">' + esc(o.label + ' · ' + o.host) + '</button>').join('') +
+      '<span class="dim">' + (stored ? 'signed in on ' + esc(stored) + ' · ' : '') + 'pick where your Kimi account lives before you sign in</span>' +
+    '</div>';
+  }
   const STACKABLE_OAUTH = ['codex', 'grok', 'kimi'];
   const oauthAccts = {};   // pid -> { list: undefined|null|{accounts,max}, at, pending, box: null|{ account, msg, code, uri, openUri } }
   function oauthAcctState(pid) { return (oauthAccts[pid] = oauthAccts[pid] || { list: undefined, at: 0, pending: false, box: null }); }
@@ -5150,6 +5262,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
       const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
         : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+      // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
+      // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
+      const statWhy = p.live && !codexDead && credentialSaved && !isClaude && !keyless && health && !health.credentialVerified && health.error
+        ? '<span class="prov-stat-why">' + esc(String(health.error).slice(0, 200)) + '</span>' : '';
       const n = ks.length;
       // NO-KEY cards that accept a key get an inline, collapsible paste-and-save row so the user never has to hunt
       // for where keys live. It reuses the SAME save path (Harness.setKey) as the key list below — no duplicate logic.
@@ -5172,7 +5288,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             '<span class="prov-ep">' + esc(p.endpoint) + ' · ' + esc(p.blurb) + '</span>' +
           '</span>' +
         '</button>' +
-          '<span class="prov-stat"><span class="prov-stat-t">' + stat + (credentialSaved && !isOAuthProvider(p.id) ? '<i>' + n + (n === 1 ? ' key' : ' keys') + '</i>' : '') + '</span></span>' +
+          '<span class="prov-stat"><span class="prov-stat-t">' + stat + (credentialSaved && !isOAuthProvider(p.id) ? '<i>' + n + (n === 1 ? ' key' : ' keys') + '</i>' : '') + statWhy + '</span></span>' +
         (wantsInline ? '<button class="bb sm prov-addkey" data-act="prov-add-toggle" data-provider="' + esc(p.id) + '" aria-label="Add a ' + esc(p.name) + ' key" title="paste a ' + esc(p.name) + ' key without leaving this card">＋ ADD KEY</button>' : '') +
         (wantsClaudeSignin && !claudeFlowing && !(typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active()) ? '<button class="bb sm prov-addkey" data-act="prov-claude-signin" aria-label="Sign in with Claude" title="opens Claude in your browser — Claude Code keeps the sign-in, StarNet never sees it">' + (claudeCard.failed ? '⏼ TRY AGAIN' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsClaudeInstall ? '<button class="bb sm prov-addkey" data-act="prov-claude-install" aria-label="Get Claude Code" title="Claude Code needs a Pro, Max, Team or Enterprise plan">↗ GET CLAUDE CODE</button>' : '') +
@@ -5185,6 +5301,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : '') +
         (wantsClaudeSignin && !claudeCard.account ? claudeFlowBoxHtml(claudeFlowing, claudeBox) : '') +
         (isClaude && claudeCliSt && claudeCliSt.installed ? claudeAccountsHtml() : '') +
+        (p.id === 'kimi' && p.live ? kimiRegionHtml() : '') +
         (STACKABLE_OAUTH.indexOf(p.id) >= 0 ? oauthAccountsHtml(p.id) : '') +
         (wantsOAuthSignin
           ? '<div class="key-edit codex-inline prov-oauth-inline" id="prov-oauth-inline-' + esc(p.id) + '" hidden>' +
@@ -5497,9 +5614,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // success UI waits for the PROVEN store: on desktop setKey resolves only after the keychain write lands
           // (browser localStorage resolves immediately). The old fire-and-forget toasted "✓ stored in your OS
           // keychain" over a rejected write — a keyless station that claimed connected with no re-entry hint.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
             invalidateProviderHealth(provider);
-            notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+            notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(res), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // clear the dock's no-key warning the instant a key lands
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();             // …and the world's keyless-brain banner
             rerender('settings');
@@ -5522,8 +5640,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const inp = body.querySelector('#pool-in-' + i);
           const keys = act === 'pool-clear' ? [] : String((inp && inp.value) || '').split(/[\n,;]+/).map(v => v.trim()).filter(Boolean);
           if (act === 'pool-save' && !keys.length) { notify('paste at least one backup key, or use CLEAR POOL', 'bad'); sfx('bad'); return; }
-          Promise.resolve(h.validateAndSetKeyPool ? h.validateAndSetKeyPool(keys, row.provider) : h.setKeyPool(keys, row.provider)).then(count => {
+          Promise.resolve(h.validateAndSetKeyPool ? h.validateAndSetKeyPool(keys, row.provider) : h.setKeyPool(keys, row.provider)).then(res => {
+            const count = (res && typeof res === 'object') ? Number(res.count) || 0 : res;   // { count, engine } (#89); a bare count from older hosts
             notify(count ? ('✓ ' + count + ' verified backup key' + (count === 1 ? '' : 's') + ' active only for ' + provName(row.provider)) : ('cleared backup keys for ' + provName(row.provider)), count ? 'good' : 'warn');
+            warnIfStationLacksKey(res);   // #89: …and whether the station's copy for routines followed
             rerender('settings');
           }).catch(err => { notify('✕ ' + ((err && err.message) || 'could not update backup keys'), 'bad'); sfx('bad'); });
         } else if (act === 'baseurl-edit') {
@@ -5543,7 +5663,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (inp) inp.value = norm;
           sfx('click');
           setMsg('saved — probing endpoint…', '');
-          Promise.resolve(h.setBaseUrl ? h.setBaseUrl(norm, row.provider) : null).then(() => {
+          Promise.resolve(h.setBaseUrl ? h.setBaseUrl(norm, row.provider) : null).then(res => {
+            warnIfStationLacksKey(res);   // #89: the endpoint saved, but the station could not keep its copy for routines
             invalidateProviderHealth(row.provider);
             // HONEST reachability check against the REAL endpoint — never claim connected without proof. probeProvider
             // round-trips /api/providers/probe; the same probe result feeds the provider card badge cache.
@@ -5559,9 +5680,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const v = inp ? inp.value.trim() : '';
           if (!v) { sfx('bad'); return; }
           // same proven-store contract as the add path: no success toast over a rejected keychain write.
-          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(() => {
+          Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, row.provider) : h.setKey(v, row.provider)).then(res => {
             invalidateProviderHealth(row.provider);
-            notify('✓ updated ' + provName(row.provider) + ' API key — ' + keyStoreClause(), 'good');
+            notify('✓ updated ' + provName(row.provider) + ' API key — ' + keyStoreClause(res), 'good');
+            warnIfStationLacksKey(res);
             if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();   // keep the dock's no-key warning honest after an edit
             if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
             rerender('settings');
@@ -5575,8 +5697,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // otherwise the armed confirm would "remove" nothing and the row would immortally re-render.
           const keylessCustomRm = row.provider === 'custom' && !row.key && !!row.baseUrl;
           if (b.dataset.armed) {
-            if (keylessCustomRm && h.setBaseUrl) { h.setBaseUrl('', 'custom'); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
-            else { if (h.setKey) h.setKey('', row.provider); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
+            if (keylessCustomRm && h.setBaseUrl) { Promise.resolve(h.setBaseUrl('', 'custom')).then(warnIfStationLacksKey); notify('removed the custom endpoint — add it again anytime from the CUSTOM card', 'warn'); }
+            else { if (h.setKey) Promise.resolve(h.setKey('', row.provider)).then(warnIfStationLacksKey); notify('removed ' + provName(row.provider) + ' key — paste a new one here to reconnect', 'warn'); }
             invalidateProviderHealth(row.provider); if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); sfx('bad'); rerender('settings'); return;
           }
           // Arm: make the destructive state impossible to miss — filled --bad button + pulse, red hairline on the row,
@@ -5610,9 +5732,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!v) { sfx('bad'); if (inp) inp.focus(); return; }
       if (!h || !h.setKey) { sfx('bad'); return; }
       // same proven-store contract as the key-list paths: success UI only after setKey resolves.
-      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(() => {
+      Promise.resolve(h.validateAndSetKey ? h.validateAndSetKey(v, provider) : h.setKey(v, provider)).then(res => {
         invalidateProviderHealth(provider);
-        notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(), 'good');
+        notify('✓ connected ' + provName(provider) + ' API key — ' + keyStoreClause(res), 'good');
+        warnIfStationLacksKey(res);
         if (typeof ModelDock !== 'undefined' && ModelDock.reconcile) ModelDock.reconcile().catch(() => ModelDock.reflect && ModelDock.reflect());
         else if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
         if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
@@ -5819,6 +5942,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const claudeInstall = card.querySelector('[data-act="prov-claude-install"]');
       if (claudeInstall) claudeInstall.addEventListener('click', ev => { ev.stopPropagation(); sfx('click'); openExternal('https://code.claude.com/docs/en/setup'); });
+      // KIMI ACCOUNT REGION (#70): the pick rides the NEXT sign-in's start body; it never touches the stored sign-in.
+      card.querySelectorAll('[data-act="kimi-region"]').forEach(btn => btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (typeof KimiRegion === 'undefined' || !KimiRegion.set(btn.dataset.region)) return;
+        sfx('click');
+        rerender('settings');
+      }));
       // FIRST sign-in for a keyless device-code provider (grok/kimi) — the card-local twin of the key-row's
       // ⏼ RE-SIGN-IN, driving the SAME shared engine (OAuthSignIn.for). stopPropagation: the card click selects.
       const oauthSignin = card.querySelector('[data-act="prov-oauth-signin"]');
@@ -5965,7 +6095,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
-    return Harness.api.get('/api/credits').catch(error => {
+    // The wait outlasts the sidecar's worst case for this FULL read: a link self-heal (/v1/whoami 8s + one /v1/balance
+    // 8s), then the activity history on the healed adapter (8s) = 24s. api.get's 15s default gave up first and painted
+    // "could not check" over a funded account that was about to answer (E29, 10-07).
+    return Harness.api.get('/api/credits', { timeoutMs: 26000 }).catch(error => {
       if (/http 404\b/.test(String(error && error.message || error))) return { configured: false };
       throw error;
     })
@@ -6178,10 +6311,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const btn = host.querySelector('#credits-link');
     if (btn) btn.disabled = true;
     if (state) state.innerHTML = '<div class="set-row dim">Requesting a link code…</div>';
+    // Same failure facts as the genesis LINK (app.js startStarnetLink): a dead local engine is never "the link service".
+    const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r.ok) throw new Error('start failed'); return r.j; })
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+        () => { throw startFail({ local: true }); })
       .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
-      .catch(() => { if (generation === _creditsLinkGeneration) renderCreditsLinkCard(body, host, 'Could not reach the link service — try again.'); });
+      .catch(e => {
+        if (generation !== _creditsLinkGeneration) return;
+        const why = (typeof Friendly !== 'undefined' && Friendly.linkStartFailure) ? Friendly.linkStartFailure(e && e.linkStart) : 'could not reach the link service — try again';
+        renderCreditsLinkCard(body, host, why.charAt(0).toUpperCase() + why.slice(1) + '.');
+      });
   }
 
   // Show the STAR-XXXX code prominently (VT323/CRT), open the verify page, and poll every 2s until linked/expired.
@@ -6251,6 +6391,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // .msg is red by default; the `ok` modifier turns it gold. So a success passes ok=true, an error passes nothing.
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     let loaded = false;
+    // what each input was last painted with (+ whether that value was saved here) and the env defaults: SAVE posts only
+    // what the Commander changed — a posted untouched field became a SAVED cap, and a saved PER DAY is strict.
+    let painted = {}, paintedEnv = {};
     const enable = value => { if (saveBtn) saveBtn.disabled = !value; if (resetBtn) resetBtn.disabled = !value; };
     enable(false);
     // paint the inputs + spend readout + reset visibility from a /api/budget/status payload.
@@ -6260,6 +6403,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
+      painted = {}; paintedEnv = envd;
       BG_KEYS.forEach(k => {
         const el = inputOf(k); if (!el) return;
         // show the EFFECTIVE cap (persisted-or-env). An empty string can't represent "0 = no cap", so always fill.
@@ -6275,6 +6419,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // hover title. Truthful precedence: a saved value WINS here (env is only the fallback default, never an
         // override that silences a saved cap), so the badge says "environment default" — not "ignored".
         const savedHere = Object.prototype.hasOwnProperty.call(saved, k);
+        painted[k] = { v: Number(v), saved: savedHere };
         el.title = savedHere ? 'saved on this machine' : 'environment default (not yet saved here)';
         const badge = body.querySelector('#bg-src-' + k);
         if (badge) {
@@ -6298,14 +6443,101 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }
       const anySaved = BG_KEYS.some(k => Object.prototype.hasOwnProperty.call(saved, k));
       if (resetBtn) resetBtn.style.display = anySaved ? '' : 'none';
-      if (spendEl && st.accounting && (!st.accounting.complete || !st.accounting.durable)) {
-        spendEl.textContent = 'Spend history unavailable — spending limits cannot be verified. Restore the ledger and restart StarNet.';
+      const acc = st.accounting;
+      if (spendEl && acc && (!acc.complete || !acc.durable)) {
+        // name the cause and the fix that works for it: a restart replays a failed save, never an interrupted run
+        const open = Array.isArray(st.unsettled) ? st.unsettled.length : 0;
+        const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
+        spendEl.textContent = acc.writeError
+          ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
+          : (acc.readError === 'UNSETTLED_SPEND' && open)
+            ? 'Spend history unavailable — ' + (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent') +
+              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+            : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
         const runs = (st && typeof st.runs === 'number') ? st.runs : 0;
         spendEl.innerHTML = 'SPENT TODAY <b>' + today + '</b> &nbsp;·&nbsp; LIFETIME <b>' + life + '</b> <span class="dim">(' + runs + ' run' + (runs === 1 ? '' : 's') + ')</span>';
       }
+      paintUnsettled(st);
       paintPools(st);
+    };
+    // INTERRUPTED RUNS — a run that stopped before its spend was booked leaves that spend unknown, and a limit the
+    // Commander chose refuses every paid run until it is known. One row per run (/api/budget/status `unsettled`, only
+    // runs found at boot), settled ONLY by the amount the Commander enters from the provider dashboard, or — when the run
+    // started under a per-run limit — counted at that limit. Never a guessed figure (DECISIONS.md "Strict vs soft").
+    const unsettledEl = body.querySelector('#budget-unsettled');
+    const whenOf = ts => {
+      if (!(typeof ts === 'number' && ts > 0)) return 'time unknown';
+      try { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return new Date(ts).toISOString(); }
+    };
+    const settleRun = (r, payload, btns) => {
+      btns.forEach(b => { b.disabled = true; }); setMsg('settling…');
+      Harness.api.post('/api/budget/settle', Object.assign({ runId: r.runId }, payload))
+        .then(({ ok, j }) => {
+          if (!ok) {
+            setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; });
+            // a failed settle still changed the server (a failed write drops the run and turns accounting into a write
+            // error; a 404 means it was already settled or gone): repaint the rows + spend line from the server's truth
+            refresh();
+            return;
+          }
+          paint(j); setMsg('✓ interrupted run settled — its spend is in your history', true); sfx('click');
+        })
+        .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); btns.forEach(b => { b.disabled = false; }); });
+    };
+    const paintUnsettled = (st) => {
+      if (!unsettledEl) return;
+      unsettledEl.textContent = '';
+      const list = (st && Array.isArray(st.unsettled)) ? st.unsettled : [];
+      for (const r of list) {
+        if (!r || !r.runId) continue;
+        const row = document.createElement('div');
+        row.className = 'set-row bg-unsettled';
+        const where = [r.provider, r.model].filter(Boolean).join(' · ');
+        // WHERE the charge is: a run on StarNet credits (receipt managed:true) was billed to the managed account, so its
+        // charge is in the STORE's RECENT ACTIVITY (AI & MODELS), which lists each charge with its run id — on a linked
+        // station and an operator (env) one alike — not on a provider dashboard the user never had.
+        const managed = r.managed === true;
+        const chargedBy = managed ? 'what StarNet charged' : 'what your provider charged';
+        row.setAttribute('data-tip', 'This run stopped before StarNet recorded what it spent' +
+          (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
+          (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as run ' + String(r.runId).slice(0, 8)
+            : '. Enter the charge your provider dashboard shows for it') + ': StarNet books it once and your spending limits can be checked again.');
+        const what = document.createElement('span');
+        what.className = 'bg-un-what';
+        const name = document.createElement('b');
+        name.textContent = String(r.title || r.agentId || 'a run').slice(0, 80);
+        what.appendChild(document.createTextNode('INTERRUPTED — '));
+        what.appendChild(name);
+        what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
+        const usd = document.createElement('input');
+        usd.className = 'key-input bg-cap bg-un-usd';
+        usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
+        usd.setAttribute('inputmode', 'decimal'); usd.setAttribute('autocomplete', 'off');
+        usd.setAttribute('aria-label', chargedBy + ' for this run, in USD');
+        const btn = document.createElement('button');
+        btn.className = 'bb sm'; btn.textContent = 'SETTLE';
+        btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
+        const btns = [btn];
+        let capBtn = null;
+        if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
+          capBtn = document.createElement('button');
+          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
+          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so ' + (managed ? 'the STORE’s RECENT ACTIVITY' : 'your provider dashboard') + ' has the exact charge');
+          btns.push(capBtn);
+        }
+        btn.addEventListener('click', () => {
+          const raw = String(usd.value).trim();
+          const n = raw === '' ? NaN : Number(raw);
+          if (!Number.isFinite(n) || n < 0) { setMsg('enter ' + chargedBy + ' for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
+          settleRun(r, { usd: n }, btns);
+        });
+        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
+        row.appendChild(what); row.appendChild(usd); row.appendChild(btn);
+        if (capBtn) row.appendChild(capBtn);
+        unsettledEl.appendChild(row);
+      }
     };
     // Soft-pool truth + the one-click RESUME. /api/budget/status carries the governor's live pool reads
     // (day/global: {usd, cap, base} — null when ungoverned). A pool is HIT when spend reached its session cap;
@@ -6351,11 +6583,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       for (const k of BG_KEYS) {
         const el = inputOf(k); if (!el) continue;
         const raw = String(el.value).trim();
-        if (raw === '') { payload[k] = 0; continue; }   // blank -> "no cap" (0), matching the placeholder semantics
-        const n = Number(raw);
+        const n = raw === '' ? 0 : Number(raw);   // blank -> "no cap" (0), matching the placeholder semantics
         if (!isFinite(n) || n < 0) { setMsg(k + ': enter a number ≥ 0 (leave blank or 0 for no cap)'); sfx('bad'); el.focus(); return; }
+        const was = painted[k];
+        // Only a value the Commander CHANGED is a choice. Saving an untouched field turned the shipped soft day rail
+        // into a strict saved cap (fail-closed whenever spend history is uncertain — DECISIONS.md "Strict vs soft").
+        if (was && n === was.v) continue;
+        // Typing the environment default back into a SAVED limit clears the override, so "back to default" is the real
+        // default (the day rail soft again), not a saved copy of it.
+        if (was && was.saved && typeof paintedEnv[k] === 'number' && n === paintedEnv[k]) { payload[k] = null; continue; }
         payload[k] = n;
       }
+      if (!Object.keys(payload).length) { setMsg('no changes to save', true); return; }
       setMsg('saving…');
       Harness.api.post('/api/budget/caps', payload)
         .then(({ ok, j }) => {
@@ -6639,19 +6878,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     btn.addEventListener('click', () => {
       if (typeof Diag === 'undefined' || !Diag.copy) { setMsg('diagnostics unavailable', false); return; }
       btn.disabled = true; sfx('click');
-      Diag.copy({ notify: false }).then(ok => {
+      Diag.copy({ notify: false, onDone: (ok, text) => {
         btn.disabled = false;
         // Name the support address only when one is really configured (Diag.supportEmail() gates out the unset/
         // placeholder case); otherwise just confirm the copy — never point a user at a fake/placeholder address.
         const diagDest = (typeof Diag !== 'undefined' && Diag.supportEmail) ? Diag.supportEmail() : '';
-        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : 'copy failed — try again', ok);
-        // Clipboard-failure fallback: if Lane A's on-screen renderer is present, show the report block so the user can
-        // select-and-copy it by hand. Defensive: the helper may not exist in this build yet — keep current behavior then.
-        // (Orchestrator reconciles the exact API at merge.)
+        setMsg(ok ? (diagDest ? ('✓ copied — paste it into an email to ' + diagDest) : '✓ copied — paste it into a bug report') : (text ? 'copy blocked — report shown below' : 'could not read diagnostics — try again'), ok);
+        // Clipboard-failure fallback: show the report the failed copy already read (onDone's text — no second fetch)
+        // as a selectable block, so the user can select-and-copy it by hand.
         if (!ok && typeof Diag !== 'undefined' && typeof Diag.showBlock === 'function') {
-          try { Diag.showBlock(body.querySelector('#diag-block') || body); } catch (_) {}
+          try { Diag.showBlock(body.querySelector('#diag-block') || body, { text }); } catch (_) {}
         }
-      });
+      } });
     });
 
     // LIVE DOCTOR: explicit second consent, then one bounded host request. Results stay visible and copyable;
@@ -6707,7 +6945,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         sessionRow: store.settings.sessionRow,
         flicker: store.settings.flicker, crtGlass: store.settings.crtGlass,
         staticLevel: store.settings.staticLevel,
-        sound: store.settings.sound, keepComputerAwake: store.settings.keepComputerAwake
+        sound: store.settings.sound, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
       }, notifyPrefs: Object.assign({}, store.settings.notifyPrefs || notifyDefaults()) };
       try { if (typeof AutonomyStore !== 'undefined' && AutonomyStore.exportState) out.autonomy = AutonomyStore.exportState(); } catch (_) {}
       return out;
@@ -6947,6 +7185,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<h4 class="ms-h">Spending limits <span class="dim">— in USD</span></h4>' +
       '<p class="set-about">Limits apply to recorded agent spending. <b>Blank or 0 means no cap.</b> Changes take effect when you save; unsaved limits follow their environment defaults.</p>' +
       '<div id="budget-spend" class="set-row dim">reading spend…</div>' +
+      '<div id="budget-unsettled"></div>' +   // interrupted runs whose charge is unknown + their SETTLE (only rendered when one exists)
       '<div id="budget-pools"></div>' +   // soft-pool cap state + the one-click RESUME (only rendered when a pool is actually hit)
       '<div class="mc-form" id="budget-form">' +
         '<div class="set-row"><label for="bg-perRun">PER RUN <span class="src-badge" id="bg-src-perRun" hidden></span></label><input id="bg-perRun" class="key-input bg-cap" type="number" min="0" step="0.01" inputmode="decimal" autocomplete="off" placeholder="blank or 0 = no cap"></div>' +
@@ -7071,6 +7310,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         return '<button class="set-theme ' + (cur === v ? 'sel' : '') + '" aria-pressed="' + (cur === v ? 'true' : 'false') + '" data-sdock="' + v + '">' + name + '</button>';
       }).join('') +
       '</div>' +
+      // HINTS (hint.js) — the glossary bubble on hover; once the station's words are familiar it can go quiet.
+      '<label class="set-row"><input type="checkbox" id="set-hints" ' + (s.hints ? 'checked' : '') + '> HINTS <span class="dim">— explain station terms when you hover them</span></label>' +
       // CRT — its own section, and a LEVEL rather than a named mode. Framing this as an
       // accessibility fix ("easy read") tells the people who like the tube that they are enduring
       // something, which is not what most of them report. There is no OFF: the station is a CRT.
@@ -7289,8 +7530,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const b = mkEl('button', 'bb sm', 'OPEN SAVED SIGN-INS'); b.type = 'button'; b.id = 'set-open-signins';
         b.addEventListener('click', () => { sfx('click'); openTerm('stepin'); });
         row.appendChild(b); el.appendChild(row);
+        // #61 RESET STATION BROWSER (app/datareset.js owns it)
+        if (typeof DataReset !== 'undefined' && DataReset.mountBrowserReset) DataReset.mountBrowserReset(el);
       } },
-      { id: 'system', label: 'APP & BACKUP', glyph: '⚙', desc: 'Startup, runtime limits, backups, updates, and troubleshooting.', build: frag(secSystem) }
+      { id: 'system', label: 'APP & BACKUP', glyph: '⚙', desc: 'Startup, runtime limits, backups, updates, and troubleshooting.', build: el => { frag(secSystem)(el); if (typeof DataReset !== 'undefined' && DataReset.mountErase) DataReset.mountErase(el); } }   // #65 ERASE EVERYTHING (app/datareset.js)
     ];
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
@@ -7355,7 +7598,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireSlider(brightIn, v => { s.panelBright = clampN(v, -100, 100, 0); sliderVal('#set-bright-val', s.panelBright + '%'); });
     wireSlider(host.querySelector('#set-static'), v => { s.staticLevel = clampN(v, 0, 200, 100); sliderVal('#set-static-val', s.staticLevel + '%'); });
     const bind = (id, key) => host.querySelector(id).addEventListener('change', ev => { s[key] = ev.target.checked; applySettings(); save(); flashSaved(appMsg()); });
-    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound');
+    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-hints', 'hints');
     const lightingChips = host.querySelectorAll('#set-lighting [data-lighting]');
     lightingChips.forEach(b => b.addEventListener('click', () => {
       s.roomLighting = resolveRoomLighting(b.dataset.lighting);
@@ -10960,12 +11203,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const bds = typeof SpaceBG === 'undefined' ? [] : [].concat(SpaceBG.list()).concat(typeof Terrain === 'undefined' || !Terrain.list ? [] : Terrain.list());
     return { theme: THEMES.map(([n]) => n).concat('custom'), themeHue: '0-359', themeSat: '0-100', themeGlow: '0-150', panelBright: '-100-100',
       roomLighting: ROOM_LIGHTING_STEPS.map(([id]) => id), textScale: TEXT_SCALES.map(([v, n]) => v + ' (' + n + ')'), flicker: 'true|false',
-      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
+      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
       notifyPrefs: Object.keys(notifyDefaults()).join('|') + ': true|false' };
   }
   function lookNow() {
     const s = store.settings, out = {};
-    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
+    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
     out.notifyPrefs = Object.assign({}, s.notifyPrefs);
     return out;
   }
@@ -10988,7 +11231,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       else if (k === 'sessionRow') pick(k, ROW_STEPS.map(([id]) => id));
       else if (k === 'backdrop') pick(k, opts.backdrop);
       else if (k === 'textScale') { const v = Number(patch[k]); if (!TEXT_SCALES.some(([n]) => n === v)) throw new Error('textScale must be one of: ' + TEXT_SCALES.map(([n, l]) => n + ' (' + l + ')').join(', ')); next[k] = v; }
-      else if (k === 'flicker' || k === 'sound') bool(k);
+      else if (k === 'flicker' || k === 'sound' || k === 'hints') bool(k);
       else if (k === 'notifyPrefs') {
         const np = patch[k]; if (!np || typeof np !== 'object') throw new Error('notifyPrefs takes { runComplete, needsApproval, cronDigest, sound } as true/false');
         const d = notifyDefaults(); next[k] = Object.assign({}, store.settings.notifyPrefs);
@@ -11009,7 +11252,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, showTerm, showAgent, notifsMarkRead, notifsClear, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, flashSave, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, showTerm, showAgent, notifsMarkRead, notifsClear, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

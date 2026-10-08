@@ -320,7 +320,7 @@ const Harness = (() => {
     // they are configured identically in a browser build and a packaged one. Probing after the return would
     // leave configured('starnet') false forever anywhere that isn't Tauri — including every dev session.
     await refreshCreditsConfigured();
-    if (!DESKTOP) return;
+    if (!DESKTOP) { syncEngineKeysOnBoot(); return; }   // #89: never awaited — boot must not wait on it
     let loaded = false;
     try {
       const status = await invoke('harness_provider_key_status');
@@ -491,6 +491,7 @@ const Harness = (() => {
         .catch(e => { setDesktopConfigured(p, false); throw e; });
     }
     writeScoped(LS.key, p, k || '');
+    return syncEngineKey(p).then(engine => ({ engine }));   // #89: resolves (never rejects) with whether routines have it
   };
   function keyPoolSize(provider) {
     const p = normalizeProviderId(provider || getProv());
@@ -502,21 +503,132 @@ const Harness = (() => {
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
     if (DESKTOP) {
       return invoke('harness_store_provider_key_pool', { provider: p, keys: cleaned })
-        .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return count; });
+        .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return { count }; });
     }
     writeScoped(LS.keyPool, p, JSON.stringify(cleaned));
-    return Promise.resolve(cleaned.length);
+    // #89: the station's copy follows the backups too — resolves { count, engine } like setKey's { engine }
+    return syncEngineKey(p).then(engine => ({ count: cleaned.length, engine }));
+  }
+  /* #89 THE STATION KEEPS A COPY. In the browser build a key lives in this page's localStorage and rides each
+     interactive /api/run — so chat works — but a scheduled routine, Run Now, the night shift or a line hop runs with
+     no page attached and resolves its key on the station. So whenever a provider's key, backups or endpoint change
+     here (and once per page boot for what is already saved), hand the station that provider's FULL config through the
+     token-gated /api/providers/engine-key; an all-empty config removes the station's copy. The desktop app (keychain)
+     and dev (server-held key) never call it, nor do the sign-in providers. Never rejects — the key is already saved in
+     this browser either way — and resolves { ok, error? }: whether unattended runs have it (presence only; the station
+     never echoes a key back).
+     localStorage is per ORIGIN (localhost:8787, 127.0.0.1:8787 and a forwarded port are three separate stores), so each
+     page remembers per provider the station revision it last proved (ENGINE_SYNC_SLOT { rev, pending }). A boot
+     hand-over carries that revision and the station takes it only if nothing changed since — an older page can never
+     put back a key the Commander rotated or removed elsewhere. A save or REMOVE that failed to reach the station is
+     `pending`: the next page boot retries it (on the same condition) until the station confirms it. */
+  const ENGINE_SYNC_SKIP = { codex: 1, grok: 1, kimi: 1, starnet: 1, 'claude-cli': 1 };
+  const ENGINE_SYNC_SLOT = 'starnet.byok.engineSync';
+  const ENGINE_RETRY_NOTE = ' — this page retries the next time it loads';
+  function engineConfigOf(p) {
+    let keyPool = [];
+    try { const pool = JSON.parse(readScoped(LS.keyPool, p) || '[]'); if (Array.isArray(pool)) keyPool = pool; } catch (_) { keyPool = []; }
+    return { provider: p, key: readScoped(LS.key, p) || '', keyPool, baseUrl: readScoped(LS.baseUrl, p) || '' };
+  }
+  function engineSyncState(p) {
+    try {
+      const s = JSON.parse(localStorage.getItem(providerSlot(ENGINE_SYNC_SLOT, p)) || 'null');
+      if (s && typeof s === 'object') return { rev: String(s.rev || ''), pending: s.pending === true };
+    } catch (_) { /* unreadable = this page has proved nothing yet */ }
+    return { rev: '', pending: false };
+  }
+  function setEngineSyncState(p, s) {
+    try {
+      if (!s.rev && !s.pending) localStorage.removeItem(providerSlot(ENGINE_SYNC_SLOT, p));
+      else localStorage.setItem(providerSlot(ENGINE_SYNC_SLOT, p), JSON.stringify({ rev: s.rev || '', pending: !!s.pending }));
+    } catch (_) { /* storage full/blocked: the next explicit save still hands the station its copy */ }
+  }
+  async function syncEngineKey(provider, boot) {
+    const p = normalizeProviderId(provider || getProv());
+    if (DESKTOP || DEVMODE || ENGINE_SYNC_SKIP[p]) return { ok: true, skipped: true };
+    const config = engineConfigOf(p);
+    const removing = !(config.key || config.keyPool.length || config.baseUrl);
+    const state = engineSyncState(p);
+    const body = boot ? Object.assign({}, config, { boot: true, ifRev: state.rev }) : config;
+    let out, retry = false;
+    try {
+      const r = await fetch('/api/providers/engine-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const text = await r.text().catch(() => '');
+      let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
+      if (r.ok && j.ok) {
+        out = { ok: true, keySource: String(j.keySource || ''), unattendedReady: !!j.unattendedReady };
+        // stale = another page changed this provider on the station since this one last did: keep the revision this
+        // page proved (never the newer one — that would let this page's older config win its next boot)
+        if (j.stale) out.stale = true;
+        setEngineSyncState(p, { rev: j.stale ? state.rev : String(j.rev || ''), pending: false });
+      } else {
+        retry = r.status >= 500;
+        out = { ok: false, error: j.error ? String(j.error) : removing
+          ? 'the station refused to delete its copy of this connection (HTTP ' + r.status + ') — routines and other unattended runs keep using it until a retry succeeds'
+          : 'the station refused to keep a copy for routines (HTTP ' + r.status + ') — chat in this browser still works' };
+      }
+    } catch (_) {
+      retry = true;
+      out = { ok: false, error: removing
+        ? 'the station could not be reached to delete its copy of this connection — routines and other unattended runs keep using it until a retry succeeds'
+        : 'the station could not be reached to keep a copy for routines — chat in this browser still works' };
+    }
+    if (!out.ok) {
+      if (retry) { setEngineSyncState(p, { rev: state.rev, pending: true }); out.error += ENGINE_RETRY_NOTE; }
+      console.warn('[harness] ' + p + ': ' + out.error);
+    }
+    return out;
+  }
+  // once per page boot: every provider this browser holds a key, backup pool or endpoint for, plus any whose last
+  // change (a save OR a REMOVE) never reached the station. Each rides as a BOOT hand-over (see above): it fills a
+  // station that holds nothing and retries this page's own failed change, but never overwrites a newer one.
+  function syncEngineKeysOnBoot() {
+    if (DESKTOP || DEVMODE) return Promise.resolve([]);
+    const seen = new Set();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = String(localStorage.key(i) || '');
+        if (k === LS.key || k === LS.keyPool || k === LS.baseUrl) seen.add('openrouter');
+        for (const base of [LS.key, LS.keyPool, LS.baseUrl, ENGINE_SYNC_SLOT]) if (k.indexOf(base + '.') === 0) seen.add(normalizeProviderId(k.slice(base.length + 1)));
+      }
+    } catch (_) { return Promise.resolve([]); }   // storage unavailable: nothing saved here to hand over
+    const jobs = [];
+    for (const p of seen) {
+      const c = engineConfigOf(p);
+      if (c.key || c.keyPool.length || c.baseUrl || engineSyncState(p).pending) jobs.push(syncEngineKey(p, true));
+    }
+    return Promise.all(jobs);
+  }
+  // #62: no provider key contains whitespace — a key pasted out of a narrow SSH terminal can carry a line wrap (or a
+  // zero-width char from a web page) in its MIDDLE, which .trim() never removed. Strip them all (the sidecar does too).
+  const cleanKey = k => String(k == null ? '' : k).replace(/[\s\u200b-\u200d\u2060\ufeff]+/g, '');
+  /* #62: WHY a key check failed, in words. The sidecar's /api/providers/validate answers 200 with { error } for a
+     provider verdict, but the route itself can be refused before it runs (403 forbidden origin/host/token, 423 frozen)
+     with a non-JSON body — which used to fold into "the provider did not verify this key" while the provider was
+     never even asked. Name the station's refusal and its fix instead. PURE (test-locked). */
+  function keyCheckFailure(status, j, text) {
+    j = j || {};
+    if (j.error) return String(j.error);
+    const t = String(text == null ? '' : text).trim().slice(0, 80);
+    if (status >= 200 && status < 300) return 'the provider did not verify this key';
+    const hint = /forbidden origin/.test(t) ? ' — this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
+      : /forbidden host/.test(t) ? ' — StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
+      : /forbidden token/.test(t) ? ' — the station restarted since this page loaded; reload the page'
+      : '';
+    return 'the station refused the key check (HTTP ' + status + (t && !/^[{<]/.test(t) ? ' ' + t : '') + ')' + hint;
+  }
+  async function postKeyCheck(route, body) {
+    const r = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const text = await r.text().catch(() => '');
+    let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
+    return { r, j, text };
   }
   async function validateAndSetKeyPool(keys, provider) {
     const p = normalizeProviderId(provider || getProv());
-    const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
+    const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(cleanKey).filter(Boolean))).slice(0, 8);
     for (const candidate of cleaned) {
-      const r = await fetch('/api/providers/validate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' })
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.credentialVerified) throw new Error(String(j.error || 'a backup key was rejected') + ' — your previous backup pool is unchanged');
+      const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
+      if (!r.ok || !j.credentialVerified) throw new Error((r.ok && !j.error ? 'a backup key was rejected' : keyCheckFailure(r.status, j, text)) + ' — your previous backup pool is unchanged');
     }
     return setKeyPool(cleaned, p);
   }
@@ -555,6 +667,7 @@ const Harness = (() => {
     if (DESKTOP) {
       return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' }).catch(() => {});
     }
+    return syncEngineKey(p).then(engine => ({ engine }));   // #89: an endpoint saved here reaches unattended runs too (resolves { engine } like setKey)
   };
   function defaultReasoningEffortForProvider(provider) {
     const p = normalizeProviderId(provider);
@@ -745,12 +858,14 @@ const Harness = (() => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: p, key: getKey(p) || '', baseUrl })
       });
-      const j = await r.json().catch(() => ({}));
+      const text = await r.text().catch(() => '');
+      let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
       return {
         provider: p, credentialSaved, endpointConfigured,
         reachable: !!(r.ok && j.reachable), catalogAvailable: !!(j && j.catalogAvailable),
         credentialVerified: !!(j && j.credentialVerified), selected,
-        error: String((j && j.error) || '')
+        // a refused probe (403 origin/host/token) names the refusal, never a blank "check failed" (#62)
+        error: r.ok ? String((j && j.error) || '') : keyCheckFailure(r.status, j, text).replace('key check', 'provider check')
       };
     } catch (_) { return fallback; }
   }
@@ -759,18 +874,14 @@ const Harness = (() => {
   // never mutates provider state, so a rejection/timeout leaves the previous working key untouched.
   async function validateAndSetKey(key, provider) {
     const p = normalizeProviderId(provider || getProv());
-    const candidate = String(key || '').trim();
+    const candidate = cleanKey(key);
     if (!candidate) return setKey('', p);
-    const r = await fetch('/api/providers/validate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' })
-    });
-    const j = await r.json().catch(() => ({}));
+    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
     if (!r.ok || !j.credentialVerified) {
-      throw new Error(String(j.error || 'the provider did not verify this key') + ' — your previous key is unchanged');
+      throw new Error(keyCheckFailure(r.status, j, text) + ' — your previous key is unchanged');
     }
-    await Promise.resolve(setKey(candidate, p));
-    return Object.assign({}, j, { stored: true });
+    const stored = await Promise.resolve(setKey(candidate, p));
+    return Object.assign({}, j, { stored: true }, (stored && stored.engine) ? { engine: stored.engine } : {});
   }
 
   // PURE (test-locked in harness-internal.test.js): fold a sidecar error-response body into the human tail of
@@ -870,6 +981,7 @@ const Harness = (() => {
     const dec = new TextDecoder();
     let buf = '', full = '', lastUsage = null, runId = null, errMsg = null, endReason = null, finishReason = null, completionVerdict = 'not_assessed', effectVerdict = 'no_observed_effects';
     let budgetScope = null, budgetCapUsd = null;   // additive: WHICH spend cap ended a 'budget' run (+ its $ cap)
+    let budgetCapIsBalance = false;   // additive: that per-run ceiling was the StarNet balance (sidecar admission clamp)
     let sawLeadEnd = false;
 
     try {
@@ -949,6 +1061,7 @@ const Harness = (() => {
               // additive budget-stop detail: which cap fired + the effective $ cap (absent on non-budget stops)
               budgetScope = payload.budgetScope || null;
               budgetCapUsd = (typeof payload.budgetCapUsd === 'number' && isFinite(payload.budgetCapUsd)) ? payload.budgetCapUsd : null;
+              budgetCapIsBalance = payload.budgetCapIsBalance === true;
             }
             break;   // the lead's own end, not a forwarded worker's
         }
@@ -966,8 +1079,8 @@ const Harness = (() => {
     if (!sawLeadEnd && !errMsg) throw new Error('Reply stream disconnected before completion was confirmed.');
     // surface the error to the caller (do NOT swallow it just because some text streamed first) —
     // a network/fetch failure still throws below; this is for in-band run errors / capdenied.
-    if (errMsg) return { text: full, usage: lastUsage, runId, error: errMsg, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd };
-    return { text: full, usage: lastUsage, runId, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd };
+    if (errMsg) return { text: full, usage: lastUsage, runId, error: errMsg, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance };
+    return { text: full, usage: lastUsage, runId, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance };
   }
 
   /* Read-only fetch of an agent's notebook (its memory.md) from the sidecar. The agent writes these notes
@@ -1333,6 +1446,49 @@ const Harness = (() => {
       .catch(() => done(timedOut ? null : false));
   }
 
+  /* ENGINE RECOVERY (link-down 2026-10-07): the in-game LINK DOWN chip and the boot SAVE-UNKNOWN screen share ONE
+     reading of why the station service is gone and ONE restart door. Before this the reason probe and the restart
+     lived only on the boot screen, so a crash-loop hold after the game loaded showed a red LINK DOWN with no reason
+     and no way out ("I could not find where I could quit/restart").
+     engineState(timeoutMs) -> { state, reason }, never throws:
+       'ok'       /api/health answered 200 — the service is up (a dead link is this window's, not the engine's)
+       'degraded' it answered 503 'degraded: …' (crash-loop breaker / workspace-owner hold) — reason is that text VERBATIM
+       'silent'   nothing answered inside the budget (a hung service)      'down' the request was refused outright
+     For silent/down the desktop guardian's halt (starnet_sidecar_status) is the reason when it has one. Same 4s budget
+     as pingEngine and for the same measured reason: a hung service must not leave the probe pending forever.
+     restartEngine() -> Promise<bool>: the desktop shell kills and respawns the sidecar (same port, same per-launch
+     token — the World bridge reconnects on its own). false in a browser (nothing to restart) or on any failure.
+     Single-flight: a double click never fires two restarts. */
+  function tauriCoreNow() { return (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) ? window.__TAURI__.core : null; }
+  async function engineState(timeoutMs) {
+    const budget = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 4000;
+    let ac = null, timer = null, timedOut = false, state = 'down', reason = '';
+    try { ac = new AbortController(); } catch (_) { ac = null; }
+    try {
+      const answer = fetch('/api/health', Object.assign({ cache: 'no-store' }, ac ? { signal: ac.signal } : {})).then(async r => {
+        if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) return { state: 'degraded', reason: t }; }
+        return { state: 'ok', reason: '' };
+      });
+      const deadline = new Promise((_, reject) => { timer = setTimeout(() => { timedOut = true; try { if (ac) ac.abort(); } catch (_) {} reject(new Error('timeout')); }, budget); });
+      ({ state, reason } = await Promise.race([answer, deadline]));
+    } catch (_) { state = timedOut ? 'silent' : 'down'; reason = ''; }
+    finally { if (timer) clearTimeout(timer); }
+    const core = tauriCoreNow();
+    if (!reason && state !== 'ok' && core) {
+      try { const g = await core.invoke('starnet_sidecar_status'); if (g && g.halted && g.reason) reason = 'station service halted: ' + String(g.reason); } catch (_) {}
+    }
+    return { state, reason };
+  }
+  let restartInflight = null;
+  function restartEngine() {
+    const core = tauriCoreNow();
+    if (!core) return Promise.resolve(false);
+    if (restartInflight) return restartInflight;
+    restartInflight = Promise.resolve().then(() => core.invoke('starnet_restart_sidecar')).then(up => up === true, () => false)
+      .finally(() => { restartInflight = null; });
+    return restartInflight;
+  }
+
   // Durable interrupted-run recovery. Listing is read-only; preparation is accepted only when the sidecar's
   // journal proves there is no uncertain dispatched mutation. The returned token is one-shot and consumed by
   // the ordinary /api/run path, so recovery does not create a privileged second execution route.
@@ -1395,7 +1551,8 @@ const Harness = (() => {
   }
 
   return {
-    pingEngine,
+    pingEngine, engineState, restartEngine,
+    canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, hasStoredCredential, setDesktopConfigured,
     listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentAnswer, summonAck, notebook,

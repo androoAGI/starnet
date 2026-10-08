@@ -108,7 +108,9 @@
     {
       // KIMI OAUTH — Moonshot's Kimi for Coding on a Kimi subscription via the RFC 8628 device-code flow. Auth
       // requests carry the kimi-cli X-Msh-* headers (extraHeaders below + the runtime X-Msh-Os-Version /
-      // X-Msh-Device-Id the host injects). Inference is OpenAI-compatible at api.kimi.com/coding/v1.
+      // X-Msh-Device-Id the host injects). Inference is OpenAI-compatible at api.kimi.com/coding/v1 for a China
+      // account (this baseUrl, the legacy default) or api.kimi.ai/coding/v1 for a Global one: the host resolves the
+      // real base from the sign-in's stored region (providers/kimi-region.js, #70).
       id: 'kimi',
       aliases: ['moonshot', 'kimi-code', 'kimi-oauth'],
       name: 'Kimi for Coding',

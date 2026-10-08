@@ -265,6 +265,12 @@
               <div class="codex-signin">
                 <div id="codex-status" class="codex-status">checking…</div>
                 <div id="codex-code" class="codex-code hidden"></div>
+                <!-- KIMI ACCOUNT REGION (#70): a kimi.ai account can only sign in at kimi.ai, a kimi.com one at kimi.com -->
+                <div id="kimi-region" class="codex-actions kimi-region hidden" role="group" aria-label="Kimi account region">
+                  <span class="dim">ACCOUNT REGION</span>
+                  <button type="button" class="btn" data-kimi-region="global" aria-pressed="false">GLOBAL · kimi.ai</button>
+                  <button type="button" class="btn" data-kimi-region="cn" aria-pressed="false">CHINA · kimi.com</button>
+                </div>
                 <div class="codex-actions">
                   <button type="button" id="btn-codex-signin" class="btn">⏼ SIGN IN WITH CHATGPT ▸</button>
                   <button type="button" id="btn-codex-open" class="btn hidden">↗ OPEN PAGE</button>
@@ -727,7 +733,7 @@
          same Recruitment Bay in different modes — now a single #bb-recruit opens the bay once, and
          the class dossier offers BOTH verbs (summon new / deploy to current). -->
     <div class="bb-group" data-group="crew">
-      <button class="bb-grp" aria-haspopup="menu" aria-expanded="false" title="Your agents — dossiers, recruitment, and your own Commander file"><span class="bb-gi">☻</span>CREW<span id="bb-crew-stepin-badge" class="bb-grp-badge" aria-label="agents waiting for you in STEP-IN" hidden></span></button>
+      <button class="bb-grp" data-hint="crew" aria-haspopup="menu" aria-expanded="false" title="Your agents — dossiers, recruitment, and your own Commander file"><span class="bb-gi">☻</span>CREW<span id="bb-crew-stepin-badge" class="bb-grp-badge" aria-label="agents waiting for you in STEP-IN" hidden></span></button>
       <div class="bb-menu" role="menu">
         <button class="bb" data-term="agents"><span class="bb-i">◉</span><span class="bb-tx"><b>AGENTS</b><small>each crew member's dossier — config, memory, record</small></span></button>
         <button class="bb" id="bb-recruit" data-hint="recruit"><span class="bb-i">＋</span><span class="bb-tx"><b>RECRUIT</b><small>grow the crew — summon a class, or re-spec your agent</small></span></button>
@@ -1004,6 +1010,7 @@
 <script src="app/cloudsavecore.js"></script><!-- pure retry/health brain (unit-tested); MUST load before cloudsave.js -->
 <script src="app/cloudsave.js"></script>
 <script src="app/freshstart.js"></script><!-- desktop escape: quarantine local station even when sidecar HTTP is unavailable -->
+<script src="app/datareset.js"></script><!-- #65 ERASE EVERYTHING + #61 RESET STATION BROWSER (Settings) -->
 <script src="app/backup.js"></script>
 <script src="app/dialogue.js"></script>
 <script src="app/wakemind.js"></script><!-- Interview 2.0: the pure engine behind the awakening's LIVE generated beats -->

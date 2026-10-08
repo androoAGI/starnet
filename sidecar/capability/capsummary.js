@@ -21,6 +21,8 @@
 
 'use strict';
 
+const { delegatedCommandGap } = require('./withheld.js');
+
 // capId -> plain-English power + the object/role that grants it. Order = display order.
 // `probe` is the capability's HEADLINE tool: the one whose survival actually justifies the prose.
 // Static capIds + probes come from CAP_REGISTRY. MCP connector tools are dynamic and therefore
@@ -49,6 +51,13 @@ function summarizeCapabilities(resolved, opts) {
   // capability prose distinct from both a watched browser floor and ordinary unattended automation.
   const ownerTrusted = !!opts.ownerTrusted;
   const unrestrictedHost = opts.unrestrictedHost === true;
+  // host-minted (runOnce o.delegatedBy): the lead that dispatched this worker run; '' for every other run
+  const delegatedBy = String(opts.delegatedBy || '').trim();
+  // host-minted (runOnce `!isTask`): a conversational turn is sent with NO tool declarations. The grant set below is
+  // still the station's truth, but "You CAN: search/fetch the web" on a turn with nothing to call told the model it
+  // had powers it could not reach -- it then wrote tool-call markup as text or claimed it had searched (the
+  // claude-cli adapter's "No tools are available in this turn" is the same fact for that one provider).
+  const toolless = opts.toolless === true;
 
   const capIds = new Set(((resolved && resolved.grants) || []).map((g) => g && g.capId).filter(Boolean));
   const toolNames = Array.isArray(resolved && resolved.tools) ? resolved.tools : [];
@@ -76,7 +85,11 @@ function summarizeCapabilities(resolved, opts) {
       ? 'FULL POWER is active: the Commander authorized the whole local computer. StarNet policy must not refuse a host task; only report real unavailable OS, hardware, credential, account, or service prerequisites. '
       : 'These are your REAL powers this run, decided by the objects placed on your station floor and host-granted station roles -- not aspirational. ') +
     'This block is AUTHORITATIVE: if anything earlier in your instructions implies you always have web or file access, ignore it -- what follows is what you ACTUALLY have right now:\n' +
-    '- You CAN: ' + haveStr + '.\n';
+    (toolless && havePhrases.length
+      ? '- Your station grants: ' + haveStr + '. NONE of these tools are attached to THIS reply (a conversational turn): ' +
+        'do not write tool-call markup, and never claim you searched, fetched, browsed, read, ran or saved anything in this reply. ' +
+        'If the Commander wants one of these done, say you can do it and ask them to say exactly what to do; the tools attach to that message.\n'
+      : '- You CAN: ' + haveStr + '.\n');
 
   // On the UNATTENDED surface, absent connector tools are themselves a missing power worth naming -- and the
   // block must render even when lackCore is EMPTY (a routine granted the terminal has no lacking core cap, yet
@@ -93,6 +106,20 @@ function summarizeCapabilities(resolved, opts) {
         (capIds.has('orchestrator') ? 'and offer to place it yourself (station builder add; they approve; works from their next message): ' : 'and name the object to place to grant it: ') +
         lackCore.map((c) => c.have + ' -> place ' + c.object).join('; ') + '. ' +
         'You can always think and reply; that needs nothing.\n';
+    } else if (delegatedBy) {
+      // A DELEGATED worker (issue #77) is not a routine and nobody set a per-routine grant: the "UNATTENDED ... per-routine
+      // grant" prose below sent a worker in a watched project conversation to conclude "shell is unavailable" with no
+      // step anyone could take. Same withheld set, its true cause, and the route that works (withheld.js wording).
+      const lacksCommands = lackCore.some((c) => c.id === 'workbench');
+      const gap = delegatedCommandGap(delegatedBy);
+      note += 'This is a DELEGATED worker run for ' + delegatedBy + ', not a watched conversation, so ' + lackAutonomous.join(', ') +
+        ' and desktop control are unavailable to you here' + (lacksCommands ? '. ' : '; placing objects cannot change that. ') +
+        (lacksCommands
+          ? 'Commands: ' + gap.why + '. ' +
+            (toolNames.some((t) => /^shell\.bg\./.test(String(t))) ? 'The shell_bg_* tools you see only inspect or stop processes you already started; they cannot run a command. ' : '') +
+            'Do NOT report that the station has no shell. Instead, ' + gap.enable + '. '
+          : '') +
+        'Do NOT claim, promise, or pretend to do what you lack. Do everything you genuinely can, then state plainly what is left for ' + delegatedBy + '.\n';
     } else if (ownerTrusted) {
       note += 'This is an authenticated owner Telegram session: it has the same non-physical authority as the StarNet desktop app. ' +
         'Do NOT claim, promise, or pretend to do what is genuinely absent; state the actual missing setup or tool plainly.\n';

@@ -31,6 +31,9 @@ body {
 .tb-connection:has(#sig.down) { border-color: color-mix(in srgb,var(--link-down) 45%,transparent); }
 .tb-connection:has(#sig.down) .tb-link-mark { stroke: var(--link-down); }
 .tb-connection:has(#sig.standby) .tb-link-mark { stroke: var(--ph-dim); opacity: .5; }
+/* LINK DOWN restart door (topbar.js setRecoverable, desktop only): the connection box itself is the control */
+.tb-connection.recoverable { cursor: pointer; }
+.tb-connection.recoverable:hover, .tb-connection.recoverable:focus-visible { border-color: var(--link-down); outline: none; }
 #topbar #save-dot { display: block; position: absolute; right: 7px; bottom: 8px; font-size: 8px; }
 @media (max-width: 1150px) {
   #topbar .tb-stat.station { padding-inline: 9px; grid-template-columns: minmax(50px,auto); }
@@ -389,6 +392,8 @@ body[data-fam-switch] #terms .term.term-closing { display: none !important; }
 #screen-game :is(#bottombar .bb-menu .bb):disabled { --ui-key-label: var(--ph-dim); }
 /* Keep this finish on the navigation dock and hover nameplates only. */
 #bottombar .bb-menu, .station-tip.dock-tip, body > .hint-bubble.dock-tip { background: var(--ui-dock-face); }
+/* The dock's hovers are glossary hints: they wear the station tip's nameplate in the theme phosphor, not gold. */
+body > .hint-bubble.dock-tip { color: var(--ph-bright); border: 1px solid var(--ph-dim); border-radius: 2px; text-shadow: none; box-shadow: 0 3px 0 rgba(0,0,0,.7), inset 2px 0 0 var(--ph); }
 #bottombar .bb-group:not(.open) > .bb-grp,
 #screen-game #bottombar .bb-menu .bb { background: var(--ui-dock-face); }
 #bottombar .bb-group:not(.open) > .bb-grp:is(:hover, :focus-visible),

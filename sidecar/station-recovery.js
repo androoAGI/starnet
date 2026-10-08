@@ -191,14 +191,53 @@ function classifyPolicy(rel, st) {
   return { action: 'include' };
 }
 
-function walkFiles(root, fs, path) {
+/* ONE UNREADABLE ENTRY NEVER ABORTS THE STATION (#91). Windows handed a shadow-Git checkpoint an entry that
+   directory enumeration lists but lstat/readlink/realpath all answer ENOENT (a zero-length reparse point); the
+   unguarded lstat threw, the capture aborted, and every in-app update stopped at "no verified recovery point".
+   These codes mean THIS entry cannot be read right now (vanished mid-walk, locked, denied, an unresolvable
+   reparse point) — it is listed in skipped as 'unreadable: <CODE>' and the walk goes on. The capture ROOT stays
+   fail-closed, and any other error (EIO, EMFILE, a code-less bug) still aborts. */
+const UNREADABLE_ENTRY = new Set(['ENOENT', 'ENOTDIR', 'EISDIR', 'EPERM', 'EACCES', 'EBUSY', 'ELOOP', 'EINVAL', 'UNKNOWN']);
+function unreadableCode(e) { return e && UNREADABLE_ENTRY.has(e.code) ? e.code : null; }
+// savestore's last-known-good generation of a JSON store: the <file>.bak bytes when they read AND parse, else null
+function lastKnownGood(fs, abs) {
+  try { const bak = fs.readFileSync(abs + '.bak'); JSON.parse(bak.toString('utf8')); return bak; }
+  catch (_) { return null; }
+}
+
+// classifyPolicy skips every file under these top-level directories anyway, so they are skipped WHOLE before
+// descending: walking a live Chrome profile (files vanishing mid-walk) or a provider token dir only risked the walk.
+function skippedWholeTop(rel) {
+  const p = slash(rel).toLowerCase();
+  return p.indexOf('/') < 0 && (EPHEMERAL_TOP.has(p) || SYSTEM_SECRET_TOP.has(p));
+}
+
+function walkFiles(root, fs, path, unreadable) {
   const out = [];
   function visit(abs, rel) {
-    const st = fs.lstatSync(abs);
-    if (st.isDirectory()) {
-      const names = fs.readdirSync(abs).slice().sort();
-      for (const name of names) visit(path.join(abs, name), rel ? path.join(rel, name) : name);
-    } else out.push({ abs, rel: slash(rel), st });
+    let st, names;
+    // the ROOT is stat'ed, not lstat'ed: a WORKSPACES reached through a junction/symlink IS the station (capture() validated
+    // it with stat), and lstat made the whole root one symlink skip — a recovery point with zero files
+    try { st = rel ? fs.lstatSync(abs) : fs.statSync(abs); }
+    catch (e) {
+      if (!rel || !unreadableCode(e)) throw e;
+      // a credential/runtime dir is excluded by policy either way: keep its skip + reauth receipt (classifyPolicy takes a null st)
+      if (skippedWholeTop(rel)) out.push({ abs, rel: slash(rel), st: null });
+      else unreadable.push({ path: slash(rel), reason: 'unreadable: ' + e.code });
+      return;
+    }
+    if (!st.isDirectory()) { out.push({ abs, rel: slash(rel), st }); return; }
+    try { names = fs.readdirSync(abs).slice().sort(); }
+    catch (e) {
+      if (!rel || !unreadableCode(e)) throw e;
+      // an unlistable credential/runtime dir is still excluded by policy (with its reauth receipt), not "unreadable"
+      if (skippedWholeTop(rel)) out.push({ abs, rel: slash(rel), st });
+      else unreadable.push({ path: slash(rel), reason: 'unreadable: ' + e.code });
+      return;
+    }
+    // an empty one excluded nothing, so it earns no receipt (same as when its files were classified one by one)
+    if (rel && skippedWholeTop(rel)) { if (names.length) out.push({ abs, rel: slash(rel), st }); return; }
+    for (const name of names) visit(path.join(abs, name), rel ? path.join(rel, name) : name);
   }
   if (fs.existsSync(root)) visit(root, '');
   return out;
@@ -221,14 +260,24 @@ function capture(opts) {
   const files = [];
   const skipped = [];
   const reauthentication = [];
-  for (const item of walkFiles(root, fs, path)) {
+  for (const item of walkFiles(root, fs, path, skipped)) {
     const policy = classifyPolicy(item.rel, item.st);
     if (policy.action === 'skip') {
       skipped.push({ path: item.rel, reason: policy.reason });
       if (policy.reauth) reauthentication.push(policy.reauth);
       continue;
     }
-    let data = fs.readFileSync(item.abs);
+    let data;
+    try { data = fs.readFileSync(item.abs); }
+    catch (e) {
+      if (!unreadableCode(e)) throw e;
+      skipped.push({ path: item.rel, reason: 'unreadable: ' + e.code });
+      // a locked/denied store falls back to its last-known-good .bak exactly like a torn one (below) — dropping it
+      // dropped the .bak too, and another file of its category kept the bundle reading complete
+      data = policy.action === 'include' && /\.json$/i.test(item.rel) ? lastKnownGood(fs, item.abs) : null;
+      if (!data) continue;
+      skipped.push({ path: item.rel + '.bak', reason: 'promoted: unreadable main captured from its last-known-good .bak' });
+    }
     /* LAST-KNOWN-GOOD SUBSTITUTION: savestore keeps <file>.bak precisely so a torn main can be recovered,
        and this bundle intentionally excludes .bak generations — so a bundle captured after a hard kill
        shipped the torn/zero-byte main and DROPPED the only good copy: completeness still read 'present',

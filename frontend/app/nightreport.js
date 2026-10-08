@@ -36,7 +36,14 @@
     readiness: 'the station doesn’t know you well enough yet to act unattended — run a few real tasks (or answer its questions) so it learns',
     // NS-2 pre-spend gates the precheck can also bind on (they flow through statusDecision as bindings):
     budget: 'the spending budget is exhausted — raise the cap or resume to let jobs run',
-    'no-provider': 'no runnable provider/model is configured — add a key so jobs can run',
+    // NOT an exhausted budget: spend history is uncertain (usually an interrupted run that never recorded its spend), so
+    // a limit the Commander chose can't be checked. Raising the cap or resuming changes nothing; SPENDING LIMITS names
+    // the cause and its fix (settle that run, or restart after a failed save).
+    'spend-unknown': 'StarNet can’t verify past spending (usually a run that was interrupted before it recorded its spend), so your spending limits can’t be checked — see SETTINGS › SPENDING LIMITS',
+    // #89: the provider-less form of the station's ONE no-credential sentence (sidecar/engine-credential.js
+    // UNATTENDED_REMEDY, locked equal in test/engine-credential.test.js) — a key saved in a browser page now reaches the
+    // station when it is saved, so re-saving it is a real way out, and so is the env var on a headless station.
+    'no-provider': 'no runnable provider/model is configured for unattended runs — connect or re-save a provider key under SETTINGS → AI & MODELS (or set its API key variable in the environment that starts StarNet) and pick a model',
     cooldown: 'it wasn’t time for the next job yet',
     concurrency: 'the desk was busy with another run',
     'in-flight': 'a job was still running',

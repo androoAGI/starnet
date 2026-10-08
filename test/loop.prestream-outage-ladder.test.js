@@ -213,5 +213,36 @@ async function runWith(provider, extra) {
     A.eq([res.reason, calls, waits.length], ['error', 1, 0], 'an exhausted `unknown` ends without loop rungs');
   }
 
+  // (H) a TLS-alert / socket failure names the DESTINATION HOST in the run error (2026-10-07 macOS report:
+  //     "fetch failed (ERR_SSL_TLSV1_ALERT_DECODE_ERROR)" — which service?). Hostname only: never the base URL's
+  //     path, never the key. Pre-stream (the adapter's fetch catch) AND mid-stream (the guarded reader).
+  {
+    const alertFetch = async (url) => {
+      if (!/chat\/completions/.test(String(url))) return new Response('{"data":[]}', { status: 200 });
+      throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('C0:error:0A000432:SSL routines:ssl3_read_bytes:tlsv1 alert decode error:../deps/openssl/openssl/ssl/record/rec_layer_s3.c:1605:SSL alert number 50'), { code: 'ERR_SSL_TLSV1_ALERT_DECODE_ERROR' }) });
+    };
+    const { res, seq } = await runWith(adapter(alertFetch));
+    const msg = String((seq.find(e => e.name === 'agent.run.error') || { payload: {} }).payload.message || '');
+    A.eq(res.reason, 'error', 'the TLS alert ends the run');
+    A.ok(/ERR_SSL_TLSV1_ALERT_DECODE_ERROR fixture\.invalid/.test(msg), 'the run error names code + host (got ' + msg + ')');
+    A.ok(!/\/v1|fixture-only/.test(msg), 'and never the URL path or the key');
+
+    const enc = new TextEncoder();
+    const dropFetch = async (url) => {
+      if (!/chat\/completions/.test(String(url))) return new Response('{"data":[]}', { status: 200 });
+      let sent = false;
+      const body = new ReadableStream({ pull(ctrl) {
+        if (!sent) { sent = true; ctrl.enqueue(enc.encode('data: ' + JSON.stringify({ choices: [{ index: 0, delta: { content: 'par' } }] }) + NL + NL)); return; }
+        ctrl.error(Object.assign(new TypeError('terminated'), { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) }));
+      } });
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    };
+    const mid = await runWith(adapter(dropFetch));
+    const mmsg = String((mid.seq.find(e => e.name === 'agent.run.error') || { payload: {} }).payload.message || '');
+    A.eq(mid.res.reason, 'error', 'a socket that keeps dropping mid-stream ends the run');
+    A.ok(/UND_ERR_SOCKET fixture\.invalid/.test(mmsg), 'the mid-stream run error names code + host (got ' + mmsg + ')');
+    A.ok(!/\/v1|fixture-only/.test(mmsg), 'and never the URL path or the key');
+  }
+
   A.report('loop.prestream-outage-ladder.test');
 })();

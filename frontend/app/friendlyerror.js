@@ -68,7 +68,7 @@
 
   // kind -> beginner-facing copy + whether a plain retry helps + where to send them instead.
   // action: 'settings' (fix the model key) · 'refit' (place the missing gear) · 'skills' (toggle a skill
-  //   family) · 'store' (top up managed credit) · null (just retry / nothing).
+  //   family) · 'store' (top up managed credit) · 'budget' (SETTINGS › SPENDING LIMITS) · null (just retry / nothing).
   const KINDS = {
     // ONLY for a fault PROVEN local: the raw carries "sidecar http 5xx" (our own service answered 500). A
     // provider's 5xx/overloaded must never land here — a message naming a component owes proof it is at fault,
@@ -105,6 +105,17 @@
     // to top up; a BYOK station never hits this kind (it gets `billing`/`auth` instead).
     // copy names the SAME door the button opens (PROVIDERS) — "the STORE" was a surface that doesn't exist as a button.
     managed_credit:{ retryable: false, action: 'store',    msg: "You're out of StarNet credits — top up under SETTINGS → AI & MODELS, or connect your own provider key." },
+    // The balance check FAILED (the account service was slow, erroring or unreachable) — the balance is unknown, NOT
+    // $0. Reading this as managed_credit told a customer holding $79.24 to top up (2026-10-06). Retry is the door.
+    managed_credit_unavailable: { retryable: true, action: null, msg: "StarNet couldn't check your credit balance just now — your credits are safe and nothing was charged. Try again in a moment." },
+    // The service reported $0 because THIS station's running StarNet runs hold the balance (each reserves up to its PER
+    // RUN limit and refunds what it doesn't spend; budgetcaps.managedRefusalMessage). Waiting is the first fix (retry),
+    // then lowering PER RUN so runs can share the balance (the SPENDING LIMITS door); topping up stays the last
+    // door — a small wallet's hold may come back as cents. Audit B11.
+    managed_credit_held: { retryable: true, action: 'budget', msg: "Your StarNet balance is held by StarNet runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, lower PER RUN in SETTINGS › SPENDING LIMITS, or top up under SETTINGS → AI & MODELS." },
+    // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
+    // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
+    managed_credit_link: { retryable: false, action: 'store', msg: "Your StarNet account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → STARNET MANAGED." },
     // capdenied copy is REBUILT per-error in friendlyError() to name the exact power + gear; this is the fallback
     // when the capability can't be parsed. The door is BUILD MODE (place the gear), NOT the SKILLS list.
     capdenied:     { retryable: false, action: 'refit',    msg: "This task needed a tool this agent doesn't have on station yet — open BUILD MODE to place the gear it's missing." },
@@ -126,7 +137,13 @@
     // crash+respawn the page still holds the OLD X-StarNet-Token, so EVERY action 403s. Retrying is doomed and
     // "add a key" is the wrong door — the page needs the fresh boot token, which only a reload fetches.
     stale_session: { retryable: false, action: 'reload',   msg: 'The station restarted — reload this page to reconnect.' },
-    unknown:       { retryable: true,  action: null,       msg: 'Something went wrong on that turn — try again.' }
+    /* StarNet's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
+       spend_history_unavailable): a limit the Commander chose can't be checked, so the run was stopped. NOT a provider
+       out of credit (never `billing`), and never the generic "Something went wrong — try again": a retry hits the same
+       refusal until the cause is fixed. The copy is REBUILT per cause in friendlyError() (spendUnknownMessage); this is
+       the fallback. The door is SETTINGS › SPENDING LIMITS, where the cause and its fix are listed. */
+    spend_unknown: { retryable: false, action: 'budget',   msg: "Your spending limits can't be checked because StarNet's spend history is unknown, so this run was stopped — open SETTINGS › SPENDING LIMITS to fix it." },
+    unknown:      { retryable: true,  action: null,       msg: 'Something went wrong on that turn — try again.' }
   };
 
   // the sidecar classifier speaks in `reason`s; map each onto our UI kind. Its whole domain is the PROVIDER
@@ -246,7 +263,7 @@
      answers a bad key with HTTP 400 "Incorrect API key provided", and a team with no prepaid credits with 403
      "…doesn't have any credits yet. You can purchase credits on https://console.x.ai/…" (2026-09-27). */
   const REJECTED_KEY_RE = /incorrect api key|invalid api key|api key (?:is )?(?:invalid|not valid|incorrect)|invalid x-api-key/;
-  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?/;
+  const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?|credit balance is too low/;
   // the ONE sentence both classifier paths use for "no model is picked": the sidecar guard and the page preflight
   const NO_MODEL_RE = /\bno model selected\b/;
   /* WHICH grok failures mean "this account can't use Grok sign-in" (the allowlist yank)? Only ones that carry the
@@ -255,6 +272,21 @@
      names grok MODELS too, and sending that user to "add an xAI key" is a door onto the room they are already in. */
   const GROK_OAUTH_VOICE_RE = /grok \(xai\) http|grok[ _-]?oauth|grok sign-?in|xai[ _]oauth/;
   const GROK_ALLOWLIST_RE = /allowlist|not allowed|not enabled|not available|unavailable|access forbidden|\bforbidden\b|\b403\b/;
+  /* StarNet's OWN spend-ledger refusal (sidecar/loop.js stopForSpend → failureCode spend_history_unavailable; every
+     cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
+     "spend history is unavailable" wording. Local by construction — never a provider's billing. */
+  const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
+  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door
+  function spendUnknownMessage(raw) {
+    const low = String(raw || '').toLowerCase();
+    if (/interrupted before its spend was recorded/.test(low)) {
+      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+    }
+    if (/could not be saved to disk/.test(low)) {
+      return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";
+    }
+    return KINDS.spend_unknown.msg;
+  }
 
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
@@ -304,6 +336,9 @@
         return /sidecar http/.test(low) ? 'server_error' : 'provider_server_error';
       }
       if (s === 400 && REJECTED_KEY_RE.test(low)) return 'auth';
+      // Anthropic's empty wallet is a 400 ("Your credit balance is too low … purchase credits"), not a bad request:
+      // it read as `unknown` → "Something went wrong — try again" + report it (2026-10-07). Mirrors classify400.
+      if (s === 400 && NO_CREDIT_RE.test(low)) return 'billing';
       if (s === 400 || s === 413 || s === 422) return /context length|maximum context|context window|too many tokens|reduce the length/.test(low) ? 'context_overflow' : 'unknown';
     }
     // message patterns (no status / in-band error text)
@@ -333,7 +368,13 @@
     let kind = null;
     // Managed-credit exhaustion (only emitted when a credits backend is wired) — a UI-level fault the sidecar
     // classifier doesn't model. Catch it before everything else so the CTA points at the STORE, not blind retry.
-    if (/managed credit|add credits in the store|out of managed credit/.test(raw.toLowerCase())) {
+    // ONLY "out of managed credit" means an empty wallet: "Managed credits are unavailable" also says "managed credit",
+    // and matching that as managed_credit told funded customers to top up whenever a balance check failed.
+    if (/managed credits? (?:are |is )?unavailable/.test(raw.toLowerCase())) {
+      kind = /refused this station'?s link|relink/.test(raw.toLowerCase()) ? 'managed_credit_link' : 'managed_credit_unavailable';
+    } else if (/managed credits? (?:are |is )?held|balance is held by \d+ running starnet run/.test(raw.toLowerCase())) {
+      kind = 'managed_credit_held';   // the balance sits in this station's own running runs' holds — never "out of credit"
+    } else if (/managed credit|add credits in the store|out of managed credit/.test(raw.toLowerCase())) {
       kind = 'managed_credit';
     } else
     // xAI's Grok OAuth device flow can be 403-allowlisted off for an account: the backend says the OAuth surface
@@ -379,6 +420,10 @@
       // BEFORE delegating: the sidecar API classifier would read a bare 403 as provider `auth` and the error row
       // would offer "🔑 Add a key", the wrong door (EL-11 FIX 2). The only fix is the fresh boot token → reload.
       kind = 'stale_session';
+    } else if (SPEND_UNKNOWN_RE.test(raw.toLowerCase())) {
+      // StarNet's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
+      // offer a doomed RETRY) — caught before delegating so both paths open SPENDING LIMITS.
+      kind = 'spend_unknown';
     } else if (classifyApiError) {
       // delegate to the single-sourced truth table; synthesize the err shape it expects (status + message).
       try {
@@ -454,12 +499,34 @@
       }
       return { userMessage: userMessage, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
+    if (kind === 'spend_unknown') {
+      return { userMessage: spendUnknownMessage(raw), kind: kind, retryable: k.retryable, action: k.action, raw: raw };
+    }
     // transport loss: the ONE kind whose copy names a component, so it is the one kind that owes proof. The
     // measured verdict rides along on `engineAlive` so a diagnostic report can state what was actually probed.
     if (kind === 'network') {
       return { userMessage: transportMessage(engineAlive), kind: kind, retryable: k.retryable, action: k.action, raw: raw, engineAlive: engineAlive };
     }
     return { userMessage: k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
+  }
+
+  /* ---- Why a STARNET account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
+     "could not reach the link service", which blamed the cloud for a dead LOCAL engine and gave support nothing.
+     `info` is what the caller saw: { local:true } when the station's own POST never answered (refused, non-JSON, or
+     Harness.api's deadline), else { status, j } from the sidecar — j.reason is its stable classification of the
+     cloud failure (sidecar/index.js linkStartFailure). Lower-case lead, no trailing period (callers add their own). */
+  function linkStartFailure(info) {
+    const i = info || {}, j = i.j || {};
+    if (i.local) return 'StarNet\'s engine on this computer isn\'t answering, so the link could not start — restart StarNet, then try again';
+    if (i.status === 503 && j.degraded) return 'StarNet\'s engine on this computer stopped after an error, so the link could not start — restart StarNet, then try again';
+    if (i.status === 404 && j.error === 'linking_unavailable') return 'account linking isn\'t available in this build of StarNet';
+    const detail = j.detail ? ' (' + String(j.detail) + ')' : '';
+    if (j.reason === 'tls') return 'security software on this computer (an antivirus HTTPS scan or a proxy) is blocking StarNet\'s secure connection to the StarNet account service' + detail + ' — allow StarNet, then try again';
+    if (j.reason === 'timeout') return 'the StarNet account service did not answer in time — check a VPN or firewall, then try again';
+    if (j.reason === 'dns' || j.reason === 'unreachable') return 'StarNet could not reach the StarNet account service from this computer' + detail + ' — check a VPN or firewall, then try again';
+    if (j.reason === 'cloud_5xx') return 'the StarNet account service is having trouble right now — try again in a minute';
+    if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the StarNet account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
+    return 'could not reach the link service — try again';
   }
 
   /* ---- The DOOR: map a verdict to a ready-to-wire action button { label, run }. ONE place owns every
@@ -598,6 +665,10 @@
       case 'store':
         // this door opens the PROVIDERS section (there is no "store") — name it truthfully with a CRT glyph.
         return { label: '▸ OPEN AI & MODELS', run: () => openSettings('providers') };
+      case 'budget':
+        // spend_unknown: SETTINGS › SPENDING LIMITS lists the interrupted runs to settle (or says restart) — the
+        // only surface that clears the refusal. No retry chip rides with it: a retry hits the same refusal.
+        return { label: '$ OPEN SPENDING LIMITS', run: () => openSettings('budget') };
       case 'skills':
         return { label: '✦ OPEN SKILL LIBRARY', run: () => { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('skills'); } catch (_) {} } };   // 'skills' aliases into ABILITIES ▸ SKILL LIBRARY (NAV CONDENSE 2)
       default:
@@ -605,6 +676,6 @@
     }
   }
 
-  return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, KINDS, CAP_INFO,
+  return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, linkStartFailure, KINDS, CAP_INFO,
     _internals: { kindFromRaw, isTransportLoss, isUpstreamFetchFailure, isUserAbort, REASON_TO_KIND, capFromRaw, capdeniedMessage, codexConnected, transportMessage } };
 });

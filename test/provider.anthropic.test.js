@@ -173,6 +173,43 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(models[0].id, 'claude-x', 'catalog id parsed');
     A.eq(models[0].supportsTools, true, 'Anthropic native models are marked tool-capable');
   }
+  // D2 (#90). A /models answer the API REFUSED is still an empty catalog to every caller, but the adapter keeps its
+  // status so the key check can say "rejected this key (HTTP 401)" instead of blaming an empty catalog.
+  {
+    let status = 401;
+    const p = makeAnthropicProvider({ fetch: async () => (status === 200
+      ? new Response(JSON.stringify({ data: [{ id: 'claude-x' }] }), { status: 200 })
+      : new Response(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }), { status })), key: 'KEY' });
+    A.eq(await p.listModels(), [], 'a refused /models listing is still an empty catalog (no caller changes shape)');
+    A.eq(p.catalogHttpStatus(), 401, 'the refusal status is kept for the key check');
+    status = 403;
+    await p.listModels();
+    A.eq(p.catalogHttpStatus(), 403, 'the LATEST refusal is what it reports');
+    status = 200;
+    A.eq((await p.listModels()).length, 1, 'a later good answer still loads the catalog');
+    A.eq(p.catalogHttpStatus(), 0, 'and clears the refusal (0 = the last answer was not an HTTP refusal)');
+    let online = true;
+    const offline = makeAnthropicProvider({ fetch: async () => { if (online) return new Response('{}', { status: 401 }); throw new Error('fetch failed'); }, key: 'KEY' });
+    await offline.listModels();
+    A.eq(offline.catalogHttpStatus(), 401, 'refused first');
+    online = false;
+    await offline.listModels();
+    A.eq(offline.catalogHttpStatus(), 0, 'a later network failure is NOT an HTTP refusal: the old status is not reported as current');
+    // the request never reached Anthropic (DNS / refused connection / proxy): keep THAT error, so the key check can name
+    // the network cause (#62 wording) instead of blaming the key
+    const netErr = Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+    let reach = false;
+    const unreached = makeAnthropicProvider({ fetch: async () => { if (!reach) throw netErr; return new Response(JSON.stringify({ data: [{ id: 'claude-x' }] }), { status: 200 }); }, key: 'KEY' });
+    A.eq(await unreached.listModels(), [], 'an unreachable /models is still an empty catalog');
+    A.ok(unreached.catalogFetchError() === netErr, 'the network error that kept the request from Anthropic is kept');
+    A.eq(unreached.catalogHttpStatus(), 0, 'and it is not reported as an HTTP refusal');
+    reach = true;
+    A.eq((await unreached.listModels()).length, 1, 'a later answer loads the catalog');
+    A.eq(unreached.catalogFetchError(), null, 'and clears the network error');
+    const garbled = makeAnthropicProvider({ fetch: async () => new Response('<html>proxy</html>', { status: 200 }), key: 'KEY' });
+    A.eq(await garbled.listModels(), [], 'an answer that is not a model list is an empty catalog');
+    A.eq(garbled.catalogFetchError(), null, 'an ANSWERED request is never reported as unreachable');
+  }
 
   // E. max_tokens default is bumped high (no silent 4096 truncation); explicit + catalog ceilings honored.
   {
@@ -287,7 +324,7 @@ async function collect(provider, req) { const out = []; for await (const e of pr
       A.ok(!Dock._internals.effortOptionsFor(row).includes('none'), model + ' picker consumes the supported catalog levels');
       for (const off of ['none', 'off', 'disabled']) {
         b = await ask(model, { reasoningEffort: off });
-        A.eq(b.thinking, { type: 'adaptive' }, model + ' saved ' + off + ' uses adaptive thinking');
+        A.eq(b.thinking, { type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } }, model + ' saved ' + off + ' uses adaptive thinking (+ #73 drop_block binding)');
         A.eq(b.output_config, { effort: 'low' }, model + ' saved ' + off + ' clamps to lowest supported effort');
       }
       b = await ask(model, { reasoningEffort: 'high' }, { reasoningEffort: 'none' });
@@ -320,7 +357,7 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(evs.filter(e => e.type === 'text').map(e => e.delta).join(''), 'Answer.', 'thinking deltas NEVER become assistant text');
     const reasoning = evs.filter(e => e.type === 'reasoning');
     A.eq(reasoning.length, 1, 'one reasoning event per completed thinking block');
-    A.eq(reasoning[0].block, { type: 'thinking', thinking: 'let me check', signature: 'sig123' }, 'the block is assembled whole: text + signature');
+    A.eq(reasoning[0].block, { type: 'thinking', thinking: 'let me check', signature: 'sig123', pos: { text: 0, tools: 0 } }, 'the block is assembled whole: text + signature (+ its position in the turn, #73)');
 
     // An UNSIGNED block cannot be replayed (the wire validates the signature), so it is dropped at the source
     // rather than handed on to fail the NEXT turn.

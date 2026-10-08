@@ -56,7 +56,9 @@ class RecordingContext {
   isContextLost() { return this.lost; }
 }
 class RecordingCanvas {
-  constructor() { this._width = this._height = 0; this.context = new RecordingContext(this); }
+  constructor() { this._width = this._height = 0; this.context = new RecordingContext(this); this.on = {}; }
+  addEventListener(name, fn) { (this.on[name] ||= []).push(fn); }
+  emit(name) { for (const fn of this.on[name] || []) fn(); }
   set width(v) { this._width = v; this.context.reset(); }
   get width() { return this._width; }
   set height(v) { this._height = v; this.context.reset(); }
@@ -270,23 +272,70 @@ test('local lighting reuses native-size frames across agents and leaves the draw
   assert.equal(portrait.ctx.ellipses.length, 0, 'off-floor portraits still suppress all ground cues');
 });
 
-test('appearance LRU bounds live bitmaps and rebuilds a lost context instead of keeping a blank body', async () => {
+// a distinct quantized light per index (colour steps of 24 on three channels), so every index is its own cache pair;
+// reduced motion holds one master (no blink), so a pair's identity is the light alone
+const lightN = i => ({ reducedMotion: true, light: { color: [(i % 11) * 24, (Math.floor(i / 11) % 11) * 24, Math.floor(i / 121) * 24], strength: 0.5, dx: 1, dy: 0 } });
+
+test('appearance cache: a walker\'s one-off frames recycle a bounded ring and allocate nothing (2026-10-07 lag)', async () => {
+  const { sprites, canvases } = await harness();
+  for (let i = 0; i < 300; i++) draw(sprites, body(), 1000 + i * 33, lightN(i));   // every draw a pair never asked for again
+  const warm = canvases.length;
+  for (let i = 300; i < 900; i++) draw(sprites, body(), 1000 + i * 33, lightN(i));
+  const st = sprites.bodyAppearanceStats();
+  assert.equal(st.builds, 900);
+  assert.equal(st.kept, 0, 'a pair drawn once is never promoted');
+  assert.ok(st.probation <= 96, 'probation is a bounded ring');
+  assert.equal(canvases.length - warm, 0, 'once the ring is full, 600 more one-off builds allocate no canvas at all');
+  assert.ok(st.recycled >= 600, 'recycled ' + st.recycled);
+});
+
+test('appearance cache: a frame still drawn after BODY_LIGHT_PROMOTE_MS is kept, and no walker churn evicts it', async () => {
   const { sprites } = await harness();
-  let first, latest, light;
-  for (let i = 0; i < 150; i++) {
-    light = { color: [(i % 11) * 24, (Math.floor(i / 11) % 11) * 24, Math.floor(i / 121) * 24], strength: 0.5, dx: 1, dy: 0 };
-    latest = draw(sprites, body(), 1000, { light }).frame.image;
+  const idle = lightN(500);
+  const a = draw(sprites, body(), 20000, idle).frame.image;
+  assert.equal(draw(sprites, body(), 20033, idle).frame.image, a, 'the next draw is served from probation');
+  assert.equal(sprites.bodyAppearanceStats().kept, 0, '...without promoting a pair seen for 33ms');
+  assert.equal(draw(sprites, body(), 20700, idle).frame.image, a, 'still drawn 700ms later: promoted, same bitmap');
+  assert.equal(sprites.bodyAppearanceStats().kept, 1);
+  for (let i = 0; i < 300; i++) draw(sprites, body(), 21000 + i * 33, lightN(i));
+  assert.equal(draw(sprites, body(), 32000, idle).frame.image, a, 'a kept frame survives any amount of walker churn');
+  assert.equal(sprites.bodyAppearanceStats().builds, 301, '...and was never rebuilt');
+});
+
+test('appearance cache: a GPU reset (restored, blank contexts) drops every cached frame so no body draws as nothing', async () => {
+  const { sprites } = await harness();
+  const idle = lightN(42);
+  const a = draw(sprites, body(), 1000, idle).frame.image;
+  draw(sprites, body(), 1700, idle);
+  assert.equal(sprites.bodyAppearanceStats().kept, 1);
+  a.emit('contextrestored');
+  const st = sprites.bodyAppearanceStats();
+  assert.equal(st.kept + st.probation, 0, 'both tiers are flushed');
+  assert.equal(a.width, 1, 'the blank bitmap is released');
+  const b = draw(sprites, body(), 1800, idle).frame.image;
+  assert.notEqual(b, a); assert.equal(b.width, 92, 'the next draw rebuilds the lit frame');
+  assert.equal(sprites.bodyAppearanceStats().builds, 2);
+});
+
+test('appearance cache: kept frames are bounded by pixels, release their bitmap on eviction, and a lost context rebuilds', async () => {
+  const { sprites } = await harness();
+  let first = null, latest = null;
+  for (let i = 0; i < 600; i++) {
+    draw(sprites, body(), 1000 + i * 1000, lightN(i));
+    latest = draw(sprites, body(), 1000 + i * 1000 + 700, lightN(i)).frame.image;   // drawn again 700ms on: kept
     if (!i) first = latest;
-    assert.ok(sprites.bodyAppearanceStats().cachedFrames <= 128);
+    const st = sprites.bodyAppearanceStats();
+    assert.ok(st.pixels <= st.pixelLimit, 'kept bitmaps stay inside the pixel budget');
   }
-  assert.equal(sprites.bodyAppearanceStats().cachedFrames, 128);
-  assert.equal(sprites.bodyAppearanceStats().builds, 150);
+  const st = sprites.bodyAppearanceStats();
+  assert.equal(st.kept, Math.floor(st.pixelLimit / (92 * 92)), 'the budget holds as many 92px frames as fit');
+  assert.equal(st.builds, 600);
   assert.equal(first.width, 1); assert.equal(first.height, 1, 'eviction releases the bitmap backing store');
   latest.context.lost = true;
-  const rebuilt = draw(sprites, body(), 1000, { light }).frame.image;
+  const rebuilt = draw(sprites, body(), 900000, lightN(599)).frame.image;
   assert.notEqual(rebuilt, latest); assert.equal(rebuilt.width, 92);
-  assert.equal(latest.width, 1); assert.equal(sprites.bodyAppearanceStats().cachedFrames, 128);
-  assert.equal(sprites.bodyAppearanceStats().builds, 151);
+  assert.equal(latest.width, 1, 'the lost bitmap is released, never redrawn blank');
+  assert.equal(sprites.bodyAppearanceStats().builds, 601);
 });
 
 test('missing/zero light and offscreen failures keep the original master visible', async () => {

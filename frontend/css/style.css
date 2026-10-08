@@ -290,6 +290,7 @@ body::before { /* curved-glass vignette + corner darkening */
 }
 #roll { display: none; }
 @keyframes flick { 0%,100% { opacity: 1; } 96% { opacity: 1; } 97% { opacity: 0.84; } 98% { opacity: 0.95; } }
+@keyframes flick-dip { 0%,100% { opacity: 1; } 25% { opacity: 0.84; } 50% { opacity: 0.95; } }   /* flick's 96..100% tail as a one-shot (app.css, #69) */
 body:not(.no-flicker) #app { animation: flick 7s infinite; }
 
 /* ================= LAYOUT ================= */

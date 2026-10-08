@@ -334,6 +334,7 @@ const Build = (() => {
     if (!running) return;
     running = false;
     connectFrom = null;   // never carry a half-made connection across sessions
+    deskOwner = null;
     if (raf) cancelAnimationFrame(raf), raf = 0;
     clearTimeout(frameRetryTimer); frameRetryTimer = 0;
     clearTimeout(tipTimer); tipTimer = 0;
@@ -627,7 +628,8 @@ const Build = (() => {
     }
     const door = root.querySelector('#refit-makeprop-door');
     const cta = root.querySelector('#refit-makeprop-cta');
-    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : !(makeCredits.balanceUsd > 0) ? 'topup' : '';
+    // TOP UP only for a balance the service REPORTED at <= 0: an unknown balance (a failed check) is not an empty wallet
+    const need = !makeCredits ? '' : !makeCredits.linked ? (makeCredits.linkable ? 'link' : '') : (makeCredits.balanceUsd != null && !(makeCredits.balanceUsd > 0)) ? 'topup' : '';
     if (cta) {
       cta.hidden = !need;
       if (need) {
@@ -780,7 +782,8 @@ const Build = (() => {
     if (makeCreditsAsked || typeof Harness === 'undefined' || !Harness.api) return;
     makeCreditsAsked = true;
     Harness.api.get('/api/credits?history=0').then((j) => {
-      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : 0 };
+      // a failed balance check answers balanceUsd:null: keep it unknown, never a $0 that tells a funded user to top up
+      if (j && typeof j.configured === 'boolean') makeCredits = { linked: j.configured, balanceUsd: typeof j.balanceUsd === 'number' && isFinite(j.balanceUsd) ? j.balanceUsd : null };
     }, (e) => {   // /api/credits 404s by design when no account is linked: a definitive "not linked"
       if (/http 404\b/.test(String((e && e.message) || e))) makeCredits = { linked: false, balanceUsd: 0 };
     }).then(() => {
@@ -2431,6 +2434,7 @@ const Build = (() => {
     movingPropId=null;selectedPropId=null;groupIds=[];selectedRoomId=null;renderSelection();
     if (drag || dragPid != null) releaseDrag();
     tool = id; drag = null; connectFrom = null; dupe = null; hideTip(); hidePropCard();
+    if (id !== 'prop') deskOwner = null;
     if (id !== 'select' && !(o && o.keepGroup)) buildGroup = BUILD_GROUPS.find(g => g[2].includes(id))?.[0] || buildGroup;
     root.querySelectorAll('.refit-tool').forEach(b => {
       const active = b.dataset.tool === id;
@@ -2492,7 +2496,8 @@ const Build = (() => {
          belt under its own tile, and dropping one onto an existing lane is how every ready-made line is built — the old
          'clear deck tile' copy steered people to empty floor and three hand-wired belts. */
       const JUNC = { splitter: 1, joiner: 1, filter: 1, merger: 1, loop: 1 };
-      verb = (spec ? spec.label + ' · ' : '') + (JUNC[propType] ? 'drop it ON a belt to put it on that line, or on clear floor' : 'click a clear deck tile to place' + (rowable(propType) ? ' · drag for a row' : ''));
+      if (WORKSTATION_TYPES[propType]) verb = (spec ? spec.label + ' · ' : '') + 'click a clear deck tile to place ' + (deskOwner ? agentLabel(deskOwner) + '’s desk' : 'it, then pick who sits there');
+      else verb = (spec ? spec.label + ' · ' : '') + (JUNC[propType] ? 'drop it ON a belt to put it on that line, or on clear floor' : 'click a clear deck tile to place' + (rowable(propType) ? ' · drag for a row' : ''));
       const bits = [];
       if (canTurn(propType)) bits.push('R turn (facing ' + FACE_WORD[propFacing(propType)] + ')');
       if (canFlip(propType)) bits.push('M flip' + (propFlipOn(propType) ? ' ✓' : ''));
@@ -3214,60 +3219,73 @@ const Build = (() => {
     voiceSay('activeFlow', { x, y, w: t, h: t }, box, c => captionPlate(c, label, box, '#5fd8ff'));
   }
 
-  /* ---------- WORKSTATION agent-picker  /* ---------- WORKSTATION agent-picker: the desk/PC version of the BAY picker. A workstation carries an
-     agentId exactly like a bay does (assignPropAgent is type-agnostic); world.js then seats THAT agent here, so
-     when it's given a task it walks over and sits at this desk. The host/model is already chosen when the agent
-     was created, so this is a single "pick an agent" step. Opens on place + on click (PROP_EDITABLE). */
-  function openWorkstationPicker(propId, ev) {
-    if (!root) return;
+  /* ---------- WHO SITS AT THIS DESK (2026-10-07, Andrew: "SO SO SO CONFUSING" — replaces the CONFIGURE → modal picker).
+     A workstation carries an agentId exactly like a bay does (assignPropAgent is type-agnostic); world.js seats the agent
+     at the FIRST workstation bound to it (deskPropFor). So giving an agent this desk must also take it off any OTHER
+     workstation it holds — otherwise it keeps walking to the old one and the click looked like it did nothing. One
+     transaction = one UNDO. The choice lives IN the selected-object card (renderSelection), one click per agent.
+     The rule itself is the station's (worldmodel.js assignDesk), shared with the overseer's station-control 'agent' op. */
+  function assignDesk(propId, aid) {
+    return station.assignDesk(propId, String(aid || ''));
+  }
+  // the agent a "PLACE ITS DESK" door is placing a desk FOR (placeDeskFor) — the next workstation dropped is theirs
+  let deskOwner = null;
+  function sitsRow(p) {
+    const agents = (opts && typeof opts.agents === 'function' && opts.agents()) || [];
+    const box = document.createElement('div'); box.className = 'refit-sel-sits';
+    const k = document.createElement('div'); k.className = 'refit-sel-sits-k'; k.textContent = 'WHO SITS HERE';
+    const row = document.createElement('div'); row.className = 'refit-sel-sits-row';
+    box.append(k, row);
+    if (!agents.length) { const n = document.createElement('small'); n.textContent = 'No crew yet — recruit an agent, then pick it here'; row.append(n); }
+    const chip = (label, aid, tip) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'bb sm refit-sit' + ((p.agentId || '') === aid ? ' active' : '');
+      b.setAttribute('aria-pressed', String((p.agentId || '') === aid)); b.textContent = label; if (tip) b.setAttribute('data-tip', tip);
+      b.onclick = () => {
+        if ((p.agentId || '') === aid) return;
+        const res = assignDesk(p.id, aid);
+        feedback(res, orientEv(), aid ? (agentLabel(aid) + ' sits here now') : 'nobody sits here now');
+        renderSelection();
+      };
+      row.append(b);
+    };
+    for (const a of agents) {
+      const other = station.propsByAgent(a.id).some(q => q.id !== p.id && WORKSTATION_TYPES[q.t]);
+      chip(a.name || a.id, a.id, other && a.id !== p.agentId ? (a.name || a.id) + ' moves here from its other desk' : '');
+    }
+    if (p.agentId) chip('NOBODY', '');
+    return box;
+  }
+  // a double-click / openAssign on a workstation: select it — its card IS the picker now
+  function openWorkstationPicker(propId) {
     const p = station.propById(propId); if (!p || !WORKSTATION_TYPES[p.t]) return;
     cardCloseAll();
-    const cur = p.agentId || '';
-    const agents = (opts && typeof opts.agents === 'function' && opts.agents()) || [];
-    const rows = agents.map(a => `<button type="button" class="bb sm ws-agent${a.id === cur ? ' active' : ''}" data-aid="${esc(a.id)}">${esc(a.name || a.id)}${a.model ? ' <span class="ws-model">' + esc(a.model) + '</span>' : ''}</button>`).join('');
-    const g = document.createElement('div');
-    g.className = 'refit-guide refit-ws-picker';
-    g.innerHTML = `
-      <div class="refit-guide-card">
-        <h3>▮ ASSIGN AGENT TO WORKSTATION</h3>
-        <ul><li>The assigned agent <b>walks here and sits to work</b> whenever it gets a task.</li>
-        <li>Just pick one of your active agents — its model/host was set when it was created.</li></ul>
-        <div class="refit-form">
-        ${agents.length
-          ? '<div class="refit-sec">YOUR AGENTS — click to assign</div><div class="refit-agents refit-bay-agents">' + rows + '</div>'
-          : '<div class="refit-note">No active agents yet — summon one first, or type an id below.</div>'}
-        <div class="refit-sec">${agents.length ? 'OR TYPE AN AGENT ID' : 'AGENT ID'}</div>
-        <input id="ws-aid" class="refit-input" type="text" maxlength="40" placeholder="agent id — e.g. coder" value="${esc(cur)}" />
-        <div class="refit-error" id="ws-err">unknown agent — pick one above, or check the id</div>
-        <div class="refit-actions">
-          <button type="button" class="btn-sm refit-primary" id="ws-ok">▸ ASSIGN</button>
-          <button type="button" class="btn-sm" id="ws-clear">UNASSIGN</button>
-          <button type="button" class="btn-sm" id="ws-cancel">CANCEL</button>
-        </div>
-        </div>
-      </div>`;
-    root.appendChild(g);
-    requestAnimationFrame(() => g.classList.add('refit-swap'));   // soft rise-in on open (reduced-motion safe)
-    const input = g.querySelector('#ws-aid');
-    const clearErr = () => { input.classList.remove('is-error'); };
-    const closeP = () => { if (g.parentNode) g.parentNode.removeChild(g); };
-    cardRegister(g, closeP);
-    // ONE CLICK: choosing a roster agent IS the assignment (mirrors the BAY picker — see the note there)
-    g.querySelectorAll('.ws-agent').forEach(b => b.onclick = () => {
-      const res = station.assignPropAgent(propId, b.dataset.aid);
-      if (res && res.ok) { sfx('click'); flashTip(ev, 'workstation → ' + res.agentId, true); closeP(); }
-      else { input.value = b.dataset.aid; input.classList.add('is-error'); sfx('bad'); }
+    groupIds = []; selectedRoomId = null; selectedPropId = propId; renderSelection();
+    setHint('Selected ' + propLabel(p.t) + ' · pick who sits here');
+  }
+  /* PLACE ITS DESK (the deskless-agent door in COMMS → App.openDeskPlacement). It used to drive the palette by clicking
+     DOM tabs that the 10-01 library rebuild renamed, so it often armed nothing, and the desk it did place belonged to
+     NOBODY — the agent still had nowhere to sit until the Commander found CONFIGURE. Now it arms a workstation for that
+     agent: the very next floor click drops the desk AND seats them there. */
+  function placeDeskFor(agentId) {
+    if (!running) open();
+    if (!station) return false;
+    deskOwner = String(agentId || '') || null;
+    if (!WORKSTATION_TYPES[propType]) propType = 'desk';
+    const spec = catalog().find(c => c.id === propType);
+    if (spec) { propSection = sectionOf(spec); propAbility = propSection === 'abilities' ? capOf(spec) : ''; }
+    propCat = 'all'; propQuery = '';
+    selectTool('prop', { silent: true });
+    return true;
+  }
+  // the desk that click drops: added, then seated through the same one-desk rule as the chips (station.assignDesk),
+  // all in one transaction — one UNDO takes back the desk AND the move, and a refused drop changes nothing
+  function addOwnedDesk(placement, owner) {
+    return station.transact(() => {
+      const added = station.addProp(placement);
+      if (!added || !added.ok) return added;
+      const seat = station.assignDesk(added.id, owner);
+      return seat && seat.ok ? added : seat;
     });
-    input.addEventListener('input', clearErr);
-    g.querySelector('#ws-ok').onclick = () => {
-      const res = station.assignPropAgent(propId, input.value.trim());
-      if (res && res.ok) { sfx('click'); flashTip(ev, res.agentId ? ('workstation → ' + res.agentId) : 'workstation cleared', true); closeP(); }
-      else { input.classList.add('is-error'); sfx('bad'); }
-    };
-    g.querySelector('#ws-clear').onclick = () => { station.assignPropAgent(propId, ''); sfx('click'); flashTip(ev, 'workstation cleared', true); closeP(); };
-    g.querySelector('#ws-cancel').onclick = closeP;
-    g.addEventListener('click', e => { if (e.target === g) closeP(); });
-    try { input.focus(); input.select(); } catch (_) {}
   }
 
   /* ---------- FILTER junction editor (Polish P1): make content-routing reachable from the UI.
@@ -3536,7 +3554,7 @@ const Build = (() => {
     if (typeof fetch === 'undefined') { rowsEl.innerHTML = '<div class="refit-conn-note">no sidecar — can\'t list connectors here.</div>'; return; }
     fetch('/api/connectors').then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); }).then(j => {
       const list = (j && j.connectors) || [];
-      if (!list.length) { rowsEl.innerHTML = '<div class="refit-conn-note">No connected services yet — add one in the <b>⇄ ABILITIES</b> panel (⚒ BUILD), then bind it here.</div>'; return; }
+      if (!list.length) { rowsEl.innerHTML = '<div class="refit-conn-note">No connected services yet — add one first in <b>BUILD › CONNECT › ABILITIES</b> (DISCOVER for the catalog, or ADD AN ABILITY › custom connection), then come back and bind it here.</div>'; return; }
       rowsEl.innerHTML = list.map(c => {
         const sel = (c.id === p.connectorId), scls = STATE_CLASS[c.state] || '';
         const meta = c.toolCount ? (c.toolCount + ' tool' + (c.toolCount === 1 ? '' : 's')) : (c.state || 'idle');
@@ -4799,6 +4817,9 @@ const Build = (() => {
     if(!p)return;
     if(ev&&ev.detail>=2&&isEditableProp(p.t))return configureProp(p,ev);
     groupIds=[];selectedRoomId=null;selectedPropId=p.id;renderSelection();
+    // an UNBOUND connector/plugin terminal says "CLICK TO BIND" on the floor and in its hover card — so one click
+    // opens the bind editor (it only selected it, and members reported "no bind option": only unbind/cancel showed)
+    if((p.t==='connector_portal'&&!p.connectorId)||(p.t==='plugin_terminal'&&!p.pluginId))return configureProp(p,ev);
     // THE CARD AND THE FLOOR ARE ONE LINE: a click on a line machine opens the docked Workflow panel on it
     // (or re-selects it there), without panning — the floor is where the Commander is looking
     if(WF_PART[p.t]){finFocusLine(p.id);openWorkflowPanel(p.id,true);}
@@ -4827,6 +4848,7 @@ const Build = (() => {
     propArtInto(host.querySelector('.refit-sel-art'),p);
     host.querySelector('.refit-sel-x').onclick=()=>{selectedPropId=null;renderSelection();setHint();sfx('click');};
     const actions=host.querySelector('.refit-selection-actions');
+    if(WORKSTATION_TYPES[p.t])actions.before(sitsRow(p));   // the desk's agent is picked RIGHT HERE, one click (no CONFIGURE, no modal)
     const addKey=(label,key,fn,cls)=>{const b=document.createElement('button');b.className='bb sm refit-sel-act'+(cls?' '+cls:'');b.type='button';b.innerHTML='<span>'+esc(label)+'</span>'+(key?'<kbd>'+esc(key)+'</kbd>':'');b.onclick=fn;actions.appendChild(b);return b;};
     const add=(label,fn)=>addKey(label,'',fn);
     addKey('MOVE','drag',()=>{const id=p.id;selectTool('move');movingPropId=id;selectedPropId=id;renderSelection();setHint('Click a clear spot to move '+propLabel(p.t)+' · Esc cancels');});
@@ -4842,7 +4864,7 @@ const Build = (() => {
       if(k<UserProps.SCALES[UserProps.SCALES.length-1])add('SIZE + ('+Math.round(k*100)+'%)',()=>sizeMadeProp(1,p.t));
       if(!made.side&&!made.symmetric)add('\u21bb SIDE VIEW',async()=>{setHint('Starting a side view of '+(made.label||'this prop')+'\u2026');const r=await startMakeSide(p.t);if(!r)setHint('A prop job is already running \u00b7 wait for it to finish');else setHint(r.ok?'Making a side view of '+(made.label||'this prop')+' \u00b7 about $0.30 \u00b7 it turns with R when it lands':(r.message||'That side view could not be started.'));});
     }
-    if(isEditableProp(p.t))add('CONFIGURE',()=>configureProp(p,orientEv()));
+    if(isEditableProp(p.t)&&!WORKSTATION_TYPES[p.t])add('CONFIGURE',()=>configureProp(p,orientEv()));
     addKey('DELETE','Del',()=>deleteSelected(orientEv()),'refit-sel-del');
     // typing an exact tile: its own key in the grid (the arrows nudge; this is for "put it at 12, 4"), the fields only when asked
     addKey('POSITION','',()=>{positionOpen=!positionOpen;renderSelection();},'refit-sel-pos').setAttribute('aria-expanded',String(positionOpen));
@@ -5375,7 +5397,11 @@ const Build = (() => {
     if (pm) placement.m = 1;
     if (propType === 'airlock') placement.door = 'closed';   // a fresh airlock seals its room (then click to cycle)
     const grant = (typeof WorldModel !== 'undefined' && WorldModel.grantLabelForProp) ? WorldModel.grantLabelForProp(propType) : null;
-    const res = station.addProp(placement);
+    const owner = WORKSTATION_TYPES[propType] ? deskOwner : null;   // PLACE ITS DESK: this desk is that agent's, and their only one
+    if (owner) placement.agentId = owner;
+    const res = owner
+      ? addOwnedDesk(placement, owner)
+      : station.addProp(placement);
     if (res && !res.ok) res.msg = placementReason({v:res,rects:[{x1:px,y1:py,x2:px+s.w-1,y2:py+s.h-1}]});
     if (res && res.ok) {
       pushFlash([{ x1: px, y1: py, x2: px + s.w - 1, y2: py + s.h - 1 }], false);
@@ -5399,6 +5425,11 @@ const Build = (() => {
       // Configuration is a separate, explicit click on the placed object.
     }
     if (res && res.ok) renderEquipmentInfo(propType);
+    if (res && res.ok && WORKSTATION_TYPES[propType]) {
+      if (owner) { deskOwner = null; setHint(); }   // the next desk dropped is nobody's until picked
+      selectedPropId = res.id; renderSelection();   // the tool stays armed; the new desk's card asks who sits there
+      return feedback(res, ev, owner ? (agentLabel(owner) + '’s desk · they sit here now') : 'desk placed · pick who sits here');
+    }
     feedback(res, ev, grant ? ('PLACED · ' + grant + ' equipment') : ('placed ' + ((typeof PropSprites !== 'undefined' && PropSprites.isUserProp && PropSprites.isUserProp(propType)) ? String((PropSprites.spec(propType) || {}).label || 'made prop').toLowerCase() : propType)));   // a made prop's id is internal; say its name
   }
   /* DRAG TO LAY A ROW (2026-10-01 build-mode upgrade). With a piece of furniture armed, a drag lays copies from where you pressed
@@ -7976,7 +8007,7 @@ const Build = (() => {
     try { openFlowCard(propId); } catch (e) { return false; }
     return true;
   }
-  const api = { init, open, openWorkflows, editLine, testJobForProp, close, toggle, isOpen, requisition, refitNames: guideNames, openAssign, noteLineDelivered, lineOfAgentInfo, summonForRole, nagLabel: code => VAL_LABEL[code] || code,
+  const api = { init, open, openWorkflows, editLine, testJobForProp, close, toggle, isOpen, requisition, refitNames: guideNames, openAssign, placeDeskFor, noteLineDelivered, lineOfAgentInfo, summonForRole, nagLabel: code => VAL_LABEL[code] || code,
     // the WORKFLOWS window speaks the shelf's own words and shows the shelf's own art (one name per line, never a second one)
     lineWords: () => ({ plain: LINE_PLAIN, purpose: LINE_PURPOSE }), lineSchematic: bp => lineSchematic(bp), machineStill: t => machineStill(t),
     nagWhy: valWhy };   // nagLabel: the floor's own nag copy for a compiler code (ROUTINES RUN NOW refusal reads it); nagWhy: the full fix sentence the hover card + Workflow panel say (station.layout reads it)

@@ -87,6 +87,17 @@ A.eq(auth.isAllowedApiOrigin('https://evil.example', PORT), false, 'foreign web 
 A.eq(auth.isAllowedApiOrigin('null', PORT), false, 'null/sandboxed origin rejected');
 A.eq(auth.isAllowedApiOrigin('http://127.0.0.1:1234', PORT), false, 'wrong-port loopback origin rejected');
 
+// ---- #62: a PORT-FORWARDED page is same-origin with the server it reaches (Origin == its own loopback Host) ----
+A.eq(auth.isAllowedApiOrigin('http://localhost:9000', PORT, 'localhost:9000'), true, 'ssh -L 9000 tunnel: Origin matches the request Host -> allowed');
+A.eq(auth.isAllowedApiOrigin('http://127.0.0.1:9000', PORT, '127.0.0.1:9000'), true, 'tunnel on 127.0.0.1 allowed');
+A.eq(auth.isAllowedApiOrigin('http://[::1]:9000', PORT, '[::1]:9000'), true, 'tunnel on ipv6 loopback allowed');
+A.eq(auth.isAllowedApiOrigin('http://localhost:3000', PORT, 'localhost:' + PORT), false, 'ANOTHER local site calling the station (Origin != Host) stays refused');
+A.eq(auth.isAllowedApiOrigin('http://127.0.0.1:1234', PORT, '127.0.0.1:' + PORT), false, 'wrong-port loopback origin still rejected when Host is the station');
+A.eq(auth.isAllowedApiOrigin('http://evil.example:9000', PORT, 'evil.example:9000'), false, 'a rebinding attacker (non-loopback Host) is refused even when Origin == Host');
+A.eq(auth.isAllowedApiOrigin('http://user@localhost:9000', PORT, 'localhost:9000'), false, 'a non-serialized origin (userinfo) never matches');
+A.eq(auth.isAllowedApiOrigin('http://localhost:9000/x', PORT, 'localhost:9000'), false, 'an origin with a path never matches');
+A.eq(auth.isAllowedApiOrigin('file://localhost:9000', PORT, 'localhost:9000'), false, 'non-http schemes never match');
+
 // ---- isAllowedHost: DNS-rebinding defense ----
 A.eq(auth.isAllowedHost('127.0.0.1:' + PORT), true, 'loopback host allowed');
 A.eq(auth.isAllowedHost('localhost:' + PORT), true, 'localhost host allowed');

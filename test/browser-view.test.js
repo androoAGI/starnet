@@ -390,5 +390,27 @@ function rig(extra) {
     A.ok(threw, 'the clock must be injected');
   }
 
+  // ---- #61 RESET STATION BROWSER: close ours, sweep orphans, report the truth; refused while an agent drives ----
+  {
+    let sweeps = 0, sweepResult = { ok: true, found: 1, killed: [300], survivors: [], ours: [], locks: { removed: ['lockfile'], failed: [] }, error: null };
+    const { made, views } = rig({ sweepStationProfile: async () => { sweeps++; return sweepResult; } });
+    await views.open('example.com');
+    const r = await views.reset();
+    A.ok(r.ok && r.closed, 'reset closes the station browser and reports ok');
+    A.eq(made[0].closed, 1, 'the station session really closed');
+    A.eq(sweeps, 1, 'and the durable profile was swept for orphans');
+    A.eq(r.sweep.killed, [300], 'the receipt carries the sweep verdict');
+    sweepResult = { ok: false, found: 1, killed: [], survivors: [300], ours: [], locks: { removed: [], failed: [] }, error: null };
+    const r2 = await views.reset();
+    A.ok(!r2.ok && /still running/.test(r2.error), 'a surviving orphan is NOT reported as a successful reset');
+    const view = views.sessionForRun({ agentId: 'a1', runId: 'run-1', interactive: true });
+    await view.navigate('https://example.com/');
+    const before = sweeps;
+    const r3 = await views.reset();
+    A.ok(!r3.ok && r3.driving && r3.driving.runId === 'run-1' && /stop that run/.test(r3.error), 'refused while an agent drives (names the run)');
+    A.eq(sweeps, before, 'and nothing was swept or closed');
+    views.releaseRun('run-1');
+  }
+
   A.report('browser-view.test');
 })().catch(e => { console.log('FAIL: browser-view.test threw - ' + (e && e.stack || e)); process.exit(1); });

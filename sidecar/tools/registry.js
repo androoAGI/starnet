@@ -625,6 +625,12 @@
           thrownSummary || (unknownEffect && e.cancelled ? 'cancelled' : (e && e.precondition ? 'precondition' : 'error')),
           parked, fullError.length, fullErrorBytes, e && e.mutationReceipt, e && e.precondition, hostCap);
         if (unknownEffect) failed.effectUnknown = true;
+        // A refusal that points at a DEFERRED tool (browser.eval -> browser.inspect) must also make it callable: the
+        // loop moves revealTools names into the advertised set only when they were already granted and deferred,
+        // so this never widens capability. The result stays an error.
+        const reveal = e && Array.isArray(e.revealTools)
+          ? e.revealTools.filter(n => typeof n === 'string' && /^[a-z0-9_.]{1,64}$/i.test(n)).slice(0, 8) : [];
+        if (reveal.length) failed.control = { revealTools: reveal };
         return await notifyPost(failed, elapsed());
       } finally {
         // A long run may execute hundreds of tools against one parent signal. Once this call settles, its child

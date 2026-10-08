@@ -104,6 +104,9 @@
 #screen-connect .codex-status { font-size:16px; line-height:1.4; margin-bottom:12px; letter-spacing:0; color:var(--text); }
 #screen-connect .codex-code { padding:14px; margin:12px 0; font-size:24px; border:1px solid var(--gd-edge); border-radius:6px; background:var(--gd-face); color:var(--ph-bright); }
 #screen-connect .codex-actions { display:flex; flex-wrap:wrap; gap:8px; }
+/* KIMI ACCOUNT REGION (#70): the picked region reads as pressed hardware, the other as a plain key */
+#screen-connect .kimi-region { align-items:center; margin-bottom:12px; }
+#screen-connect .kimi-region .btn[aria-pressed="true"] { color:var(--ph-bright); border-color:var(--ph); background:rgba(var(--ph-rgb),.13); }
 /* CLAUDE CLI tile: the install command reads like the device code (same well), the paste-a-code row sits under the actions */
 #screen-connect .claude-cli-install { margin:0 0 12px; }
 #screen-connect .claude-cli-cmd { display:block; margin-top:6px; padding:10px 12px; font-size:14px; line-height:1.4; border:1px solid var(--gd-edge); border-radius:6px; background:var(--gd-face); color:var(--ph-bright); overflow-wrap:anywhere; user-select:all; }

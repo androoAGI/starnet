@@ -576,4 +576,69 @@ A.eq(Conveyor.weightForUsd(0.004), 0.004, 'a sub-cent run reads as a near-weight
  A.eq(span(parked),[9,8],'Conveyor.drawCrate parks the same 9x8 crate');
  A.ok(has(parked,LID.product)&&Math.min(...parked.map(r=>r.x))===16&&Math.min(...parked.map(r=>r.y))===15,'…at the point a riding box is drawn at');
 }
+/* BELT ATLAS + CULLING (2026-10-07 "laggy" reports: 133 tiles were ~6,500 fills + ~1,100 strokes a frame). A tile wholly
+   off the canvas draws nothing; once the camera has held still for two draws every shown tile is ONE 1:1 blit from its
+   roller phase's sheet; any camera move draws live again and frees the sheets. Recording contexts, no raster. */
+{
+  const rec = () => {
+    const ops = [];
+    const g = { ops, globalAlpha: 1, fillStyle: '', strokeStyle: '', lineWidth: 1, tf: [1, 0, 0, 1, 0, 0],
+      setTransform(...t) { this.tf = t; ops.push(['tf', ...t]); }, getTransform() { const [a, b, c, d, e, f] = this.tf; return { a, b, c, d, e, f }; },
+      stack: [], save() { ops.push(['save']); this.stack.push(this.tf); }, restore() { ops.push(['restore']); this.tf = this.stack.pop(); }, beginPath() {}, rect() {}, clip() {}, moveTo() {}, lineTo() {}, arc() {},
+      stroke() { ops.push(['stroke']); }, fillRect(...a) { ops.push(['fill', ...a]); }, drawImage(...a) { ops.push(['img', ...a]); } };
+    return g;
+  };
+  const sheets = [];
+  const prevDoc = global.document;
+  global.document = { createElement: tag => { const c = { tag, width: 0, height: 0, ctx: rec(), on: {} }; c.getContext = () => c.ctx; c.ctx.canvas = c; c.addEventListener = (n, f) => { (c.on[n] = c.on[n] || []).push(f); }; c.emit = n => (c.on[n] || []).forEach(f => f()); sheets.push(c); return c; } };
+  const stage = rec(); stage.canvas = { width: 400, height: 300 };
+  const belts = [{ x: 0, y: 0, dir: 'E' }, { x: 1, y: 0, dir: 'E' }, { x: 2, y: 0, dir: 'E' }, { x: 90, y: 90, dir: 'E' }];   // the last is far off-canvas
+  const cv = Conveyor.create(), draw = (t, tf) => { stage.ops.length = 0; stage.tf = tf; cv.drawBelts(stage, t, 12, belts, null); return stage.ops; };
+  const tf = [0.8, 0, 0, 0.8, 10.25, 20.5];
+  const live1 = draw(100, tf);
+  A.ok(live1.some(o => o[0] === 'fill') && !live1.some(o => o[0] === 'img'), 'a camera that just arrived draws its tiles live');
+  A.eq(live1.filter(o => o[0] === 'save').length, 3, 'the off-canvas tile is culled: three shown tiles, three tile clips');
+  draw(133, tf);
+  const at = draw(166, tf);
+  A.eq(at.filter(o => o[0] === 'fill' || o[0] === 'stroke').length, 0, 'a still camera draws no belt commands on the stage...');
+  const blits = at.filter(o => o[0] === 'img');
+  A.eq(blits.length, 3, '...only one blit per shown tile');
+  A.ok(blits.every(o => o[1] === blits[0][1]), 'every tile blits from the same sheet (one texture)');
+  A.ok(blits.every(o => o[4] === o[8] && o[5] === o[9] && Number.isInteger(o[6]) && Number.isInteger(o[7])), 'blits are 1:1 at whole device pixels');
+  A.ok(at.some(o => o[0] === 'tf' && o[1] === 1 && o[5] === 0 && o[6] === 0), 'the blit runs under the identity transform');
+  const cell = blits[0][1].ctx.ops.find(o => o[0] === 'tf');
+  A.ok(Math.abs((cell[5] - 10.25) % 1) < 1e-9 && Math.abs((cell[6] - 20.5) % 1) < 1e-9, 'a cell keeps the live tile\'s sub-pixel phase (shifted by whole pixels only)');
+  const made = sheets.length;
+  draw(166 + 180, tf);
+  A.eq(sheets.length, made, 'the same roller phase one cycle later reuses its sheet');
+  draw(166 + 90, tf);
+  A.eq(sheets.length, made + 1, 'a new roller phase draws its sheet once');
+  const moved = draw(300, [0.8, 0, 0, 0.8, 11, 20.5]);
+  A.ok(moved.some(o => o[0] === 'fill') && !moved.some(o => o[0] === 'img'), 'a moving camera draws live again');
+  A.ok(sheets.slice(0, made + 1).every(c => c.width === 1), '...and frees the still camera\'s sheets');
+  // a layout edit under a still camera (BUILD mode laying belts): live until the new layout has held for two draws
+  const edit = Conveyor.create(); stage.tf = tf;
+  for (let i = 0; i < 3; i++) { stage.ops.length = 0; edit.drawBelts(stage, 500 + i * 33, 12, belts, null); }
+  const before = sheets.length, laid = belts.concat([{ x: 3, y: 0, dir: 'E' }]);
+  stage.ops.length = 0; edit.drawBelts(stage, 600, 12, laid, null);
+  A.ok(stage.ops.some(o => o[0] === 'fill') && !stage.ops.some(o => o[0] === 'img') && sheets.length === before, 'a fresh layout draws live and builds no sheet');
+  stage.ops.length = 0; edit.drawBelts(stage, 633, 12, laid, null); stage.ops.length = 0; edit.drawBelts(stage, 666, 12, laid, null);
+  A.eq(stage.ops.filter(o => o[0] === 'img').length, 4, '...and blits once it has held still (four shown tiles)');
+  // a GPU reset: a restored sheet is blank while its context reads alive — the event drops the atlas
+  const gpu = Conveyor.create(); stage.tf = tf;
+  for (let i = 0; i < 3; i++) { stage.ops.length = 0; gpu.drawBelts(stage, 700, 12, belts, null); }
+  const held = stage.ops.find(o => o[0] === 'img')[1];
+  held.emit('contextrestored');
+  A.eq(held.width, 1, 'a restored (blank) sheet is released');
+  stage.ops.length = 0; gpu.drawBelts(stage, 700, 12, belts, null);
+  const rebuilt = stage.ops.find(o => o[0] === 'img');
+  A.ok(rebuilt && rebuilt[1] !== held, '...and the still camera blits from a freshly drawn sheet, never the blank one');
+  const cold = Conveyor.create(); stage.tf = tf;
+  for (let i = 0; i < 3; i++) { stage.ops.length = 0; cold.drawBelts(stage, 100 + i * 40, 12, belts, {}); }
+  const coldSheets = sheets.length;
+  for (let i = 0; i < 6; i++) { stage.ops.length = 0; cold.drawBelts(stage, 300 + i * 37, 12, belts, {}); }
+  A.eq(sheets.length, coldSheets, 'a line with no energized tile has one phase: its rollers are parked');
+  global.document = prevDoc;
+}
+
 A.report('conveyor');

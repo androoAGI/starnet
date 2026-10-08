@@ -547,11 +547,18 @@ const Chat = (() => {
     return 'started';
   }
 
+  let lastDegradedLine = '';   // the degraded reason already named in COMMS (once per reason, reset when the service answers)
   async function probeReconnect() {
     if (!interruptedStreams.size) { reconnectTimer = 0; return; }
-    let alive = false;
-    try { const r = await fetch('/api/health', { cache: 'no-store' }); alive = !!(r && r.ok); } catch (_) { alive = false; }
+    let alive = false, degraded = '';
+    try {
+      const r = await fetch('/api/health', { cache: 'no-store' }); alive = !!(r && r.ok);
+      // A service that is up but holding itself degraded (crash-loop breaker, workspace-owner hold) says why in its
+      // 503 text. Name it once instead of polling silently forever (link-down 2026-10-07).
+      if (r && r.status === 503) { const t = String(await r.text() || '').trim(); if (/^degraded/i.test(t)) degraded = t; }
+    } catch (_) { alive = false; }
     if (alive) {
+      lastDegradedLine = '';
       // report each interrupted stream once. Only the DISPLAYED stream draws a line (same rule as tool/error
       // lines); a background stream's flag is cleared quietly — its error row already recorded the failure.
       const wasActive = activeWs && interruptedStreams.has(activeWs.id);
@@ -563,6 +570,10 @@ const Chat = (() => {
         if (outcome === 'none' || outcome === 'unavailable') toolLine('connection restored — no safe automatic continuation was available; use Try again.', true);
       }
     } else {
+      if (degraded && degraded !== lastDegradedLine && activeWs && interruptedStreams.has(activeWs.id)) {
+        lastDegradedLine = degraded;
+        toolLine('station service ' + degraded + (Harness.canRestartEngine && Harness.canRestartEngine() ? ' — restart it from LINK DOWN at the top.' : ''), true);
+      }
       reconnectTimer = setTimeout(probeReconnect, 3000);   // still down — keep watching
     }
   }
@@ -2114,7 +2125,7 @@ const Chat = (() => {
     // click drops the desk. 'later' just dismisses this view of it — the step is still owed, so the next open
     // of this session says so again (it stops for good the moment the desk exists).
     const chips = choices([{ label: '▤ PLACE ITS DESK', value: 'desk' }, { label: 'later', value: 'later', skip: true }], item => {
-      if (item && item.value === 'desk' && App.openDeskPlacement) App.openDeskPlacement();
+      if (item && item.value === 'desk' && App.openDeskPlacement) App.openDeskPlacement(id);
     });
     if (chips) chips.classList.add('comms-desk-prompt');
   }
@@ -7395,9 +7406,12 @@ const Chat = (() => {
   // Budget-stop legibility (2026-07-23): a 'budget' stop names WHICH spend cap fired and how big it is, in money
   // words — the old "reached this run's limit" read as a runtime setting and sent users hunting in the wrong
   // panel. Scope/cap ride the additive agent.run.end fields; an old sidecar omits them and gets the generic line.
-  function budgetStopLine(scope, capUsd) {
+  function budgetStopLine(scope, capUsd, atBalance) {
     // only show the $ figure when it renders honestly at cent precision (a sub-cent test cap would read "$0.00")
     const cap = (typeof capUsd === 'number' && isFinite(capUsd) && capUsd >= 0.01) ? '$' + capUsd.toFixed(2).replace(/\.00$/, '') + ' ' : '';
+    // atBalance (agent.run.end budgetCapIsBalance, additive): admission clamped this StarNet run's ceiling to the
+    // reported balance, so the run spent the wallet, not a cap the user chose — raising PER RUN would do nothing.
+    if (scope === 'run' && atBalance === true) return (cap ? 'used the ' + cap + 'left on your StarNet balance' : 'used what was left on your StarNet balance') + ' — add credits under SETTINGS → AI & MODELS to keep going';
     const what = scope === 'run' ? 'hit the ' + cap + 'per-run spend cap'
       : scope === 'agent' ? 'this agent hit its ' + cap + 'lifetime spend cap'
       : scope === 'day' ? 'hit the ' + cap + 'daily spend cap'
@@ -7405,16 +7419,20 @@ const Chat = (() => {
       : 'hit a spend cap';
     // A per-RUN stop says "raise", never "remove": a StarNet-credit run with PER RUN at 0 still stops at the
     // managed default (issue #53), so "remove it" would be an instruction that does nothing there.
-    return what + (scope === 'run' ? ' — raise it' : ' — raise or remove it') + ' in MISSION CONTROL → BUDGET';
+    // the caps live in SETTINGS › SPENDING LIMITS (MISSION CONTROL is only a room label; there is no BUDGET tab)
+    return what + (scope === 'run' ? ' — raise it' : ' — raise or remove it') + ' in SETTINGS › SPENDING LIMITS';
   }
-  // the budget stop's door: open SETTINGS straight on the BUDGET section (the same openTerm(key, section)
-  // mechanism friendlyerror's doors use), with retry alongside for after the user has raised the cap.
-  function offerBudgetDoor() {
+  // the budget stop's door: open SETTINGS straight on the SPENDING LIMITS section (the same openTerm(key, section)
+  // mechanism friendlyerror's doors use), with retry alongside for after the user has raised the cap. A stop at the
+  // StarNet balance gets the top-up door instead — Friendly's 'store' door, the one managed_credit already opens.
+  function offerBudgetDoor(atBalance) {
+    const topUp = (atBalance === true && typeof Friendly !== 'undefined' && Friendly.actionButton) ? Friendly.actionButton({ action: 'store' }) : null;
     choices([
-      { label: '$ OPEN BUDGET SETTINGS', value: 'budget' },
+      topUp ? { label: topUp.label, value: 'store' } : { label: '$ OPEN SPENDING LIMITS', value: 'budget' },
       { label: '↻ Try again', value: 'retry', quiet: true }
     ], it => {
       if (it && it.value === 'retry') { retryLast(); return; }
+      if (topUp) { topUp.run(); return; }
       try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('settings', 'budget'); } catch (_) {}
     });
   }
@@ -7452,12 +7470,16 @@ const Chat = (() => {
     b.textContent = '⧉ copy diagnostics for a bug report';   // ⧉ = the house copy glyph (not the 📋 emoji)
     b.addEventListener('click', () => {
       b.disabled = true;
-      Diag.copy({ notify: false, context: context }).then(ok => {
-        b.textContent = ok ? '✓ diagnostics copied — paste into your report' : 'copy failed — try again';
-        if (!ok) { b.disabled = false; return; }
+      // onDone carries the report text: when the clipboard refuses (WebKit after the fetch), the report renders
+      // in this row as selectable text with its own in-gesture "copy again" — a retry of this button would only
+      // repeat the refusal, so it stays disabled and says where the report went.
+      Diag.copy({ notify: false, context: context, onDone: (ok, text) => {
+        b.textContent = ok ? '✓ diagnostics copied — paste into your report' : (text ? 'copy blocked — report shown below' : 'could not read diagnostics');
+        if (!ok && !text) { b.disabled = false; return; }   // nothing was read — a later retry can still succeed
+        if (!ok) { if (Diag.showBlock) { Diag.showBlock(rowEl, { text: text }); autoscroll(); } return; }
         if (typeof SFX !== 'undefined' && SFX.click) SFX.click();
         setTimeout(() => { try { rowEl.remove(); } catch (_) {} }, 2600);
-      });
+      } });
     });
     rowEl.appendChild(b);
     log.appendChild(rowEl); autoscroll();
@@ -9174,7 +9196,7 @@ const Chat = (() => {
         renderHistory(); syncStatus();
         activeLiveRow = streamingAgent(); historyRead.repaint = false;
       }
-      const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd } = await Harness.chat({
+      const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance } = await Harness.chat({
         system: sys, messages: retry ? endOnUserTurn(historyWindow(ws)) : historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         taskAction: taskAction || undefined,
         postconditions: opts && opts.postconditions != null ? opts.postconditions : undefined,
@@ -9328,16 +9350,16 @@ const Chat = (() => {
           // below it. Emit this line only when it carries something the card can't: what to do next (step limit,
           // budget door) or a reason the label doesn't name. Your own interrupt → the card alone tells the truth.
           const stopLine = endReason === 'max_iters' ? 'reached the step limit — say "continue" to keep going'
-            : endReason === 'budget' ? budgetStopLine(budgetScope, budgetCapUsd)
+            : endReason === 'budget' ? budgetStopLine(budgetScope, budgetCapUsd, budgetCapIsBalance)
             : endReason === 'cancelled' ? (interrupted.has(ws.id) ? '' : 'run cancelled')
             : 'stopped (' + endReason + ')';
           if (isActiveWs(ws)) { breakLive(); if (stopLine) toolLine('⏹ ' + stopLine); }
           markStoppedTurn(ws, replyText);
-          // a budget stop's honest door is the BUDGET settings section, not a doomed retry (the same cap fires
-          // again immediately); every other stop keeps the plain retry chip.
-          if (isActiveWs(ws)) { if (endReason === 'budget') offerBudgetDoor(); else offerTryAgain(); }
+          // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the StarNet
+          // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
+          if (isActiveWs(ws)) { if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? 'run stopped: ' + endReason
-            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? 'hit a spending limit' : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),
+            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),
             'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
         } else if (cutShort) {
           // distinct honest "cut short" recap: the reply is truncated/filtered, not a clean delivery.

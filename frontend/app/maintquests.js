@@ -66,7 +66,7 @@
       s.quests[id] = {
         cause,
         title: String(r.title || '').slice(0, 80),
-        fix: String(r.fix || '').slice(0, 160),
+        fix: String(r.fix || '').slice(0, 320),
         hits: Math.max(0, Number(r.hits) | 0),
         firstSeenAt: first,
         completedAt: Number.isFinite(comp) ? comp : null,
@@ -96,7 +96,7 @@
     const hits = Math.max(0, Number(d.hits) | 0);
     if (existing) {
       if (d.title) existing.title = String(d.title).slice(0, 80);
-      if (d.fix) existing.fix = String(d.fix).slice(0, 160);
+      if (d.fix) existing.fix = String(d.fix).slice(0, 320);   // 160 cut the errored-run fix mid-word ("…and repo")
       if (hits) existing.hits = hits;
       if (existing.completedAt != null) {           // a cleared cause bit again → re-open it (a new recurrence)
         existing.completedAt = null;
@@ -107,7 +107,7 @@
     state.quests[id] = {
       cause,
       title: String(d.title || '').slice(0, 80),
-      fix: String(d.fix || '').slice(0, 160),
+      fix: String(d.fix || '').slice(0, 320),
       hits: hits,
       firstSeenAt: now,
       completedAt: null,

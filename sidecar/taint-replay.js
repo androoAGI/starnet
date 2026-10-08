@@ -19,6 +19,10 @@
    tainted material is no longer in what it replays (a new session, or a history window that no longer reaches the
    tainted rows) — i.e. exactly when the untrusted text has actually left the context.
 
+   UNPROVABLE = TAINTED. A source journal that cannot be read answers "taint unverifiable" (the same narrowing
+   index.js recoverySourceEntryUntrusted applies to the same read); the transcript proof still runs, so a concrete
+   source wins over the unverifiable reason. The caller latches a fixed reason when the proof itself throws.
+
    Pure given its injected stores: makeReplayedTaint({ journal, transcript }) -> ({ recovery, streamId, msgs }) ->
    reason string | null. */
 'use strict';
@@ -29,16 +33,28 @@ function makeReplayedTaint(deps) {
   return function replayedTaint(o) {
     o = o || {};
     const msgs = Array.isArray(o.msgs) ? o.msgs : [];
+    let journalUnreadable = '';
     if (o.recovery && o.recovery.sourceRunId && journal && typeof journal.inspect === 'function') {
-      const st = journal.inspect(String(o.recovery.sourceRunId));
+      let st = null;
+      try { st = journal.inspect(String(o.recovery.sourceRunId)); }
+      catch (e) { journalUnreadable = 'resumed run (taint unverifiable: run journal unreadable' + (e && e.code ? ' ' + String(e.code).slice(0, 16) : '') + ')'; }
       if (st && st.taintedBy) return 'resumed run (tainted by ' + String(st.taintedBy).slice(0, 120) + ')';
     }
-    if (!o.streamId || !transcript || typeof transcript.taintOf !== 'function') return null;
+    if (!o.streamId || !transcript || typeof transcript.taintOf !== 'function') return journalUnreadable || null;
     const prior = (o.recovery ? msgs : msgs.slice(0, -1)).filter(m => m && m.role !== 'system');
-    if (!prior.length) return null;
+    if (!prior.length) return journalUnreadable || null;
     const hit = transcript.taintOf(o.streamId, prior);
-    return hit ? 'replayed history (tainted by ' + String(hit).slice(0, 120) + ')' : null;
+    return hit ? 'replayed history (tainted by ' + String(hit).slice(0, 120) + ')' : (journalUnreadable || null);
   };
 }
 
-module.exports = { makeReplayedTaint };
+/* UNVERIFIED ≠ READ. The fail-closed reasons (the unreadable journal above, and index.js's fixed 'replayed context
+   (taint check failed)' latch) prove only that the earlier context could not be checked — never that outside content
+   was in it. The lock stays; the refusal must say "could not verify", not "outside content was there". Matched
+   anywhere in the reason, so a chained replay of such a run ('replayed history (tainted by …taint check failed)')
+   keeps telling the same truth. */
+function isUnverifiedTaint(reason) {
+  return /taint unverifiable|taint check failed/.test(String(reason == null ? '' : reason));
+}
+
+module.exports = { makeReplayedTaint, isUnverifiedTaint };

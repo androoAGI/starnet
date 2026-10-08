@@ -170,10 +170,11 @@ const WorldLight = (() => {
     return light;
   }
 
-  function lightAt(x, y, lights, segments) {
+  // trans (optional): the caller's remembered visibilityFraction for these segments — same value, fewer rays
+  function lightAt(x, y, lights, segments, trans) {
     const rgb = [0, 0, 0]; let strongest = null, strength = 0, energy = 0, dx = 0, dy = 0;
     for (const l of lights) {
-      const transmission = visibilityFraction(l, x, y, segments); if (!transmission) continue;
+      const transmission = trans ? trans(l, x, y) : visibilityFraction(l, x, y, segments); if (!transmission) continue;
       const v = l.a * falloff(Math.hypot(x - l.x, y - l.y) / l.r) * transmission;
       for (let i = 0; i < 3; i++) rgb[i] += l.c[i] * v;
       const o = originOf(l), d = Math.hypot(o.x - x, o.y - y);
@@ -225,6 +226,41 @@ const WorldLight = (() => {
       frames: 0, preparations: 0, beamBuilds: 0, lastBuildMs: 0, droppedSources: 0, supported: true, contextLosses: 0, contextRecoveries: 0,
       configRevision: 0, sampleCacheHits: 0, sampleCacheMisses: 0, sampleCacheEvictions: 0, sampleCacheInvalidations: 0 };
     const sampleLimit = () => clamp(Math.floor(finite(config.sampleCacheLimit, 512)), 0, 2048);
+    /* GEOMETRY-SCOPED VISIBILITY (2026-10-07, a 207-source station drew at ~22ms): an emitter's area origins, and
+       the wall-occlusion fraction a point sees from them, depend only on the walls (segments) and the emitter's
+       physical origin + softness — never on its brightness. prepare() re-normalizes every source each frame and a
+       working screen changes some alpha every frame, which (correctly) clears the sample cache: so every sample
+       re-ran 5 origins × every wall for every source in reach, and every source re-derived its origins (~100k ray
+       tests a frame). Both are now remembered for the current wall set; brightness still reaches every sample
+       exactly, and a new wall set (setGeometry, a quality change) starts both caches over. */
+    const ORIGIN_LIMIT = 4096, TRANS_LIMIT = 32768;
+    let visFor = null; const originCache = new Map(), transCache = new Map();
+    function visScope() { if (visFor !== segments) { visFor = segments; originCache.clear(); transCache.clear(); } }
+    const originKey = (l, count) => finite(l.originX, l.x) + ',' + finite(l.originY, l.y) + ',' + l.softness + ',' + count;
+    function originsOf(l, count) {
+      visScope();
+      const k = originKey(l, count); let o = originCache.get(k);
+      if (!o) {
+        o = emitterOrigins(l, segments, count);
+        if (originCache.size >= ORIGIN_LIMIT) originCache.delete(originCache.keys().next().value);
+        originCache.set(k, o);
+      }
+      l.originKey = k; return o;
+    }
+    // === visibilityFraction(l, x, y, segments): in reach the fraction is a function of l.origins and the walls
+    // alone (visibleFrom's own reach test is the same test, already passed), so it is looked up by both
+    function transmissionOf(l, x, y) {
+      if (Math.hypot(x - l.x, y - l.y) > l.r) return 0;
+      if (!l.originKey) return visibilityFraction(l, x, y, segments);
+      visScope();
+      const k = l.originKey + '|' + x + ',' + y; let v = transCache.get(k);
+      if (v === undefined) {
+        v = visibilityFraction(l, x, y, segments);
+        if (transCache.size >= TRANS_LIMIT) transCache.delete(transCache.keys().next().value);
+        transCache.set(k, v);
+      }
+      return v;
+    }
     function invalidateSamples() {
       samples.clear(); sampleKey = null; metrics.sampleCacheInvalidations++;
     }
@@ -238,7 +274,7 @@ const WorldLight = (() => {
         samples.delete(key); samples.set(key, cached); metrics.sampleCacheHits++; return cached;
       }
       metrics.sampleCacheMisses++;
-      const hit = lightAt(x, y, currentLights, segments), limit = sampleLimit();
+      const hit = lightAt(x, y, currentLights, segments, transmissionOf), limit = sampleLimit();
       // Descriptors are read-only so a sprite's tint adjustment cannot poison the
       // next furniture/crew draw sharing this exact physical position.
       Object.freeze(hit.rgb); Object.freeze(hit.color); Object.freeze(hit);
@@ -520,7 +556,7 @@ const WorldLight = (() => {
       fixtureLights = sourceFixtures.map(s => normalizeLight(s, true, finite(frame.fixtureGain, 1))).filter(Boolean).slice(0, q.maxSources);
       preparedLights = sourceProps.map(s => normalizeLight(s, false, finite(frame.emission, config.emission))).filter(Boolean).slice(0, q.maxSources);
       currentLights = fixtureLights.concat(preparedLights); preparedFrame = frame;
-      for (const light of currentLights) light.origins = emitterOrigins(light, segments, q.areaSamples);
+      for (const light of currentLights) light.origins = originsOf(light, q.areaSamples);
       // Sample energy must respond to even sub-byte changes. Raster map keys may
       // quantize alpha for reuse; this key deliberately retains its exact value.
       const exact = lights => lights.map(l => keyOf(l) + ',' + l.a + ',' + beamKey(l)).join(';');

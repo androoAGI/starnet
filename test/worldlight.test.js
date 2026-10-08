@@ -268,6 +268,32 @@ const beforeEvicted = sampler.stats().sampleCacheMisses;
 sampler.sample(35.000000001, 30);
 A.eq(sampler.stats().sampleCacheMisses, beforeEvicted + 1, 'an evicted moving position is evaluated again when revisited');
 
+// GEOMETRY-SCOPED VISIBILITY (2026-10-07): a flickering source clears the samples every frame, but the wall
+// occlusion behind them is remembered per wall set. Every sample must equal a cold engine's, bit for bit.
+{
+  const pick = h => JSON.stringify([h.rgb, h.color, h.strength, h.energy, h.dx, h.dy, h.coherence]);
+  const flick = k => ({ fixtures: [{ x: 30, y: 30, r: 50, rgb: '255,192,104', softness: 1.2 }],
+    lights: [Object.assign({}, source, { a: 0.5 + 0.01 * k, softness: 2 }), { x: 70, y: 28, r: 40, a: 0.4 + 0.02 * k, c: [90, 170, 255], softness: 1, originX: 66, originY: 24 }] });
+  const points = [[35, 30], [65, 30], [52, 24], [40.5, 17.25], [72, 40], [20, 44], [58.125, 31]];
+  const warm = Light.create({ canvasFactory }); warm.setGeometry(station(true));
+  let same = 0;
+  for (let k = 0; k < 6; k++) {
+    warm.prepare(flick(k));
+    for (const [x, y] of points) {
+      const cold = Light.create({ canvasFactory }); cold.setGeometry(station(true)); cold.prepare(flick(k));
+      if (pick(warm.sample(x, y)) === pick(cold.sample(x, y))) same++;
+      cold.dispose();
+    }
+  }
+  A.eq(same, 6 * points.length, 'remembered occlusion: every flickering-frame sample equals a cold engine\'s exactly');
+  A.eq(warm.stats().sampleCacheInvalidations >= 6, true, 'each power change still cleared the samples themselves');
+  warm.prepare(flick(0)); A.ok(warm.sample(65, 30).strength > 0, 'the open threshold passes light (warm caches)');
+  warm.setGeometry(station(false)); warm.prepare(flick(0));
+  const sealed = Light.create({ canvasFactory }); sealed.setGeometry(station(false)); sealed.prepare(flick(0));
+  A.eq(pick(warm.sample(65, 30)), pick(sealed.sample(65, 30)), 'a new wall set starts the occlusion caches over: the sealed door matches a cold engine');
+  warm.dispose(); sealed.dispose();
+}
+
 sampler.prepare({ lights: [Object.assign({}, sampleSource, { a: 0.6000001 })] });
 A.eq(sampler.stats().sampleCacheSize, 0, 'sub-byte source power changes invalidate samples immediately');
 A.ok(sampler.sample(35, 30).strength > firstSample.strength, 'a power change smaller than raster-key rounding still reaches sprite samples');

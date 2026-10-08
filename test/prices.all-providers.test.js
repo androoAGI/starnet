@@ -102,6 +102,18 @@ function burnProvider(tokensPerTurn, priceOf) {
     A.eq(prices.priceOf('anthropic', 'claude-fable-5').in, 10.00, 'fable 5 = $10/Mtok in (claude-api skill ref)');
     A.eq(prices.priceOf('anthropic', 'claude-fable-5').out, 50.00, 'fable 5 = $50/Mtok out');
     A.eq(prices.priceOf('anthropic', 'claude-opus-5').in, 5.00, 'opus 5 = $5/Mtok in');
+    // the 5.5 family (claude-api skill "Current Models", cached 2026-10-06) — the default picks, so a missed live
+    // lookup must not bill them at their predecessors' (or the haiku 4.5 family fallback's ~10x) rate
+    for (const [id, rate] of [
+      ['claude-opus-5-5', { in: 4.00, out: 20.00 }], ['claude-opus-5.5', { in: 4.00, out: 20.00 }],
+      ['claude-sonnet-5-5', { in: 2.00, out: 10.00 }], ['claude-sonnet-5.5', { in: 2.00, out: 10.00 }],
+      ['claude-haiku-5-5', { in: 0.10, out: 0.50 }], ['claude-haiku-5.5', { in: 0.10, out: 0.50 }],
+      ['claude-sonnet-5', { in: 2.00, out: 10.00 }], ['claude-opus-5', { in: 5.00, out: 25.00 }],
+      ['claude-fable-5-1', { in: 10.00, out: 50.00 }], ['claude-haiku-4-5', { in: 1.00, out: 5.00 }]
+    ]) {
+      const p = prices.priceOf('anthropic', id);
+      A.eq({ in: p.in, out: p.out }, rate, id + ' = $' + rate.in + ' / $' + rate.out + ' per Mtok (skill table)');
+    }
     A.eq(prices.priceOf('anthropic', 'claude-opus-4-7').out, 25.00, 'opus 4.7 shares the 4.5+ rate');
     A.eq(prices.priceOf('anthropic', 'claude-opus-4-1-20250805').in, 15.00, 'opus 4.1 still on the legacy opus rate (row order intact)');
     A.eq(prices.priceOf('gemini', 'gemini-3.1-pro-preview').out, 12.00, 'gemini 3.1 pro priced');

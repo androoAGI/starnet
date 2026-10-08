@@ -175,7 +175,7 @@ function fakeCloud(opts) {
     const hung = (url, init) => new Promise((resolve, reject) => {
       if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
     });
-    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: hung, fsp, fs, pathMod: path, dir: path.join(tmp, 'hung'), now: () => 4600, requestTimeoutMs: 5 });
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: hung, fsp, fs, pathMod: path, dir: path.join(tmp, 'hung'), now: () => 4600, requestTimeoutMs: 5, linkRetryMs: 0 });
     let timedOut = false;
     try { await link.start('Station'); } catch (e) { timedOut = e && e.name === 'AbortError'; }
     A.eq(timedOut, true, 'a hung link-start request aborts within the configured bound');
@@ -191,7 +191,7 @@ function fakeCloud(opts) {
         if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
       })
     });
-    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: stalledBody, fsp, fs, pathMod: path, dir: path.join(tmp, 'stalled-body'), now: () => 4700, requestTimeoutMs: 5 });
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: stalledBody, fsp, fs, pathMod: path, dir: path.join(tmp, 'stalled-body'), now: () => 4700, requestTimeoutMs: 5, linkRetryMs: 0 });
     let timedOut = false;
     try { await link.start('Station'); } catch (e) { timedOut = e && e.name === 'AbortError'; }
     A.eq(timedOut, true, 'link-start also aborts when headers arrive but the JSON body stalls');
@@ -444,6 +444,96 @@ function fakeCloud(opts) {
       }) }) });
     A.eq((await link.healFromEnv()).reason, 'unreachable', 'timeout covers response body consumption');
     A.eq(link.hasSaved(), false, 'timed-out identity never creates a link');
+  }
+
+  // Issue #76 (2026-10-06): the boot heal was ONE-SHOT. A cloud that was slow/down at launch left a keychain-authorized
+  // station unlinked for the whole session even after the cloud recovered. A transient refusal now arms a spaced retry;
+  // a definitive one (revoked token) never does; concurrent askers share one whoami.
+  {
+    let clock = 10000, mode = 'down';
+    const calls = [];
+    const f = (url, init) => {
+      calls.push(String(url));
+      if (mode === 'down') return Promise.reject(new Error('ETIMEDOUT'));
+      if (mode === '502') return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) });
+      if (mode === 'revoked') return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, accountId: 'acct_back' }) });
+    };
+    const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: f, fsp, fs, pathMod: path,
+      dir: path.join(tmp, 'heal-retry'), now: () => clock, envToken: 'snd_survivor', healRetryMs: 30000 });
+    A.eq(link.healRetryDue(), false, 'nothing to retry before the first heal');
+    const first = await link.healFromEnv();
+    A.eq(first.reason, 'unreachable', 'boot heal met a dead cloud');
+    A.eq(first.retryable, true, 'an unreachable cloud is a transient refusal');
+    A.eq(link.healRetryDue(), false, 'the retry is spaced — not due immediately');
+    clock += 30000;
+    A.eq(link.healRetryDue(), true, 'due once the spacing has elapsed');
+    mode = '502';
+    const second = await link.healFromEnv();
+    A.eq(second.reason, 'whoami http 502', 'a 502 is named');
+    A.eq(second.retryable, true, 'a 5xx keeps the retry armed');
+    clock += 30000;
+    mode = 'up';
+    const [a, b] = [link.healFromEnv(), link.healFromEnv()];
+    A.eq(a === b, true, 'concurrent heals share one in-flight attempt');
+    const healed = await a;
+    A.eq(healed.healed, true, 'the station relinks itself once the cloud is back — no restart');
+    A.eq(link.loadSavedSync().accountId, 'acct_back', 'the record carries the cloud-vouched account');
+    A.eq(calls.filter(u => u.includes('/v1/whoami')).length, 3, 'one whoami per attempt (the shared one counted once)');
+    A.eq(link.healRetryDue(), false, 'a healed station has nothing left to retry');
+
+    // a definitive 401 disarms the retry: a revoked token is never re-asked in a loop
+    let c2 = 0;
+    const revoked = makeCreditsLink({ cloudUrl: 'https://cloud.example', fsp, fs, pathMod: path, dir: path.join(tmp, 'heal-retry-revoked'),
+      now: () => c2, envToken: 'snd_dead', healRetryMs: 10,
+      fetch: () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }) });
+    const rv = await revoked.healFromEnv();
+    A.eq(rv.retryable, false, 'a revoked token is not a transient failure');
+    c2 += 1000;
+    A.eq(revoked.healRetryDue(), false, 'and never arms a retry');
+  }
+
+  // ---- PAIRING-START RETRY (link-down 2026-10-07): one transient blip used to end the pairing with "could not reach
+  //      the link service". A 5xx / transport error / abort takes ONE spaced second attempt; a 4xx never does. ----
+  {
+    const scripted = (answers) => {
+      const calls = [];
+      const fetch = (url, init) => {
+        calls.push(String(url));
+        const a = answers.shift();
+        if (a === 'throw') return Promise.reject(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } }));
+        if (a === 'abort') return Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        const status = a || 200;
+        return Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve(status === 200 ? { code: 'STAR-RTRY', pollSecret: 'ps', verifyUrl: 'https://cloud.example/v', expiresAt: 1 } : { error: 'x' }) });
+      };
+      return { calls, fetch };
+    };
+    const mk = (fetch, sub) => makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch, fsp, fs, pathMod: path, dir: path.join(tmp, 'start-retry-' + sub), now: () => 5000, linkRetryMs: 0 });
+    for (const [first, label] of [[503, 'a 5xx'], ['throw', 'a transport error'], ['abort', 'an aborted request']]) {
+      const c = scripted([first, 200]);
+      const s = await mk(c.fetch, String(first)).start('Station');
+      A.eq([s.ok, s.code, c.calls.length], [true, 'STAR-RTRY', 2], label + ' on link/start is retried once and the pairing goes on');
+    }
+    for (const [status, label] of [[400, 'a 400'], [429, 'a 429 (a fixed wait would only meet the same limit)']]) {
+      const c = scripted([status, 200]);
+      let err = null; try { await mk(c.fetch, String(status)).start('Station'); } catch (e) { err = e; }
+      A.eq([err && err.status, c.calls.length], [status, 1], label + ' is a verdict: exactly one call, the status kept');
+    }
+    {
+      const c = scripted([502, 502]);
+      let err = null; try { await mk(c.fetch, 'twice').start('Station'); } catch (e) { err = e; }
+      A.eq([err && err.status, err && err.attempts, c.calls.length], [502, 2, 2], 'two transient failures surface the last error with attempts:2');
+    }
+    {
+      // an unlink during the backoff wins: the dead attempt never mints a second code
+      const c = scripted([503, 200]);
+      const link = makeCreditsLink({ cloudUrl: 'https://cloud.example', fetch: c.fetch, fsp, fs, pathMod: path, dir: path.join(tmp, 'start-retry-superseded'), now: () => 5000, linkRetryMs: 20 });
+      const pending = link.start('Station');
+      await new Promise(r => setTimeout(r, 5));
+      await link.clearSaved();
+      const s = await pending;
+      A.eq([s.ok, s.error, c.calls.length], [false, 'superseded', 1], 'an unlink during the retry backoff supersedes the start with no second call');
+    }
   }
 
   await flush();

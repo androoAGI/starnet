@@ -105,8 +105,18 @@ const WorkQuestStore = (() => {
   // sidecar emits (slaglog.js / runstore REASONS): error | budget | max_iters | refusal are FAILURES; the
   // build stalled. 'cancelled' is a deliberate human stop — resolve it too, but quietly (never nag).
   const STALL_REASONS = { error: 1, budget: 1, max_iters: 1, refusal: 1 };
+  // a bound build run's own error text (agent.run.error lands before its run.end), so the stalled beat can name a KNOWN
+  // cause — a refused StarNet link, an empty wallet, a model the key can't use — instead of "send it again, report it".
+  const runErrText = new Map();   // runId -> message; only for runs a build is bound to, read (and dropped) at that run's end
+  function onRunError(p) {
+    if (!ready() || !p || !p.runId || !WorkQuests.questForRun(state, p.runId)) return;
+    runErrText.set(p.runId, String(p.message || ''));
+    if (runErrText.size > 64) runErrText.delete(runErrText.keys().next().value);
+  }
   function onRunEnd(p) {
     if (!ready() || !p) return;
+    const errText = p.runId ? runErrText.get(p.runId) : undefined;
+    if (p.runId) runErrText.delete(p.runId);
     const id = WorkQuests.questForRun(state, p.runId);
     if (!id) return;                                              // no bound build for this run — nothing to do
     if (p.reason === 'done') {
@@ -125,16 +135,21 @@ const WorkQuestStore = (() => {
     if (!q || q.completedAt != null || q.dismissedAt != null || q.stalledAt != null) return;
     if (!WorkQuests.stall(state, id, p.reason, nowMs())) return;
     save(); poke();
-    if (STALL_REASONS[p.reason]) stallBeat(p.reason, q.title);
+    if (STALL_REASONS[p.reason]) stallBeat(p.reason, q.title, errText);
   }
 
   // the one honest, player-facing beat for a stalled build — reuses SlagLog's real post-mortem copy (title +
   // fix), routed through the SHARED StationUI.notify toast in the neutral WARN family (no gold, no new toast
-  // system). Falls back to a plain reason line if SlagLog isn't loaded.
-  function stallBeat(reason, title) {
+  // system). Falls back to a plain reason line if SlagLog isn't loaded. An errored run's own message is classified
+  // exactly as world.js classifies it for the SLAG post-mortem (Friendly kind + message), so both say the same door.
+  function stallBeat(reason, title, errText) {
     let msg;
     try {
-      const d = (typeof SlagLog !== 'undefined' && SlagLog.diagnose) ? SlagLog.diagnose(reason, {}) : null;
+      let error = null;
+      if (reason === 'error' && errText && typeof Friendly !== 'undefined' && Friendly.friendlyError) {
+        try { const v = Friendly.friendlyError(new Error(errText)); error = v ? { kind: v.kind, msg: v.userMessage } : null; } catch (_) { error = null; }
+      }
+      const d = (typeof SlagLog !== 'undefined' && SlagLog.diagnose) ? SlagLog.diagnose(reason, { error }) : null;
       if (d) msg = 'build “' + (title || 'a build') + '” ' + d.title + ' — ' + d.fix;
     } catch (_) {}
     if (!msg) msg = 'build “' + (title || 'a build') + '” stopped (' + reason + ') — adjust and re-run.';
@@ -165,6 +180,7 @@ const WorkQuestStore = (() => {
     if (bound) return;
     if (typeof U !== 'undefined' && U.bus && U.bus.on) {
       U.bus.on('agent.run.start', onRunStart);   // subscription only — NEVER an emit (the frozen contract stands)
+      U.bus.on('agent.run.error', onRunError);
       U.bus.on('agent.run.end', onRunEnd);
       bound = true;
     }
@@ -174,7 +190,7 @@ const WorkQuestStore = (() => {
     armedId = null; armedAt = 0;
     bind();
   }
-  function reset() { state = null; armedId = null; armedAt = 0; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { state = null; armedId = null; armedAt = 0; runErrText.clear(); try { localStorage.removeItem(KEY); } catch (_) {} }
 
   return { init, sync, accept, quests, openCount, dismiss, isDismissed, reset,
     _onRunStart: onRunStart, _onRunEnd: onRunEnd, _armed: () => armedId };
