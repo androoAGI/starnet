@@ -308,6 +308,7 @@ test/rename-migrate.test.js
 test/update-state-parity.test.js
 test/update-continuity.test.js
 test/update-preparation.test.js
+test/update-drain-wiring.test.js
 test/updates-install.test.js
 test/roster-clause.test.js
 test/agent-config-target.test.js

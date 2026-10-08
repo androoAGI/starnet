@@ -157,7 +157,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 359,
+  'index.js': 358,
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

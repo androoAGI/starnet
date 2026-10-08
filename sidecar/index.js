@@ -299,13 +299,23 @@ const harnessImport = require('./harness-import.js'); // IMPORT-AN-AGENT: read-o
 const { writeFileDurable: writeFileDurableRaw } = require('./durable-write.js'); // G4.2: crash-safe atomic+durable single-file replace (fsync-before-rename)
 const stationRecovery = require('./station-recovery.js');
 
-// Every protected JSON store is composed through this writer. The update transaction flips the shared flag
-// after final browser drains and before quiescence, preventing timer/channel/background saves from advancing
-// disk behind the recovery receipt. The receipt itself uses writeFileDurableRaw outside WORKSPACES.
+// Every protected JSON store is composed through this writer. The update transaction flips the shared flag once
+// every live run and in-flight mutation has DRAINED (their finalizers book spend through this writer) and right
+// before the capture, preventing timer/channel/background saves from advancing disk behind the recovery receipt.
+// The receipt itself uses writeFileDurableRaw outside WORKSPACES.
 let updateWritesFrozen = false;
 function writeFileDurable(deps, file, data) {
   if (updateWritesFrozen) throw Object.assign(new Error('durable writes are frozen for update'), { code: 'UPDATE_MUTATIONS_FROZEN' });
   return writeFileDurableRaw(deps, file, data);
+}
+// The WHOLE update barrier: from the moment a prepare raises it (no new run may start — runOnceCore refuses) through
+// the drain, while writes are still open, to the frozen recovery point. Background launchers stand down on THIS, not
+// the write flag alone: a tick during the drain would launch work the barrier refuses and durably record the refusal
+// as a failure (an interrupted overseer review, a failed routine fire).
+function updateHolding() {
+  if (updateWritesFrozen) return true;
+  try { return !!(updatePreparation && updatePreparation.isFrozen()); }
+  catch (_) { return false; }   // the barrier is declared further down: nothing is held before it exists
 }
 const { makeKeyedMutex, readJsonResilient, writeJsonResilient, makeDurableJsonStore, saveJsonVerified } = require('./durable-store.js'); // P1/P2: per-key serialized + last-known-good-recoverable single-file JSON stores
 const { makeDomainStore } = require('./domain-store.js'); // normalized/versioned policy for ordinary non-secret singleton state
@@ -5013,7 +5023,7 @@ function overseerStation(parentStreamId, parentRunId) {
 
 let overseerTickRunning = false;
 async function tickOverseer() {
-  if (overseerTickRunning || workspaceDegraded || updateWritesFrozen || overseer.snapshot().paused) return;
+  if (overseerTickRunning || workspaceDegraded || updateHolding() || overseer.snapshot().paused) return;
   overseerTickRunning = true;
   try {
     overseer.collect(subagents.list());
@@ -5049,7 +5059,7 @@ async function tickOverseer() {
         overseer.patchReview(review.id, { status: 'superseded', error: 'Worker has a newer attempt.' }); continue;
       }
       await overseer.withThread(parent.id, async () => {
-        if (updateWritesFrozen || overseer.snapshot().paused || !overseer.snapshot().reviews.some(r => r.id === review.id && r.status === 'pending')) return;
+        if (updateHolding() || overseer.snapshot().paused || !overseer.snapshot().reviews.some(r => r.id === review.id && r.status === 'pending')) return;
         try { parent = overseer.resolve(review.parentStreamId); }
         catch (_) { overseer.patchReview(review.id, { status: 'cancelled', error: 'Parent conversation is no longer available.' }); return; }
         worker = subagents.get(review.workerId);
@@ -5075,7 +5085,7 @@ async function tickOverseer() {
           + JSON.stringify({ workerId: worker.id, generation: worker.generation, status: worker.status,
             objective: worker.prompt, result: worker.result, artifacts: worker.artifacts, commanderDirections: worker.steerHistory });
         try {
-          await runOnceCore({ agentId: review.agentId, key, provider, baseUrl, model: ident.model,
+          await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: ident.model,
             system: ident.system || cronSystemFor(review.agentId), lead: true, isTask: true,
             syntheticTrigger: true,
             surface: 'autonomous', signal: reviewAbort.signal, streamId: parent.id, runId, parentRunId: worker.runId,
@@ -6311,6 +6321,8 @@ let cronTimer = null;
 //   lastTickError — the most recent tick exception message (null after a clean tick).
 const cronHealth = { lastTickAt: null, lastSuccessAt: null, lastTickError: null };
 function cronTickHealthy() {
+  // an update barrier is up: no fire may start, so no advance is persisted for one either (health is left untouched)
+  if (updateHolding()) return { ran: false, frozen: true };
   cronHealth.lastTickAt = Date.now();
   if (cronDegraded) {
     // a degraded store must not tick: the list in RAM is a phantom of what was on disk, and a reconcile over
@@ -7932,7 +7944,7 @@ let nightshiftTimer = null;
 function nightshiftShouldArm() { try { return NIGHTSHIFT_ENABLED || !!(commanderPosture.summary() || {}).actsUnattended; } catch (_) { return NIGHTSHIFT_ENABLED; } }
 function armNightshift() {
   if (processFaultQuiesced || nightshiftTimer) return false;
-  nightshiftTimer = setInterval(() => { try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
+  nightshiftTimer = setInterval(() => { if (updateHolding()) return; try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
   if (nightshiftTimer.unref) nightshiftTimer.unref();   // the http server keeps the process alive; the ticker alone shouldn't
   console.log('  · night-shift armed (tick ' + Math.round(NIGHTSHIFT_TICK_MS / 1000) + 's, beat ' + Math.round(NIGHTSHIFT_BEAT_MS / 60000) + 'm, away ' + Math.round(NIGHTSHIFT_AWAY_MS / 60000) + 'm)');
   return true;
@@ -8599,6 +8611,7 @@ let loopTimer = null;
 // a loop is "live" if it could ever fire again; a stopped/dormant/paused one cannot, so it must not hold a timer.
 function anyLiveLoop() { return (loopJobs || []).some(l => l && l.enabled !== false && l.state !== 'stopped' && l.state !== 'dormant'); }
 function loopTick() {
+  if (updateHolding()) return;   // an update barrier is up: no iteration may start
   try { loopDriver.applyTick(Date.now()); } catch (e) { console.warn('[loops] tick error:', (e && e.message) || e); }
   // stand the timer down once nothing can fire — a station with no live loops pays nothing.
   if (!anyLiveLoop() && loopDriver.leases.size === 0) disarmLoops();
@@ -10281,6 +10294,30 @@ const openaiCompat = makeOpenAiCompat({
 // counter covers mutations already in flight; the run registry covers long-lived browser/channel/cron work.
 // A successful prepare keeps the barrier frozen until the installer kills us. If the native install fails,
 // the frontend calls /api/update/cancel and normal writes resume against the same live process.
+/* What the pre-update barrier drains (B10). A plain INSTALL UPDATE refuses while this is above 0; INSTALL ANYWAY aborts
+   and waits for it to reach 0 BEFORE durable writes freeze. The id registries overlap (one run can sit in runs, runsMeta
+   and a stop handle at once) and the counters carry no id, so the largest single view is the honest lower bound. A cron
+   lease outlives its run by the routine-record write (finishFire); one holding only a SETTLEMENT is a finished fire
+   waiting on a disk retry, never live work — counting it would hold the barrier forever. */
+function updateLiveRunCount() {
+  const ids = new Set([...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys(), ...runStopHandles.keys()]);
+  let cronLive = 0;
+  try { for (const l of cronDriver.leases.values()) if (l && !l.settlement) cronLive++; } catch (e) { failNote('update.drain.cron-leases', e); }
+  return Math.max(ids.size, coreRunsLive, cronLive);
+}
+/* INSTALL ANYWAY: the reach of E-STOP's kill WITHOUT its durable stand-down stamps — a forced update ends live work, it
+   does not halt the station, so after the upgrade (or a failed install's cancel) routines, loops and the night shift
+   carry on. A stop handle exists for every id'd run runOnce drives (routine fires, hops, line triggers, channel hubs,
+   /v1); background workers are stopped through their manager. Each lane is contained so one failure stops nothing else. */
+function updateAbortLiveRuns() {
+  const lane = (tag, fn) => { try { fn(); } catch (e) { failNote('update.abort.' + tag, e); } };
+  lane('runs', () => killAll(runs));
+  lane('stop-handles', () => killAll(runStopHandles));
+  lane('cron', () => cronDriver.abortAllLeases());
+  lane('loops', () => loopDriver.abortAllLeases());
+  lane('nightshift', () => nightshiftDriver.abortBeat());
+  lane('subagents', () => subagents.interruptAll());
+}
 updatePreparation = makeUpdatePreparation({
   fs: fs, path: path, recovery: Object.assign({}, stationRecovery, {
     capture: options => stationRecovery.capture(Object.assign({}, options, { readConnectorState: () => {
@@ -10290,8 +10327,9 @@ updatePreparation = makeUpdatePreparation({
   }), workspaceRoot: WORKSPACES,
   writeDurable: writeFileDurableRaw, now: () => Date.now(), newId: () => crypto.randomUUID(),
   onFreeze: () => { updateWritesFrozen = true; }, onThaw: () => { updateWritesFrozen = false; },
-  liveRuns: () => runs.size,
-  abortRuns: () => { for (const ac of runs.values()) { try { ac.abort(); } catch (_) {} } },
+  // EVERY live run, not only the browser registry (B10): see updateLiveRunCount / updateAbortLiveRuns
+  liveRuns: () => updateLiveRunCount(),
+  abortRuns: () => updateAbortLiveRuns(),
   appVersion: () => { try { return computeVersionSurface().appVersion || computeVersionSurface().harness || 'unknown'; } catch (_) { return 'unknown'; } }
 });
 
@@ -18392,10 +18430,20 @@ async function runOnceTrackedInner(o) {
   const rid = o && o.runId ? String(o.runId) : '';
   // LINE work only (a run the host stamped with its line or bay): harness self-talk and plain chats keep their own
   // registries — this map exists so a bay lamp is never stood down while its run is really working
-  if (!rid || hostLiveRuns.has(rid) || !(o.lineId || o.dockId) || o.internal || o.outputOnly) return runOnceCore(o);
+  if (!rid || hostLiveRuns.has(rid) || !(o.lineId || o.dockId) || o.internal || o.outputOnly) return runOnceCoreCounted(o);
   hostLiveRuns.set(rid, { agentId: String((o && o.agentId) || 'agent'), startedAt: Date.now(), source: 'host' });
-  try { return await runOnceCore(o); }
+  try { return await runOnceCoreCounted(o); }
   finally { hostLiveRuns.delete(rid); }
+}
+/* UPDATE DRAIN (B10): every runOnceCore in flight, whichever registry its caller keeps — the browser's `runs`, routine and
+   hop runsMeta, line hostLiveRuns, the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
+   inside runOnceCore (budget.check -> ledger.beginRun, the finally's ledger.record), so the pre-update barrier waits on
+   this count before it freezes durable writes. */
+let coreRunsLive = 0;
+async function runOnceCoreCounted(o) {
+  coreRunsLive++;
+  try { return await runOnceCore(o); }
+  finally { coreRunsLive--; }
 }
 async function runOnceCore(o) {
   if (updatePreparation.isFrozen()) {
