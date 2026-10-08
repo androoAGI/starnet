@@ -118,6 +118,19 @@ const refused = r => /^REFUSED: /.test(r.content);
     const budget = JSON.parse((await t.settingsTool.run({ section: 'budget' })).content);
     A.ok(budget['budget/status'] && Array.isArray(budget.toChange), '"budget" is the spending section');
   }
+  // ---- "pin this conversation" (third real-model run): session_id is a session, and session.list marks the caller's own ----
+  {
+    const s = stubs(); const t = make(s);
+    A.eq(cardFor({ action: 'session.pin', session_id: 'ws_b' }), 'pin the session "ws_b"', 'the card reads session_id as the session');
+    const r = await t.controlTool.run({ action: 'session.pin', session_id: 'ws_b' }, { streamId: 'ws_here' });
+    A.ok(!refused(r) && s.pages[0].args.session === 'ws_b' && !('session_id' in s.pages[0].args), 'session_id reaches the page as session (no stray key)');
+    const { makeStationTools } = require('../sidecar/tools/builtin/station.js');
+    const bridge = { request: async () => ({ ok: true, result: { count: 2, sessions: [{ id: 'ws_gen', title: 'General' }, { id: 'ws_here', title: 'Plans' }] } }) };
+    const list = JSON.parse((await makeStationTools({ station: bridge }).listTool.run({}, { streamId: 'ws_here', runId: 'r1' })).content);
+    A.eq(list.sessions.map(x => !!x.thisConversation), [false, true], 'session.list marks ONLY the run\'s own session as thisConversation');
+    const bare = JSON.parse((await makeStationTools({ station: bridge }).listTool.run({}, {})).content);
+    A.ok(bare.sessions.every(x => !x.thisConversation), 'a run with no conversation marks none (never a guess)');
+  }
   // ---- limits.set given none of its fields ----
   {
     const s = stubs(); const t = make(s);

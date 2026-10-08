@@ -302,6 +302,8 @@
   function normArgs(a) {
     const o = Object.assign({}, a);
     delete o.action;
+    // a session named the way a model names it (session_id / sessionId — the real-model pin run sent session_id)
+    if (o.session == null) for (const k of ['session_id', 'sessionId']) if (typeof o[k] === 'string' && o[k].trim()) { o.session = o[k]; delete o[k]; break; }
     if ('on' in o) o.on = onOff(o.on);
     for (const k of ['reach', 'mode', 'decision']) if (typeof o[k] === 'string') o[k] = o[k].trim().toLowerCase();
     return o;

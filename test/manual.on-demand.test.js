@@ -40,8 +40,8 @@ const inline = M.MANUAL_SECTIONS.filter(s => s.kind !== 'reference');
 // Re-pinned 2026-10-05 (self-driving lane 2) for ONE deliberate addition: the agent learns EVERYTHING on demand — a CONCEPTS
 // reference section (every StarNet thing, its place, its tool, its trap), NAVIGATION's generated EVERY PLACE list (frontend/app/
 // places.js), and the dossier's CAN DO replaces the gone SKILLS tab. All reference: the inline form got SHORTER.
-A.eq(full.length, 26119,'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +13388: CONCEPTS + EVERY PLACE + the lane-3 actions + FIND, 2026-10-05; +1803: CONCEPTS learns the trunk since 10-04 (desk seats, SETTLE, held credits, browser reset, HINTS, ERASE EVERYTHING) + "conveyor" + the budget.set call shape, 2026-10-08; +287: NAVIGATION says changing is not opening, 2026-10-08; +143: never around the station tools via shell/files/web, 2026-10-08)');
-A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), '86ccdca7a15730e0b4cd319ebd292cd2b945a0b8dc045e01c88046b3da3a9aea',
+A.eq(full.length, 26279,'the whole manual keeps its length (+30: REFIT is named BUILD MODE; +2: SETTINGS › AI & MODELS; +308: the 0.13 dock, 2026-10-02; +494: station.show + approvals in COMMS, 2026-10-04; +13388: CONCEPTS + EVERY PLACE + the lane-3 actions + FIND, 2026-10-05; +1803: CONCEPTS learns the trunk since 10-04 (desk seats, SETTLE, held credits, browser reset, HINTS, ERASE EVERYTHING) + "conveyor" + the budget.set call shape, 2026-10-08; +287: NAVIGATION says changing is not opening, 2026-10-08; +143: never around the station tools via shell/files/web, 2026-10-08; +160: the SESSIONS rule (pin = a rail session, never a memory note) inline, 2026-10-08)');
+A.eq(crypto.createHash('sha256').update(full, 'utf8').digest('hex'), 'dc4932389a4d14728fd3ebbdf5cf1f44ad9e383909c389820a24d3f9aa4e837f',
   'the whole manual is byte-identical to the literal that shipped before the split');
 
 // ---- B. the sections partition the manual ----
@@ -62,7 +62,7 @@ for (const s of reference) {
   A.ok(index.indexOf(M.manualSection(s.id)) < 0, s.id + ': the reference body is NOT inline');
   A.ok(index.indexOf('\n- ' + s.id + ': ' + s.summary + '\n') >= 0, s.id + ': has a TOC line with its summary');
 }
-A.eq(M.INLINE_RULE_EXCERPTS.length, 1, 'one rule lives inside a reference section');
+A.eq(M.INLINE_RULE_EXCERPTS.length, 2, 'two rules live inside a reference section (SESSIONS, AUTOMATE)');
 for (const r of M.INLINE_RULE_EXCERPTS) {
   A.ok(M.manualSection('navigation').indexOf(r) >= 0, 'the excerpt is a verbatim line of its reference section');
   A.ok(index.indexOf(r) >= 0, 'and rides inline on its own');

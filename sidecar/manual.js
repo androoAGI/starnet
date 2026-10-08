@@ -51,6 +51,12 @@ const NAV_HEAD =
 const NAV_COMMS =
   '- COMMS: the chat panel. The Commander types a request and hits Enter to task the focused agent. ' +
   'Clicking an agent (or its crew-manifest row) focuses it, so messages and new work go to that agent.\n';
+/* SESSIONS (2026-10-08): "pin this conversation" made Claude Haiku 4.5 AND Sonnet 4.5 write a notebook memory titled "Pinned
+   conversation" and report it pinned — the only "pin" either could see was memory's. One line, inline like AUTOMATE, so no
+   lookup is needed to know a conversation is a rail session (station.control session.* with no session = this one). */
+const NAV_SESSIONS =
+  '- SESSIONS: every COMMS chat is a session on its rail — pin, rename or archive one with station.control session.* (no ' +
+  'session = this one), never a memory note.\n';
 const NAV_AUTOMATION =
   '- AUTOMATE (dock, WORK group): tabs WORKFLOWS, SCHEDULES (scheduled work), GOAL LOOPS (one objective repeated ' +
   'until done), AWAY WORK. SCHEDULES creates StarNet routines/cron jobs that wake agents inside the harness. Do not tell the Commander to use OS crontab, ' +
@@ -257,8 +263,8 @@ const TROUBLESHOOTING =
 const SECTIONS = [
   { id: 'about', kind: 'orientation', lead: '', title: 'What this manual is', text: ABOUT },
   { id: 'live-state', kind: 'rule', lead: '', title: 'LIVE HARNESS STATE', text: LIVE_STATE },
-  { id: 'navigation', kind: 'reference', lead: '\n', title: 'NAVIGATION', text: NAV_HEAD + NAV_COMMS + NAV_AUTOMATION + NAV_REST + NAV_PLACES,
-    summary: 'every window and control, and station.show to open one for the Commander — COMMS, MY WORK, AUTOMATE, the DOCK, '
+  { id: 'navigation', kind: 'reference', lead: '\n', title: 'NAVIGATION', text: NAV_HEAD + NAV_COMMS + NAV_SESSIONS + NAV_AUTOMATION + NAV_REST + NAV_PLACES,
+    summary: 'every window and control, and station.show to open one — COMMS, MY WORK, AUTOMATE, the DOCK, '
       + 'ABILITIES, CHANNELS, SETTINGS, BUILD MODE, the Recruitment Bay.' },
   { id: 'props', kind: 'reference', lead: '\n', title: 'OBJECT = CAPABILITY', text: PROPS,
     summary: 'which prop grants which power (WORKSTATION → COMPUTE, DISH → WEB, INTEL CAB → FILES, WORKBENCH → TERMINAL, SERVER CART → MEMORY…).' },
@@ -266,8 +272,8 @@ const SECTIONS = [
   { id: 'approval', kind: 'rule', lead: '\n', title: 'APPROVAL MODE', text: APPROVAL },
   { id: 'connecting', kind: 'rule', lead: '\n', title: 'CONNECTING A PLATFORM', text: CONNECTING },
   { id: 'troubleshooting', kind: 'reference', lead: '\n', title: 'TROUBLESHOOTING', text: TROUBLESHOOTING,
-    summary: 'the concrete fix for each common stuck-Commander case — connecting a platform, a missing web/files/terminal '
-      + 'power, NO COMPUTE, a stuck approval, COMMS not responding, a missing agent, getting more agents.' },
+    summary: 'the fix for each common stuck case — connecting a platform, a missing power, NO COMPUTE, a stuck approval, '
+      + 'a missing agent.' },
   { id: 'concepts', kind: 'reference', lead: '\n', title: 'CONCEPTS', text: CONCEPTS,
     summary: 'what each StarNet thing IS and which tool does it (lines, OUTBOX, schedules, loops, access, E-STOP, spending…).' }
 ];
@@ -280,8 +286,8 @@ const TOC =
   'Before you name any StarNet window, menu, button or prop to the Commander, explain what something is, or walk them through a fix, call ' +
   'manual.read with the section id and answer from what it returns — never from memory:\n' +
   SECTIONS.filter(s => s.kind === 'reference').map(s => '- ' + s.id + ': ' + s.summary + '\n').join('') +
-  'This navigation rule applies without a lookup:\n' +
-  NAV_AUTOMATION;
+  'These apply without a lookup:\n' +
+  NAV_SESSIONS + NAV_AUTOMATION;
 
 // the inline form: every orientation/rule section verbatim, in order, with the table of contents where the
 // reference sections were.
@@ -309,4 +315,4 @@ function manualSection(id) {
 }
 const MANUAL_SECTIONS = Object.freeze(SECTIONS.map(s => Object.freeze({ id: s.id, kind: s.kind, title: s.title, summary: s.summary || '' })));
 
-module.exports = { starnetManual, starnetManualIndex, starnetManualPointer, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_AUTOMATION]) };
+module.exports = { starnetManual, starnetManualIndex, starnetManualPointer, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_SESSIONS, NAV_AUTOMATION]) };

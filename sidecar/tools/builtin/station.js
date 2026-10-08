@@ -54,10 +54,14 @@
       name: 'session.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
       description: 'List the sessions (workstreams) open on this station: id, title, bound agent, and which one the Commander has focused. Use the TITLES when talking to the Commander and when passing `session` to team.dispatch or session.focus. Read this before creating a session so you never mint a duplicate title.',
       schema: { type: 'object', properties: {} },
-      run: async () => {
+      run: async (args, ctx) => {
         const out = await ask('station.sessions', {});
         if (!out.ok) return refuse(out.error);
         const r = out.result || {};
+        // the caller's OWN conversation, marked (real-model run 2026-10-08: "can you pin this conversation?" listed three
+        // sessions, guessed "General", and pinned the wrong one) — the run's session id, never a guess from the titles
+        const mine = ctx && ctx.streamId ? String(ctx.streamId) : '';
+        if (mine && Array.isArray(r.sessions)) r.sessions = r.sessions.map(s => (s && s.id === mine) ? Object.assign({ thisConversation: true }, s) : s);
         return { content: JSON.stringify(r), summary: (r.count != null ? r.count : (r.sessions || []).length) + ' session(s)' };
       }
     };
