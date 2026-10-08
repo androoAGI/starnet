@@ -31,6 +31,7 @@ const at = rel => norm(path.join(source, ...rel.split('/')));
 
 // Every required category present, plus a shadow-Git checkpoint repo and a live browser profile.
 write('agent.roster.json', { version: 1, agents: [{ agentId: 'auditor', name: 'AUDITOR' }] });
+write('agent.roster.json.bak', { version: 1, agents: [{ agentId: 'auditor', name: 'AUDITOR-LKG' }] });   // savestore's last-known-good generation
 write('auditor.save.json', { version: 1, agentId: 'auditor', updatedAt: 1, doc: { schema: 'starnet.save', version: Save.CURRENT, updatedAt: 1, agent: { id: 'auditor' } } });
 write('transcript.jsonl', JSON.stringify({ role: 'user', content: 'keep me', ts: 1 }) + '\n');
 write('auditor.notebook.json', { entries: [{ id: 'm1', body: 'remember' }] });
@@ -63,7 +64,8 @@ function fsWith(extra) {
       };
       if (prop === 'lstatSync') return function (p, ...rest) {
         touched.push(norm(p));
-        if (x.lstatFail && norm(p) === norm(x.lstatFail.abs)) throw Object.assign(new Error(x.lstatFail.code + ': lstat'), { code: x.lstatFail.code });
+        const lf = [].concat(x.lstatFail || []).find(l => norm(p) === norm(l.abs));
+        if (lf) throw Object.assign(new Error(lf.code + ': lstat'), { code: lf.code });
         return target.lstatSync(p, ...rest);
       };
       if (prop === 'readFileSync') return function (p, ...rest) {
@@ -122,6 +124,45 @@ try {
   // D. Fail-closed where it matters: an unreadable ROOT, and an error that is not an entry-level read failure.
   A.throws(() => R.capture({ workspaceRoot: source, fs: fsWith({ readdirFail: { rel: '', code: 'EACCES' } }), now: 1002 }), 'an unlistable capture ROOT still fails closed');
   A.throws(() => R.capture({ workspaceRoot: source, fs: fsWith({ readFail: { rel: 'loops.json', code: 'EIO' } }), now: 1003 }), 'a disk I/O error is not quietly skipped');
+
+  // F. An lstat failure on a whole-skipped credential dir still names the sign-in the restored profile owes. A dropped
+  //    receipt would restore a station that never says its .secrets / codex sign-in is gone.
+  {
+    const cred = R.capture({ workspaceRoot: source, fs: fsWith({ lstatFail: [{ abs: path.join(source, '.secrets'), code: 'EPERM' }, { abs: path.join(source, 'codex'), code: 'EACCES' }] }), now: 1004 });
+    const skip = rel => (cred.report.skipped || []).find(s => s.path === rel);
+    A.ok(cred.report.reauthentication.some(x => x.kind === 'credential-store' && x.id === '.secrets'), 'an lstat-failed .secrets keeps its credential-store reauthentication receipt');
+    A.ok(cred.report.reauthentication.some(x => x.kind === 'provider' && x.id === 'codex'), 'an lstat-failed provider dir keeps its provider reauthentication receipt');
+    A.eq(skip('.secrets') && skip('.secrets').reason, 'system-managed credential material is intentionally excluded', '.secrets is skipped by POLICY (it is excluded either way), not as a lost unreadable entry');
+  }
+
+  // G. An unreadable store falls back to its last-known-good .bak, exactly like a torn one — the recovery point never
+  //    silently loses agent.roster.json while another file keeps its category reading 'present'.
+  {
+    const busy = R.capture({ workspaceRoot: source, fs: fsWith({ readFail: { rel: 'agent.roster.json', code: 'EBUSY' } }), now: 1005 });
+    const roster = busy.files.find(f => f.path === 'agent.roster.json');
+    A.ok(!!roster, 'a locked agent.roster.json still rides in the bundle');
+    A.ok(roster && /AUDITOR-LKG/.test(Buffer.from(roster.data, 'base64').toString('utf8')), 'carrying its last-known-good .bak bytes');
+    A.ok(busy.report.skipped.some(s => s.path === 'agent.roster.json' && s.reason === 'unreadable: EBUSY'), 'the unreadable main is still on the receipt with its code');
+    A.ok(busy.report.skipped.some(s => s.path === 'agent.roster.json.bak' && /^promoted: /.test(s.reason)), 'and the promotion is recorded');
+    A.eq(R.validate(busy).ok, true, 'the promoted bundle validates');
+    const both = R.capture({ workspaceRoot: source, fs: fsWith({ readFail: { rel: 'loops.json', code: 'EBUSY' } }), now: 1006 });
+    A.eq(both.files.some(f => f.path === 'loops.json'), false, 'with no .bak an unreadable store is dropped, never faked');
+  }
+
+  // H. A WORKSPACES root reached through a junction (or symlink) is the station itself, not a link to skip: capture()
+  //    validated it with stat, the walk lstat'ed it and recorded ONE symlink skip and zero files.
+  {
+    const link = path.join(tmp, 'linked-workspaces');
+    let linked = false;
+    try { fs.symlinkSync(source, link, 'junction'); linked = true; } catch (e) { console.log('  (skipped junction root: ' + e.code + ')'); }
+    if (linked) {
+      const viaLink = R.capture({ workspaceRoot: link, now: 1007 });
+      const direct = R.capture({ workspaceRoot: source, now: 1007 });
+      A.eq(viaLink.files.map(f => f.path), direct.files.map(f => f.path), 'a junctioned root captures the same files as the real directory');
+      A.ok(viaLink.files.length > 5 && viaLink.report.complete === true, 'and is complete, never an empty bundle');
+      fs.unlinkSync(link);
+    }
+  }
 
   // E. End to end through the update barrier: prepare() succeeds and the receipt names what it could not read.
   (async () => {
