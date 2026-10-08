@@ -208,10 +208,20 @@ const SPRITES = (() => {
      authored emissive spill, such as ULTRON's red pool, stays part of the skin's presentation.
      Direction points FROM the body TOWARD the source in world axes. Quantize small changes before
      caching at native sprite resolution, shared across agents. No scene readback or canvas filter.
-     The 128-frame LRU bounds GPU/bitmap storage even when the whole skin catalog is in view. */
-  const BODY_LIGHT_LIMIT = 128;
-  const bodyLights = new Map(), frameIds = new WeakMap();
-  let nextFrameId = 1, bodyLightScratch = null, bodyLightBuilds = 0;
+     TWO TIERS (2026-10-07, "laggy" on a 26-agent station): a fixed 128-frame LRU was smaller than one second
+     of a big crew — a WALKING body crosses a colour/strength/sector step ~5x a second and every walk frame is
+     a different master, so each (frame, light) pair was drawn exactly once: ~230 fresh canvases a second,
+     each a new GPU texture, and every one of them evicted a sitting body's frame so that rebuilt too.
+       probation — a pair's first build lands here (a small ring); its canvases are RECYCLED, never
+                   re-allocated, so a walker's one-off frames cost no allocation and no texture churn.
+       kept      — a pair still being drawn BODY_LIGHT_PROMOTE_MS after it was built is promoted; bounded
+                   by PIXELS (16 MB of bitmap). A walk frame is on screen ~100ms (re-asked 2-3 times, then
+                   never again), so it is served from probation and never floods the kept tier.
+     An idle or seated body is promoted within a second and is never rebuilt again; walkers cycle the ring
+     and can no longer push it out. Time is the caller's nowMs (deterministic, like the rest of drawBody). */
+  const BODY_LIGHT_LIMIT = 4096, BODY_LIGHT_PIXELS = 4194304, BODY_LIGHT_PROBATION = 96, BODY_LIGHT_POOL = 8, BODY_LIGHT_PROMOTE_MS = 600;
+  const bodyLights = new Map(), probation = new Map(), lightPool = [], frameIds = new WeakMap();
+  let nextFrameId = 1, bodyLightScratch = null, bodyLightBuilds = 0, bodyLightPixels = 0, bodyLightRecycled = 0;
   const clamp01 = n => Math.max(0, Math.min(1, Number(n) || 0));
   function bodyLight(raw) {
     if (!raw || !Array.isArray(raw.color) || raw.color.length < 3) return null;
@@ -227,25 +237,40 @@ const SPRITES = (() => {
       key: color.join(',') + '|' + strength + '|' + sector };
   }
   function releaseBodyLight(canvas) { canvas.width = canvas.height = 1; }
-  function lightFrame(frame, light) {
+  function dropBodyLight(key, canvas) { bodyLights.delete(key); bodyLightPixels -= canvas.width * canvas.height; releaseBodyLight(canvas); }
+  function lightLive(c) { const g = c.getContext('2d'); return !!(g && !(g.isContextLost && g.isContextLost())); }
+  function lightFrame(frame, light, nowMs) {
     if (!light) return frame;
     let id = frameIds.get(frame);
     if (!id) { id = nextFrameId++; frameIds.set(frame, id); }
     const key = id + '|' + light.key;
     const hit = bodyLights.get(key);
     if (hit) {
-      const context = hit.getContext('2d');
-      if (context && !(context.isContextLost && context.isContextLost())) {
-        bodyLights.delete(key); bodyLights.set(key, hit);
-        return hit;
+      if (lightLive(hit)) { bodyLights.delete(key); bodyLights.set(key, hit); return hit; }
+      dropBodyLight(key, hit);
+    }
+    const trial = probation.get(key);
+    if (trial) {
+      probation.delete(key);
+      const kept = trial.c;
+      if (!lightLive(kept)) releaseBodyLight(kept);
+      else if (!(nowMs - trial.at >= BODY_LIGHT_PROMOTE_MS)) { probation.set(key, trial); return kept; }
+      else {   // still in use long after its build: this pair is worth keeping
+        bodyLights.set(key, kept); bodyLightPixels += kept.width * kept.height;
+        while (bodyLights.size > 1 && (bodyLights.size > BODY_LIGHT_LIMIT || bodyLightPixels > BODY_LIGHT_PIXELS)) {
+          const oldest = bodyLights.keys().next().value;
+          dropBodyLight(oldest, bodyLights.get(oldest));
+        }
+        return kept;
       }
-      bodyLights.delete(key); releaseBodyLight(hit);
     }
     let canvas;
     try {
       const w = frame.width | 0, h = frame.height | 0;
       if (!w || !h || w * h > 262144) return frame;
-      canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas = lightPool.pop();
+      if (canvas) bodyLightRecycled++; else canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;   // also clears a recycled bitmap and resets its state
       const g = canvas.getContext('2d');
       if (!g || (g.isContextLost && g.isContextLost())) { releaseBodyLight(canvas); return frame; }
       g.drawImage(frame, 0, 0);
@@ -269,10 +294,12 @@ const SPRITES = (() => {
         g.globalAlpha = 0.42 * light.strength; g.drawImage(bodyLightScratch, 0, 0);
       }
       g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-      bodyLights.set(key, canvas); bodyLightBuilds++;
-      while (bodyLights.size > BODY_LIGHT_LIMIT) {
-        const oldest = bodyLights.keys().next().value;
-        releaseBodyLight(bodyLights.get(oldest)); bodyLights.delete(oldest);
+      probation.set(key, { c: canvas, at: +nowMs || 0 }); bodyLightBuilds++;
+      // the ring's oldest pair was drawn BODY_LIGHT_PROBATION builds ago — long after any body used it this frame
+      while (probation.size > BODY_LIGHT_PROBATION) {
+        const oldest = probation.keys().next().value, c = probation.get(oldest).c;
+        probation.delete(oldest);
+        if (lightPool.length < BODY_LIGHT_POOL) lightPool.push(c); else releaseBodyLight(c);
       }
       return canvas;
     } catch (e) {
@@ -281,7 +308,8 @@ const SPRITES = (() => {
     }
   }
   function bodyAppearanceStats() {
-    return { cachedFrames: bodyLights.size, limit: BODY_LIGHT_LIMIT, builds: bodyLightBuilds };
+    return { cachedFrames: bodyLights.size + probation.size, kept: bodyLights.size, probation: probation.size, limit: BODY_LIGHT_LIMIT,
+      builds: bodyLightBuilds, recycled: bodyLightRecycled, pixels: bodyLightPixels, pixelLimit: BODY_LIGHT_PIXELS };
   }
 
   /* ---------- deck contact and directional body shadow ----------
@@ -713,11 +741,11 @@ const SPRITES = (() => {
       if (fade && ft < 1) {
         const keep = ctx.globalAlpha;
         ctx.globalAlpha = keep * (1 - ft) * (1 - ft * 0.35);
-        ctx.drawImage(lightFrame(fade.f, light), snap(b.px + fade.ox), snap(b.py + fade.oy), fade.w, fade.h);
+        ctx.drawImage(lightFrame(fade.f, light, nowMs), snap(b.px + fade.ox), snap(b.py + fade.oy), fade.w, fade.h);
         ctx.globalAlpha = keep;
       } else if (fade) b._poseFade = null;
       b._renderPoseFade = fade && ft < 1 ? +ft.toFixed(3) : null;
-      ctx.drawImage(fNext ? tweenFrame(lightFrame(f, light), lightFrame(fNext, light), tween) : lightFrame(f, light), x, y, dw, drawHeight);
+      ctx.drawImage(fNext ? tweenFrame(lightFrame(f, light, nowMs), lightFrame(fNext, light, nowMs), tween) : lightFrame(f, light, nowMs), x, y, dw, drawHeight);
       b._poseLast = { key, f, x, y, px: b.px, py: b.py, w: dw, h: drawHeight, at: nowMs };
       if (tuckDeskFeet) ctx.restore();
       if(speech)ctx.restore();
