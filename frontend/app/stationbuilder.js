@@ -1337,11 +1337,15 @@
         if (o.room != null) { const t = roomRef(o.room); if (!t.ok) return t; if (isMain(t.room)) return refuse(t.room.name + ' is the main room, so it stays'); const g = goes(t.room), n = g.n; return did(st.removeRoom(t.room.id), t.room.name + ' removed, with the ' + n + (n === 1 ? ' piece' : ' pieces') + ' on it' + g.named); }
         const t = propRef(o.prop); if (!t.ok) return t; const p = t.p; return did(st.removeProp(p.id), 'the ' + nm(p.t) + ' at ' + at(p.x, p.y) + inRoom(p.x, p.y) + ' removed' + (p.agentId ? ' (it was ' + nameOf(env, p.agentId) + '\'s)' : ''));
       }
-      case 'agent': { const t = propRef(o.prop); if (!t.ok) return t; let aid = ''; if (o.agent != null && !/^(nobody|none|no one|clear)$/i.test(String(o.agent))) { const a = agentOf(env, o.agent); if (!a.ok) return a; aid = a.id; } const as = st.assignPropAgent(t.p.id, aid); if (!as || !as.ok) return refuse(wmMsg(as));
+      case 'agent': { const t = propRef(o.prop); if (!t.ok) return t; let aid = ''; if (o.agent != null && !/^(nobody|none|no one|clear)$/i.test(String(o.agent))) { const a = agentOf(env, o.agent); if (!a.ok) return a; aid = a.id; } const as = st.assignDesk(t.p.id, aid); if (!as || !as.ok) return refuse(wmMsg(as));
+        // one desk per agent (the station's assignDesk, the same rule as BUILD MODE's WHO SITS HERE): an agent given a desk
+        // leaves the one it had — world.js seats it at its FIRST bound desk, so a second binding moved nobody — and the line says so
+        const left = (as.released || []).map(id => st.propById(id)).filter(Boolean);
         // a desk seats its agent in its own chair: a chair already standing on its seat would make two, so it goes
         const gone = [];
         if (aid && isWorkstation(st, t.p.t)) { const row = seatRow(st.propById(t.p.id) || t.p, S), isSeat = isSeatPiece(env); for (const q of st.props().slice()) if (isSeat(q.t) && row.some(([x, y]) => x >= q.x && x < q.x + (q.w || 1) && y >= q.y && y < q.y + (q.h || 1))) { const rm = st.removeProp(q.id); if (rm && rm.ok) gone.push('the ' + nm(q.t) + ' at ' + at(q.x, q.y)); } }
-        return { ok: true, text: 'the ' + nm(t.p.t) + ' at ' + at(t.p.x, t.p.y) + (aid ? ' is ' + nameOf(env, aid) + '\'s' : ' has nobody') + (gone.length ? ' (' + gone.join(', ') + ' removed: the desk brings its own chair)' : '') }; }
+        return { ok: true, text: 'the ' + nm(t.p.t) + ' at ' + at(t.p.x, t.p.y) + (aid ? ' is ' + nameOf(env, aid) + '\'s' : ' has nobody') + (gone.length ? ' (' + gone.join(', ') + ' removed: the desk brings its own chair)' : '')
+          + (left.length ? '; ' + nameOf(env, aid) + ' leaves its ' + left.map(q => nm(q.t) + ' at ' + at(q.x, q.y)).join(' and its ') : '') }; }
       case 'door': { const t = propRef(o.prop); if (!t.ok) return t; return did(st.setDoorState(t.p.id, String(o.state || '')), 'the airlock at ' + at(t.p.x, t.p.y) + ' ' + o.state); }
       case 'belt': { const a = tileOf(o.from), b = tileOf(o.to); if (!a || !b) return refuse('a belt is { from: [x, y], to: [x, y] }, one straight run'); return did(st.placeBeltRun({ tx: a.x, ty: a.y }, { tx: b.x, ty: b.y }), 'a belt from ' + at(a.x, a.y) + ' to ' + at(b.x, b.y)); }
       case 'unbelt': { const tiles = (Array.isArray(o.tiles) ? o.tiles : []).map(tileOf).filter(Boolean).map(q => [q.x, q.y]); if (!tiles.length) return refuse('unbelt needs tiles: [[x, y], …]'); return did(st.removeBelts(tiles), tiles.length + ' belt tiles taken up'); }

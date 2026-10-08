@@ -25,11 +25,21 @@ A.ok(/WHO SITS HERE/.test(row) && /const res = assignDesk\(p\.id, aid\);/.test(r
 A.ok(/if \(p\.agentId\) chip\('NOBODY', ''\);/.test(row), 'a bound desk can be emptied from the same row');
 A.ok(!/ASSIGN AGENT TO WORKSTATION/.test(build), 'the old centred modal picker is gone');
 
-// 2. one desk per agent, one undo
+// 2. one desk per agent, one undo — the rule is the STATION's (worldmodel.js assignDesk, 2026-10-08), shared with the
+//    overseer's station-control 'agent' op, so the chip binds through it and the rule is RUN here (and in
+//    test/desk-one-per-agent.test.js, which also runs the op)
 const assign = fn('assignDesk');
-A.ok(/station\.transact\(/.test(assign), 'reassigning is one transaction (one undo)');
-A.ok(/station\.propsByAgent\(id\)\) if \(q\.id !== propId && WORKSTATION_TYPES\[q\.t\]\) station\.assignPropAgent\(q\.id, ''\)/.test(assign),
-  'the agent leaves its other workstation');
+A.ok(/return station\.assignDesk\(propId, String\(aid \|\| ''\)\);/.test(assign), 'a chip binds through the station\'s one-desk-per-agent rule');
+{
+  const M = require('../frontend/app/worldmodel.js');
+  const st = M.create(M.starterDoc());
+  const old = st.ensureWorkstation('rex').id, other = st.ensureWorkstation('tmp').id;
+  A.ok(old && other && old !== other, 'fixture: two desks');
+  const before = JSON.stringify(st.serialize());
+  A.ok(st.assignDesk(other, 'rex').ok, 'reassigning succeeds');
+  A.ok(!st.propById(old).agentId && st.propsByAgent('rex').map(p => p.id).join() === other, 'the agent leaves its other workstation');
+  A.ok(st.undo().ok && JSON.stringify(st.serialize()) === before, 'reassigning is one transaction (one undo)');
+}
 
 // 3. PLACE ITS DESK places THEIR desk
 A.ok(/placement\.agentId = owner;/.test(build) && /const owner = WORKSTATION_TYPES\[propType\] \? deskOwner : null;/.test(build), 'a desk placed for an agent lands bound to it');

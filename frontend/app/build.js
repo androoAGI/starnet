@@ -3223,13 +3223,10 @@ const Build = (() => {
      A workstation carries an agentId exactly like a bay does (assignPropAgent is type-agnostic); world.js seats the agent
      at the FIRST workstation bound to it (deskPropFor). So giving an agent this desk must also take it off any OTHER
      workstation it holds — otherwise it keeps walking to the old one and the click looked like it did nothing. One
-     transaction = one UNDO. The choice lives IN the selected-object card (renderSelection), one click per agent. */
+     transaction = one UNDO. The choice lives IN the selected-object card (renderSelection), one click per agent.
+     The rule itself is the station's (worldmodel.js assignDesk), shared with the overseer's station-control 'agent' op. */
   function assignDesk(propId, aid) {
-    const id = String(aid || '');
-    return station.transact(() => {
-      if (id) for (const q of station.propsByAgent(id)) if (q.id !== propId && WORKSTATION_TYPES[q.t]) station.assignPropAgent(q.id, '');
-      return station.assignPropAgent(propId, id);
-    });
+    return station.assignDesk(propId, String(aid || ''));
   }
   // the agent a "PLACE ITS DESK" door is placing a desk FOR (placeDeskFor) — the next workstation dropped is theirs
   let deskOwner = null;

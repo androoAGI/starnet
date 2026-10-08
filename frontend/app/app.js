@@ -1558,7 +1558,12 @@ const App = (() => {
       stationSaveQueued = true;
       // Coalesce the synchronous mutations of one gesture (e.g. place + assign a desk),
       // but save before the next browser event. Do not wait for SAVE & EXIT or a chat turn.
-      queueMicrotask(() => { stationSaveQueued = false; persist(); });
+      queueMicrotask(() => {
+        stationSaveQueued = false; persist();
+        // a desk that just landed (a WHO SITS HERE chip, PLACE ITS DESK, the overseer's station op) retires the open
+        // COMMS "nowhere to sit" line now, not only when BUILD MODE closes: it is a derived floor claim (chat.js re-reads it)
+        if (typeof Chat !== 'undefined' && Chat.retireDeskPrompt) { try { Chat.retireDeskPrompt(); } catch (_) {} }
+      });
     });
   }
 
