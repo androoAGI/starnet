@@ -12,8 +12,23 @@ const http = require('node:http');
 const net = require('node:net');
 const { note: failNote } = require('../../failopen.js');
 
+/* WHY A LOAD WAS REFUSED (the Etsy reports, 2026-10-08). Chromium shows every non-200 answer to a CONNECT as one opaque
+   net::ERR_TUNNEL_CONNECTION_FAILED and never reads the proxy's reason, so the refusal is kept HERE for the driver to
+   name ("this computer's DNS answered 0.0.0.0 for www.etsy.com") instead of a bare tunnel failure, which users and
+   their agents then blamed on a hidden VPN, a remote gateway or Etsy's bot wall. Measured with real Chromium:
+   refused CONNECT = ERR_TUNNEL_CONNECTION_FAILED, nothing listening = ERR_PROXY_CONNECTION_FAILED. */
+const REFUSALS_KEPT = 32;
+
 async function startPinnedProxy({ validate, resolve }) {
   const localOrigins = new Set();
+  const refusals = [];
+  let refusalSeq = 0;   // a sequence, not a clock: "since this navigation began" needs order, not time
+  function refused(host, e) {
+    refusals.push({ host: String(host || '').toLowerCase().replace(/^\[|\]$/g, ''), reason: String((e && e.message) || e || 'refused'),
+      code: (e && e.code) || null, seq: ++refusalSeq });
+    if (refusals.length > REFUSALS_KEPT) refusals.shift();
+  }
+  function hostOfTarget(url) { try { return new URL(url).hostname; } catch (_) { return ''; } }
   async function destination(url) {
     const requested = new URL(url);
     if (localOrigins.has(requested.origin) && ['127.0.0.1', 'localhost', '[::1]'].includes(requested.hostname)) {
@@ -40,7 +55,7 @@ async function startPinnedProxy({ validate, resolve }) {
       req.on('error', () => upstream.destroy());
       res.on('error', () => upstream.destroy());
       req.pipe(upstream);
-    })().catch(() => { if (!res.headersSent) res.writeHead(403); res.end(); });
+    })().catch(e => { refused(hostOfTarget(req.url), e); if (!res.headersSent) res.writeHead(403); res.end(); });
   });
   server.on('connect', (req, client, head) => {
     let upstream = null;
@@ -52,13 +67,25 @@ async function startPinnedProxy({ validate, resolve }) {
       if (client.destroyed) return;   // the browser went away while DNS resolved
       const port = Number(u.port) || 443;
       upstream = net.connect({ host: address, port });
+      let established = false;
       upstream.once('connect', () => {
+        established = true;
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head && head.length) upstream.write(head);
         client.pipe(upstream); upstream.pipe(client);
       });
-      upstream.on('error', () => client.destroy());
-    })().catch(() => { if (!client.destroyed) client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n'); });
+      upstream.on('error', e => {
+        if (established || client.destroyed) { client.destroy(); return; }
+        // the verified address did not answer: say so (502) - a bare reset reads in Chromium as ERR_EMPTY_RESPONSE
+        const err = new Error('could not reach ' + address + ':' + port + ' (' + ((e && e.code) || (e && e.message) || 'connection failed') + ')');
+        err.code = 'DIAL_FAILED';
+        refused(u.hostname, err);
+        client.end('HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n');
+      });
+    })().catch(e => {
+      refused(String(req.url || '').replace(/:\d+$/, ''), e);
+      if (!client.destroyed) client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n');
+    });
   });
   server.on('upgrade', (req, client, head) => {
     let upstream = null;
@@ -81,7 +108,10 @@ async function startPinnedProxy({ validate, resolve }) {
         client.pipe(upstream); upstream.pipe(client);
       });
       upstream.on('error', () => client.destroy());
-    })().catch(() => { if (!client.destroyed) client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n'); });
+    })().catch(e => {
+      refused(hostOfTarget(String(req.url || '').replace(/^ws:/i, 'http:')), e);
+      if (!client.destroyed) client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n');
+    });
   });
   // a malformed or reset request from the browser: drop that connection, never the station
   server.on('clientError', (e, sock) => { if (sock && !sock.destroyed) sock.destroy(); });
@@ -97,6 +127,9 @@ async function startPinnedProxy({ validate, resolve }) {
     port: server.address().port,
     listening: () => !failed && server.listening,
     allowLocal(url) { localOrigins.add(new URL(url).origin); },
+    // refusalMark() before a navigation, refusalsSince(mark) after it (oldest first): what the driver names at a tunnel failure
+    refusalMark: () => refusalSeq,
+    refusalsSince: mark => refusals.filter(r => r.seq > Number(mark || 0)).map(r => Object.assign({}, r)),
     close: () => new Promise(resolveClose => server.close(resolveClose))
   };
 }
