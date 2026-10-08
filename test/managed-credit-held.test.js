@@ -79,6 +79,32 @@ async function admit(credits, runId, chosenCap) {
     A.eq([credits.held().runs, cloud.st.balance], [0, 76.24], 'the settle frees the hold');
     A.ok((await admit(credits, 'next', 100)).admitted === true, 'and the next run is admitted');
   }
+  // ---- TINY HOLD (review 2026-10-08): a $0.30 wallet, the lead reserves all of it — the hold is real, but waiting only
+  // returns what the lead does not spend, so the refusal must keep the top-up door, not only "wait / lower PER RUN" ----
+  {
+    const cloud = fakeCloud('ledger', 0.3);
+    const credits = makeCredits({ url: 'https://cloud.test', apiKey: 'snd', accountId: 'acct', fetch: cloud.fetch, clock: { now: () => 1 } });
+    A.eq((await admit(credits, 'lead', 0)).reservedUsd, 0.3, 'the lead reserves the whole $0.30 wallet (default PER RUN clamped)');
+    const r = await admit(credits, 'worker', 0);
+    A.eq([r.refused, r.held && r.held.runs], ['exhausted', 1], 'the worker is refused while the lead holds the $0.30');
+    const m = budgetCaps.managedRefusalMessage({ exhausted: true, held: r.held, balanceUsd: 0 }).message;
+    A.ok(/held by 1 running StarNet run\b/.test(m) && /top up under SETTINGS → AI & MODELS/.test(m), 'a tiny hold still says held AND keeps the top-up door: ' + m);
+  }
+  // ---- A FAILED SETTLE is not a running run: its reservation stays in the map (billing never settled it), but the run
+  // is over — a later real $0 must not say "held by 1 running StarNet run" when nothing is running ----
+  {
+    const cloud = fakeCloud('ledger', 5);
+    const credits = makeCredits({ url: 'https://cloud.test', apiKey: 'snd', accountId: 'acct', fetch: cloud.fetch, clock: { now: () => 1 },
+      ledger: { recordStrict() { throw new Error('disk full'); } } });
+    A.eq((await admit(credits, 'lead', 5)).reservedUsd, 5, 'the lead reserves the whole $5 wallet');
+    const fin = credits.finishRun({ runId: 'lead', usd: 1, reason: 'done' });
+    const fin2 = credits.finishRun({ runId: 'lead', usd: 0, reason: 'leak-guard' });
+    A.ok(fin.ok === false && fin2.ok === false, 'the settle and the leak-guard retry both fail (the ledger write throws)');
+    A.eq(credits.held().runs, 0, 'a run whose settle was already attempted is not counted as running: ' + JSON.stringify(credits.held()));
+    const r = await admit(credits, 'next', 5);
+    A.eq(r.refused, 'exhausted', 'the next run is refused at the reported $0');
+    A.ok(/^Out of managed credit/.test(budgetCaps.managedRefusalMessage({ exhausted: true, held: r.held, balanceUsd: 0 }).message), 'and says out of credit — no run holds it any more');
+  }
   // an inert (BYOK) station has no holds
   A.eq(makeCredits({}).held && makeCredits({}).held(), { runs: 0, usd: 0, counted: false }, 'an inert credits adapter reports no holds');
 
@@ -86,11 +112,27 @@ async function admit(credits, runId, chosenCap) {
   const { managedRefusalMessage } = budgetCaps;
   A.eq(typeof managedRefusalMessage, 'function', 'one pure helper owns the managed refusal wording (index.js refuseManaged)');
   if (typeof managedRefusalMessage === 'function') {
-    const held = managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 79.24, counted: true } });
-    A.ok(/held by 1 running StarNet run\b/.test(held.message) && /lower PER RUN in SETTINGS › SPENDING LIMITS/.test(held.message) && !/add credits|top up|out of/i.test(held.message),
+    const held = managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 79.24, counted: true }, balanceUsd: 0 });
+    A.ok(/held by 1 running StarNet run\b/.test(held.message) && /lower PER RUN in SETTINGS › SPENDING LIMITS/.test(held.message) && !/out of/i.test(held.message),
       'a held balance says so and how to free it, never "out of credit": ' + held.message);
+    const waitAt = held.message.indexOf('. Wait for it to finish, ');
+    A.ok(waitAt > 0 && waitAt < held.message.indexOf('top up') && /, or top up under SETTINGS → AI & MODELS\.$/.test(held.message),
+      'waiting comes first; topping up stays the last door (a small wallet may need it): ' + held.message);
     A.eq(held.transient, true, 'a held balance frees up — the refusal is transient');
-    A.ok(/held by 2 running StarNet runs\b/.test(managedRefusalMessage({ exhausted: true, held: { runs: 2, usd: 5, counted: true } }).message), 'plural for several runs');
+    {
+      // the sidecar's own error ladder must read it the same way: never billing (an empty wallet) / rotate the credential
+      const cls = require('../sidecar/providers/errorClass.js').classifyApiError(new Error(held.message));
+      A.ok(cls.reason !== 'billing' && cls.retryable === true && cls.shouldRotateCredential !== true,
+        'errorClass never reads a held balance as an empty wallet: ' + JSON.stringify([cls.reason, cls.retryable, cls.shouldRotateCredential]));
+    }
+    A.ok(/held by 2 running StarNet runs\b/.test(managedRefusalMessage({ exhausted: true, held: { runs: 2, usd: 5, counted: true }, balanceUsd: 0 }).message), 'plural for several runs');
+    // the holds must be WHY the balance reads empty: settled wallet = reported balance + this station's holds
+    A.ok(/^Out of managed credit/.test(managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 0.3, counted: true }, balanceUsd: -5 }).message),
+      'an overdrawn wallet the holds do not explain is out of credit, not held');
+    A.ok(/^Managed credits are held/.test(managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 0.3, counted: true }, balanceUsd: -0.1 }).message),
+      'a hold that covers the shortfall (−$0.10 + $0.30 held) is held');
+    A.ok(/^Out of managed credit/.test(managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 2, counted: true } }).message),
+      'no reported balance to weigh the holds against → never claims a hold');
     const empty = managedRefusalMessage({ exhausted: true, held: { runs: 0, usd: 0, counted: true } });
     A.eq([empty.message, empty.transient], ['Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).', false], 'a really empty wallet keeps the honest top-up refusal');
     A.ok(/^Out of managed credit/.test(managedRefusalMessage({ exhausted: true, held: { runs: 1, usd: 2, counted: false } }).message), 'an advisory backend never claims a hold it cannot prove');
@@ -99,12 +141,13 @@ async function admit(credits, runId, chosenCap) {
     // COMMS: a distinct kind with its own copy and door (SPENDING LIMITS, where PER RUN lives) — not the top-up
     const v = Friendly.friendlyError(held.message);
     A.eq(v.kind, 'managed_credit_held', 'friendlyerror reads it as a held balance, not managed_credit');
-    A.ok(/held/.test(v.userMessage) && !/out of StarNet credits|top up/i.test(v.userMessage), 'the COMMS copy says the balance is held: ' + v.userMessage);
+    A.ok(/held/.test(v.userMessage) && !/out of StarNet credits/i.test(v.userMessage), 'the COMMS copy says the balance is held: ' + v.userMessage);
+    A.ok(/Wait for them to finish/.test(v.userMessage) && v.userMessage.indexOf('Wait for them') < v.userMessage.indexOf('top up under SETTINGS → AI & MODELS'), 'and keeps the top-up door after the wait: ' + v.userMessage);
     A.eq([v.action, v.retryable], ['budget', true], 'its door is SPENDING LIMITS (lower PER RUN) and a retry helps once the run finishes');
     A.eq(Friendly.friendlyError(empty.message).kind, 'managed_credit', 'an empty wallet still reads as out of credit');
   }
   // the host uses the helper and asks credits.held() (a pure helper nobody calls fixes nothing)
   const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-  A.ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: exhausted \? credits\.held\(\) : null \}\)/.test(idx), 'refuseManaged builds its refusal from managedRefusalMessage + credits.held()');
+  A.ok(/budgetCaps\.managedRefusalMessage\(\{ exhausted, linkRefused, held: exhausted \? credits\.held\(\) : null, balanceUsd: avail \}\)/.test(idx), 'refuseManaged builds its refusal from managedRefusalMessage + credits.held() + the reported balance');
   A.report('managed-credit-held');
 })().catch(e => { console.error(e); process.exit(1); });

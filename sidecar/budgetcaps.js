@@ -66,21 +66,26 @@
   /* The refusal a MANAGED run gets when admission cannot reserve (index.js refuseManaged) -> { message, transient }.
        exhausted    the service REPORTED a balance and it could not cover a reservation (a number, not an unknown)
        linkRefused  the service answered 401/403 for this station's link
-       held         credits.held(): { runs, usd, counted } — StarNet runs THIS station has in flight and the amount
+       held         credits.held(): { runs, usd, counted } — StarNet runs THIS station has still working and the amount
                     they reserve; `counted` = the backend itself books a reservation as a debit (proxy-off deploys).
+       balanceUsd   the balance the service reported (what admission read)
      A balance reported as $0 because this station's own running runs hold it is NOT an empty wallet: those holds
-     come back when the runs settle (each refunds what it did not spend), and "add credits" is advice that buys
-     nothing. That refusal says so and names the real lever — wait, or lower PER RUN so runs can share the balance
-     (audit B11: PER RUN at/above the balance makes one run reserve all of it). Only claimed when `counted`: on the
-     proxy-metered cloud a reservation never lowers the reported balance, so a $0 there is real spend. Pure. */
+     come back when the runs settle (each refunds what it did not spend). That refusal says so and names the levers in
+     order — wait, lower PER RUN so runs can share the balance (audit B11: PER RUN at/above the balance makes one run
+     reserve all of it), or top up (kept: a small wallet's hold may come back as cents; worded "top up", not "add
+     credits", so errorClass's status-less ladder never reads it as an empty wallet). Only claimed when the
+     holds are WHY it reads empty: `counted` (on the proxy-metered cloud a reservation never lowers the reported
+     balance, so a $0 there is real spend) and the reported balance plus the holds is positive (an overdrawn wallet a
+     small hold cannot explain is out of credit). Pure. */
   function managedRefusalMessage(o) {
     o = o || {};
     const held = o.held || null;
-    if (o.exhausted && held && held.counted === true && held.runs > 0 && held.usd > 0) {
+    const bal = (o.balanceUsd == null || o.balanceUsd === '') ? NaN : Number(o.balanceUsd);
+    if (o.exhausted && held && held.counted === true && held.runs > 0 && held.usd > 0 && isFinite(bal) && bal + held.usd > 0) {
       const n = Math.floor(held.runs);
       return { transient: true, message: 'Managed credits are held — your StarNet balance is held by ' + n + ' running StarNet run' + (n === 1 ? '' : 's') +
         ' (each reserves up to its PER RUN limit while it works and refunds what it does not spend). Wait for ' + (n === 1 ? 'it' : 'them') +
-        ' to finish, or lower PER RUN in SETTINGS › SPENDING LIMITS so runs can share the balance.' };
+        ' to finish, lower PER RUN in SETTINGS › SPENDING LIMITS so runs can share the balance, or top up under SETTINGS → AI & MODELS.' };
     }
     if (o.exhausted) return { transient: false, message: 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).' };
     if (o.linkRefused) return { transient: false, message: 'Managed credits are unavailable — your StarNet account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).' };

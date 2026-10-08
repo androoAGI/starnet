@@ -113,6 +113,10 @@
     // with `advisory: true` and never lowers the balance for it; a proxy-off deploy debits for real. Learned from the
     // backend's own debit answer (null until one arrives). Only when it is true can a reported $0 be "held by runs".
     let holdsCounted = null;
+    // Runs whose hold is still WORKING: admitted, and finishRun not yet called. A settle that fails leaves its hold in
+    // `reservations` (the warning math must keep counting money that never came back), but that run is over — held()
+    // must never call it "running" (review 2026-10-08: a failed settle made every later $0 read "held by 1 run").
+    const liveHolds = new Set();
     const emitFn = typeof opts.emit === 'function' ? opts.emit : null;
     // number or getter — index.js passes a getter so a live per-run cap change is picked up without a restart
     function lowThreshold() {
@@ -323,12 +327,13 @@
       if (!(capUsd > 0)) return billing.beginRun({ mode: 'byok', runId: str(o.runId), agentId: str(o.agentId) });
       const out = billing.beginRun({ mode: 'managed', accountId: acct(), runId: str(o.runId), agentId: str(o.agentId), capUsd });
       const status = out && out.ok && out.managed ? billing.status(str(o.runId)) : null;
-      if (status && !status.settled) reservations.set(str(o.runId), num(out.reservedUsd));
+      if (status && !status.settled) { reservations.set(str(o.runId), num(out.reservedUsd)); liveHolds.add(str(o.runId)); }
       return out;
     }
     function finishRun(o) {
       o = o || {};
       const runId = str(o.runId);
+      liveHolds.delete(runId);   // the run has ended whether or not this settle succeeds
       const out = billing.finishRun(o);
       // Refunds synchronously update the cache before billing returns. Remove this run's hold, then evaluate
       // the settled account balance (raw availability + any OTHER live reservations). A run that consumes its
@@ -353,11 +358,12 @@
       accountId() { return accountId; },
       purchaseUrl() { return purchaseUrl; },
       beginRun, finishRun, refresh, history,
-      // StarNet runs this station has in flight and what they reserve (settled runs leave the map). `counted`: the
-      // backend books those reservations against the balance (see holdsCounted), so a $0 it reports can be a hold.
+      // StarNet runs this station has in flight and what they reserve (only runs still working: an ended run's hold is
+      // not counted, settled or not). `counted`: the backend books those reservations against the balance (see
+      // holdsCounted), so a $0 it reports can be a hold.
       held() {
         let runs = 0, usd = 0;
-        for (const v of reservations.values()) { if (v > 0) { runs++; usd += v; } }
+        for (const [rid, v] of reservations) { if (v > 0 && liveHolds.has(rid)) { runs++; usd += v; } }
         return { runs, usd, counted: holdsCounted === true };
       },
       snapshot() {

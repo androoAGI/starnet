@@ -18742,11 +18742,11 @@ async function runOnceCore(o) {
     // fail closed — never spend against an unknown/empty managed balance — and say WHICH: only a balance the
     // service reported at <= 0 is "out of credit"; a refused link and an unanswered check each name themselves.
     // A reported $0 that this station's OWN running StarNet runs hold (a proxy-off backend books each reservation as a
-    // debit) is not an empty wallet: it says "held by N running runs — wait, or lower PER RUN" (audit B11), never
-    // "add credits". budgetCaps.managedRefusalMessage owns the wording; credits.held() is the proof.
+    // debit) is not an empty wallet: it says "held by N running runs — wait, lower PER RUN, or top up" (audit B11),
+    // never "out of credit". budgetCaps.managedRefusalMessage owns the wording; credits.held() + the balance are the proof.
     const refuseManaged = (exhausted) => {
       const linkRefused = !exhausted && snap && snap.authStatus === 'invalid';
-      const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null });
+      const refusal = budgetCaps.managedRefusalMessage({ exhausted, linkRefused, held: exhausted ? credits.held() : null, balanceUsd: avail });
       emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
       emit('agent.run.error', { agentId, runId, transient: refusal.transient, reason: 'billing', message: refusal.message });
       emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
