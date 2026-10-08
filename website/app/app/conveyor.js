@@ -439,17 +439,90 @@ const Conveyor = (() => {
        route render ENERGIZED (moving rollers, pale drive light); everything else renders COLD
        (static rollers, dark drive light, dimmed) so an incomplete line visibly isn't running. Omitted →
        every tile draws live (legacy callers unchanged). The glow IS the compiled plan — truthful telemetry. */
+    /* BELT ATLAS + CULLING (2026-10-07, the 0.13 "laggy" reports). A belt tile is ~50 canvas commands (seven rim
+       strokes, the rollers, rail rivets, wear) and a 133-tile station drew ~6,500 fills + ~1,100 strokes a frame:
+       >90% of every command on the stage, ~3ms of each draw and ~14% of a core in the GPU process alone.
+         · a tile wholly off the canvas is skipped (every command is clipped to its own tile: it drew nothing);
+         · while the camera holds still, each on-screen tile is drawn ONCE per roller phase into a device-aligned atlas
+           cell and blitted 1:1 — one drawImage per tile, every tile from the same texture. A cell is rasterized at the
+           device pixels the live tile covers, so the art is the same art; only the roller phase is held to steps of at
+           most 1/4 device px. The moment the camera moves (pan, zoom, the idle director's follow) tiles draw live.
+       A caller without getTransform (the test recorder) always draws live. */
+    const ATLAS_MAX_TILE_PX = 40, ATLAS_MAX_TILES = 4096, ROLL_MS = 180;
+    const views = new WeakMap();   // canvas -> { a, e, f: last transform, still: unchanged draws, atlas }
     function drawBelts(ctx, nowMs, T, belts, liveSet) {
       if (!belts || !belts.length) return;
       _ctx = ctx; _now = nowMs;
       const map = buildMap(belts);
-      for (const b of belts) {
-        const live = !liveSet || !!liveSet[key(b.x, b.y)];
-        // A cold tile freezes at now=0: every roller parks instead of marching.
-        // The line reads as powered-down machinery, not broken art.
-        beltTile(b.x * T, b.y * T, T, classify(map, b), live ? nowMs : 0, live);
+      const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null, cv = ctx.canvas;
+      if (!(m && cv && !m.b && !m.c && m.a > 0 && m.a === m.d)) {
+        for (const b of belts) drawTileLive(b, map, T, nowMs, liveSet);
+        drawMergeFx(T);
+        return;
       }
+      let view = views.get(cv);
+      if (!view) views.set(cv, view = { a: 0, e: 0, f: 0, still: 0, atlas: null });
+      const same = view.a === m.a && view.e === m.e && view.f === m.f;
+      view.still = same ? view.still + 1 : 0; view.a = m.a; view.e = m.e; view.f = m.f;
+      if (!same) dropAtlas(view);
+      const s = m.a, W = cv.width, H = cv.height, tilePx = T * s, shown = [];
+      for (const b of belts) {
+        const x0 = b.x * T * s + m.e, y0 = b.y * T * s + m.f;
+        if (x0 + tilePx < -1 || y0 + tilePx < -1 || x0 > W + 1 || y0 > H + 1) continue;   // wholly off the canvas
+        shown.push(b);
+      }
+      if (view.still >= 2 && tilePx <= ATLAS_MAX_TILE_PX && shown.length <= ATLAS_MAX_TILES && typeof document !== 'undefined'
+        && drawAtlas(ctx, view, map, T, belts, shown, liveSet, nowMs, m)) { drawMergeFx(T); return; }
+      for (const b of shown) drawTileLive(b, map, T, nowMs, liveSet);
       drawMergeFx(T);   // convergence pulses over the merge tiles (under the riding boxes)
+    }
+    function drawTileLive(b, map, T, nowMs, liveSet) {
+      const live = !liveSet || !!liveSet[key(b.x, b.y)];
+      // A cold tile freezes at now=0: every roller parks instead of marching.
+      // The line reads as powered-down machinery, not broken art.
+      beltTile(b.x * T, b.y * T, T, classify(map, b), live ? nowMs : 0, live);
+    }
+    function dropAtlas(view) {
+      if (!view.atlas) return;
+      for (const c of view.atlas.sheets.values()) c.width = c.height = 1;   // free the bitmaps now, not at GC
+      view.atlas = null;
+    }
+    // the still camera's frame: blit each shown tile from this roller phase's sheet (drawn once, on first use)
+    function drawAtlas(ctx, view, map, T, belts, shown, liveSet, nowMs, m) {
+      const s = m.a, lives = shown.map(b => !liveSet || !!liveSet[key(b.x, b.y)]), liveKey = lives.map(v => v ? 1 : 0).join('');
+      let at = view.atlas;
+      if (!at || at.belts !== belts || at.T !== T || at.count !== shown.length || at.liveKey !== liveKey) {
+        dropAtlas(view);
+        const S = Math.ceil(T * s) + 2, cols = Math.max(1, Math.ceil(Math.sqrt(shown.length)));
+        // enough phases that the held roller is never more than 1/4 device px from where the live one would be
+        const phases = lives.some(Boolean) ? Math.max(4, Math.min(32, Math.ceil(4 * (T / 3) * s))) : 1;
+        at = view.atlas = { belts, T, count: shown.length, liveKey, S, cols, rows: Math.ceil(shown.length / cols), phases, sheets: new Map(),
+          cells: shown.map((b, i) => { const ix = Math.floor(b.x * T * s + m.e) - 1, iy = Math.floor(b.y * T * s + m.f) - 1;
+            return { b, ix, iy, cx: (i % cols) * S, cy: Math.floor(i / cols) * S, live: lives[i] }; }) };
+      }
+      const q = at.phases > 1 ? Math.round(((nowMs / ROLL_MS) % 1) * at.phases) % at.phases : 0;
+      let sheet = at.sheets.get(q);
+      if (sheet) { const g = sheet.getContext('2d'); if (!g || (g.isContextLost && g.isContextLost())) { dropAtlas(view); return false; } }
+      else {
+        sheet = document.createElement('canvas'); sheet.width = at.cols * at.S; sheet.height = at.rows * at.S;
+        const g = sheet.getContext('2d');
+        if (!g) return false;
+        const nowQ = q * ROLL_MS / at.phases;
+        _ctx = g;
+        try {
+          for (const c of at.cells) {
+            // world -> this cell: the device transform shifted by whole pixels, so every edge lands on the same pixel
+            g.setTransform(s, 0, 0, s, m.e - c.ix + c.cx, m.f - c.iy + c.cy);
+            beltTile(c.b.x * T, c.b.y * T, T, classify(map, c.b), c.live ? nowQ : 0, c.live);
+          }
+        } finally { _ctx = ctx; }
+        at.sheets.set(q, sheet);
+      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      for (const c of at.cells) ctx.drawImage(sheet, c.cx, c.cy, at.S, at.S, c.ix, c.iy, at.S, at.S);
+      ctx.restore();
+      return true;
     }
     /* MERGE PULSE: a crate just crossed a converging junction — pulse the tile so the convergence point
        reads as live machinery. This is the ONLY thing the flash may say now: it fires once per real
