@@ -318,8 +318,9 @@
     for (const k of CALL_KEYS) if (typeof i[k] === 'string' && A[i[k].trim()]) { action = i[k].trim(); from = k; break; }
     if (!action) action = String(i.action == null ? '' : i.action).trim();
     let given = i.args;
-    // a model that serialises the nested object (args: "{\"perDay\": 5}") means that object
-    if (typeof given === 'string' && /^\s*\{/.test(given)) { try { given = JSON.parse(given); } catch (_) { /* left as text: refused below as no args */ } }
+    // a model that serialises the nested object (args: "{\"perDay\": 5}") means that object; text that is not JSON is no
+    // args at all, so a call that needs fields is refused
+    if (typeof given === 'string' && /^\s*\{/.test(given)) { try { given = JSON.parse(given); } catch (_) { given = null; } }
     if (given && typeof given === 'object' && !Array.isArray(given)) return { action, args: given };
     const args = {};
     for (const k of Object.keys(i)) if (k !== from && k !== 'action' && k !== 'args') args[k] = i[k];
