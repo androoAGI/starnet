@@ -3087,8 +3087,11 @@ const App = (() => {
       wireVia = 'your ChatGPT sign-in';
     } else {
       const key = el('in-key').value.trim();
+      // #89 (browser build): each save also hands the station its copy for routines; when it could not, the same
+      // warning SETTINGS shows says so — the wake goes on (chat carries its key), but routines would not have it
+      const warnStation = res => { if (typeof StationUI !== 'undefined' && StationUI.warnIfStationLacksKey) StationUI.warnIfStationLacksKey(res); };
       if (providerNeedsBaseUrl(pickedProvider)) {
-        if (Harness.setBaseUrl) await Harness.setBaseUrl(baseUrl, pickedProvider);
+        if (Harness.setBaseUrl) warnStation(await Harness.setBaseUrl(baseUrl, pickedProvider));
       }
       // DEV auto-resume eligibility is not proof of a credential for the chosen provider.
       const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
@@ -3115,7 +3118,7 @@ const App = (() => {
       }
       // Only (re)store when a key was actually typed — desktop keeps the existing keychain key on blank.
       // setKey is async in desktop (writes the keychain + pushes it to the sidecar); await so the run has it.
-      if (key) await (Harness.validateAndSetKey ? Harness.validateAndSetKey(key, pickedProvider) : Harness.setKey(key, pickedProvider));
+      if (key) warnStation(await (Harness.validateAndSetKey ? Harness.validateAndSetKey(key, pickedProvider) : Harness.setKey(key, pickedProvider)));
       Harness.setModel(model); Harness.setProv(pickedProvider);
       if (pickedProvider === 'openai') wireVia = key ? 'the OpenAI API key you typed' : 'the OpenAI API key stored on this station';
     }

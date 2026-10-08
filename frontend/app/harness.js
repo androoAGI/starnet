@@ -503,10 +503,11 @@ const Harness = (() => {
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
     if (DESKTOP) {
       return invoke('harness_store_provider_key_pool', { provider: p, keys: cleaned })
-        .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return count; });
+        .then(count => { _alternateCountByProvider[p] = Math.max(0, Number(count) || 0); return { count }; });
     }
     writeScoped(LS.keyPool, p, JSON.stringify(cleaned));
-    return syncEngineKey(p).then(() => cleaned.length);   // #89: the station's copy follows the backups too
+    // #89: the station's copy follows the backups too — resolves { count, engine } like setKey's { engine }
+    return syncEngineKey(p).then(engine => ({ count: cleaned.length, engine }));
   }
   /* #89 THE STATION KEEPS A COPY. In the browser build a key lives in this page's localStorage and rides each
      interactive /api/run — so chat works — but a scheduled routine, Run Now, the night shift or a line hop runs with
@@ -515,31 +516,72 @@ const Harness = (() => {
      token-gated /api/providers/engine-key; an all-empty config removes the station's copy. The desktop app (keychain)
      and dev (server-held key) never call it, nor do the sign-in providers. Never rejects — the key is already saved in
      this browser either way — and resolves { ok, error? }: whether unattended runs have it (presence only; the station
-     never echoes a key back). */
+     never echoes a key back).
+     localStorage is per ORIGIN (localhost:8787, 127.0.0.1:8787 and a forwarded port are three separate stores), so each
+     page remembers per provider the station revision it last proved (ENGINE_SYNC_SLOT { rev, pending }). A boot
+     hand-over carries that revision and the station takes it only if nothing changed since — an older page can never
+     put back a key the Commander rotated or removed elsewhere. A save or REMOVE that failed to reach the station is
+     `pending`: the next page boot retries it (on the same condition) until the station confirms it. */
   const ENGINE_SYNC_SKIP = { codex: 1, grok: 1, kimi: 1, starnet: 1, 'claude-cli': 1 };
+  const ENGINE_SYNC_SLOT = 'starnet.byok.engineSync';
+  const ENGINE_RETRY_NOTE = ' — this page retries the next time it loads';
   function engineConfigOf(p) {
     let keyPool = [];
     try { const pool = JSON.parse(readScoped(LS.keyPool, p) || '[]'); if (Array.isArray(pool)) keyPool = pool; } catch (_) { keyPool = []; }
     return { provider: p, key: readScoped(LS.key, p) || '', keyPool, baseUrl: readScoped(LS.baseUrl, p) || '' };
   }
-  async function syncEngineKey(provider) {
+  function engineSyncState(p) {
+    try {
+      const s = JSON.parse(localStorage.getItem(providerSlot(ENGINE_SYNC_SLOT, p)) || 'null');
+      if (s && typeof s === 'object') return { rev: String(s.rev || ''), pending: s.pending === true };
+    } catch (_) { /* unreadable = this page has proved nothing yet */ }
+    return { rev: '', pending: false };
+  }
+  function setEngineSyncState(p, s) {
+    try {
+      if (!s.rev && !s.pending) localStorage.removeItem(providerSlot(ENGINE_SYNC_SLOT, p));
+      else localStorage.setItem(providerSlot(ENGINE_SYNC_SLOT, p), JSON.stringify({ rev: s.rev || '', pending: !!s.pending }));
+    } catch (_) { /* storage full/blocked: the next explicit save still hands the station its copy */ }
+  }
+  async function syncEngineKey(provider, boot) {
     const p = normalizeProviderId(provider || getProv());
     if (DESKTOP || DEVMODE || ENGINE_SYNC_SKIP[p]) return { ok: true, skipped: true };
-    let out;
+    const config = engineConfigOf(p);
+    const removing = !(config.key || config.keyPool.length || config.baseUrl);
+    const state = engineSyncState(p);
+    const body = boot ? Object.assign({}, config, { boot: true, ifRev: state.rev }) : config;
+    let out, retry = false;
     try {
-      const r = await fetch('/api/providers/engine-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(engineConfigOf(p)) });
+      const r = await fetch('/api/providers/engine-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const text = await r.text().catch(() => '');
       let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
-      out = (r.ok && j.ok) ? { ok: true, keySource: String(j.keySource || ''), unattendedReady: !!j.unattendedReady }
-        : { ok: false, error: j.error ? String(j.error) : 'the station refused to keep a copy for routines (HTTP ' + r.status + ') — chat in this browser still works; re-save the key to retry' };
+      if (r.ok && j.ok) {
+        out = { ok: true, keySource: String(j.keySource || ''), unattendedReady: !!j.unattendedReady };
+        // stale = another page changed this provider on the station since this one last did: keep the revision this
+        // page proved (never the newer one — that would let this page's older config win its next boot)
+        if (j.stale) out.stale = true;
+        setEngineSyncState(p, { rev: j.stale ? state.rev : String(j.rev || ''), pending: false });
+      } else {
+        retry = r.status >= 500;
+        out = { ok: false, error: j.error ? String(j.error) : removing
+          ? 'the station refused to delete its copy of this connection (HTTP ' + r.status + ') — routines and other unattended runs keep using it until a retry succeeds'
+          : 'the station refused to keep a copy for routines (HTTP ' + r.status + ') — chat in this browser still works' };
+      }
     } catch (_) {
-      out = { ok: false, error: 'the station could not be reached to keep a copy for routines — chat in this browser still works; re-save the key once it is back' };
+      retry = true;
+      out = { ok: false, error: removing
+        ? 'the station could not be reached to delete its copy of this connection — routines and other unattended runs keep using it until a retry succeeds'
+        : 'the station could not be reached to keep a copy for routines — chat in this browser still works' };
     }
-    if (!out.ok) console.warn('[harness] ' + p + ': ' + out.error);
+    if (!out.ok) {
+      if (retry) { setEngineSyncState(p, { rev: state.rev, pending: true }); out.error += ENGINE_RETRY_NOTE; }
+      console.warn('[harness] ' + p + ': ' + out.error);
+    }
     return out;
   }
-  // once per page boot: every provider this browser holds a key, backup pool or endpoint for. Boot never REMOVES — a
-  // browser with nothing saved must not wipe what another browser handed the station (the last explicit save wins).
+  // once per page boot: every provider this browser holds a key, backup pool or endpoint for, plus any whose last
+  // change (a save OR a REMOVE) never reached the station. Each rides as a BOOT hand-over (see above): it fills a
+  // station that holds nothing and retries this page's own failed change, but never overwrites a newer one.
   function syncEngineKeysOnBoot() {
     if (DESKTOP || DEVMODE) return Promise.resolve([]);
     const seen = new Set();
@@ -547,13 +589,13 @@ const Harness = (() => {
       for (let i = 0; i < localStorage.length; i++) {
         const k = String(localStorage.key(i) || '');
         if (k === LS.key || k === LS.keyPool || k === LS.baseUrl) seen.add('openrouter');
-        for (const base of [LS.key, LS.keyPool, LS.baseUrl]) if (k.indexOf(base + '.') === 0) seen.add(normalizeProviderId(k.slice(base.length + 1)));
+        for (const base of [LS.key, LS.keyPool, LS.baseUrl, ENGINE_SYNC_SLOT]) if (k.indexOf(base + '.') === 0) seen.add(normalizeProviderId(k.slice(base.length + 1)));
       }
     } catch (_) { return Promise.resolve([]); }   // storage unavailable: nothing saved here to hand over
     const jobs = [];
     for (const p of seen) {
       const c = engineConfigOf(p);
-      if (c.key || c.keyPool.length || c.baseUrl) jobs.push(syncEngineKey(p));
+      if (c.key || c.keyPool.length || c.baseUrl || engineSyncState(p).pending) jobs.push(syncEngineKey(p, true));
     }
     return Promise.all(jobs);
   }
@@ -625,7 +667,7 @@ const Harness = (() => {
     if (DESKTOP) {
       return invoke('harness_store_provider_key', { provider: p, baseUrl: u || '' }).catch(() => {});
     }
-    return syncEngineKey(p);   // #89: an endpoint saved here reaches unattended runs too
+    return syncEngineKey(p).then(engine => ({ engine }));   // #89: an endpoint saved here reaches unattended runs too (resolves { engine } like setKey)
   };
   function defaultReasoningEffortForProvider(provider) {
     const p = normalizeProviderId(provider);

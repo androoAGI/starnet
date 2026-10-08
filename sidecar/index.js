@@ -1016,7 +1016,12 @@ function saveCredentialRemovalVerified(file, value, proof, tag) {
 const ENGINE_KEYS_FILE = path.join(WORKSPACES, '.secrets', 'provider-keys.json');
 const engineKeys = engineCredential.makeEngineKeys({
   load: () => DESKTOP_SHELL ? undefined : loadResilient(ENGINE_KEYS_FILE, 'engine-keys'),
-  persist: (envelope) => saveCredentialRemovalVerified(ENGINE_KEYS_FILE, envelope, null, 'engine-keys')
+  persist: (envelope) => saveCredentialRemovalVerified(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'),
+  // an unchanged push re-checks BOTH copies, raw (no .bak recovery): a deleted or torn file is rewritten, never "saved"
+  verify: (envelope) => {
+    const want = JSON.stringify(envelope);
+    try { return [ENGINE_KEYS_FILE, ENGINE_KEYS_FILE + '.bak'].every(f => JSON.stringify(JSON.parse(fs.readFileSync(f, 'utf8'))) === want); } catch (_) { return false; }
+  }
 });
 function reportDomainStoreIssue(tag) {
   return function onDomainStoreIssue(status, detail) {
@@ -2458,24 +2463,34 @@ function providerOperatorKey(id) {
   if (id === 'openrouter') return runtimeKey || envFirst(profile && profile.keyEnv);
   return envFirst(profile && profile.keyEnv);
 }
-function providerRuntimeKeyPool(provider, explicitPool) {
+function providerRuntimeKeyPool(provider, explicitPool, runKey) {
   const id = normalizeProvider(provider);
   const source = Array.isArray(explicitPool)
     ? explicitPool
     : (Object.prototype.hasOwnProperty.call(runtimeKeyPools, id)
       ? runtimeKeyPools[id]
-      : providerFallbackKeyPool(id));
+      : providerFallbackKeyPool(id, runKey));
   return Array.from(new Set(source.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8);
 }
-// the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only while the page copy's key is the
-// one the station runs on (backups for someone else's key would rotate a run onto a different account)
-function providerFallbackKeyPool(id) {
+// the operator's SKYNET_KEY_POOL_<PROVIDER>; else the page copy's backup keys — only for a run on the page copy's own
+// key (backups for someone else's key would rotate a run onto a different account)
+function providerFallbackKeyPool(id, runKey) {
   const env = String(ENV('KEY_POOL_' + id.toUpperCase().replace(/[^A-Z0-9]+/g, '_')) || '').split(',').filter(k => String(k || '').trim());
   if (env.length) return env;
-  const saved = engineKeys.get(id);
-  return (saved && saved.key && saved.keyPool && !String(runtimeKeys[id] || '').trim() && !providerOperatorKey(id)) ? saved.keyPool : [];
+  const page = pageCopyRidesWith(id, runKey);
+  return (page && page.key && page.keyPool) ? page.keyPool : [];
 }
-function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
+/* #89 the page copy (engine-credential.js) is ONE credential: its endpoint and backup keys belong to its own key. They
+   ride only a run whose key IS that key — never an operator env key, the desktop push, or another page's per-run key
+   (that would send a credential to an endpoint, or rotate a run onto an account, it was not saved for). A keyless page
+   endpoint rides a keyless run. `runKey` undefined = the station's own resolution (providerRuntimeKey). */
+function pageCopyRidesWith(id, runKey) {
+  const page = engineKeys.get(id);
+  if (!page) return null;
+  const inUse = runKey === undefined ? providerRuntimeKey(id, '') : String(runKey || '').trim();
+  return inUse === String(page.key || '') ? page : null;
+}
+function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
   const id = normalizeProvider(provider);
 
   // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
@@ -2491,9 +2506,12 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl) {
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
   const profile = getProviderProfile(id);
-  // #89: the page's endpoint (a CUSTOM/local base URL saved in the browser) ranks under the operator's env var and
-  // over the profile default — the same order the key follows
-  return envFirst(profile && profile.baseUrlEnv) || String((engineKeys.get(id) || {}).baseUrl || '') || (profile && profile.baseUrl) || '';
+  // #89: the page's endpoint (a CUSTOM base URL saved in the browser) goes with the page's key — over the operator's
+  // env URL when the run is on that key, never under an env key. A keyless page endpoint (a local server) ranks under
+  // the operator's env URL and over the profile default, the same order the key follows.
+  const page = pageCopyRidesWith(id, runKey);
+  if (page && page.key && page.baseUrl) return page.baseUrl;
+  return envFirst(profile && profile.baseUrlEnv) || String((page && page.baseUrl) || '') || (profile && profile.baseUrl) || '';
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
@@ -2601,7 +2619,7 @@ function channelRunConfigFor(agentId, candidate) {
   const offeredProvider = offered && offered.provider ? normalizeProvider(offered.provider) : provider;
   const sameProvider = offeredProvider === provider;
   const key = providerRuntimeKey(provider, sameProvider && offered ? String(offered.key || '') : '');
-  const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '');
+  const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '', key);   // #89: for THIS key
   if (!providerHasCredential(provider, key, baseUrl)) return { ok: false, error: providerCredentialError(provider) + ' for target agent ' + id };
   return {
     ok: true, key, model, provider, baseUrl,
@@ -13654,24 +13672,36 @@ async function handleSetKey(req, res) {
   return res.end(JSON.stringify({ ok: true, provider: id, configured: providerHasCredential(id, key, baseUrl), alternateCount: providerRuntimeKeyPool(id).length }));
 }
 
-/* #89 POST /api/providers/engine-key { provider, key, keyPool?, baseUrl? } — a BROWSER page (npm start / source build)
-   hands the station its copy of the provider config it just saved or removed (and once per page boot for configs it
-   already holds), so a scheduled routine, Run Now, the night shift, the quest refresh, a line hop or a phone task can
-   run on the key the Commander connected. The body is the page's FULL config for that provider; an all-empty body is
-   REMOVE. Gated like every /api/* mutation (launch token + loopback Host + Origin allow-list, the central gate in
-   createServer), the same seam the channel connects already use to persist a page-sent key. The station adopts the
-   change only after the write is read back from disk, and the answer is PRESENCE ONLY — never a key, pool or URL.
-   A failed save says so (chat in the page still works — it sends its key with every run — routines will not). */
+/* #89 POST /api/providers/engine-key { provider, key, keyPool?, baseUrl?, boot?, ifRev? } — a BROWSER page (npm start /
+   source build) hands the station its copy of the provider config it just saved or removed (and once per page boot for
+   configs it already holds or a change that failed to land), so a scheduled routine, Run Now, the night shift, the
+   quest refresh, a line hop or a phone task can run on the key the Commander connected. The body is the page's FULL
+   config for that provider; an all-empty body is REMOVE. `boot: true` + `ifRev` (the revision this page last saw) marks
+   a boot hand-over: it never replaces a change another page made since (engine-credential.js put). Gated like every
+   /api/* mutation (launch token + loopback Host + Origin allow-list, the central gate in createServer), the same seam
+   the channel connects already use to persist a page-sent key. The station adopts the change only after the write is
+   read back from disk, and the answer is PRESENCE ONLY — never a key, pool or URL. A failed save says what it means:
+   a save leaves routines without the change (chat in the page still works — it sends its key with every run); a failed
+   REMOVE leaves the station's copy in use — the page has already forgotten its own. */
 async function handleEngineKeySet(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   if (DESKTOP_SHELL) return json(409, { ok: false, error: 'this station is the StarNet desktop app — it keeps provider keys in your OS keychain, so connect the key in the app itself' });
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
   const id = normalizeProviderIdFromRegistry(body.provider, '');
   if (!id || !getProviderProfile(id) || id === 'starnet' || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json(400, { ok: false, error: 'this provider does not take a key from the page' });
-  const r = engineKeys.put(id, { key: body.key, keyPool: body.keyPool, baseUrl: body.baseUrl });
+  const r = engineKeys.put(id, { key: body.key, keyPool: body.keyPool, baseUrl: body.baseUrl }, { boot: body.boot === true, ifRev: typeof body.ifRev === 'string' ? body.ifRev : '' });
   if (r.invalid) return json(400, { ok: false, provider: id, error: r.error });
-  if (!r.ok) return json(500, { ok: false, provider: id, persisted: false, error: 'the station could not save this ' + providerLabelOf(id) + ' setting to disk (its log has the reason) — chat in this browser still works, but routines and other unattended runs will not see the change until a save succeeds' });
-  return json(200, Object.assign({ ok: true, provider: id, persisted: true, changed: !!r.changed }, engineKeyPresence(id)));
+  if (!r.ok) {
+    const label = providerLabelOf(id);
+    return json(500, { ok: false, provider: id, persisted: false, removing: !!r.removing, error: !r.removing
+      ? 'the station could not save this ' + label + ' setting to disk (its log has the reason) — chat in this browser still works, but routines and other unattended runs will not see the change until a retry succeeds'
+      : r.held ? 'the station could not delete its copy of this ' + label + ' connection (its log has the reason) — routines and other unattended runs will KEEP using it until a retry succeeds'
+        : 'the station could not record removing this ' + label + ' connection (its log has the reason) — it holds no copy, so routines are not using one' });
+  }
+  // stale: a boot hand-over the station did not take, because another page changed this provider since — its rev is
+  // not handed out, so this page's older config can never be pushed over the newer one
+  if (r.stale) return json(200, Object.assign({ ok: true, provider: id, applied: false, stale: true, changed: false }, engineKeyPresence(id)));
+  return json(200, Object.assign({ ok: true, provider: id, applied: true, persisted: true, changed: !!r.changed, rev: engineKeys.revOf(id) }, engineKeyPresence(id)));
 }
 function providerLabelOf(id) { const p = getProviderProfile(id); return (p && p.label) || id; }
 // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
@@ -18535,8 +18565,8 @@ async function runOnceCore(o) {
   // applied default) > provider default. An explicit per-run choice still wins; the roster only fills a gap.
   const reasoningEffort = resolveReasoningEffort(providerId, o.reasoningEffort || o.reasoning_effort || (o.reasoning && o.reasoning.effort) || (rosterIdent && rosterIdent.reasoningEffort));
   let model = String((o && o.model) || '').trim() || (rosterIdent && rosterIdent.model ? String(rosterIdent.model).trim() : '') || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);
-  const baseUrl = providerRuntimeBaseUrl(providerId, o.baseUrl || o.base_url || '');
   const runKey = providerRuntimeKey(providerId, key);
+  const baseUrl = providerRuntimeBaseUrl(providerId, o.baseUrl || o.base_url || '', runKey);   // #89: a page copy's endpoint rides only its own key
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -19944,7 +19974,7 @@ async function runOnceCore(o) {
   let activePrimaryKey = runKey;
   const primaryProfile = getProviderProfile(providerId);
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
-    const pool = providerRuntimeKeyPool(providerId, Array.isArray(o.keyPool) ? o.keyPool : undefined)
+    const pool = providerRuntimeKeyPool(providerId, Array.isArray(o.keyPool) ? o.keyPool : undefined, runKey)
       .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
