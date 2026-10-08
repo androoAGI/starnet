@@ -466,10 +466,22 @@
       if (b.dataset.act === 'session') {
         const sid = r.run && r.run.streamId;
         if (!sid) return say('That run did not record a session to open.', true);
-        if (typeof App !== 'undefined' && App && typeof App.openWorkstream === 'function') {
-          try { App.openWorkstream(sid); if (typeof StationUI !== 'undefined') StationUI.h.workConversation('deliverables'); return; } catch (_) {}
-        }
-        return say('Could not open that session from here.', true);
+        // #87: a workflow step's or routine's stream is not in the COMMS rail yet, and App.openWorkstream
+        // silently no-ops on an id it doesn't know. ReturnStore.openWork adopts the stream and folds in its
+        // durable transcript first (the OUTBOX's ↗ OPEN seam), and says false when it truly can't be read.
+        b.disabled = true;
+        let ok = false;
+        try {
+          if (typeof ReturnStore !== 'undefined' && ReturnStore.openWork) {
+            ok = await ReturnStore.openWork({ runId: r.runId || sid, streamId: sid, agentId: r.agentId || 'agent', title: r.title || '' });
+          } else if (typeof App !== 'undefined' && App && typeof App.openWorkstream === 'function' && typeof Workstreams !== 'undefined' && Workstreams.get(sid)) {
+            App.openWorkstream(sid); ok = true;
+          }
+        } catch (_) { ok = false; }
+        b.disabled = false;
+        if (!ok) return say('Could not read that conversation — its transcript is not on the station any more.', true);
+        if (typeof StationUI !== 'undefined') StationUI.h.workConversation('deliverables');
+        return;
       }
       // a WORKFLOW job's row opens its own record in WORKFLOWS (its line, its steps, NEEDS CHANGES / SEND IT AGAIN)
       if (b.dataset.act === 'workflow') {
