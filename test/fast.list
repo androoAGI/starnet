@@ -344,6 +344,7 @@ test/website-pricing-hold.test.js
 test/website-docs-navigation.test.js
 test/website-skill-market.test.js
 test/genesis-starnet-link.test.js
+test/credits-status-wait.test.js
 test/qa-product-perfect-provenance.test.js
 test/qa-cartographer.test.js
 test/golden.test.js

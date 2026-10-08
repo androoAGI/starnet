@@ -2499,8 +2499,9 @@ const App = (() => {
     try {
       // The wait must outlast the sidecar's own bounded worst case, so its answer always lands first: a link
       // self-heal retry's /v1/whoami (8s) + one /v1/balance read (8s). 10s used to lose that race on WAKE.
+      // api.get carries its own deadline (15s by default), so it gets the same wait or it fires first (E29, 10-07).
       j = await Promise.race([
-        Harness.api.get('/api/credits?history=0'),
+        Harness.api.get('/api/credits?history=0', { timeoutMs: 20000 }),
         new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('credits status timeout')), 20000); })
       ]);
       answered = !!(j && typeof j.configured === 'boolean');
