@@ -632,6 +632,12 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
 #chat-log { user-select: text; }
 #chat-log .cmsg .body { cursor: text; }
 :is(#chat-log, #gc-log) :is(button, .who, .cmsg-ts, .tb-when) { user-select: none; }
+/* SELECTABLE WINDOWS (#87) — what a station window SAYS is text you can select and copy: a workflow's result,
+   a deliverable's WHAT CAME BACK, a dossier's notes. Same split as the transcript: the words select, the
+   controls never do, so a drag across a card copies prose and not button captions. Draggable cards and
+   role=button rows stay unselectable so a drag still moves them. */
+.term-body { user-select: text; }
+.term-body :is(button, summary, label, select, [role="button"], [draggable="true"], .bb) { user-select: none; }
 
 /* COPY — a hover-revealed ⧉ button at the top-right of an agent MESSAGE row (CSS keeps it off the work-log
    beats, which aren't prose). Flashes to ✓ on a successful copy. Touch/keyboard-focus reveal it too. */
