@@ -13132,7 +13132,8 @@ async function handleBudgetSettle(req, res) {
   if (!open) return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
   let usd;
   if (body.mode === 'limit') {
-    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
+    // a StarNet-credit receipt's charge is in the StarNet account's activity, not on a provider dashboard
+    if (!(typeof open.runCapUsd === 'number' && Number.isFinite(open.runCapUsd) && open.runCapUsd > 0)) return json(400, { error: open.managed === true ? 'this run recorded no per-run limit — enter the charge your StarNet account activity (account.starnetos.com) shows' : 'this run recorded no per-run limit — enter the charge from your provider dashboard' });
     usd = open.runCapUsd;
   } else {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
