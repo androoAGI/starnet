@@ -80,9 +80,9 @@ for (const fn of ['openStepCard', 'openWorkstationPicker', 'openFlowCard', 'open
   A.ok(i > 0, fn + ' is still a card opener');
   A.ok(build.slice(i, i + 700).indexOf('cardCloseAll()') > 0, fn + ' replaces the open card instead of no-opping');
 }
-// …and every card registers SOME close path (8 cards; a new one that forgets is the bug this counts)
-A.ok((build.match(/cardRegister\(g, /g) || []).length >= 8,
-  'every mounted card registers its close path (first-run + the modal editors; the step/flow cards are the docked panel now)');
+// …and every card registers SOME close path (7 cards; a new one that forgets is the bug this counts)
+A.ok((build.match(/cardRegister\(g, /g) || []).length >= 7,
+  'every mounted card registers its close path (first-run + the modal editors; the step/flow cards are the docked panel now; the desk picker is the selection card since 2026-10-07)');
 
 /* ---------- 3. a mounted card owns the keyboard ---------- */
 const keyBlock = build.slice(build.indexOf('function onKey(ev)'), build.indexOf('function onKeyUp(ev)'));

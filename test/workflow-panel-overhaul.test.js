@@ -128,7 +128,7 @@ const cap = at(build, '  /* A FLOOR CAPTION IS A PLATE', '  /* ---------- FINISH
 A.ok(/const capFs = \(\) => 17 \* \(dpr \|\| 1\) \* \(\(typeof U !== 'undefined' && U\.uiZoom && U\.uiZoom\(\)\) \|\| 1\) \/ zoom;/.test(cap), 'a caption is set at a reading size ON SCREEN (17px, by pixel ratio and TEXT SIZE), whatever the camera zoom');
 A.ok(/function captionFit\(box\)/.test(cap) && /const left = \(ins\.l - panX\) \/ zoom \+ m, right = \(cv\.width - \(ins\.r \|\| 0\) - panX\) \/ zoom - m;/.test(cap), '…and kept on the visible glass (never under the Build Library or the docked panel)');
 A.ok(/c\.fillStyle = 'rgba\(4,6,8,0\.86\)'; c\.fillRect\(box\.x, box\.y, box\.w, box\.h\);/.test(cap) && /c\.strokeRect\(/.test(cap) && !/shadowBlur/.test(cap), 'the plate is the gesture badge\'s: a dark field, a hairline in the caption\'s colour, plain text');
-const marks = at(build, '  function drawWorkflowMarks(t, now) {', '  /* ---------- WORKSTATION agent-picker');
+const marks = at(build, '  function drawWorkflowMarks(t, now) {', '  /* ---------- WHO SITS AT THIS DESK');
 A.ok(/Conveyor\.drawCrate\(ctx, Math\.round\(x \+ t \/ 2\), Math\.round\(y \+ t \/ 2\) \+ 1, 'product'\)/.test(marks), 'what waits at a paused hand-off is the same crate that rides the belts');
 A.ok(/captionPlate\(c, label, box, '#5fd8ff'\)/.test(marks) && !/shadowBlur/.test(marks), '…and its label is a plate');
 A.ok(/ghost\.draw\(ctx, now, t, capFs\(\), \(box, paint\) => voiceSay\('ghostCaption', box, box, paint\), captionFit\);/.test(build), 'the projection\'s captions take the same size and stay on the glass');

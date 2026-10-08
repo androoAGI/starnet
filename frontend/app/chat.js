@@ -2125,7 +2125,7 @@ const Chat = (() => {
     // click drops the desk. 'later' just dismisses this view of it — the step is still owed, so the next open
     // of this session says so again (it stops for good the moment the desk exists).
     const chips = choices([{ label: '▤ PLACE ITS DESK', value: 'desk' }, { label: 'later', value: 'later', skip: true }], item => {
-      if (item && item.value === 'desk' && App.openDeskPlacement) App.openDeskPlacement();
+      if (item && item.value === 'desk' && App.openDeskPlacement) App.openDeskPlacement(id);
     });
     if (chips) chips.classList.add('comms-desk-prompt');
   }

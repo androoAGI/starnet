@@ -42,8 +42,8 @@ A.ok(/activeWs\.agentId \|\| 'agent'/.test(beat[0]),
   'it asks about THIS stream\'s agent — never the focused one (a switch must not move the prompt)');
 A.ok(/nowhere to sit yet/.test(beat[0]) && /before it can take floor work/.test(beat[0]),
   'it states plainly what is missing and what it blocks');
-A.ok(/'▤ PLACE ITS DESK'[\s\S]{0,220}App\.openDeskPlacement\(\)/.test(beat[0]),
-  'the chip under it opens REFIT armed for placement — the step is actionable, never a passing remark');
+A.ok(/'▤ PLACE ITS DESK'[\s\S]{0,220}App\.openDeskPlacement\(id\)/.test(beat[0]),
+  'the chip under it opens REFIT armed to place THIS agent\'s desk — the step is actionable, never a passing remark');
 A.ok(/if \(!log \|\| interview \|\| !activeWs \|\| isBusy\(\)\) return/.test(beat[0]),
   'silent only while that stream is mid-run or awakening — it returns on the next open');
 A.ok(!/beatBusy\(\)/.test(beat[0]),
@@ -90,8 +90,10 @@ A.ok(!/Chat\.choices\(\[\{ label: '▤ PLACE ITS DESK'/.test(app),
   '…nor its own chip row, which could otherwise drift from the session\'s');
 
 /* ---- the door itself still lands on the workstation palette ---- */
-const door = /function openDeskPlacement\(\)[\s\S]{0,1400}?\n  \}/.exec(app);
-A.ok(door && /refit-tool\[data-tool="prop"\]/.test(door[0]) && /refit-propcat\[data-cat="workstation"\]/.test(door[0]),
-  'openDeskPlacement drives REFIT to the PROP tool on the WORKSTATIONS category so the next floor click drops the desk');
+const door = /function openDeskPlacement\(agentId\)[\s\S]{0,1800}?\n  \}/.exec(app);
+A.ok(door && /if \(agentId && Build\.placeDeskFor\) \{ try \{ if \(Build\.placeDeskFor\(agentId\)\) return; \} catch \(_\) \{\} \}/.test(door[0]),
+  'openDeskPlacement arms the desk FOR the agent (2026-10-07): the next floor click drops it already theirs');
+A.ok(door && /refit-tool\[data-tool="prop"\]/.test(door[0]),
+  '…and a Build without placeDeskFor still lands on the PROP tool');
 
 A.report('summon-desk-prompt.test');
