@@ -3277,6 +3277,16 @@ const Build = (() => {
     selectTool('prop', { silent: true });
     return true;
   }
+  // the desk that click drops: added, then seated through the same one-desk rule as the chips (station.assignDesk),
+  // all in one transaction — one UNDO takes back the desk AND the move, and a refused drop changes nothing
+  function addOwnedDesk(placement, owner) {
+    return station.transact(() => {
+      const added = station.addProp(placement);
+      if (!added || !added.ok) return added;
+      const seat = station.assignDesk(added.id, owner);
+      return seat && seat.ok ? added : seat;
+    });
+  }
 
   /* ---------- FILTER junction editor (Polish P1): make content-routing reachable from the UI.
      A FILTER wants routes (tag -> out-lane) + a default lane — a missing default is an amber nag
@@ -5390,7 +5400,7 @@ const Build = (() => {
     const owner = WORKSTATION_TYPES[propType] ? deskOwner : null;   // PLACE ITS DESK: this desk is that agent's, and their only one
     if (owner) placement.agentId = owner;
     const res = owner
-      ? station.transact(() => { for (const q of station.propsByAgent(owner)) if (WORKSTATION_TYPES[q.t]) station.assignPropAgent(q.id, ''); return station.addProp(placement); })
+      ? addOwnedDesk(placement, owner)
       : station.addProp(placement);
     if (res && !res.ok) res.msg = placementReason({v:res,rects:[{x1:px,y1:py,x2:px+s.w-1,y2:py+s.h-1}]});
     if (res && res.ok) {

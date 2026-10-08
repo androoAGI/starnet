@@ -95,6 +95,29 @@ function station() {
   A.ok(/station\.assignDesk\(/.test(body), 'the chip and the overseer share ONE rule (station.assignDesk), never two copies');
 }
 
+/* ---- 3b. PLACE ITS DESK (a desk dropped FOR an agent) lands through the same rule (build.js addOwnedDesk, lifted) ---- */
+{
+  const build = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'build.js'), 'utf8');
+  const body = A.fnBody(build, 'function addOwnedDesk(');
+  A.ok(body.length > 30 && body.length < 1500, 'build.js addOwnedDesk located (length guard)');
+  A.ok(/const res = owner\s*\? addOwnedDesk\(placement, owner\)\s*: station\.addProp\(placement\);/.test(build), 'the floor click drops an owned desk through addOwnedDesk');
+  A.ok(/station\.assignDesk\(/.test(body) && !/assignPropAgent/.test(body), 'PLACE ITS DESK binds through station.assignDesk — no third copy of the unbind loop');
+  const { st, old } = station(), before = snap(st);
+  let spot = null;
+  for (let y = 2; y <= 9 && !spot; y++) for (let x = 26; x <= 39 && !spot; x++) if (st.canPlaceProp('desk', x, y, 2, 1).ok) spot = { x, y };
+  A.ok(spot, 'fixture: a free spot for a new desk');
+  const addOwnedDesk = new Function('station', body + '\nreturn addOwnedDesk;')(st);
+  const res = addOwnedDesk({ t: 'desk', x: spot.x, y: spot.y, w: 2, h: 1, block: true, agentId: 'rex' }, 'rex');
+  A.ok(res && res.ok && res.id && st.propById(res.id), 'the desk lands and the caller gets ITS id (landProps / the selection use it)');
+  A.eq(desksOf(st, 'rex'), [res.id], 'REX holds exactly one workstation: the desk placed for it');
+  A.eq(seatOf(st, 'rex'), res.id, 'so REX walks to the new desk');
+  A.ok(!st.propById(old).agentId, 'and its old desk is free again');
+  A.ok(st.undo().ok && snap(st) === before, 'ONE undo takes back the desk AND the move');
+  const s2 = snap(st), undoable = st.canUndo();
+  const blocked = addOwnedDesk({ t: 'desk', x: st.propById(old).x, y: st.propById(old).y, w: 2, h: 1, block: true, agentId: 'rex' }, 'rex');
+  A.ok(blocked && !blocked.ok && snap(st) === s2 && st.canUndo() === undoable && st.propById(old).agentId === 'rex', 'a refused drop (on top of a desk) changes nothing — REX keeps its desk');
+}
+
 /* ---- 4. the COMMS "has nowhere to sit yet" line retires when the desk LANDS, not only when BUILD MODE closes ----
    app.js's station autosave watcher (the one coalesced hook every floor mutation passes) reconciles the derived prompt
    after the save, whoever placed the desk: a WHO SITS HERE chip, PLACE ITS DESK, or the overseer's station-control op. */
