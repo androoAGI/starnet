@@ -105,10 +105,13 @@
      adaptive/enabled thinking, and sending it WITHOUT the beta header is itself a 400 — so the two always travel
      together. Conservative list: the models the docs name as enforcing (Mythos 5.1 accepts it without enforcing).
      Anything else that still answers "bound to a different conversation" is caught by the strip-and-retry rescue in
-     wireStream, so an unlisted future model degrades to one extra request, never a dead run. */
+     wireStream, so an unlisted future model degrades to one extra request, never a dead run.
+     Haiku 5.5 runs the same check (claude-api skill, model-migration "Migrating to Claude Haiku 5.5"); its OFF is a
+     plain `disabled`, which never carries block_binding (applyThinking returns before adding it). */
   const BINDING_CLAUDE = [
     'claude-fable-5-1', 'claude-fable-5.1', 'claude-mythos-5-1', 'claude-mythos-5.1',
-    'claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-sonnet-5.5'
+    'claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-sonnet-5.5',
+    'claude-haiku-5-5', 'claude-haiku-5.5'
   ];
   const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
 
