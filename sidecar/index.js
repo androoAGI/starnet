@@ -13146,6 +13146,10 @@ async function handleBudgetSettle(req, res) {
     failNote('budget.settle', e);
     return json(500, { error: 'the settlement could not be saved to disk — restart StarNet to recover it', code: 'spend_history_unavailable' });
   }
+  // The spend is KNOWN now: restamp the run's history row (fsync'd append) so INSIGHTS and the run row stop calling it
+  // spend-unknown. The ledger row above is the authority — a row this could not restamp (not scanned yet, or a failed
+  // append) is healed from it by syncInterruptedRunHistory at the next scan/boot.
+  try { runStore.settleSpend(runId, usd, body.mode === 'limit' ? 'limit' : 'entered'); } catch (e) { failNote('budget.settle.history', e); }
   console.log('[budget] interrupted run ' + runId + ' settled at $' + usd + (body.mode === 'limit' ? ' (its per-run limit)' : ' (entered by the Commander)'));
   return handleBudgetStatus(req, res);
 }
@@ -24828,13 +24832,19 @@ function syncInterruptedRunHistory(r) {
   const next = interruptedRecoveryState(r);
   const continuedRunId = String(next.continuedRunId || '');
   const continuedReason = String(next.continuedReason || '');
+  // A run the Commander SETTLED (SETTINGS › SPENDING LIMITS) has known spend: the ledger's attested row is the
+  // authority, so a row written before/without the settle's restamp converges to it (runstore keeps it across later
+  // status updates). Unsettled stays spendUnknown — never a guessed $0.
+  let settled = null;
+  if (!(existing && existing.spendSettled)) { try { settled = ledger.attestedFor(r.runId); } catch (e) { failNote('run-history.settled', e); } }
   if (existing && existing.recoveryStatus === next.status && String(existing.continuedRunId || '') === continuedRunId
-    && String(existing.continuedReason || '') === continuedReason) return null;
+    && String(existing.continuedReason || '') === continuedReason && !settled) return null;
   const startedAt = Number(meta.startedAt || r.firstTs || 0) || 0;
   const endedAt = Math.max(startedAt, Number(r.lastTs || 0) || 0);   // the last durable journal record = last proof of life
   return runStore.record({
     runId: r.runId, agentId: String(meta.agentId || 'agent'), provider: String(meta.provider || ''),
-    reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0, usd: 0, spendUnknown: true,
+    reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0,
+    usd: settled ? settled.usd : 0, spendUnknown: !settled, spendSettled: settled ? settled.attestedAs : '',
     title: String(meta.userTitle || ''), streamId: String(meta.streamId || ''), model: String(meta.model || ''),
     surface: meta.surface, recoveryOf: String(meta.recoveryOf || ''), parentRunId: String(meta.parentRunId || ''),
     startedAt, endedAt, durationMs: endedAt - startedAt,

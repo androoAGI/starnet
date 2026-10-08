@@ -73,9 +73,20 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     assert.ok(row&&row.usd===0.3&&row.attested===true&&row.ts===crashed.ts,'one attested row at the dispatch time');
     assert.equal(row.attestedAs,'entered','the row says the Commander entered that charge');
     assert.equal((await settle({runId:crashed.runId,usd:0.3})).status,404,'a second settle cannot double-book');
+    // spend-truth B12: the settled run's HISTORY row is known spend now — INSIGHTS and the run row agree with the ledger
+    // the boot scan records an interrupted run's row in the background: wait for it (bounded) before judging it
+    const runRow=async()=>{for(let i=0;i<50;i++){const row=((await f.json('GET','/api/runs?agent=*&runId='+encodeURIComponent(crashed.runId))).body.runs||[])[0];if(row)return row;await new Promise(r=>setTimeout(r,100));}return null;};
+    const settledRow=await runRow();
+    assert.ok(settledRow&&settledRow.reason==='interrupted','the interrupted run is in history: '+JSON.stringify(settledRow));
+    assert.ok(settledRow.spendUnknown!==true&&settledRow.usd===0.3&&settledRow.spendSettled==='entered','its row carries the settled $0.30, not spend-unknown: '+JSON.stringify({usd:settledRow.usd,spendUnknown:settledRow.spendUnknown,spendSettled:settledRow.spendSettled}));
+    const ins=(await f.json('GET','/api/insights')).body;
+    assert.equal(ins.spendUnknownRuns,0,'INSIGHTS no longer counts the settled run as spend-unknown');
     hold=false;await run();assert.equal(calls,3,'the chosen limit works again: the next run dispatches');
     await f.restart();st=(await status()).body;
     assert.ok(Math.abs(st.spentToday-1.9)<1e-9,'settlement survives restart exactly once');assert.equal(st.unsettled.length,0);
+    const rebooted=await runRow();
+    assert.ok(rebooted&&rebooted.spendUnknown!==true&&rebooted.usd===0.3,'the settled history row survives the restart: '+JSON.stringify(rebooted&&{usd:rebooted.usd,spendUnknown:rebooted.spendUnknown}));
+    assert.equal((await f.json('GET','/api/insights')).body.spendUnknownRuns,0,'and INSIGHTS still reads it as known after the restart');
     // ---- a run that started under a per-run limit can be counted at that limit, one click (SPEND-4 receipt) ----
     await f.stop();await f.start({SKYNET_BUDGET_PER_RUN:'0.75',SKYNET_BUDGET_PER_DAY:'10'});hold=true;
     const limited=run().catch(()=>null);
