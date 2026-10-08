@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7db4a170bcd60db041317a959e4e4ca18f9a2958",
+    "sourceCommit": "aa7d39009a7661e4f947a31a72b956bcf72637e1",
     "pathSetSha256": "9d1a8c60b20ee9ffa8edfe1a6fc1ca368f057a7b93f20a8e5d0e2959336fdc66",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 428416,
-        "sha256": "a6cc3532f1c21cd9fcd43636a9b81063dab5ccdea678c3553c886b249a9352b2"
+        "bytes": 429143,
+        "sha256": "58aa43e9b6b82d780074d4c65f7e972ce7ca67d17b122b86794259ed47dad181"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -383,8 +383,8 @@
       },
       {
         "path": "frontend/app/conveyor.js",
-        "bytes": 43456,
-        "sha256": "c9dfa0517419e823fd08cb3992a63ff8f92768a5e4766bd8f53badd3e0ac379e"
+        "bytes": 48414,
+        "sha256": "9f8a7d7f1c93c07af94639b517a256e53705542ff534eb3506565d1a80357b6b"
       },
       {
         "path": "frontend/app/cratecard.js",
@@ -858,8 +858,8 @@
       },
       {
         "path": "frontend/app/propsprites.js",
-        "bytes": 809090,
-        "sha256": "d8848258268da6925d2346a3b0abdf09eb4c718841891ae25646b156775c8d5d"
+        "bytes": 809243,
+        "sha256": "bd434859f99fc02318e65fd1868ace83d6d07290edf3cced498d002f4379aa4d"
       },
       {
         "path": "frontend/app/prospect.js",
@@ -1423,8 +1423,8 @@
       },
       {
         "path": "frontend/app/workstreams.js",
-        "bytes": 40834,
-        "sha256": "5b22eb0bb459c726e68965e0b758a45dd5e8ba50c187fa5c968f2e41b0aebaef"
+        "bytes": 41352,
+        "sha256": "d850728eca433d9e8f1bf1ecdec1bf51e5d473edb75d10ffba7a99f8ad94dcd4"
       },
       {
         "path": "frontend/app/workview.js",
@@ -1433,8 +1433,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 836078,
-        "sha256": "268e8381f0ecc95070980a68411862485fdff1e1a99a9f2400791bcc67c2db1f"
+        "bytes": 837629,
+        "sha256": "ba8e0b0ac11979839429acc97478a2330642f859f12ace7159da64b8a60f23e2"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1443,8 +1443,8 @@
       },
       {
         "path": "frontend/app/worldlight.js",
-        "bytes": 39273,
-        "sha256": "c4dec0d2e5e24f8167dc3fae77b70b1b232aded7d7b0faefb12e5a14a84325cd"
+        "bytes": 41640,
+        "sha256": "d218c268433cd07cf985e95ccace93766b81109aec1187158ef8b764d91a08f1"
       },
       {
         "path": "frontend/app/worldmodel.js",
@@ -1798,8 +1798,8 @@
       },
       {
         "path": "frontend/js/assets.js",
-        "bytes": 49161,
-        "sha256": "6924c58602476b5a06ea966707ef834d1c7f848c41d1867821d4655001705370"
+        "bytes": 51791,
+        "sha256": "a4a22ac6c63dd196569469a569a75364da5abae1f04581393c67b99868f9fe2b"
       },
       {
         "path": "frontend/js/audio.js",
