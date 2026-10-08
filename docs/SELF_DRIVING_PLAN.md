@@ -93,4 +93,17 @@ Known, not fixed: Sonnet paused a routine by hand before
 pressing the E-STOP (the pause outlives RESUME); a model may name tool ids in a reply (station.build) — prompt-level.
 Not a bug: after an agent E-STOP in a HIDDEN tab, RESUME AUTOMATION appears on the next focus (it polls only while visible).
 Repeatable: `node dev/self-driving-proof.mjs [port] [--estop]` against a running scratch station (close other tabs on it).
-Not yet proven: ASK mode (every run above had full access — no approval cards), and any non-Anthropic model live.
+
+## ASK mode + other model families (2026-10-08, second pass)
+**ASK mode** (SEED_FULL_ACCESS=0, Claude Haiku 4.5; the proof clicked each real approval card): $8 daily cap ✅ (1 card),
+pin this conversation ✅ (1), clear notifications ✅, open deliverables ✅ (0 cards — a read), a DENIED rename reported
+honestly ✅. Found + fixed: look.set sent flat/stringified ({hints:false}) showed "change the station's look: nothing named"
+and the page saved an empty look as ✓ — the Commander approved that 4× (11 calls); now folded under {look} (card: "hints
+false", 1 card, 4 calls) and an empty look is refused on both sides. An APPROVED "rename NOVA to VEGA" rewrote the persona
+text through team.configure and claimed "renamed" while the crew still read NOVA; team.configure now refuses a pure name
+swap toward station.control agent.rename → crew reads VEGA (2 cards). Rough edge left: that card says rename "agent" (the id).
+**Other families** (proof script, fresh station each): openai/gpt-5.6-luna 10/10 ✅. google/gemini-3.8-flash 6/10 → 10/10 ✅
+after two fixes: (1) Google refuses the WHOLE request when any declared array lacks `items` — station.plan's
+`shape:{type:'array'}` (shipped in 0.13.1, so released Gemini users hit it whenever a station tool is revealed); captured
+through a logging proxy (OpenRouter only says "Provider returned error"), probed live, fixed generically in
+toolschema.arrayItems on both wire paths + at the source; (2) tool.search by the wire name ("station_control") found nothing.

@@ -14,7 +14,8 @@ import { findChrome, connectCDP, evalJS, sleep } from '../scripts/lib/cdp.mjs';
 const PORT = Number(process.argv.find(a => /^\d+$/.test(a)) || 8796);
 const ESTOP = process.argv.includes('--estop');
 let failed = 0;
-const check = (name, ok, detail) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  — ' + detail : '')); if (!ok) failed++; };
+let last = null;   // the latest ask's run: a FAIL prints its tool rows, so it can be diagnosed without a re-run
+const check = (name, ok, detail) => { console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  — ' + detail : '')); if (!ok) { failed++; if (last) for (const t of last.tools.slice(0, 14)) console.log('      ' + t.slice(0, 160)); } };
 const dir = mkdtempSync(join(tmpdir(), 'starnet-self-driving-'));
 const chrome = spawn(findChrome(), ['--headless=new', '--no-first-run', '--window-size=1440,900', '--remote-debugging-port=9497', '--user-data-dir=' + join(dir, 'c'), 'about:blank'], { stdio: 'ignore', windowsHide: true });
 try {
@@ -39,7 +40,7 @@ try {
       await sleep(2000);
     }
     await sleep(2500);
-    return run(`(() => { const p = document.querySelector('#chat-panel');
+    return last = await run(`(() => { const p = document.querySelector('#chat-panel');
       return { ws: ${JSON.stringify(ws)}, secs: ${'Math.round((Date.now() - ' + t0 + ') / 1000)'},
         tools: [...new Set([...p.querySelectorAll('.tool, [class*="tool-"]')].map(e => e.textContent.replace(/\\s+/g, ' ').trim()))],
         end: (p.innerText.match(/■ RUN [^\\n]*/g) || []).pop() || '', text: p.innerText.slice(-600) }; })()`);
