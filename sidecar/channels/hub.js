@@ -485,10 +485,14 @@
           meta: { runId: runId, promptId: promptId }
         });
         if (!entry) return;
+        // argsSummary is the WHOLE request now (consentSummary): fit it under a chat message's limit, and say when it
+        // doesn't fit — a silent cut would ask for an approval of words the Commander never saw
+        const ARGS_MAX = 3000;
         const args = String(f.argsSummary || '').trim();
+        const shown = args.length > ARGS_MAX ? args.slice(0, ARGS_MAX) + '\n… (' + (args.length - ARGS_MAX) + ' more characters: open StarNet to read the whole request before you allow it)' : args;
         const body = '🔐 Permission needed\n\n' + String(f.tool || 'a tool')
           + (f.scope ? '  (' + f.scope + ')' : '')
-          + (args ? '\n' + args.slice(0, 600) : '')
+          + (shown ? '\n' + shown : '')
           + '\n\nIf you don\'t answer, this is denied and the run moves on.';
         entry.meta.text = body;
         const r = await deliver(chatId, body, runId, 'prompt', '', { reply_markup: keyboardFor(entry) });

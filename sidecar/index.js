@@ -24476,9 +24476,18 @@ function consentSummary(call) {
   if (/^station[._](?:control|power)$/.test(String(call && call.name || ''))) return stationControlCard(redact(a));
   if (/^station[._]test_line$/.test(String(call && call.name || ''))) return 'the line ' + String(a.line || '').replace(/\s+/g, ' ').trim().slice(0, 48) + ', with this test job: "' + String(a.job || '').replace(/\s+/g, ' ').trim().slice(0, 240) + (String(a.job || '').length > 240 ? '…' : '') + '". It runs the line\'s agents and spends what they spend; the result lands in DELIVERABLES › TO REVIEW.';
   if (/^station[._]make_prop$/.test(String(call && call.name || ''))) return '"' + String(a.describe || '').replace(/\s+/g, ' ').trim().slice(0, 60) + '", drawn with your StarNet credits (about $0.35' + (a.sideView ? ', and about $0.30 more for its side view' : '') + '). It joins your MADE BY YOU library; nothing is placed until a plan says so.';
-  if (typeof a.path === 'string' && a.path) return a.path;
-  // redacted BEFORE the clip: this line reaches the phone's lock screen (remoteAskWords) and a token in a command must never ride along
-  try { const s = JSON.stringify(redact(a)); return s.length > 80 ? s.slice(0, 77) + '…' : s; } catch (_) { return ''; }
+  // a bare path names the call only when nothing else it carries could change what is approved (flags, counts)
+  if (typeof a.path === 'string' && a.path && Object.keys(a).every(k => k === 'path' || a[k] == null || typeof a[k] === 'boolean' || typeof a[k] === 'number')) return a.path;
+  /* THE WHOLE REQUEST, never a clip (user report 10-08): this used to be a 77-char prefix, so a long shell.exec showed
+     its head and hid its tail behind "…" — the Commander approved a command they could not read. Every surface clips
+     its own glance line (the card's phrase, the lock screen, a chat message) and the desk card puts this in INSPECT
+     COMPLETE REQUEST. Redacted BEFORE anything else: it reaches a phone and a chat. The bound only keeps a pathological
+     payload off the stream, and when it bites the text says so — the card never presents a cut request as whole. */
+  const FULL_MAX = 64000;
+  try {
+    const s = JSON.stringify(redact(a), null, 2);
+    return s.length > FULL_MAX ? s.slice(0, FULL_MAX) + '\n… [' + (s.length - FULL_MAX) + ' more characters not shown: the request is too large for the card]' : s;
+  } catch (_) { return ''; }
 }
 function throttleSearch(registry) {
   const t = registry.get('web_search');
