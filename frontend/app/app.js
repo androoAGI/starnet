@@ -5297,7 +5297,12 @@ const App = (() => {
       SFX.click && SFX.click();
       if (typeof Diag === 'undefined' || !Diag.copy) { if (status) status.textContent = '＋ recovery details unavailable — send a screenshot of ' + diagnosis.code; return; }
       reportBtn.disabled = true; reportBtn.textContent = '⧉ COPYING…';
-      Diag.copy({ notify: false, context: { kind: diagnosis.code, error: diagnosis.text, engineAlive: true }, onDone: (ok, text) => {
+      // SAVE-403/READ/CACHE are answers FROM the station service, so it is proven up. SAVE-NET is the opposite case — the
+      // request never returned — so liveness is MEASURED (Diag pings GET /api/health), never assumed: the report said
+      // "local engine: REACHABLE" for two 0.13.1 users whose engine was not answering (2026-10-08 SAVE-NET reports).
+      const ctx = { kind: diagnosis.code, error: diagnosis.text };
+      if (reason === 'forbidden' || reason === 'unreadable' || reason === 'cache') ctx.engineAlive = true;
+      Diag.copy({ notify: false, context: ctx, onDone: (ok, text) => {
         reportBtn.disabled = false; reportBtn.textContent = ok ? '✓ RECOVERY DETAILS COPIED' : '⧉ RECOVERY DETAILS SHOWN BELOW';
         if (!ok && reportHost && Diag.showBlock) Diag.showBlock(reportHost, { text });
       } });
