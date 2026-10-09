@@ -28,4 +28,6 @@ A.ok(app.includes('FreshStart.retryBrowserClear(preservedReset)'), 'a browser-cl
 A.ok(app.includes('SAVE-403 · STALE WINDOW SESSION') && app.includes('SAVE-NET · SAVE REQUEST LOST'), 'the two save-failure classes have stable support codes');
 A.ok(/Diag\.copy\(\{ notify: false, context: \{ kind: diagnosis\.code[\s\S]{0,500}Diag\.showBlock/.test(app), 'recovery details fall back to selectable on-screen text when clipboard copy fails');
 
+A.ok(!/Diag\.copy\(\{ notify: false, context: \{ kind: diagnosis\.code[^}]*engineAlive/.test(app), 'recovery details measure engine liveness instead of asserting REACHABLE');
+
 A.report('desktop-fresh-start-contract.test');

@@ -5297,7 +5297,10 @@ const App = (() => {
       SFX.click && SFX.click();
       if (typeof Diag === 'undefined' || !Diag.copy) { if (status) status.textContent = '＋ recovery details unavailable — send a screenshot of ' + diagnosis.code; return; }
       reportBtn.disabled = true; reportBtn.textContent = '⧉ COPYING…';
-      Diag.copy({ notify: false, context: { kind: diagnosis.code, error: diagnosis.text, engineAlive: true }, onDone: (ok, text) => {
+      // No engineAlive here: this page is bundled into the desktop shell, so the gate rendering proves nothing about
+      // the sidecar. Left unset, the report MEASURES /api/health (Harness.pingEngine) instead of always printing
+      // "REACHABLE" — a 10-08 support report claimed a live engine while its crash ledger was still being written.
+      Diag.copy({ notify: false, context: { kind: diagnosis.code, error: diagnosis.text }, onDone: (ok, text) => {
         reportBtn.disabled = false; reportBtn.textContent = ok ? '✓ RECOVERY DETAILS COPIED' : '⧉ RECOVERY DETAILS SHOWN BELOW';
         if (!ok && reportHost && Diag.showBlock) Diag.showBlock(reportHost, { text });
       } });
