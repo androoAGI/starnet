@@ -97,3 +97,13 @@ eae4248a82dbe17c4a1eebada1c3759cb0402f61:test/redact.known-values.test.js:slack-
 1d8f701515cf8e18929a583a3540e6819d27b22e:test/remote.relay.test.js:generic-api-key:81
 954caf8e0b43a7e55af868e9117601476fe9b5af:test/verdictreview.test.js:generic-api-key:124
 3b3c50b332fcf72cf63840e9c9dfc8081adc8f7e:test/remote-push.test.js:generic-api-key:107
+
+# 0.13.2 (2026-10-09): reviewed fixtures, not keys — patterned fake OpenRouter keys in key-handling tests, and a settings path
+# ("budget/caps/perDay") in a station-control tool comment that the generic-api-key rule reads as a key.
+93a73b295d3ba048a45953dd3ebdca80624744ad:sidecar/tools/builtin/station-control.js:generic-api-key:377
+99be50565ce5c4e24dc3e4922025f7f61cd17b3c:test/provider-key-check.test.js:generic-api-key:53
+dc2a6676b72bc30d665076b3f965c1a81870182b:test/engine-credential.test.js:generic-api-key:26
+dc2a6676b72bc30d665076b3f965c1a81870182b:test/engine-credential.test.js:generic-api-key:29
+dc2a6676b72bc30d665076b3f965c1a81870182b:test/engine-key-sync.test.js:generic-api-key:110
+dc2a6676b72bc30d665076b3f965c1a81870182b:test/engine-key-sync.test.js:generic-api-key:119
+dc2a6676b72bc30d665076b3f965c1a81870182b:test/routine-keys.e2e.test.js:generic-api-key:25

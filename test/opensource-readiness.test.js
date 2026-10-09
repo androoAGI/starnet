@@ -35,7 +35,7 @@ const ignore = read('.gitleaksignore').split(/\r?\n/).filter(line => /^[0-9a-f]{
 // + two SHA-256 digests in 0.12.4/0919 release evidence (reviewed 2026-09-26)
 // + five secret-shaped synthetic test fixtures and the allowlist comment that first quoted one (reviewed 2026-09-27).
 // Bump ONLY with a reviewed .gitleaksignore entry.
-assert.equal(ignore.length, 52, 'the reviewed historical baseline is finite and exact');   // +5 reviewed 2026-10-03 (v0.13.0 push: RFC test vectors + a redaction fixture)
+assert.equal(ignore.length, 59, 'the reviewed historical baseline is finite and exact');   // +5 reviewed 2026-10-03 (v0.13.0 push: RFC test vectors + a redaction fixture) · +7 reviewed 2026-10-09 (v0.13.2 push: patterned fake OpenRouter keys in key-handling tests + a settings-path comment)
 assert.equal(new Set(ignore).size, ignore.length, 'baseline fingerprints must be unique');
 
 const workflow = read('.github/workflows/secret-history.yml');
