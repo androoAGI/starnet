@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b7042a1c6408718335b029cc8757e677296dc1d4",
+    "sourceCommit": "18b23a99bf78155b5c21c1d06768aab92e1be8b2",
     "pathSetSha256": "02b89ce2d893cfb89a028e02d127dfe9f73466048d2fc0c7572bba244cdfea2f",
     "files": [
       {
@@ -38,8 +38,8 @@
       },
       {
         "path": "RELEASE_NOTES.md",
-        "bytes": 7847,
-        "sha256": "4f58257c6f72dae7bb4eabaf139fe80a4624b37ac614f96054ec56dd6a30a194"
+        "bytes": 7311,
+        "sha256": "3e929a13537a4f0e82e559f2f95a77e63b5547b780e1429bca6e9498eba05365"
       },
       {
         "path": "TERMS.md",
@@ -48,8 +48,8 @@
       },
       {
         "path": "docs/DOWNLOAD_PAGE.md",
-        "bytes": 5646,
-        "sha256": "57714c9ff9dd106c2077eaeb660313e74ffd723099eb7eb4ff41d0df8081b1d1"
+        "bytes": 5589,
+        "sha256": "2d4b249e7468767ae87e9786bb1e26051f322bbdd1be1db20f3ca9325415822d"
       },
       {
         "path": "docs/RELEASE_NOTES_v1.0.0_DRAFT.md",
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 434688,
-        "sha256": "78ed78cc28920b519c07986e4ce5c7bd85a5a6ff548df0ed5a96d6085a33f2a3"
+        "bytes": 433753,
+        "sha256": "c9a9ae727b68f7f5d3410f6fdf2cb1b4494c6379e7df85c6e722639dde82cec3"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -313,8 +313,8 @@
       },
       {
         "path": "frontend/app/bootguard.js",
-        "bytes": 19054,
-        "sha256": "60c0d7282d0c8f752ac0f72130eab8a053b4696cbc08956d72a2b073b7099bcd"
+        "bytes": 16991,
+        "sha256": "d1af306b7527f7f17580765ada49514235ed69e7a2ed720b4c0c477073d6ec6f"
       },
       {
         "path": "frontend/app/bottlestore.js",
@@ -343,8 +343,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 722722,
-        "sha256": "89b48a990eb02561bf2244926a39edf3b134365000d08694a7851b602f937a7c"
+        "bytes": 719967,
+        "sha256": "56196ba1baa8e7679536c202d939d07e8edd186bbb43eac2af0c4e8fb09fff82"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -553,13 +553,13 @@
       },
       {
         "path": "frontend/app/group-chat.js",
-        "bytes": 69977,
-        "sha256": "b33b2bcbe509d866df233a6c3dcbaae95af4fadbcddc2085a37c32153c020a22"
+        "bytes": 68643,
+        "sha256": "472b83adc131697a1661d024af0fd0cc44a8fa6e5b6ddfe067f4488d37494248"
       },
       {
         "path": "frontend/app/harness.js",
-        "bytes": 106430,
-        "sha256": "07e99d2818f1a805a22711cf366de5fa6d7e1e14e93ff2c171f2d5ee678bb561"
+        "bytes": 104893,
+        "sha256": "81e3bb461501f868a6ee9c4e9d20671399244b8af958e174672d26e80c1fefd6"
       },
       {
         "path": "frontend/app/hint.js",
@@ -688,8 +688,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 55371,
-        "sha256": "d78eb98ccc99e879246fc6b34dd5f8103ad89b851c2458422d0f1d788f0ee0df"
+        "bytes": 53054,
+        "sha256": "5f85a4e607f0644b7e072a3d8e631efaa680f4e5bcf99727bdfa745ad3d4f858"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -1173,8 +1173,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 847437,
-        "sha256": "2aa4e6d9c8fb5a5835d9c3505263a62ac63cc74c589e04614a7cdc24e637af2a"
+        "bytes": 847069,
+        "sha256": "24e4be18e4b00dbb0abe274ca303561f508c1fe2b7f2bff2648e307f3272d8a1"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1443,8 +1443,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 839601,
-        "sha256": "83da7fcc260a0667d8d36085953abb9e4718dae6704ced75ca45b65d51b5f74f"
+        "bytes": 838031,
+        "sha256": "edc10f1386e6bc2d3930f04202f0d130df3eb0916366eff59f6af4a737bfbf31"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1518,8 +1518,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 419285,
-        "sha256": "cddd58a360e8b0ba5c78e808b09855fa026fab56c037237076639b90e7cafe22"
+        "bytes": 419074,
+        "sha256": "9e07ab150328a216a33a8a0cf19dc92434efca6ba143cb7502f8699a9707e1af"
       },
       {
         "path": "frontend/css/asciifx.css",
