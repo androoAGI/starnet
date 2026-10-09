@@ -243,6 +243,32 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     A.ok(first && first.file === process.execPath && String(first.args[0]).replace(/\\/g, '/') === brewCli, 'a Finder-launched Mac finds the Homebrew/npm claude and runs its cli.js with the station\'s Node: ' + JSON.stringify(first && [first.file, first.args && first.args[0]]));
   }
 
+  // L. (sweep 2026-10-09) Windows `npm i -g`: since CLI 2.1 the package has no cli.js; its bin is a native
+  //    bin/claude.exe that the postinstall copies over a ~500-byte placeholder script.
+  {
+    const { makeCliHost } = require('../sidecar/providers/claude-cli.js');
+    const norm = p => String(p).replace(/\\/g, '/');
+    const npmDir = '/Users/me/AppData/Roaming/npm';
+    const pkg = npmDir + '/node_modules/@anthropic-ai/claude-code';
+    const fsWith = files => ({ statSync(p) { const s = files[norm(p)]; if (s == null) throw new Error('ENOENT'); return { isFile: () => true, size: s }; } });
+    const hostCmd = (files, env) => makeCliHost({ spawn: fakeSpawn({}).spawn, fs: fsWith(files), env: Object.assign({ PATH: npmDir }, env || {}), platform: 'win32' }).command();
+    const shimOnly = { [npmDir + '/claude.cmd']: 300, [npmDir + '/claude']: 300 };
+
+    let c = hostCmd(Object.assign({}, shimOnly, { [pkg + '/bin/claude.exe']: 250 * 1024 * 1024, [pkg + '/cli-wrapper.cjs']: 4963 }));
+    A.eq(c && [norm(c.file), c.pre], [pkg + '/bin/claude.exe', []], 'a 2.1+ npm install runs its native bin/claude.exe directly (no cli.js needed)');
+
+    c = hostCmd(Object.assign({}, shimOnly, { [pkg + '/bin/claude.exe']: 500, [pkg + '/cli-wrapper.cjs']: 4963 }));
+    A.eq(c && [c.file, c.pre.map(norm)], [process.execPath, [pkg + '/cli-wrapper.cjs']], 'a placeholder bin (postinstall never ran) falls back to cli-wrapper.cjs under the station\'s Node');
+
+    c = hostCmd(Object.assign({}, shimOnly, { [pkg + '/cli.js']: 9000000 }));
+    A.eq(c && [c.file, c.pre.map(norm)], [process.execPath, [pkg + '/cli.js']], 'an older npm install with cli.js still runs it under the station\'s Node');
+
+    A.eq(hostCmd(shimOnly), null, 'a shim with no package behind it is still "not installed"');
+
+    c = hostCmd(Object.assign({}, shimOnly, { [pkg + '/bin/claude.exe']: 250 * 1024 * 1024 }), { PATH: '/Windows/System32', APPDATA: '/Users/me/AppData/Roaming' });
+    A.eq(c && norm(c.file), pkg + '/bin/claude.exe', 'an app whose PATH lacks %APPDATA%\\npm still finds the npm install');
+  }
+
   // K. a lost sign-in (the CLI's real v2.1.284 shape) is an `auth` failure, never a retried `unknown`.
   {
     const lost = { type: 'assistant', error: 'authentication_failed', message: { content: [{ type: 'text', text: 'Failed to authenticate: OAuth session expired and could not be refreshed' }] } };

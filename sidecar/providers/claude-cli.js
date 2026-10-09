@@ -445,7 +445,7 @@
     function isFile(p) {
       try { return fs.statSync(p).isFile(); } catch (_) { return false; }
     }
-    // A `claude.cmd` npm shim cannot be spawned without a shell, so it runs as `node <cli.js>` instead.
+    // A `claude.cmd` npm shim cannot be spawned without a shell: command() runs its target instead (npmShimCommand).
     function which(name) {
       const exts = platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
       for (const dir of String(env.PATH || env.Path || '').split(path.delimiter)) {
@@ -463,6 +463,11 @@
       if (!bin && platform === 'win32' && env.USERPROFILE) {
         const native = path.join(env.USERPROFILE, '.local', 'bin', 'claude.exe');
         if (isFile(native)) bin = native;
+      }
+      // `npm i -g` on Windows puts claude.cmd in %APPDATA%\npm, which an app launched before that PATH change lacks
+      if (!bin && platform === 'win32' && env.APPDATA) {
+        const shim = path.join(env.APPDATA, 'npm', 'claude.cmd');
+        if (isFile(shim)) bin = shim;
       }
       if (!bin && platform !== 'win32' && env.HOME) {
         const native = path.join(env.HOME, '.local', 'bin', 'claude');   // the native installer's home on macOS/Linux
@@ -483,12 +488,28 @@
         try { real = fs.realpathSync(bin); } catch (_) { real = ''; }
         if (/\.(c|m)?js$/i.test(real)) return { file: process.execPath, pre: [real] };
       }
-      if (/\.(cmd|bat)$/i.test(bin)) {
-        const cli = path.join(path.dirname(bin), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
-        if (isFile(cli)) return { file: process.execPath, pre: [cli] };
-        return null;
-      }
+      if (/\.(cmd|bat)$/i.test(bin)) return npmShimCommand(bin);
       return { file: bin, pre: [] };
+    }
+    /* A Windows npm `claude.cmd` shim cannot be spawned without a shell, so run what it points at instead.
+       Since 2.1 the npm package has no cli.js: its "bin" is bin/claude.exe, a native binary the postinstall copies
+       over a ~500-byte placeholder script. Looking only for cli.js made every current npm install read "not
+       installed" while `claude` worked in a terminal (sweep 2026-10-09, CLI 2.1.179 on Windows).
+       Order: the native binary (when it is real, not the placeholder), then an older release's cli.js, then
+       cli-wrapper.cjs, the package's own fallback for an install whose postinstall never ran. */
+    const NATIVE_MIN_BYTES = 1024 * 1024;
+    function fileSize(p) {
+      try { const st = fs.statSync(p); return st.isFile() ? Number(st.size) || 0 : -1; } catch (_) { return -1; }
+    }
+    function npmShimCommand(shim) {
+      const pkg = path.join(path.dirname(shim), 'node_modules', '@anthropic-ai', 'claude-code');
+      const nativeExe = path.join(pkg, 'bin', 'claude.exe');
+      if (fileSize(nativeExe) >= NATIVE_MIN_BYTES) return { file: nativeExe, pre: [] };
+      const cli = path.join(pkg, 'cli.js');
+      if (isFile(cli)) return { file: process.execPath, pre: [cli] };
+      const wrapper = path.join(pkg, 'cli-wrapper.cjs');
+      if (isFile(wrapper)) return { file: process.execPath, pre: [wrapper] };
+      return null;
     }
     function notInstalled() {
       const e = new Error('Claude Code is not installed on this computer — install it, then pick CLAUDE CODE and sign in with Claude');
