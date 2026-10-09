@@ -63,7 +63,7 @@ let closes = 0;
 const dock = { contains: () => false };
 const toggle = { contains: () => false, addEventListener() {} };
 const context = {
-  wired: false, open: true,
+  wired: false, open: true, openedAt: 0, pressAt: 0, clock: () => 0,   // #93 opening-press guard state (idle here)
   el: id => id === 'model-dock' ? dock : id === 'model-dock-toggle' ? toggle : null,
   document: { addEventListener: (type, fn) => { listeners[type] = fn; } },
   showTip() {}, hideTip() {}, closeDock: () => closes++
