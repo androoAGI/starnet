@@ -325,12 +325,17 @@ const Harness = (() => {
     try {
       const status = await invoke('harness_provider_key_status');
       if (Array.isArray(status)) {
+        // #93: the keychain knows nothing about managed credits (KEYCHAIN_PROVIDERS has no starnet), so rebuilding
+        // the map from it erased the /api/credits answer probed just above — every desktop boot then read the
+        // linked station as unlinked (resume, pickers, KeyCTA) until SETTINGS re-probed. The sidecar owns it.
+        const starnet = !!_configuredByProvider.starnet;
         _configuredByProvider = Object.create(null);
         status.forEach(s => {
           const p = normalizeProviderId(s && s.provider);
           _configuredByProvider[p] = !!(s && s.configured);
           _alternateCountByProvider[p] = Math.max(0, Number(s && s.alternateCount) || 0);
         });
+        _configuredByProvider.starnet = starnet;
         _configured = !!_configuredByProvider.openrouter;
         loaded = true;
       }
