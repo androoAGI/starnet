@@ -135,6 +135,17 @@
       'unless its receipt names a location inside it.';
   }
 
+  /* The FOLDERLESS workflow (#60/#81 follow-up). A conveyor line's folder comes ONLY from its INBOX's WORKING FOLDER
+     chip; trusting a folder under PROJECTS does not attach it to a line. So a stage told "save to project/reports/x.md"
+     wrote it into its private workspace and reported the relative path as if it were the project. This line says
+     where a relative path really lands and names the way back. Empty when the run has a folder. */
+  function workflowNoFolderLine(hasFolder) {
+    if (hasFolder) return '';
+    return '\n\nNO WORKING FOLDER: this workflow has no working folder, so a RELATIVE file path saves to your private ' +
+      'workspace, which other agents cannot read. To put a file in a trusted project, use its absolute path inside that ' +
+      'project, and tell the Commander to set WORKING FOLDER on this workflow\'s INBOX.';
+  }
+
   /* PROJECT INSTRUCTIONS — the folder's OWN house rules (2026-07-27).
 
      projectScopeLine above tells the agent WHERE it is working. It never told it HOW that project wants to be
@@ -209,5 +220,5 @@
     return { load };
   }
 
-  return { makeProjectBless, projectScopeLine, projectLapsedLine, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
+  return { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, makeProjectInstructions, _internals: { INSTRUCTION_FILES } };
 });

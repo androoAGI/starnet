@@ -53,6 +53,9 @@ const Pipeline = require('../frontend/app/pipeline.js');
     const sample = await fixture.json('POST', '/api/routing/sample', { text: 'Write a file and read it back.' });
     assert.equal(sample.body.delivered?.agentId, 'hop', JSON.stringify(sample.body));
     for (const id of ['entry', 'hop']) assert.equal(fs.readFileSync(path.join(project, id + '.txt'), 'utf8'), 'workflow project proof');
+    const NO_FOLDER = 'NO WORKING FOLDER';
+    const sysOf = c => String((c.messages.find(m => m.role === 'system') || {}).content || '');
+    assert.ok(calls.length > 0 && calls.every(c => !sysOf(c).includes(NO_FOLDER)), 'a workflow WITH a working folder gets no folderless line');
     await fixture.restart();
     const routine = await fixture.json('POST', '/api/cron', { name: 'Project workflow', prompt: 'Write a file and read it back.', schedule: 'every 1h', agentId: 'entry', model: 'entry-model', provider: 'openrouter', runsLine: true });
     assert.ok(routine.body.job?.id, routine.text);
@@ -71,16 +74,31 @@ const Pipeline = require('../frontend/app/pipeline.js');
       await new Promise(r => setTimeout(r, 250));
     }
     assert.ok(scheduledRows.length >= 6, 'timer-triggered workflow carries the project through both stages');
+    const directFrom = calls.length;
     const direct = await fixture.json('POST', '/api/run', { agentId: 'entry', provider: 'openrouter', model: 'entry-model', isTask: true, messages: [{ role: 'user', content: 'Write a file and read it back.' }] });
     assert.ok(!direct.text.includes('agent.run.error'), direct.text);
     assert.ok(fs.existsSync(path.join(fixture.workspace, 'entry/entry.txt')), 'direct chat keeps the agent workspace');
+    assert.ok(calls.length > directFrom && calls.slice(directFrom).every(c => !sysOf(c).includes(NO_FOLDER)), 'a non-workflow run never gets the folderless line');
     // Trust is host authority, not permission implied by the saved Inbox.
     fs.writeFileSync(path.join(fixture.workspace, 'permissions.allow.json'), JSON.stringify({ version: 1, allow: ['cabinet:write'], meta: {} }));
     await fixture.restart(); calls.length = 0;
     const blocked = await fixture.json('POST', '/api/routing/sample', { text: 'Write a file.' });
     assert.equal(blocked.body.ok, false, blocked.text);
     assert.equal(calls.length, 0, 'revoked workflow project fails before upstream work');
-    console.log('workflow-project: OK — two stages, files/readback, routine, restart, direct isolation and revocation');
+    // #60/#81 follow-up: an INBOX with NO working folder — every stage is told where relative paths really land
+    const folderless = Pipeline.compileRoutingPlan({ ...geometry, props: geometry.props.map(p => ({ ...p, projectRoot: undefined })) });
+    assert.ok(!folderless.lines[0].projectRoot, 'the folderless line carries no projectRoot');
+    for (const bay of folderless.bays.concat(folderless.dockBays)) bay.objects = ['computer', 'cabinet'];
+    assert.equal((await fixture.json('POST', '/api/routing', folderless)).body.ok, true);
+    assert.ok(!fs.existsSync(path.join(fixture.workspace, 'hop/hop.txt')), 'hop has not written privately yet');
+    const loose = await fixture.json('POST', '/api/routing/sample', { text: 'Write a file and read it back.' });
+    assert.equal(loose.body.delivered?.agentId, 'hop', loose.text);
+    for (const model of ['entry-model', 'hop-model']) {
+      const stage = calls.filter(c => c.model === model && (c.tools || []).length);
+      assert.ok(stage.length && stage.every(c => sysOf(c).includes(NO_FOLDER) && sysOf(c).includes("WORKING FOLDER on this workflow's INBOX")), model + ' stage is told the workflow has no working folder');
+    }
+    assert.ok(fs.existsSync(path.join(fixture.workspace, 'hop/hop.txt')), 'and the folderless stage relative write really landed in its private workspace');
+    console.log('workflow-project: OK — two stages, files/readback, routine, restart, direct isolation, revocation and the folderless-workflow line');
   } finally { await fixture.dispose();
     assert.equal(path.dirname(project), os.tmpdir());
     assert.ok(path.basename(project).startsWith('workflow-project-'));

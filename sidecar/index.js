@@ -209,7 +209,7 @@ const { makePathTrust } = require('./pathtrust.js');            // NS-5: convers
 // Tool-result images (browser.screenshot / browser.vision -> real pixels in the prompt). ON by default; set
 // SKYNET_TOOL_IMAGES=0 for a text-only endpoint that rejects image content parts.
 const TOOL_IMAGES_ON = String(process.env.SKYNET_TOOL_IMAGES == null ? '' : process.env.SKYNET_TOOL_IMAGES).trim() !== '0';
-const { makeProjectBless, projectScopeLine, projectLapsedLine, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
+const { makeProjectBless, projectScopeLine, projectLapsedLine, workflowNoFolderLine, makeProjectInstructions } = require('./projectbless.js');      // NS-5c: ADD-a-project bless core (second doorway, same grant machinery) + project-scoped run context line + the project's own AGENTS.md/CLAUDE.md house rules
 const { makeFolderPick } = require('./folderpick.js');          // Projects rail "browse": native OS folder chooser (convenience only — bless stays the consent)
 const { makeTelegramAdapter } = require('./channels/telegram.js');
 const { makeTelegramTransport } = require('./channels/telegram.transport.js');   // multi-bot connect: getMe token probe
@@ -18599,6 +18599,9 @@ async function runOnceCore(o) {
     // still re-runs path trust on every resolved target, so this widens nothing.
     if (cronRoot && !o.projectRoot) o = { ...o, projectRoot: cronRoot };
   }
+  // a workflow stage with NO working folder says where its relative paths really land (#60/#81 follow-up) —
+  // workflow runs only; reason-only self-talk keeps its system prompt verbatim
+  if (workflowLine && !o.internal && !o.outputOnly) system = String(system || '') + workflowNoFolderLine(!!(o.workdir || o.projectRoot));
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
   // A short channel reply such as "operators" is not independently task-shaped. Durable brief continuity is
