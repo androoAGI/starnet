@@ -50,8 +50,12 @@ test('the desk card: a glance line in the phrase, the whole request in INSPECT',
   assert.ok(phrase.length < 120 && !/\n/.test(phrase), 'the phrase (and every toast built from it) stays one short line: ' + phrase);
   const ins = card.consentInspect(p);
   assert.match(ins.label, /Inspect complete request/);
-  assert.ok(ins.text.includes(tail.trim()), 'the hidden tail is in the inspect panel');
-  assert.deepEqual(JSON.parse(ins.text), { cmd });
+  assert.equal(ins.text, 'cmd: ' + cmd, 'read as written: the command verbatim, a Windows path with single backslashes, the hidden tail included');
+  assert.equal(ins.copy, cmd, 'COPY COMMAND hands over exactly the text that will run');
+  assert.equal(ins.copyLabel, 'COPY COMMAND');
+  const multi = card.consentInspect({ tool: 'team.configure', argsSummary: JSON.stringify({ agent: 'nova', brief: 'b'.repeat(200), caps: ['web'] }, null, 2) });
+  assert.ok(multi.text.startsWith('agent: nova\nbrief: ' + 'b'.repeat(200) + '\ncaps: ['), multi.text.slice(0, 40));
+  assert.equal(multi.copy, undefined, 'a non-command request copies the whole panel');
   // the generic fallback and a typed-in process use the same glance
   assert.ok(card.actionPhrase({ tool: 'team.configure', argsSummary: JSON.stringify({ brief: 'b'.repeat(500) }, null, 2) }).length < 140);
   assert.match(card.actionPhrase({ tool: 'shell.bg.write', argsSummary: '{"id":"bg1","input":"y"}' }), /^type into a running process: y$/);
@@ -68,7 +72,8 @@ test('cards the sidecar words itself, and a short bare value, get no panel; file
 
 test('group chat clips its line and carries the whole request under it', () => {
   assert.match(group, /one\.length > 160 \? one\.slice\(0, 159\) \+ '…'/);
-  assert.match(group, /h\('summary', \{\}, 'Inspect complete request \(secret patterns redacted\)'\), h\('pre', \{\}, raw\)/);
+  assert.match(group, /Chat\.consentInspect\(t\.approval\)/, 'the group reads a request exactly as the desk card does');
+  assert.match(group, /h\('summary', \{\}, 'Inspect complete request \(secret patterns redacted\)'\), h\('pre', \{\}, ins\.text\)/);
   assert.match(group, /detail\.open = inspectOpen\.has\(pid\)/, 'a re-render keeps the panel the Commander opened');
 });
 

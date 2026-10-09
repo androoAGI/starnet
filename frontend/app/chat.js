@@ -3080,9 +3080,13 @@ const Chat = (() => {
     if (/^fs[._](?:write|append|edit|patch)$/.test(t)) return { label: 'Inspect proposed change (secret patterns redacted)', text: raw || '(payload unavailable)' };
     if (/^routine[._](?:create|manage)$/.test(t)) { const o = requestArgs(raw); return { label: 'What it will do each run', text: (o && o.prompt) ? String(o.prompt) : raw || '(payload unavailable)' }; }
     if (!raw.trim() || /^station[._]/.test(t) || /^(?:path\.trust|browser\.login(?:\.done)?|brief\.ask)$/.test(t)) return null;
-    const o = requestArgs(raw);
-    if (!o && glance(raw) === raw.trim()) return null;
-    return { label: 'Inspect complete request (secret patterns redacted)', text: o ? JSON.stringify(o, null, 2) : raw };
+    const o = requestArgs(raw), label = 'Inspect complete request (secret patterns redacted)';
+    if (!o) return glance(raw) === raw.trim() ? null : { label, text: raw };
+    // read as written, not as JSON: a Windows path shows C:\Users, never C:\\Users, and a command is the exact text
+    // that will run — so COPY COMMAND hands over something you can paste into a terminal
+    const text = Object.keys(o).map(k => k + ': ' + (typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k], null, 2))).join('\n');
+    const command = /^(?:shell|terminal)[._]/.test(t) ? [o.cmd, o.command, o.input, o.data].find(v => typeof v === 'string' && v) : '';
+    return command ? { label, text, copy: command, copyLabel: 'COPY COMMAND' } : { label, text };
   }
   function actionPhrase(ev) {
     const t = ev.tool || 'act';
@@ -3313,10 +3317,11 @@ const Chat = (() => {
       const detail = document.createElement('details'); detail.className = 'consent-payload';
       const label = document.createElement('summary'); label.textContent = inspect.label;
       const payload = document.createElement('pre'); payload.textContent = inspect.text;
-      const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'consent-btn quiet consent-copy'; copy.textContent = 'COPY';
-      copy.onclick = () => copyText(inspect.text).then(ok => {
+      const idle = inspect.copyLabel || 'COPY';
+      const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'consent-btn quiet consent-copy'; copy.textContent = idle;
+      copy.onclick = () => copyText(inspect.copy || inspect.text).then(ok => {
         copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text above';
-        clearTimeout(copy.__t); copy.__t = setTimeout(() => { copy.textContent = 'COPY'; }, 1400);
+        clearTimeout(copy.__t); copy.__t = setTimeout(() => { copy.textContent = idle; }, 1400);
       });
       detail.appendChild(label); detail.appendChild(payload); detail.appendChild(copy); r.body.appendChild(detail);
     }
@@ -9860,5 +9865,5 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
+  return { init, load, send, consentInspect, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
 })();

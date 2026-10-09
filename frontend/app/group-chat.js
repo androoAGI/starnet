@@ -433,18 +433,23 @@ const GroupChat = (() => {
         // the keys first (line one), the argument text under them: a short window clips text, never the decision
         for (const decision of ['once', 'deny']) row.append(button(decision === 'once' ? 'ALLOW ONCE' : 'DENY', async () => { await api({ op: 'answer', id: group.id, promptId: t.approval.promptId, decision }); }));
         // argsSummary is the WHOLE request (user report 10-08): one glance line here, every character in INSPECT under it
-        const raw = String(t.approval.argsSummary || ''), one = raw.replace(/\s+/g, ' ').trim();
+        // the desk card's own reading of it (Chat.consentInspect), so both surfaces show one request the same way
+        const raw = String(t.approval.argsSummary || '');
+        const ins = (typeof Chat !== 'undefined' && Chat.consentInspect ? Chat.consentInspect(t.approval) : null) || { text: raw };
+        const one = String(ins.copy || ins.text).replace(/\s+/g, ' ').trim();
         row.append(h('div', { class: 'gc-approval' }, t.approval.tool + (one ? ' · ' + (one.length > 160 ? one.slice(0, 159) + '…' : one) : '')));
-        if (one.length > 160 || /\n/.test(raw.trim())) {
+        if (one.length > 160 || /\n/.test(String(ins.text).trim())) {
           const pid = t.approval.promptId;
           const detail = h('details', { class: 'gc-approval gc-inspect', ontoggle: () => { if (detail.open) inspectOpen.add(pid); else inspectOpen.delete(pid); } });
           detail.open = inspectOpen.has(pid);   // a re-render keeps the panel the Commander opened
-          const copy = h('button', { type: 'button', class: 'bb gc-copy' }, 'COPY');
+          const idle = ins.copyLabel || 'COPY';
+          const copy = h('button', { type: 'button', class: 'bb gc-copy' }, idle);
           copy.addEventListener('click', () => {
-            const done = ok => { copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text'; setTimeout(() => { copy.textContent = 'COPY'; }, 1400); };
-            try { navigator.clipboard.writeText(raw).then(() => done(true), () => done(false)); } catch (_) { done(false); }
+            const done = ok => { copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text'; setTimeout(() => { copy.textContent = idle; }, 1400); };
+            const text = ins.copy || ins.text;   // Chat.copyText falls back to a selection copy where the clipboard API is refused
+            try { (typeof Chat !== 'undefined' && Chat.copyText ? Chat.copyText(text) : navigator.clipboard.writeText(text).then(() => true)).then(done, () => done(false)); } catch (_) { done(false); }
           });
-          detail.append(h('summary', {}, 'Inspect complete request (secret patterns redacted)'), h('pre', {}, raw), copy);
+          detail.append(h('summary', {}, 'Inspect complete request (secret patterns redacted)'), h('pre', {}, ins.text), copy);
           row.append(detail);
         }
       }
