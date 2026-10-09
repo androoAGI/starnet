@@ -555,6 +555,7 @@ test/provider-oauth-parity.test.js
 test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
+test/managed-model-93.test.js
 test/model-catalog-truth.test.js
 test/agent-model-select.test.js
 test/station-default-wire.test.js
