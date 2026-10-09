@@ -3276,6 +3276,31 @@ const Chat = (() => {
     const composerBusy = !!(input && (document.activeElement === input || (input.value && input.value.trim())));
     if (!composerBusy) { try { r.d.focus({ preventScroll: true }); } catch (_) { try { r.d.focus(); } catch (_) {} } }
   }
+  /* INSPECT FULL REQUEST (customer report, 0.13.1): the card's one-line summary clips a long command or path at 80 characters,
+     so the Commander could not see what they were approving. Every consent card that has no other payload view gets this
+     disclosure: on first open it reads the WHOLE redacted request from the sidecar (load() → Harness.consentArgs) into a
+     selectable, scrollable block with a copy key. A prompt already answered says so instead of showing stale text. */
+  function fullRequestDisclosure(load) {
+    const detail = document.createElement('details'); detail.className = 'consent-payload consent-full';
+    const label = document.createElement('summary'); label.textContent = 'INSPECT FULL REQUEST (secrets redacted)';
+    const payload = document.createElement('pre'); payload.className = 'consent-full-text'; payload.textContent = 'reading the full request…';
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'consent-btn quiet consent-full-copy';
+    copy.textContent = '⧉ COPY'; copy.hidden = true; copy.setAttribute('aria-label', 'Copy the full request');
+    copy.onclick = () => copyText(payload.textContent || '').then(ok => { copy.textContent = ok ? '✓ COPIED' : '! COPY FAILED, select the text'; setTimeout(() => { copy.textContent = '⧉ COPY'; }, 1400); });
+    let asked = false;
+    detail.addEventListener('toggle', () => {
+      if (!detail.open || asked) return;
+      asked = true;
+      Promise.resolve().then(load).then(j => {
+        if (j && j.ok) { payload.textContent = j.args; copy.hidden = false; return; }
+        asked = !!(j && j.gone);   // a failed read may be retried by reopening; an answered prompt never comes back
+        payload.textContent = j && j.gone ? 'This approval was already answered or expired, so its request is no longer held.'
+          : 'Could not read the full request: ' + ((j && j.error) || 'unknown error') + '. Close and reopen to try again.';
+      }, e => { asked = false; payload.textContent = 'Could not read the full request: ' + ((e && e.message) || String(e)) + '. Close and reopen to try again.'; });
+    });
+    detail.appendChild(label); detail.appendChild(payload); detail.appendChild(copy);
+    return detail;
+  }
   // p = a consent payload { promptId, tool, argsSummary } — works for both a live onPermission event and a
   // Channels snapshot.pending (re-rendered after a switch). ws is the origin stream, so the answer routes to
   // THAT stream's run (per-channel runId), not a single global one.
@@ -3290,6 +3315,8 @@ const Chat = (() => {
       const payload = document.createElement('pre'); payload.textContent = p.argsSummary || '(payload unavailable)';
       if (/^routine/.test(String(p.tool))) { try { const o = JSON.parse(p.argsSummary || '{}'); if (o.prompt) payload.textContent = String(o.prompt); } catch (_) { /* clipped payload: the raw text above stays */ } }
       detail.appendChild(label); detail.appendChild(payload); r.body.appendChild(detail);
+    } else if (p.tool !== 'path.trust' && p.promptId) {
+      r.body.appendChild(fullRequestDisclosure(() => Harness.consentArgs((ws && typeof Channels !== 'undefined') ? Channels.runIdOf(ws.id) : null, p.promptId)));
     }
     // the station builder's card: every step's instructions, one click away (the summary line is in the phrase above)
     if (/^station[._]build$/.test(String(p.tool || '')) && String(p.argsSummary || '').indexOf('\n') > 0) {
@@ -9831,5 +9858,5 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
+  return { consentDisclosure: fullRequestDisclosure, init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
 })();
