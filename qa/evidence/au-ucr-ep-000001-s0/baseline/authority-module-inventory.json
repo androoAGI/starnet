@@ -1,0 +1,134 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-001",
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "modules": [
+    {
+      "path": "sidecar/index.js",
+      "present": true,
+      "bytes": 1724998,
+      "sha256": "b01e7775fc9eb344ad7c355ba64d7db19f33c9a9238ec1c41d3c968f9b087ad4"
+    },
+    {
+      "path": "shared/events.js",
+      "present": true,
+      "bytes": 22101,
+      "sha256": "8cf79f23ca1768705cfc1bdbfdce7161a625e2f35c01103846f5307e23f0c1d2"
+    },
+    {
+      "path": "shared/schema.js",
+      "present": true,
+      "bytes": 3481,
+      "sha256": "02bc5038f84c83f149d8963e16d1ccbeaf796d909bd1116cee0b786e00187b80"
+    },
+    {
+      "path": "shared/emitter.js",
+      "present": true,
+      "bytes": 1590,
+      "sha256": "252474a7a3b1b745cc73a88616ed127f69faef623e6734752bf032ef5770f02e"
+    },
+    {
+      "path": "sidecar/capability/registry.js",
+      "present": true,
+      "bytes": 33315,
+      "sha256": "79e4766ddd71a7b35882b44f7c1e461175889cf1d9eaab8daa1856c41c7eacf8"
+    },
+    {
+      "path": "sidecar/capability/resolve.js",
+      "present": true,
+      "bytes": 3784,
+      "sha256": "8da8262cd8094898befa195fe3de54d5a69fb96d737a135cb062cc7604593c2e"
+    },
+    {
+      "path": "sidecar/permissions.js",
+      "present": true,
+      "bytes": 19809,
+      "sha256": "32cbb67c97a914bb20ba718e5c87c52da5359cf8444537272f793461c4d1b0fd"
+    },
+    {
+      "path": "sidecar/permgrants.js",
+      "present": true,
+      "bytes": 7487,
+      "sha256": "84cb7acaa4a98f7f8c92bd0cd498e02a85aade704933d1c1f1973000cf52618f"
+    },
+    {
+      "path": "sidecar/runstore.js",
+      "present": true,
+      "bytes": 23648,
+      "sha256": "38ce4b97f79e5380a820d64c9909356f7d14ae658872e05d3a8cf8c9f06ee043"
+    },
+    {
+      "path": "sidecar/ledger.js",
+      "present": true,
+      "bytes": 6432,
+      "sha256": "617e0b31371a4895dff1d7118697caf2e568d44bd524796465e4be7f07c2f672"
+    },
+    {
+      "path": "sidecar/durable-store.js",
+      "present": true,
+      "bytes": 16199,
+      "sha256": "e40ec561166583287c8db2d4c2e8cbed7e4050cc2d21b19fa04dc560ba6f583a"
+    },
+    {
+      "path": "sidecar/workspace-lineage.js",
+      "present": true,
+      "bytes": 9330,
+      "sha256": "c58ba1fc7acfe78ec682634fa704ff4a4f616b7535ee67b326beaf7dd30e51ce"
+    },
+    {
+      "path": "sidecar/workspace-lease.js",
+      "present": true,
+      "bytes": 5861,
+      "sha256": "cc3aae1d308f6cf05664503029854d77f475c51de6f59a1eeba53393dfadae12"
+    },
+    {
+      "path": "sidecar/workspace-safety.js",
+      "present": true,
+      "bytes": 2712,
+      "sha256": "c788a6e26b80066b14622ae8b113d2c1a07cfa39f1feb410f10fe10ca907723c"
+    },
+    {
+      "path": "sidecar/routing/router.js",
+      "present": true,
+      "bytes": 22619,
+      "sha256": "362040ed92d0bb3bc7009ed2c857dba5418a4caf7ae7368a04fe53d3156138c9"
+    },
+    {
+      "path": "sidecar/routing/chain.js",
+      "present": true,
+      "bytes": 41137,
+      "sha256": "d0423bc80516abf21b36f8a3ab1051d00642b492c4f4ae30167a0a1898194994"
+    },
+    {
+      "path": "sidecar/routing/line-stats.js",
+      "present": true,
+      "bytes": 6080,
+      "sha256": "7b067b173233a6779c609c011d1d27d74d587df2d8296a92e98c9f44e8ed75c9"
+    },
+    {
+      "path": "sidecar/tools/builtin/station.js",
+      "present": true,
+      "bytes": 26389,
+      "sha256": "d71d0281d96c2af2a19fa35ce54bb1765b40670c09dff54babf16cdd4bc807ef"
+    },
+    {
+      "path": "frontend/app/workflowpanel.js",
+      "present": true,
+      "bytes": 114945,
+      "sha256": "9bc0fcb3afea824aca42247b061257ef13f9d12ffbb8bd8f1b6610c0067cb0ae"
+    },
+    {
+      "path": "frontend/app/linewatch.js",
+      "present": true,
+      "bytes": 21011,
+      "sha256": "d6d5c3074738297b14a39268967065772349ebb9f14d7e41173deb26916ac716"
+    },
+    {
+      "path": "frontend/app/deliverables.js",
+      "present": true,
+      "bytes": 34191,
+      "sha256": "f6a52d166d046ee2b29df096daf12f9fd58b46ba97b2f2365a769d2231ecd588"
+    }
+  ]
+}
