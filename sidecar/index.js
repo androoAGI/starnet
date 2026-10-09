@@ -10634,7 +10634,7 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
         taskKey: 'stream:' + g.id, taskSource: 'interactive',
         surface: 'interactive', lead: false, groupTools: tools, askCommander,
         station: router.stationFor(t.agentId) || undefined,
-        prompt: (call, tool) => prompt({ tool: call.name, scope: tool?.scope || 'write', argsSummary: consentSummary(call) }),
+        prompt: (call, tool) => prompt({ tool: call.name, scope: tool?.scope || 'write', argsSummary: consentSummary(call), argsFull: consentArgsFull(call) }),
         loginPrompt: prompt, reflect: false
       });
     } finally {
@@ -10659,7 +10659,8 @@ async function handleGroups(req, res) {
       const handlers = { create: () => groupSessions.create(b), send: () => groupSessions.send(b.id, b),
         configure: () => groupSessions.configure(b.id, b), control: () => groupSessions.control(b.id, b),
         invite: () => groupSessions.invite(b.id, b), answerQuestion: () => groupSessions.answerQuestion(b.id, b),
-        fork: () => groupSessions.fork(b.id, b), attach: () => groupSessions.attach(b.id, b), answer: () => groupSessions.answer(b.id, b) };
+        fork: () => groupSessions.fork(b.id, b), attach: () => groupSessions.attach(b.id, b), answer: () => groupSessions.answer(b.id, b),
+        approvalArgs: () => groupSessions.approvalArgs(b.id, b) };
       if (!handlers[b.op]) return respondJson(res, 400, { error: 'Unknown group operation' });
       out = await handlers[b.op]();
     }
@@ -11027,6 +11028,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/consent', h: handleConsent },
   { m: 'POST', exact: '/api/consent/ack', h: handleConsentAck },   // EL-11: the browser attests the prompt is human-visible
   { m: 'POST', exact: '/api/consent/answer', h: handleConsentAnswer },   // in-turn clarify: the Commander's live answer to a brief.ask card
+  { m: 'GET', qsplit: '/api/consent/args', h: handleConsentArgs },   // a live card's INSPECT FULL REQUEST (redacted; 404 once settled)
   { m: 'GET', exact: '/api/permissions', h: handlePermissionsList },
   { m: 'POST', exact: '/api/permissions/grant', h: handlePermissionsGrant },
   { m: 'POST', exact: '/api/permissions/revoke', h: handlePermissionsRevoke },
@@ -18226,6 +18228,9 @@ async function handleRun(req, res) {
         // waiting on a question somebody already answered elsewhere.
         const orig = pending.get(promptId);
         if (orig && fields && fields.fresh) orig.freshConsent = true;   // handleConsent: a "full" here approves this call only
+        // the card's INSPECT FULL REQUEST (GET /api/consent/args): the whole redacted request, kept on the pending entry in
+        // server memory only — never in the event or the run record — and gone the moment the prompt settles
+        if (orig && fields && fields.argsFull && typeof fields.argsFull.text === 'string') orig.consentArgs = { tool: row.tool, text: fields.argsFull.text, truncated: !!fields.argsFull.truncated };
         if (orig) {
           // a phone's answer to a QUESTION (brief.ask) is { __clarify, text }: it answers the prompt too, so the desk's card is
           // told (decision 'once' = answered), not left live on a question the run already moved past (sweep 2026-10-01)
@@ -18237,7 +18242,7 @@ async function handleRun(req, res) {
     }).ask().then((v) => { if (untrack) untrack(); return v; });
   }
   function promptConsent(call, tool) {
-    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call), fresh: !!(tool && tool.freshConsent === true) });
+    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true) });
   }
   // NS-5: the "work in <root>? always/once/no" channel — the SAME permission.prompt mechanism, so the browser's
   // existing consent card answers it (Always = record a standing path grant; Approve once = this access only;
@@ -21917,6 +21922,19 @@ async function handleConsentAnswer(req, res) {
   res.writeHead(200); res.end('ok');
 }
 
+// GET /api/consent/args?runId=&promptId= — the full (redacted) request behind a LIVE consent card, so the Commander can read
+// every character of what they approve (the event's argsSummary stays the short lock-screen line). Token-gated like every
+// /api route (apiauth; not TOKEN_EXEMPT). 404 once the prompt is answered, expired or unknown — the text lived only on
+// the pending entry, never in the event stream or the run record.
+function handleConsentArgs(req, res) {
+  const q = new URL(req.url, 'http://127.0.0.1').searchParams;
+  const pend = pendingByRun.get(String(q.get('runId') || ''));
+  const finish = pend && pend.get(String(q.get('promptId') || ''));
+  const full = finish && finish.consentArgs;
+  if (!full) return respondJson(res, 404, { ok: false, error: finish ? 'This approval carries no further request details.' : 'This approval is no longer waiting: it was answered, expired, or its run ended.' });
+  return respondJson(res, 200, { ok: true, tool: full.tool, args: full.text, truncated: full.truncated });
+}
+
 // POST /api/consent/ack { runId, promptId } — EL-11 FIX 1c: the browser's attestation that this consent prompt
 // is now RENDERED to a human (the active consent card, or the global background toast + rail marker). A deny
 // that fires on a prompt nobody ever saw is a consent violation — so a human-visible prompt earns exactly ONE
@@ -24479,6 +24497,16 @@ function consentSummary(call) {
   if (typeof a.path === 'string' && a.path) return a.path;
   // redacted BEFORE the clip: this line reaches the phone's lock screen (remoteAskWords) and a token in a command must never ride along
   try { const s = JSON.stringify(redact(a)); return s.length > 80 ? s.slice(0, 77) + '…' : s; } catch (_) { return ''; }
+}
+// the WHOLE request behind a consent card (GET /api/consent/args), for the Commander who must see every character of a long
+// command or path before approving it. The SAME redaction as consentSummary; capped, and the cap says so honestly.
+const CONSENT_ARGS_FULL_CAP = 16000;
+function consentArgsFull(call) {
+  let s;
+  try { s = JSON.stringify(redact((call && call.args) || {}), null, 2); } catch (_) { return { text: '[request details unavailable]', truncated: false }; }
+  if (typeof s !== 'string') s = '';
+  if (s.length <= CONSENT_ARGS_FULL_CAP) return { text: s, truncated: false };
+  return { text: s.slice(0, CONSENT_ARGS_FULL_CAP) + '\n… ' + (s.length - CONSENT_ARGS_FULL_CAP) + ' more characters not shown', truncated: true };
 }
 function throttleSearch(registry) {
   const t = registry.get('web_search');

@@ -75,12 +75,17 @@ async function waitFor(fn) { for (let n = 0; n < 100; n++) { if (await fn()) ret
     assert.ok(state.turns.filter(t => t.origin === old.id).every(t => t.state === 'stopped'));
     assert.equal(state.turns.at(-1).state, 'completed');
     // Approval is explicit, scoped to the right group and cleared when answered.
-    execute = async o => { assert.equal(await o.prompt({ tool: 'fs.write', argsSummary: 'test' }), 'once'); return finish('approved'); };
+    execute = async o => { assert.equal(await o.prompt({ tool: 'fs.write', argsSummary: 'test', argsFull: { text: '{ "path": "the whole request" }', truncated: false } }), 'once'); return finish('approved'); };
     await api.send(g.id, { key: 'approval', text: 'write' });
     await waitFor(async () => (await api.get(g.id)).turns.at(-1).approval);
     state = await api.get(g.id);
+    // INSPECT FULL REQUEST: the whole request is served from memory while the approval waits, and never saved on the turn
+    assert.equal(state.turns.at(-1).approval.argsFull, undefined);
+    assert.deepEqual(await api.approvalArgs(g.id, { promptId: state.turns.at(-1).approval.promptId }), { tool: 'fs.write', args: '{ "path": "the whole request" }', truncated: false });
+    await assert.rejects(api.approvalArgs('wrong', { promptId: state.turns.at(-1).approval.promptId }), /no longer waiting/);
     await assert.rejects(api.answer('wrong', { promptId: state.turns.at(-1).approval.promptId, decision: 'once' }), /no longer/);
     await api.answer(g.id, { promptId: state.turns.at(-1).approval.promptId, decision: 'once' }); await api.idle(g.id);
+    await assert.rejects(api.approvalArgs(g.id, { promptId: state.turns.at(-1).approval.promptId }), e => e.status === 404 && /no longer waiting/.test(e.message));
     // Recovery retains pending work but never dispatches on boot.
     await api.control(g.id, { action: 'pause' });
     await api.send(g.id, { key: 'queued', text: 'Pending' }); await api.idle(g.id);

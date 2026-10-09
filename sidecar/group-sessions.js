@@ -510,7 +510,9 @@ function makeGroupSessions(d) {
       try {
         if (get(id).turns.find(x => x.id === t.id).state === 'stopping') ac.abort();
         const result = await d.execute({ g, t, ctx, runId, signal: ac.signal, emit, askCommander: async fields => { await chain; return ask(id, t.id, fields, ac.signal); }, tools: toolDefs(id, t.id, ac.signal),
-          prompt: async fields => {
+          prompt: async (asked) => {
+            // argsFull (the whole redacted request) stays on the in-memory pending entry, never in the saved turn
+            const { argsFull, ...fields } = asked || {};
             const promptId = d.id();
             await chain;
             await update(id, state => { const turn = state.turns.find(x => x.id === t.id); if (turn.state !== 'stopping') { turn.state = 'waiting for approval'; turn.approval = { promptId, ...fields }; } });
@@ -518,7 +520,7 @@ function makeGroupSessions(d) {
               let timer;
               const finish = value => { clearTimeout(timer); pending.delete(promptId); ac.signal.removeEventListener('abort', onAbort); resolve(value); };
               const onAbort = () => finish('deny');
-              pending.set(promptId, { id, turnId: t.id, finish });
+              pending.set(promptId, { id, turnId: t.id, finish, tool: fields.tool, argsFull: argsFull && typeof argsFull.text === 'string' ? argsFull : null });
               timer = setTimeout(onAbort, 300000);
               ac.signal.addEventListener('abort', onAbort, { once: true });
               if (ac.signal.aborted) onAbort();
@@ -637,6 +639,8 @@ function makeGroupSessions(d) {
       });
       return publicGroup(get(id));
     },
+    // the card's INSPECT FULL REQUEST: the live approval's whole (redacted) request; 404 once it settled
+    approvalArgs: async (id, b) => { const p = pending.get(b.promptId); if (!p || p.id !== id) fail('This approval is no longer waiting: it was answered, expired, or its run ended.', 404); if (!p.argsFull) fail('This approval carries no further request details.', 404); return { tool: p.tool || 'tool', args: p.argsFull.text, truncated: !!p.argsFull.truncated }; },
     answer: async (id, b) => { const p = pending.get(b.promptId); if (!p || p.id !== id) fail('Approval is no longer pending', 409); if (!['once', 'deny'].includes(b.decision)) fail('Invalid approval'); p.finish(b.decision); return { ok: true }; },
     idle: async id => { await workers.get(id); },
     halt: () => {
