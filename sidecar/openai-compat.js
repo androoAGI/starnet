@@ -284,7 +284,7 @@ function makeOpenAiCompat(deps) {
       emit: sink, signal: o.signal, runId: o.runId,
       // a /v1 request IS a task (issue #96: without this the model was offered NO tools though this surface's prompt
       // tells it to use them); the one-turn structured-output repair pass stays tool-less.
-      isTask: !o.outputOnly,
+      isTask: !o.outputOnly, toolsOptional: true,   // a model known tool-less still answers in text (pre-#96 behavior)
       trigger: 'event', surface: 'autonomous',   // headless external caller: default-deny ungranted mutation, never stall
       broadcast: true,                            // light the station floor — a user SEES the external harness's run
       taskKey: 'v1:' + o.agentId, taskSource: 'api',

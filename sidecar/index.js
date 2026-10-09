@@ -20032,6 +20032,10 @@ async function runOnceCore(o) {
   const savedProviderFallbacks = !Array.isArray(o.fallbackModels) && fallbackSaved != null && providerId !== 'openrouter' && providerId !== 'starnet'
     ? fallbackModels.splice(0).map(m => ({ provider: 'openrouter', model: m })) : [];
   for (let i = fallbackModels.length - 1; i >= 0; i--) if (fallbackModels[i] === model) fallbackModels.splice(i, 1);
+  // TOOLS OPTIONAL (/v1, #96). An external OpenAI-compatible caller names its model; before #96 every /v1 run was
+  // text-only, so a client on a model the catalog KNOWS can't call tools got a plain reply. Keep that: such a run
+  // answers without tools on the model it asked for, never refused and never moved to a fallback it didn't name.
+  if (isTask && o.toolsOptional && provider.supportsTools(model) === false) isTask = false;
   // COMPETENCE PREFLIGHT: an explicitly configured fallback chain is already the Commander's authority to use
   // another model when the primary cannot serve the run. A definitively tool-less primary used to hard-refuse
   // every task before that chain got a chance to help. Promote the first same-provider, tool-capable (or catalog-

@@ -203,5 +203,13 @@ async function drain(res) {
     try { child.kill(); } catch (_) {}
     try { mock.server.close(); } catch (_) {}
   }
+  // #96 follow-up: tools ride /v1, but a model the catalog KNOWS is tool-less still answers in text (pre-#96), never refused
+  {
+    const compat = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'openai-compat.js'), 'utf8');
+    const core = fs.readFileSync(INDEX, 'utf8');
+    A.ok(/isTask: !o\.outputOnly, toolsOptional: true/.test(compat), '/v1 runs are tasks with tools OPTIONAL');
+    A.ok(/if \(isTask && o\.toolsOptional && provider\.supportsTools\(model\) === false\) isTask = false;/.test(core), 'a tools-optional run on a known tool-less model drops to text instead of the "can\'t run tasks" refusal');
+    A.ok(core.indexOf('o.toolsOptional && provider.supportsTools(model) === false') < core.indexOf('fallbackChain.promoteToolCapable('), 'the text downgrade happens before any fallback promotion (the caller named its model)');
+  }
   A.report('openai-compat.e2e');
 })().catch(e => { console.error(e); process.exit(1); });
