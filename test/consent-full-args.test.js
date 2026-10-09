@@ -57,7 +57,8 @@ test('the full request lives only on the pending prompt, behind a token-gated GE
 
 test('every consent card without its own payload view offers INSPECT FULL REQUEST, read on first open', async () => {
   const perm = extract(chat, 'function permissionRow(p, ws)', 'const btns = document.createElement');
-  assert.match(perm, /\} else if \(p\.tool !== 'path\.trust' && p\.promptId\) \{\s*r\.body\.appendChild\(fullRequestDisclosure\(/);
+  assert.match(perm, /\} else if \(p\.tool !== 'path\.trust' && !\/\^browser\[\._\]login\/\.test\(String\(p\.tool \|\| ''\)\) && p\.promptId\) \{[^\n]*\n\s*r\.body\.appendChild\(fullRequestDisclosure\(/);
+  assert.match(group, /t\.approval\.tool !== 'path\.trust' && !\/\^browser\[\._\]login\/\.test/, 'a sign-in hand-off (no arguments) gets no disclosure in group chat either');
   assert.match(perm, /Harness\.consentArgs\(/);
   assert.match(group, /Chat\.consentDisclosure\(\(\) => api\(\{ op: 'approvalArgs'/);
   // run the real disclosure against a tiny DOM: closed = no read; first open = one read into a selectable <pre> + copy key
@@ -83,4 +84,10 @@ test('every consent card without its own payload view offers INSPECT FULL REQUES
   gone.open = true; gone.listeners.toggle(); await new Promise(r => setImmediate(r));
   assert.match(gone.children[1].textContent, /already answered or expired/);
   assert.equal(gone.children[2].hidden, true);
+  // a LIVE prompt with no arguments (review finding) is never called answered
+  const bare = ctx.fullRequestDisclosure(async () => ({ ok: true, tool: '', args: '', truncated: false, noDetails: true }));
+  bare.open = true; bare.listeners.toggle(); await new Promise(r => setImmediate(r));
+  assert.ok(!/already answered/.test(bare.children[1].textContent) && /no details beyond/.test(bare.children[1].textContent), 'a still-waiting prompt without arguments says so: ' + bare.children[1].textContent);
+  assert.equal(bare.children[2].hidden, true);
+  assert.match(backend, /if \(finish && !full\) return respondJson\(res, 200, \{ ok: true, tool: '', args: '', truncated: false, noDetails: true \}\);/, 'the route answers a live argument-less prompt with noDetails, never the 404 "answered"');
 });

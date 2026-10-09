@@ -998,7 +998,8 @@ const ModelDock = (() => {
       // under the pointer (WebKit). Neither is the user clicking outside: ignore a click on a node no longer in
       // the document, and the click finishing a press that began before the dock opened (bounded to 1s so a
       // keyboard activation long after a programmatic open still closes it).
-      if (ev.target && ev.target.isConnected === false) return;
+      // (the detached-node pass is only for THAT press: a later outside click on a chip/toast ✕ that removes itself still closes)
+      if (ev.target && ev.target.isConnected === false && pressAt <= openedAt) return;
       if (openedAt && pressAt <= openedAt && clock() - openedAt < 1000) return;
       closeDock();
     });

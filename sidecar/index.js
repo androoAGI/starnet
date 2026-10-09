@@ -18616,8 +18616,10 @@ async function runOnceCore(o) {
   }
   // A single explicit host inspection is a bounded lookup, not an autonomous research brief. Classifying once
   // at admission lets the prompt, advertised tools, dispatch guard, and terminal-evidence stop share one truth.
-  const directDomainTask = isTask ? DomainTask.classify(latestUserText(messages)) : null;
-  const imageTask = isTask ? ImageTask.classify(latestUserText(messages)) : null;
+  // A /v1 run (o.toolsOptional, #96) is offered tools but keeps its pre-#96 admission: no image/domain task class, so
+  // "generate an image" on a tool-less model still answers in text instead of "Image task blocked: no STUDIO".
+  const directDomainTask = isTask && !o.toolsOptional ? DomainTask.classify(latestUserText(messages)) : null;
+  const imageTask = isTask && !o.toolsOptional ? ImageTask.classify(latestUserText(messages)) : null;
   // P1-6 per-agent model/provider OVERRIDE: when a run carries NO explicit model/provider (headless hub, delegated
   // worker, or any caller that didn't pass one), fall back to THIS AGENT's pinned identity in the roster before the
   // station default. An explicit per-run o.model/o.provider still wins (the interactive dock path is unchanged), so
@@ -18928,7 +18930,9 @@ async function runOnceCore(o) {
     billed = adm.managed === true;
   }
 
-  if (isTask && o.taskKey) {
+  // never for /v1 (o.toolsOptional): its taskKey is per-AGENT, so a durable brief left clarifying by one client would
+  // swallow the next client's request as the answer (#96 follow-up). Each /v1 request carries its own messages.
+  if (isTask && o.taskKey && !o.toolsOptional) {
     try {
       const latestUser = latestUserText(messages);   // flattens an attachment turn instead of skipping to an older one
       if (latestUser) taskBrief = await taskBriefStore.prepare({
@@ -21748,7 +21752,8 @@ async function runOnceCore(o) {
   // id is thrown away after the run, so a count (and any skill a review wrote) would be kept for an agent no one runs.
   const _skillToolsOn = resolved.tools.indexOf('skill.manage') >= 0 || resolved.tools.indexOf('skill.write') >= 0;
   const _throwawayAgent = /^sub-/.test(agentId) && !agentRoster.has(agentId);
-  const _nudge = (process.env.SKYNET_SKILL_REVIEW !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !internal && _skillToolsOn && !_throwawayAgent)
+  // /v1 runs (o.toolsOptional) never fire the paid background passes (skill review, scout) on an external caller's traffic
+  const _nudge = (process.env.SKYNET_SKILL_REVIEW !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
   const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
@@ -21756,7 +21761,7 @@ async function runOnceCore(o) {
   const _gateCurator = !!(process.env.SKYNET_SKILL_CURATOR !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
   // budgeted candidate, and only when no cycle is already in flight.
-  const _scoutQualifies = !!(process.env.SKYNET_SCOUT !== '0' && isTask && _auxDone);
+  const _scoutQualifies = !!(process.env.SKYNET_SCOUT !== '0' && isTask && !o.toolsOptional && _auxDone);
   const _gateScout = !!(_scoutQualifies && !scoutingNow);
 
   // The JOINT decision: rank the candidates by locked priority and grant up to SKYNET_AUX_BUDGET this run-end.
@@ -21938,7 +21943,9 @@ function handleConsentArgs(req, res) {
   const pend = pendingByRun.get(String(q.get('runId') || ''));
   const finish = pend && pend.get(String(q.get('promptId') || ''));
   const full = finish && finish.consentArgs;
-  if (!full) return respondJson(res, 404, { ok: false, error: finish ? 'This approval carries no further request details.' : 'This approval is no longer waiting: it was answered, expired, or its run ended.' });
+  // a LIVE prompt that never carried arguments (browser.login*) is still waiting — 404 would read as "already answered"
+  if (finish && !full) return respondJson(res, 200, { ok: true, tool: '', args: '', truncated: false, noDetails: true });
+  if (!full) return respondJson(res, 404, { ok: false, error: 'This approval is no longer waiting: it was answered, expired, or its run ended.' });
   return respondJson(res, 200, { ok: true, tool: full.tool, args: full.text, truncated: full.truncated });
 }
 

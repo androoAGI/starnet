@@ -437,7 +437,7 @@ const GroupChat = (() => {
         // the summary above is clipped: INSPECT FULL REQUEST reads the whole redacted request. The SAME element is re-used
         // across rerenders (this strip rebuilds every update), so an open disclosure stays open and is read only once.
         const ask = t.approval.promptId, gid = group.id;
-        if (ask && t.approval.tool !== 'path.trust' && typeof Chat !== 'undefined' && Chat.consentDisclosure) {
+        if (ask && t.approval.tool !== 'path.trust' && !/^browser[._]login/.test(String(t.approval.tool || '')) && typeof Chat !== 'undefined' && Chat.consentDisclosure) {
           if (!fullAsks.has(ask)) fullAsks.set(ask, Chat.consentDisclosure(() => api({ op: 'approvalArgs', id: gid, promptId: ask })
             .then(r => Object.assign({ ok: true }, r), e => ({ ok: false, gone: /no longer waiting/.test(String(e && e.message)), error: String((e && e.message) || e) }))));
           liveAsks.add(ask); row.append(fullAsks.get(ask));

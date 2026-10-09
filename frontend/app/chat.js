@@ -3292,6 +3292,7 @@ const Chat = (() => {
       if (!detail.open || asked) return;
       asked = true;
       Promise.resolve().then(load).then(j => {
+        if (j && j.ok && j.noDetails) { payload.textContent = 'This request has no details beyond the line above.'; return; }
         if (j && j.ok) { payload.textContent = j.args; copy.hidden = false; return; }
         asked = !!(j && j.gone);   // a failed read may be retried by reopening; an answered prompt never comes back
         payload.textContent = j && j.gone ? 'This approval was already answered or expired, so its request is no longer held.'
@@ -3315,7 +3316,7 @@ const Chat = (() => {
       const payload = document.createElement('pre'); payload.textContent = p.argsSummary || '(payload unavailable)';
       if (/^routine/.test(String(p.tool))) { try { const o = JSON.parse(p.argsSummary || '{}'); if (o.prompt) payload.textContent = String(o.prompt); } catch (_) { /* clipped payload: the raw text above stays */ } }
       detail.appendChild(label); detail.appendChild(payload); r.body.appendChild(detail);
-    } else if (p.tool !== 'path.trust' && p.promptId) {
+    } else if (p.tool !== 'path.trust' && !/^browser[._]login/.test(String(p.tool || '')) && p.promptId) {   // a sign-in hand-off has no arguments to inspect
       r.body.appendChild(fullRequestDisclosure(() => Harness.consentArgs((ws && typeof Channels !== 'undefined') ? Channels.runIdOf(ws.id) : null, p.promptId)));
     }
     // the station builder's card: every step's instructions, one click away (the summary line is in the phrase above)
