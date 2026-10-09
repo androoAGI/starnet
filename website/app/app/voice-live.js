@@ -333,7 +333,7 @@ const VoiceLive = (() => {
     if (!ws) { el.textContent = 'No active workstream.'; return; }
     const busy = Channels.isBusy(ws.id), pending = Channels.pendingOf(ws.id);
     el.textContent = (pending ? 'APPROVAL NEEDED · ' : busy ? 'WORKING · ' : 'READY · ') + (ws.title || 'GENERAL');
-    el.title = pending ? `${pending.tool || 'Action'} needs approval${pending.argsSummary ? `: ${pending.argsSummary}` : ''}` : (Channels.statusOf(ws.id) || ws.title || 'Ready');
+    el.title = pending ? `${pending.tool || 'Action'} needs approval${pending.argsSummary ? `: ${String(pending.argsSummary).replace(/\s+/g, ' ').trim().slice(0, 120)}` : ''}` : (Channels.statusOf(ws.id) || ws.title || 'Ready');
     el.classList.toggle('busy', busy);
     el.classList.toggle('pending', !!pending);
     // hands-free: anything now WAITING on a click gets said aloud, once (see announceWaits)
