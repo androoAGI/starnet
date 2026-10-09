@@ -213,8 +213,11 @@
       } catch (e) { /* keep the status-based default */ }
       if (code === 'invalid_grant' || code === 'invalid_token' || code === 'invalid_request') relogin = true;
       if (code === 'refresh_token_reused') {
-        message = 'Codex refresh token was already consumed by another client (e.g. the Codex CLI or VS Code extension). '
-          + 'Run `codex` in your terminal to mint fresh tokens, then sign in with ChatGPT again.';
+        // #92: no Codex CLI needed — StarNet's own device-code sign-in mints fresh tokens. A copied station
+        // folder carries the single-use refresh token too, so name that cause alongside the CLI/editor.
+        message = 'Codex refresh token was already consumed by another client (the Codex CLI, the VS Code extension, '
+          + 'or a copy of this station on another computer). Sign in with ChatGPT again: ⏼ RECONNECT on the ChatGPT card '
+          + 'in SETTINGS › AI & MODELS.';
         relogin = true;
       }
       if ((resp.status === 401 || resp.status === 403) && !relogin) relogin = true;   // a 401/403 always means dead refresh token

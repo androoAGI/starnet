@@ -10,6 +10,7 @@
      5. the reason string never carries token material. */
 'use strict';
 const A = require('./_assert.js');
+const fs = require('fs');
 const S = require('../sidecar/providers/codex-auth-state.js');
 const codexAuth = require('../sidecar/providers/codex-auth.js');
 
@@ -92,6 +93,16 @@ function runRest() {
   // deadFromTokens rejects junk shapes
   A.eq(S.deadFromTokens({ access_token: 'x', authDead: 'yes' }), null, 'a non-object marker is rejected');
   A.eq(S.deadFromTokens({ access_token: 'x', authDead: { reason: '' } }), null, 'an empty reason is rejected');
+
+  // #92: a marker saved by 0.13.1 told the user to run the Codex CLI; it reads back pointing at the in-app RECONNECT
+  const legacy = S.deadFromTokens({ access_token: 'x', authDead: { reason: 'Codex refresh token was already consumed by another client (e.g. the Codex CLI or VS Code extension). Run `codex` in your terminal to mint fresh tokens, then sign in with ChatGPT again.', code: 'refresh_token_reused', at: 't' } });
+  A.ok(legacy && !/run `codex`/i.test(legacy.reason), 'a legacy marker no longer tells the user to install/run the Codex CLI');
+  A.ok(legacy && /RECONNECT/.test(legacy.reason) && /AI & MODELS/.test(legacy.reason), 'a legacy marker names the in-app RECONNECT door');
+  A.eq(legacy && legacy.code, 'refresh_token_reused', 'the legacy marker keeps its code');
+  const other = S.deadFromTokens({ access_token: 'x', authDead: { reason: 'Codex token refresh failed: nope', code: 'invalid_grant', at: 't' } });
+  A.eq(other.reason, 'Codex token refresh failed: nope', 'any other stored reason reads back unchanged');
+  const src = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'providers', 'codex-auth.js'), 'utf8');
+  A.ok(!/Run `codex` in your terminal/.test(src), 'the live refresh_token_reused message never sends a desktop user to the Codex CLI');
 
   A.report('codex-auth-state');
 }

@@ -51,7 +51,13 @@
     const d = tokens && typeof tokens === 'object' ? tokens.authDead : null;
     if (!d || typeof d !== 'object') return null;
     if (typeof d.reason !== 'string' || !d.reason.trim()) return null;
-    return { reason: scrubReason(d.reason), code: String(d.code || 'codex_relogin_required'), at: String(d.at || '') };
+    // #92: a marker saved by 0.13.1 and older told the user to run the Codex CLI — StarNet's own sign-in is the
+    // cure, so a stored reason carrying that advice is read back with the current wording.
+    const reason = /run `codex` in your terminal/i.test(d.reason)
+      ? 'Codex refresh token was already consumed by another client (the Codex CLI, the VS Code extension, or a copy of '
+        + 'this station on another computer). Sign in with ChatGPT again: ⏼ RECONNECT on the ChatGPT card in SETTINGS › AI & MODELS.'
+      : d.reason;
+    return { reason: scrubReason(reason), code: String(d.code || 'codex_relogin_required'), at: String(d.at || '') };
   }
 
   // envelope + marker -> a NEW envelope carrying the marker (tokens kept — the user may still want to

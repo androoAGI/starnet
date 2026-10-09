@@ -5275,7 +5275,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // ✕ DISCONNECT (or on a machine that never signed in there) this button is the ONLY reachable sign-in —
       // without it the row reads NOT SIGNED IN with zero recovery (the 2026-07-21 user-reported escape).
       // The ⏼ RE-SIGN-IN row below can't cover it: that row only exists once a live/known-dead sign-in exists.
-      const wantsOAuthSignin = p.live && isOAuthProvider(p.id) && !credentialSaved && !codexDead;
+      // #92: a KNOWN-dead sign-in (consumed refresh token) gets the same card button, labelled RECONNECT — the
+      // ⏼ RE-SIGN-IN row sits far below under API KEYS, and a user who read only the card had no way back in.
+      // credentialSaved is already false for a dead sign-in, so the dead state needs no clause of its own here.
+      const wantsOAuthSignin = p.live && isOAuthProvider(p.id) && !credentialSaved;
       const wantsClaudeSignin = p.id === 'claude-cli' && !!(claudeCliSt && claudeCliSt.installed && !claudeCliSt.loggedIn);
       const wantsClaudeInstall = p.id === 'claude-cli' && !!(claudeCliSt && !claudeCliSt.installed);
       const claudeFlowing = wantsClaudeSignin && !claudeCard.account && typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active();
@@ -5292,7 +5295,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         (wantsInline ? '<button class="bb sm prov-addkey" data-act="prov-add-toggle" data-provider="' + esc(p.id) + '" aria-label="Add a ' + esc(p.name) + ' key" title="paste a ' + esc(p.name) + ' key without leaving this card">＋ ADD KEY</button>' : '') +
         (wantsClaudeSignin && !claudeFlowing && !(typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active()) ? '<button class="bb sm prov-addkey" data-act="prov-claude-signin" aria-label="Sign in with Claude" title="opens Claude in your browser — Claude Code keeps the sign-in, StarNet never sees it">' + (claudeCard.failed ? '⏼ TRY AGAIN' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsClaudeInstall ? '<button class="bb sm prov-addkey" data-act="prov-claude-install" aria-label="Get Claude Code" title="Claude Code needs a Pro, Max, Team or Enterprise plan">↗ GET CLAUDE CODE</button>' : '') +
-        (wantsOAuthSignin ? '<button class="bb sm prov-addkey" data-act="prov-oauth-signin" data-provider="' + esc(p.id) + '" aria-label="Sign in to ' + esc(p.name) + '" title="device-code sign-in — no API key needed">⏼ SIGN IN</button>' : '') +
+        (wantsOAuthSignin ? '<button class="bb sm prov-addkey" data-act="prov-oauth-signin" data-provider="' + esc(p.id) + '" aria-label="Sign in to ' + esc(p.name) + '" title="device-code sign-in — no API key needed">' + (codexDead ? '⏼ RECONNECT' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsInline
           ? '<div class="key-edit prov-key-edit" id="prov-key-edit-' + esc(p.id) + '" hidden>' +
             '<input type="password" class="key-input" id="prov-key-in-' + esc(p.id) + '" placeholder="paste ' + esc(p.name) + ' key…" autocomplete="off" spellcheck="false">' +

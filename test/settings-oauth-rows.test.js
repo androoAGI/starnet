@@ -101,6 +101,7 @@ A.ok(/p !== 'codex' && p !== 'grok' && p !== 'kimi'/.test(keycta), 'keycta treat
   const ui = read('frontend', 'app', 'stationui.js');
   A.ok(/data-act="prov-oauth-signin"/.test(ui), 'the provider card renders a ⏼ SIGN IN action for a not-signed-in device-code provider');
   A.ok(/wantsOAuthSignin\s*=\s*p\.live\s*&&\s*isOAuthProvider\(p\.id\)\s*&&\s*!credentialSaved/.test(ui), 'the card sign-in covers EVERY device-code provider (codex included) without a stored sign-in — never just OAUTH_EXTRA');
+  A.ok(!/wantsOAuthSignin\s*=[^;]*!codexDead/.test(ui) && /codexDead \? '⏼ RECONNECT' : '⏼ SIGN IN'/.test(ui), '#92: a KNOWN-dead sign-in keeps the card button, labelled ⏼ RECONNECT (the RE-SIGN-IN row under API KEYS was the only way back in)');
   A.ok(/prov-oauth-signin"\]'\)/.test(ui) && /OAuthSignIn\.for\(pid\)/.test(ui), 'the card sign-in drives the SAME shared engine (OAuthSignIn.for), no bespoke fetch loop');
   A.ok(/id="prov-oauth-code-'\s*\+\s*esc\(p\.id\)/.test(ui) && /id="prov-oauth-status-'\s*\+\s*esc\(p\.id\)/.test(ui), 'the card owns a per-provider inline device-code surface (no id collision)');
   const signinHandler = ui.slice(ui.indexOf("querySelector('[data-act=\"prov-oauth-signin\"]')"));
