@@ -44,6 +44,9 @@ codes** (401/403/429/400/404/502) because OpenAI-client compatibility is the con
   `permission.prompt`, so an ungranted mutation default-denies and the run continues —
   never stalls) and `broadcast:true` (so an external-harness run **lights the station floor**
   — the user sees that an outside harness talked to their station).
+- Every run is **task work** (`isTask:true`): the model is offered the agent's real tools
+  (the `tool.started`/`tool.completed` events above), still behind the autonomous consent
+  rule. Only the structured-output repair pass below runs tool-less.
 - Transcripts land in the **channel transcript store** (like channel-inbound runs), so
   they're visible in the app.
 - Cost/billing reconciliation flows untouched through `runOnce`. The OpenAI `usage` object is

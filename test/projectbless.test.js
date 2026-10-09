@@ -156,6 +156,15 @@ function coreOver(tree, blessSink, links) {
     ok(projectLapsedLine('x'.repeat(5000), false).length < 1600, 'root is bounded in the lapsed line');
   }
 
+  // --- workflowNoFolderLine (#60/#81 follow-up): a folderless workflow stage is told where relative paths land ---
+  {
+    const { workflowNoFolderLine } = require('../sidecar/projectbless.js');
+    const line = workflowNoFolderLine(false);
+    ok(/NO WORKING FOLDER/.test(line) && /private workspace, which other agents cannot read/.test(line), 'a folderless workflow says relative paths land in the private workspace');
+    ok(/absolute path inside that project/.test(line) && /WORKING FOLDER on this workflow's INBOX/.test(line), 'it names the absolute-path route and the INBOX fix');
+    ok(workflowNoFolderLine(true) === '', 'a workflow WITH a working folder gets no line');
+  }
+
   // PROJECT INSTRUCTIONS — the folder's own AGENTS.md / CLAUDE.md / .cursorrules, on the SAME blessed-root grant.
   {
     const { makeProjectInstructions } = require('../sidecar/projectbless.js');
