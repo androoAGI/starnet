@@ -39,7 +39,7 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "10.15",
+      "minimumSystemVersion": "11.0",
       "hardenedRuntime": true,
       "entitlements": "entitlements.plist",
       "dmg": {

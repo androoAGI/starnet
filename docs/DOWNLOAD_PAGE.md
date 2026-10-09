@@ -34,7 +34,7 @@ Pick the asset for your platform:
 
 ### System requirements
 
-- **Windows 10 or 11 (64-bit)** or **macOS 10.15+** (Apple Silicon or Intel).
+- **Windows 10 or 11 (64-bit)** or **macOS 11 Big Sur+ with Safari 16.4+** (Apple Silicon or Intel; macOS 13.3+ works out of the box).
 - A few hundred MB of disk space (grows with your agents' history and voice cache).
 - An internet connection — for your AI provider, not for StarNet itself.
 - Either an **API key** (OpenRouter / OpenAI / Anthropic / others) **or** a **ChatGPT
