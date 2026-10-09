@@ -63,6 +63,10 @@ const ModelDock = (() => {
   let opts = {};
   let wired = false;
   let open = false;
+  // #93: when the dock last opened and when the latest press began (performance clock). A programmatic opener
+  // that reacts on POINTERDOWN (a COMMS chip) opens the dock before that press's own `click` is dispatched —
+  // the outside-click closer must not read that trailing click as a click outside.
+  let openedAt = 0, pressAt = 0;
   let loading = false;
   let cache = {};
   const catalogRequests = {}, cacheRevisions = {};
@@ -294,7 +298,17 @@ const ModelDock = (() => {
     if (!id) return '';
     if (rows.some(m => m && m.id === id)) return id;
     let candidate = '';
-    if ((p === 'starnet' || p === 'openrouter') && id.indexOf('/') < 0) candidate = 'anthropic/' + id;
+    if ((p === 'starnet' || p === 'openrouter') && id.indexOf('/') < 0) {
+      candidate = 'anthropic/' + id;
+      // #93: a bare vendor id ('gpt-5.5' — the default a managed setup used to save) names its routed row
+      // 'openai/gpt-5.5'. Map it only when EXACTLY ONE catalog row is <vendor>/<id>: two vendors serving the
+      // same tail is ambiguous, and guessing between them would run a model the user never picked.
+      if (!rows.some(m => m && m.id === candidate)) {
+        const tail = '/' + id;
+        const hits = rows.filter(m => m && typeof m.id === 'string' && m.id.length > tail.length && m.id.slice(-tail.length) === tail && m.id.indexOf('/') === m.id.length - tail.length);
+        candidate = hits.length === 1 ? hits[0].id : '';
+      }
+    }
     else if (p === 'anthropic' && /^anthropic\//i.test(id)) candidate = id.slice(id.indexOf('/') + 1);
     return candidate && rows.some(m => m && m.id === candidate) ? candidate : '';
   }
@@ -906,6 +920,7 @@ const ModelDock = (() => {
     hideTip();
     clearPulse();
     open = true;
+    openedAt = clock();
     dock.hidden = false;
     toggle.classList.add('on');
     toggle.setAttribute('aria-expanded', 'true');
@@ -913,6 +928,8 @@ const ModelDock = (() => {
     fetchModels(false).then(() => { if (open) renderList(); });
     setTimeout(() => { try { if (search) search.focus(); } catch (_) {} }, 0);
   }
+
+  function clock() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
 
   function closeDock() {
     const dock = el('model-dock'), toggle = el('model-dock-toggle');
@@ -976,8 +993,16 @@ const ModelDock = (() => {
       // The original path still identifies the click as inside the menu.
       const path = ev.composedPath ? ev.composedPath() : [];
       if (path.includes(dock) || path.includes(button) || dock.contains(ev.target) || button.contains(ev.target)) return;
+      // #93 CHOOSE MODEL flashed open then shut: its chip opens the dock on pointerdown and removes its own row,
+      // so the same press's click arrives afterwards — on the detached chip (Chromium) or on whatever now sits
+      // under the pointer (WebKit). Neither is the user clicking outside: ignore a click on a node no longer in
+      // the document, and the click finishing a press that began before the dock opened (bounded to 1s so a
+      // keyboard activation long after a programmatic open still closes it).
+      if (ev.target && ev.target.isConnected === false) return;
+      if (openedAt && pressAt <= openedAt && clock() - openedAt < 1000) return;
       closeDock();
     });
+    document.addEventListener('pointerdown', () => { pressAt = clock(); }, true);
     document.addEventListener('keydown', ev => { if (open && ev.key === 'Escape') closeDock(); });
   }
 
@@ -996,7 +1021,9 @@ const ModelDock = (() => {
   // `ensure: { id, provider }` guarantees a specific model (e.g. an agent's own pin) is present even if the
   // provider is unconfigured, so the picker can always show + preselect it. Returns [{ id, name, provider, … }].
   async function computeCatalog(force, ensure) {
-    const ids = ['codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'claude-cli', 'custom'];
+    // #93: 'starnet' leads here exactly as in the dock — without it a per-agent picker offered managed credits only
+    // while the FOCUSED agent already ran on them. providerEnabled() drops it (empty list) when the station is unlinked.
+    const ids = ['starnet', 'codex', 'grok', 'kimi', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'claude-cli', 'custom'];
     const active = provider();
     if (ids.indexOf(active) < 0) ids.unshift(active);
     const parts = await Promise.all(ids.map(p => fetchProviderModels(p, force).catch(() => [])));

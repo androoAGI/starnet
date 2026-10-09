@@ -325,12 +325,17 @@ const Harness = (() => {
     try {
       const status = await invoke('harness_provider_key_status');
       if (Array.isArray(status)) {
+        // #93: the keychain knows nothing about managed credits (KEYCHAIN_PROVIDERS has no starnet), so rebuilding
+        // the map from it erased the /api/credits answer probed just above — every desktop boot then read the
+        // linked station as unlinked (resume, pickers, KeyCTA) until SETTINGS re-probed. The sidecar owns it.
+        const starnet = !!_configuredByProvider.starnet;
         _configuredByProvider = Object.create(null);
         status.forEach(s => {
           const p = normalizeProviderId(s && s.provider);
           _configuredByProvider[p] = !!(s && s.configured);
           _alternateCountByProvider[p] = Math.max(0, Number(s && s.alternateCount) || 0);
         });
+        _configuredByProvider.starnet = starnet;
         _configured = !!_configuredByProvider.openrouter;
         loaded = true;
       }
@@ -1136,6 +1141,19 @@ const Harness = (() => {
     } catch (_) { return { ok: false, decision: 'deny' }; }
   }
 
+  // the WHOLE (redacted) request behind a live consent card — the event only carries the short argsSummary line.
+  // { ok:true, tool, args, truncated } while the prompt waits; { ok:false, gone:true, error } once it was answered/expired;
+  // { ok:false, error } when the station could not be reached. Never cached: the text exists only while the prompt does.
+  async function consentArgs(runId, promptId) {
+    if (!runId || !promptId) return { ok: false, gone: true, error: 'This approval is no longer tied to a live run.' };
+    try {
+      const r = await fetch('/api/consent/args?runId=' + encodeURIComponent(runId) + '&promptId=' + encodeURIComponent(promptId), { cache: 'no-store' });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j && j.ok && typeof j.args === 'string') return j;
+      return { ok: false, gone: r.status === 404, error: (j && j.error) || ('the station refused the request (http ' + r.status + ')') };
+    } catch (e) { return { ok: false, error: 'The station could not be reached: ' + ((e && e.message) || String(e)) }; }
+  }
+
   // EL-11 FIX 1c: attest to the sidecar that a live permission.prompt is now RENDERED to a human (the active
   // consent card, or the global background toast + rail marker). Earns the run's paused consent ONE bounded
   // extension of the fail-closed auto-deny timer — a deny on a prompt nobody saw is a consent violation.
@@ -1555,7 +1573,7 @@ const Harness = (() => {
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, hasStoredCredential, setDesktopConfigured,
-    listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentAnswer, summonAck, notebook,
+    listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,
     memoryProposals, memoryTurnin, memoryVeto, memoryReset, memoryRecords, memoryDeclined, memoryRestore, memoryPending, memoryPin, memoryEdit, memoryForget,
     studyProposals, studyPending,

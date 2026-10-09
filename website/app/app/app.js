@@ -1615,7 +1615,10 @@ const App = (() => {
     cerebras: ['llama-4-scout-17b-16e-instruct', 'llama3.1-8b', 'qwen-3-coder-480b'],
     ollama: ['qwen3:8b', 'llama3.1', 'qwen2.5-coder', 'mistral'],
     'claude-cli': ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],   // [0] = the default pick; the live catalog adds the rest
-    openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
+    openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro'],
+    // #93: STARNET MANAGED's catalog is the routed vendor/model lineup — a bare 'gpt-5.5' (the openrouter row it used
+    // to borrow) is "not in the catalog" there and the dock cleared it. Its own list saves a catalog-shaped id.
+    starnet: ['openai/gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
   });
   // The genesis model catalog for the ACTIVE provider — {id, name, pricing, context_length, fallback?} items
   // feeding the themed #model-pop popover (which replaced the native <datalist>). genesisOffline flags a
@@ -1683,6 +1686,13 @@ const App = (() => {
      curated FALLBACK list loadModels() already ships, so nothing new is fabricated. Codex hides them —
      its menu is discovered live per-account (loadCodexModels), so a static list there could mislead. */
   const MODEL_PICKS = Object.freeze({
+    // #93: managed ids are vendor/model, like OpenRouter's; [0] is the default a fresh STARNET setup saves.
+    starnet: [
+      { label: 'GPT-5.5', id: 'openai/gpt-5.5', tag: '' },
+      { label: 'Sonnet 4.6', id: 'anthropic/claude-sonnet-4.6', tag: 'balanced' },
+      { label: 'Opus 4.8', id: 'anthropic/claude-opus-4.8', tag: 'deepest' },
+      { label: 'Gemini 2.5 Pro', id: 'google/gemini-2.5-pro', tag: '' }
+    ],
     openrouter: [
       { label: 'Opus 4.8', id: 'anthropic/claude-opus-4.8', tag: 'deepest' },
       { label: 'Sonnet 4.6', id: 'anthropic/claude-sonnet-4.6', tag: 'balanced' },
@@ -5297,7 +5307,12 @@ const App = (() => {
       SFX.click && SFX.click();
       if (typeof Diag === 'undefined' || !Diag.copy) { if (status) status.textContent = '＋ recovery details unavailable — send a screenshot of ' + diagnosis.code; return; }
       reportBtn.disabled = true; reportBtn.textContent = '⧉ COPYING…';
-      Diag.copy({ notify: false, context: { kind: diagnosis.code, error: diagnosis.text, engineAlive: true }, onDone: (ok, text) => {
+      // SAVE-403/READ/CACHE are answers FROM the station service, so it is proven up. SAVE-NET is the opposite case — the
+      // request never returned — so liveness is MEASURED (Diag pings GET /api/health), never assumed: the report said
+      // "local engine: REACHABLE" for two 0.13.1 users whose engine was not answering (2026-10-08 SAVE-NET reports).
+      const ctx = { kind: diagnosis.code, error: diagnosis.text };
+      if (reason === 'forbidden' || reason === 'unreadable' || reason === 'cache') ctx.engineAlive = true;
+      Diag.copy({ notify: false, context: ctx, onDone: (ok, text) => {
         reportBtn.disabled = false; reportBtn.textContent = ok ? '✓ RECOVERY DETAILS COPIED' : '⧉ RECOVERY DETAILS SHOWN BELOW';
         if (!ok && reportHost && Diag.showBlock) Diag.showBlock(reportHost, { text });
       } });

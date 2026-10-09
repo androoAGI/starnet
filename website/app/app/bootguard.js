@@ -189,6 +189,19 @@
   }
 
   /* ---- 3. the report + the banner ---- */
+  /* AN OUTDATED WEB ENGINE is not a broken file. macOS 10.15 (Safari 13 WebKit, 2026-10-08 report) parsed the bundle
+     into four SyntaxError/TypeErrors — regex lookbehind, class fields, replaceChildren, MediaQueryList listeners —
+     and the banner said "a broken or blocked file", which RELOAD can never fix. The station code needs regex
+     lookbehind (Safari 16.4 WebKit); on macOS the app window uses the SYSTEM WebKit, which only updates with
+     Safari / macOS. Two literal feature probes (the CSP forbids eval, not `new RegExp`) name the real cause. */
+  function webviewTooOld() {
+    try { new RegExp('(?<=a)b'); } catch (_) { return true; }
+    try { if (typeof Element !== 'undefined' && Element.prototype && !Element.prototype.replaceChildren) return true; } catch (_) {}
+    return false;
+  }
+  function isMacUA() {
+    try { return /Macintosh|Mac OS X/.test(String(root.navigator && root.navigator.userAgent || '')); } catch (_) { return false; }
+  }
   function summaryLine() {
     const parts = [];
     if (state.scriptFailures) parts.push(state.scriptFailures + ' script load failure(s): ' + state.scripts.join(', '));
@@ -206,6 +219,7 @@
     if (state.missing.length) L.push('missing:        ' + state.missing.map(m => m.name + ' (' + m.file + ')').join(', '));
     if (state.scripts.length) L.push('scripts failed: ' + state.scripts.join(', '));
     if (state.retry.attempts) L.push('shared retry:   ' + state.retry.attempts + ' attempt(s) for ' + state.retry.src + (state.retry.recovered ? ' — recovered (reloaded ' + state.retry.reloads + '×)' : state.retry.exhausted ? ' — script load retries exhausted' : ' — in progress'));
+    if (webviewTooOld()) L.push('web engine:     TOO OLD — no regex lookbehind / replaceChildren (needs Safari 16.4+ WebKit on macOS)');
     L.push('page errors:    ' + summaryLine());
     state.errors.forEach(x => L.push('  error:        ' + x));
     state.rejected.forEach(x => L.push('  rejection:    ' + x));
@@ -232,13 +246,20 @@
     const wrap = doc.createElement('div');
     wrap.id = 'bootguard-fatal'; wrap.className = 'bgf'; wrap.setAttribute('role', 'alert');
     // inline essentials so the banner is visible even if app.css itself failed to arrive
-    wrap.style.cssText = 'position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88);font-family:VT323,monospace;';
+    // top/left/right/bottom, not `inset`: the outdated-engine case below must still cover the window (inset is Safari 14.1+)
+    wrap.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:900;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.88);font-family:VT323,monospace;';
 
     const card = doc.createElement('div'); card.className = 'bgf-card';
     const head = doc.createElement('div'); head.className = 'bgf-head';
-    head.textContent = '▮ STATION FAILED TO BOOT';
+    const old = webviewTooOld();
+    const mac = isMacUA();
+    head.textContent = old ? (mac ? '▮ STARNET NEEDS A NEWER macOS' : '▮ STARNET NEEDS A NEWER WEB ENGINE') : '▮ STATION FAILED TO BOOT';
     const lead = doc.createElement('div'); lead.className = 'bgf-lead';
-    lead.textContent = 'the app window loaded, but a required module did not. this is a broken or blocked file, not your station — your saved station has not been changed by this screen.';
+    lead.textContent = old
+      ? (mac
+        ? 'this Mac’s built-in web engine is too old to run StarNet. StarNet needs macOS 11 Big Sur or later with Safari 16.4 or newer — macOS 13.3 Ventura or later works out of the box. nothing is broken and your station is untouched: update macOS (or Safari) in System Settings, then reopen StarNet.'
+        : 'this computer’s web engine is too old to run StarNet (it has no regular-expression lookbehind). nothing is broken and your station is untouched: update the system web engine (WebKitGTK on Linux, WebView2 on Windows), then reopen StarNet.')
+      : 'the app window loaded, but a required module did not. this is a broken or blocked file, not your station — your saved station has not been changed by this screen.';
     const list = doc.createElement('ul'); list.className = 'bgf-list';
     why.forEach(w => { const li = doc.createElement('li'); li.textContent = w; list.appendChild(li); });
     const pre = doc.createElement('pre'); pre.className = 'bgf-pre'; pre.textContent = report();
@@ -256,7 +277,7 @@
     };
     const reloadBtn = doc.createElement('button'); reloadBtn.type = 'button'; reloadBtn.className = 'btn-xl bgf-reload'; reloadBtn.textContent = '⟳ RELOAD';
     reloadBtn.onclick = () => { try { root.location.reload(); } catch (_) {} };
-    acts.appendChild(copyBtn); acts.appendChild(reloadBtn);
+    acts.appendChild(copyBtn); if (!old) acts.appendChild(reloadBtn);   // RELOAD cannot update a web engine
     card.appendChild(head); card.appendChild(lead); card.appendChild(list); card.appendChild(pre); card.appendChild(acts);
     wrap.appendChild(card);
     doc.body.appendChild(wrap);
@@ -285,6 +306,6 @@
     state: () => state,
     installed, summaryLine, report, check, render, verify,
     PROBES: PROBES.map(p => ({ name: p[0], file: p[1] })),
-    _internals: { onError, onRejection, shortPath, isStationScript, isSharedScript, reasonText, PROBES, RETRY_WAITS, RELOAD_MAX }
+    _internals: { webviewTooOld, onError, onRejection, shortPath, isStationScript, isSharedScript, reasonText, PROBES, RETRY_WAITS, RELOAD_MAX }
   };
 });
