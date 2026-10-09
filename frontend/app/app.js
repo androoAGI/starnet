@@ -1615,7 +1615,10 @@ const App = (() => {
     cerebras: ['llama-4-scout-17b-16e-instruct', 'llama3.1-8b', 'qwen-3-coder-480b'],
     ollama: ['qwen3:8b', 'llama3.1', 'qwen2.5-coder', 'mistral'],
     'claude-cli': ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],   // [0] = the default pick; the live catalog adds the rest
-    openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
+    openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro'],
+    // #93: STARNET MANAGED's catalog is the routed vendor/model lineup — a bare 'gpt-5.5' (the openrouter row it used
+    // to borrow) is "not in the catalog" there and the dock cleared it. Its own list saves a catalog-shaped id.
+    starnet: ['openai/gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
   });
   // The genesis model catalog for the ACTIVE provider — {id, name, pricing, context_length, fallback?} items
   // feeding the themed #model-pop popover (which replaced the native <datalist>). genesisOffline flags a
@@ -1683,6 +1686,13 @@ const App = (() => {
      curated FALLBACK list loadModels() already ships, so nothing new is fabricated. Codex hides them —
      its menu is discovered live per-account (loadCodexModels), so a static list there could mislead. */
   const MODEL_PICKS = Object.freeze({
+    // #93: managed ids are vendor/model, like OpenRouter's; [0] is the default a fresh STARNET setup saves.
+    starnet: [
+      { label: 'GPT-5.5', id: 'openai/gpt-5.5', tag: '' },
+      { label: 'Sonnet 4.6', id: 'anthropic/claude-sonnet-4.6', tag: 'balanced' },
+      { label: 'Opus 4.8', id: 'anthropic/claude-opus-4.8', tag: 'deepest' },
+      { label: 'Gemini 2.5 Pro', id: 'google/gemini-2.5-pro', tag: '' }
+    ],
     openrouter: [
       { label: 'Opus 4.8', id: 'anthropic/claude-opus-4.8', tag: 'deepest' },
       { label: 'Sonnet 4.6', id: 'anthropic/claude-sonnet-4.6', tag: 'balanced' },
