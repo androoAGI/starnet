@@ -58,6 +58,14 @@ function startMockOpenRouter(script) {
         req.on('end', () => {
           let parsed = null; try { parsed = JSON.parse(body); } catch (_) {}
           const turn = decide(parsed);
+          // issue #96: an editor prompt must OFFER the model its tools. Before the fix the harness still executed
+          // an unadvertised call, so only this check proves the model was actually told the tool exists.
+          // (only the run's OWN request: the aux reflection passes quote the prompt too, and are tool-less by design)
+          const lastMsg = ((parsed && parsed.messages) || []).slice(-1)[0] || {};
+          if (turn.tool && lastMsg.role === 'user' && String(lastMsg.content || '').trim().toLowerCase() === turn.when) {
+            const offered = ((parsed && parsed.tools) || []).map(t => t && t.function && t.function.name);
+            A.ok(offered.indexOf(turn.tool.name.replace(/\./g, '_')) >= 0, 'the ACP run advertised ' + turn.tool.name + ' before the model called it: ' + JSON.stringify(offered.slice(0, 8)));
+          }
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
           if (turn.hold) {
             // stream one delta then PARK: the run is provably in flight until release() is called

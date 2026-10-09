@@ -166,6 +166,7 @@ function openRun(opts) {
         model: rt.model,
         provider: rt.provider || 'openrouter',
         agentId: 'agent',
+        isTask: true,   // an editor prompt is task work: without it /api/run offers the model NO tools (issue #96)
         messages: (o.messages || []).map(m => ({ role: m.role, content: String(m.content == null ? '' : m.content) })),
         // the coding office: files + shell + web + memory, every mutation still consent-gated (which is what
         // the editor renders as an approve/reject card).
