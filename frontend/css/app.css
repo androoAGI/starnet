@@ -5991,6 +5991,9 @@ body:has(#screen-game.active)::before {
 .consent-payload { margin: 8px 0; }
 .consent-payload summary { cursor: pointer; }
 .consent-payload pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+/* INSPECT FULL REQUEST: the copy key sits under the request it copies */
+.consent-full .consent-full-copy { display: inline-block; margin-top: 6px; }
+.consent-full .consent-full-copy[hidden] { display: none; }
 /* the station builder's card draws its plan (planpreview.js): the station preset cards' plate recipe, the card's width */
 .consent-plan { margin: 8px 0; }
 .consent-plan canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
