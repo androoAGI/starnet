@@ -54,6 +54,11 @@ const R = (err, ctx) => classifyApiError(err, ctx || {});
   A.eq(R(Object.assign(new Error('anthropic http 400 - messages.0.content: field required'), { status: 400 })).reason, 'format_error', 'a malformed-request 400 stays format_error');
   A.ok(R(new Error('An earlier run was interrupted before its spend was recorded, so the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.')).reason !== 'billing', 'a local spend-ledger error is not provider billing');
   A.eq(R(httpErr(400, 'Invalid value for messages[0].role')).reason, 'format_error', 'an ordinary malformed 400 is still format_error');
+  // Groq: a badly-sampled tool call (gpt-oss-120b) is a 400 tool_use_failed — resending re-samples, so it is retryable (2026-10-08 report)
+  const groqTool = xaiErr(400, { error: { message: "Failed to call a function. Please adjust your prompt. See 'failed_generation' for more details.", type: 'invalid_request_error', code: 'tool_use_failed', failed_generation: 'x' } });
+  A.eq(R(groqTool).reason, 'unknown', 'Groq tool_use_failed 400 -> unknown (was format_error: the run died at zero tokens)');
+  A.eq(R(groqTool).retryable, true, 'and it is retried (a resend re-samples the tool call)');
+  A.eq(R(httpErr(400, 'Tool call validation failed: parameters for tool fs_write did not match schema')).retryable, true, 'Groq tool-call validation failure is retried too');
 }
 
 // ---- B. 400 ambiguity: context vs format, gated by the cold-catalog guard ----

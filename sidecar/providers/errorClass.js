@@ -256,6 +256,7 @@
      that `auth`, and the user was told no model was connected. */
   const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?|credit balance is too low/;
 
+  const TOOL_GEN_FAILED_RE = /tool_use_failed|failed to call a function|tool call validation failed/;
   function classify400(low, code, ctx) {
     const c = String(code || '').toLowerCase();
     if (REJECTED_KEY_RE.test(low)) return 'auth';
@@ -265,6 +266,11 @@
     if (NO_CREDIT_RE.test(low)) return 'billing';
     if (/context_length|context_window|max.*token/.test(c)) return 'context_overflow';
     if (/content_policy|moderation/.test(c)) return 'content_policy_blocked';
+    /* Groq answers a tool call the MODEL wrote badly (gpt-oss-120b, Llama) with HTTP 400 `tool_use_failed` — "Failed to
+       call a function. Please adjust your prompt." / "Tool call validation failed". The request was fine, the sampled
+       generation was not, so the same body resent re-samples and usually lands. As format_error it ended the run at
+       zero tokens (2026-10-08 report: gpt-oss-120b on Groq, intermittent provider_stream / format_error). */
+    if (/tool_use_failed/.test(c) || TOOL_GEN_FAILED_RE.test(low)) return 'unknown';
     if (OVERFLOW_RE.test(low)) return 'context_overflow';
     // ratio heuristic ONLY with a known limit — a cold catalog (contextLimit 0) falls to format_error
     if (overRatio(low, ctx)) return 'context_overflow';
