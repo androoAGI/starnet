@@ -284,13 +284,14 @@ function makeBrowserViews(deps) {
     } catch (e) {
       // a session that never got a page is not "open": close it so the profile lease is not held by a blank browser
       if (station === st && !st.driver && !surfaceOf(st.session)) await closeStation();
-      return { ok: false, error: String((e && e.message) || e), url: addr.url };
+      // a held station profile (BROWSER_PROFILE_HELD) carries the repair in its message; never the raw CDP hand-off text
+      return Object.assign({ ok: false, error: String((e && e.message) || e), url: addr.url }, e && e.code === 'BROWSER_PROFILE_HELD' ? { code: e.code } : {});
     }
     if (station !== st) return { ok: false, error: 'the browser was closed' };
     const s = surfaceOf(st.session);
     const ch = chans.get('station'); if (ch) ch.pageAt = 0;
     if (s && s.visible && typeof s.front === 'function') { try { await s.front(); } catch (e) { failNote('view.front', e); } }   // they typed it: show it
-    return { ok: true, url: finalUrl || addr.url, search: !!addr.search, remembered: !!(s && s.remembered), visible: !!(s && s.visible) };
+    return { ok: true, url: finalUrl || addr.url, search: !!addr.search, remembered: !!(s && s.remembered), visible: !!(s && s.visible), profileNote: (s && s.profileNote) || '' };
   }
   async function nav(action) {
     const busy = driving(); if (busy) return busy;
@@ -454,7 +455,7 @@ function makeBrowserViews(deps) {
     const st = station;
     const s = st ? surfaceOf(st.session) : null;
     const d = st && st.driver ? { agentId: st.driver.agentId, runId: st.driver.runId, signIn: !!st.signIn } : null;
-    return { agents, settings: settings(), station: { available: !!makeSession, open: !!s, mode: st ? st.mode : effectiveMode(), visible: !!(s && s.visible), driver: d, handoff: !!(d && handoffLive(d.runId)), remembered: !!(s && s.remembered), setup: setupState() } };
+    return { agents, settings: settings(), station: { available: !!makeSession, open: !!s, mode: st ? st.mode : effectiveMode(), visible: !!(s && s.visible), driver: d, handoff: !!(d && handoffLive(d.runId)), remembered: !!(s && s.remembered), profileNote: (s && s.profileNote) || '', setup: setupState() } };
   }
   /* RESET STATION BROWSER (#61, Settings > BROWSER): close the station browser, then end any ORPHANED StarNet browser
      on the durable profile (one an earlier StarNet process started and left behind, its proxy dead) and clear the

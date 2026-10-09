@@ -844,7 +844,11 @@
     // reaches Chromium as an automation signal and sets navigator.webdriver.
     const cdpPort = deps.cdpPort == null ? DEFAULT_PORT : Number(deps.cdpPort);
     const privatePort = cdpPort === 0;
-    const profileDir = deps.profileDir || P.join(OS.tmpdir(), 'starnet-browser-' + process.pid);
+    // `let`: a launch the HELD persistent profile defeated moves, once, to a fresh temporary profile (heldFallback below)
+    let profileDir = deps.profileDir || P.join(OS.tmpdir(), 'starnet-browser-' + process.pid);
+    let heldFallback = null, heldFallbackDir = null, heldFailure = null;
+    // the durable station profile is in play only until a held-profile fallback moved this browser off it
+    const onPersistent = () => !!deps.profileIsPersistent && !heldFallback;
     // Page-realm safety/settle state must be readable by the driver, but fixed product-named globals
     // are an avoidable signature. Opaque per-profile slots preserve the contract without publishing
     // `__STARNET_*` on every site.
@@ -855,7 +859,7 @@
     const settleProbe = settleProbeSource(settleMarker);
     const stationMetrics = { width: 1440, height: 900, screenWidth: 1440, screenHeight: 900, deviceScaleFactor: 1, mobile: false };
     // Stale from a previous run on this profile; cleared so nothing can mistake it for live state.
-    const activePortFile = P.join(profileDir, 'DevToolsActivePort');
+    let activePortFile = P.join(profileDir, 'DevToolsActivePort');
     const timeoutMs = deps.timeoutMs || 15000;
     // Navigation is the one command whose duration is the SITE's to decide, not ours, so it gets its own
     // budget. Derived from timeoutMs (so an injected test rig scales with it) and floored well above it.
@@ -1227,7 +1231,7 @@
       : (spawn === CP.spawn ? (o => Orphans.sweep(o)) : null);
     let lastOrphanSweep = null;
     async function healOrphans() {
-      if (!orphanSweep || !deps.profileIsPersistent || attachPort !== null) return null;
+      if (!orphanSweep || !onPersistent() || attachPort !== null) return null;
       let held = null;
       try { held = (typeof deps.profileHeld === 'function' ? deps.profileHeld : (d => Orphans.profileHeld(d, { platform: deps.platform, readlink: deps.readlinkSync, hostname: deps.hostname, alive: deps.pidAlive })))(profileDir); }
       catch (e) { failNote('browser.orphans.held', e); held = null; }
@@ -1245,6 +1249,7 @@
     }
     async function connectWithRetry() {
       if (cdp) return cdp;
+      if (heldFailure) throw heldFailure;   // the one held-profile fallback already failed: no relaunch loop on this driver
       if (!chromePath && attachPort === null) {
         const got = await deps.ensureChromium();   // single-flight download of Chrome for Testing
         if (!got) throw new Error('browser unavailable: Chromium not found and none could be downloaded');
@@ -1264,7 +1269,51 @@
           await sleep(700 * (attempt + 1));
         }
       }
-      throw lastErr;
+      return heldProfileFallback(lastErr);
+    }
+    /* HELD PROFILE (customer report 2026-10-08, Windows 10, v0.13.1: the station browser never started — "spawned
+       Chromium exited before CDP ownership was established", six launch retries, lockfile never free). Some process
+       StarNet cannot see by command line (a chrome.exe started as administrator, an antivirus lock) holds the durable
+       profile, so every Chromium we start hands off to it and exits; the orphan sweep finds nothing to end. Bounded:
+       ONCE per driver, when the launch on the PERSISTENT profile failed by hand-off AND the profile is still held,
+       start on a fresh temporary profile (signed out — usingPersistentProfile() turns false and profileFallback() says
+       why). If that fails too, the error names the repair. The durable profile itself is never deleted. */
+    function persistentHeld() {
+      try {
+        const fn = typeof deps.profileHeld === 'function' ? deps.profileHeld
+          : (d => Orphans.profileHeld(d, { platform: deps.platform, readlink: deps.readlinkSync, hostname: deps.hostname, alive: deps.pidAlive }));
+        const h = fn(profileDir);
+        return !!(h && h.held);
+      } catch (e) { failNote('browser.orphans.held', e); return false; }
+    }
+    function profileHeldError(cause) {
+      const err = new Error('The station browser could not start: another process is holding the station browser\'s profile — '
+        + 'open SETTINGS › BROWSER › RESET STATION BROWSER, or end any chrome.exe that StarNet started (one started as '
+        + 'administrator can\'t be closed by StarNet), then try again');
+      err.code = 'BROWSER_PROFILE_HELD';
+      err.cause = cause;
+      return err;
+    }
+    async function heldProfileFallback(lastErr) {
+      const handedOff = /exited before CDP ownership|could not attach to Chromium/.test(String((lastErr && lastErr.message) || ''));
+      if (attachPort !== null || !deps.profileIsPersistent || heldFallback || !handedOff || !persistentHeld()) throw lastErr;
+      try { heldFallbackDir = FS.mkdtempSync(P.join(OS.tmpdir(), 'starnet-browser-' + process.pid + '-held-')); }
+      catch (e) { failNote('browser.profile-held-fallback', e); heldFailure = profileHeldError(lastErr); throw heldFailure; }
+      heldFallback = 'Saved sign-ins are not available this session: another process is holding the station browser profile, '
+        + 'so this browser started on a temporary profile.';
+      failNote('browser.profile-held-fallback', new Error('another process is holding the station browser profile ' + profileDir
+        + ': relaunching ONCE on a temporary profile, without saved sign-ins (' + String((lastErr && lastErr.message) || lastErr) + ')'));
+      profileDir = heldFallbackDir;
+      activePortFile = P.join(profileDir, 'DevToolsActivePort');
+      try { return await connectOnce(); }
+      catch (e) {
+        failNote('browser.profile-held-fallback', e);
+        if (proc && !procExited) await killTree(proc.pid);
+        proc = null; procExited = false; procError = null; procClosePromise = null;
+        if (networkProxy) { const px = networkProxy; networkProxy = null; try { await px.close(); } catch (e2) { failNote('browser.launch-retry.proxy', e2); } }
+        heldFailure = profileHeldError(e);
+        throw heldFailure;
+      }
     }
     async function connectOnce() {
       if (cdp) return cdp;
@@ -2748,7 +2797,7 @@
       // Only OUR persistent browser: a forced kill can lose newly written login cookies. Browser.close
       // flushes Chromium's profile stores. An attached user browser has no owned process and is never closed.
       let exited = false;
-      if (owned && cdp && deps.profileIsPersistent) {
+      if (owned && cdp && onPersistent()) {
         let timer;
         try {
           await Promise.race([cdp.send('Browser.close').catch(swallow('browser.profile.close')), new Promise(resolve => { timer = setTimeout(resolve, 1500); })]);
@@ -2768,12 +2817,15 @@
       if (networkProxy) { const proxy = networkProxy; networkProxy = null; await proxy.close(); }
       // keepProfile: a dead browser being replaced — its successor is about to start on this same directory
       if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) { try { FS.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {} }
+      // the held-profile fallback's temporary dir is this driver's alone (a successor makes its own): always removed —
+      // by its OWN variable, so the durable station profile can never be the one deleted
+      if (heldFallbackDir) { try { FS.rmSync(heldFallbackDir, { recursive: true, force: true }); } catch (e) { failNote('browser.profile-held-fallback.rm', e); } }
     }
     // visible() is the TRUTH the model reports: true only if the controlled window is
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: () => !!deps.profileIsPersistent, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
+    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -3496,8 +3548,11 @@
         if (typeof d[fn] !== 'function') throw new Error('this browser cannot be handed to the Commander (driver has no ' + fn + ')');
       }
       // A sign-in lasts past this run only on the durable station profile (the leased one) — say which, truthfully.
-      const remembered = !attachedToUserBrowser && (leaseHeld || (typeof d.usingPersistentProfile === 'function' && d.usingPersistentProfile() === true));
+      // …and a driver the HELD profile moved to a temporary one remembers nothing, lease or not
+      const heldNote = (typeof d.profileFallback === 'function' && d.profileFallback()) || '';
+      const remembered = !attachedToUserBrowser && !heldNote && (leaseHeld || (typeof d.usingPersistentProfile === 'function' && d.usingPersistentProfile() === true));
       return {
+        profileNote: heldNote,
         startStream: onFrame => d.streamStart(onFrame),
         stopStream: () => d.streamStop(),
         input: ev => d.humanInput(ev),
@@ -3541,11 +3596,16 @@
       const d = driver || null;
       return !!(d && d.headlessFallback);
     }
+    // the driver's held-profile fallback note ('' when it runs on the profile it was given)
+    function profileNote() {
+      const d = driver || null;
+      return (d && typeof d.profileFallback === 'function' && d.profileFallback()) || '';
+    }
     function attachedPort() {
       const d = driver || null;
       return d && typeof d.attachedPort === 'function' ? d.attachedPort() : null;
     }
-    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
+    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, profileNote, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
   }
 
   function makeBrowserTools(deps) {
@@ -3646,7 +3706,8 @@
           // HONEST STATUS. Without this the agent cannot tell a 403/404 from a page that simply
           // rendered nothing, and will happily read an error page back as the answer.
           const http = describeResponse(session.lastResponse && session.lastResponse());
-          return { content: 'Browser navigated to ' + url + http.text + suffix + authHint(challenge), summary: 'navigated' + http.summary };
+          const held = session.profileNote ? session.profileNote() : '';
+          return { content: 'Browser navigated to ' + url + http.text + suffix + authHint(challenge) + (held ? ' ' + held : ''), summary: 'navigated' + http.summary };
         }), { timeoutMs: NAV_TOOL_TIMEOUT_MS }),
       testRead('browser.test_navigate', 'Open an agent-owned local dev URL (127.0.0.1/localhost/::1 only) in the HEADLESS CDP browser for UI/game testing. In normal runs serverId must name this agent\'s running shell background server. Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.', { type: 'object', required: localNavRequired, properties: { url: { type: 'string' }, serverId: { type: 'string' } } },
         async (a, ctx) => {
