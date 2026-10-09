@@ -115,12 +115,41 @@ const tick = () => new Promise(r => setImmediate(r));   // let settled promise c
     const h = harness();
     h.poster.offer({ hash: 'p1' }, 'h1');
     const late = h.posts[0];
-    h.poster.offer({ hash: 'p2' }, 'h2');            // supersede while h1 is still in flight
-    A.eq(h.posts.length, 2, 'the newer floor posts immediately');
+    h.poster.offer({ hash: 'p2' }, 'h2');            // a newer floor while h1 is still on the wire
+    A.eq(h.posts.length, 1, 'ONE POST AT A TIME: the newer floor waits — two POSTs on separate connections can arrive out of order');
+    A.ok(h.poster.state().stale && h.poster.state().pendingHash === 'h2', 'meanwhile the sidecar is honestly stale and h2 is what is owed');
     late.resolve({ ok: true, status: 200 }); await tick();
-    A.ok(h.poster.state().lastHash === null, 'the STALE h1 response commits nothing (seq guard)');
+    A.eq(h.poster.state().lastHash, 'h1', 'h1 was truly accepted (it is what the sidecar holds right now)');
+    A.eq(h.posts.length, 2, 'the moment h1 settles, the newest floor goes out');
+    A.eq(h.posts[1].plan.hash, 'p2', '...and it is h2, so the sidecar ends on the floor the page drew');
+    A.ok(h.poster.state().stale, 'still stale until h2 is answered');
     h.posts[1].resolve({ ok: true, status: 200 }); await tick();
     A.eq(h.poster.state().lastHash, 'h2', 'the current delivery commits normally');
+    A.ok(!h.poster.state().stale, 'and staleness clears');
+    // several floors offered while one is on the wire: only the NEWEST follows (no backlog replay)
+    const h3 = harness();
+    h3.poster.offer({ hash: 'a' }, 'ha'); h3.poster.offer({ hash: 'b' }, 'hb'); h3.poster.offer({ hash: 'c' }, 'hc');
+    A.eq(h3.posts.length, 1, 'still one POST on the wire');
+    h3.posts[0].resolve({ ok: true, status: 200 }); await tick();
+    A.eq(h3.posts.length, 2, 'one follow-up'); A.eq(h3.posts[1].plan.hash, 'c', 'the follow-up is the newest floor (b is skipped)');
+    // the floor reverted to the one on the wire: nothing more to send
+    const h4 = harness();
+    h4.poster.offer({ hash: 'a' }, 'ha'); h4.poster.offer({ hash: 'b' }, 'hb'); A.ok(!h4.poster.offer({ hash: 'a' }, 'ha'), 'offering the in-flight floor again drops the queued one');
+    h4.posts[0].resolve({ ok: true, status: 200 }); await tick();
+    A.eq(h4.posts.length, 1, 'no follow-up POST'); A.eq(h4.poster.state().lastHash, 'ha'); A.ok(!h4.poster.state().stale, 'not stale');
+    // a FAILED in-flight POST with a newer floor queued delivers the newer floor (no retry of the old one)
+    const h5 = harness();
+    h5.poster.offer({ hash: 'a' }, 'ha'); h5.poster.offer({ hash: 'b' }, 'hb');
+    h5.posts[0].reject(new Error('down')); await tick();
+    A.eq(h5.posts.length, 2, 'the newer floor goes out at once'); A.eq(h5.posts[1].plan.hash, 'b'); A.eq(h5.pending().length, 0, 'no retry of the superseded floor');
+    // flush() waits for the NEWEST floor's verdict, not the one that happened to be on the wire
+    const h6 = harness();
+    h6.poster.offer({ hash: 'a' }, 'ha'); h6.poster.offer({ hash: 'b' }, 'hb');
+    let flushed = null; h6.poster.flush().then(st => { flushed = st; });
+    h6.posts[0].resolve({ ok: true, status: 200 }); await tick();
+    A.ok(flushed === null, 'flush is still waiting while the newest floor is on the wire');
+    h6.posts[1].resolve({ ok: true, status: 200 }); await tick();
+    A.ok(flushed && flushed.lastHash === 'hb' && !flushed.stale, 'flush resolves with the newest floor delivered');
     // and a pending retry is canceled by a newer offer
     const h2 = harness();
     h2.poster.offer({ hash: 'p1' }, 'h1');

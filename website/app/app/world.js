@@ -9001,6 +9001,8 @@ const World = (() => {
     let refusedHash = null;   // the hash of the last 422-refused plan (refusal state, inspectable)
     let pendingHash = null;   // the hash currently being delivered (in flight or awaiting a retry tick)
     let inflight = false, timer = null, seq = 0;
+    let sendingHash = null;   // the hash of the POST on the wire right now
+    let queued = null;        // the NEWEST floor offered while a POST was on the wire — sent the moment it settles
     let stale = false;        // honest flag: the sidecar may still route by an older floor than the one drawn
     let waiters = [];         // flush() callers awaiting the NEXT server answer (run-now ordering, 2026-08-22)
     function state() { return { lastHash: lastHash, refusedHash: refusedHash, pendingHash: pendingHash, inflight: inflight, retryPending: timer != null, stale: stale }; }
@@ -9010,7 +9012,15 @@ const World = (() => {
        routes the line the user just drew, not the last one it heard about. A failed attempt resolves too
        (stale=true, retries continue in the background): the caller refuses rather than running a stale floor. */
     function flush() { return new Promise(resolve => { if (!inflight && timer == null) resolve(state()); else waiters.push(resolve); }); }
+    /* ONE POST AT A TIME, IN ORDER (2026-10-08). Two POSTs on separate connections can ARRIVE out of order: the
+       sidecar then kept the OLDER floor while this page committed the newer hash and believed it delivered — a
+       built line read READY TO RUN while the router said "no armed work line" (station-builder e2e, intermittent
+       under load). While a POST is on the wire, the newest offer waits in `queued` and goes out when it settles. */
     function offer(plan, hash) {
+      if (inflight) {
+        if (hash === sendingHash) { queued = null; return false; }           // the floor on the wire IS the newest again
+        queued = { plan: plan, hash: hash }; pendingHash = hash; stale = true; return true;
+      }
       if (hash === lastHash) return false;                                   // server already answered this exact floor
       if (hash === pendingHash && (inflight || timer != null)) return false; // same floor already being delivered
       if (timer != null) { deps.cancel(timer); timer = null; }               // a different floor supersedes the pending retry
@@ -9021,7 +9031,8 @@ const World = (() => {
     function send(plan, hash, attempt, mySeq) {
       const fail = why => {
         if (mySeq !== seq) return;   // superseded — the newer offer owns delivery (and the flags) now
-        inflight = false;
+        inflight = false; sendingHash = null;
+        if (drainQueued()) return;   // a NEWER floor was offered meanwhile: deliver it instead of retrying this one
         stale = true;
         deps.warn('[routing] plan post failed (' + why + ') — sidecar routing may be stale' +
           (attempt < MAX_RETRIES ? '; retrying in ' + RETRY_MS + 'ms' : '; will retry on the next floor change'));
@@ -9029,15 +9040,25 @@ const World = (() => {
         settle();
       };
       let p = null;
-      inflight = true;
+      inflight = true; sendingHash = hash;
       try { p = deps.post(plan); } catch (_) { fail('exception'); return; }
       Promise.resolve(p).then(res => {
         if (mySeq !== seq) return;   // superseded — never let a stale response commit or clear flags
-        inflight = false;
-        if (res && res.ok) { lastHash = hash; refusedHash = null; pendingHash = null; stale = false; settle(); return; }
-        if (res && res.status === 422) { lastHash = hash; refusedHash = hash; pendingHash = null; stale = false; settle(); return; }
+        inflight = false; sendingHash = null;
+        if (res && res.ok) { lastHash = hash; refusedHash = null; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
+        if (res && res.status === 422) { lastHash = hash; refusedHash = hash; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
         fail('http ' + (res ? res.status : '?'));
       }, () => fail('network'));
+    }
+    // the wire is free: send the newest floor offered while it was busy (unless the server already holds it)
+    function drainQueued() {
+      const q = queued; queued = null;
+      if (!q) return false;
+      if (q.hash === lastHash) { pendingHash = null; return false; }
+      if (timer != null) { deps.cancel(timer); timer = null; }
+      pendingHash = q.hash; stale = true;
+      send(q.plan, q.hash, 0, ++seq);
+      return true;
     }
     return { offer: offer, state: state, flush: flush };
   }
