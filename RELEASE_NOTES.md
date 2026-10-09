@@ -74,7 +74,7 @@ A large repair update: credits and spending tell the truth, in-app updates are s
 
 - **Your agents can drive StarNet.** Ask in plain words and the agent opens any window for you, changes settings, and handles E-STOP, the away queue, cleanup, groups and notifications. Agents now understand every part of StarNet, and a lead can read which sessions are busy (#55).
 - **Ctrl+K FIND** searches every window, agent and conversation.
-- **INSPECT FULL REQUEST** on approval cards shows the complete arguments (secrets hidden), not an 80-character clip.
+- **Approvals show the whole request.** A long command or path is no longer cut at 80 characters: the card shows one short line, and INSPECT COMPLETE REQUEST holds every character (secrets hidden), with COPY COMMAND for shell commands. Group chats and Telegram approvals carry it too.
 - **/v1 and ACP editor runs get tools** (#96).
 - **HINTS switch** in Settings turns hover bubbles off, also from chat (#79).
 - **ERASE EVERYTHING** in Settings deletes all StarNet data on this computer and restarts fresh (#65).

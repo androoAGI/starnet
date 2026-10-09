@@ -3067,6 +3067,27 @@ const Chat = (() => {
   // a live consent prompt: the agent wants to do something that needs approval (a file write today). The run is
   // PAUSED on the sidecar until the Commander answers — once / always (this kind) / full access (everything this
   // session) / deny. Answering resumes the stream automatically.
+  /* THE GLANCE LINE (user report 10-08). argsSummary is the WHOLE request now (consentSummary stopped clipping it at
+     77 chars, which hid a long command's tail), so it never goes into a phrase, a toast or a notification raw: those
+     get one short line, and the card carries the whole thing in INSPECT COMPLETE REQUEST (permissionRow). */
+  function glance(s, n) { const one = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); n = n || 96; return one.length > n ? one.slice(0, n - 1) + '…' : one; }
+  function requestArgs(s) { try { const o = JSON.parse(String(s || '')); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (_) { return null; } }
+  // what a consent card's INSPECT panel holds: { label, text } or null. A file change shows the mutation, a routine what
+  // it runs each time; any other request shows its arguments in full. Cards the sidecar words itself (station build /
+  // control, folder trust, a login host, a question) and a bare short value the phrase already shows get no panel.
+  function consentInspect(p) {
+    const t = String((p && p.tool) || ''), raw = String((p && p.argsSummary) || '');
+    if (/^fs[._](?:write|append|edit|patch)$/.test(t)) return { label: 'Inspect proposed change (secret patterns redacted)', text: raw || '(payload unavailable)' };
+    if (/^routine[._](?:create|manage)$/.test(t)) { const o = requestArgs(raw); return { label: 'What it will do each run', text: (o && o.prompt) ? String(o.prompt) : raw || '(payload unavailable)' }; }
+    if (!raw.trim() || /^station[._]/.test(t) || /^(?:path\.trust|browser\.login(?:\.done)?|brief\.ask)$/.test(t)) return null;
+    const o = requestArgs(raw), label = 'Inspect complete request (secret patterns redacted)';
+    if (!o) return glance(raw) === raw.trim() ? null : { label, text: raw };
+    // read as written, not as JSON: a Windows path shows C:\Users, never C:\\Users, and a command is the exact text
+    // that will run — so COPY COMMAND hands over something you can paste into a terminal
+    const text = Object.keys(o).map(k => k + ': ' + (typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k], null, 2))).join('\n');
+    const command = /^(?:shell|terminal)[._]/.test(t) ? [o.cmd, o.command, o.input, o.data].find(v => typeof v === 'string' && v) : '';
+    return command ? { label, text, copy: command, copyLabel: 'COPY COMMAND' } : { label, text };
+  }
   function actionPhrase(ev) {
     const t = ev.tool || 'act';
     // a PLUGIN tool (plugin__<id>__<tool>): say whose code it is before what it does — checked first, so a plugin
@@ -3076,7 +3097,7 @@ const Chat = (() => {
       const host = typeof PluginHost !== 'undefined' ? PluginHost : null;
       const san = (s) => String(s || '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^[_-]+|[_-]+$/g, '');   // plugin-tools.js sanitizePart
       const p = host && host.list ? host.list().find(x => x.id === pm[1] || san(x.id) === pm[1]) : null;
-      return 'use the ' + ((p && p.name) || pm[1]) + ' plugin tool “' + pm[2] + '”' + (ev.argsSummary ? ' ' + ev.argsSummary : '');
+      return 'use the ' + ((p && p.name) || pm[1]) + ' plugin tool “' + pm[2] + '”' + (ev.argsSummary ? ' ' + glance(ev.argsSummary) : '');
     }
     // the crew INSTALLING a plugin it wrote: say that it stays off until the Commander's own approval
     if (/^plugin[._]submit$/.test(t)) {
@@ -3085,7 +3106,13 @@ const Chat = (() => {
       return 'install the plugin it built' + (id ? ' “' + id + '”' : '') + ' — it stays OFF until you approve its code in ABILITIES → EXTENSIONS';
     }
     if (/notebook/.test(t)) return 'save a note to its memory';
-    if (/summon/.test(t)) return 'summon a new agent onto the crew' + (ev.argsSummary ? ' (' + ev.argsSummary + ')' : '');
+    if (/summon/.test(t)) return 'summon a new agent onto the crew' + (ev.argsSummary ? ' (' + glance(ev.argsSummary) + ')' : '');
+    // a command: name it in words, its text clipped to a glance; the card's inspect panel holds every character of it
+    if (/^(?:shell|terminal)[._]/.test(t)) {
+      const o = requestArgs(ev.argsSummary) || {};
+      const typed = /write$/.test(t), text = o.cmd || o.command || o.input || o.data;
+      return (typed ? 'type into a running process' : 'run a command') + (typeof text === 'string' && text ? ': ' + glance(text) : ev.argsSummary ? ' ' + glance(ev.argsSummary) : '');
+    }
     // NS-5 conversational path trust: a file was referenced OUTSIDE the agent's workspace — "Always" blesses
     // the whole project folder for future reads (revocable in Permissions); argsSummary is the proposed root.
     if (t === 'path.trust') return 'work with files in ' + (ev.argsSummary || 'a project folder') + ' (reads; "Always" or "Full access" trusts it for later)';
@@ -3098,7 +3125,7 @@ const Chat = (() => {
       try { target = JSON.parse(target).path || 'a file'; } catch (_) {}
       return 'change ' + target;
     }
-    if (/write|append|edit/.test(t)) return 'write ' + (ev.argsSummary || 'a file');
+    if (/write|append|edit/.test(t)) return 'write ' + (glance(ev.argsSummary) || 'a file');
     if (t === 'brief.ask') return 'ask you a quick question about the task';   // clarify card renders its own body
     // ROUTINES: say WHAT will run and WHEN, never the raw JSON (argsSummary may be clipped mid-object, so read fields
     // by pattern rather than JSON.parse). "Always" here lets the agent add and change routines without asking.
@@ -3120,7 +3147,7 @@ const Chat = (() => {
     if (/^station[._]start_line$/.test(t)) return 'set what starts ' + (String(ev.argsSummary || '').split('\n')[0] || 'a workflow line');
     // STATION CONTROL (2026-10-02): a settings change asked for in chat — the sidecar's catalog sentence, never raw JSON
     if (/^station[._](?:control|power)$/.test(t)) return String(ev.argsSummary || 'change a station setting').split('\n')[0];
-    return t.replace(/_/g, '.') + (ev.argsSummary ? ' ' + ev.argsSummary : '');
+    return t.replace(/_/g, '.') + (ev.argsSummary ? ' ' + glance(ev.argsSummary) : '');
   }
 
   /* IN-TURN CLARIFY CARD (2026-07-31, Hermes-parity). A brief.ask prompt rides the consent transport but is
@@ -3276,32 +3303,6 @@ const Chat = (() => {
     const composerBusy = !!(input && (document.activeElement === input || (input.value && input.value.trim())));
     if (!composerBusy) { try { r.d.focus({ preventScroll: true }); } catch (_) { try { r.d.focus(); } catch (_) {} } }
   }
-  /* INSPECT FULL REQUEST (customer report, 0.13.1): the card's one-line summary clips a long command or path at 80 characters,
-     so the Commander could not see what they were approving. Every consent card that has no other payload view gets this
-     disclosure: on first open it reads the WHOLE redacted request from the sidecar (load() → Harness.consentArgs) into a
-     selectable, scrollable block with a copy key. A prompt already answered says so instead of showing stale text. */
-  function fullRequestDisclosure(load) {
-    const detail = document.createElement('details'); detail.className = 'consent-payload consent-full';
-    const label = document.createElement('summary'); label.textContent = 'INSPECT FULL REQUEST (secrets redacted)';
-    const payload = document.createElement('pre'); payload.className = 'consent-full-text'; payload.textContent = 'reading the full request…';
-    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'consent-btn quiet consent-full-copy';
-    copy.textContent = '⧉ COPY'; copy.hidden = true; copy.setAttribute('aria-label', 'Copy the full request');
-    copy.onclick = () => copyText(payload.textContent || '').then(ok => { copy.textContent = ok ? '✓ COPIED' : '! COPY FAILED, select the text'; setTimeout(() => { copy.textContent = '⧉ COPY'; }, 1400); });
-    let asked = false;
-    detail.addEventListener('toggle', () => {
-      if (!detail.open || asked) return;
-      asked = true;
-      Promise.resolve().then(load).then(j => {
-        if (j && j.ok && j.noDetails) { payload.textContent = 'This request has no details beyond the line above.'; return; }
-        if (j && j.ok) { payload.textContent = j.args; copy.hidden = false; return; }
-        asked = !!(j && j.gone);   // a failed read may be retried by reopening; an answered prompt never comes back
-        payload.textContent = j && j.gone ? 'This approval was already answered or expired, so its request is no longer held.'
-          : 'Could not read the full request: ' + ((j && j.error) || 'unknown error') + '. Close and reopen to try again.';
-      }, e => { asked = false; payload.textContent = 'Could not read the full request: ' + ((e && e.message) || String(e)) + '. Close and reopen to try again.'; });
-    });
-    detail.appendChild(label); detail.appendChild(payload); detail.appendChild(copy);
-    return detail;
-  }
   // p = a consent payload { promptId, tool, argsSummary } — works for both a live onPermission event and a
   // Channels snapshot.pending (re-rendered after a switch). ws is the origin stream, so the answer routes to
   // THAT stream's run (per-channel runId), not a single global one.
@@ -3309,15 +3310,20 @@ const Chat = (() => {
     if (p && p.tool === 'brief.ask') return clarifyRow(p, ws);   // a question, not a grade — its own card
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('consent');
     r.body.appendChild(document.createTextNode('▣ ' + name + ' wants to ' + actionPhrase(p) + ' '));
-    if (/^(?:fs[._](?:write|append|edit|patch)|routine[._](?:create|manage))$/.test(String(p.tool || ''))) {
+    // INSPECT: an approval carries the request it approves, every character of it, one click away (user report 10-08:
+    // a long shell command showed 77 chars and a "…", and nothing on the card held the rest)
+    const inspect = consentInspect(p);
+    if (inspect) {
       const detail = document.createElement('details'); detail.className = 'consent-payload';
-      const label = document.createElement('summary');
-      label.textContent = /^routine/.test(String(p.tool)) ? 'What it will do each run' : 'Inspect proposed change (secret patterns redacted)';
-      const payload = document.createElement('pre'); payload.textContent = p.argsSummary || '(payload unavailable)';
-      if (/^routine/.test(String(p.tool))) { try { const o = JSON.parse(p.argsSummary || '{}'); if (o.prompt) payload.textContent = String(o.prompt); } catch (_) { /* clipped payload: the raw text above stays */ } }
-      detail.appendChild(label); detail.appendChild(payload); r.body.appendChild(detail);
-    } else if (p.tool !== 'path.trust' && !/^browser[._]login/.test(String(p.tool || '')) && p.promptId) {   // a sign-in hand-off has no arguments to inspect
-      r.body.appendChild(fullRequestDisclosure(() => Harness.consentArgs((ws && typeof Channels !== 'undefined') ? Channels.runIdOf(ws.id) : null, p.promptId)));
+      const label = document.createElement('summary'); label.textContent = inspect.label;
+      const payload = document.createElement('pre'); payload.textContent = inspect.text;
+      const idle = inspect.copyLabel || 'COPY';
+      const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'consent-btn quiet consent-copy'; copy.textContent = idle;
+      copy.onclick = () => copyText(inspect.copy || inspect.text).then(ok => {
+        copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text above';
+        clearTimeout(copy.__t); copy.__t = setTimeout(() => { copy.textContent = idle; }, 1400);
+      });
+      detail.appendChild(label); detail.appendChild(payload); detail.appendChild(copy); r.body.appendChild(detail);
     }
     // the station builder's card: every step's instructions, one click away (the summary line is in the phrase above)
     if (/^station[._]build$/.test(String(p.tool || '')) && String(p.argsSummary || '').indexOf('\n') > 0) {
@@ -9859,5 +9865,5 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { consentDisclosure: fullRequestDisclosure, init, load, send, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
+  return { init, load, send, consentInspect, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak };
 })();

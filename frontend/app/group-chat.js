@@ -10,6 +10,7 @@ const GroupChat = (() => {
   let mentionItems = [], mentionSel = 0, mentionCtx = null, mentionBusy = false;
   let basePlaceholder = null;
   const composerDrafts = new Map();
+  const inspectOpen = new Set();   // approval promptIds whose INSPECT panel the Commander opened (survives a re-render)
   const sharedAttachments = new Map();
   const $ = id => document.getElementById(id);
   const uid = () => crypto.randomUUID();
@@ -173,7 +174,7 @@ const GroupChat = (() => {
       .gc-state .gc-dot{flex:0 0 auto;color:var(--ph);text-shadow:0 0 6px var(--ph-glow);animation:1s steps(1) infinite comms-blink}.gc-state .gc-verb{letter-spacing:1.5px;text-transform:uppercase}.gc-state .gc-what{color:var(--ph-dim);font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis}
       .gc-state.hold{border-left-color:var(--gold);background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 14%,transparent),rgba(0,0,0,.25))}.gc-state.hold .gc-dot,.gc-state.hold .gc-verb{color:var(--gold);animation:none;text-shadow:none}
       .gc-state.bad{border-left-color:var(--bad)}.gc-state.bad .gc-dot,.gc-state.bad .gc-verb{color:var(--bad);animation:none;text-shadow:none}
-      .gc-state .gc-approval{flex:1 0 100%;font-size:12px;color:var(--text);opacity:.9;overflow-wrap:anywhere}.gc-state .consent-full{flex:1 0 100%;min-width:0;margin:2px 0 0;letter-spacing:0}.gc-state .consent-full :is(summary,pre){font-size:var(--sn-type-control,14px);line-height:1.5;color:var(--text)}.gc-state .bb{margin-left:auto!important;font-size:11px!important;min-height:20px!important;padding:0 6px!important}.gc-state .bb+.bb{margin-left:0!important}
+      .gc-state .gc-inspect summary{cursor:pointer}.gc-state .gc-inspect pre{max-height:240px;overflow:auto;margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}.gc-state .gc-approval{flex:1 0 100%;font-size:12px;color:var(--text);opacity:.9;overflow-wrap:anywhere}.gc-state .bb{margin-left:auto!important;font-size:11px!important;min-height:20px!important;padding:0 6px!important}.gc-state .bb+.bb{margin-left:0!important}
       #gc-questions{flex:0 0 auto;max-height:50%;overflow:auto}.gc-question{padding:8px 12px;border-left:2px solid var(--gold);background:var(--panel2);font-size:14px}.gc-question p{margin:5px 0}.gc-question-choices{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}.gc-question small,.gc-transfer{color:var(--ph-dim);font-size:12px}.gc-transfer{padding:2px 0 5px 14px;flex:0 0 auto}
       #gc-notice:empty{display:none}#gc-notice{flex:0 0 auto;padding:4px 12px;font-size:13px;color:var(--gold);overflow-wrap:anywhere}
       /* the picker fills its window: the two lists share the height and scroll on their own, the footer never leaves view */
@@ -200,7 +201,6 @@ const GroupChat = (() => {
      Every few seconds (never while the window is hidden) the station-wide list says what each group is doing, and the
      rail reads it: unread activity, "Reply needed", "Approval needed", working. All of it is backend state. */
   const states = new Map();
-  const fullAsks = new Map();   // promptId -> its INSPECT FULL REQUEST disclosure, kept across the strip's rebuilds
   let watching = false, watchTimer = 0;
   function stateOf(id) {
     if (group && group.id === id && active?.id === id) {
@@ -408,7 +408,6 @@ const GroupChat = (() => {
       questions.append(card);
     }
     const states = $('gc-states'); states.replaceChildren();
-    const liveAsks = new Set();
     const VERB = { queued: 'queued', held: 'ready', connecting: 'connecting…', running: 'working', 'waiting for answer': 'waiting for your answer', 'waiting for approval': 'needs approval', stopping: 'stopping', failed: 'failed', interrupted: 'interrupted', stopped: 'stopped' };
     const pendingQ = (group.questions || []).find(q => q.state === 'pending');
     const needsYou = t => t.state === 'waiting for approval' || t.state === 'held' || (t.state === 'queued' && group.paused);
@@ -433,19 +432,29 @@ const GroupChat = (() => {
       if (t.approval) {
         // the keys first (line one), the argument text under them: a short window clips text, never the decision
         for (const decision of ['once', 'deny']) row.append(button(decision === 'once' ? 'ALLOW ONCE' : 'DENY', async () => { await api({ op: 'answer', id: group.id, promptId: t.approval.promptId, decision }); }));
-        row.append(h('div', { class: 'gc-approval' }, t.approval.tool + ' · ' + t.approval.argsSummary));
-        // the summary above is clipped: INSPECT FULL REQUEST reads the whole redacted request. The SAME element is re-used
-        // across rerenders (this strip rebuilds every update), so an open disclosure stays open and is read only once.
-        const ask = t.approval.promptId, gid = group.id;
-        if (ask && t.approval.tool !== 'path.trust' && !/^browser[._]login/.test(String(t.approval.tool || '')) && typeof Chat !== 'undefined' && Chat.consentDisclosure) {
-          if (!fullAsks.has(ask)) fullAsks.set(ask, Chat.consentDisclosure(() => api({ op: 'approvalArgs', id: gid, promptId: ask })
-            .then(r => Object.assign({ ok: true }, r), e => ({ ok: false, gone: /no longer waiting/.test(String(e && e.message)), error: String((e && e.message) || e) }))));
-          liveAsks.add(ask); row.append(fullAsks.get(ask));
+        // argsSummary is the WHOLE request (user report 10-08): one glance line here, every character in INSPECT under it
+        // the desk card's own reading of it (Chat.consentInspect), so both surfaces show one request the same way
+        const raw = String(t.approval.argsSummary || '');
+        const ins = (typeof Chat !== 'undefined' && Chat.consentInspect ? Chat.consentInspect(t.approval) : null) || { text: raw };
+        const one = String(ins.copy || ins.text).replace(/\s+/g, ' ').trim();
+        row.append(h('div', { class: 'gc-approval' }, t.approval.tool + (one ? ' · ' + (one.length > 160 ? one.slice(0, 159) + '…' : one) : '')));
+        if (one.length > 160 || /\n/.test(String(ins.text).trim())) {
+          const pid = t.approval.promptId;
+          const detail = h('details', { class: 'gc-approval gc-inspect', ontoggle: () => { if (detail.open) inspectOpen.add(pid); else inspectOpen.delete(pid); } });
+          detail.open = inspectOpen.has(pid);   // a re-render keeps the panel the Commander opened
+          const idle = ins.copyLabel || 'COPY';
+          const copy = h('button', { type: 'button', class: 'bb gc-copy' }, idle);
+          copy.addEventListener('click', () => {
+            const done = ok => { copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text'; setTimeout(() => { copy.textContent = idle; }, 1400); };
+            const text = ins.copy || ins.text;   // Chat.copyText falls back to a selection copy where the clipboard API is refused
+            try { (typeof Chat !== 'undefined' && Chat.copyText ? Chat.copyText(text) : navigator.clipboard.writeText(text).then(() => true)).then(done, () => done(false)); } catch (_) { done(false); }
+          });
+          detail.append(h('summary', {}, 'Inspect complete request (secret patterns redacted)'), h('pre', {}, ins.text), copy);
+          row.append(detail);
         }
       }
       states.append(row);
     }
-    for (const ask of [...fullAsks.keys()]) if (!liveAsks.has(ask)) fullAsks.delete(ask);   // a settled approval's disclosure goes with it
     /* Message attachments belong to their turn. Retain the shelf for agent outputs and
        legacy uploads whose original message was never recorded; don't invent that association. */
     const attachedIds = new Set(group.messages.flatMap(m => m.artifactIds || []));

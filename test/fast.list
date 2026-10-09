@@ -28,6 +28,7 @@ test/mac-boot-compat.test.js
 test/live-doctor.test.js
 test/live-doctor-ui.test.js
 test/report-0110-regressions.test.js
+test/consent-full-request.test.js
 test/outbound-failure-diagnosability.test.js
 test/reflect.test.js
 test/memory-corrections.test.js

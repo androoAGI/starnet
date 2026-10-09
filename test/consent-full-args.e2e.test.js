@@ -50,7 +50,7 @@ test('a live consent card serves its whole redacted request until it is answered
     assert.equal(prompts.length, 1, 'one consent card: ' + JSON.stringify(events.map(e => e.name)));
     const p = prompts[0];
     assert.equal(p.tool, 'shell.exec');
-    assert.ok(p.argsSummary.length <= 80 && p.argsSummary.endsWith('…') && !p.argsSummary.includes(SECRET), 'the short summary is unchanged: ' + p.argsSummary);
+    assert.ok(!p.argsSummary.includes(SECRET) && p.argsSummary.includes('-d @release-manifest.json'), 'the summary is the whole request, redacted: ' + p.argsSummary);
     assert.deepEqual(Object.keys(p).sort(), ['agentId', 'argsSummary', 'promptId', 'scope', 'tool'], 'the event carries no full text');
     const { live, noToken, after } = seen[0];
     assert.equal(live.status, 200, live.text);
