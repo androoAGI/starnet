@@ -1,9 +1,11 @@
 /* sidecar/providers/claude-cli.js — the local Claude Code CLI (`claude`) as a brain.
 
-   Instead of an HTTP call, every stream() turn spawns ONE `claude -p` child process, feeds it the transcript on
-   stdin and translates its `--output-format stream-json` lines into the LLMProvider HarnessEvents (provider.js).
-   The child's life IS the turn: text streams only while it runs, and exactly one 'done' is emitted when it has
-   really exited with a result — the station never animates a brain that is not running.
+   Instead of an HTTP call, a stream() turn runs a `claude -p` child process, feeds it the transcript on stdin and
+   translates its `--output-format stream-json` lines into the LLMProvider HarnessEvents (provider.js). By default
+   the child's life IS the turn. With `persistent` (the factory's default), a turn with tools runs on a live child
+   kept for the run and sends only what the CLI has not seen yet (see PERSISTENT SESSIONS): its turn ends at the
+   CLI's result line instead of the child's exit. Either way text streams only while the CLI is answering, and
+   exactly one 'done' is emitted per turn — the station never animates a brain that is not running.
 
    CAPABILITY BOUNDARY. The CLI is an agent with its own tools (Bash, Edit, MCP connectors…). Letting it use them
    would bypass StarNet's capability gate and consent broker, so the child is started with NO tools at all:
@@ -17,7 +19,8 @@
    so the turn is booked at $0 with its real token counts; any API-key source bills real money, so the CLI's
    reported cost is booked as the provider cost (cost.js `usage.cost`).
 
-   STOP. Aborting req.signal kills the child's whole process tree (taskkill /T on Windows) before returning.
+   STOP. Aborting req.signal kills the child's whole process tree (taskkill /T on Windows) before returning; a live
+   session is retired with it.
 
    ACCOUNTS. `configDir` points the CLI at one extra sign-in (subscription stacking): the child runs with
    CLAUDE_CONFIG_DIR=<configDir>, a separate CLI identity whose credential the CLI keeps in that folder (proven:
@@ -26,7 +29,7 @@
    thrown as a 429 `usage_limit_reached`, which errorClass files as quota_exhausted: the loop rotates to the next
    account instead of retrying this one.
 
-   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs? })
+   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persistent? })
      -> { stream, listModels, contextLimit, priceOf, supportsTools, reasoningEfforts } */
 'use strict';
 (function (root, factory) {
@@ -191,26 +194,41 @@
     const images = [];
     if (rest.length === 1 && rest[0].role === 'user') return withImages({ system: system.join('\n\n'), input: textOf(rest[0].content, images) }, images);
     const lines = ['<conversation>'];
-    for (const m of rest) {
-      if (m.role === 'user') lines.push('<user>\n' + textOf(m.content, images) + '\n</user>');
-      else if (m.role === 'system') lines.push('<system_note>\n' + textOf(m.content, images) + '\n</system_note>');
-      else if (m.role === 'tool') lines.push('<tool_result id="' + String(m.tool_call_id || '') + '">\n' + inertTags(textOf(m.content)) + '\n</tool_result>');
-      else if (m.role === 'assistant') {
-        let body = textOf(m.content);
-        const calls = [];
-        for (const tc of (Array.isArray(m.tool_calls) ? m.tool_calls : [])) {
-          const fn = (tc && tc.function) || {};
-          let args = fn.arguments;
-          if (typeof args === 'string') { try { args = JSON.parse(args || '{}'); } catch (_) { args = String(args); } }
-          calls.push(invokeText(fn.name, args == null ? {} : args));
-        }
-        if (calls.length) body += (body ? '\n' : '') + '<function_calls>\n' + calls.join('\n') + '\n</function_calls>';
-        lines.push('<assistant>\n' + body + '\n</assistant>');
-      }
-    }
+    for (const m of rest) { const line = renderEntry(m, images); if (line != null) lines.push(line); }
     lines.push('</conversation>');
     lines.push('Continue as the assistant: write only your next reply.');
     return withImages({ system: system.join('\n\n'), input: lines.join('\n') }, images);
+  }
+  // One transcript entry as tagged text. A persistent session's delta (see PERSISTENT SESSIONS) renders through this
+  // too, so the entries a live CLI receives one step at a time read exactly like the ones a fresh spawn is handed.
+  function renderEntry(m, images) {
+    if (m.role === 'user') return '<user>\n' + textOf(m.content, images) + '\n</user>';
+    if (m.role === 'system') return '<system_note>\n' + textOf(m.content, images) + '\n</system_note>';
+    if (m.role === 'tool') return '<tool_result id="' + String(m.tool_call_id || '') + '">\n' + inertTags(textOf(m.content)) + '\n</tool_result>';
+    if (m.role === 'assistant') {
+      let body = textOf(m.content);
+      const calls = [];
+      for (const tc of (Array.isArray(m.tool_calls) ? m.tool_calls : [])) {
+        const fn = (tc && tc.function) || {};
+        let args = fn.arguments;
+        if (typeof args === 'string') { try { args = JSON.parse(args || '{}'); } catch (_) { args = String(args); } }
+        calls.push(invokeText(fn.name, args == null ? {} : args));
+      }
+      if (calls.length) body += (body ? '\n' : '') + '<function_calls>\n' + calls.join('\n') + '\n</function_calls>';
+      return '<assistant>\n' + body + '\n</assistant>';
+    }
+    return null;
+  }
+  // The entries a live session has not seen yet, as one stream-json user message (images ride as real blocks).
+  function deltaInput(entries) {
+    const images = [];
+    const text = entries.map(m => renderEntry(m, images)).filter(l => l != null).join('\n');
+    return asStreamJson(withImages({ system: '', input: text }, images));
+  }
+  // A persistent child always reads stream-json: a plain-text turn is wrapped as one user message.
+  function asStreamJson(prompt) {
+    if (prompt.streamJson) return prompt.input;
+    return JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: prompt.input || '' }] } }) + '\n';
   }
 
   /* Resolve the image marks. No image: the plain text stdin, byte-identical to before. Images: the newest MAX_IMAGES
@@ -286,7 +304,8 @@
       if (last && last.text != null) last.text += s; else out.items.push({ text: s });
     }
     const couldOpen = tail => tail.length <= HOLD && tail.indexOf('>') < 0;
-    function stop(out) { stopped = true; out.stop = true; buf = ''; return out; }
+    // `rest`: what was already written past the block (a live session must know whether its turn held more than the calls)
+    function stop(out) { stopped = true; out.stop = true; out.rest = buf.replace(/^\s+/, '').replace(WRAP_CLOSE_RE, ''); buf = ''; return out; }
     function drain(out) {
       for (;;) {
         if (stopped) { buf = ''; return out; }
@@ -583,6 +602,62 @@
       return ((uncached + read * c.read + write * c.write) * p.in + (Number(u.output_tokens) || 0) * p.out) / 1e6;
     } catch (_) { return NaN; }
   }
+  /* PERSISTENT SESSIONS (2026-10-09, #68 follow-up). A fresh `claude -p` per tool step hands the CLI the whole
+     transcript as ONE growing stdin block, and a block that grew cannot hit the previous step's cache: every step
+     re-wrote the full transcript at the 1h cache-write rate (2x), so a run cost grew with the square of its steps
+     (measured: cache writes 2.6k -> 4.6k -> 6.6k -> 8.6k over steps 2-5). With `persistent`, one child per run is
+     kept alive on `--input-format stream-json` and each step writes ONLY the entries it has not seen (the tool
+     results, a user line, a note). The CLI holds the earlier turns as real messages, so they are cache READS (0.1x)
+     and only the delta is written (measured: a flat ~2k write per step, -43% weighted over 5 steps).
+     Still no session file: the child keeps --no-session-persistence, the conversation lives only in its memory.
+     A session is reused only when the request is provably the same conversation one step later: same account,
+     model, effort and system prompt (the per-run note makes that per run), the messages it served unchanged as a
+     prefix, then the assistant turn it produced (same call ids, or same text), then only new non-assistant
+     entries. Anything else (compaction, a repaired or aged-out entry, a retry) spawns a fresh child, so a reuse can
+     never show the model a history StarNet does not have. The pool is module-wide because the factory builds a
+     fresh adapter per request. */
+  const SESSION_MAX = 4;                       // live children kept at once; the least recently used goes first
+  const SESSION_IDLE_MS = 10 * 60 * 1000;      // a run that stalls this long (a consent prompt left open) respawns
+  const STOP_DRAIN_MS = 10000;                 // after the call block's interrupt, how long the turn may take to end
+  // What a live session hears next when its last turn was cut off past the call block (see the STOP in stream()).
+  const CUT_NOTE = 'Your previous reply was cut off right after its </function_calls> block. Anything you wrote after that block was discarded: it was never shown, and nothing in it ran. The real results follow.';
+  const sessions = [];
+  let exitHooked = false, useSeq = 0;   // useSeq orders sessions by last use (no wall clock: determinism law)
+  function retireSession(s) {
+    if (!s || s.retired) return;
+    s.retired = true;
+    if (s.idleTimer) clearTimeout(s.idleTimer);
+    const at = sessions.indexOf(s);
+    if (at >= 0) sessions.splice(at, 1);
+    try { s.child.stdin.end(); } catch (e) { failNote('claudecli.session.stdin', e); }
+    if (!s.closed) s.kill();
+    s.removeSysFile();
+  }
+  function hookExit() {
+    if (exitHooked || typeof process === 'undefined' || typeof process.on !== 'function') return;
+    exitHooked = true;
+    // a synchronous last word: kill() on each live child (a taskkill spawn would not finish before exit)
+    process.on('exit', () => { for (const s of sessions.slice()) { try { s.child.kill(); } catch (e) { failNote('claudecli.session.exitkill', e); } } });
+  }
+  const stableEntry = m => JSON.stringify(m);
+  // The entries `msgs` adds to what session `s` already holds, or null when `msgs` is not its conversation one step on.
+  function sessionDelta(s, msgs) {
+    const served = s.served;
+    if (!served || msgs.length <= served.length + 1) return null;
+    for (let i = 0; i < served.length; i++) if (stableEntry(msgs[i]) !== served[i]) return null;
+    const a = msgs[served.length];
+    if (!a || a.role !== 'assistant') return null;
+    const ids = (Array.isArray(a.tool_calls) ? a.tool_calls : []).map(tc => String((tc && tc.id) || ''));
+    if (s.emittedIds.length) { if (ids.join('\n') !== s.emittedIds.join('\n')) return null; }
+    else if (ids.length || textOf(a.content).trim() !== s.lastText.trim()) return null;
+    const rest = msgs.slice(served.length + 1);
+    if (rest.some(m => !m || typeof m !== 'object' || m.role === 'assistant' || renderEntry(m, []) == null)) return null;
+    return rest;
+  }
+  function persistOn(env) {
+    return !(env && String(env.STARNET_CLAUDE_CLI_PERSIST || '').trim() === '0');
+  }
+
   function makeClaudeCliProvider(opts) {
     opts = opts || {};
     const host = makeCliHost(opts);
@@ -632,53 +707,107 @@
       if (!cmd) throw notInstalled();
       const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix);
       const turn = ++seq;
-      const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
-      const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'], NO_TOOLS_ARGS);
-      if (prompt.streamJson) args.push('--input-format', 'stream-json');   // the turn carries images (see IMAGES)
-      if (req.model) args.push('--model', String(req.model));
       const effort = String(req.reasoningEffort || '').trim().toLowerCase();
-      if (EFFORTS.indexOf(effort) >= 0) args.push('--effort', effort);
-      if (prompt.system) { fs.writeFileSync(sysFile, prompt.system, { encoding: 'utf8', mode: 0o600 }); args.push('--system-prompt-file', sysFile); }
+      // only a turn with tools can have a next step; a tool-less call (a title, a reflection, a profile note) is one-shot
+      // and keeps the plain path rather than parking an idle child that nothing will continue (live 2026-10-09)
+      const persistent = !!opts.persistent && Array.isArray(req.tools) && req.tools.length > 0
+        && persistOn(opts.env || (typeof process !== 'undefined' ? process.env : null));
+      const msgs = persistent ? provider.repairToolPairs(Array.isArray(req.messages) ? req.messages : []).filter(m => m && typeof m === 'object') : null;
+      const key = persistent ? require('crypto').createHash('sha256')
+        .update([opts.configDir || '', req.model || '', effort, prompt.system || ''].join('\u0000')).digest('hex') : '';
 
       // Child output is bridged into this generator through a small queue so events are yielded as they arrive.
       const queue = [];
-      let wake = null, closed = false, failure = null, exitCode = null, stderr = '';
+      let wake = null, closed = false, failure = null, exitCode = null;
       const push = (item) => { queue.push(item); if (wake) { const w = wake; wake = null; w(); } };
       const idle = opts.idleMs || timeouts.idleMs();
       let idleTimer = null, finished = false;
-      let child;
+      let child, sess = null, sessOk = false, sessKeep = true;
+      const stopChild = () => { if (sess) sessKeep = false; killTree(child); };
       const armIdle = () => {
         if (idleTimer) clearTimeout(idleTimer);
         if (finished) return;   // late output after a stop must not re-arm a watchdog nobody is waiting on
-        idleTimer = setTimeout(() => { failure = timeouts.timeoutError(idle, 'idle'); killTree(child); push(null); }, idle);
+        idleTimer = setTimeout(() => { failure = timeouts.timeoutError(idle, 'idle'); stopChild(); push(null); }, idle);
       };
-      const onAbort = () => { killTree(child); push(null); };
-      try {
-        child = spawn(cmd.file, args, { env: childEnv(), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-      } catch (e) {
-        removeFile(sysFile);
-        throw notInstalled();
+      const onAbort = () => { stopChild(); push(null); };
+      const onLine = (line) => { armIdle(); push(line); };
+
+      let input = prompt.input || '';
+      if (persistent) {
+        const live = sessions.find(s => s.key === key && !s.busy && !s.retired && !s.closed);
+        const delta = live ? sessionDelta(live, msgs) : null;
+        if (delta) { sess = live; input = deltaInput(live.cutNote ? [{ role: 'system', content: CUT_NOTE }].concat(delta) : delta); }
+        else {
+          for (const s of sessions.slice()) if (s.key === key && !s.busy) retireSession(s);
+          input = asStreamJson(prompt);
+        }
       }
+      if (!sess) {
+        const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
+        const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages'], NO_TOOLS_ARGS);
+        if (persistent || prompt.streamJson) args.push('--input-format', 'stream-json');   // images (see IMAGES), or a live session
+        if (req.model) args.push('--model', String(req.model));
+        if (EFFORTS.indexOf(effort) >= 0) args.push('--effort', effort);
+        if (prompt.system) { fs.writeFileSync(sysFile, prompt.system, { encoding: 'utf8', mode: 0o600 }); args.push('--system-prompt-file', sysFile); }
+        let c;
+        try {
+          c = spawn(cmd.file, args, { env: childEnv(), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        } catch (e) {
+          removeFile(sysFile);
+          throw notInstalled();
+        }
+        // One reader per child for its whole life; a turn listens through `listener` while it runs. Between turns a
+        // live session's stray lines (status notes) have no listener and are dropped.
+        const s = { key, child: c, listener: null, closed: false, retired: false, busy: true, served: null, emittedIds: [],
+          lastText: '', lastCost: 0, apiKeySource: null, stderr: '', exitCode: null, idleTimer: null, usedAt: 0,
+          kill: () => killTree(c), removeSysFile: () => removeFile(sysFile) };
+        let lineBuf = '';
+        c.stdout.setEncoding('utf8'); c.stderr.setEncoding('utf8');
+        c.on('error', (e) => { s.error = (e && e.code === 'ENOENT') ? notInstalled() : e; s.closed = true; if (s.listener) s.listener(null); });
+        c.stdout.on('data', (d) => {
+          lineBuf += d;
+          let nl;
+          while ((nl = lineBuf.indexOf('\n')) >= 0) {
+            const line = lineBuf.slice(0, nl).trim();
+            lineBuf = lineBuf.slice(nl + 1);
+            if (line && s.listener) s.listener(line);
+          }
+        });
+        c.stderr.on('data', (d) => { s.stderr = (s.stderr + d).slice(-4000); });
+        c.on('close', (code) => {
+          s.exitCode = code;
+          if (lineBuf.trim() && s.listener) s.listener(lineBuf.trim());
+          lineBuf = ''; s.closed = true;
+          if (s.listener) s.listener(null);
+          if (persistent) retireSession(s); else s.removeSysFile();
+        });
+        // A child that dies before reading stdin surfaces through its exit (no result line), not through EPIPE here.
+        c.stdin.on('error', e => failNote('claudecli.stdin', e));
+        if (persistent) {
+          hookExit();
+          if (sessions.length >= SESSION_MAX) {
+            const idleOnes = sessions.filter(x => !x.busy).sort((a, b) => a.usedAt - b.usedAt);
+            if (idleOnes.length) retireSession(idleOnes[0]);
+          }
+          sessions.push(s);
+        }
+        sess = s;
+      } else {
+        if (sess.idleTimer) { clearTimeout(sess.idleTimer); sess.idleTimer = null; }
+        sess.busy = true;
+      }
+      child = sess.child;
+      sess.listener = (line) => {
+        if (line != null) return onLine(line);
+        if (sess.error) failure = sess.error;
+        exitCode = sess.exitCode; closed = true; push(null);
+      };
       if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort, { once: true });
       armIdle();
-      let lineBuf = '';
-      child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
-      child.on('error', (e) => { failure = (e && e.code === 'ENOENT') ? notInstalled() : e; closed = true; push(null); });
-      child.stdout.on('data', (d) => {
-        armIdle();
-        lineBuf += d;
-        let nl;
-        while ((nl = lineBuf.indexOf('\n')) >= 0) {
-          const line = lineBuf.slice(0, nl).trim();
-          lineBuf = lineBuf.slice(nl + 1);
-          if (line) push(line);
-        }
-      });
-      child.stderr.on('data', (d) => { stderr = (stderr + d).slice(-4000); });
-      child.on('close', (code) => { exitCode = code; if (lineBuf.trim()) push(lineBuf.trim()); lineBuf = ''; closed = true; push(null); });
-      // A child that dies before reading stdin surfaces through its exit (no result line), not through EPIPE here.
-      child.stdin.on('error', e => failNote('claudecli.stdin', e));
-      try { child.stdin.end(prompt.input || ''); } catch (e) { failNote('claudecli.stdin', e); }
+      try {
+        if (persistent) child.stdin.write(input);
+        else child.stdin.end(input);
+      } catch (e) { failNote('claudecli.stdin', e); }
 
       const splitter = makeCallSplitter({ enabled: Array.isArray(req.tools) && req.tools.length > 0 });
       const props = {};   // tool name -> its parameter schemas: a string <parameter> stays raw, the rest parse as JSON
@@ -689,21 +818,29 @@
       let callIndex = 0, sawText = false, result = null, apiKeySource = null, apiError = '';
       let blockDone = false, streamUsage = null;   // the call block ended the turn (see the reader's STOP)
       let outChars = 0;   // what the model wrote this turn: the floor for its output tokens when the stop cut the count short
+      let emittedText = '', trailing = '', drainTimer = null, interrupted = false;   // a live session: what it said, what it wrote past its STOP
+      const emittedIds = [];
       const callId = index => 'call_cli_' + idTag + '_' + turn + '_' + index;
       let open = null;   // the call a tool_start already announced, whose block has not closed yet
       function* emitSplit(part) {
         for (const it of part.items) {
-          if (it.text != null) { if (it.text) { sawText = true; yield { type: 'text', delta: it.text }; } continue; }
+          if (it.text != null) { if (it.text) { sawText = true; emittedText += it.text; yield { type: 'text', delta: it.text }; } continue; }
           if (it.start) {
             open = { index: callIndex++, name: it.start };
+            emittedIds[open.index] = callId(open.index);
             yield { type: 'tool_start', index: open.index, id: callId(open.index), name: it.start };
             continue;
           }
           const was = open; open = null;
           const call = it.kind === 'invoke' ? invokeCall(was ? was.name : '', it.body, props[was ? was.name : ''], it.closed)
             : (parseCall(it.body) || (was ? looseCall(it.body, was.name) : null));
-          if (!call) { sawText = true; yield { type: 'text', delta: CALL_OPEN + it.body + (it.closed ? CALL_CLOSE : '') }; continue; }
+          if (!call) {
+            const t = CALL_OPEN + it.body + (it.closed ? CALL_CLOSE : '');
+            if (was) emittedIds[was.index] = null;   // an announced call that came to nothing: no call id in the transcript
+            sawText = true; emittedText += t; yield { type: 'text', delta: t }; continue;
+          }
           const index = was ? was.index : callIndex++;
+          emittedIds[index] = callId(index);
           if (!was) yield { type: 'tool_start', index, id: callId(index), name: call.name };
           yield { type: 'tool_args', index, chunk: call.args };
           yield { type: 'tool_done', index };
@@ -729,13 +866,42 @@
           if (j.type === 'system' && j.subtype === 'init') apiKeySource = j.apiKeySource == null ? null : String(j.apiKeySource);
           else if (j.type === 'stream_event' && j.event && j.event.type === 'content_block_delta' && j.event.delta && j.event.delta.type === 'text_delta') {
             outChars += String(j.event.delta.text || '').length;
+            // A live session past its STOP: nothing more is shown. What still streams before the interrupt lands is in
+            // the CLI's history (proven live: it can quote the cut-off words back), so it is kept to say so next step.
+            if (blockDone) { trailing += String(j.event.delta.text || ''); continue; }
             const part = splitter.push(j.event.delta.text);
             yield* emitSplit(part);
-            if (part.stop) { blockDone = true; break; }
+            if (part.stop) {
+              blockDone = true;
+              if (!persistent) break;
+              trailing += part.rest || '';
+              /* STOP ON A LIVE SESSION. Killing the child (the one-shot path) would lose the session; letting the turn run
+                 on lets a model that keeps writing guessed results bill them (live 2026-10-09: Haiku wrote ~3k output
+                 tokens past every block). The CLI's own interrupt ends the generation now and keeps the session: its
+                 result line then arrives as error_during_execution with zero usage (proven live), and a late interrupt
+                 on a turn that already ended is a no-op. */
+              try { child.stdin.write(JSON.stringify({ type: 'control_request', request_id: 'stop_' + idTag + '_' + turn, request: { subtype: 'interrupt' } }) + '\n'); interrupted = true; }
+              catch (e) { failNote('claudecli.interrupt', e); }
+              drainTimer = setTimeout(() => { stopChild(); push(null); }, STOP_DRAIN_MS);
+            }
           } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
           else if (j.type === 'stream_event' && j.event && j.event.type === 'message_delta' && j.event.usage) streamUsage = Object.assign(streamUsage || {}, j.event.usage);
           else if (j.type === 'assistant' && j.error) apiError = String(j.error);
-          else if (j.type === 'result') result = j;
+          else if (j.type === 'result') {
+            result = j;
+            if (persistent) {
+              // a live session's result ends the turn. Its usage is this turn's own; total_cost_usd is the session's
+              // running total (proven live 2026-10-09), so the turn is booked the difference
+              const total = Number(j.total_cost_usd);
+              if (isFinite(total)) { result = Object.assign({}, j, { total_cost_usd: total - sess.lastCost }); sess.lastCost = total; }
+              break;
+            }
+          }
+        }
+        if (drainTimer) { clearTimeout(drainTimer); drainTimer = null; }
+        if (persistent) {
+          if (apiKeySource != null) sess.apiKeySource = apiKeySource;
+          else apiKeySource = sess.apiKeySource;
         }
         if (signal && signal.aborted) return;
         const usageChunk = () => {
@@ -757,7 +923,16 @@
             }
           };
         };
+        if (blockDone && persistent && result && !result.is_error && (!result.subtype || result.subtype === 'success')) {
+          // a live session ended its turn by itself after the call block: its result line is exact, nothing to estimate
+          sessOk = true;
+          yield usageChunk();
+          yield { type: 'done', finishReason: 'tool_calls', truncated: false };
+          return;
+        }
         if (blockDone) {
+          // a live session whose interrupt ended the turn stays usable; any other unclean end (drain timeout, exit) retires it
+          if (sess && persistent) { if (interrupted && result && result.subtype === 'error_during_execution') sessOk = true; else sessKeep = false; }
           // The calls are complete; the rest of this generation is the model guessing at results. `finally` ends the
           // child, so no result line comes: book what the stream itself reported (the input side is exact; output is
           // the last count the stream gave, which can run short of the tokens spent before the stop).
@@ -773,7 +948,7 @@
           return;
         }
         if (!result) {
-          const tail = stderr.trim().split(/\r?\n/).slice(-3).join(' ').slice(0, 400);
+          const tail = String(sess.stderr || '').trim().split(/\r?\n/).slice(-3).join(' ').slice(0, 400);
           throw new Error('Claude Code exited with code ' + exitCode + ' before answering' + (tail ? ': ' + tail : ''));
         }
         if (result.is_error || (result.subtype && result.subtype !== 'success')) {
@@ -798,14 +973,29 @@
         }
         if (!sawText && callIndex === 0 && typeof result.result === 'string') yield* emitSplit(splitter.push(result.result));
         yield* emitSplit(splitter.end());
+        sessOk = true;
         yield usageChunk();
         yield { type: 'done', finishReason: callIndex > 0 ? 'tool_calls' : provider.normalizeFinish(result.stop_reason), truncated: false };
       } finally {
         finished = true;
         if (idleTimer) clearTimeout(idleTimer);
         if (signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort);
-        if (!closed) killTree(child);
-        removeFile(sysFile);
+        if (drainTimer) clearTimeout(drainTimer);
+        if (sess) sess.listener = null;
+        if (!persistent) {
+          if (!closed) killTree(child);
+          sess.removeSysFile();
+        } else if (sessOk && sessKeep && !sess.closed && !sess.retired && !(signal && signal.aborted)) {
+          // the turn ended cleanly: the session now holds exactly this conversation plus the reply it just gave
+          sess.served = msgs.map(stableEntry);
+          sess.emittedIds = emittedIds.filter(id => id);
+          sess.lastText = emittedText;
+          sess.cutNote = !!trailing.trim();
+          sess.busy = false;
+          sess.usedAt = ++useSeq;
+          sess.idleTimer = setTimeout(() => retireSession(sess), SESSION_IDLE_MS);
+          if (sess.idleTimer && typeof sess.idleTimer.unref === 'function') sess.idleTimer.unref();
+        } else retireSession(sess);
       }
     }
 
@@ -823,5 +1013,5 @@
     };
   }
 
-  return { makeClaudeCliProvider, makeCliHost, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
+  return { makeClaudeCliProvider, makeCliHost, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS, sessions, retireSession } };
 });

@@ -200,7 +200,9 @@
     if (profile.adapter === 'claude-cli') {
       // A local child process, not HTTP: no fetch/key/baseUrl — the CLI's own sign-in is the credential.
       // configDir = an extra connected account (subscription stacking); absent = the CLI's default sign-in.
-      return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined });
+      // persistent = one live CLI child per run, fed only each step's new entries (claude-cli.js PERSISTENT SESSIONS);
+      // STARNET_CLAUDE_CLI_PERSIST=0 turns it off.
+      return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined, persistent: true });
     }
     throw new Error('provider adapter is not wired: ' + profile.adapter);
   }
