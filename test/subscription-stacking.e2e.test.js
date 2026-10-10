@@ -33,10 +33,19 @@ if (args[0] === 'auth') {
   if (args[1] === 'status') out({ loggedIn: true, authMethod: 'claude.ai', email: who + '@example.test', subscriptionType: 'max' });
   process.exit(0);
 }
+// a persistent session (--input-format stream-json) answers each stdin line as a turn and stays alive; plain text
+// input answers once stdin ends
+const streaming = args.indexOf('--input-format') >= 0;
 let input = '';
 process.stdin.setEncoding('utf8');
-process.stdin.on('data', d => { input += d; });
-process.stdin.on('end', () => {
+process.stdin.on('data', d => {
+  input += d;
+  if (!streaming) return;
+  let nl;
+  while ((nl = input.indexOf('\n')) >= 0) { const line = input.slice(0, nl); input = input.slice(nl + 1); if (line.trim()) turn(line); }
+});
+process.stdin.on('end', () => { if (!streaming) turn(input); });
+function turn(input) {
   const marker = (input.match(/STACK-E2E-[A-Z]+/) || ['?'])[0];
   log(who + ' run ' + marker);
   out({ type: 'system', subtype: 'init', apiKeySource: 'none', tools: [] });
@@ -50,7 +59,7 @@ process.stdin.on('end', () => {
   const text = 'answered by ' + who;
   out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } });
   out({ type: 'result', subtype: 'success', is_error: false, result: text, stop_reason: 'end_turn', usage, total_cost_usd: 0 });
-});
+}
 `;
 
 function makeFakeClaude(root) {

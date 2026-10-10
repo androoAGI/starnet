@@ -351,5 +351,186 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     const none = _internals.buildPrompt([{ role: 'system', content: 'other system' }, { role: 'user', content: 'hi' }], []);
     A.eq(miss, none, 'a prefix that does not match the system prompt leaves the prompt exactly as before');
   }
+  // P. PERSISTENT SESSIONS: one live child per run on stream-json input, each step writes only its new entries.
+  {
+    // A fake long-lived `claude`: every stdin line is one turn, answered by script(call, turnNo, text); the child stays
+    // alive until killed or its stdin ends.
+    function liveSpawn(script) {
+      const calls = [];
+      function spawn(file, args) {
+        const child = new EventEmitter();
+        const stream = () => { const s = new EventEmitter(); s.setEncoding = () => {}; return s; };
+        child.stdout = stream(); child.stderr = stream(); child.pid = 5000 + calls.length; child.exitCode = null;
+        const call = { file, args, writes: [], killed: false, ended: false, child };
+        calls.push(call);
+        const exit = code => { if (child.exitCode != null) return; child.exitCode = code; child.emit('exit', code); child.emit('close', code); };
+        child.kill = () => { call.killed = true; exit(null); };
+        if (file === 'taskkill') { calls.pop(); const t = calls.find(c => String(c.child.pid) === args[1]); if (t) t.child.kill(); setImmediate(() => exit(0)); return child; }
+        let buf = '';
+        child.stdin = {
+          on() {},
+          write(d) {
+            buf += d; let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) {
+              const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+              const msg = JSON.parse(line);
+              if (msg.type === 'control_request') { call.interrupts = (call.interrupts || 0) + 1; continue; }   // the turn already ended
+              const text = msg.message.content.filter(b => b.type === 'text').map(b => b.text).join('');
+              call.writes.push(text);
+              const out = script(call, call.writes.length, text) || [];
+              setImmediate(() => { for (const l of out) child.stdout.emit('data', JSON.stringify(l) + '\n'); });
+            }
+          },
+          end() { call.ended = true; setImmediate(() => exit(0)); }
+        };
+        return child;
+      }
+      return { spawn, calls };
+    }
+    const sessions = _internals.sessions;
+    const reset = () => { for (const s of sessions.slice()) _internals.retireSession(s); };
+    const live = (script, extra) => {
+      const f = liveSpawn(script);
+      const mk = () => makeClaudeCliProvider(Object.assign({ spawn: f.spawn, fs: fakeFs, bin: 'claude.exe', env: { PATH: '' }, platform: 'linux', persistent: true }, extra || {}));
+      return { mk, calls: f.calls };
+    };
+    const tools = [{ type: 'function', function: { name: 'fs_read', description: 'read', parameters: { type: 'object', properties: { path: { type: 'string' } } } } }];
+    const block = p => '<function_calls>\n<invoke name="fs_read">\n<parameter name="path">' + p + '</parameter>\n</invoke>\n</function_calls>';
+    const usageOf = n => ({ input_tokens: 2, cache_creation_input_tokens: 100 * n, cache_read_input_tokens: 1000 * n, output_tokens: 10 });
+    // turn 1 and 2 call a tool, turn 3 answers; the cost line is the session's running total like the real CLI's
+    const steps = (call, n) => n < 3
+      ? [init('ANTHROPIC_API_KEY'), delta('Reading.\n' + block('n' + n + '.md')), result({ result: '', usage: usageOf(n), total_cost_usd: 0.1 * n })]
+      : [delta('All read.'), result({ result: 'All read.', usage: usageOf(n), total_cost_usd: 0.1 * n })];
+    const base = [{ role: 'system', content: 'You are the archivist. P1' }, { role: 'user', content: 'read the notes' }];
+    // what the loop appends after a tool turn: the assistant call (with the id the adapter emitted) and its result
+    const after = (msgs, evs, out) => {
+      const start = evs.find(e => e.type === 'tool_start'), args = evs.find(e => e.type === 'tool_args');
+      return msgs.concat([{ role: 'assistant', content: 'Reading.\n', tool_calls: [{ id: start.id, type: 'function', function: { name: 'fs_read', arguments: args.chunk } }] },
+        { role: 'tool', tool_call_id: start.id, content: out }]);
+    };
+
+    const { mk, calls } = live(steps);
+    const m1 = base;
+    const e1 = await collect(mk(), { model: 'sonnet', tools, messages: m1 });
+    A.eq(calls.length, 1, 'P1: the first step spawns one child');
+    A.ok(calls[0].args.indexOf('--input-format') >= 0 && calls[0].args[calls[0].args.indexOf('--input-format') + 1] === 'stream-json', 'P1: a live session reads stream-json');
+    A.ok(calls[0].args.indexOf('--no-session-persistence') >= 0, 'P1: still no session file');
+    A.eq(e1.find(e => e.type === 'done').finishReason, 'tool_calls', 'P1: the call block ends the turn as tool_calls');
+    A.ok(!calls[0].killed && !calls[0].ended, 'P1: the child is NOT stopped at the end of the block: its turn ended by itself');
+    A.eq(calls[0].writes[0], 'read the notes', 'P1: the first step sends the user message');
+    const u1 = e1.find(e => e.type === 'usage').usage;
+    A.eq([u1.prompt_tokens_details.cache_creation_tokens, u1.prompt_tokens_details.cached_tokens], [100, 1000], 'P1: the turn books its own result usage');
+
+    const m2 = after(m1, e1, 'NOTE ONE');
+    const e2 = await collect(mk(), { model: 'sonnet', tools, messages: m2 });
+    A.eq(calls.length, 1, 'P2: the next step reuses the same child (a fresh adapter, as the factory builds one per request)');
+    A.ok(calls[0].writes[1].startsWith('<tool_result id="') && calls[0].writes[1].indexOf('NOTE ONE') > 0, 'P2: the step sends the tool result');
+    A.ok(calls[0].writes[1].indexOf('read the notes') < 0 && calls[0].writes[1].indexOf('<conversation>') < 0, 'P2: and ONLY the tool result, not the transcript again');
+    const u2 = e2.find(e => e.type === 'usage').usage;
+    A.ok(Math.abs(u2.cost - 0.1) < 1e-9, 'P2: an API-key turn books the difference of the running cost total, not the total');
+    A.eq(u2.prompt_tokens_details.cache_creation_tokens, 200, 'P2: usage is the turn\'s own');
+
+    const m3 = after(m2, e2, 'NOTE TWO');
+    const e3 = await collect(mk(), { model: 'sonnet', tools, messages: m3 });
+    A.eq(calls.length, 1, 'P3: a whole 3-step run is one child');
+    A.eq(e3.filter(e => e.type === 'text').map(e => e.delta).join(''), 'All read.', 'P3: the final answer streams');
+    A.eq(e3.find(e => e.type === 'done').finishReason, 'stop', 'P3: a text answer ends as stop');
+    A.eq(sessions.length, 1, 'P3: the session stays pooled for the next step');
+
+    // a user line after a text answer continues the same session
+    const m4 = m3.concat([{ role: 'assistant', content: 'All read.' }, { role: 'user', content: 'thanks' }]);
+    await collect(mk(), { model: 'sonnet', tools, messages: m4 });
+    A.eq([calls.length, calls[0].writes[3]], [1, '<user>\nthanks\n</user>'], 'P4: a new user line after a text answer is a delta too');
+
+    // history rewritten (compaction): never reuse, spawn fresh with the whole transcript, retire the old child
+    const compacted = [m4[0], { role: 'user', content: 'summary of earlier work' }, { role: 'assistant', content: 'ok' }, { role: 'user', content: 'go on' }];
+    await collect(mk(), { model: 'sonnet', tools, messages: compacted });
+    A.eq(calls.length, 2, 'P5: a rewritten history spawns a fresh child');
+    A.ok(calls[0].killed || calls[0].ended, 'P5: the stale session is retired');
+    A.ok(calls[1].writes[0].startsWith('<conversation>') && calls[1].writes[0].indexOf('summary of earlier work') > 0, 'P5: the fresh child gets the whole transcript');
+    reset();
+  }
+  {
+    // the model keeps writing past its call block (no result of its own): the STOP interrupts it, the CLI answers the
+    // interrupt with error_during_execution and zero usage, and the session stays; its next step is told about the cut
+    const start = { type: 'stream_event', event: { type: 'message_start', message: { usage: { input_tokens: 3, cache_creation_input_tokens: 40, cache_read_input_tokens: 900, output_tokens: 1 } } } };
+    const f = (call, n) => n === 1
+      ? [init('ANTHROPIC_API_KEY'), start, delta('<function_calls>\n<invoke name="fs_read">\n<parameter name="path">a</parameter>\n</invoke>\n</function_calls>\n<tool_result>made up')]
+      : [init('ANTHROPIC_API_KEY'), delta('ok'), result({ result: 'ok', total_cost_usd: 0.05 })];
+    const onInterrupt = [delta(' and more guessing'), result({ subtype: 'error_during_execution', is_error: true, result: '',
+      usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, total_cost_usd: 0 })];
+    const sessions = _internals.sessions;
+    const tools = [{ type: 'function', function: { name: 'fs_read', description: 'read', parameters: { type: 'object', properties: { path: { type: 'string' } } } } }];
+    // a compact live fake: each stdin write is one turn answered by f()
+    const calls = [];
+    const spawn = (file, args) => {
+      const child = new EventEmitter();
+      const stream = () => { const s = new EventEmitter(); s.setEncoding = () => {}; return s; };
+      child.stdout = stream(); child.stderr = stream(); child.pid = 6000 + calls.length; child.exitCode = null;
+      const call = { args, writes: [], killed: false, child }; calls.push(call);
+      const exit = code => { if (child.exitCode != null) return; child.exitCode = code; child.emit('close', code); };
+      child.kill = () => { call.killed = true; exit(null); };
+      child.stdin = { on() {}, end() { setImmediate(() => exit(0)); }, write(d) {
+        const msg = JSON.parse(d);
+        if (msg.type === 'control_request') {
+          call.interrupts = (call.interrupts || 0) + 1;
+          setImmediate(() => { for (const l of onInterrupt) child.stdout.emit('data', JSON.stringify(l) + '\n'); });
+          return;
+        }
+        const text = msg.message.content[0].text; call.writes.push(text);
+        const out = f(call, call.writes.length);
+        setImmediate(() => { for (const l of out) child.stdout.emit('data', JSON.stringify(l) + '\n'); });
+      } };
+      return child;
+    };
+    const mk = extra => makeClaudeCliProvider(Object.assign({ spawn, fs: fakeFs, bin: 'claude.exe', env: { PATH: '' }, platform: 'linux', persistent: true }, extra || {}));
+    const msgs = [{ role: 'system', content: 'P6 system' }, { role: 'user', content: 'go' }];
+    const evs = await collect(mk(), { model: 'sonnet', tools, messages: msgs });
+    A.eq(evs.filter(e => e.type === 'tool_start').length, 1, 'P6: the call before the guess still runs');
+    A.eq([calls[0].interrupts, calls[0].killed], [1, false], 'P6: the STOP interrupts the live turn instead of killing the child');
+    A.eq(evs.find(e => e.type === 'done').finishReason, 'tool_calls', 'P6: the interrupted turn still ends as tool_calls, not as an error');
+    const u6 = evs.find(e => e.type === 'usage').usage;
+    A.eq(u6.prompt_tokens_details.cached_tokens, 900, 'P6: a zero-usage interrupt result books the stream\'s own input side');
+    A.ok(u6.completion_tokens > 1 && u6.cost > 0, 'P6: output floored from what was written; an API-key turn is priced, not booked $0');
+    A.eq(sessions.length, 1, 'P6: the interrupted session is pooled for the next step');
+    const st = evs.find(e => e.type === 'tool_start'), ta = evs.find(e => e.type === 'tool_args');
+    const next = msgs.concat([{ role: 'assistant', content: '', tool_calls: [{ id: st.id, type: 'function', function: { name: 'fs_read', arguments: ta.chunk } }] },
+      { role: 'tool', tool_call_id: st.id, content: 'REAL' }]);
+    await collect(mk(), { model: 'sonnet', tools, messages: next });
+    A.eq(calls.length, 1, 'P6: the next step reuses it');
+    A.ok(/^<system_note>\nYour previous reply was cut off/.test(calls[0].writes[1]) && calls[0].writes[1].indexOf('REAL') > 0,
+      'P6: and is first told that what it wrote past the block was discarded');
+    for (const x of sessions.slice()) _internals.retireSession(x);
+
+    // abort mid-turn kills the child and pools nothing
+    const ac = new AbortController();
+    const hang = (file, args) => { const c = spawn(file, args); c.stdin.write = () => { setImmediate(() => ac.abort()); }; return c; };
+    const p7 = makeClaudeCliProvider({ spawn: hang, fs: fakeFs, bin: 'claude.exe', env: { PATH: '' }, platform: 'linux', persistent: true });
+    await collect(p7, { model: 'sonnet', tools, messages: [{ role: 'system', content: 'P7 system' }, { role: 'user', content: 'go' }], signal: ac.signal });
+    A.ok(calls[calls.length - 1].killed, 'P7: abort kills the live child');
+    A.eq(sessions.length, 0, 'P7: an aborted session is not pooled');
+
+    // STARNET_CLAUDE_CLI_PERSIST=0: exactly the one-spawn-per-turn path
+    const off = make({ lines: [init('none'), result({ result: 'hi' })] }, { persistent: true, env: { PATH: '', STARNET_CLAUDE_CLI_PERSIST: '0' } });
+    await collect(off.p, { model: 'sonnet', tools, messages: [{ role: 'user', content: 'hi' }] });
+    A.ok(off.calls[0].args.indexOf('--input-format') < 0 && off.calls[0].stdin === 'hi', 'P8: the kill switch restores plain stdin, one child per turn');
+    A.eq(sessions.length, 0, 'P8: nothing is pooled');
+
+    // a tool-less call (title, reflection, profile note) is one-shot: plain path, no parked child
+    const plain = make({ lines: [init('none'), result({ result: 'A title' })] }, { persistent: true });
+    await collect(plain.p, { model: 'haiku', messages: [{ role: 'system', content: 'title it' }, { role: 'user', content: 'chat' }] });
+    A.ok(plain.calls[0].args.indexOf('--input-format') < 0 && plain.calls[0].stdin === 'chat', 'P10: a tool-less call keeps the one-shot path');
+    A.eq(sessions.length, 0, 'P10: and pools nothing');
+
+    // different model on the same conversation: separate sessions, never a cross-model reuse
+    const m = [{ role: 'system', content: 'P9 system' }, { role: 'user', content: 'hi' }];
+    const okSpawn = (file, args) => { const c = spawn(file, args); c.stdin.write = d => { setImmediate(() => { for (const l of [init('none'), delta('hello'), result({ result: 'hello' })]) c.stdout.emit('data', JSON.stringify(l) + '\n'); }); }; return c; };
+    const mk9 = model => collect(makeClaudeCliProvider({ spawn: okSpawn, fs: fakeFs, bin: 'claude.exe', env: { PATH: '' }, platform: 'linux', persistent: true }),
+      { model, tools, messages: model === 'sonnet' ? m : m.concat([{ role: 'assistant', content: 'hello' }, { role: 'user', content: 'again' }]) });
+    const before = calls.length;
+    await mk9('sonnet'); await mk9('opus');
+    A.eq(calls.length - before, 2, 'P9: another model never reuses a session');
+    for (const s of sessions.slice()) _internals.retireSession(s);
+  }
   A.report('provider.claude-cli.test');
 })().catch(e => { console.log('FAIL: provider.claude-cli.test threw -- ' + (e && e.stack || e)); process.exit(1); });
