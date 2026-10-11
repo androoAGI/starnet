@@ -15,7 +15,16 @@
 
    Caps are SOFT: hitting one ends the current run with reason 'budget' (the loop's existing terminal
    reason) and emits a threshold; the Commander clicks "resume", which bumps that scope's override for
-   the session so work continues. Any cap may be null/Infinity = ungoverned. */
+   the session so work continues. Any cap may be null/Infinity = ungoverned.
+
+   SUBSCRIPTION USAGE POOL (2026-10-11). A Claude Code subscription run books $0, so none of the $ scopes above
+   ever binds on it. A SEPARATE daily pool counts its WEIGHTED tokens (ledger.tokensForDay + every in-flight run):
+   • evaluateTokens(capTokens, usedTokens) -> pure { blocked, tokens, cap, frac };
+   • makeBudget's tokenCaps { day } / setTokenCaps / checkTokens / resumeTokens / status().tokenDay.
+   check()/evaluate() are untouched, so every $ decision is byte-identical. The pool emits NO budget.threshold
+   (that event's enum and $ payload are frozen); a stop rides agent.run.end's undeclared budgetUnit:'tokens'.
+   It never fails closed: when spend history is unreadable the figure is unknown and the pool does not block
+   (it is an estimate, not money — a guess must not brick a subscription the user already pays for). */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -35,6 +44,7 @@
   // run (→ reason 'budget', like any pool) but emits no threshold, so we never push an out-of-contract event.
   const THRESHOLD_SCOPES = ['run', 'day', 'global'];
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
+  function tokenCapOf(v) { return (typeof v === 'number' && isFinite(v) && v > 0) ? Math.floor(v) : 0; }
   function capOf(caps, scope) {
     const c = caps && caps[scope];
     return (typeof c === 'number' && isFinite(c) && c > 0) ? c : null;   // null/0/Infinity/absent = ungoverned
@@ -59,6 +69,14 @@
     return out;
   }
 
+  // PURE: the daily subscription token pool. capTokens 0/null/non-finite = off (never blocks).
+  function evaluateTokens(capTokens, usedTokens) {
+    const cap = (typeof capTokens === 'number' && isFinite(capTokens) && capTokens > 0) ? capTokens : 0;
+    const tokens = Math.max(0, num(usedTokens));
+    const frac = cap > 0 ? tokens / cap : 0;
+    return { blocked: cap > 0 && tokens >= cap, tokens, cap, frac };
+  }
+
   function makeBudget(opts) {
     opts = opts || {};
     let baseCaps = Object.assign({}, opts.caps || {});
@@ -76,6 +94,10 @@
     const strictScope = (typeof opts.strictScope === 'function') ? opts.strictScope : () => true;
 
     const overrides = { run: 0, agent: 0, day: 0, global: 0 };
+    // the subscription token pool (weighted tokens): its own base cap, session resume headroom and live tallies
+    let tokenCaps = { day: tokenCapOf(opts.tokenCaps && opts.tokenCaps.day) };
+    let tokenOverride = 0;
+    const liveTokens = new Map();    // runId -> weighted subscription tokens so far this run (in-flight, not yet in the ledger)
     const live = new Map();          // runId -> $ spent so far this run (in-flight, not yet in the ledger)
     const liveAgentOf = new Map();   // runId -> agentId, so per-agent live spend can be summed (the 'agent' scope)
     const emitted = new Set();       // `${runId}:${scope}:${level}` already announced — de-dup PER RUN so each run's
@@ -104,6 +126,7 @@
       if (runId == null) return;
       const rk = String(runId);
       live.delete(rk);
+      liveTokens.delete(rk);
       liveAgentOf.delete(rk);
       for (const k of emitted) if (k.indexOf(rk + ':') === 0) emitted.delete(k);   // forget this run's announced crossings
     }
@@ -195,15 +218,56 @@
 
     function setCaps(caps) { baseCaps = Object.assign({}, caps || {}); emitted.clear(); }
 
+    // ---- subscription token pool ----
+    function sumLiveTokens() { let t = 0; for (const v of liveTokens.values()) t += num(v); return t; }
+    // weighted tokens in the trailing day (finished runs from the ledger + every in-flight run), or null when the
+    // spend history cannot be read (a read error other than an interrupted run's unknown $ — its rows still read).
+    function tokensUsed(now) {
+      if (!ledger || typeof ledger.tokensForDay !== 'function') return sumLiveTokens();
+      const h = accounting();
+      if (h.readError && h.readError !== 'UNSETTLED_SPEND') return null;
+      let booked;
+      try { booked = num(ledger.tokensForDay(now)); } catch (_) { return null; }
+      return booked + sumLiveTokens();
+    }
+    function tokenCapNow() { return tokenCaps.day > 0 ? tokenCaps.day + tokenOverride : 0; }
+    // Consulted beside check() for a run on a subscription lane. Records this run's live weighted tokens, then returns
+    // null to proceed or { scope:'day', unit:'tokens', tokens, cap } to stop. Off (cap 0) and unknown history never block.
+    function checkTokens(runId, agentId, liveWeighted, now) {
+      now = num(now) || clock.now();
+      if (runId != null) liveTokens.set(String(runId), Math.max(0, num(liveWeighted)));
+      const cap = tokenCapNow();
+      if (!(cap > 0)) return null;
+      const used = tokensUsed(now);
+      if (used == null) return null;
+      const ev = evaluateTokens(cap, used);
+      return ev.blocked ? { scope: 'day', unit: 'tokens', tokens: Math.round(ev.tokens), cap: ev.cap } : null;
+    }
+    // one-click RESUME for the token pool: another base cap (or `amount`) of headroom for the session. Returns the new
+    // effective cap, or null when the pool is off.
+    function resumeTokens(amount) {
+      if (!(tokenCaps.day > 0)) return null;
+      const inc = (typeof amount === 'number' && isFinite(amount) && amount > 0) ? Math.floor(amount) : tokenCaps.day;
+      tokenOverride += inc;
+      return tokenCapNow();
+    }
+    function setTokenCaps(caps) { tokenCaps = { day: tokenCapOf(caps && caps.day) }; }
+    function tokenStatus(now) {
+      if (!(tokenCaps.day > 0)) return null;
+      const used = tokensUsed(now);
+      return { tokens: used == null ? null : Math.round(used), cap: tokenCapNow(), base: tokenCaps.day };
+    }
+
     function status(now) {
       now = num(now) || clock.now();
       const t = totals(now);
       const mk = scope => { const base = capOf(baseCaps, scope); return base == null ? null : { usd: unknown() ? null : num(t[scope]), cap: base + num(overrides[scope]), base }; };
-      return { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global'), accounting: accounting() };
+      return { caps: Object.assign({}, baseCaps), overrides: Object.assign({}, overrides), live: sumLive(), day: mk('day'), global: mk('global'), accounting: accounting(), tokenDay: tokenStatus(now) };
     }
 
-    return { check, resume, noteLive, clearLive, setCaps, status, caps() { return Object.assign({}, baseCaps); } };
+    return { check, resume, noteLive, clearLive, setCaps, status, caps() { return Object.assign({}, baseCaps); },
+      checkTokens, resumeTokens, setTokenCaps, tokenCaps() { return Object.assign({}, tokenCaps); }, tokensUsed };
   }
 
-  return { evaluate, makeBudget, WARN_FRAC };
+  return { evaluate, evaluateTokens, makeBudget, WARN_FRAC };
 });

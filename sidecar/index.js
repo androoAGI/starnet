@@ -23,7 +23,7 @@ delete process.env.STARNET_CONNECTOR_ENCRYPTION_KEY;
 const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
 const ImageTask = require('./image-task.js');
-const { makeCostEngine } = require('./cost.js');
+const { makeCostEngine, UNBILLED_WEIGHTS } = require('./cost.js');
 const { makeLedger } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
@@ -763,6 +763,12 @@ const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget
 // (including 0 -> UNGOVERNED via budget.js capOf, e.g. SKYNET_BUDGET_PER_DAY=0 disables the day pool); only an
 // empty/missing/negative/non-numeric value falls back to the shipped default.
 const num = (v, d) => { if (v == null || String(v).trim() === '') return d; const n = Number(v); return (typeof n === 'number' && !isNaN(n) && n >= 0) ? n : d; };
+// maxUnbilledTokens: per-run WEIGHTED-token ceiling for SUBSCRIPTION (unbilled) use. A Claude Code subscription turn books
+// $0, so the $ ceilings and the unpriced ceiling above never see it (cost.js UNBILLED_WEIGHTS: uncached input 1, cache
+// write 2, cache read 0.1, output 5). OPT-IN: OFF (0) by default so no subscription run changes behaviour until someone
+// chooses a limit. SKYNET_/STARNET_MAX_UNBILLED_TOKENS sets the deploy default; a value saved in SETTINGS › SPENDING
+// LIMITS (budget-tokens.json perRunTokens) wins — read live through unbilledRunCap(), never this constant directly.
+CAPS.maxUnbilledTokens = num(ENV('MAX_UNBILLED_TOKENS'), 0);
 // CONNECTOR SCHEMA FOOTPRINT (w2, 2026-09-22): once a run's MCP connector tools pass EITHER threshold, the largest
 // servers stop riding every request — deferred (still granted, found through tool.search) with a one-line server
 // index in the prompt instead (tools/builtin/toolsearch.js planConnectorDeferral). Evidence for the defaults: the
@@ -780,6 +786,11 @@ const BUDGET_CAPS = {
   perDay: num(ENV('BUDGET_PER_DAY'), BUDGET_SHIPPED.perDay),         // $25/day soft rail: run ends 'budget'/'day', one-click RESUME in the Budget panel
   global: num(ENV('BUDGET_GLOBAL'), BUDGET_SHIPPED.global)
 };
+// The daily SUBSCRIPTION usage limit (weighted tokens over a rolling 24 h; budget.js checkTokens). OFF by default (0):
+// a subscription is already paid for, so nothing is stopped until the Commander sets a limit in SETTINGS › SPENDING
+// LIMITS. SKYNET_BUDGET_PER_DAY_TOKENS sets the default for a deploy; a saved value wins (budget-tokens.json).
+// perRunTokens is the per-run ceiling's env default (CAPS.maxUnbilledTokens, above) under the same saved-wins rule.
+const BUDGET_TOKEN_CAPS = { perDayTokens: Math.floor(num(ENV('BUDGET_PER_DAY_TOKENS'), 0)), perRunTokens: Math.floor(CAPS.maxUnbilledTokens) };
 // Issue #53: what a StarNet-credit run reserves (= its per-run ceiling) when no positive per-run cap is in force.
 // budgetcaps.DEFAULT_MANAGED_PER_RUN_USD explains the number; SKYNET_BUDGET_MANAGED_PER_RUN retunes it and 0
 // restores the old "the whole wallet is the ceiling" behaviour. A saved/env per-run cap > 0 always wins.
@@ -1307,6 +1318,59 @@ function applyBudgetCaps() {
 }
 budgetOverrides = loadBudgetOverrides();
 applyBudgetCaps();
+/* ---- the daily SUBSCRIPTION usage limit (weighted tokens) — its own PROTECTED sibling file, so the four $ caps'
+   store (cleanOverrides keeps exactly those keys) is untouched. Same precedence: a saved key wins, else the env
+   default (BUDGET_TOKEN_CAPS); a saved 0 = off. Applied LIVE to the governor (budget.setTokenCaps). */
+const BUDGET_TOKENS_FILE = path.join(WORKSPACES, 'budget-tokens.json');
+const budgetTokenStore = makeDomainStore({
+  fs, path, file: BUDGET_TOKENS_FILE, version: 1, writeDurable: writeFileDurable,
+  defaults: () => ({}),
+  normalize: value => budgetCaps.cleanTokenOverrides(value || {}),
+  encode: value => ({ caps: value }),
+  decode: envelope => envelope && envelope.caps && typeof envelope.caps === 'object' && !Array.isArray(envelope.caps) ? envelope.caps : undefined,
+  onIssue: reportDomainStoreIssue('budget-tokens')
+});
+let effectiveTokenCaps = Object.assign({}, BUDGET_TOKEN_CAPS);
+let tokenOverrides = {};
+function saveTokenOverrides() {
+  try { budgetTokenStore.save(tokenOverrides); }
+  catch (e) { console.warn('[budget] token limit persist failed:', (e && e.message) || e); }
+}
+function applyTokenCaps() {
+  effectiveTokenCaps = budgetCaps.resolveTokenCaps(BUDGET_TOKEN_CAPS, tokenOverrides);
+  budget.setTokenCaps({ day: effectiveTokenCaps.perDayTokens });
+}
+// the per-run SUBSCRIPTION ceiling in force NOW (saved-or-env; 0 = off -> the loop reads it as no ceiling). Read at each
+// run/aux-loop start so a saved change applies to the next run without a restart.
+function unbilledRunCap() { const v = effectiveTokenCaps.perRunTokens; return (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0; }
+tokenOverrides = budgetTokenStore.load().value;
+applyTokenCaps();
+/* Is this provider a SUBSCRIPTION lane — one whose turns can book $0 while using real allowance (Claude Code)? The token
+   gates below apply only there: a billed provider is governed by the $ caps it actually spends against. The claude-cli
+   adapter serves BOTH a subscription sign-in and an API key, and which one is live is only known from what it reports,
+   so cliLaneUnbilled remembers the last proof: true after a booking with weighted subscription tokens or a
+   `claude auth status` naming a subscription; false after a booking the CLI billed in $ (an API-key sign-in) or a status
+   naming an API key; null (unknown, the boot state) counts as a subscription lane. A run whose live tally already shows
+   unbilled tokens is token-checked regardless (runBudget), so a stale false can let through at most one turn. */
+let cliLaneUnbilled = null;
+function noteCliLane(pid, usd, weighted) {
+  const p = getProviderProfile(pid);
+  if (!(p && p.adapter === 'claude-cli')) return;
+  if (Number(weighted) > 0) cliLaneUnbilled = true;
+  else if (Number(usd) > 0) cliLaneUnbilled = false;
+}
+function unbilledLane(pid) { const p = getProviderProfile(pid); return !!(p && p.adapter === 'claude-cli') && cliLaneUnbilled !== false; }
+// cheap "could this station run Claude Code at all" signal for the Budget panel (the binary resolves on disk), cached a
+// minute so a polled /api/budget/status never walks PATH each time.
+let _cliLaneSeen = { at: 0, v: false };
+function claudeCliPresent() {
+  const now = Date.now();
+  if (now - _cliLaneSeen.at < 60000) return _cliLaneSeen.v;
+  let v = false;
+  try { v = !!require('./providers/claude-cli.js').makeCliHost({}).command(); } catch (e) { failNote('budget.tokens.lane', e); v = false; }
+  _cliLaneSeen = { at: now, v };
+  return v;
+}
 
 /* ---- P0-3 fallback-chain persistence (SETTINGS → Models). The ordered "if the primary model fails, try these
    next" list was env-only (SKYNET_FALLBACK_MODELS) — nothing but that env var ever set it. Now it persists in a
@@ -3001,7 +3065,7 @@ async function runReflection(o) {
   const origin = String((o && o.origin) || 'commander');   // which surface formed these beliefs (memcore.originOf)
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit; $ reads 0 there)
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
@@ -3019,6 +3083,7 @@ async function runReflection(o) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
     return out;
   };
   /* (aux-tier repair, 2026-08-17) A typed-postconditions line — `let finalCompletionEvidence =
@@ -3081,7 +3146,7 @@ async function runReflection(o) {
     clearTimeout(timer);
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered, weightedTokens: wtok }); } catch (_) {} }
   }
 }
 
@@ -3100,7 +3165,7 @@ async function runFailureReview(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit; $ reads 0 there)
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3116,6 +3181,7 @@ async function runFailureReview(o) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
     return out;
   };
   try {
@@ -3160,7 +3226,7 @@ async function runFailureReview(o) {
   finally {
     clearTimeout(timer);
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered, weightedTokens: wtok }); } catch (_) {} }
   }
 }
 
@@ -3209,7 +3275,7 @@ async function runStudy(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit; $ reads 0 there)
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3225,6 +3291,7 @@ async function runStudy(o) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
     return out;
   };
   try {
@@ -3249,7 +3316,7 @@ async function runStudy(o) {
   } catch (e) { console.warn('[study] pass failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered, weightedTokens: wtok }); } catch (_) {} }
   }
 }
 
@@ -3278,7 +3345,7 @@ async function runThreadMine(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit; $ reads 0 there)
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3294,6 +3361,7 @@ async function runThreadMine(o) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
     return out;
   };
   try {
@@ -3321,7 +3389,7 @@ async function runThreadMine(o) {
   } catch (e) { console.warn('[threads] mine failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered, weightedTokens: wtok }); } catch (_) {} }
   }
 }
 
@@ -3381,7 +3449,8 @@ async function rehydrateReviewJob(job) {
   return Object.assign({}, job, {
     provider, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
-    unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
+    unmetered: !!((getProviderProfile(providerId) || {}).unmetered),
+    providerId   // the review's subscription usage gate (unbilledLane) reads the lane it will run on
   });
 }
 const SKILL_CURATOR_INTERVAL_MS = num(process.env.SKYNET_SKILL_CURATOR_INTERVAL_MS, 24 * 60 * 60 * 1000);
@@ -3396,6 +3465,12 @@ async function runBackgroundSkillReview(o) {
     let blocked = null;
     try { blocked = budget.check(null, String(agentId || 'agent'), 0, Date.now(), null); } catch (_) { blocked = null; }
     if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': ' + (blocked.unknown ? 'spend history is unavailable' : 'the spending cap is reached')); return null; }
+  }
+  // ...and on a subscription lane, the daily usage limit (weighted tokens) — the $ cap above reads $0 there
+  if (!unmetered && o && o.providerId && unbilledLane(o.providerId)) {
+    let tokBlocked = null;
+    try { tokBlocked = budget.checkTokens(null, String(agentId || 'agent'), 0, Date.now()); } catch (e) { failNote('skills.review.budget.tokens', e); }
+    if (tokBlocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': the daily subscription usage limit is reached'); return null; }
   }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
@@ -3455,15 +3530,16 @@ async function runBackgroundSkillReview(o) {
         { role: 'user', content: prompt }
       ],
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
-      limits: { maxIters: 6, maxCostUsd: SKILL_REVIEW_MAX_COST_USD, grace: false },
+      limits: { maxIters: 6, maxCostUsd: SKILL_REVIEW_MAX_COST_USD, grace: false, maxUnbilledTokens: unmetered ? Infinity : unbilledRunCap() },
       signal: ac.signal, clock: { now: () => Date.now() },
       agentId, runId: reviewRunId, model, trigger: 'event'
     });
   } catch (e) { console.warn('[skills] background review failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, unmetered }); } catch (_) {}
+    if (result && (result.usd || result.unbilledTokens)) {
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, weightedTokens: result.unbilledTokens || 0, unmetered }); } catch (_) {}
+      if (o && o.providerId) noteCliLane(o.providerId, result.usd || 0, result.unbilledTokens || 0);
     }
   }
 }
@@ -3511,15 +3587,15 @@ async function runSkillCurator(o) {
         { role: 'user', content: skillCurator.buildPrompt({ skills: all }) }
       ],
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
-      limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false },
+      limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false, maxUnbilledTokens: unmetered ? Infinity : unbilledRunCap() },
       signal: ac.signal, clock: { now: () => Date.now() },
       agentId, runId: curatorRunId, model, trigger: 'event'
     });
   } catch (e) { console.warn('[skills] curator failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, unmetered }); } catch (_) {}
+    if (result && (result.usd || result.unbilledTokens)) {
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, weightedTokens: result.unbilledTokens || 0, unmetered }); } catch (_) {}
     }
   }
 }
@@ -6888,7 +6964,7 @@ async function runScoutCycle(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit; $ reads 0 there)
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (system, prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
@@ -6901,6 +6977,7 @@ async function runScoutCycle(o) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
     return out;
   };
   try {
@@ -7022,7 +7099,7 @@ async function runScoutCycle(o) {
   } finally {
     clearTimeout(timer);
     // book the cycle's own spend into the append-only ledger (same discipline as reflection/study).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered, weightedTokens: wtok }); } catch (_) {} }
   }
 }
 
@@ -7624,6 +7701,9 @@ function nightshiftPrecheck() {
     try { b = budget.check(null, NIGHTSHIFT_AGENT, 0, Date.now(), null); }
     catch (_) { return { ok: false, reason: 'precheck-error' }; }
     if (b) return { ok: false, reason: b.unknown ? 'spend-unknown' : 'budget' };
+    // the daily SUBSCRIPTION usage limit binds a beat on a subscription lane too (its $ reads $0 there)
+    try { if (unbilledLane(cronProviderFor({ agentId: NIGHTSHIFT_AGENT })) && budget.checkTokens(null, NIGHTSHIFT_AGENT, 0, Date.now())) return { ok: false, reason: 'budget' }; }
+    catch (e) { failNote('nightshift.budget.tokens', e); return { ok: false, reason: 'precheck-error' }; }
     // LANE L — CAPABILITY GATE (pre-spend, same wart): with no runnable provider/credential a beat stands down at
     // 'no-capability' AFTER the leash was spent (runNightshiftBeat). Read it locally (no model call) and decline
     // before the spend. A lookup hiccup stands down visibly; uncertainty is not unattended-work permission.
@@ -9266,7 +9346,7 @@ async function runQuestRefreshCycle(why) {
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, QUESTREFRESH_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  let usd = 0, tokens = 0, wtok = 0;   // wtok: weighted SUBSCRIPTION tokens (the daily usage limit)
   try {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
@@ -9334,6 +9414,12 @@ async function runQuestRefreshCycle(why) {
         return;
       }
     }
+    // the daily SUBSCRIPTION usage limit binds a refresh on a subscription lane too ($ caps read $0 there)
+    if (!((getProviderProfile(providerId) || {}).unmetered) && unbilledLane(providerId)) {
+      let tb = null;
+      try { tb = budget.checkTokens(null, 'station', 0, Date.now()); } catch (e) { failNote('questrefresh.budget.tokens', e); }
+      if (tb) { questRefreshNote({ outcome: 'skipped', reason: 'the daily subscription usage limit is reached — raise it, turn it off, or resume it in SETTINGS › SPENDING LIMITS before refreshing quests' }); return; }
+    }
     // evidence exists → NOW pay for the provider (codex token fetch is a network hop; never spend it on a cold save).
     let provider = extraAccountProviderFor(providerId, baseUrl);   // subscription stacking: first live sign-in
     if (provider) { /* an extra sign-in carries the refresh */ }
@@ -9354,6 +9440,7 @@ async function runQuestRefreshCycle(why) {
     }
     const c = cost.reconcile(usage, model);
     usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    wtok += c.unbilled ? (c.weightedTokens || 0) : 0;
 
     if (capturedGoalBinding !== QuestRefresh.goalBinding(commanderGoals.get())) {
       questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
@@ -9395,7 +9482,8 @@ async function runQuestRefreshCycle(why) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId: 'questrefresh-' + Date.now(), agentId: 'station', turns: 0, usd, tokens, model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {} }
+    if (usd || wtok) { try { ledger.record({ runId: 'questrefresh-' + Date.now(), agentId: 'station', turns: 0, usd, tokens, model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered), weightedTokens: wtok }); } catch (_) {} }
+    noteCliLane(providerId, usd, wtok);
   }
 }
 
@@ -12626,17 +12714,24 @@ async function stationOneShot(prompt, tag, failLead) {
   try { cfg = sampleRunConfigFor('agent'); } catch (e) { cfg = null; }
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };
   const providerId = normalizeProvider(cfg.provider);
+  // the daily SUBSCRIPTION usage limit: on a subscription lane the $ cap above reads $0, so this is the gate that binds
+  if (unbilledLane(providerId)) {
+    let tb = null;
+    try { tb = budget.checkTokens(null, 'agent', 0, Date.now()); } catch (e) { failNote(tag + '.budget.tokens', e); }
+    if (tb) return { ok: false, status: 409, error: 'the station\'s daily subscription usage limit is reached — raise it, turn it off, or RESUME it in SETTINGS › SPENDING LIMITS, then ask again' };
+  }
   const reasoningEffort = resolveReasoningEffort(providerId, cfg.reasoningEffort);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
   if (timer && timer.unref) timer.unref();
   stationOneShots.add(ctrl);
-  let out = '', usage = null, usd = 0, tokens = 0, cost = null;
+  let out = '', usage = null, usd = 0, tokens = 0, wtok = 0, cost = null;
   // book whatever usage arrived — on a timeout or a provider error too: those tokens were billed (sweep 2026-10-02)
   const book = () => {
     if (!usage || !cost) return;
-    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); } catch (e) { failNote(tag + '.reconcile', e); return; }
-    if (usd) { try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (e) { failNote(tag + '.ledger', e); } }
+    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); wtok = c.unbilled ? (c.weightedTokens || 0) : 0; } catch (e) { failNote(tag + '.reconcile', e); return; }
+    if (usd || wtok) { try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered: !!((getProviderProfile(providerId) || {}).unmetered), weightedTokens: wtok }); } catch (e) { failNote(tag + '.ledger', e); } }
+    noteCliLane(providerId, usd, wtok);
   };
   try {
     const provider = await providerForRunConfig(cfg, reasoningEffort);
@@ -12893,8 +12988,27 @@ function handleBudgetStatus(req, res) {
     // exact totals above stay null while any is open; the booked rows are still real, so they read as a floor.
     unsettled: budgetUnsettledRuns(),
     atLeast: (accounting.readError === 'UNSETTLED_SPEND' && accounting.durable)
-      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null
+      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null,
+    tokenPool: budgetTokenPoolStatus(governor, now)
   })));
+}
+/* the daily SUBSCRIPTION usage limit for the Budget panel (additive). usedToday = weighted tokens in the rolling 24 h
+   (finished runs + in flight), null when the spend record cannot be read (an interrupted run's unknown $ does not hide
+   the token rows that did land). An ESTIMATE of relative load from the CLI's own token counts — never Anthropic's meter. */
+function budgetTokenPoolStatus(governor, now) {
+  const td = governor && governor.tokenDay;
+  let used = null;
+  try { used = budget.tokensUsed(now); } catch (e) { failNote('budget.tokens.used', e); used = null; }
+  const cap = td ? td.cap : 0;
+  const tripped = !!(td && cap > 0 && typeof td.tokens === 'number' && td.tokens >= cap);
+  return {
+    perDayTokens: effectiveTokenCaps.perDayTokens, saved: Object.assign({}, tokenOverrides), envDefault: BUDGET_TOKEN_CAPS.perDayTokens,
+    usedToday: used == null ? null : Math.round(used), cap, tripped, resumable: tripped,
+    weights: UNBILLED_WEIGHTS, estimate: true, window: 'rolling-24h', perRunTokens: unbilledRunCap(),
+    envDefaults: { perDayTokens: BUDGET_TOKEN_CAPS.perDayTokens, perRunTokens: BUDGET_TOKEN_CAPS.perRunTokens },
+    // show the row only where it can matter: Claude Code is present, or a limit / recorded use already exists
+    lane: !!(claudeCliPresent() || effectiveTokenCaps.perDayTokens > 0 || unbilledRunCap() > 0 || (used != null && used > 0))
+  };
 }
 function budgetUnsettledRuns() {
   return ledger.unsettledRuns().map(r => {
@@ -13151,11 +13265,27 @@ async function handleCreditsUnlink(req, res) {
 async function handleBudgetCaps(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
-  const v = budgetCaps.validateOverridesPatch(body, budgetOverrides);   // pure: strict parse + merge onto current
-  if (!v.ok) return json(400, { error: v.error });
-  budgetOverrides = v.overrides;
-  saveBudgetOverrides();
-  applyBudgetCaps();   // live, no restart
+  // the daily SUBSCRIPTION usage limit rides this route under its own key (perDayTokens, weighted tokens). Both halves
+  // are validated BEFORE either is applied, so a bad value in one never half-applies the other; a body with neither
+  // keeps the $ validator's "no cap fields" 400.
+  const isObj = !!body && typeof body === 'object' && !Array.isArray(body);
+  const hasTok = isObj && budgetCaps.TOKEN_KEYS.some(k => k in body);
+  const hasUsd = isObj && BUDGET_CAP_KEYS.some(k => k in body);
+  let tv = null, v = null;
+  if (hasTok) {
+    tv = budgetCaps.validateTokenPatch(body, tokenOverrides);
+    if (!tv.ok) return json(400, { error: tv.error });
+  }
+  if (hasUsd || !hasTok) {
+    v = budgetCaps.validateOverridesPatch(body, budgetOverrides);   // pure: strict parse + merge onto current
+    if (!v.ok) return json(400, { error: v.error });
+  }
+  if (v) {
+    budgetOverrides = v.overrides;
+    saveBudgetOverrides();
+    applyBudgetCaps();   // live, no restart
+  }
+  if (tv) { tokenOverrides = tv.overrides; saveTokenOverrides(); applyTokenCaps(); }
   return handleBudgetStatus(req, res);   // echo the fresh status so the UI repaints from one round-trip
 }
 function handleApiSession(req, res) {
@@ -13211,6 +13341,12 @@ async function handleBudgetResume(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const scope = String(body.scope || '').trim();
+  // the daily SUBSCRIPTION usage limit: one more base limit of weighted-token headroom for the session
+  if (scope === 'dayTokens') {
+    const tcap = budget.resumeTokens();
+    if (tcap == null) return json(409, { error: 'the daily subscription usage limit is off (no limit set)' });
+    return json(200, { resumed: scope, cap: tcap, status: budget.status(Date.now()) });
+  }
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
   const cap = budget.resume(scope);
   if (cap == null) {
@@ -13322,7 +13458,7 @@ function collectExportSnapshot(bodySections) {
   const roster = [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider, role: a.role, system: a.system }));
   const connectors = (connectorConfigs || []).map(c => Object.assign({}, c, { hasToken: !!(c && (c.token || c.hasToken)) }));
   const snap = {
-    budget: Object.assign({}, budgetOverrides),
+    budget: Object.assign({}, budgetOverrides, Object.keys(tokenOverrides).length ? { tokens: Object.assign({}, tokenOverrides) } : {}),   // + the subscription usage limits
     fallback: effectiveFallbackChain(),
     roster: roster,
     dossier: commanderDossier.get(),
@@ -13472,7 +13608,11 @@ async function handleConfigImport(req, res) {
 
   if (want('budget')) {
     const v = budgetCaps.cleanOverrides(sec.budget || {});
-    budgetOverrides = v; saveBudgetOverrides(); applyBudgetCaps(); applied.push('budget');
+    budgetOverrides = v; saveBudgetOverrides(); applyBudgetCaps();
+    // the subscription usage limits ride the same section (budget.tokens); a backup without them clears them, exactly as
+    // a backup without a $ key clears that key
+    tokenOverrides = budgetCaps.cleanTokenOverrides((sec.budget && sec.budget.tokens) || {}); saveTokenOverrides(); applyTokenCaps();
+    applied.push('budget');
   }
   if (want('fallback')) {
     const models = (sec.fallback && Array.isArray(sec.fallback.models)) ? fallbackChain.cleanChain(sec.fallback.models) : [];
@@ -13541,7 +13681,7 @@ async function handleConfigReset(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const section = String(body.section || '').trim();
   switch (section) {
-    case 'budget': budgetOverrides = {}; saveBudgetOverrides(); applyBudgetCaps(); break;
+    case 'budget': budgetOverrides = {}; saveBudgetOverrides(); applyBudgetCaps(); tokenOverrides = {}; saveTokenOverrides(); applyTokenCaps(); break;
     case 'fallback': fallbackSaved = null; saveFallbackChain(); break;
     case 'roster': agentRoster.clear(); saveAgentRoster(); break;
     case 'dossier': commanderDossier.set(''); break;
@@ -20134,7 +20274,8 @@ async function runOnceCore(o) {
     providerFallbacks.push({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
       unmetered: fbUnmetered,
       maxCostUsd: Math.min(runCapUsd, (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd : fbUnmetered ? Infinity : (effectiveCaps.perRun > 0 ? effectiveCaps.perRun : Infinity)),
-      maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens });
+      maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens,
+      maxUnbilledTokens: (fbUnmetered || providerUsesCodex(fbProviderId) || providerUsesDeviceOAuth(fbProviderId)) ? Infinity : unbilledRunCap() });
   }
   const fallbacks = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
@@ -20238,7 +20379,11 @@ async function runOnceCore(o) {
   // The dispatch receipt names where this run's charge will show (provider/model it started on, managed or not) and the
   // per-run limit it started with, so an interrupted run can be settled by the Commander from the right dashboard.
   const runReceiptMeta = () => ({ provider: providerId, model, managed: managedRun, runCapUsd });
-  const runBudget = { check: (spentThisRun) => providerUnmetered ? null : budget.check(runId, agentId, spentThisRun, Date.now(), emit, runReceiptMeta) };
+  // The daily SUBSCRIPTION usage limit rides the same adapter: on a subscription lane (the ACTIVE provider — a fallback
+  // is followed) the loop passes its live weighted tokens and a reached pool answers { unit:'tokens' } (loop.js ends it
+  // budget/day/tokens). Checked only when the $ pools let the run proceed, so a $ stop keeps its own reason.
+  const runBudget = { check: (spentThisRun, live) => providerUnmetered ? null : (budget.check(runId, agentId, spentThisRun, Date.now(), emit, runReceiptMeta)
+    || ((unbilledLane(activeProviderId) || (live && live.unbilledTokens > 0)) ? budget.checkTokens(runId, agentId, (live && live.unbilledTokens) || 0, Date.now()) : null)) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
@@ -21430,7 +21575,9 @@ async function runOnceCore(o) {
         grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         turnOutputMax: () => runOutputBudget().turnMax,   // 30% of the live window (see WINDOW-SCALED TOOL OUTPUT)
         // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
-        maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens
+        maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens,
+        // the same seatbelt for SUBSCRIPTION use (weighted tokens): accrues only on turns flagged unbilled (cost.js)
+        maxUnbilledTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : unbilledRunCap()
       },
       budget: runBudget, context: ctxMgr, summarize, fallbacks, initialFallback,
       microCompaction: !/^(0|false|off|no)$/i.test(String(ENV('COMPACT_MICRO') || '').trim()),   // free elision tier before any paid fold (off: STARNET_COMPACT_MICRO=0)
@@ -21595,7 +21742,8 @@ async function runOnceCore(o) {
     const finalUsd = effectiveRunUsd({ usd: (result && result.usd) || 0, mediaUsd, unmetered: runUnmetered, unpricedUsage: result && result.unpricedUsage, priceOf: provider && provider.priceOf });
     const finalTurns = (result && result.turns) || 0;
     const finalTokens = (result && result.tokens) || 0;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: runUnmetered && mediaUsd === 0 }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, model: finalModel, unmetered: runUnmetered && mediaUsd === 0, weightedTokens: (result && result.unbilledTokens) || 0 }); } catch (_) {}
+    noteCliLane(activeProviderId, (result && result.usd) || 0, (result && result.unbilledTokens) || 0);   // which sign-in the Claude Code lane is on
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
@@ -21777,6 +21925,7 @@ async function runOnceCore(o) {
   // agent whose cap is reached now) sent its failure review straight to the provider the cap had just stopped
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
+  if (!_capReached && !providerUnmetered && unbilledLane(activeProviderId)) { try { _capReached = !!budget.checkTokens(null, agentId, 0, Date.now()); } catch (e) { failNote('aux.budget.tokens', e); } }   // the daily SUBSCRIPTION usage limit (weighted tokens)
   if (_capReached) _auxCandidates.length = 0;
   const _auxBudget = AuxGovernor.parseBudget(process.env.SKYNET_AUX_BUDGET);
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
@@ -21830,7 +21979,7 @@ async function runOnceCore(o) {
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, providerId: activeProviderId }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (process.env.SKYNET_SKILL_REVIEW !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
@@ -21839,7 +21988,7 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, providerId: activeProviderId });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
@@ -24333,6 +24482,11 @@ function noteAccountAuth(providerId, accountId, st) {
   if (st.loggedIn && st.email) seen.email = st.email;
   if (st.loggedIn && st.subscription) seen.subscription = st.subscription;
   accountAuthSeen.set(providerId + ':' + (accountId || 'primary'), seen);
+  // the subscription usage limit's lane: a proven subscription sign-in vs a proven API key (see cliLaneUnbilled)
+  if (providerId === 'claude-cli' && st.loggedIn) {
+    if (st.subscription) cliLaneUnbilled = true;
+    else if (/api.?key|console/i.test(String(st.authMethod || ''))) cliLaneUnbilled = false;
+  }
 }
 /* SUBSCRIPTION STACKING — the ordered sign-ins a run on `providerId` may use: the primary (the provider's own
    store) first, then every extra account oldest-first, minus any a real probe PROVED signed out (unless that leaves

@@ -72,6 +72,7 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     const usage = evs.find(e => e.type === 'usage').usage;
     A.eq([usage.prompt_tokens, usage.completion_tokens, usage.prompt_tokens_details.cached_tokens], [35, 7, 20], 'real token counts');
     A.eq(usage.cost, 0, 'subscription login books $0');
+    A.eq(usage.subscription, true, 'a subscription login flags the turn as unbilled (usage.subscription), so the token guard can weigh it');
     A.eq(evs.filter(e => e.type === 'done'), [{ type: 'done', finishReason: 'stop', truncated: false }], 'exactly one done');
   }
 
@@ -80,6 +81,7 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     const { p } = make({ lines: [init('ANTHROPIC_API_KEY'), result({ result: 'ok' })] });
     const evs = await collect(p, { model: 'haiku', messages: [{ role: 'user', content: 'x' }] });
     A.eq(evs.find(e => e.type === 'usage').usage.cost, 0.25, 'API-key login books total_cost_usd');
+    A.ok(!evs.find(e => e.type === 'usage').usage.subscription, 'an API-key login is billed, never flagged as a subscription turn');
     A.eq(evs.filter(e => e.type === 'text').map(e => e.delta).join(''), 'ok', 'result text is used when no delta streamed');
   }
 

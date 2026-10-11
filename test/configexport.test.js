@@ -146,4 +146,19 @@ eq(C.parseImport({ starnetExport: 1, sections: { budget: 'not an object' } }).ok
   ok(hostile.notes.some(x => /skipped 3 project folder grants/.test(x)), 'the skipped folder grants are named in the import notes');
 }
 
+// ---- the SUBSCRIPTION usage limits ride the budget section as budget.tokens (2026-10-11) ----
+{
+  const env = C.buildExport({ budget: { perDay: 25, tokens: { perDayTokens: 15000, perRunTokens: 40000 } } }, { now: 1 });
+  eq(JSON.stringify(env.sections.budget.tokens), JSON.stringify({ perDayTokens: 15000, perRunTokens: 40000 }), 'export carries the token limits inside budget');
+  const back = C.parseImport(JSON.parse(JSON.stringify(env)));
+  eq(JSON.stringify(back.sections.budget), JSON.stringify({ perDay: 25, tokens: { perDayTokens: 15000, perRunTokens: 40000 } }), 'and they round-trip');
+  const junk = C.parseImport({ starnetExport: 1, sections: { budget: { perRun: 1, tokens: { perDayTokens: -1, perRunTokens: 1.5, other: 9 } } } });
+  eq(JSON.stringify(junk.sections.budget.tokens), JSON.stringify({}), 'junk token limits are dropped (whole numbers >= 0 only)');
+  eq(C.parseImport({ starnetExport: 1, sections: { budget: { perRun: 1 } } }).sections.budget.tokens, undefined, 'an older backup without tokens parses as before');
+  const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  ok(/budget: Object\.assign\(\{\}, budgetOverrides, Object\.keys\(tokenOverrides\)\.length \? \{ tokens: Object\.assign\(\{\}, tokenOverrides\) \} : \{\}\)/.test(idx), 'the host exports the saved token limits');
+  ok(/tokenOverrides = budgetCaps\.cleanTokenOverrides\(\(sec\.budget && sec\.budget\.tokens\) \|\| \{\}\); saveTokenOverrides\(\); applyTokenCaps\(\);/.test(idx), 'import applies them through their durable store');
+  ok(/case 'budget': budgetOverrides = \{\}; saveBudgetOverrides\(\); applyBudgetCaps\(\); tokenOverrides = \{\}; saveTokenOverrides\(\); applyTokenCaps\(\); break;/.test(idx), 'reset of the budget section clears them too');
+}
+
 console.log('configexport.test.js OK —', n, 'assertions');

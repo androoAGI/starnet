@@ -1,5 +1,5 @@
 /* sidecar/ledger.js — the append-only spend logbook. One immutable line per finished run
-   ({ runId, agentId, turns, usd, tokens, ts }), so cumulative spend survives restarts and can
+   ({ runId, agentId, turns, usd, tokens, ts, weightedTokens? }), so cumulative spend survives restarts and can
    be questioned across runs/agents/days. This is the missing "cron spend ledger" the reference harness never
    had (parity study, hole #1) and the substrate budget.js governs over.
 
@@ -16,8 +16,13 @@
      all() -> entry[],            count() -> int,
      totalUsd() -> number,                                       // every recorded run, ever
      usdSince(ts) -> number,      usdForDay(now?) -> number,     // trailing `dayMs` window
-     usdForRun(runId) -> number,  usdForAgent(agentId) -> number
-   } */
+     usdForRun(runId) -> number,  usdForAgent(agentId) -> number,
+     tokensForDay(now?) -> number                                // weighted SUBSCRIPTION tokens, trailing `dayMs` window
+   }
+   weightedTokens (additive, 2026-10-11): the run's WEIGHTED subscription tokens (cost.js UNBILLED_WEIGHTS) — what a
+   Claude Code subscription run used while it booked $0. Written ONLY when > 0, so every billed/free row keeps its exact
+   old shape. tokensForDay sums it for the daily subscription usage limit (budget.js checkTokens). It is an estimate of
+   load, never money: no $ aggregate reads it, and unmetered rows count here (the field only exists on unbilled use). */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -92,6 +97,8 @@
         unmetered: !!e.unmetered,
         ts: num(e.ts) || clock.now()
       };
+      const wt = Math.round(num(e.weightedTokens));
+      if (wt > 0) entry.weightedTokens = wt;   // subscription usage only — absent keeps the old row shape byte-identical
       // settleUnsettled, not a meter: the Commander settled this run. attestedAs says HOW — 'entered' (they typed the
       // charge from the provider dashboard) or 'limit' (they chose to count it at the per-run limit it started with,
       // a figure its last call can run past). Never claim "entered" for a limit booking.
@@ -177,6 +184,13 @@
       usdForDay(now) { const n = num(now) || clock.now(); return sum(r => num(r.ts) > n - dayMs); },
       usdForRun(runId) { runId = str(runId); return sum(r => r.runId === runId); },
       usdForAgent(agentId) { agentId = str(agentId); return sum(r => r.agentId === agentId); },
+      // weighted subscription tokens in the trailing window — every row carrying the field (metered or not)
+      tokensForDay(now) {
+        const n = num(now) || clock.now();
+        let t = 0;
+        for (let i = 0; i < rows.length; i++) { const r = rows[i]; if (r && num(r.ts) > n - dayMs) t += num(r.weightedTokens); }
+        return t;
+      },
       // provider-REPORTED totals, subscription runs included — never feed these to a cap.
       reportedUsd() { return sumAll(null); },
       reportedUsdForRun(runId) { runId = str(runId); return sumAll(r => r.runId === runId); }

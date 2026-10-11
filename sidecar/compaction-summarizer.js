@@ -13,7 +13,7 @@
    loop can put it in agent.compact (truthful telemetry: a lossy fold says so).
 
    Contract consumed by loop.js maybeCompact: summarize(older, prevSummary, live) -> { summary, usd, tokens,
-   unpricedUsage?, chunks, truncatedChars, rejected? }. An abort (signal.aborted) throws mid-chunk — the loop treats a
+   unpricedUsage?, chunks, truncatedChars, rejected?, unbilled?, weightedTokens? }. An abort (signal.aborted) throws mid-chunk — the loop treats a
    throw as a skipped fold, exactly as before. The aux-tier reliability floor (one retry on the run model when a
    cheap aux model fails) is preserved per chunk.
 
@@ -192,7 +192,7 @@ function makeSummarizer(deps) {
     }
 
     let running = (typeof prevSummary === 'string' && prevSummary.trim()) ? prevSummary.trim() : '';
-    let usd = 0, tokens = 0, produced = false, rejected = null; const unpriced = [];
+    let usd = 0, tokens = 0, produced = false, rejected = null, weighted = 0, unbilled = false; const unpriced = [];
 
     async function attempt(useModel, userMsg, hasPrev) {
       const req = { model: useModel, stream: true, signal, messages: [
@@ -213,6 +213,7 @@ function makeSummarizer(deps) {
       emit('agent.cost', { agentId: deps.agentId, runId: deps.runId, usd: c.usd || 0, model: useModel, reconciled: true });
       usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       if (c.unpriced) unpriced.push({ model: useModel, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0 });
+      if (c.unbilled) { unbilled = true; weighted += c.weightedTokens || 0; }   // subscription use: weighted tokens for the usage limit
       const text = out.trim();
       return { text, rejected: rejectReason(text, finish, truncated) };
     }
@@ -246,6 +247,7 @@ function makeSummarizer(deps) {
     const r = { summary: (produced && !rejected) ? running : '', usd, tokens, chunks: chunks.length, truncatedChars };
     if (rejected) r.rejected = rejected;
     if (unpriced.length) r.unpricedUsage = unpriced;
+    if (unbilled) { r.unbilled = true; r.weightedTokens = weighted; }   // additive: absent on billed folds (old shape)
     return r;
   }
   summarize.drain = transcriptDrain;

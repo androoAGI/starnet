@@ -9,7 +9,11 @@
    • validateOverridesPatch(patch) -> { ok, overrides?, error? }. Strictly parses an incoming
      { perRun?, perAgent?, perDay?, global? } patch against the current-nothing baseline: each present value must
      be a finite number >= 0 (0 = no cap) under a sane ceiling, or null/'' to CLEAR that key back to its default.
-     Returns the SET of keys to persist (absent = cleared). No IO, no clock — trivially testable. */
+     Returns the SET of keys to persist (absent = cleared). No IO, no clock — trivially testable.
+
+   • TOKEN caps (2026-10-11) — the SUBSCRIPTION usage limits (daily pool + per-run ceiling), in weighted tokens (cost.js UNBILLED_WEIGHTS).
+     A separate key set (TOKEN_KEYS) with its own clean/resolve/validate, persisted in its own file by the host, so
+     the four $ keys above (KEYS, cleanOverrides, validateOverridesPatch) stay exactly as they were. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -153,5 +157,46 @@
     return { ok: true, overrides: next };
   }
 
-  return { KEYS, CAP_MAX, DEFAULT_PER_DAY_USD, DEFAULT_MANAGED_PER_RUN_USD, shippedDefaults, resolveCaps, validateOverridesPatch, cleanOverrides, managedRunCapUsd, managedCapIsBalance, managedRefusalMessage };
+  // ---- TOKEN caps: the SUBSCRIPTION usage limits (weighted tokens; 0 = off) — daily pool + per-run ceiling. Same precedence as $. ----
+  const TOKEN_KEYS = ['perDayTokens', 'perRunTokens'];   // the daily pool + the per-run ceiling (both opt-in: 0 = off)
+  const TOKEN_CAP_MAX = 1e12;   // a fat-finger / overflow guard far above any real daily use
+  function isTokenCap(v) { return isNum(v) && v >= 0 && Math.floor(v) === v && v <= TOKEN_CAP_MAX; }
+  function cleanTokenOverrides(overrides) {
+    const out = {};
+    if (overrides && typeof overrides === 'object') {
+      for (const k of TOKEN_KEYS) if (isTokenCap(overrides[k])) out[k] = overrides[k];
+    }
+    return out;
+  }
+  function resolveTokenCaps(envDefaults, overrides) {
+    envDefaults = envDefaults || {};
+    const ov = cleanTokenOverrides(overrides);
+    const out = {};
+    for (const k of TOKEN_KEYS) {
+      out[k] = Object.prototype.hasOwnProperty.call(ov, k) ? ov[k]
+        : (isNum(envDefaults[k]) && envDefaults[k] >= 0 ? Math.floor(envDefaults[k]) : 0);
+    }
+    return out;
+  }
+  // { perDayTokens? } -> { ok, touched, overrides?, error? }. touched=false (no token key present) is ok:true with the
+  // base unchanged, so the host can validate a mixed $+token body without one half 400ing the other.
+  function validateTokenPatch(patch, base) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return { ok: false, touched: false, error: 'body must be an object of caps' };
+    const next = Object.assign({}, cleanTokenOverrides(base));
+    let touched = false;
+    for (const k of TOKEN_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+      touched = true;
+      const raw = patch[k];
+      if (raw === null || raw === '' || raw === undefined) { delete next[k]; continue; }   // clear -> env default
+      const n = Number(raw);
+      if (!isFinite(n) || n < 0 || Math.floor(n) !== n) return { ok: false, touched, error: k + ' must be a whole number of weighted tokens >= 0 (0 = off), blank to reset to default' };
+      if (n > TOKEN_CAP_MAX) return { ok: false, touched, error: k + ' exceeds the ' + TOKEN_CAP_MAX.toLocaleString('en-US') + '-token ceiling' };
+      next[k] = n;
+    }
+    return { ok: true, touched, overrides: next };
+  }
+
+  return { TOKEN_KEYS, TOKEN_CAP_MAX, cleanTokenOverrides, resolveTokenCaps, validateTokenPatch,
+    KEYS, CAP_MAX, DEFAULT_PER_DAY_USD, DEFAULT_MANAGED_PER_RUN_USD, shippedDefaults, resolveCaps, validateOverridesPatch, cleanOverrides, managedRunCapUsd, managedCapIsBalance, managedRefusalMessage };
 });

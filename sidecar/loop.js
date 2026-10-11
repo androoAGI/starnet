@@ -738,6 +738,13 @@
     // Missing/0/non-finite = off (every existing caller byte-identical).
     let maxUnpricedTokens = (typeof limits.maxUnpricedTokens === 'number' && isFinite(limits.maxUnpricedTokens) && limits.maxUnpricedTokens > 0)
       ? Math.floor(limits.maxUnpricedTokens) : Infinity;
+    // UNBILLED SEATBELT (2026-10-11). A Claude Code SUBSCRIPTION turn books $0 (nothing is billed per call), so neither
+    // maxCostUsd nor the unpriced ceiling above ever sees it — the provider PRICED it, at zero. cost.reconcile marks such
+    // a turn unbilled and weighs its tokens (uncached in 1, cache write 2, cache read 0.1, output 5); this is the
+    // per-run ceiling over that weighted figure (index.js CAPS.maxUnbilledTokens). Same off-semantics as above:
+    // missing/0/non-finite = no ceiling, so every existing caller is byte-identical.
+    let maxUnbilledTokens = (typeof limits.maxUnbilledTokens === 'number' && isFinite(limits.maxUnbilledTokens) && limits.maxUnbilledTokens > 0)
+      ? Math.floor(limits.maxUnbilledTokens) : Infinity;
     const signal = o.signal || { aborted: false };
     const clock = o.clock;
     let cost = o.cost;   // swappable: a cross-provider fallback entry can carry its own cost engine (fb.cost) so
@@ -944,6 +951,7 @@
     let unpricedTokens = 0;          // tokens reconciled at $0 on a model nothing could price (feeds maxUnpricedTokens)
     let unpricedFlagged = false;     // agent.cost carries unpriced:true ONCE per run — the first turn it happens
     let unpricedModel = '';
+    let unbilledTokens = 0;          // WEIGHTED tokens of unbilled (subscription) turns (feeds maxUnbilledTokens + the day pool)
     /* USAGE ANCHOR (Step 2 wave 2, audit F1). The provider's prompt_tokens for the last successful request, paired
        with the local ruler's reading of that SAME request. The fold decision adds what the ruler says grew since
        (tool results appended after the reading) — see promptAnchor. null = no reading: the full local ruler decides. */
@@ -1129,6 +1137,12 @@
       unpricedTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       if (!unpricedModel) unpricedModel = modelId || '(unknown)';
     }
+    // an unbilled (subscription) turn's weighted tokens join the run's tally; a billed or free turn adds nothing.
+    function noteUnbilled(c) {
+      if (!c || !c.unbilled) return;
+      const w = Number(c.weightedTokens);
+      if (isFinite(w) && w > 0) unbilledTokens += Math.round(w);
+    }
     // ONE booking per model ATTEMPT. Every exit of the stream loop calls this — fatal, cancel, and the top of each
     // retry/compress/fallback re-entry (which used to reset `usage = null` and lose it). The provider bills a
     // cancelled or retried attempt too (Anthropic's message_start already carries input_tokens), so a stopped
@@ -1139,6 +1153,7 @@
       spentUsd += c.usd || 0;
       spentTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
       noteUnpriced(modelId, c);
+      noteUnbilled(c);
       emit('agent.cost', {
         agentId, runId, usd: c.usd || 0, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0,
         reasoningTokens: c.reasoningTokens || 0, cachedTokens: c.cachedTokens || 0, model: modelId, reconciled: true
@@ -1150,6 +1165,7 @@
       for (const c of o.drainToolCosts()) {
         spentUsd += c.usd || 0;
         spentTokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+        noteUnbilled(c);   // a tool's own model call on a subscription sign-in counts toward the usage limit too
         // Auxiliary tokens are not the conversation's context occupancy.
         const payload = { agentId, runId, usd: c.usd || 0, model: c.model, reconciled: true };
         if (c.unpriced) payload.unpriced = true;
@@ -1188,6 +1204,13 @@
           endPayload.unpricedTokens = Number(extra.unpricedTokens) || 0;
           endPayload.unpricedCapTokens = Number(extra.unpricedCapTokens) || 0;
         }
+        // the subscription USAGE limit: the stop is in weighted tokens, not dollars (undeclared optional fields, like
+        // unpricedModel above — schema obj() allows extra props; budgetScope stays inside its frozen enum).
+        if (extra.budgetUnit === 'tokens') {
+          endPayload.budgetUnit = 'tokens';
+          endPayload.budgetTokens = Math.max(0, Math.round(Number(extra.budgetTokens) || 0));
+          endPayload.budgetCapTokens = Math.max(0, Math.round(Number(extra.budgetCapTokens) || 0));
+        }
       }
       emit('agent.run.end', endPayload);
       const tail = messages[messages.length - 1];
@@ -1195,6 +1218,11 @@
       const out = { reason, messages, text: terminalText, usd: spentUsd, turns, tokens: spentTokens, model, unpricedUsage: unpricedUsage.slice() };
       if (cut) out.finishReason = cut;
       if (endPayload.budgetScope) { out.budgetScope = endPayload.budgetScope; if (endPayload.budgetCapUsd != null) out.budgetCapUsd = endPayload.budgetCapUsd; }
+      out.unbilledTokens = unbilledTokens;   // weighted subscription tokens this run used (0 on billed runs) — the host books it
+      if (endPayload.budgetUnit === 'tokens') {
+        out.budgetUnit = 'tokens'; out.budgetTokens = endPayload.budgetTokens; out.budgetCapTokens = endPayload.budgetCapTokens;
+        out.budgetNote = (extra && extra.budgetNote) || ('stopped: ' + endPayload.budgetTokens.toLocaleString('en-US') + ' weighted subscription tokens (an estimate) reached the ' + endPayload.budgetCapTokens.toLocaleString('en-US') + ' ' + (endPayload.budgetScope === 'run' ? 'per-run ceiling' : 'daily usage limit'));
+      }
       if (endPayload.unpricedModel) {
         out.unpricedModel = endPayload.unpricedModel; out.unpricedTokens = endPayload.unpricedTokens; out.unpricedCapTokens = endPayload.unpricedCapTokens;
         out.budgetNote = 'stopped: ' + endPayload.unpricedTokens.toLocaleString('en-US') + ' tokens on unpriced model ' + endPayload.unpricedModel + ' reached the ' + endPayload.unpricedCapTokens.toLocaleString('en-US') + '-token ceiling (no published rate - set SKYNET_MODEL_PRICES or SKYNET_MAX_UNPRICED_TOKENS)';
@@ -1444,6 +1472,7 @@
         if (r && typeof r === 'object') {
           spentUsd += r.usd || 0; spentTokens += r.tokens || 0;
           if (Array.isArray(r.unpricedUsage)) for (const u of r.unpricedUsage) unpricedUsage.push(u);
+          noteUnbilled(r);   // a failed fold on a subscription still used its tokens
         }
         if (rejected) failNote('loop.compaction.rejected', new Error('summary rejected (' + rejected + '); history kept'));
         if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false;   // empty/cut/refused -> don't drop history
@@ -1458,6 +1487,7 @@
       if (r && typeof r === 'object') {
         spentUsd += r.usd || 0; spentTokens += r.tokens || 0;   // count the summarizer's own spend
         if (Array.isArray(r.unpricedUsage)) for (const u of r.unpricedUsage) unpricedUsage.push(u);
+        noteUnbilled(r);   // ...and its weighted subscription tokens ({ weightedTokens, unbilled } from compaction-summarizer.js)
       }
       usageReading = null;   // the next decision re-measures the compacted prompt (the ruler) until a new reading lands
       const compactEv = { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'context' };
@@ -1483,10 +1513,15 @@
       if (unpricedTokens >= maxUnpricedTokens) {
         return end('budget', { budgetScope: 'run', unpricedModel: unpricedModel || model, unpricedTokens, unpricedCapTokens: maxUnpricedTokens });
       }
+      // per-RUN ceiling for SUBSCRIPTION use (weighted tokens): the $ ceiling above reads $0 for every such turn
+      if (unbilledTokens >= maxUnbilledTokens) {
+        return end('budget', { budgetScope: 'run', budgetUnit: 'tokens', budgetTokens: unbilledTokens, budgetCapTokens: maxUnbilledTokens,
+          budgetNote: 'stopped: this run used ' + unbilledTokens.toLocaleString('en-US') + ' weighted subscription tokens (an estimate), its ' + maxUnbilledTokens.toLocaleString('en-US') + ' per-run ceiling (SKYNET_MAX_UNBILLED_TOKENS)' });
+      }
       // CROSS-RUN BUDGET: day/global pool over the ledger. check() emits any threshold crossing itself and
       // returns a block descriptor when a soft cap is reached (no resume headroom left) -> stop as 'budget'.
       if (budget) {
-        const b = budget.check(spentUsd);
+        const b = budget.check(spentUsd, { unbilledTokens });
         if (b && b.unknown) {
           // name the fix that works for THIS cause: a restart replays a failed save, but never settles an interrupted run
           const message = b.cause === 'unsettled'
@@ -1496,6 +1531,12 @@
               : 'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.';
           emit('agent.run.error', { agentId, runId, message, transient: false });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
+        }
+        // the DAILY subscription usage pool answers in weighted tokens (budget.checkTokens via the host adapter)
+        if (b && b.unit === 'tokens') {
+          const tok = Math.round(Number(b.tokens) || 0), capTok = Math.round(Number(b.cap) || 0);
+          return end('budget', { budgetScope: b.scope, budgetUnit: 'tokens', budgetTokens: tok, budgetCapTokens: capTok,
+            budgetNote: 'stopped: ' + tok.toLocaleString('en-US') + ' weighted subscription tokens (an estimate) in the last 24 h reached the ' + capTok.toLocaleString('en-US') + ' daily usage limit (SETTINGS › SPENDING LIMITS)' });
         }
         if (b) return end('budget', { budgetScope: b.scope, budgetCapUsd: b.cap });
       }
@@ -1764,6 +1805,7 @@
             provider = fb.provider;
             if (typeof fb.maxCostUsd === 'number' && fb.maxCostUsd > 0) maxCostUsd = fb.maxCostUsd;
             if (typeof fb.maxUnpricedTokens === 'number' && fb.maxUnpricedTokens > 0) maxUnpricedTokens = fb.maxUnpricedTokens;
+            if (typeof fb.maxUnbilledTokens === 'number' && fb.maxUnbilledTokens > 0) maxUnbilledTokens = fb.maxUnbilledTokens;
             if (fb.model) model = fb.model;   // the next agent.cost carries the switched model — the visible failover signal
             outputCapTokens = 0; outputCapRetried = false;   // a lowered output budget belonged to the model we left
             /* RE-RESOLVE THE CONTEXT WINDOW. Everything else about the failover swaps here (provider, model,
@@ -1886,6 +1928,7 @@
       spentUsd += final.usd || 0;
       spentTokens += (final.tokensIn || 0) + (final.tokensOut || 0);
       noteUnpriced(model, final);
+      noteUnbilled(final);
       noteReading(usage);   // the usage anchor for the next fold decision (real count + the ruler on this same request)
       const costPayload = {
         agentId, runId, usd: final.usd || 0, tokensIn: final.tokensIn || 0, tokensOut: final.tokensOut || 0,
@@ -2146,7 +2189,7 @@
         // turn (bounded; see STEER_EXT_MAX). Only when the next turn's own guards would let it run — a note folded into
         // a turn that then ends 'budget'/'max_iters' would be read by nobody; those stay pending and end() names them.
         if (steer && !signal.aborted && !graceUsed && steerExtUsed < STEER_EXT_MAX
-            && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && (turns < maxIters || graceEnabled)) {
+            && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && unbilledTokens < maxUnbilledTokens && (turns < maxIters || graceEnabled)) {
           let late = null;
           try { late = steer(); } catch (e) { failNote('loop.steer.finalDrain', e); late = null; }
           if (Array.isArray(late) && late.some(n => String(n == null ? '' : n).trim())) {

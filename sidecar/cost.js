@@ -1,10 +1,16 @@
 /* sidecar/cost.js — token/cost accounting.
    estimate(usage, model)  -> { usd, tokens }                      (live, during stream)
-   reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens }  (authoritative)
+   reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens, cacheWriteTokens,
+                                weightedTokens, unbilled }  (authoritative)
    Provider-reported cost (`usage.cost` in dollars, or xAI's `usage.cost_in_usd_ticks`,
    1 USD = 1e10 ticks) always wins; otherwise dollars are
    computed from the catalog priceOf(model) (per-million in/out). Reasoning + cached tokens
-   are tracked separately so the "truthful cost" ledger stays honest. */
+   are tracked separately so the "truthful cost" ledger stays honest.
+   UNBILLED usage (2026-10-11): a Claude Code SUBSCRIPTION turn books $0 (nothing is billed per call), so no $ cap
+   ever sees it. The provider flags such a turn usage.subscription === true; reconcile marks it unbilled and weighs its
+   tokens (UNBILLED_WEIGHTS: uncached input 1, cache write 2, cache read 0.1, output 5) so the subscription usage
+   limit has a measure. An ESTIMATE of relative load, never Anthropic's own meter. A free model that reports cost 0
+   WITHOUT the flag is not unbilled — only the explicit flag counts. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -14,6 +20,9 @@
   'use strict';
 
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
+  // the weights behind weightedTokens (subscription usage limit). Relative load of each token kind, mirroring the
+  // published Anthropic price ratios (cache read ~0.1x, cache write ~1.25-2x, output ~5x of fresh input).
+  const UNBILLED_WEIGHTS = Object.freeze({ input: 1, cacheWrite: 2, cacheRead: 0.1, output: 5 });
 
   // A family whose cache rates are not published prices cached tokens exactly like fresh ones — the
   // pre-caching behaviour, and the direction that can only ever OVER-report a spend seatbelt.
@@ -83,6 +92,13 @@
         const tokensIn = num(usage && usage.prompt_tokens);
         const tokensOut = num(usage && usage.completion_tokens);
         const usd = providerCost ? reported : (price ? inputUsd(usage, price) + tokensOut * price.out / 1e6 : 0);
+        // weighted tokens: the three input buckets clamped to sum to prompt_tokens exactly as inputUsd clamps them
+        const d = (usage && usage.prompt_tokens_details) || {};
+        const wRead = Math.max(0, Math.min(num(d.cached_tokens), tokensIn));
+        const wWrite = Math.max(0, Math.min(num(d.cache_creation_tokens), tokensIn - wRead));
+        const uncached = Math.max(0, tokensIn - wRead - wWrite);
+        const W = UNBILLED_WEIGHTS;
+        const weightedTokens = Math.round(uncached * W.input + wWrite * W.cacheWrite + wRead * W.cacheRead + Math.max(0, tokensOut) * W.output);
         return {
           usd: usd,
           tokensIn: tokensIn,
@@ -92,11 +108,14 @@
           costSource: providerCost ? 'provider' : (price ? 'catalog' : 'unpriced'),
           providerCost: providerCost,
           catalogPriced: !!price,
-          unpriced: !providerCost && !price && (tokensIn + tokensOut > 0)
+          unpriced: !providerCost && !price && (tokensIn + tokensOut > 0),
+          cacheWriteTokens: num(d.cache_creation_tokens),
+          weightedTokens: weightedTokens,
+          unbilled: !!(usage && usage.subscription === true) && (tokensIn + tokensOut) > 0
         };
       }
     };
   }
 
-  return { makeCostEngine };
+  return { makeCostEngine, UNBILLED_WEIGHTS };
 });

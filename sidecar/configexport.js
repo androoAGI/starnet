@@ -34,7 +34,7 @@
   // a section that carries a configured-marker ONLY (never the raw secret).
   const SECTIONS = [
     'settings',       // theme/display/audio + notification prefs (browser-owned UI state, passed in by the app)
-    'budget',         // USD caps (budget.json overrides)
+    'budget',         // USD caps (budget.json overrides) + .tokens: the subscription usage limits (budget-tokens.json)
     'fallback',       // ordered fallback model chain (fallback.json)
     'autonomy',       // initiative/reach knobs (browser-owned; passed in by the app)
     'roster',         // agent roster metadata: name/model/provider/role (agent.roster.json) — NO system secrets
@@ -218,6 +218,16 @@
       for (const k of ['perRun', 'perAgent', 'perDay', 'global']) {
         const v = inSec.budget[k];
         if (typeof v === 'number' && isFinite(v) && v >= 0) b[k] = v;
+      }
+      // the SUBSCRIPTION usage limits (weighted tokens, whole numbers; 0 = off) ride the same section under `tokens`
+      // (budget-tokens.json). An older build ignores the sub-object; junk values are dropped like the $ ones.
+      if (isObj(inSec.budget.tokens)) {
+        const t = {};
+        for (const k of ['perDayTokens', 'perRunTokens']) {
+          const v = inSec.budget.tokens[k];
+          if (typeof v === 'number' && isFinite(v) && v >= 0 && Math.floor(v) === v && v <= 1e12) t[k] = v;
+        }
+        b.tokens = t;
       }
       out.budget = b;
     }

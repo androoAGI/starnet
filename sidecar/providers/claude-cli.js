@@ -753,7 +753,10 @@
               prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite },
               reasoning_tokens: 0,
               // subscription login: nothing is billed per call. API key: the CLI's own billed figure.
-              cost: subscription ? 0 : (isFinite(reported) ? reported : undefined)
+              cost: subscription ? 0 : (isFinite(reported) ? reported : undefined),
+              // additive: a subscription turn is UNBILLED, not free — the $0 above is no measure of what it used. cost.js
+              // reads this flag to weigh the tokens for the subscription usage limit (absent on an API-key sign-in).
+              subscription: subscription || undefined
             }
           };
         };
