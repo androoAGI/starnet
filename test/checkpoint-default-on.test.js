@@ -5,11 +5,12 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8').replace(/\r\n/g, '\n');
 
 const m = /function checkpointsEnabledFromEnv\(raw\) \{[\s\S]*?\n\}\n/.exec(src);
 A.ok(m, 'index.js defines checkpointsEnabledFromEnv');
-const enabled = new Function(m[0] + 'return checkpointsEnabledFromEnv;')();
+const enabled = m ? new Function(m[0] + 'return checkpointsEnabledFromEnv;')() : null;
+if (enabled) {
 A.eq(enabled(undefined), true, 'no env var → checkpoints ON');
 A.eq(enabled(''), true, 'empty env var → ON');
 A.eq(enabled('1'), true, '1 → ON');
@@ -18,6 +19,7 @@ A.eq(enabled('0'), false, '0 → opt out');
 A.eq(enabled('false'), false, 'false → opt out');
 A.eq(enabled('off'), false, 'off → opt out');
 A.eq(enabled('NO'), false, 'NO → opt out (case-insensitive)');
+}
 A.ok(/const CHECKPOINTS_ENABLED = checkpointsEnabledFromEnv\(ENV\('CHECKPOINTS'\)\);/.test(src), 'the flag is computed from STARNET_/SKYNET_CHECKPOINTS through ENV()');
 
 // fs.write rides the PRECISE path: fs.js calls ctx.checkpointMutation(base,'fs mutation',{resolvedRoot:true}) with

@@ -94,7 +94,12 @@ async function run(base, token, body) {
 (async () => {
   const provider = await startProvider();
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-image-task-e2e-'));
-  const noOpenRouterKey = { STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '', OPENROUTER_KEY: '', OPENROUTER_API_KEY: '' };
+  const noOpenRouterKey = {
+    STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '', OPENROUTER_KEY: '', OPENROUTER_API_KEY: '',
+    OPENAI_API_KEY: '', STARNET_OPENAI_API_KEY: '', SKYNET_OPENAI_API_KEY: '',
+    STARNET_CREDITS_API_KEY: '', SKYNET_CREDITS_API_KEY: '', STARNET_CREDITS_TOKEN: '', SKYNET_CREDITS_TOKEN: '',
+    STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: ''
+  };
   const env = Object.assign({}, noOpenRouterKey, {
     SKYNET_WORKSPACES: workspace,
     STARNET_OPENROUTER_BASE: provider.baseUrl,
