@@ -69,9 +69,40 @@ const LANE_BRANCHES = [
 ];
 
 const CODE_ROOTS = ['sidecar', 'shared', 'frontend', 'scripts', 'test'];
+const BASELINE_COUNTS = {
+  'test/fast.list': 953,
+  'test/http.list': 156,
+  'test/customer-journeys.list': 38
+};
+const RUBRIC_DIMENSIONS = [
+  'intent_preservation',
+  'traceability',
+  'lineage',
+  'dependency_integrity',
+  'implementation_completeness',
+  'governance_preservation'
+];
+const CAPTURE_INPUT_PATHS = [
+  ...CANONICAL_PATHS,
+  ...AUTHORITY_MODULES,
+  'docs/experiments/au-ucr-ep-000001/S0_WORKTREE_LANE_REGISTER.yaml',
+  'package.json',
+  'scripts/qa/au-ucr-s0-readiness.mjs',
+  'test/fast.list',
+  'test/http.list',
+  'test/customer-journeys.list'
+];
 
 function git(args) {
   return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
+}
+
+function gitBuffer(args) {
+  return execFileSync('git', args, { cwd: ROOT, maxBuffer: 50 * 1024 * 1024 });
+}
+
+function json(path) {
+  return JSON.parse(readFileSync(join(ROOT, path), 'utf8'));
 }
 
 function readSteps(listFile) {
@@ -89,6 +120,13 @@ function sha256File(path) {
 function writeJson(path, value) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
+}
+
+function requireClean(paths) {
+  const dirty = git(['status', '--porcelain=v1', '--', ...paths]).split(/\r?\n/).filter(Boolean);
+  if (dirty.length) {
+    throw new Error('capture requires committed input files before labeling evidence with HEAD:\n' + dirty.join('\n'));
+  }
 }
 
 function walkFiles(dir, acc) {
@@ -129,19 +167,36 @@ function routeLiterals() {
   return [...found].sort();
 }
 
-function capture() {
-  const head = git(['rev-parse', 'HEAD']);
-  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
-  const worktrees = git(['worktree', 'list']);
-  const branches = git(['branch', '-vv']);
-  const localHarness = git(['rev-parse', 'feat/harness-backend']);
-  const originHarness = git(['rev-parse', 'origin/feat/harness-backend']);
-  const lists = {
-    'test/fast.list': readSteps(join(ROOT, 'test', 'fast.list')).length,
-    'test/http.list': readSteps(join(ROOT, 'test', 'http.list')).length,
-    'test/customer-journeys.list': readSteps(join(ROOT, 'test', 'customer-journeys.list')).length
-  };
-  const modules = AUTHORITY_MODULES.map(path => {
+function listWorktrees() {
+  const records = [];
+  let current = null;
+  for (const line of git(['worktree', 'list', '--porcelain']).split(/\r?\n/)) {
+    if (line.startsWith('worktree ')) {
+      if (current) records.push(current);
+      current = {};
+    } else if (current && line.startsWith('HEAD ')) {
+      current.head = line.slice('HEAD '.length);
+    } else if (current && line.startsWith('branch ')) {
+      current.branch = line.slice('branch refs/heads/'.length);
+    } else if (current && line === 'detached') {
+      current.branch = '(detached)';
+    }
+  }
+  if (current) records.push(current);
+  return records.map(record => ({
+    branch: record.branch || '(unknown)',
+    head: record.head || '(unknown)'
+  }));
+}
+
+function currentManifestCounts() {
+  return Object.fromEntries(
+    Object.keys(BASELINE_COUNTS).map(path => [path, readSteps(join(ROOT, path)).length])
+  );
+}
+
+function currentAuthorityModules() {
+  return AUTHORITY_MODULES.map(path => {
     const full = join(ROOT, path);
     const present = existsSync(full);
     return {
@@ -151,6 +206,78 @@ function capture() {
       sha256: present ? sha256File(full) : null
     };
   });
+}
+
+function canonicalAuthorityModules() {
+  return AUTHORITY_MODULES.map(path => {
+    try {
+      const content = gitBuffer(['show', CANONICAL + ':' + path]);
+      return {
+        path,
+        present: true,
+        bytes: content.length,
+        sha256: createHash('sha256').update(content).digest('hex')
+      };
+    } catch {
+      return {
+        path,
+        present: false,
+        bytes: 0,
+        sha256: null
+      };
+    }
+  });
+}
+
+function sameJson(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function receiptShapeErrors(receipt, expectedGateSet) {
+  const errors = [];
+  const required = [
+    'experiment_id',
+    'sprint_id',
+    'work_item_id',
+    'owner_lane',
+    'branch',
+    'commit_tested',
+    'gate_set',
+    'outcome',
+    'reviewer',
+    'review_outcome',
+    'created_at_utc'
+  ];
+  for (const field of required) {
+    if (!Object.hasOwn(receipt, field)) errors.push('missing receipt field ' + field);
+  }
+  if (receipt.experiment_id !== 'AU-UCR-EP-000001') errors.push('receipt experiment_id mismatch');
+  if (receipt.sprint_id !== 'S0') errors.push('receipt sprint_id mismatch');
+  if (receipt.owner_lane !== 'unassigned_role_only') errors.push('receipt owner_lane mismatch');
+  if (typeof receipt.branch !== 'string' || receipt.branch.length === 0) errors.push('receipt branch missing');
+  if (!/^[0-9a-f]{40}$/.test(receipt.commit_tested || '')) errors.push('receipt commit_tested is not a full SHA');
+  if (!sameJson(receipt.gate_set, expectedGateSet)) errors.push('receipt gate_set mismatch for ' + expectedGateSet.join(','));
+  if (!['pass', 'fail', 'blocked', 'not_run'].includes(receipt.outcome)) errors.push('receipt outcome invalid');
+  if (receipt.reviewer !== null && typeof receipt.reviewer !== 'string') errors.push('receipt reviewer invalid');
+  if (!['not_recorded', 'accepted', 'revise', 'reject'].includes(receipt.review_outcome)) {
+    errors.push('receipt review_outcome invalid');
+  }
+  if (typeof receipt.created_at_utc !== 'string' || Number.isNaN(Date.parse(receipt.created_at_utc))) {
+    errors.push('receipt created_at_utc invalid');
+  }
+  return errors;
+}
+
+function capture() {
+  requireClean(CAPTURE_INPUT_PATHS);
+  const head = git(['rev-parse', 'HEAD']);
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const worktrees = listWorktrees();
+  const branches = git(['branch', '-vv']);
+  const localHarness = git(['rev-parse', 'feat/harness-backend']);
+  const originHarness = git(['rev-parse', 'origin/feat/harness-backend']);
+  const lists = currentManifestCounts();
+  const modules = currentAuthorityModules();
   const routes = routeLiterals();
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   const hits = flagHits();
@@ -222,7 +349,10 @@ function capture() {
     lanes: lanePresence,
     worktrees
   });
-  writeFileSync(join(BASELINE, 'worktree-snapshot.txt'), worktrees + '\n' + branches + '\n');
+  writeFileSync(
+    join(BASELINE, 'worktree-snapshot.txt'),
+    worktrees.map(worktree => `${worktree.branch} ${worktree.head.slice(0, 8)}`).join('\n') + '\n' + branches + '\n'
+  );
   console.log('capture: wrote ' + relative(ROOT, BASELINE).replaceAll('\\', '/'));
   console.log('manifests ' + JSON.stringify(lists));
   console.log('authority present ' + modules.filter(m => m.present).length + '/' + modules.length);
@@ -242,10 +372,12 @@ function check() {
     if (committed !== working) fail(errors, 'canonical blob drifted: ' + path);
   }
   const govPath = 'docs/experiments/au-ucr-ep-000001/AU_UCR_GOV_001_RACI_RELEASE_AUTHORITY_ADDENDUM.md';
-  if (existsSync(join(ROOT, govPath))) {
+  if (!existsSync(join(ROOT, govPath))) {
+    fail(errors, 'GOV addendum missing from inherited tree');
+  } else {
     const committed = git(['rev-parse', GOV + ':' + govPath]);
     const working = git(['hash-object', govPath]);
-    if (committed !== working) fail(errors, 'GOV addendum blob drifted: ' + govPath);
+    if (committed !== working) fail(errors, 'GOV addendum blob does not match provenance commit');
   }
   const register = readFileSync(join(ROOT, 'docs/experiments/au-ucr-ep-000001/S0_WORKTREE_LANE_REGISTER.yaml'), 'utf8');
   const owners = register.match(/owner:\s*(\S+)/g) || [];
@@ -275,32 +407,81 @@ function check() {
     'qa/evidence/au-ucr-ep-000001-s0/baseline/authority-module-inventory.json',
     'qa/evidence/au-ucr-ep-000001-s0/baseline/route-gate-inventory.json',
     'qa/evidence/au-ucr-ep-000001-s0/baseline/flag-code-search.json',
+    'qa/evidence/au-ucr-ep-000001-s0/baseline/lane-materialization.json',
     'qa/evidence/au-ucr-ep-000001-s0/star-wr-0001/EV-INF-PRE-A09-AUTHORITY-NAMES-00.json',
     'qa/evidence/au-ucr-ep-000001-s0/star-wr-0001/EV-INF-PRE-A09-DETERMINISTIC-READINESS-00.json',
     'qa/evidence/au-ucr-ep-000001-s0/receipts/test-fast.json',
-    'qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.json'
+    'qa/evidence/au-ucr-ep-000001-s0/receipts/test-fast.log',
+    'qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.json',
+    'qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.log'
   ];
   for (const path of required) {
     if (!existsSync(join(ROOT, path))) fail(errors, 'missing ' + path);
   }
-  const gate = JSON.parse(readFileSync(join(ROOT, 'docs/experiments/au-ucr-ep-000001/S0_QA_READINESS_GATE.json'), 'utf8'));
+  const gate = json('docs/experiments/au-ucr-ep-000001/S0_QA_READINESS_GATE.json');
   if (gate.s1_transition !== 'closed_pending_explicit_acceptance') fail(errors, 'S1 transition must stay closed');
   if (gate.reviewer !== null || gate.review_outcome !== 'not_recorded' || gate.acceptance !== false) {
     fail(errors, 'QA gate must not record acceptance or a reviewer');
   }
+  if (gate.commit_tested !== CANONICAL) fail(errors, 'QA gate must reference the canonical S0 commit');
+  if (!sameJson(gate.gate_set, ['readiness-check', 'test:fast', 'test:http'])) {
+    fail(errors, 'QA gate must name readiness-check, test:fast, and test:http');
+  }
   const rubric = readFileSync(join(ROOT, 'docs/experiments/au-ucr-ep-000001/S0_RUBRIC_APPROVAL_WORKFLOW.md'), 'utf8');
+  const missingDimensions = RUBRIC_DIMENSIONS.filter(dimension => !rubric.includes('`' + dimension + '`'));
   const rubricFrozen = /(?:frozen:\s*true|\|\s*frozen\s*\|\s*true\s*\|)/i.test(rubric);
-  const zeroThreshold = /(?:threshold:\s*0\b|\|\s*Approved thresholds\s*\|\s*0(?:\.0+)?\s*\|)/i.test(rubric);
-  if (!rubric.includes('pending') || zeroThreshold || rubricFrozen) {
+  const approvedThresholds = rubric.match(/^\|\s*Approved thresholds\s*\|\s*([^|]+?)\s*\|$/im)?.[1]?.trim().toLowerCase();
+  const thresholdsSet = /threshold:\s*[-+]?\d/i.test(rubric) || approvedThresholds !== 'none';
+  const freezeRecordPending = /\|\s*Reviewer\s*\|\s*unset\s*\|/i.test(rubric)
+    && /\|\s*Date \(UTC\)\s*\|\s*unset\s*\|/i.test(rubric)
+    && /\|\s*frozen\s*\|\s*false\s*\|/i.test(rubric)
+    && /\|\s*Approved definitions\s*\|\s*none\s*\|/i.test(rubric)
+    && /\|\s*Approved thresholds\s*\|\s*none\s*\|/i.test(rubric);
+  if (missingDimensions.length || thresholdsSet || rubricFrozen || !freezeRecordPending) {
     fail(errors, 'rubric workflow must keep dimensions pending');
   }
-  const flag = JSON.parse(readFileSync(join(ROOT, 'qa/evidence/au-ucr-ep-000001-s0/baseline/flag-code-search.json'), 'utf8'));
-  if (flag.default !== 'OFF' || flag.hit_count !== 0) fail(errors, 'STARNET_UCR_ENABLE must stay default OFF with no runtime hits');
-  const counts = JSON.parse(readFileSync(join(ROOT, 'qa/evidence/au-ucr-ep-000001-s0/baseline/manifest-counts.json'), 'utf8'));
-  if (counts.counts['test/fast.list'] !== 953 || counts.counts['test/http.list'] !== 156) {
+  const flag = json('qa/evidence/au-ucr-ep-000001-s0/baseline/flag-code-search.json');
+  const currentFlagHits = flagHits();
+  if (flag.default !== 'OFF' || flag.hit_count !== 0 || (flag.hits || []).length !== 0 || currentFlagHits.length !== 0) {
+    fail(errors, 'STARNET_UCR_ENABLE must stay default OFF with no runtime hits');
+  }
+  const counts = json('qa/evidence/au-ucr-ep-000001-s0/baseline/manifest-counts.json');
+  const liveCounts = currentManifestCounts();
+  if (!sameJson(counts.counts, BASELINE_COUNTS) || !sameJson(liveCounts, BASELINE_COUNTS)) {
     fail(errors, 'manifest counts drifted from the captured baseline');
   }
-  const pkg = JSON.parse(readFileSync(join(ROOT, 'docs/experiments/au-ucr-ep-000001/UCR_001_EVIDENCE_PACKAGE.json'), 'utf8'));
+  const capturedModules = json('qa/evidence/au-ucr-ep-000001-s0/baseline/authority-module-inventory.json');
+  if (capturedModules.commit_tested !== CANONICAL || !sameJson(capturedModules.modules, canonicalAuthorityModules())) {
+    fail(errors, 'authority module inventory does not match the canonical commit');
+  }
+  const capturedRoutes = json('qa/evidence/au-ucr-ep-000001-s0/baseline/route-gate-inventory.json');
+  const currentRoutes = routeLiterals();
+  const livePkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  if (
+    capturedRoutes.route_count !== currentRoutes.length
+    || !sameJson(capturedRoutes.routes, currentRoutes)
+    || capturedRoutes.gates['test:fast'] !== livePkg.scripts['test:fast']
+    || capturedRoutes.gates['test:http'] !== livePkg.scripts['test:http']
+  ) {
+    fail(errors, 'route or gate inventory drifted from current tree');
+  }
+  const receiptExpectations = [
+    ['qa/evidence/au-ucr-ep-000001-s0/receipts/test-fast.json', ['test:fast']],
+    ['qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.json', ['test:http']]
+  ];
+  for (const [path, gateSet] of receiptExpectations) {
+    const receipt = json(path);
+    for (const error of receiptShapeErrors(receipt, gateSet)) fail(errors, path + ': ' + error);
+    if (receipt.commit_tested !== CANONICAL) fail(errors, path + ': commit_tested must match canonical S0 commit');
+    if (receipt.outcome !== 'fail' || receipt.reviewer !== null || receipt.review_outcome !== 'not_recorded') {
+      fail(errors, path + ': receipt must remain an unaccepted failed gate observation');
+    }
+    if (!receipt.log || !existsSync(join(ROOT, receipt.log))) fail(errors, path + ': referenced log is missing');
+    if (Date.parse(receipt.created_at_utc) > Date.parse(gate.created_at_utc)) {
+      fail(errors, path + ': receipt timestamp is newer than QA gate timestamp');
+    }
+  }
+  const pkg = json('docs/experiments/au-ucr-ep-000001/UCR_001_EVIDENCE_PACKAGE.json');
   if (pkg.execution_released === true || pkg.items.some(item => item.status === 'accepted')) {
     fail(errors, 'UCR-001 evidence package must not mark execution released or items accepted');
   }

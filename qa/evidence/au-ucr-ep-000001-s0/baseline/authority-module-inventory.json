@@ -7,128 +7,128 @@
     {
       "path": "sidecar/index.js",
       "present": true,
-      "bytes": 1724998,
-      "sha256": "b01e7775fc9eb344ad7c355ba64d7db19f33c9a9238ec1c41d3c968f9b087ad4"
+      "bytes": 1702242,
+      "sha256": "bd7101bffd4410c456fa9436b950dd0bba95b7a8abaf76c2fffeac6bf1ee2dac"
     },
     {
       "path": "shared/events.js",
       "present": true,
-      "bytes": 22101,
-      "sha256": "8cf79f23ca1768705cfc1bdbfdce7161a625e2f35c01103846f5307e23f0c1d2"
+      "bytes": 21806,
+      "sha256": "a8f92624db3d91244aeed4c1ee79b43024cbbb587d9cd589a2a9e7eaede3ff7e"
     },
     {
       "path": "shared/schema.js",
       "present": true,
-      "bytes": 3481,
-      "sha256": "02bc5038f84c83f149d8963e16d1ccbeaf796d909bd1116cee0b786e00187b80"
+      "bytes": 3406,
+      "sha256": "50972376815b32171a8503e3f4160c86257b8938098336950e15f70bdcf4627f"
     },
     {
       "path": "shared/emitter.js",
       "present": true,
-      "bytes": 1590,
-      "sha256": "252474a7a3b1b745cc73a88616ed127f69faef623e6734752bf032ef5770f02e"
+      "bytes": 1556,
+      "sha256": "29c994343a36519b3c4a3d5aa7dbe2dc7cc04144bb64639247ea95909ff71482"
     },
     {
       "path": "sidecar/capability/registry.js",
       "present": true,
-      "bytes": 33315,
-      "sha256": "79e4766ddd71a7b35882b44f7c1e461175889cf1d9eaab8daa1856c41c7eacf8"
+      "bytes": 32985,
+      "sha256": "a5cdc6bd285a8d07b2b41273650762a7091ac7783cdfc10fe9c88c52cf408ca8"
     },
     {
       "path": "sidecar/capability/resolve.js",
       "present": true,
-      "bytes": 3784,
-      "sha256": "8da8262cd8094898befa195fe3de54d5a69fb96d737a135cb062cc7604593c2e"
+      "bytes": 3717,
+      "sha256": "50f93e4067987ac885025dfa9d07335b13fab16ea110bb6033dd5e082c3db94d"
     },
     {
       "path": "sidecar/permissions.js",
       "present": true,
-      "bytes": 19809,
-      "sha256": "32cbb67c97a914bb20ba718e5c87c52da5359cf8444537272f793461c4d1b0fd"
+      "bytes": 19549,
+      "sha256": "2dc05c9b18de9d588fecebee67829eb0737bcc79bdbcc22460947a9676f7130f"
     },
     {
       "path": "sidecar/permgrants.js",
       "present": true,
-      "bytes": 7487,
-      "sha256": "84cb7acaa4a98f7f8c92bd0cd498e02a85aade704933d1c1f1973000cf52618f"
+      "bytes": 7375,
+      "sha256": "8c86d2daac8d28f1149eee96090ea18f7f10bba1ae55a3d8cc08fa18ab0dccf2"
     },
     {
       "path": "sidecar/runstore.js",
       "present": true,
-      "bytes": 23648,
-      "sha256": "38ce4b97f79e5380a820d64c9909356f7d14ae658872e05d3a8cf8c9f06ee043"
+      "bytes": 23281,
+      "sha256": "ed4595a3cbe6c7bb172bc0e9ece202b5a470672231e11500956034e8562104fb"
     },
     {
       "path": "sidecar/ledger.js",
       "present": true,
-      "bytes": 6432,
-      "sha256": "617e0b31371a4895dff1d7118697caf2e568d44bd524796465e4be7f07c2f672"
+      "bytes": 6313,
+      "sha256": "7c2a3809e55c0d5d99b5ba667177caffb19f37a125d8bb83d4493dac48c10bcb"
     },
     {
       "path": "sidecar/durable-store.js",
       "present": true,
-      "bytes": 16199,
-      "sha256": "e40ec561166583287c8db2d4c2e8cbed7e4050cc2d21b19fa04dc560ba6f583a"
+      "bytes": 15954,
+      "sha256": "a81be4870ab28ee1a1724d684bffbaef96c829793b2c91e92e482cb387a72277"
     },
     {
       "path": "sidecar/workspace-lineage.js",
       "present": true,
-      "bytes": 9330,
-      "sha256": "c58ba1fc7acfe78ec682634fa704ff4a4f616b7535ee67b326beaf7dd30e51ce"
+      "bytes": 9197,
+      "sha256": "912e0315404c3171392ee95257219bd6eb5341de4c7cbe393d28c148144eea92"
     },
     {
       "path": "sidecar/workspace-lease.js",
       "present": true,
-      "bytes": 5861,
-      "sha256": "cc3aae1d308f6cf05664503029854d77f475c51de6f59a1eeba53393dfadae12"
+      "bytes": 5743,
+      "sha256": "9f1e2fa8463c36233377bebf0b7d03c30047e929812a54c419bda65e2798db11"
     },
     {
       "path": "sidecar/workspace-safety.js",
       "present": true,
-      "bytes": 2712,
-      "sha256": "c788a6e26b80066b14622ae8b113d2c1a07cfa39f1feb410f10fe10ca907723c"
+      "bytes": 2658,
+      "sha256": "e17119181aa234e75060711f1b82d0966999bf2facde5dff719516259795e224"
     },
     {
       "path": "sidecar/routing/router.js",
       "present": true,
-      "bytes": 22619,
-      "sha256": "362040ed92d0bb3bc7009ed2c857dba5418a4caf7ae7368a04fe53d3156138c9"
+      "bytes": 22290,
+      "sha256": "f904a71cbad5b96b97c3e7110377bbec57f309dbbb98e1390616130c82d4a4cb"
     },
     {
       "path": "sidecar/routing/chain.js",
       "present": true,
-      "bytes": 41137,
-      "sha256": "d0423bc80516abf21b36f8a3ab1051d00642b492c4f4ae30167a0a1898194994"
+      "bytes": 40614,
+      "sha256": "4af3c2de0c243f84576387e2c54fc2eda9d724a90dc55638ab27176838216fde"
     },
     {
       "path": "sidecar/routing/line-stats.js",
       "present": true,
-      "bytes": 6080,
-      "sha256": "7b067b173233a6779c609c011d1d27d74d587df2d8296a92e98c9f44e8ed75c9"
+      "bytes": 5993,
+      "sha256": "ec5b85f7d318392cfda36b5b0f70b8af407b5d4d0b774735447e0f379f0b629e"
     },
     {
       "path": "sidecar/tools/builtin/station.js",
       "present": true,
-      "bytes": 26389,
-      "sha256": "d71d0281d96c2af2a19fa35ce54bb1765b40670c09dff54babf16cdd4bc807ef"
+      "bytes": 26062,
+      "sha256": "398db965f120bdc9067ec0f7a5880d80cec0426e73a33ae1dbc0443be81e52ad"
     },
     {
       "path": "frontend/app/workflowpanel.js",
       "present": true,
-      "bytes": 114945,
-      "sha256": "9bc0fcb3afea824aca42247b061257ef13f9d12ffbb8bd8f1b6610c0067cb0ae"
+      "bytes": 113629,
+      "sha256": "48e32371ab09bf4ecd5b1d1d3e1874e46899629caf3e23a60da7995e3e7ed574"
     },
     {
       "path": "frontend/app/linewatch.js",
       "present": true,
-      "bytes": 21011,
-      "sha256": "d6d5c3074738297b14a39268967065772349ebb9f14d7e41173deb26916ac716"
+      "bytes": 20710,
+      "sha256": "a0883bc629073780b8d7b99055cc28f57526d3fa83479c02dd00703738b7de91"
     },
     {
       "path": "frontend/app/deliverables.js",
       "present": true,
-      "bytes": 34191,
-      "sha256": "f6a52d166d046ee2b29df096daf12f9fd58b46ba97b2f2365a769d2231ecd588"
+      "bytes": 33712,
+      "sha256": "b976c298d91b4ee5d8bc1a3aebc07fd70384aa59469e134cc15b482ed4ce4c75"
     }
   ]
 }

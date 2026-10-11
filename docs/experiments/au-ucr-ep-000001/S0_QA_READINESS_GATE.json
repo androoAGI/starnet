@@ -11,7 +11,7 @@
   "review_outcome": "not_recorded",
   "acceptance": false,
   "s1_transition": "closed_pending_explicit_acceptance",
-  "created_at_utc": "2026-10-03T19:30:00Z",
+  "created_at_utc": "2026-10-04T18:05:00Z",
   "findings": [
     "Canonical Sprint 0 blobs at cdc793ba738c688ef2493fcd196043bfb3fddd77 are unchanged by this readiness layer.",
     "Lane owners remain unassigned_role_only. No Independent Reviewer, Decision Chair, Coordinator, or QA/Evidence assignee is recorded.",

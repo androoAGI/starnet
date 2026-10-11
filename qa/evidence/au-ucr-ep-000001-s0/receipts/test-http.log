@@ -1,0 +1,11 @@
+npm run test:http
+commit_tested: cdc793ba738c688ef2493fcd196043bfb3fddd77
+install: npm ci --ignore-scripts
+outcome: fail
+
+run-test-list: FAILED at step 38/156: node test/image-task.e2e.test.js (exit 1)
+
+Failure note retained with the receipt:
+image-task.e2e.test.js reported three failures, including an impossible route that was expected
+to make 0 model calls and observed 4.
+This is a baseline gate result for this worktree. It is not an S0 acceptance result.

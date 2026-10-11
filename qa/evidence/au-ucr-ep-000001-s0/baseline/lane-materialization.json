@@ -35,5 +35,10 @@
       "owner": "unassigned_role_only"
     }
   ],
-  "worktrees": "C:/Users/hakee/.cursor/starnet-ucr-publish-2  cdc793ba7 [cursor/ucr-s0-execution-3141]"
+  "worktrees": [
+    {
+      "branch": "cursor/ucr-s0-execution-3141",
+      "head": "cdc793ba738c688ef2493fcd196043bfb3fddd77"
+    }
+  ]
 }

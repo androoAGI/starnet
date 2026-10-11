@@ -1,0 +1,11 @@
+npm run test:fast
+commit_tested: cdc793ba738c688ef2493fcd196043bfb3fddd77
+install: npm ci --ignore-scripts
+outcome: fail
+
+run-fast-tests: FAILED at step 73/953: node test/checkpoint-default-on.test.js (exit 1)
+
+Failure note retained with the receipt:
+The test extracts function checkpointsEnabledFromEnv from sidecar/index.js with a newline-terminated regex.
+The match was null, then the test read match[0].
+This is a baseline gate result for this worktree. It is not an S0 acceptance result.
