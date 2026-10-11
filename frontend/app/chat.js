@@ -7440,7 +7440,14 @@ const Chat = (() => {
   // Budget-stop legibility (2026-07-23): a 'budget' stop names WHICH spend cap fired and how big it is, in money
   // words — the old "reached this run's limit" read as a runtime setting and sent users hunting in the wrong
   // panel. Scope/cap ride the additive agent.run.end fields; an old sidecar omits them and gets the generic line.
-  function budgetStopLine(scope, capUsd, atBalance) {
+  // tok (additive, 2026-10-11): { unit:'tokens', tokens, cap } — the SUBSCRIPTION usage limit stopped the run. Its figures are
+  // WEIGHTED tokens from the CLI's own counts (an estimate), never dollars, so the line says so and names the right door.
+  function budgetStopLine(scope, capUsd, atBalance, tok) {
+    if (tok && tok.unit === 'tokens') {
+      const n = v => (typeof v === 'number' && isFinite(v) && v > 0) ? Math.round(v).toLocaleString('en-US') + ' ' : '';
+      if (scope === 'run') return 'this run used its ' + n(tok.cap) + 'weighted-token ceiling for subscription use (an estimate) — say "continue" to keep going, or raise the per-run limit in SETTINGS › SPENDING LIMITS';
+      return 'hit the daily subscription usage limit (~' + n(tok.tokens || tok.cap) + 'weighted tokens, an estimate) — raise it, turn it off, or RESUME in SETTINGS › SPENDING LIMITS';
+    }
     // only show the $ figure when it renders honestly at cent precision (a sub-cent test cap would read "$0.00")
     const cap = (typeof capUsd === 'number' && isFinite(capUsd) && capUsd >= 0.01) ? '$' + capUsd.toFixed(2).replace(/\.00$/, '') + ' ' : '';
     // atBalance (agent.run.end budgetCapIsBalance, additive): admission clamped this StarNet run's ceiling to the
@@ -7459,10 +7466,12 @@ const Chat = (() => {
   // the budget stop's door: open SETTINGS straight on the SPENDING LIMITS section (the same openTerm(key, section)
   // mechanism friendlyerror's doors use), with retry alongside for after the user has raised the cap. A stop at the
   // StarNet balance gets the top-up door instead — Friendly's 'store' door, the one managed_credit already opens.
-  function offerBudgetDoor(atBalance) {
-    const topUp = (atBalance === true && typeof Friendly !== 'undefined' && Friendly.actionButton) ? Friendly.actionButton({ action: 'store' }) : null;
+  // usage (additive): the stop was the SUBSCRIPTION usage limit (weighted tokens), not money — the same SPENDING LIMITS
+  // section holds its controls, but the door must not wear a $ it never spent.
+  function offerBudgetDoor(atBalance, usage) {
+    const topUp = (atBalance === true && usage !== true && typeof Friendly !== 'undefined' && Friendly.actionButton) ? Friendly.actionButton({ action: 'store' }) : null;
     choices([
-      topUp ? { label: topUp.label, value: 'store' } : { label: '$ OPEN SPENDING LIMITS', value: 'budget' },
+      topUp ? { label: topUp.label, value: 'store' } : usage === true ? { label: '◷ OPEN USAGE LIMITS', value: 'budget' } : { label: '$ OPEN SPENDING LIMITS', value: 'budget' },
       { label: '↻ Try again', value: 'retry', quiet: true }
     ], it => {
       if (it && it.value === 'retry') { retryLast(); return; }
@@ -9233,7 +9242,7 @@ const Chat = (() => {
         renderHistory(); syncStatus();
         activeLiveRow = streamingAgent(); historyRead.repaint = false;
       }
-      const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance } = await Harness.chat({
+      const { text: reply, error, endReason, finishReason, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, budgetUnit, budgetTokens, budgetCapTokens } = await Harness.chat({
         system: sys, messages: retry ? endOnUserTurn(historyWindow(ws)) : historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         taskAction: taskAction || undefined,
         postconditions: opts && opts.postconditions != null ? opts.postconditions : undefined,
@@ -9387,16 +9396,16 @@ const Chat = (() => {
           // below it. Emit this line only when it carries something the card can't: what to do next (step limit,
           // budget door) or a reason the label doesn't name. Your own interrupt → the card alone tells the truth.
           const stopLine = endReason === 'max_iters' ? 'reached the step limit — say "continue" to keep going'
-            : endReason === 'budget' ? budgetStopLine(budgetScope, budgetCapUsd, budgetCapIsBalance)
+            : endReason === 'budget' ? (budgetUnit === 'tokens' ? budgetStopLine(budgetScope, null, false, { unit: 'tokens', tokens: budgetTokens, cap: budgetCapTokens }) : budgetStopLine(budgetScope, budgetCapUsd, budgetCapIsBalance))
             : endReason === 'cancelled' ? (interrupted.has(ws.id) ? '' : runPressedEstop ? 'stopped by the E-STOP this run pressed — RESUME AUTOMATION (top bar) is yours alone' : 'run cancelled')
             : 'stopped (' + endReason + ')';
           if (isActiveWs(ws)) { breakLive(); if (stopLine) toolLine('⏹ ' + stopLine); }
           markStoppedTurn(ws, replyText);
           // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the StarNet
           // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
-          if (isActiveWs(ws) && !(endReason === 'cancelled' && runPressedEstop)) { if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
+          if (isActiveWs(ws) && !(endReason === 'cancelled' && runPressedEstop)) { if (endReason === 'budget' && budgetUnit === 'tokens') offerBudgetDoor(false, true); else if (endReason === 'budget') offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? 'run stopped: ' + endReason
-            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),
+            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : budgetUnit === 'tokens' ? 'hit a usage limit' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : endReason === 'cancelled' ? 'cancelled' : endReason),
             'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
         } else if (cutShort) {
           // distinct honest "cut short" recap: the reply is truncated/filtered, not a clean delivery.

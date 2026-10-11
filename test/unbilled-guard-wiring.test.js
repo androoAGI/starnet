@@ -103,4 +103,100 @@ for (const h of ['async function runReflection(o)', 'async function runFailureRe
   A.ok(/state\.budgetUnit = p\.budgetUnit === 'tokens' \? 'tokens' : null;/.test(hub), 'the hub latches budgetUnit off agent.run.end');
 }
 
-A.report('unbilled-guard-wiring');
+// ---- the SETTINGS › SPENDING LIMITS row (frontend/app/stationui.js) ----
+const tick = () => new Promise(r => setImmediate(r));
+(async () => {
+  const station = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
+  const slice = station.slice(station.indexOf('  const BG_KEYS ='), station.indexOf('  // MODELS panel'));
+  A.ok(slice.length > 0 && slice.length < station.length, 'the BG_KEYS VM slice resolves');
+  for (const id of ['budget-tokens', 'budget-tokens-used', 'bgt-perDayTokens', 'bgt-perRunTokens', 'bgt-save', 'bgt-resume', 'budget-token-msg']) {
+    A.ok(station.indexOf('id="' + id + '"') > 0, 'the token row has #' + id);
+    A.ok(slice.indexOf(id) < 0, '#' + id + ' lives OUTSIDE the BG_KEYS slice budget-authority-ui.test.js runs');
+  }
+  A.ok(/const BG_KEYS = \['perRun', 'perAgent', 'perDay', 'global'\];/.test(station), 'BG_KEYS is still exactly the four $ keys');
+  A.ok(!/id="bg-perDayTokens"/.test(station) && !/bgt-cap[^"]*bg-cap|bg-cap[^"]*bgt-cap/.test(station), 'the token input carries neither the bg- id prefix nor the bg-cap class');
+  A.ok(station.indexOf('function wireTokenPool(host)') > 0 && station.indexOf('function wireTokenPool(host)') < station.indexOf('  // BUDGET panel'), 'wireTokenPool is defined before the BUDGET panel (outside the slice)');
+  A.ok(/wireBudget\(host\);\s*wireTokenPool\(host\);/.test(station), 'and called beside wireBudget');
+  A.ok(/Usage limits <span class="dim">— Claude Code subscription \(weighted tokens, estimate\)<\/span>/.test(station), 'the heading names the subscription and says estimate');
+  A.ok(/book \$0, so the USD limits above never see them/.test(station) && /not Anthropic’s own usage meter/.test(station) && /Blank or 0 = off<\/b> — both limits start off/.test(station), 'the explainer: why, the estimate caveat, blank/0 = off, opt-in');
+  A.ok(/subscription runs stop \(one already working stops at its next turn\)/.test(station) && !/new subscription runs stop/.test(station), 'the explainer says an in-flight run stops at its next turn');
+  A.ok(/across subscription runs and background passes/.test(station) && !/every subscription run and background pass/.test(station), 'no claim about EVERY background pass');
+  A.ok(/Per-run limit \(weighted tokens\)/.test(station) && /placeholder="blank = off"/.test(station), 'the per-run field is labelled, and blank reads as off');
+  A.ok(/uncached input ×1, cache write ×2, cache read ×0\.1, output ×5/.test(station), 'the explainer states the formula');
+
+  // behaviour, in a VM (the panel's own idiom — budget-authority-ui.test.js)
+  const vm = require('vm');
+  const code = A.fnBody(station, 'function wireTokenPool(host)');
+  A.ok(code.length > 0 && code.length < station.length, 'wireTokenPool body resolves');
+  const harness = (statusReply) => {
+    const nodes = new Map();
+    const node = id => { if (!nodes.has(id)) nodes.set(id, { id, hidden: true, value: '', disabled: false, textContent: '', className: '', attrs: {}, classList: { on: {}, toggle(k, v) { this.on[k] = !!v; } }, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(k, fn) { this[k] = fn; }, focus() {} }); return nodes.get(id); };
+    const posts = [];
+    const ctx = { host: { querySelector: node }, sfx() {},
+      Harness: { api: { get: async () => (typeof statusReply === 'function' ? statusReply() : statusReply), post: async (u, b) => { posts.push([u, b]); return { ok: true, j: typeof statusReply === 'function' ? statusReply() : statusReply }; } } } };
+    vm.runInNewContext(code + ';wireTokenPool(host)', ctx);
+    return { node, posts };
+  };
+  {
+    const h = harness({ caps: {} });   // an older sidecar: no tokenPool
+    await tick();
+    A.eq(h.node('#budget-tokens').hidden, true, 'no tokenPool (older sidecar) -> the section stays hidden');
+    const noLane = harness({ tokenPool: { perDayTokens: 0, perRunTokens: 0, cap: 0, usedToday: 0, tripped: false, lane: false } });
+    await tick();
+    A.eq(noLane.node('#budget-tokens').hidden, true, 'lane:false (no Claude Code on this station) -> hidden');
+  }
+  {
+    let st = { tokenPool: { perDayTokens: 0, cap: 0, usedToday: 10500, tripped: false, estimate: true } };
+    const h = harness(() => st);
+    await tick();
+    A.eq(h.node('#budget-tokens').hidden, false, 'a tokenPool shows the section');
+    A.ok(/≈ 10,500 weighted tokens in the last 24 h \(estimate\)/.test(h.node('#budget-tokens-used').textContent), 'the use reads as an estimate: ' + h.node('#budget-tokens-used').textContent);
+    A.eq(h.node('#bgt-resume').hidden, true, 'RESUME hidden unless tripped');
+    h.node('#bgt-save').click(); await tick();
+    A.eq(h.posts.length, 0, 'an untouched (blank = off) field posts nothing');
+    h.node('#bgt-perDayTokens').value = '1.5'; h.node('#bgt-save').click(); await tick();
+    A.eq(h.posts.length, 0, 'a fractional value is refused before posting');
+    st = { tokenPool: { perDayTokens: 15000, cap: 15000, usedToday: 21000, tripped: true, estimate: true } };
+    h.node('#bgt-perDayTokens').value = '15000'; h.node('#bgt-save').click(); await tick();
+    A.eq(h.posts[0], ['/api/budget/caps', { perDayTokens: 15000 }], 'SAVE posts { perDayTokens }');
+    A.eq([h.node('#bgt-resume').hidden, h.node('#budget-tokens-used').classList.on.tripped], [false, true], 'a tripped pool shows RESUME and marks the readout');
+    h.node('#bgt-resume').click(); await tick();
+    A.eq(h.posts[1], ['/api/budget/resume', { scope: 'dayTokens' }], 'RESUME posts scope dayTokens');
+    A.eq([h.node('#bgt-perDayTokens').value, h.node('#bgt-perRunTokens').value], ['15000', ''], 'an off per-run limit paints BLANK, never 0');
+    A.ok(/per-run limit off/.test(h.node('#budget-tokens-used').textContent), 'and the readout says it is off');
+    st = { tokenPool: { perDayTokens: 15000, perRunTokens: 40000, cap: 15000, usedToday: 21000, tripped: true, lane: true } };
+    h.node('#bgt-perRunTokens').value = '40000'; h.node('#bgt-save').click(); await tick();
+    A.eq(h.posts[2], ['/api/budget/caps', { perRunTokens: 40000 }], 'SAVE posts only the changed per-run limit');
+    A.ok(/per-run limit 40,000/.test(h.node('#budget-tokens-used').textContent), 'the saved per-run limit is read back');
+    h.node('#bgt-perRunTokens').value = ''; h.node('#bgt-save').click(); await tick();
+    A.eq(h.posts[3], ['/api/budget/caps', { perRunTokens: 0 }], 'blanking it posts 0 = off');
+  }
+  {
+    const h = harness({ tokenPool: { perDayTokens: 15000, cap: 15000, usedToday: null, tripped: false } });
+    await tick();
+    A.ok(/unavailable/.test(h.node('#budget-tokens-used').textContent) && !/≈ 0/.test(h.node('#budget-tokens-used').textContent), 'unknown use reads "unavailable", never a guessed 0');
+  }
+
+  // ---- COMMS names the token stop (frontend/app/chat.js) and the stream carries its fields (harness.js) ----
+  const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
+  const stopLine = new Function(A.fnBody(chat, 'function budgetStopLine(') + '\nreturn budgetStopLine;')();
+  A.eq(stopLine('day', null, false, { unit: 'tokens', tokens: 15500, cap: 15000 }), 'hit the daily subscription usage limit (~15,500 weighted tokens, an estimate) — raise it, turn it off, or RESUME in SETTINGS › SPENDING LIMITS', 'a day token stop');
+  A.eq(stopLine('run', null, false, { unit: 'tokens', tokens: 21000, cap: 20000 }), 'this run used its 20,000 weighted-token ceiling for subscription use (an estimate) — say "continue" to keep going, or raise the per-run limit in SETTINGS › SPENDING LIMITS', 'a run token stop');
+  // the stop's door: a usage stop gets a usage-limit door; the $ door, its label and call literal are unchanged
+  A.ok(/\{ if \(endReason === 'budget' && budgetUnit === 'tokens'\) offerBudgetDoor\(false, true\); else if \(endReason === 'budget'\) offerBudgetDoor\(budgetCapIsBalance\); else offerTryAgain\(\); \}/.test(chat), 'a token stop opens the usage-limit door');
+  {
+    let row = null;
+    const offer = new Function('choices', 'retryLast', 'StationUI', 'Friendly', A.fnBody(chat, 'function offerBudgetDoor(') + '\nreturn offerBudgetDoor;')(
+      (items) => { row = items; }, () => {}, { openTerm() {} }, { actionButton: () => ({ label: 'TOP UP', run() {} }) });
+    offer(false, true); A.eq(row[0].label, '◷ OPEN USAGE LIMITS', 'usage door label (no $)');
+    offer(false); A.eq(row[0].label, '$ OPEN SPENDING LIMITS', '$ door label unchanged');
+    offer(true, true); A.eq(row[0].label, '◷ OPEN USAGE LIMITS', 'a usage stop never offers the top-up door');
+  }
+  A.ok(/^hit the \$25 daily spend cap — raise or remove it/.test(stopLine('day', 25, false)), 'the $ stop lines are unchanged');
+  A.ok(/budgetUnit === 'tokens' \? budgetStopLine\(budgetScope, null, false, \{ unit: 'tokens', tokens: budgetTokens, cap: budgetCapTokens \}\) : budgetStopLine\(budgetScope, budgetCapUsd, budgetCapIsBalance\)/.test(chat), 'the caller routes a token stop to the token line');
+  A.ok(/budgetUnit === 'tokens' \? 'hit a usage limit' : 'hit a spending limit'/.test(chat), 'the background notice says "usage limit" for a token stop');
+  const harnessSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'harness.js'), 'utf8');
+  A.ok(/budgetUnit = payload\.budgetUnit === 'tokens' \? 'tokens' : null;/.test(harnessSrc) && (harnessSrc.match(/budgetUnit, budgetTokens, budgetCapTokens, budgetScope, budgetCapUsd, budgetCapIsBalance \};/g) || []).length === 2, 'Harness.chat latches and returns the token stop fields');
+
+  A.report('unbilled-guard-wiring');
+})().catch(e => { console.log('FAIL: unbilled-guard-wiring threw - ' + (e && e.stack || e)); process.exit(1); });

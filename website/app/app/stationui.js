@@ -6380,6 +6380,86 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     _creditsLinkPoll = setInterval(tick, 2000);
   }
 
+  // USAGE LIMITS — the Claude Code SUBSCRIPTION limits, in WEIGHTED tokens. A subscription run books $0, so the USD limits
+  // never see it; the sidecar counts its tokens (uncached in ×1, cache write ×2, cache read ×0.1, output ×5) and stops it
+  // at the DAILY limit (rolling 24 h, background passes too — budget.js checkTokens) or the PER-RUN limit (loop.js). Both
+  // are opt-in: blank or 0 = off. Kept OUTSIDE the BUDGET panel's BG_KEYS form on purpose: its own inputs, SAVE and
+  // RESUME, read from /api/budget/status `.tokenPool`. An older sidecar has no tokenPool and a station without Claude Code
+  // reports lane:false → the section stays hidden. Every figure is labelled an ESTIMATE — it is the CLI's own token
+  // counts, weighted, never Anthropic's meter.
+  function wireTokenPool(host) {
+    const sec = host.querySelector('#budget-tokens');
+    if (!sec) return;
+    const usedEl = host.querySelector('#budget-tokens-used');
+    const inputs = { perDayTokens: host.querySelector('#bgt-perDayTokens'), perRunTokens: host.querySelector('#bgt-perRunTokens') };
+    const saveBtn = host.querySelector('#bgt-save');
+    const resumeBtn = host.querySelector('#bgt-resume');
+    const msgEl = host.querySelector('#budget-token-msg');
+    const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
+    const fmtTok = n => Math.round(Number(n) || 0).toLocaleString('en-US');
+    const limitOf = v => (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : 0;
+    let painted = null;   // the limits last painted (null = never loaded: SAVE does nothing until the sidecar answered)
+    const paint = (st) => {
+      const tp = st && st.tokenPool;
+      if (!tp || typeof tp !== 'object' || tp.lane === false) { sec.hidden = true; painted = null; return; }
+      sec.hidden = false;
+      const day = limitOf(tp.perDayTokens), run = limitOf(tp.perRunTokens);
+      const cap = limitOf(tp.cap) || day;
+      painted = { perDayTokens: day, perRunTokens: run };
+      // a limit that is off paints as a BLANK field (the placeholder says "blank = off"), never a bare 0
+      for (const k of Object.keys(inputs)) if (inputs[k]) inputs[k].value = painted[k] > 0 ? String(painted[k]) : '';
+      if (saveBtn) saveBtn.disabled = false;
+      if (usedEl) {
+        const used = tp.usedToday;
+        usedEl.textContent = ((typeof used === 'number' && Number.isFinite(used))
+          ? '≈ ' + fmtTok(used) + ' weighted tokens in the last 24 h (estimate)' + (day > 0 ? ' — daily limit ' + fmtTok(cap) : ' — daily limit off')
+          : 'Subscription usage unavailable — the spend record could not be read, so the daily limit is not enforced right now.')
+          + (run > 0 ? ' · per-run limit ' + fmtTok(run) : ' · per-run limit off');
+        if (usedEl.classList) usedEl.classList.toggle('tripped', !!tp.tripped);
+      }
+      if (resumeBtn) {
+        const show = !!(tp.tripped && day > 0);
+        resumeBtn.hidden = !show;
+        resumeBtn.disabled = !show;
+        resumeBtn.textContent = 'RESUME (+' + fmtTok(day) + ' tokens)';
+        resumeBtn.setAttribute('data-tip', 'the daily usage limit is reached — grant one more limit of headroom for the rest of this session');
+      }
+    };
+    const refresh = () => Harness.api.get('/api/budget/status').then(paint)
+      .catch(() => { painted = null; if (saveBtn) saveBtn.disabled = true; if (usedEl) usedEl.textContent = 'Subscription usage unavailable — could not reach the sidecar.'; });
+    if (saveBtn) saveBtn.disabled = true;
+    refresh();
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+      if (painted == null) return;
+      const payload = {};
+      for (const k of Object.keys(inputs)) {
+        const el = inputs[k]; if (!el) continue;
+        const raw = String(el.value).trim();
+        const n = raw === '' ? 0 : Number(raw);   // blank -> off (0), matching the placeholder
+        if (!Number.isFinite(n) || n < 0 || Math.floor(n) !== n) { setMsg((k === 'perRunTokens' ? 'per-run' : 'daily') + ' limit: enter a whole number of weighted tokens ≥ 0 (blank = off)'); sfx('bad'); if (el.focus) el.focus(); return; }
+        if (n !== painted[k]) payload[k] = n;   // only what the Commander changed
+      }
+      if (!Object.keys(payload).length) { setMsg('no changes to save', true); return; }
+      setMsg('saving…');
+      Harness.api.post('/api/budget/caps', payload)
+        .then(({ ok, j }) => {
+          if (!ok) { setMsg((j && j.error) || 'could not save the usage limits'); sfx('bad'); return; }
+          paint(j); setMsg('✓ usage limits saved & applied', true); sfx('click');
+        })
+        .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
+    });
+    if (resumeBtn) resumeBtn.addEventListener('click', () => {
+      resumeBtn.disabled = true; setMsg('resuming…');
+      Harness.api.post('/api/budget/resume', { scope: 'dayTokens' })
+        .then(({ ok, j }) => {
+          if (!ok) { setMsg((j && j.error) || 'could not resume'); sfx('bad'); resumeBtn.disabled = false; return; }
+          setMsg('✓ daily usage limit resumed — subscription runs may continue this session', true); sfx('click');
+          refresh();
+        })
+        .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); resumeBtn.disabled = false; });
+    });
+  }
+
   // BUDGET panel — read the live caps + real spend from the sidecar, fill the four inputs, wire SAVE / RESET.
   // Caps persist server-side and apply live; this is the ONLY UI for money limits (previously env-var-only).
   const BG_KEYS = ['perRun', 'perAgent', 'perDay', 'global'];
@@ -7205,7 +7285,27 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +
         '</div>' +
       '</div>' +
-      '<div id="budget-msg" class="msg"></div>';
+      '<div id="budget-msg" class="msg"></div>' +
+      // USAGE LIMITS — the Claude Code SUBSCRIPTION limits in weighted tokens (wireTokenPool): the daily pool and the
+      // per-run ceiling, both opt-in. Hidden until /api/budget/status answers with a tokenPool (an older sidecar has none,
+      // so the row never claims a limit it lacks) and while the sidecar says Claude Code is not on this station (lane).
+      '<div id="budget-tokens" hidden>' +
+        '<h4 class="ms-h">Usage limits <span class="dim">— Claude Code subscription (weighted tokens, estimate)</span></h4>' +
+        '<p class="set-about">Runs on a Claude Code subscription book $0, so the USD limits above never see them. These limits count their tokens instead, weighted by load: uncached input ×1, cache write ×2, cache read ×0.1, output ×5. ' +
+          'They are an <b>estimate</b> from the token counts Claude Code reports, not Anthropic’s own usage meter. When the daily limit is reached, subscription runs stop (one already working stops at its next turn) and background passes are skipped until the 24-hour window frees up or you RESUME. <b>Blank or 0 = off</b> — both limits start off.</p>' +
+        '<div id="budget-tokens-used" class="set-row dim">reading usage…</div>' +
+        '<div class="mc-form" id="budget-token-form">' +
+          '<div class="set-row"><label for="bgt-perDayTokens">PER DAY <span class="dim">tokens</span></label><input id="bgt-perDayTokens" class="key-input bgt-cap" type="number" min="0" step="1000" inputmode="numeric" autocomplete="off" placeholder="blank = off"></div>' +
+          '<div class="mc-hint">Daily limit: weighted tokens across subscription runs and background passes in a rolling 24-hour window.</div>' +
+          '<div class="set-row"><label for="bgt-perRunTokens">PER RUN <span class="dim">tokens</span></label><input id="bgt-perRunTokens" class="key-input bgt-cap" type="number" min="0" step="1000" inputmode="numeric" autocomplete="off" placeholder="blank = off"></div>' +
+          '<div class="mc-hint">Per-run limit (weighted tokens): one subscription run stops once it has used this many; say “continue” to go on.</div>' +
+          '<div class="mc-acts">' +
+            '<button class="bb sm" id="bgt-save">SAVE USAGE LIMITS</button>' +
+            '<button class="bb xs" id="bgt-resume" hidden>RESUME</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="budget-token-msg" class="msg"></div>' +
+      '</div>';
     const secModels =
       // MODELS — the ordered FALLBACK CHAIN (P0-3). The primary model is chosen live in the COMMS model dock; this
       // sets what the loop tries NEXT if that model fails mid-run. Persisted server-side + applied live to every run
@@ -7556,6 +7656,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     })();
     wireCredits(host);
     wireBudget(host);
+    wireTokenPool(host);   // the subscription usage limit row (outside the BG_KEYS form)
     wireFallbackChain(host);
     wireTierModels(host);
     wireNotifyPrefs(host);
