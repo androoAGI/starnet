@@ -395,6 +395,10 @@ const DeclinedIndex = require('./declinedindex.js');         // flagship cross-w
 const { tailLines, loadBounded, rotateIfLarge, appendJsonlDurable } = require('./logbound.js'); // P3: bounded boot-load + size rotation for the append-only JSONL logs
 const { makeCronLock } = require('./cron-lock.js');         // G4.3: cross-process exactly-once advisory lock (O_EXCL+pid:nonce+stale-break)
 const { withDossier } = require('./dossierinject.js');     // Phase C: fold the Commander dossier into server-composed (cron) personas
+const { splitLearned } = require('./learned-blocks.js');  // the persona's LEARNED blocks (dossier + fork directive) ride AFTER the cache prefix
+const FORK_DIRECTIVE = require('../frontend/app/fork.js').directive();   // the exact fork block composeSystemPrompt appends
+const LEARNED_AFTER_PREFIX = !/^(0|false|off|no)$/i.test(String(ENV('LEARNED_AFTER_PREFIX') || '').trim());   // kill switch: STARNET_LEARNED_AFTER_PREFIX=0
+let learnedLogKey = '';   // logs the learned-block sizes once per change (lengths only, never content)
 const skillsCatalog = require('./skills/catalog.js');      // bundled capability-gated recipe library (parse/load/gate/compose)
 const { makeSkillPrefs } = require('./skills/prefs.js');   // persisted enable/disable choices for the recipe library
 const runtimeSkills = require('./skills/runtime.js');       // runtime-created skill index (metadata only)
@@ -22551,7 +22555,22 @@ async function runOnceCore(o) {
   // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
   // the explicit Claude boundary precedes changing context, while runtime identity remains last
   // for generic providers that automatically reuse matching prefixes.
-  const cacheSystemPrefix = (system || '') + toolNote + teamNote + manualBlock
+  /* LEARNED BLOCKS AFTER THE PREFIX: the persona ends with the Commander dossier and (while style confidence is low)
+     the fork directive. Both change as the station learns — and flip at app launch while the browser hydrates — so
+     inside the cached prefix every change re-wrote the whole stable prefix cold. They move, verbatim and in order,
+     to just after the prefix; every other byte stays where it was. `system` itself is untouched: the evidence pack
+     and the <commander_context> dedupe keep reading the original persona. Internal self-talk stays verbatim. */
+  const learnedSplit = (LEARNED_AFTER_PREFIX && !internal)
+    ? splitLearned(system || '', { dossierBlock: commanderDossier.get(), forkDirective: FORK_DIRECTIVE })
+    : { base: system || '', learned: '' };
+  if (learnedSplit.learned) {
+    const lk = (learnedSplit.moved.dossier ? 1 : 0) + ':' + (learnedSplit.moved.fork ? 1 : 0) + ':' + learnedSplit.learned.length;
+    if (lk !== learnedLogKey) {
+      learnedLogKey = lk;
+      console.log('[prompt] learned blocks after cache prefix: ' + learnedSplit.learned.length + ' chars (dossier ' + (learnedSplit.moved.dossier ? 'on' : 'off') + ', fork ' + (learnedSplit.moved.fork ? 'on' : 'off') + ')');
+    }
+  }
+  const cacheSystemPrefix = learnedSplit.base + toolNote + teamNote + manualBlock
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
     // is not a power this run has, even though it stays searchable. The ground-truth block must not claim it while the
     // unavailable line above says it can't work. Connector tools deferred only for SIZE still work via tool_search.
@@ -22579,8 +22598,8 @@ async function runOnceCore(o) {
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
-    : FinishLine.append(cacheSystemPrefix + runtimeSkillBlock
+    ? FinishLine.append(cacheSystemPrefix + learnedSplit.learned + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    : FinishLine.append(cacheSystemPrefix + learnedSplit.learned + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
   const sys = internal

@@ -626,6 +626,7 @@ test/dossier-reliability.test.js
 test/hero-color-resume.test.js
 test/roster-track.test.js
 test/chat-prompt-diet.test.js
+test/learned-blocks.test.js
 test/returns.test.js
 test/away-briefing.test.js
 test/briefing-frontend.test.js
