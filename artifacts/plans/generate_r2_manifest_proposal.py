@@ -84,10 +84,11 @@ def main() -> int:
 
     entries: list[dict[str, Any]] = []
     for historical in sorted(source["files"], key=lambda item: item["path"].casefold()):
-        relative = historical["path"].replace("\\", "/")
+        relative = historical["path"]
         parts = relative.split("/")
         if (
             not relative
+            or "\\" in relative
             or relative.startswith("/")
             or re.match(r"^[A-Za-z]:", relative)
             or any(part in {"", ".", ".."} for part in parts)
