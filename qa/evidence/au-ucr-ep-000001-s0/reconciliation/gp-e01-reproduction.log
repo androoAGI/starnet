@@ -1,0 +1,49 @@
+GP-E01 reproduction log
+Observed at UTC: 2026-10-13T17:22:42Z
+Repository HEAD: c0579a4e4d272162963de09bdec7494d822c1fe2
+
+$ node scripts/qa/au-ucr-s0-readiness.mjs check
+check: PACKAGE_CONSISTENT_S1_CLOSED
+exit=0
+
+$ (cd qa/evidence/au-ucr-ep-000001-s0/star-wr-0001 && sha256sum -c MANIFEST.sha256)
+EV-STAR-00.json: OK
+EV-STAR-01.json: OK
+EV-STAR-02.json: OK
+EV-STAR-03.json: OK
+EV-STAR-04.json: OK
+EV-STAR-05.json: OK
+EV-INF-PRE-A09-AUTHORITY-NAMES-00.json: OK
+EV-INF-PRE-A09-DETERMINISTIC-READINESS-00.json: OK
+EV-INF-PRE-A09-LOCAL-BRIDGE-00.json: OK
+exit=0
+
+$ npm run validate:raw
+code: MODULE_NOT_FOUND
+Node.js v22.14.0
+exit=1
+
+$ node test/checkpoint-default-on.test.js
+checkpoint-default-on.test: OK (14 assertions)
+exit=0
+
+$ git cat-file -t 2ea38d86a19697b80a827d2dfd83a9219e145532
+fatal: git cat-file: could not get object info
+exit=128
+
+$ node test/image-task.e2e.test.js
+image-task.e2e.test: OK (69 assertions)
+exit=0
+
+Historical replay:
+- Original checkpoint test from cdc793ba against LF sidecar bytes:
+  exit 0; OK (14 assertions).
+- Original checkpoint test from cdc793ba against CRLF-rendered sidecar bytes:
+  exit 1; the receipt's missing-symbol symptom followed by TypeError reproduced.
+
+Scope:
+- Full test:fast was not run.
+- Full test:http was not run.
+- Production build was not run.
+- verify_wave07_technical.py was not found and was not run.
+- This is internal assurance, not formal certification or acceptance.

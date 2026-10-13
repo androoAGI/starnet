@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "experiment_id": "AU-UCR-EP-000001",
+  "run_id": "GATE-P-EVIDENCE-RECOVERY",
+  "gate": "Gate P",
+  "decision": "BLOCKED_BY_EVIDENCE",
+  "authorization": "DEFERRED",
+  "observed_repository": {
+    "path": "/workspace",
+    "branch": "cursor/populate-authority-readiness-7886",
+    "head": "c0579a4e4d272162963de09bdec7494d822c1fe2",
+    "observed_at_utc": "2026-10-13T16:45:35Z",
+    "working_tree": "clean"
+  },
+  "primary_repository": {
+    "reported_path": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2",
+    "access": "unavailable_from_recovery_environment"
+  },
+  "work_items": [
+    {
+      "work_id": "GP-S00",
+      "title": "Baseline and coordination",
+      "owner": "Claude Coordinator",
+      "priority": "Critical",
+      "status": "REPORT_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [],
+      "blockers": [
+        "Primary Windows repository unavailable"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Baseline is reproducible",
+        "Workstreams have separate scopes",
+        "Original evidence is unchanged"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md",
+        "qa/evidence/au-ucr-ep-000001-s0/reconciliation/gp-e01-reproduction.log"
+      ],
+      "reviewer": "GP-E01 internal challenge",
+      "technical_outcome": "REACHABLE_BASELINE_REPRODUCED",
+      "review_outcome": "CORROBORATED_WITH_ACCESS_LIMITATION",
+      "governance_outcome": "NO_DECISION",
+      "acceptance_decision": "NOT_ACCEPTED"
+    },
+    {
+      "work_id": "GP-A01",
+      "title": "Candidate identity and cryptographic integrity",
+      "owner": "Agent A specialist label",
+      "priority": "Critical",
+      "status": "REPORT_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [
+        "GP-S00"
+      ],
+      "blockers": [
+        "Authoritative 54-, 19-, and 73-file manifests unavailable",
+        "Aggregate digest specification unavailable"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Candidate membership independently reproducible",
+        "Every included file has a verifiable identity",
+        "Aggregate digest independently reproducible"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md"
+      ],
+      "reviewer": "GP-E01 internal challenge",
+      "technical_outcome": "NOT_VERIFIED",
+      "review_outcome": "CORROBORATED_BLOCKED",
+      "governance_outcome": "NO_DECISION",
+      "acceptance_decision": "NOT_ACCEPTED"
+    },
+    {
+      "work_id": "GP-B01",
+      "title": "Audit record and historical lineage",
+      "owner": "Agent B specialist label",
+      "priority": "Critical",
+      "status": "REPORT_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [
+        "GP-S00"
+      ],
+      "blockers": [
+        "FOR-ACT-S0-001 governing source unavailable",
+        "Historical 87- and 90-member inventories unavailable"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Governing source authorizes the audit-record interpretation",
+        "Historical inventories are independently reconciled"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md"
+      ],
+      "reviewer": "GP-E01 internal challenge",
+      "technical_outcome": "NOT_VERIFIED",
+      "review_outcome": "COMPOSITE_INTERPRETATION_CONTRADICTED_BY_REACHABLE_RECORDS",
+      "governance_outcome": "NO_DECISION",
+      "acceptance_decision": "NOT_ACCEPTED"
+    },
+    {
+      "work_id": "GP-C01",
+      "title": "Technical evidence reproduction",
+      "owner": "Agent C specialist label",
+      "priority": "Critical",
+      "status": "REPORT_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [
+        "GP-S00"
+      ],
+      "blockers": [
+        "final_technical_results.json unavailable",
+        "verify_wave07_technical.py unavailable",
+        "Full test suites not rerun",
+        "validate:raw fails"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Every newly verified result has execution evidence",
+        "Tested revision and manifest inputs are exact",
+        "Historical failures remain visible"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md",
+        "qa/evidence/au-ucr-ep-000001-s0/reconciliation/gp-e01-reproduction.log",
+        "qa/evidence/au-ucr-ep-000001-s0/star-wr-0001/EV-STAR-05.json"
+      ],
+      "reviewer": "GP-E01 internal challenge",
+      "technical_outcome": "PARTIAL_REPRODUCTION_WITH_FAILURE",
+      "review_outcome": "CORROBORATED_AND_EXTENDED",
+      "governance_outcome": "NO_DECISION",
+      "acceptance_decision": "NOT_ACCEPTED"
+    },
+    {
+      "work_id": "GP-D01",
+      "title": "Governance, authority, and custody",
+      "owner": "Agent D specialist label",
+      "priority": "Critical",
+      "status": "REPORT_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [
+        "GP-S00"
+      ],
+      "blockers": [
+        "Gate P governing definition unavailable",
+        "No root assignment authority",
+        "No authenticated acceptance",
+        "No candidate-specific immutable custody receipt"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Authority is authenticated and candidate-specific",
+        "Custody is immutable and candidate-specific",
+        "Scrum acceptance is explicit"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md",
+        "docs/experiments/au-ucr-ep-000001/S0_QA_READINESS_GATE.json",
+        "docs/experiments/au-ucr-ep-000001/UCR_001_EVIDENCE_PACKAGE.json"
+      ],
+      "reviewer": "GP-E01 internal challenge",
+      "technical_outcome": "NOT_APPLICABLE",
+      "review_outcome": "CORROBORATED_AND_EXTENDED",
+      "governance_outcome": "BLOCKED_NO_AUTHORITY_OR_CUSTODY",
+      "acceptance_decision": "NOT_ACCEPTED"
+    },
+    {
+      "work_id": "GP-E01",
+      "title": "Independent internal challenge",
+      "owner": "Agent E specialist label",
+      "priority": "Critical",
+      "status": "REVIEW_COMPLETE_NOT_ACCEPTED",
+      "estimate": "PENDING",
+      "dependencies": [
+        "GP-A01",
+        "GP-B01",
+        "GP-C01",
+        "GP-D01"
+      ],
+      "blockers": [
+        "No governed Independent Reviewer assignment",
+        "Primary Windows evidence unavailable"
+      ],
+      "start_date": "2026-10-13",
+      "due_date": null,
+      "completion_date": "2026-10-13",
+      "acceptance_criteria": [
+        "Material findings challenged against primary evidence",
+        "Unresolved contradictions remain explicit"
+      ],
+      "evidence_references": [
+        "docs/experiments/au-ucr-ep-000001/GATE_P_EVIDENCE_RECOVERY_HANDOFF.md",
+        "qa/evidence/au-ucr-ep-000001-s0/reconciliation/gp-e01-reproduction.log"
+      ],
+      "reviewer": null,
+      "technical_outcome": "REMAIN_BLOCKED",
+      "review_outcome": "INTERNAL_ASSURANCE_ONLY",
+      "governance_outcome": "NO_AUTHORIZED_DECISION",
+      "acceptance_decision": "NOT_ACCEPTED"
+    }
+  ],
+  "blockers": [
+    {
+      "work_id": "GP-BLK-01",
+      "title": "Primary Windows repository inaccessible",
+      "status": "OPEN",
+      "dependency_for": [
+        "GP-A01",
+        "GP-B01",
+        "GP-C01",
+        "GP-D01"
+      ],
+      "required_action": "Transfer or mount the original repository read-only"
+    },
+    {
+      "work_id": "GP-BLK-02",
+      "title": "Preservation candidate and digest method unidentified",
+      "status": "OPEN",
+      "dependency_for": [
+        "Gate P"
+      ],
+      "required_action": "Supply authoritative manifests and original verifier"
+    },
+    {
+      "work_id": "GP-BLK-03",
+      "title": "FOR-ACT and Gate P governing definitions unavailable",
+      "status": "OPEN",
+      "dependency_for": [
+        "Gate P"
+      ],
+      "required_action": "Supply commit-addressed governing definitions"
+    },
+    {
+      "work_id": "GP-BLK-04",
+      "title": "Technical reproduction incomplete",
+      "status": "OPEN",
+      "dependency_for": [
+        "Gate P"
+      ],
+      "required_action": "Recover verifier and results, fix validate:raw, and run candidate-bound suites"
+    },
+    {
+      "work_id": "GP-BLK-05",
+      "title": "Authority and immutable custody absent",
+      "status": "OPEN",
+      "dependency_for": [
+        "Gate P"
+      ],
+      "required_action": "Assign authorized actors and establish candidate-specific immutable custody"
+    }
+  ],
+  "formal_acceptances": [],
+  "rollback": {
+    "required": false,
+    "reason": "No examined historical evidence was modified",
+    "future_rule": "Retain the original record and record old reference, new reference, reason, authority, UTC timestamp, and rollback path for every supersession"
+  }
+}
