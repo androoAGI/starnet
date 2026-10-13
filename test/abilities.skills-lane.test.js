@@ -8,8 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const A = require('./_assert.js');
+const readSourceText = require('./_source-text.js');
 
-const source = fs.readFileSync(path.join(__dirname, '../frontend/app/stationui.js'), 'utf8');
+const source = readSourceText(path.join(__dirname, '../frontend/app/stationui.js'));
 const laneMatch = source.match(/function abilitySkillsLane\(body\) \{[\s\S]*?\n  \}\n  window\.AbilityLanes/);
 A.ok(laneMatch, 'the ABILITIES Skills lane is present');
 

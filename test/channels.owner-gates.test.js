@@ -16,6 +16,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 const A = require('./_assert.js');
 const { makeChannelHub, COMMANDS, commandNeedsOwner, parseCommand } = require('../sidecar/channels/hub.js');
 const { wireChannel } = require('../sidecar/channels/registry.js');
@@ -181,14 +182,14 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
   }
   {
     // production seam guard: runOnceCore reads Full Power ONLY through the withheld-aware helpers
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSourceText(path.join(__dirname, '..', 'sidecar', 'index.js'));
     A.ok(/const hostPowerWithheld = hostPowerWithheldFor\(o\);/.test(idx), 'runOnceCore computes the run-origin verdict');
     A.ok(/const agentFullAccessNow = \(\) => !hostPowerWithheld && /.test(idx), 'per-agent Full Access is withheld from non-owner channel runs');
     A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\);/.test(idx), 'the station master bypass is withheld too');
     A.ok(/withholdHostPower: hostPowerWithheld,/.test(idx), 'the verdict rides the host-context connectorAuthority into delegated workers');
     A.ok(!/fullAccess: FULL_ACCESS \|\| masterBypassOn\(\) \|\| agentFullAccessNow\(\)/.test(idx), 'no taint-boundary site reads the raw bypass anymore');
     A.ok(/masterBypass: stationBypassNow\(\), fullAccess: agentFullAccessNow,/.test(idx), 'the run authority gets the withheld-aware bypass');
-    const hub = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');
+    const hub = readSourceText(path.join(__dirname, '..', 'sidecar', 'channels', 'hub.js'));
     A.eq((hub.match(/channelSender: tagSenderRuns, channelSenderOwner: channelSenderOwner/g) || []).length, 2, 'both the entry run and every line hop carry the sender verdict');
     A.ok(/channel: 'dev', [^\n]*\n    ownerSurface: true,/.test(idx) && /channel: 'sample', [^\n]*\n    ownerSurface: true,/.test(idx), 'the local dev and sample hubs are owner surfaces');
     A.ok(/channel: 'trigger', [^\n]*\n[^\n]*\n    untrustedSenders: false,/.test(idx), 'the trigger hub has no chat senders');
@@ -236,7 +237,7 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
     const relayed = admitRelayMessage({ chatId: '-100', userId: 'member', text: '/model model-b', chatType: 'group' }, paired);
     await t.hub.onInbound(relayed.message);
     A.eq(t.models.length, 0, 'a relayed group member cannot change the model');
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSourceText(path.join(__dirname, '..', 'sidecar', 'index.js'));
     A.ok(/const admitted = admitRelayMessage\(body\.message \|\| body, live\.adapter\);/.test(idx), 'the webhook route admits through the live adapter');
     A.ok(!/live\.hub\.onInbound\(Object\.assign\(\{\}, msg/.test(idx), 'the route no longer spreads the raw body into the hub');
   }

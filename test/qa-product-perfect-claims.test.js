@@ -19,8 +19,11 @@ const TEST_ONLY_LEDGER_OVERRIDE = 'TEST_ONLY_UNCOMMITTED_LEDGER_FIXTURE';
   } = await import('../scripts/qa/product-perfect/claims.mjs');
 
   const repoRoot = path.resolve(__dirname, '..');
-  const ledgerFile = path.join(repoRoot, 'qa', 'product-perfect', 'claims.json');
-  const ledgerBytes = fs.readFileSync(ledgerFile);
+  const ledgerBytes = execFileSync(
+    'git',
+    ['show', 'HEAD:qa/product-perfect/claims.json'],
+    { cwd: repoRoot, encoding: 'buffer' }
+  );
   const ledger = JSON.parse(ledgerBytes.toString('utf8'));
   const clone = value => JSON.parse(JSON.stringify(value));
 
@@ -52,6 +55,11 @@ const TEST_ONLY_LEDGER_OVERRIDE = 'TEST_ONLY_UNCOMMITTED_LEDGER_FIXTURE';
   A.eq(equalObjectInjection.ledgerSource, 'candidate-git-blob', 'equal object injection still uses the candidate blob');
   const equalRawInjection = inspectClaimsAuthority({ repoRoot, ledgerBytes });
   A.eq(equalRawInjection.planning.ok, true, 'raw candidate ledger bytes are accepted as an equality assertion');
+  const crlfRawInjection = inspectClaimsAuthority({
+    repoRoot,
+    ledgerBytes: Buffer.from(ledgerBytes.toString('utf8').replace(/\n/g, '\r\n'))
+  });
+  A.eq(crlfRawInjection.planning.ok, false, 'line-ending changes remain a raw candidate-byte mismatch');
 
   const allGreenForgery = clone(ledger);
   for (const claim of allGreenForgery.claims) {

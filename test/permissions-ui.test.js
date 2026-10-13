@@ -4,8 +4,9 @@
 // guard (mirrors autonomy-ui / autojobs-ui) so the panel can't silently regress out of the build.
 const assert = require('assert');
 const fs = require('fs'); const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-const appSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
+const readSourceText = require('./_source-text.js');
+const src = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'));
+const appSrc = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'app.js'));
 
 let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 

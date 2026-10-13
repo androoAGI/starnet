@@ -3,15 +3,21 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.util
 import json
+import os
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[4]
@@ -97,7 +103,22 @@ def technical_manifest_evidence() -> dict[str, Any]:
     }
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=RESULT,
+        help=f"result JSON path (default: {RESULT})",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
+    output = args.output.resolve()
+    if output.is_relative_to(W05.resolve()) or output.is_relative_to(W06.resolve()):
+        raise SystemExit("--output must not write inside the governed Wave 0.5 or Wave 0.6 trees")
     before = {"wave-0.5": tree_snapshot(W05), "wave-0.6": tree_snapshot(W06)}
     source = load_source_verifier().verify()
     after = {"wave-0.5": tree_snapshot(W05), "wave-0.6": tree_snapshot(W06)}
@@ -120,7 +141,9 @@ def main() -> int:
         "source_verifier": {
             "path": SOURCE_VERIFIER.relative_to(REPO).as_posix(),
             "sha256": digest(SOURCE_VERIFIER),
-            "invocation": f"{sys.executable} {Path(__file__).resolve()}",
+            "invocation": shlex.join(
+                [sys.executable, str(Path(__file__).resolve()), "--output", str(output)]
+            ),
             "method": "Imported verify() and invoked it without calling its file-writing main().",
         },
         "repository": {
@@ -179,7 +202,8 @@ def main() -> int:
             "operational_enforcement": "NOT_CLAIMED",
         },
     }
-    RESULT.write_text(
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
         newline="\n",
@@ -191,7 +215,7 @@ def main() -> int:
         f"{result['reconciled_counts']['checks_ran']}"
     )
     print(f"prior_waves_unchanged={result['repository']['prior_wave_bytes_unchanged_by_run']}")
-    print(f"result={RESULT}")
+    print(f"result={output}")
     return 0 if result["overall_status"] == "PASS" and before == after else 1
 
 

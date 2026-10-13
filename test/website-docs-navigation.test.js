@@ -7,17 +7,18 @@ const vm = require('node:vm');
 const {spawnSync} = require('node:child_process');
 const A = require('./_assert');
 const search = require('../website/docs/search');
+const readSourceText = require('./_source-text.js');
 const root = path.resolve(__dirname, '..');
 const site = path.join(root, 'website');
 const ctx = {window:{}};
-vm.runInNewContext(fs.readFileSync(path.join(site,'docs/search-index.js'),'utf8'),ctx);
+vm.runInNewContext(readSourceText(path.join(site,'docs/search-index.js')),ctx);
 const index = ctx.window.SN_DOCS_INDEX;
 const pages = index.map(p=>'docs/'+p.u);
 A.eq(new Set(pages).size,24,'all 24 existing documentation URLs stay indexed once');
 A.eq(new Set(index.map(p=>p.g)).size,6,'docs are organized into six topics');
 let checkedLinks=0;
 for(const page of ['index.html',...pages]){
-  const html=fs.readFileSync(path.join(site,page),'utf8');
+  const html=readSourceText(path.join(site,page));
   const ids=[...html.matchAll(/\sid="([^"]+)"/g)].map(m=>m[1]);
   A.eq(ids.length,new Set(ids).size,page+' has unique anchors');
   if(page.startsWith('docs/')){
@@ -34,7 +35,7 @@ for(const page of ['index.html',...pages]){
     const target=path.join(site,file);
     A.ok(fs.existsSync(target),page+' links to existing '+file);
     if(url.hash && fs.existsSync(target)){
-      const source=fs.readFileSync(target,'utf8');
+      const source=readSourceText(target);
       A.ok(source.includes('id="'+decodeURIComponent(url.hash.slice(1))+'"'),page+' resolves '+file+url.hash);
     }
     checkedLinks++;
@@ -45,7 +46,7 @@ for(const query of ['telegram','api key','night shift','splitter','keyboard','Ga
   A.ok(hits.length>0,query+' returns results');
   for(const hit of hits){
     const [file,anchor]=hit.url.split('#');
-    const html=fs.readFileSync(path.join(site,'docs',file),'utf8');
+    const html=readSourceText(path.join(site,'docs',file));
     A.ok(!anchor || html.includes('id="'+anchor+'"'),query+' result has a working destination');
   }
 }

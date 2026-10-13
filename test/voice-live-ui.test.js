@@ -3,13 +3,14 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const readSourceText = require('./_source-text.js');
 
 const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'frontend', 'index.html'), 'utf8');
-const source = fs.readFileSync(path.join(root, 'frontend', 'app', 'voice-live.js'), 'utf8');
-const voiceSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'voice.js'), 'utf8');
-const chatSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'chat.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'frontend', 'css', 'app.css'), 'utf8');
+const index = readSourceText(path.join(root, 'frontend', 'index.html'));
+const source = readSourceText(path.join(root, 'frontend', 'app', 'voice-live.js'));
+const voiceSource = readSourceText(path.join(root, 'frontend', 'app', 'voice.js'));
+const chatSource = readSourceText(path.join(root, 'frontend', 'app', 'chat.js'));
+const css = readSourceText(path.join(root, 'frontend', 'css', 'app.css'));
 
 assert.doesNotMatch(index, /id="voice-mode"/, 'legacy hands-free button is removed from COMMS');
 assert.equal((index.match(/id="voice-live"/g) || []).length, 1, 'Local Live is the one hands-free control');
@@ -132,7 +133,7 @@ assert.doesNotMatch(bodyOf('onAssistant'), /ensureBoundFocus\(\)/, 'a delayed as
 assert.match(bodyOf('rebind'), /Voice\.stopSpeaking\(\)/, 'a voice-commanded rebind cuts queued audio owned by the former session');
 assert.match(bodyOf('finish'), /boundWsId = null/, 'the binding dies with the call');
 assert.match(source, /boundSession\(\) \|\| Workstreams\.active\(\)/, "the panel reports the CALL's session, not the browsed one");
-const cmdSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'stationcommands.js'), 'utf8');
+const cmdSource = readSourceText(path.join(root, 'frontend', 'app', 'stationcommands.js'));
 assert.match(cmdSource, /VoiceLive\.isActive\(\) && VoiceLive\.rebind/, 'a voice-driven session switch rebinds the live call (a UI click never routes through that verb)');
 
 // Exercise the binding state machine, not only its spelling. A UI rail switch changes activeId but

@@ -34,7 +34,7 @@
     return v.replace(/^["']|["']$/g, '');
   }
   function parseFrontmatter(text) {
-    let t = String(text == null ? '' : text);
+    let t = String(text == null ? '' : text).replace(/\r\n/g, '\n');
     if (t.charCodeAt(0) === 0xFEFF) t = t.slice(1);   // strip a leading BOM if a skill file happens to have one
     const m = t.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?([\s\S]*)$/);
     if (!m) return { meta: {}, body: t };

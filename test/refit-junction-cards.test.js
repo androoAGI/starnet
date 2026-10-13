@@ -17,10 +17,11 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 const WM = require('../frontend/app/worldmodel.js');
 const P = require('../frontend/app/pipeline.js');
 
-const src = f => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', f), 'utf8');
+const src = f => readSourceText(path.join(__dirname, '..', 'frontend', 'app', f));
 const build = src('build.js');
 const panelSrc = src('workflowpanel.js');   // the JOINER/LOOP/INBOX/STEP editing moved into the docked Workflow panel (2026-09-22)
 

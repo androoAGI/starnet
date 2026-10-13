@@ -13,6 +13,7 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 const S = require('../sidecar/channels/secrets.js');
 
 const root = path.resolve(__dirname, '..');
@@ -238,7 +239,7 @@ const root = path.resolve(__dirname, '..');
 
 // ---- G. sidecar host wiring (static guard on index.js) ----
 {
-  const src = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+  const src = readSourceText(path.join(root, 'sidecar', 'index.js'));
   A.ok(/require\(['"]\.\/channels\/secrets\.js['"]\)/.test(src), 'index.js requires the secrets module');
   A.ok(/DESKTOP_SHELL\s*=\s*\/\^\(1\|true\|yes\|on\)/.test(src), 'index.js derives DESKTOP_SHELL from the shell env');
   A.ok(/channelTokenRuntime/.test(src), 'index.js has a runtime channel-token layer');
@@ -321,7 +322,7 @@ const root = path.resolve(__dirname, '..');
 
 // ---- H. apiauth exempts the IPC-gated channel-token push (like /api/key) ----
 {
-  const auth = fs.readFileSync(path.join(root, 'sidecar', 'apiauth.js'), 'utf8');
+  const auth = readSourceText(path.join(root, 'sidecar', 'apiauth.js'));
   A.ok(/'\/api\/channels\/token'/.test(auth), 'apiauth TOKEN_EXEMPT includes /api/channels/token');
   const { requiresApiToken } = require('../sidecar/apiauth.js');
   A.ok(requiresApiToken({ method: 'POST', url: '/api/channels/token' }) === false, '/api/channels/token is not API-token gated (uses its own IPC token)');
@@ -330,15 +331,15 @@ const root = path.resolve(__dirname, '..');
 
 // ---- I. Rust shell wiring (static guard on main.rs) ----
 {
-  const mainRs = fs.readFileSync(path.join(root, 'src-tauri', 'src', 'main.rs'), 'utf8');
-  const credentialsRs = fs.readFileSync(path.join(root, 'src-tauri', 'src', 'credentials.rs'), 'utf8');
+  const mainRs = readSourceText(path.join(root, 'src-tauri', 'src', 'main.rs'));
+  const credentialsRs = readSourceText(path.join(root, 'src-tauri', 'src', 'credentials.rs'));
   const nativeRs = mainRs + '\n' + credentialsRs;
   A.ok(/mod credentials;/.test(mainRs), 'main.rs owns one focused native credential module');
   A.ok(/SIDECAR_CHANNEL_TOKEN_ENVS/.test(credentialsRs), 'credentials.rs declares the channel-token env table');
   A.ok(/"telegram",\s*"SKYNET_TELEGRAM_TOKEN"/.test(credentialsRs) && /"discord",\s*"SKYNET_DISCORD_TOKEN"/.test(credentialsRs), 'credentials.rs maps both channels to their spawn env vars');
   A.ok(/"slack",\s*"SKYNET_SLACK_TOKEN"/.test(credentialsRs) && /"matrix",\s*"SKYNET_MATRIX_TOKEN"/.test(credentialsRs), 'credentials.rs keychains the Slack pair and the Matrix access token too');
   // the Rust env names and the sidecar's CHANNEL_TOKEN_ENV must agree for every keychained channel
-  const idx = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+  const idx = readSourceText(path.join(root, 'sidecar', 'index.js'));
   const envTable = /const CHANNEL_TOKEN_ENV = \{([^}]*)\}/.exec(idx);
   A.ok(!!envTable, 'index.js declares CHANNEL_TOKEN_ENV');
   for (const m of credentialsRs.matchAll(/\("([a-z]+)",\s*"SKYNET_([A-Z_]+)"\)/g)) {
@@ -363,11 +364,11 @@ const root = path.resolve(__dirname, '..');
 
 // ---- J. frontend routes the token through the keychain on desktop, POST-body on browser ----
 {
-  const harness = fs.readFileSync(path.join(root, 'frontend', 'app', 'harness.js'), 'utf8');
+  const harness = readSourceText(path.join(root, 'frontend', 'app', 'harness.js'));
   A.ok(/function storeChannelToken/.test(harness), 'harness.js exposes storeChannelToken');
   A.ok(/harness_store_channel_token/.test(harness), 'harness.js invokes the Tauri channel-token command');
   A.ok(/if\s*\(!DESKTOP[\s\S]{0,40}\)\s*return Promise\.resolve\(false\)/.test(harness), 'browser build no-ops storeChannelToken (keeps the POST-body path)');
-  const ui = fs.readFileSync(path.join(root, 'frontend', 'app', 'windows', 'messaging.js'), 'utf8');
+  const ui = readSourceText(path.join(root, 'frontend', 'app', 'windows', 'messaging.js'));
   // one catalog-generated connect handler serves EVERY channel: the keychain park happens once, by channel id.
   A.ok(/Harness\.storeChannelToken\(c\.id, vals\.token\)/.test(ui), 'the generic connect handler parks each channel\'s token in the keychain first');
   A.ok((ui.match(/if \(stored\) bodyToken = ''/g) || []).length >= 1, 'a keychain-stored token is omitted from the connect POST body');
@@ -442,7 +443,7 @@ const root = path.resolve(__dirname, '..');
   // 6) host wiring static guards: index.js persists through the verified factory, RETURNS the ok bit, and the
   //    routes surface it (notify 500s, disconnect never claims `purged` on an unproven write).
   {
-    const idx = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+    const idx = readSourceText(path.join(root, 'sidecar', 'index.js'));
     A.ok(/persistChannelSecretsVerified = channelSecretsMod\.makeVerifiedPersist\(\{/.test(idx), 'saveChannelSecrets rides makeVerifiedPersist (read-back-proven)');
     A.ok(/const r = persistChannelSecretsVerified\(obj\);[\s\S]{0,400}?return r\.ok;/.test(idx), 'saveChannelSecrets returns the proven ok bit');
     A.ok(/if \(!saveChannelSecrets\(channelSecrets\)\) \{ res\.writeHead\(500/.test(idx), 'the notify route surfaces a failed persist as 500 (the old guard was unreachable)');

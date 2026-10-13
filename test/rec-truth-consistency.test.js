@@ -22,8 +22,9 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 const P = (...p) => path.join(__dirname, '..', ...p);
-const read = (...p) => fs.readFileSync(P(...p), 'utf8');
+const read = (...p) => readSourceText(P(...p));
 /* the few checks here that are genuinely ASYNC (a promise racing an invalidation cannot be driven any other
    way) park their tail here; the report waits on all of them, so an async assertion can never be skipped. */
 const PENDING = [];

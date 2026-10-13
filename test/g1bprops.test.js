@@ -12,6 +12,7 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 
 const WM = require('../frontend/app/worldmodel.js');
 const PS = require('../frontend/app/propsprites.js');
@@ -53,7 +54,7 @@ A.eq(ToolProps.toolPropType('image_analyze'), 'studio', 'toolPropType(image_anal
    WorldModel. bayObjects() returns [] both when an agent has no bay and when its assigned room is genuinely
    empty. Only the first case may use the legacy station-wide fallback. */
 {
-  const world = fs.readFileSync(path.join(__dirname, '../frontend/app/world.js'), 'utf8');
+  const world = readSourceText(path.join(__dirname, '../frontend/app/world.js'));
   const begin = world.indexOf('heroCaps: (agentId) => {');
   const end = world.indexOf('\n    },\n    // STATION-WIDE gear', begin);
   A.ok(begin >= 0 && end > begin, 'the shipped World.heroCaps method is extractable');
@@ -108,13 +109,13 @@ A.eq(WM.grantLabelForProp('missionboard'), null, '…and no power word (it is a 
 }
 
 /* ================= the board's live wiring (browser flow — source locks) ================= */
-const worldSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/world.js'), 'utf8');
+const worldSrc = readSourceText(path.join(__dirname, '../frontend/app/world.js'));
 A.ok(/function missionBoardAt\(/.test(worldSrc), 'world.js hit-tests the MISSION BOARD (the OUTBOX click seam, cloned)');
 A.ok(/setOnMissionBoard/.test(worldSrc), 'world.js exposes the click callback');
 A.ok(/setMissionPins/.test(worldSrc), 'world.js feeds the live open-quest count to the sprite (pins are real, never invented)');
-const appSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
+const appSrc = readSourceText(path.join(__dirname, '../frontend/app/app.js'));
 A.ok(/setOnMissionBoard/.test(appSrc) && /openTerm\('quests'\)/.test(appSrc), 'app.js routes the board click to the QUEST LOG panel');
-const psSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/propsprites.js'), 'utf8');
+const psSrc = readSourceText(path.join(__dirname, '../frontend/app/propsprites.js'));
 A.ok(/setMissionPins/.test(psSrc) && /missionboard/.test(psSrc), 'propsprites carries the pin feed + the board sprite');
 // The palette's category display names moved out of build.js and into propsprites.js, next to the
 // catalog they describe, so propsearch.js can match on them too. Assert the DATA, not a source grep:

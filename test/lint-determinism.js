@@ -6,6 +6,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 
 const base = path.join(__dirname, '..');
 const ROOTS = ['shared', 'sidecar'];
@@ -53,7 +54,7 @@ function decomment(src) {
 
 for (const f of files) {
   if (EXCLUDE.has(path.relative(base, f))) continue;   // ambient composition root — exempt by design
-  const src = decomment(fs.readFileSync(f, 'utf8'));
+  const src = decomment(readSourceText(f));
   src.split('\n').forEach((ln, i) => {
     const code = ln.replace(/(^|[^:])\/\/.*$/, '$1');
     banned.forEach((re, bi) => {

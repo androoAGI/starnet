@@ -9,6 +9,7 @@ const { ENDPOINTS, TOOLS, makeGoogleTransport, productForUrl } = require('../sid
 const { makeMcpClient } = require('../sidecar/mcp/client.js');
 const { resolveConnectorOauthTarget } = require('../sidecar/mcp/oauth-target.js');
 const catalog = require('../sidecar/mcp/catalog.js');
+const readSourceText = require('./_source-text.js');
 
 (async () => {
   const installed = { installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } };
@@ -103,7 +104,7 @@ const catalog = require('../sidecar/mcp/catalog.js');
       for (const id of Object.keys(G.SERVICES)) assert.equal(G.connectorDeferred(cfgOf(id)), false, id + ' opens in an early-access build');
       assert.equal(G.connectorDeferred({ id: 'gmail', url: 'https://gmailmcp.googleapis.com/mcp/v1', transport: 'http' }), true, 'legacy endpoints stay deferred even in early access');
     } finally { G.EARLY_ACCESS = false; }
-    const wf = dir => fs.readFileSync(path.join(__dirname, '../.github/workflows', dir), 'utf8');
+    const wf = dir => readSourceText(path.join(__dirname, '../.github/workflows', dir));
     assert.ok(!/STARNET_GOOGLE_EARLY_ACCESS/.test(wf('release-train.yml')), 'the public release train can never stage early access');
     assert.match(wf('desktop-build.yml'), /google_early_access:[\s\S]*default: "false"/, 'internal builds opt in explicitly, default off');
   }
@@ -136,10 +137,10 @@ const catalog = require('../sidecar/mcp/catalog.js');
   await assert.rejects(blocked.initialize(), /timed out/); blocked.close();
   const oversized = makeMcpClient({ timeoutMs: 1000, transport: makeGoogleTransport({ url: ENDPOINTS.gmail, token: 't', fetchImpl: async () => new Response('x'.repeat(8 * 1024 * 1024 + 1)) }) });
   await assert.rejects(oversized.initialize(), /8 MiB/); oversized.close();
-  const ui = fs.readFileSync(path.join(__dirname, '../frontend/app/windows/connectors.js'), 'utf8');
+  const ui = readSourceText(path.join(__dirname, '../frontend/app/windows/connectors.js'));
   assert.ok(!/data-cc-oclient|enroll in the preview|placeholder="client secret"/.test(ui));
   assert.ok(ui.includes('SIGN IN WITH GOOGLE'));
-  const train = fs.readFileSync(path.join(__dirname, '../.github/workflows/release-train.yml'), 'utf8');
+  const train = readSourceText(path.join(__dirname, '../.github/workflows/release-train.yml'));
   assert.ok(train.includes('run: node scripts/stage-google-client.mjs\n'));
   assert.ok(!train.includes('stage-google-client.mjs --optional'));
   const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-google-stage-'));

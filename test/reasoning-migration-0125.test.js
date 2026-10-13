@@ -7,8 +7,9 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const appjs = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
-const harnessjs = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'harness.js'), 'utf8');
+const readSourceText = require('./_source-text.js');
+const appjs = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'app.js'));
+const harnessjs = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'harness.js'));
 
 function lift(src, name) {
   const start = src.indexOf('  function ' + name + '(');

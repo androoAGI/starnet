@@ -8,7 +8,8 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const appjs = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
+const readSourceText = require('./_source-text.js');
+const appjs = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'app.js'));
 
 function lift(name) {
   const start = appjs.indexOf('  function ' + name + '(');
@@ -84,7 +85,7 @@ A.eq((appjs.match(/Harness\.setProv\(savedStationProv\(saved\)\)/g) || []).lengt
   A.eq(calls, ['roster', 'persist'], 'unpinned roster rows and the save are rewritten');
   A.eq(f.setStationProvider('openrouter'), false, 'a repeat pick is a no-op');
 }
-const stationui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
+const stationui = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'));
 A.ok(/h\.setProv\(p\);\s*\n\s*\/\/[^\n]*\n\s*if \(typeof App !== 'undefined' && App\.setStationProvider\) App\.setStationProvider\(p\);/.test(stationui),
   'the Settings provider card moves the station default too');
 

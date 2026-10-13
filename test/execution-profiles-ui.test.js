@@ -2,10 +2,11 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
-const html = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'index.html'), 'utf8');
-const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'app.css'), 'utf8');
+const readSourceText = require('./_source-text.js');
+const ui = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'));
+const app = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'app.js'));
+const html = readSourceText(path.join(__dirname, '..', 'frontend', 'index.html'));
+const css = readSourceText(path.join(__dirname, '..', 'frontend', 'css', 'app.css'));
 
 for (const id of ['safe-cell', 'remote-ssh', 'trusted-project', 'this-computer']) A.ok(ui.includes("id: '" + id + "'"), 'dossier offers ' + id);
 A.ok(/id="ag-execution-chips"/.test(ui) && /setExecutionProfile/.test(ui), 'dossier profile control writes the live roster');

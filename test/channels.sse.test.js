@@ -7,6 +7,7 @@
 'use strict';
 const A = require('./_assert.js');
 const { makeSseHub, runTeeView, formatKeepalive } = require('../sidecar/channels/sse.js');
+const readSourceText = require('./_source-text.js');
 
 // Minimal WHATWG SSE message extraction for the keepalive contract: comments are ignored and
 // only one or more `data:` fields produce a browser-visible MessageEvent. This is the exact seam
@@ -167,7 +168,7 @@ A.eq(runTeeView('agent.reasoning', { agentId: 'a1', runId: 'r1', on: true }), nu
 {
   const fs = require('fs');
   const path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const src = readSourceText(path.join(__dirname, '../sidecar/index.js'));
   const i = src.indexOf('const emit = o.broadcast');
   A.ok(i > 0, 'index.js has the broadcast-opted tee');
   const seg = src.slice(i, i + 400);
@@ -197,7 +198,7 @@ A.eq(runTeeView('agent.reasoning', { agentId: 'a1', runId: 'r1', on: true }), nu
 {
   const fs = require('fs');
   const path = require('path');
-  const world = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'world.js'), 'utf8');
+  const world = readSourceText(path.join(__dirname, '..', 'frontend', 'app', 'world.js'));
 
   const openAt = world.indexOf('const open = () => {');
   A.ok(openAt > 0, 'world.js owns the channel-bridge open()');

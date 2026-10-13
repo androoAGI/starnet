@@ -3,8 +3,9 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
-const backend = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
-const frontend = fs.readFileSync(path.join(__dirname, '../frontend/app/harness.js'), 'utf8');
+const readSourceText = require('./_source-text.js');
+const backend = readSourceText(path.join(__dirname, '../sidecar/index.js'));
+const frontend = readSourceText(path.join(__dirname, '../frontend/app/harness.js'));
 function region(source, marker, closing) {
   const start = source.indexOf(marker), end = source.indexOf(closing, start);
   if (start < 0 || end < start) throw Error('Production function not found: ' + marker);

@@ -19,6 +19,7 @@
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
+const readSourceText = require('./_source-text.js');
 const C = require('../sidecar/skills/catalog.js');
 const { makeSkillStore } = require('../sidecar/skillstore.js');
 const { makeSkillTools } = require('../sidecar/tools/builtin/skills.js');
@@ -151,7 +152,7 @@ function makeStore() {
 
 // ---- G. the prompt seam: index only where skill.view is on the wire; bodies inline otherwise ----
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSourceText(path.join(__dirname, '..', 'sidecar', 'index.js'));
   const once = (needle, label) => A.eq(idx.split(needle).length - 1, 1, label + ' (exactly one occurrence)');
   once("? (coreNames.indexOf('skill.view') >= 0\n        ? skillsCatalog.composeIndex(SKILL_LIBRARY, recipeOpts)\n        : skillsCatalog.compose(SKILL_LIBRARY, recipeOpts))",
     'index.js composes the recipe INDEX only when skill.view is advertised on this run, else the bodies stay inline');

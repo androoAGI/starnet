@@ -1,7 +1,8 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const ui=fs.readFileSync(path.join(__dirname,'../frontend/app/stationui.js'),'utf8');
-const messaging=fs.readFileSync(path.join(__dirname,'../frontend/app/windows/messaging.js'),'utf8');
+const readSourceText=require('./_source-text.js');
+const ui=readSourceText(path.join(__dirname,'../frontend/app/stationui.js'));
+const messaging=readSourceText(path.join(__dirname,'../frontend/app/windows/messaging.js'));
 const handlers=[...ui.matchAll(/Harness\.api\.post\('\/api\/execution\/(?:policy|ssh|sync|cleanup)'[\s\S]*?\.catch\(\(\) => \{[^\n]*\}\);/g)].map(m=>m[0]);
 assert.equal(handlers.length,5,'all execution mutation handlers must be exercised');
 const disconnect=messaging.slice(messaging.indexOf("          try { await Harness.api.post('/api/channels/'"),messaging.indexOf('          refreshAll();',messaging.indexOf("          try { await Harness.api.post('/api/channels/'"))+'          refreshAll();'.length);
