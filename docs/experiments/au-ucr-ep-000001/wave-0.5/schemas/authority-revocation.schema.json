@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:authority-revocation:1.0.0",
+  "title":"Proposed AuthorityRevocation",
+  "description":"PROPOSED_NOT_ADOPTED. Append-only authority lifecycle event; never edits prior evidence.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","issuer","timing","prerequisites","affected_objects","incident_ref","adjudication_authority_ref","prior_state","new_state","containment_actions","affected_work","rereview_required","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:authority-revocation:1.0.0"},"object_type":{"const":"AUTHORITY_REVOCATION"},"interface_id":{"const":"IF-19"},"producer_role":{"const":"REVOCATION_AUTHORITY"},"key_purpose_id":{"const":"KP-AUTHORITY-REVOCATION-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-AUTHORITY-REVOCATION-v1"}}}}}]},
+    "object_kind":{"const":"AUTHORITY_REVOCATION"},
+    "issuer":{"allOf":[{"$ref":"authority-object-base.schema.json#/$defs/issuer"},{"properties":{"role":{"const":"REVOCATION_AUTHORITY"}}}]},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "prerequisites":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "affected_objects":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "incident_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "adjudication_authority_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "prior_state":{"$ref":"common.schema.json#/$defs/id"},
+    "new_state":{"enum":["SUSPENDED","REVOKED","SUPERSEDED"]},
+    "containment_actions":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "affected_work":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "rereview_required":{"type":"boolean"},
+    "outcome":{"enum":["SUSPENDED","REVOKED","SUPERSEDED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

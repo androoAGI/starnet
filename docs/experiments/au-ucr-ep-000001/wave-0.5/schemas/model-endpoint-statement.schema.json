@@ -1,0 +1,29 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:model-endpoint-statement:1.0.0",
+  "title":"Proposed IF-10 model endpoint statement",
+  "description":"PROPOSED_NOT_ADOPTED. Request-scoped provider/model identity statement.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","request_id","provider_legal_id","tenant_id","service_id","region","protocol_version","dns_name","tls_policy_digest","proxy_chain","model_authority_id","immutable_model_digest","endpoint_tuple_digest","input_commitment","output_commitment","nonce","audience","issued_at","expires_at"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:model-endpoint-statement:1.0.0"},"object_type":{"const":"MODEL_ENDPOINT_STATEMENT"},"interface_id":{"const":"IF-10"},"producer_role":{"enum":["LOCAL_MEASURED_MODEL_ADAPTER","MODEL_PROVIDER_IDENTITY_AUTHORITY"]},"key_purpose_id":{"const":"KP-MODEL-ENDPOINT-STATEMENT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-MODEL-ENDPOINT-STATEMENT-v1"}}}}}]},
+    "request_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "provider_legal_id":{"$ref":"common.schema.json#/$defs/id"},
+    "tenant_id":{"$ref":"common.schema.json#/$defs/id"},
+    "service_id":{"$ref":"common.schema.json#/$defs/id"},
+    "region":{"$ref":"common.schema.json#/$defs/id"},
+    "protocol_version":{"$ref":"common.schema.json#/$defs/id"},
+    "dns_name":{"type":"string","minLength":1,"maxLength":253},
+    "tls_policy_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "proxy_chain":{"type":"array","maxItems":16,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+    "model_authority_id":{"$ref":"common.schema.json#/$defs/id"},
+    "immutable_model_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "endpoint_tuple_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "input_commitment":{"$ref":"common.schema.json#/$defs/sha256"},
+    "output_commitment":{"$ref":"common.schema.json#/$defs/sha256"},
+    "nonce":{"$ref":"common.schema.json#/$defs/nonce256"},
+    "audience":{"$ref":"common.schema.json#/$defs/id"},
+    "issued_at":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "expires_at":{"$ref":"common.schema.json#/$defs/timestamp"}
+  }
+}

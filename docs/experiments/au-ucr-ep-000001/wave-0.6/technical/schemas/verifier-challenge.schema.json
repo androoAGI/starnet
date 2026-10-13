@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:verifier-challenge:1.0.0",
+  "title":"Proposed IF-06 verifier challenge",
+  "description":"PROPOSED_NOT_ADOPTED. Single-use challenge; <=120-second relationship requires consumer verification.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","challenge_id","nonce","audience","policy_digest","channel_binding_digest","issued_at","expires_at","single_use"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:verifier-challenge:1.0.0"},"object_type":{"const":"VERIFIER_CHALLENGE"},"interface_id":{"const":"IF-06"},"producer_role":{"const":"VERIFIER_OPERATOR"},"key_purpose_id":{"const":"KP-VERIFIER-CHALLENGE-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-VERIFIER-CHALLENGE-v1"}}}}}]},
+    "challenge_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "nonce":{"$ref":"common.schema.json#/$defs/nonce256"},
+    "audience":{"$ref":"common.schema.json#/$defs/id"},
+    "policy_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "channel_binding_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "issued_at":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "expires_at":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "single_use":{"const":true}
+  }
+}

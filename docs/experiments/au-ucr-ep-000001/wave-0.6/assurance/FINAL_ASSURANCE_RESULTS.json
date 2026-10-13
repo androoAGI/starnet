@@ -1,0 +1,237 @@
+{
+  "schema_id": "urn:au-ucr:assurance:wave-0.6-final-integrated-results:1.0.0",
+  "project": "AU-UCR-EP-000001",
+  "assessment_date": "2026-10-12",
+  "classification": "SAME_WORKSPACE_AI_FINAL_TECHNICAL_ASSURANCE",
+  "independence_limit": "Agent F is an AI subagent in the same workspace and is not organizationally independent, formally appointed, identity-proofed, or separated from artifact authorship and verification tooling.",
+  "reviewed_candidate": {
+    "manifest": "W06_INTEGRATED_DOSSIER_MANIFEST.json",
+    "manifest_status": "LOCAL_EXACT_BYTE_INVENTORY_NOT_PUBLISHED_NOT_ACCEPTED",
+    "declared_entries": 87,
+    "recomputed_entries": 87,
+    "unique_entries": 87,
+    "entry_identity_mismatches": 0,
+    "declared_aggregate_sha256": "86fdd571a46cdd89ac51f2b213f7bf8c41cc66016a107ca49891759002690c55",
+    "recomputed_aggregate_sha256": "86fdd571a46cdd89ac51f2b213f7bf8c41cc66016a107ca49891759002690c55",
+    "aggregate_match": true,
+    "hash_domain": "raw-working-tree-sha256-v1",
+    "self_excluded": "W06_INTEGRATED_DOSSIER_MANIFEST.json",
+    "review_overlay_note": "This final result and FINAL_INTEGRATED_TECHNICAL_ASSURANCE.md are post-manifest assurance outputs. They are not claimed as members of the reviewed 87-entry candidate and do not change its recomputed aggregate."
+  },
+  "repository_observation": {
+    "branch": "cursor/populate-authority-readiness-7886",
+    "head": "39bade0506b4d5b12bb979ccf6a51bb11944a9ff",
+    "wave_0_6_state": "UNTRACKED_MUTABLE_WORKING_TREE",
+    "commit_push_merge_publication_performed": false
+  },
+  "dossier_categories": {
+    "root": 8,
+    "assurance": 5,
+    "evidence": 4,
+    "governance": 6,
+    "scrum": 2,
+    "technical": 55,
+    "verification": 7,
+    "required_categories_present": true
+  },
+  "executed_checks": {
+    "manifest_entries_and_aggregate": {
+      "status": "PASS",
+      "entries_checked": 87,
+      "mismatches": 0
+    },
+    "strict_json_parse": {
+      "status": "PASS",
+      "documents_checked": 47,
+      "duplicate_key_or_parse_failures": 0
+    },
+    "final_technical_verification_read_only_rerun": {
+      "status": "PASS",
+      "checks_passed": 15,
+      "checks_total": 15,
+      "failures": 0,
+      "environment": {
+        "python": "3.13.7",
+        "jsonschema": "4.26.0",
+        "referencing": "0.36.2",
+        "cryptography": "46.0.1",
+        "node": "v22.19.0"
+      }
+    },
+    "technical_package_validator_rerun": {
+      "status": "PASS",
+      "schema_documents": 35,
+      "unique_schema_ids": 35,
+      "metaschema_checks": 35,
+      "local_references": 576,
+      "concrete_schemas": 33,
+      "definition_helpers": 2,
+      "generated_full_document_cases": 160,
+      "retained_full_document_cases": 2,
+      "all_full_document_cases": 162,
+      "generated_valid": 36,
+      "generated_invalid": 124,
+      "subschema_pairs": 57,
+      "positive_vector_schema_instances": 8
+    },
+    "vector_reproducer_rerun": {
+      "status": "PASS",
+      "scenarios": 14,
+      "bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+      "direct_schema_instance_design_mappings": 8,
+      "semantic_byte_checks": 15,
+      "digest_checks": 22,
+      "signature_profile_checks": 5,
+      "oracle_checks": 14
+    },
+    "authority_name_scan": {
+      "status": "PASS_WITH_LINEAGE_OCCURRENCES",
+      "canonical_hakeem_moore_occurrences": 95,
+      "hakim_moore_line_occurrences": 11,
+      "hakim_moore_occurrences_outside_explicit_error_correction_or_invalidation_context": 0,
+      "controlling_spelling": "Hakeem Moore"
+    },
+    "fabricated_decision_scan": {
+      "status": "PASS",
+      "fabricated_hakeem_moore_approval_acceptance_signature_or_acknowledgement_patterns": 0,
+      "valid_final_decision_receipts": 0,
+      "decision_state": "PENDING_HUMAN_DECISION"
+    },
+    "integration_state_scan": {
+      "status": "FAIL",
+      "stale_or_pending_integration_markers": 8,
+      "affected_records": [
+        "scrum/W06_AUTHORITATIVE_SCRUM_CLOSURE.md",
+        "scrum/W06_CLOSURE_EVIDENCE_CROSSWALK.md",
+        "W06_ACCEPTANCE_CRITERIA_AND_TRACEABILITY.md",
+        "W06_CROSS_WORKSTREAM_INTEGRATION_REPORT.md"
+      ]
+    }
+  },
+  "technical_verification_not_run": [
+    "Operational/runtime/lab/consumer enforcement",
+    "Operational key, trust-chain, revocation, authority, or identity verification",
+    "Network, publication, commit, push, merge, approval, or adoption",
+    "Dependency installation",
+    "Complete third-party RFC 8785 conformance suite",
+    "Verification of synthetic vector r=1,s=1 sentinels as genuine signatures"
+  ],
+  "preliminary_finding_dispositions": [
+    {
+      "id": "F-PRELIM-01",
+      "disposition": "MITIGATED_WITH_LIMIT",
+      "basis": "The 87-entry integrated manifest and 54-entry technical manifest fix and reproduce exact local bytes. Git tree/commit binding, publication, and independent retrieval remain unperformed and unverified."
+    },
+    {
+      "id": "F-PRELIM-02",
+      "disposition": "CLOSED_AGENT_WORK",
+      "basis": "All 33 concrete schemas now have full-document coverage; 162/162 cases and 125/125 intended-reason negatives pass. Two helpers are exercised through concrete dependents."
+    },
+    {
+      "id": "F-PRELIM-03",
+      "disposition": "MITIGATED_WITH_LIMIT",
+      "basis": "Ephemeral ES256/P1363 low-S mechanics and bounded Python/Node canonicalization passed. Complete RFC 8785, operational trust/key/revocation, and synthetic sentinel authenticity remain unverified."
+    },
+    {
+      "id": "F-PRELIM-04",
+      "disposition": "RESTRICTED_NOT_RUN",
+      "basis": "The 22 interfaces reconcile in design and a bounded implementation/test plan exists, but implementation and stateful enforcement were prohibited and not run."
+    },
+    {
+      "id": "F-PRELIM-05",
+      "disposition": "HUMAN_DECISION_DEPENDENCY",
+      "basis": "Hakeem Moore is consistently named, governance templates are prepared, and no decision is fabricated. Stable identity, mandate, appointments, acknowledgements, separation, and any final decision remain human-governed."
+    },
+    {
+      "id": "F-PRELIM-06",
+      "disposition": "MITIGATED_WITH_LIMIT",
+      "basis": "The seven historical missing references and unsupported commit are explicitly classified and preserved without substitution. Claims relying on them remain limited."
+    },
+    {
+      "id": "F-PRELIM-07",
+      "disposition": "MITIGATED_WITH_LIMIT",
+      "basis": "A separate final verifier, mutation challenges, genuine ephemeral crypto mechanics, and cross-runtime checks materially improve evidence. Same-workspace, shared-authorship, and single-validator limits remain."
+    },
+    {
+      "id": "F-PRELIM-08",
+      "disposition": "CLOSED_AGENT_WORK",
+      "basis": "Permitted validation was rerun against the exact technical manifest and again during final assurance; exact tools, versions, results, and limitations are recorded."
+    }
+  ],
+  "new_findings": [
+    {
+      "id": "F-FINAL-01",
+      "severity": "HIGH",
+      "disposition": "BLOCKER",
+      "agent_remediable": true,
+      "title": "Final Scrum and closure overlay are absent",
+      "evidence": [
+        "scrum/W06_AUTHORITATIVE_SCRUM_CLOSURE.md remains PRELIMINARY_PRIOR_WAVE_RECONCILIATION_PENDING_W06_INTEGRATION and says current Wave 0.6 completion is not yet determinable.",
+        "scrum/W06_CLOSURE_EVIDENCE_CROSSWALK.md remains preliminary and defers final Wave 0.6 counts and blocker disposition.",
+        "W06_ACCEPTANCE_CRITERIA_AND_TRACEABILITY.md leaves AC-09 PENDING_POST_INTEGRATION_CLOSURE and AC-10 PENDING_FINAL_MANIFEST.",
+        "W06_CROSS_WORKSTREAM_INTEGRATION_REPORT.md remains INTEGRATED_PENDING_FINAL_ASSURANCE_AND_SCRUM_CLOSURE.",
+        "ACG-05 requires a Scrum closure with no agent-owned OPEN, PENDING, or BLOCKED task."
+      ],
+      "required_agent_action": "Create an append-only final Scrum closure and non-circular final integration overlay that consumes the fixed 87-entry source dossier, this final assurance, and its result; close AC-09/AC-10 and reconcile the final agent task/dependency count without modifying the reviewed candidate or fabricating a human decision."
+    }
+  ],
+  "residual_risks": [
+    {
+      "id": "RR-01",
+      "severity": "HIGH",
+      "status": "HUMAN_DECISION_DEPENDENCY",
+      "description": "Stable human identity, mandate, appointments, acknowledgements, separation, risk acceptance, and final disposition are absent."
+    },
+    {
+      "id": "RR-02",
+      "severity": "HIGH",
+      "status": "MITIGATED_WITH_LIMIT",
+      "description": "The candidate is exactly identified locally but remains untracked, mutable, unpublished, and not independently retrieved."
+    },
+    {
+      "id": "RR-03",
+      "severity": "HIGH",
+      "status": "RESTRICTED_NOT_RUN",
+      "description": "Operational interfaces, stateful consumer enforcement, runtime, lab, rollback, WORM, anchor, and reinstatement behavior were not executed."
+    },
+    {
+      "id": "RR-04",
+      "severity": "HIGH",
+      "status": "MITIGATED_WITH_LIMIT",
+      "description": "Same-workspace AI review, shared authorship, and one installed JSON Schema validator do not establish organizational independence."
+    },
+    {
+      "id": "RR-05",
+      "severity": "MEDIUM",
+      "status": "MITIGATED_WITH_LIMIT",
+      "description": "Canonicalization and cryptographic primitive checks are bounded; complete RFC 8785 and operational trust/key/revocation evidence remain absent."
+    },
+    {
+      "id": "RR-06",
+      "severity": "MEDIUM",
+      "status": "MITIGATED_WITH_LIMIT",
+      "description": "Historical unavailable references, unsupported commit identity, and unpinned line-ending policy remain explicit limitations."
+    }
+  ],
+  "agent_completion": {
+    "technical_preparation_complete": true,
+    "verification_preparation_complete": true,
+    "governance_preparation_complete": true,
+    "evidence_preparation_complete": true,
+    "risk_and_test_plan_preparation_complete": true,
+    "final_scrum_and_integration_closure_complete": false,
+    "agent_remediable_blocker_count": 1,
+    "any_agent_remediable_blocker_remains": true,
+    "agent_completion_gate": "FAIL_PENDING_FINAL_SCRUM_AND_INTEGRATION_OVERLAY"
+  },
+  "governance_effect": {
+    "approval": "NONE",
+    "adoption": "NONE",
+    "authorization": "NONE",
+    "acceptance": "NONE",
+    "publication": "NONE",
+    "operational_execution": "NONE",
+    "commit_push_merge": "NONE"
+  },
+  "overall_disposition": "TECHNICAL_ASSURANCE_PASS_WITH_LIMITS__AGENT_COMPLETION_BLOCKED_BY_FINAL_SCRUM_INTEGRATION_CLOSURE"
+}

@@ -1,0 +1,28 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:platform-verification-result:1.0.0",
+  "title":"Proposed IF-09 platform verification result",
+  "description":"PROPOSED_NOT_ADOPTED. Enrollment and quote verification result.",
+  "type":"object","additionalProperties":false,
+  "required":["contract_status","schema_id","schema_version","interface_id","result_id","device_id","enrollment_ref","ek_chain_digest","ak_id","template_digest","pcr_policy_digest","event_log_digest","quote_digest","lifecycle_state","revocation_snapshot_ref","decision","reason_codes","verified_at"],
+  "properties":{
+    "contract_status":{"$ref":"common.schema.json#/$defs/proposalStatus"},
+    "schema_id":{"const":"urn:au-ucr:schema:platform-verification-result:1.0.0"},
+    "schema_version":{"const":"1.0.0"},
+    "interface_id":{"const":"IF-09"},
+    "result_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "device_id":{"$ref":"common.schema.json#/$defs/id"},
+    "enrollment_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "ek_chain_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "ak_id":{"$ref":"common.schema.json#/$defs/id"},
+    "template_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "pcr_policy_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "event_log_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "quote_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "lifecycle_state":{"enum":["ENROLLED","SUSPENDED","REVOKED","DECOMMISSIONED"]},
+    "revocation_snapshot_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "decision":{"enum":["ALLOW","DENY","SUSPEND","REVOKE","BLOCK"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verified_at":{"$ref":"common.schema.json#/$defs/timestamp"}
+  }
+}

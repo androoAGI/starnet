@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:approved-runtime-manifest:1.0.0",
+  "title":"Proposed Approved Runtime Manifest",
+  "description":"PROPOSED_NOT_ADOPTED. IF-05 immutable ARM; presence does not establish eligibility.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","manifest_id","candidate","a09_ref","g3_ref","execution_release_ref","run_id","eligibility_state","components","config_precedence","ambient_input_denylist","endpoint_profile_ref","model_profile_ref","measurement_profile_ref","topology_registry_digest","trust_store_digest","revocation_snapshot_ref"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:approved-runtime-manifest:1.0.0"},"object_type":{"const":"APPROVED_RUNTIME_MANIFEST"},"interface_id":{"const":"IF-05"},"key_purpose_id":{"const":"KP-ARM-RELEASE-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-ARM-RELEASE-v1"}}}}}]},
+    "manifest_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "candidate":{"$ref":"common.schema.json#/$defs/candidateBinding"},
+    "a09_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "g3_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "execution_release_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "run_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "eligibility_state":{"enum":["UNPUBLISHED","PUBLISHED_INELIGIBLE","ELIGIBLE","SUSPENDED","EXPIRED","REVOKED","SUPERSEDED"]},
+    "components":{"type":"array","minItems":1,"maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["component_id","purpose","source_uri","hash_domain","digest","loader_id","executable"],"properties":{"component_id":{"$ref":"common.schema.json#/$defs/id"},"purpose":{"type":"string","minLength":1},"source_uri":{"type":"string","minLength":1},"hash_domain":{"$ref":"common.schema.json#/$defs/hashDomainId"},"digest":{"$ref":"common.schema.json#/$defs/sha256"},"canonical_digest":{"$ref":"common.schema.json#/$defs/sha256"},"loader_id":{"$ref":"common.schema.json#/$defs/id"},"executable":{"type":"boolean"}}}},
+    "config_precedence":{"type":"array","minItems":1,"maxItems":256,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+    "ambient_input_denylist":{"type":"array","maxItems":256,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/id"}},
+    "endpoint_profile_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "model_profile_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "measurement_profile_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "topology_registry_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "trust_store_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "revocation_snapshot_ref":{"$ref":"common.schema.json#/$defs/digestRef"}
+  }
+}

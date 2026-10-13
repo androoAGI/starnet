@@ -1,0 +1,295 @@
+{
+  "active_full_documents": {
+    "checked": 2,
+    "expectations_met": 2,
+    "results": [
+      {
+        "errors": [],
+        "expectation_met": true,
+        "expected": "VALID",
+        "fixture": "audit-ledger-record.positive.json",
+        "observed": "VALID",
+        "schema": "audit-ledger-record.schema.json"
+      },
+      {
+        "errors": [
+          "decision: 'ALLOW' was expected"
+        ],
+        "expectation_met": true,
+        "expected": "INVALID",
+        "fixture": "audit-ledger-record.negative.json",
+        "observed": "INVALID",
+        "schema": "audit-ledger-record.schema.json"
+      }
+    ]
+  },
+  "limitations": [
+    "Validation does not prove cross-object identity, ordering, state-machine, replay, hash, or signature semantics.",
+    "Subschema unit checks do not establish complete-object validity.",
+    "The installed validator and this same-workspace AI checker are not organizationally independent."
+  ],
+  "metaschema": {
+    "checked": 35,
+    "failures": [],
+    "passed": 35
+  },
+  "retired_full_documents_observation_only": [
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('canonical_profile', 'compatible_major', 'decision', 'event_id', 'failure_category', 'from_status', 'new_object_version', 'policy_digest', 'prior_object_version', 'reason_code', 'recorded_at', 'registry_digest', 'registry_state', 'schema_digest', 'source_trace', 'to_status' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'interface_id' is a required property",
+        "<root>: 'request_id' is a required property",
+        "<root>: 'correlation_id' is a required property",
+        "<root>: 'requested_transition' is a required property",
+        "<root>: 'ingress_result' is a required property",
+        "evidence_refs/0: Additional properties are not allowed ('hash_algorithm', 'uri' were unexpected)",
+        "evidence_refs/0: 'object_id' is a required property",
+        "evidence_refs/0: 'schema_id' is a required property",
+        "evidence_refs/0/hash_domain: 'rfc8785_jcs_utf8' is not one of ['raw-working-tree-sha256-v1', 'crlf-to-lf-sha256-v1', 'git-blob-oid-v1', 'git-blob-sha256-v1', 'git-index-path-binding-v1', 'git-commit-path-binding-v1', 'rfc8785-jcs-utf8-sha256-v1', 'framed-binary-sha256-v1', 'candidate-manifest-identity-v1', 'publication-receipt-identity-v1']"
+      ],
+      "fixture": "a01-a12-transition-record.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('caller_sets_status', 'canonical_profile', 'compatible_major', 'decision', 'event_id', 'from_status', 'new_object_version', 'policy_digest', 'prior_object_version', 'reason_code', 'recorded_at', 'registry_digest', 'registry_state', 'schema_digest', 'source_trace', 'to_status' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'interface_id' is a required property",
+        "<root>: 'request_id' is a required property",
+        "<root>: 'correlation_id' is a required property",
+        "<root>: 'requested_transition' is a required property",
+        "<root>: 'ingress_result' is a required property",
+        "evidence_refs: [] should be non-empty",
+        "expected_object_version: -1 is less than the minimum of 0",
+        "idempotency_key: '' should be non-empty",
+        "idempotency_key: '' does not match '^[A-Za-z0-9][A-Za-z0-9._:/-]*$'",
+        "stage: 'A13' is not one of ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08', 'A09', 'A10', 'A11', 'A12']"
+      ],
+      "fixture": "a01-a12-transition-record.negative.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm', 'canonical_profile', 'compatible_major', 'contract_status', 'effective_config_digest', 'evidence_id', 'expires_at', 'issued_at', 'schema_version', 'signature', 'source_trace', 'verifier_nonce' were unexpected)",
+        "<root>: 'envelope' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'counter' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'device_id' is a required property",
+        "<root>: 'boot_id' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'launcher_digest' is a required property",
+        "<root>: 'process_id' is a required property",
+        "<root>: 'process_created_at' is a required property",
+        "<root>: 'runtime_instance_id' is a required property",
+        "<root>: 'runtime_key_id' is a required property",
+        "<root>: 'effective_configuration_digest' is a required property",
+        "<root>: 'security_flags' is a required property"
+      ],
+      "fixture": "attestation-evidence.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm', 'canonical_profile', 'compatible_major', 'contract_status', 'effective_config_digest', 'evidence_id', 'expires_at', 'issued_at', 'schema_version', 'signature', 'source_trace', 'unexpected', 'verifier_nonce' were unexpected)",
+        "<root>: 'envelope' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'counter' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'device_id' is a required property",
+        "<root>: 'boot_id' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'launcher_digest' is a required property",
+        "<root>: 'process_id' is a required property",
+        "<root>: 'process_created_at' is a required property",
+        "<root>: 'runtime_instance_id' is a required property",
+        "<root>: 'runtime_key_id' is a required property",
+        "<root>: 'effective_configuration_digest' is a required property",
+        "<root>: 'security_flags' is a required property",
+        "<root>: 'prior_evidence_digest' is a required property",
+        "channel_binding_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "endpoint_tuple_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "model_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "module_set_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "platform_quote_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "sequence: -1 is less than the minimum of 0"
+      ],
+      "fixture": "attestation-evidence.negative.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('artifact_bundle_digest', 'audience', 'authority_counter', 'candidate_commit', 'canonical_profile', 'compatible_major', 'contract_status', 'decision_id', 'environment', 'evidence_bundle_digest', 'expires_at', 'issued_at', 'key_id', 'key_purpose', 'nonce', 'not_before', 'object_id', 'policy_digest', 'prior_event_hash', 'prior_object_version', 'prior_state', 'registry_digest', 'repository_id', 'requested_transition', 'revocation_epoch', 'role_effective_from', 'role_scope', 'schema_bundle_digest', 'schema_version', 'signature', 'signer_identity', 'source_trace', 'supporting_receipt_digests' were unexpected)",
+        "<root>: 'envelope' is a required property",
+        "<root>: 'object_kind' is a required property",
+        "<root>: 'issuer' is a required property",
+        "<root>: 'timing' is a required property",
+        "<root>: 'candidate' is a required property",
+        "<root>: 'prerequisites' is a required property",
+        "<root>: 'prior_governance_state' is a required property",
+        "<root>: 'next_governance_state' is a required property",
+        "<root>: 'conditions' is a required property",
+        "<root>: 'exclusions' is a required property",
+        "<root>: 'reason_codes' is a required property",
+        "<root>: 'verification_result' is a required property"
+      ],
+      "fixture": "authorization-a09-decision.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('artifact_bundle_digest', 'audience', 'authority_counter', 'candidate_commit', 'canonical_profile', 'compatible_major', 'contract_status', 'decision_id', 'environment', 'evidence_bundle_digest', 'expires_at', 'issued_at', 'key_id', 'key_purpose', 'nonce', 'not_before', 'object_id', 'policy_digest', 'prior_event_hash', 'prior_object_version', 'prior_state', 'registry_digest', 'repository_id', 'requested_transition', 'revocation_epoch', 'role_effective_from', 'role_scope', 'schema_bundle_digest', 'schema_version', 'signature', 'signer_identity', 'source_trace', 'supporting_receipt_digests' were unexpected)",
+        "<root>: 'envelope' is a required property",
+        "<root>: 'object_kind' is a required property",
+        "<root>: 'issuer' is a required property",
+        "<root>: 'timing' is a required property",
+        "<root>: 'candidate' is a required property",
+        "<root>: 'prerequisites' is a required property",
+        "<root>: 'prior_governance_state' is a required property",
+        "<root>: 'next_governance_state' is a required property",
+        "<root>: 'conditions' is a required property",
+        "<root>: 'exclusions' is a required property",
+        "<root>: 'reason_codes' is a required property",
+        "<root>: 'verification_result' is a required property",
+        "outcome: 'APPROVED' is not one of ['ACCEPTED', 'REVISE', 'REJECTED']",
+        "rationale: '' should be non-empty"
+      ],
+      "fixture": "authorization-a09-decision.negative.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm_digest', 'canonical_profile', 'compatible_major', 'ordered_inputs', 'source_trace' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'interface_id' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'session_id' is a required property",
+        "<root>: 'producer_id' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'opened_inputs' is a required property",
+        "<root>: 'load_result' is a required property",
+        "<root>: 'reason_codes' is a required property"
+      ],
+      "fixture": "effective-configuration-measurement.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm_digest', 'canonical_profile', 'compatible_major', 'ordered_inputs', 'source_trace' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'interface_id' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'session_id' is a required property",
+        "<root>: 'producer_id' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'opened_inputs' is a required property",
+        "<root>: 'load_result' is a required property",
+        "<root>: 'reason_codes' is a required property",
+        "ambient_input_denylist_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "effective_configuration_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "loader_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "measured_at: '2026-10-12T10:00:00.1234567Z' does not match '^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d{1,6})?Z$'",
+        "precedence_policy_digest: 'bad' does not match '^[0-9a-f]{64}$'"
+      ],
+      "fixture": "effective-configuration-measurement.negative.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('audience', 'candidate_bundle_digest', 'candidate_commit', 'canonical_profile', 'compatible_major', 'evidence_digest', 'expires_at', 'failure_category', 'issued_at', 'issuer_identity', 'issuer_role', 'limitations', 'outcome', 'reason_code', 'receipt_id', 'receipt_kind', 'signature', 'source_trace', 'subject_id' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'abstract_only' is a required property",
+        "<root>: 'object_id' is a required property",
+        "<root>: 'typed_subject_ref' is a required property",
+        "<root>: 'reason_codes' is a required property"
+      ],
+      "fixture": "evidence-acceptance-receipt.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('accepted', 'audience', 'candidate_bundle_digest', 'candidate_commit', 'canonical_profile', 'compatible_major', 'evidence_digest', 'expires_at', 'issued_at', 'issuer_identity', 'issuer_role', 'outcome', 'reason_code', 'receipt_id', 'receipt_kind', 'signature', 'source_trace', 'subject_id' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'abstract_only' is a required property",
+        "<root>: 'object_id' is a required property",
+        "<root>: 'typed_subject_ref' is a required property",
+        "<root>: 'reason_codes' is a required property"
+      ],
+      "fixture": "evidence-acceptance-receipt.negative.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm_digest', 'bound_at', 'canonical_profile', 'channel_binding_digest', 'compatible_major', 'effective_config_digest', 'source_trace', 'verdict', 'verifier_nonce' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'repository_id' is a required property",
+        "<root>: 'candidate_commit' is a required property",
+        "<root>: 'publication_manifest_digest' is a required property",
+        "<root>: 'a09_receipt_ref' is a required property",
+        "<root>: 'execution_release_ref' is a required property",
+        "<root>: 'run_id' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'effective_configuration_digest' is a required property",
+        "<root>: 'policy_digest' is a required property",
+        "<root>: 'schema_bundle_digest' is a required property",
+        "<root>: 'algorithm_registry_digest' is a required property",
+        "<root>: 'dependency_registry_digest' is a required property",
+        "<root>: 'reason_registry_digest' is a required property",
+        "<root>: 'trust_store_digest' is a required property",
+        "<root>: 'revocation_snapshot_ref' is a required property",
+        "<root>: 'verifier_receipt_time' is a required property"
+      ],
+      "fixture": "session-binding.positive.json",
+      "observed": "INVALID"
+    },
+    {
+      "errors": [
+        "<root>: Additional properties are not allowed ('arm_digest', 'bound_at', 'canonical_profile', 'channel_binding_digest', 'compatible_major', 'effective_config_digest', 'source_trace', 'verdict', 'verifier_nonce' were unexpected)",
+        "<root>: 'schema_id' is a required property",
+        "<root>: 'repository_id' is a required property",
+        "<root>: 'candidate_commit' is a required property",
+        "<root>: 'publication_manifest_digest' is a required property",
+        "<root>: 'a09_receipt_ref' is a required property",
+        "<root>: 'execution_release_ref' is a required property",
+        "<root>: 'run_id' is a required property",
+        "<root>: 'arm_ref' is a required property",
+        "<root>: 'challenge_ref' is a required property",
+        "<root>: 'tmc_id' is a required property",
+        "<root>: 'effective_configuration_digest' is a required property",
+        "<root>: 'policy_digest' is a required property",
+        "<root>: 'schema_bundle_digest' is a required property",
+        "<root>: 'algorithm_registry_digest' is a required property",
+        "<root>: 'dependency_registry_digest' is a required property",
+        "<root>: 'reason_registry_digest' is a required property",
+        "<root>: 'trust_store_digest' is a required property",
+        "<root>: 'revocation_snapshot_ref' is a required property",
+        "<root>: 'verifier_receipt_time' is a required property",
+        "device_id: '' should be non-empty",
+        "device_id: '' does not match '^[A-Za-z0-9][A-Za-z0-9._:/-]*$'",
+        "endpoint_tuple_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "fresh_until: 'bad' does not match '^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d{1,6})?Z$'",
+        "model_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "module_set_digest: 'bad' does not match '^[0-9a-f]{64}$'",
+        "process_created_at: 'not-time' does not match '^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d{1,6})?Z$'",
+        "process_id: 0 is less than the minimum of 1",
+        "runtime_instance_id: 'bad' does not match '^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'",
+        "schema_version: '1.0.0' was expected",
+        "session_id: 'bad' does not match '^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
+      ],
+      "fixture": "session-binding.negative.json",
+      "observed": "INVALID"
+    }
+  ],
+  "scope": "local non-operational JSON Schema validation; no dependency installation",
+  "subschema_unit_pairs": {
+    "checked": 57,
+    "failures": [],
+    "passed": 57
+  },
+  "validator": "python jsonschema Draft202012Validator"
+}

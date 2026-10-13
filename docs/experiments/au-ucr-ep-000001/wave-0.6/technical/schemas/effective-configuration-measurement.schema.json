@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:effective-configuration-measurement:1.0.0",
+  "title": "Proposed IF-07 effective configuration measurement",
+  "description": "PROPOSED_NOT_ADOPTED. Loader observation with opened handles and canonical hash domains.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_status","schema_id","schema_version","interface_id","measurement_id","arm_ref","challenge_ref","session_id","producer_id","tmc_id","precedence_policy_digest","opened_inputs","ambient_input_denylist_digest","effective_configuration_digest","loader_digest","load_result","measured_at","reason_codes"],
+  "properties": {
+    "contract_status": { "$ref": "common.schema.json#/$defs/proposalStatus" },
+    "schema_id": { "const": "urn:au-ucr:schema:effective-configuration-measurement:1.0.0" },
+    "schema_version": { "const": "1.0.0" },
+    "interface_id": { "const": "IF-07" },
+    "measurement_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "arm_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+    "challenge_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+    "session_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "producer_id": { "$ref": "common.schema.json#/$defs/id" },
+    "tmc_id": { "$ref": "common.schema.json#/$defs/id" },
+    "precedence_policy_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "opened_inputs": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["order","component_id","purpose","opened_handle_id","source_uri","hash_domain","byte_count","raw_digest","parsed_bytes_digest","loader_digest","executable"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "component_id": { "$ref": "common.schema.json#/$defs/id" },
+          "purpose": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "opened_handle_id": { "$ref": "common.schema.json#/$defs/id" },
+          "source_uri": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "hash_domain": { "$ref": "common.schema.json#/$defs/hashDomainId" },
+          "byte_count": { "type": "integer", "minimum": 0, "maximum": 1073741824 },
+          "raw_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+          "parsed_bytes_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+          "canonical_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+          "loader_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+          "executable": { "type": "boolean" }
+        }
+      }
+    },
+    "ambient_input_denylist_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "effective_configuration_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "loader_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "load_result": { "enum": ["LOADED","ABORTED"] },
+    "measured_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "reason_codes": { "$ref": "common.schema.json#/$defs/reasonCodes" }
+  }
+}

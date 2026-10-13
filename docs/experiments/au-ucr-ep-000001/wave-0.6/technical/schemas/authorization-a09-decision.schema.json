@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:a09-decision:1.0.0",
+  "title": "Proposed purpose-specific A09 decision",
+  "description": "PROPOSED_NOT_ADOPTED. IF-03 only; real Decision Chair and authority values remain absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["envelope","object_kind","issuer","timing","candidate","prerequisites","prior_governance_state","next_governance_state","outcome","rationale","conditions","exclusions","reason_codes","verification_result"],
+  "properties": {
+    "envelope": {
+      "allOf": [
+        { "$ref": "common.schema.json#/$defs/signedEnvelope" },
+        { "properties": {
+          "schema_id": { "const": "urn:au-ucr:schema:a09-decision:1.0.0" },
+          "object_type": { "const": "A09_DECISION" },
+          "interface_id": { "const": "IF-03" },
+          "producer_role": { "const": "DECISION_CHAIR" },
+          "key_purpose_id": { "const": "KP-A09-DECISION-v1" },
+          "signature": { "properties": { "key_purpose_id": { "const": "KP-A09-DECISION-v1" } } }
+        } }
+      ]
+    },
+    "object_kind": { "const": "A09_DECISION" },
+    "issuer": { "allOf": [{ "$ref": "authority-object-base.schema.json#/$defs/issuer" }, { "properties": { "role": { "const": "DECISION_CHAIR" } } }] },
+    "timing": { "$ref": "authority-object-base.schema.json#/$defs/authorityTiming" },
+    "candidate": { "$ref": "common.schema.json#/$defs/candidateBinding" },
+    "prerequisites": { "$ref": "authority-object-base.schema.json#/$defs/typedPrerequisites" },
+    "prior_governance_state": { "enum": ["DRAFT_PRODUCED","REVIEW_PENDING","REVIEW_COMPLETE"] },
+    "next_governance_state": { "enum": ["ACCEPTED","REVISE","REJECTED"] },
+    "outcome": { "enum": ["ACCEPTED","REVISE","REJECTED"] },
+    "rationale": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "conditions": { "$ref": "authority-object-base.schema.json#/$defs/closedStrings" },
+    "exclusions": { "$ref": "authority-object-base.schema.json#/$defs/closedStrings" },
+    "reason_codes": { "$ref": "common.schema.json#/$defs/reasonCodes" },
+    "verification_result": { "$ref": "common.schema.json#/$defs/consumerResult" }
+  }
+}

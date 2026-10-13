@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:assignment-receipt:1.0.0",
+  "title":"Proposed AuthorityAssignment",
+  "description":"PROPOSED_NOT_ADOPTED. IF-01; synthetic fixtures only and no real assignment.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","grantor","subject","timing","mandate_ref","delegation_chain","governing_policy_ref","delegation_depth","scope","duties","prohibited_role_combinations","lifecycle_state","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:assignment-receipt:1.0.0"},"object_type":{"const":"AUTHORITY_ASSIGNMENT"},"interface_id":{"const":"IF-01"},"producer_role":{"const":"ASSIGNMENT_AUTHORITY"},"key_purpose_id":{"const":"KP-ASSIGNMENT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-ASSIGNMENT-v1"}}}}}]},
+    "object_kind":{"const":"AUTHORITY_ASSIGNMENT"},
+    "grantor":{"allOf":[{"$ref":"authority-object-base.schema.json#/$defs/issuer"},{"properties":{"role":{"const":"ASSIGNMENT_AUTHORITY"}}}]},
+    "subject":{"type":"object","additionalProperties":false,"required":["governed_name","stable_identity","identity_system_issuer","identity_proofing_ref","organization","assigned_role"],"properties":{"governed_name":{"type":"string","minLength":1},"stable_identity":{"$ref":"common.schema.json#/$defs/id"},"identity_system_issuer":{"$ref":"common.schema.json#/$defs/id"},"identity_proofing_ref":{"$ref":"common.schema.json#/$defs/digestRef"},"organization":{"type":"string","minLength":1},"assigned_role":{"$ref":"common.schema.json#/$defs/id"}}},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "mandate_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "delegation_chain":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "governing_policy_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "delegation_depth":{"type":"integer","minimum":0,"maximum":16},
+    "scope":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "duties":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "prohibited_role_combinations":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "lifecycle_state":{"enum":["DRAFT","ACKNOWLEDGED","EFFECTIVE","SUSPENDED","EXPIRED","REVOKED","SUPERSEDED"]},
+    "outcome":{"enum":["ASSIGNMENT_PROPOSED","ASSIGNMENT_EFFECTIVE","ASSIGNMENT_DENIED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

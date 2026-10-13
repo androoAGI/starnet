@@ -1,0 +1,688 @@
+{
+  "classification": "LOCAL_NON_OPERATIONAL_READ_ONLY_RECONCILIATION",
+  "controlling_authority_spelling": "Hakeem Moore",
+  "effect": {
+    "adoption": "NONE",
+    "approval": "NONE",
+    "authorization": "NONE",
+    "commit_push_merge": "NONE",
+    "operational_enforcement": "NOT_CLAIMED",
+    "publication": "NONE"
+  },
+  "generated_at_utc": "2026-10-12T23:08:18.731502+00:00",
+  "overall_status": "PASS",
+  "reconciled_counts": {
+    "checks_failed": 0,
+    "checks_passed": 15,
+    "checks_ran": 15,
+    "full_document_negative_outcomes": 125,
+    "full_document_outcomes": 162,
+    "local_references": 576,
+    "not_run_classes": 6,
+    "positive_vector_schema_instances": 8,
+    "schema_classification": {
+      "concrete": 33,
+      "helpers": 2
+    },
+    "schemas": 35,
+    "subschema_outcomes": 114,
+    "subschema_pairs": 57,
+    "technical_manifest_entries": 54,
+    "vectors": 14
+  },
+  "repository": {
+    "branch": "cursor/populate-authority-readiness-7886",
+    "git_status_line_count": 219,
+    "git_status_porcelain_sha256": "e9489cf895d4c6ed48885cb189038551494a9e578664da3a352513aca6a31f23",
+    "head": "39bade0506b4d5b12bb979ccf6a51bb11944a9ff",
+    "head_tree": "8ff473151c145b6e61403f5710d9359850f1b01b",
+    "prior_wave_bytes_unchanged_by_run": true,
+    "wave_0_5_file_count": 88,
+    "wave_0_5_tracked_file_count": 0,
+    "wave_0_6_file_count": 93,
+    "wave_0_6_tracked_file_count": 0
+  },
+  "reproduced_verification": {
+    "checks": {
+      "all_162_full_document_cases": "PASS",
+      "all_576_references_resolve": "PASS",
+      "all_57_subschema_pairs": "PASS",
+      "all_negative_cases_fail_for_intended_reason": "PASS",
+      "broader_rfc8785_cross_runtime_checks": "PASS",
+      "eight_positive_vector_schema_instances": "PASS",
+      "ephemeral_es256_p1363_low_s": "PASS",
+      "fourteen_vector_byte_reproduction_and_hash": "PASS",
+      "generated_fixture_tautology_challenge": "PASS",
+      "hakeem_moore_controlling_spelling": "PASS",
+      "normative_manifest_54_entries_and_hashes": "PASS",
+      "package_authored_validator_cross_check": "PASS",
+      "registry_and_interface_closed_sets": "PASS",
+      "schema_classification_33_concrete_2_helpers": "PASS",
+      "schemas_meta_schema_and_ids": "PASS"
+    },
+    "classification": "INDEPENDENT_LOCAL_NON_OPERATIONAL_VERIFICATION",
+    "commands": [
+      "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\verification\\final_technical_verify.py",
+      "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical\\vectors\\reproduce_vectors.py",
+      "node -e \"\nconst crypto=require('crypto');\nconst sort=(v)=>{\n  if(Array.isArray(v)) return v.map(sort);\n  if(v && typeof v==='object'){\n    const o={}; Object.keys(v).sort().forEach(k=>o[k]=sort(v[k])); return o;\n  }\n  return v;\n};\nconst cases=[\n  [{b:1,a:2},'{\\\"a\\\":2,\\\"b\\\":1}'],\n  [{n:1e30,small:1e-7,zero:0},'{\\\"n\\\":1e+30,\\\"small\\\":1e-7,\\\"zero\\\":0}'],\n  [{s:\\\"\u20ac$\\u000f\\n\\\"},'{\\\"s\\\":\\\"\u20ac$\\\\u000f\\\\n\\\"}']\n];\nfor(const [value,expected] of cases){\n  const actual=JSON.stringify(sort(value));\n  if(actual!==expected) throw new Error(actual+' != '+expected);\n}\nconst input=JSON.parse(process.argv[1]);\nconst canonical=Buffer.from(JSON.stringify(sort(input)),'utf8');\nprocess.stdout.write(JSON.stringify({cases:cases.length,hex:canonical.toString('hex'),sha256:crypto.createHash('sha256').update(canonical).digest('hex')}));\n\" \"{\\\"actor_id\\\": \\\"urn:example:actor:synthetic\\\", \\\"algorithm_registry_digest\\\": \\\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\\\", \\\"correlation_id\\\": \\\"synthetic-correlation-1\\\", \\\"decision\\\": \\\"ALLOW\\\", \\\"dependency_registry_digest\\\": \\\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\\", \\\"event_id\\\": \\\"urn:uuid:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa0\\\", \\\"evidence_bundle_digest\\\": \\\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\\\", \\\"from_status\\\": \\\"NOT_STARTED\\\", \\\"idempotency_key\\\": \\\"synthetic-idempotency-1\\\", \\\"interface_id\\\": \\\"IF-15\\\", \\\"interface_inventory_id\\\": \\\"urn:example:interface:synthetic-api\\\", \\\"new_object_version\\\": 1, \\\"object_id\\\": \\\"urn:example:object:synthetic\\\", \\\"policy_digest\\\": \\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\", \\\"prior_object_version\\\": 0, \\\"reason_codes\\\": [], \\\"reason_registry_digest\\\": \\\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\\\", \\\"requested_transition\\\": \\\"A01:NOT_STARTED->IN_PROGRESS\\\", \\\"schema_bundle_digest\\\": \\\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\\", \\\"schema_id\\\": \\\"urn:au-ucr:schema:governed-audit-event:1.0.0\\\", \\\"schema_version\\\": \\\"1.0.0\\\", \\\"to_status\\\": \\\"IN_PROGRESS\\\", \\\"transaction_outcome\\\": \\\"COMMITTED\\\", \\\"trusted_receipt_time\\\": \\\"2026-10-12T10:30:00Z\\\", \\\"workload_identity\\\": \\\"urn:example:service:gpep-synthetic\\\"}\"",
+      "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical\\validate_technical_package.py"
+    ],
+    "details": {
+      "all_162_full_document_cases": {
+        "generated": 160,
+        "generated_invalid": 124,
+        "generated_valid": 36,
+        "retained": 2,
+        "total": 162
+      },
+      "all_576_references_resolve": {
+        "failures": [],
+        "reference_count": 576
+      },
+      "all_57_subschema_pairs": {
+        "case_outcomes": 114,
+        "pairs": 57
+      },
+      "all_negative_cases_fail_for_intended_reason": {
+        "failures": [],
+        "negative_cases": 125,
+        "reason_confirmed": 125
+      },
+      "broader_rfc8785_cross_runtime_checks": {
+        "command": {
+          "command": "node -e <embedded canonicalization challenge> <W05-VEC-001 record JSON>",
+          "cwd": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical",
+          "returncode": 0,
+          "stderr": [],
+          "stdout": [
+            "{\"cases\":3,\"hex\":\"7b226163746f725f6964223a2275726e3a6578616d706c653a6163746f723a73796e746865746963222c22616c676f726974686d5f72656769737472795f646967657374223a2263636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363636363222c22636f7272656c6174696f6e5f6964223a2273796e7468657469632d636f7272656c6174696f6e2d31222c226465636973696f6e223a22414c4c4f57222c22646570656e64656e63795f72656769737472795f646967657374223a2264646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464646464222c226576656e745f6964223a2275726e3a757569643a61616161616161612d616161612d346161612d386161612d616161616161616161616130222c2265766964656e63655f62756e646c655f646967657374223a2266666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666222c2266726f6d5f737461747573223a224e4f545f53544152544544222c226964656d706f74656e63795f6b6579223a2273796e7468657469632d6964656d706f74656e63792d31222c22696e746572666163655f6964223a2249462d3135222c22696e746572666163655f696e76656e746f72795f6964223a2275726e3a6578616d706c653a696e746572666163653a73796e7468657469632d617069222c226e65775f6f626a6563745f76657273696f6e223a312c226f626a6563745f6964223a2275726e3a6578616d706c653a6f626a6563743a73796e746865746963222c22706f6c6963795f646967657374223a2261616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161222c227072696f725f6f626a6563745f76657273696f6e223a302c22726561736f6e5f636f646573223a5b5d2c22726561736f6e5f72656769737472795f646967657374223a2265656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565222c227265717565737465645f7472616e736974696f6e223a224130313a4e4f545f535441525445442d3e494e5f50524f4752455353222c22736368656d615f62756e646c655f646967657374223a2262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262626262222c22736368656d615f6964223a2275726e3a61752d7563723a736368656d613a676f7665726e65642d61756469742d6576656e743a312e302e30222c22736368656d615f76657273696f6e223a22312e302e30222c22746f5f737461747573223a22494e5f50524f4752455353222c227472616e73616374696f6e5f6f7574636f6d65223a22434f4d4d4954544544222c22747275737465645f726563656970745f74696d65223a22323032362d31302d31325431303a33303a30305a222c22776f726b6c6f61645f6964656e74697479223a2275726e3a6578616d706c653a736572766963653a677065702d73796e746865746963227d\",\"sha256\":\"48f78d326610e017f56d082a9a5474011ee18b6a6b56b07d223a5d519f55731e\"}"
+          ]
+        },
+        "known_ecmascript_canonical_cases": 3,
+        "scope_note": "Broader than package ASCII/integer examples, but not a complete RFC 8785 conformance suite.",
+        "vector_record_hex_equal": true,
+        "vector_record_sha256": "48f78d326610e017f56d082a9a5474011ee18b6a6b56b07d223a5d519f55731e"
+      },
+      "eight_positive_vector_schema_instances": {
+        "instances": 8,
+        "results": [
+          {
+            "label": "W05-VEC-001/ledger/0/record",
+            "passed": true,
+            "schema": "audit-ledger-record.schema.json"
+          },
+          {
+            "label": "W05-VEC-001/ledger/0/envelope",
+            "passed": true,
+            "schema": "governed-audit-ledger-envelope.schema.json"
+          },
+          {
+            "label": "W05-VEC-001/attestation",
+            "passed": true,
+            "schema": "ledger-head-attestation.schema.json"
+          },
+          {
+            "label": "W05-VEC-002/ledger/0/record",
+            "passed": true,
+            "schema": "audit-ledger-record.schema.json"
+          },
+          {
+            "label": "W05-VEC-002/ledger/0/envelope",
+            "passed": true,
+            "schema": "governed-audit-ledger-envelope.schema.json"
+          },
+          {
+            "label": "W05-VEC-002/ledger/1/record",
+            "passed": true,
+            "schema": "audit-ledger-record.schema.json"
+          },
+          {
+            "label": "W05-VEC-002/ledger/1/envelope",
+            "passed": true,
+            "schema": "governed-audit-ledger-envelope.schema.json"
+          },
+          {
+            "label": "W05-VEC-002/attestation",
+            "passed": true,
+            "schema": "ledger-head-attestation.schema.json"
+          }
+        ]
+      },
+      "ephemeral_es256_p1363_low_s": {
+        "base64url_padding": false,
+        "cryptographic_high_s_equivalent_verify": "PASS (profile gate still rejects high-S)",
+        "cryptographic_low_s_verify": "PASS",
+        "high_s_profile_reject": true,
+        "key": "ephemeral in-memory SECP256R1 key generated for this run; not persisted",
+        "low_s_profile_accept": true,
+        "message": "W05-VEC-001 exact signature_input_hex",
+        "message_sha256": "9f73b04c40d924fcfa677231ce9b1289b725d1bf18e6f884eb2adbfe4368ea44",
+        "p1363_bytes": 64
+      },
+      "fourteen_vector_byte_reproduction_and_hash": {
+        "bundle_bytes": 204024,
+        "bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+        "command": {
+          "command": "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical\\vectors\\reproduce_vectors.py",
+          "cwd": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical",
+          "returncode": 0,
+          "stderr": [],
+          "stdout": [
+            "bundle_sha256=b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+            "vectors=14",
+            "direct_schema_instance_design_mappings=8",
+            "semantic_byte_checks=15",
+            "digest_checks=22",
+            "signature_profile_checks=5",
+            "oracle_checks=14",
+            "result=ALL_REGISTRY_1_3_DERIVED_BYTES_REPRODUCED"
+          ]
+        },
+        "vector_count": 14
+      },
+      "generated_fixture_tautology_challenge": {
+        "failures": [],
+        "independent_mutations": 648,
+        "rejected": 648,
+        "residual_weakness": "Fixtures and generator are package-authored, and this verifier uses the same installed jsonschema implementation; mutation/error-path checks reduce but do not eliminate same-author and single-validator risk.",
+        "unique_valid_instances": 35,
+        "valid_instances": 36
+      },
+      "hakeem_moore_controlling_spelling": {
+        "manifest_value": "Hakeem Moore",
+        "noncanonical_occurrences": [],
+        "occurrences": [
+          {
+            "path": "README.md",
+            "token": "Hakeem Moore"
+          },
+          {
+            "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+            "token": "Hakeem Moore"
+          },
+          {
+            "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+            "token": "Hakeem Moore"
+          },
+          {
+            "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+            "token": "Hakeem Moore"
+          },
+          {
+            "path": "W06_TECHNICAL_FREEZE_MANIFEST.json",
+            "token": "Hakeem Moore"
+          }
+        ]
+      },
+      "normative_manifest_54_entries_and_hashes": {
+        "entry_count": 54,
+        "mismatches": []
+      },
+      "package_authored_validator_cross_check": {
+        "command": {
+          "command": "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical\\validate_technical_package.py",
+          "cwd": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.6\\technical",
+          "returncode": 0,
+          "stderr": [],
+          "stdout": [
+            "schema_documents=35",
+            "unique_schema_ids=35",
+            "metaschema_checks=35",
+            "local_references=576",
+            "concrete_schemas=33",
+            "abstract_helper_schemas=2",
+            "generated_full_document_cases=160",
+            "generated_full_document_valid=36",
+            "generated_full_document_invalid=124",
+            "retained_full_document_cases=2",
+            "all_current_full_document_cases=162",
+            "helper_concrete_dependents=authority-object-base.schema.json:14,common.schema.json:33",
+            "subschema_unit_pairs=57",
+            "positive_vector_schema_instances=8",
+            "vector_scenarios=14",
+            "result=ALL_WAVE_0_6_TECHNICAL_STRUCTURAL_CHECKS_PASSED"
+          ]
+        },
+        "independence": "same-author cross-check only"
+      },
+      "registry_and_interface_closed_sets": {
+        "canonical_schema_ids": 35,
+        "matrix_interfaces": [
+          "IF-01",
+          "IF-02",
+          "IF-03",
+          "IF-04",
+          "IF-05",
+          "IF-06",
+          "IF-07",
+          "IF-08",
+          "IF-09",
+          "IF-10",
+          "IF-11",
+          "IF-12",
+          "IF-13",
+          "IF-14",
+          "IF-15",
+          "IF-16",
+          "IF-17",
+          "IF-18",
+          "IF-19",
+          "IF-20",
+          "IF-21",
+          "IF-22"
+        ],
+        "registry_id": "urn:au-ucr:registry:wave-0.5-contract",
+        "registry_interfaces": [
+          "IF-01",
+          "IF-02",
+          "IF-03",
+          "IF-04",
+          "IF-05",
+          "IF-06",
+          "IF-07",
+          "IF-08",
+          "IF-09",
+          "IF-10",
+          "IF-11",
+          "IF-12",
+          "IF-13",
+          "IF-14",
+          "IF-15",
+          "IF-16",
+          "IF-17",
+          "IF-18",
+          "IF-19",
+          "IF-20",
+          "IF-21",
+          "IF-22"
+        ],
+        "registry_version": "1.3.0",
+        "schema_interfaces": [
+          "IF-01",
+          "IF-02",
+          "IF-03",
+          "IF-04",
+          "IF-05",
+          "IF-06",
+          "IF-07",
+          "IF-08",
+          "IF-09",
+          "IF-10",
+          "IF-11",
+          "IF-12",
+          "IF-13",
+          "IF-14",
+          "IF-15",
+          "IF-16",
+          "IF-17",
+          "IF-18",
+          "IF-19",
+          "IF-20",
+          "IF-21",
+          "IF-22"
+        ]
+      },
+      "schema_classification_33_concrete_2_helpers": {
+        "concrete_count": 33,
+        "helper_count": 2,
+        "helpers": [
+          "authority-object-base.schema.json",
+          "common.schema.json"
+        ]
+      },
+      "schemas_meta_schema_and_ids": {
+        "duplicate_ids": [],
+        "meta_failures": [],
+        "meta_schema_checks": 35,
+        "parse_failures": [],
+        "schema_documents": 35,
+        "unique_ids": 35
+      }
+    },
+    "effect": {
+      "adoption": "NONE",
+      "approval": "NONE",
+      "authorization": "NONE",
+      "operational_execution": "NONE",
+      "publication": "NONE"
+    },
+    "environment": {
+      "cryptography": "46.0.1",
+      "jsonschema": "4.26.0",
+      "node": "v22.19.0",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "python": "3.13.7",
+      "referencing": "0.36.2"
+    },
+    "failures": [],
+    "limitations": [
+      "The package generator, fixtures, and schemas share authorship.",
+      "JSON Schema results use the one already-installed jsonschema implementation.",
+      "Metamorphic mutation and exact error-path checks reduce, but cannot eliminate, tautology risk.",
+      "Ephemeral ES256 proves the stated primitive/encoding workflow, not package key authority."
+    ],
+    "not_run": [
+      "Operational/runtime/lab/consumer enforcement",
+      "Operational key, trust-chain, revocation, authority, or identity verification",
+      "Network, publication, commit, push, merge, approval, or adoption",
+      "Dependency installation",
+      "Complete third-party RFC 8785 conformance suite (library not installed)",
+      "Verification of synthetic vector r=1,s=1 sentinels as genuine signatures"
+    ],
+    "overall_status": "PASS",
+    "summary": {
+      "checks": 15,
+      "failed": 0,
+      "full_document_cases": 162,
+      "full_document_negatives": 125,
+      "normative_entries": 54,
+      "not_run": 6,
+      "passed": 15,
+      "references": 576,
+      "schemas": 35,
+      "subschema_pairs": 57,
+      "vector_bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+      "vector_schema_instances": 8,
+      "vectors": 14
+    },
+    "title": "IMHOTEP Wave 0.6 Final Technical Verification"
+  },
+  "source_hashes": {
+    "wave_0_5_vector_bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+    "wave_0_6_full_document_fixture_catalog_sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127",
+    "wave_0_6_recorded_final_results_sha256": "27624c5bfad9715e14ea74d819cded91b55c2cab6060d449faa8d93eb7489b6d",
+    "wave_0_6_subschema_fixture_catalog_sha256": "c8f03f52b047e7072a330ebe74353df89a31ea35dbd83cf7f7ab4624488a764f",
+    "wave_0_6_vector_bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+  },
+  "source_verifier": {
+    "invocation": "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.7\\technical\\verify_wave07_technical.py",
+    "method": "Imported verify() and invoked it without calling its file-writing main().",
+    "path": "docs/experiments/au-ucr-ep-000001/wave-0.6/verification/final_technical_verify.py",
+    "sha256": "3be618ebffaeab70e81c999fe28a94a60b6027ffdac0646caf89b704a451faa7"
+  },
+  "task": "FOR-ACT-S0-001-W07-TECH",
+  "technical_manifest": {
+    "actual_entries": 54,
+    "declared_entries": 54,
+    "manifest_bytes": 10359,
+    "manifest_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_TECHNICAL_FREEZE_MANIFEST.json",
+    "manifest_sha256": "69d71ec5905abc626ed3337a61dad51a5ebbbe1fda2a04c3b4a84140681757ec",
+    "member_identity_aggregate_domain": "sha256(path_utf8 || NUL || declared_member_sha256_ascii || LF), manifest order",
+    "member_identity_aggregate_sha256": "e910119aaf56c350efaf86cc9a9f4471ddd68a36e3f821ab2bf832f4c22278ca",
+    "member_mismatches": [],
+    "members": [
+      {
+        "bytes": 23278,
+        "path": "generate_full_document_fixtures.py",
+        "sha256": "0d992aadbf8230528eb605574df8a36f87ab617de6cb5aef44922b2467ff229b"
+      },
+      {
+        "bytes": 2261,
+        "path": "README.md",
+        "sha256": "b8d84a507fb6ecb1b426600f3c400a5856e5d1f791506325846c2543a413cb49"
+      },
+      {
+        "bytes": 2013,
+        "path": "schemas/a01-a12-transition-record.schema.json",
+        "sha256": "7995436bc0e404dda0cc3b834d863bcc7efc2d60919b69e648edce591190d932"
+      },
+      {
+        "bytes": 1429,
+        "path": "schemas/anchor-checkpoint.schema.json",
+        "sha256": "b6e89b05a4129ea812be797816e8bc9055e719902857884212ef699c42a8d936"
+      },
+      {
+        "bytes": 2951,
+        "path": "schemas/approved-runtime-manifest.schema.json",
+        "sha256": "78306a20aeb58874f0ea9b289164e40f88635f98bd2020488bc2d78c11c5258c"
+      },
+      {
+        "bytes": 2226,
+        "path": "schemas/assignment-acknowledgement.schema.json",
+        "sha256": "18b9163a80131ba95c7fed7fe6b821bc82b6c88ba12b3feb5e2173ff618d7b8e"
+      },
+      {
+        "bytes": 2766,
+        "path": "schemas/assignment-receipt.schema.json",
+        "sha256": "2c46faac2bd0dee0882e09bab2fe439e956df643f443accba010cc0fe4a7a032"
+      },
+      {
+        "bytes": 3443,
+        "path": "schemas/attestation-evidence.schema.json",
+        "sha256": "50dd7c3958e6431618b66d4476f323a86189e5219fab8dad7dfdd88a09551bc6"
+      },
+      {
+        "bytes": 3215,
+        "path": "schemas/audit-ledger-record.schema.json",
+        "sha256": "49a044956d85127b12b56714be51ddd9db5024a93a694943de4a8266cf66581c"
+      },
+      {
+        "bytes": 3467,
+        "path": "schemas/authority-object-base.schema.json",
+        "sha256": "7d0758d26f11f3816602c49e8f112c90330a5663d7d0c736ab0292a57b07c6e6"
+      },
+      {
+        "bytes": 2235,
+        "path": "schemas/authority-revocation.schema.json",
+        "sha256": "1428d409b268245eb4dc751b421e577122faac2d6921239cc277a1b46bae41b3"
+      },
+      {
+        "bytes": 2255,
+        "path": "schemas/authorization-a09-decision.schema.json",
+        "sha256": "543e5a6f0f16a38b093d03f0d2fa3de13c272bea7c3f85be8285ddf1933bc64b"
+      },
+      {
+        "bytes": 2114,
+        "path": "schemas/candidate-qa-receipt.schema.json",
+        "sha256": "70252086cf75f1e8b17624ade13c8eb9a49a0790e347a6e4b4c3ba54de0676eb"
+      },
+      {
+        "bytes": 1964,
+        "path": "schemas/candidate-review-package.schema.json",
+        "sha256": "cba17841cbb043ab7889fdcbfadd49f65d8de943b082b0d76cce9b344e3960ee"
+      },
+      {
+        "bytes": 10688,
+        "path": "schemas/common.schema.json",
+        "sha256": "86c9040147a0034da76a7ca99854d5257777c64921ecbd70986a51b7beb8d575"
+      },
+      {
+        "bytes": 3198,
+        "path": "schemas/effective-configuration-measurement.schema.json",
+        "sha256": "d6cb351594ccaf19d9cd80d54738372391165dbf1c839dc46d597b6408eb61a5"
+      },
+      {
+        "bytes": 1003,
+        "path": "schemas/evidence-acceptance-receipt.schema.json",
+        "sha256": "03a742a4d0cf9cb6903bc0c624043af634c032b5960434ec60f66af649f8ea96"
+      },
+      {
+        "bytes": 3243,
+        "path": "schemas/execution-release.schema.json",
+        "sha256": "e7f5cd8dcd8b4b0453d765053cbf54b99294730833064e855c9bc5dbc5ccbd73"
+      },
+      {
+        "bytes": 2819,
+        "path": "schemas/findings-closure-receipt.schema.json",
+        "sha256": "58eaa5f468d2e02b124c47c942080fabf5733678d6f015898563c2a78eb15d1a"
+      },
+      {
+        "bytes": 1278,
+        "path": "schemas/fixtures/audit-ledger-record.negative.json",
+        "sha256": "cfdfb459fa8b7fb081072b6638c07da2a56ab57d31e6215e2a5f08fa04a6e607"
+      },
+      {
+        "bytes": 1277,
+        "path": "schemas/fixtures/audit-ledger-record.positive.json",
+        "sha256": "534e5017cef9d878bc411bfa74466bb1292eb24477d272fc21a72f5f14bc4e92"
+      },
+      {
+        "bytes": 17421,
+        "path": "schemas/fixtures/correction-unit-fixtures.json",
+        "sha256": "c8f03f52b047e7072a330ebe74353df89a31ea35dbd83cf7f7ab4624488a764f"
+      },
+      {
+        "bytes": 936171,
+        "path": "schemas/fixtures/full-document-fixtures.json",
+        "sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127"
+      },
+      {
+        "bytes": 2834,
+        "path": "schemas/fixtures/manifest.json",
+        "sha256": "f0d66ab7eeef615375cba26d36181791b242ba63613ed8a16b6db5107b083a16"
+      },
+      {
+        "bytes": 1730,
+        "path": "schemas/g3-acceptance.schema.json",
+        "sha256": "c1c88bee947bbc56f44c62d03013a87f805b540b1bbdea89e1f7736d2be4240f"
+      },
+      {
+        "bytes": 1361,
+        "path": "schemas/governed-audit-ledger-envelope.schema.json",
+        "sha256": "959b378cad6e7309b1ad8721f7ae5c0167662aaf53b93dd2249eeb1d6750dd18"
+      },
+      {
+        "bytes": 2318,
+        "path": "schemas/independent-review-receipt.schema.json",
+        "sha256": "0321fba0005f4fb17c0313252804210d0d13b657bb9a3822d110138a5e4e7740"
+      },
+      {
+        "bytes": 1997,
+        "path": "schemas/inference-receipt.schema.json",
+        "sha256": "e1fea06e9d368a22aceff73d71080182e06bc3950b69b7268c22cabe3c3b2bf8"
+      },
+      {
+        "bytes": 6439,
+        "path": "schemas/ledger-head-attestation.schema.json",
+        "sha256": "f3ac7f480b2d7b57ddbcb1080018495876aff9e4cbbaa64979d9e8a54d1eebcf"
+      },
+      {
+        "bytes": 2378,
+        "path": "schemas/model-endpoint-statement.schema.json",
+        "sha256": "a7fbd9755bbd566104dab0f509a082d26f4542ea5f2610cbda811f047a50e1fe"
+      },
+      {
+        "bytes": 3931,
+        "path": "schemas/nested-candidate-manifest.schema.json",
+        "sha256": "789d4ac34eab9e834c436abbe656e15398454bd01e1500368c2d9358dbb1777e"
+      },
+      {
+        "bytes": 1754,
+        "path": "schemas/outbox-delivery.schema.json",
+        "sha256": "d7f0313624f0aa196703b2dc09b2bf60d2793bd082e6a37b90ff688e7d79af2c"
+      },
+      {
+        "bytes": 1842,
+        "path": "schemas/platform-verification-result.schema.json",
+        "sha256": "1e7a46e3ffb76abf5fd068a7d9defe4139172b6ecceddc8d2e28e378bab4e9e2"
+      },
+      {
+        "bytes": 1750,
+        "path": "schemas/reconciliation-result.schema.json",
+        "sha256": "6e9f9904726f30f740d4213a8c0e8c727b9f974a5151d1a0fc285c27e0cd055a"
+      },
+      {
+        "bytes": 3473,
+        "path": "schemas/reinstatement-receipt.schema.json",
+        "sha256": "9af3fef96f115e9603047fdbb0272c7f13e8159de6c238f9422c00b6725cd431"
+      },
+      {
+        "bytes": 2348,
+        "path": "schemas/revocation-snapshot.schema.json",
+        "sha256": "501d66ebfb0f5e50c77463625bf6df9f05172c4cbe2a695aaf3ad3ad4979ae6b"
+      },
+      {
+        "bytes": 3510,
+        "path": "schemas/rollback-plan.schema.json",
+        "sha256": "c38d653203e1d7d67af8283dff1b2b574fe93e57cb7f4d0367709cf04d03718f"
+      },
+      {
+        "bytes": 2420,
+        "path": "schemas/rollback-receipt.schema.json",
+        "sha256": "bc5ce277f8d88a65ad71ec65df4e726e715040ad59989dd630aca9c544bd80e1"
+      },
+      {
+        "bytes": 2344,
+        "path": "schemas/separation-conflict-assessment.schema.json",
+        "sha256": "40ff2a2c6d2535ebf42914fb36b57ec438282b1d4f69551edfadea16c41def0b"
+      },
+      {
+        "bytes": 3334,
+        "path": "schemas/session-binding.schema.json",
+        "sha256": "8a78c5953ab5581ed1fa331153467b5dd2454e2412adb313a8846424f9a7bddd"
+      },
+      {
+        "bytes": 1419,
+        "path": "schemas/verifier-challenge.schema.json",
+        "sha256": "6fdfb0c1a5c466f50a3ff14665edc5a6fa0cd6bf3818944e30e801cf9c508572"
+      },
+      {
+        "bytes": 1905,
+        "path": "schemas/verifier-verdict.schema.json",
+        "sha256": "8cfa54d5d1df1e9445d5ff8fe9a9c874930db64d9a4d9f2f800985942849bebe"
+      },
+      {
+        "bytes": 8105,
+        "path": "validate_technical_package.py",
+        "sha256": "3df2aaed740f51cc9d12973a0c29359bcbe04f402b933ff550d18e7d47613026"
+      },
+      {
+        "bytes": 12898,
+        "path": "vectors/derive_vectors.py",
+        "sha256": "00ec1a7ac76c8c71288ff20f8286f5d640dcac3d30dfa9da5f4e782b992ef7bf"
+      },
+      {
+        "bytes": 23759,
+        "path": "vectors/derive_vectors_registry_1_2.py",
+        "sha256": "d0817f3a23cee05bb3fcd69f8e6bdd3f220c57c9bc22ebac46c739e74660fb2a"
+      },
+      {
+        "bytes": 5412,
+        "path": "vectors/reproduce_vectors.py",
+        "sha256": "c45565b4167e0c88336aaac47e1a88a3a211841d74d85aceab294ae8ac03d201"
+      },
+      {
+        "bytes": 17779,
+        "path": "vectors/reproduce_vectors_registry_1_2.py",
+        "sha256": "cadfdbb94cde699f6175e94f353343717cbe591b953d09028f938283dcb1efd3"
+      },
+      {
+        "bytes": 204024,
+        "path": "vectors/W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json",
+        "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+      },
+      {
+        "bytes": 31344,
+        "path": "W05_INTERFACE_MATRIX.md",
+        "sha256": "a8345f4d688ab92ace505f6e4e0620d25b10321da958e1e2b8ab50646618c785"
+      },
+      {
+        "bytes": 28872,
+        "path": "W05_SHARED_TRUST_AND_STATE_CONTRACT.md",
+        "sha256": "9cfc12460f1ea48b32c3c51455d147abf916e42a2f40cf91e015fde1ec5db817"
+      },
+      {
+        "bytes": 42545,
+        "path": "W05_VERSIONED_REGISTRY.md",
+        "sha256": "d9d130dc8157db961df6df3f5e649f8591038ff4f41d0df762352b29ea788b5c"
+      },
+      {
+        "bytes": 2434,
+        "path": "W06_CANONICAL_VECTOR_SPEC.md",
+        "sha256": "19cabb48152e3ac9b5212c9999a2a7add39085cc49d5cd1886996a31e45e9f3b"
+      },
+      {
+        "bytes": 5186,
+        "path": "W06_SCHEMA_FULL_DOCUMENT_COVERAGE_MATRIX.md",
+        "sha256": "a300477581ba09bc9a213f0793f33dba4963b614bad7d5f906a68ea747bbac64"
+      },
+      {
+        "bytes": 5279,
+        "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+        "sha256": "2d5c117a1c08b0b9a51afc097c3c84c88a35a8563b558753ce4315c828735a07"
+      }
+    ],
+    "unique_paths": 54
+  },
+  "title": "IMHOTEP Wave 0.7 Technical Reconciliation Results"
+}

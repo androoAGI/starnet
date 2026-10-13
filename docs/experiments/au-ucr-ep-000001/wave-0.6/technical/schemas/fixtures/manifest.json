@@ -1,0 +1,60 @@
+{
+  "status": "FINAL_TECHNICAL_FIXTURES_NOT_ADOPTED",
+  "inspection_classification": "VALIDATOR_EXECUTED_LOCALLY_NON_OPERATIONAL",
+  "schema_draft": "2020-12",
+  "registry": "urn:au-ucr:registry:wave-0.5-contract:1.3.0",
+  "active_full_document_cases": [
+    {
+      "schema": "../audit-ledger-record.schema.json",
+      "fixture": "audit-ledger-record.positive.json",
+      "expected": "VALID",
+      "requirements": ["F04-NMF-02", "REGISTRY-6.2", "IF-15"]
+    },
+    {
+      "schema": "../audit-ledger-record.schema.json",
+      "fixture": "audit-ledger-record.negative.json",
+      "expected": "INVALID",
+      "requirements": ["F04-NMF-02", "REGISTRY-5.1"],
+      "single_target_defect": "decision ACCEPT is not canonical ALLOW"
+    }
+  ],
+  "active_subschema_unit_catalog": {
+    "fixture": "correction-unit-fixtures.json",
+    "pair_count": 57,
+    "positive_case_count": 57,
+    "negative_case_count": 57,
+    "one_target_negative": true,
+    "coverage": "33 record schemas plus twenty-four vocabulary/projection checks"
+  },
+  "active_full_document_catalog": {
+    "fixture": "full-document-fixtures.json",
+    "concrete_schema_count": 33,
+    "abstract_helper_schema_count": 2,
+    "generated_case_count": 160,
+    "generated_valid_case_count": 36,
+    "generated_invalid_case_count": 124,
+    "retained_case_count": 2,
+    "all_current_case_count": 162,
+    "coverage": "Every concrete schema has complete valid and targeted invalid documents; composition and conditional boundaries are added where applicable."
+  },
+  "retired_pre_correction_full_document_fixtures": [
+    "a01-a12-transition-record.positive.json",
+    "a01-a12-transition-record.negative.json",
+    "attestation-evidence.positive.json",
+    "attestation-evidence.negative.json",
+    "authorization-a09-decision.positive.json",
+    "authorization-a09-decision.negative.json",
+    "effective-configuration-measurement.positive.json",
+    "effective-configuration-measurement.negative.json",
+    "evidence-acceptance-receipt.positive.json",
+    "evidence-acceptance-receipt.negative.json",
+    "session-binding.positive.json",
+    "session-binding.negative.json"
+  ],
+  "retirement_reason": "These files target superseded pre-registry schema shapes and are retained only as append-only historical design fixtures. They are excluded from current expected-valid/invalid counts.",
+  "limitations": [
+    "Subschema unit cases do not establish complete-object validity.",
+    "Cross-object candidate equality, ordering, signature, time, replay, hash, and state-machine behavior are outside JSON Schema and require separately authorized conformance work.",
+    "Local validator success is not adoption, publication, authority, cryptographic verification, implementation, or operational evidence."
+  ]
+}

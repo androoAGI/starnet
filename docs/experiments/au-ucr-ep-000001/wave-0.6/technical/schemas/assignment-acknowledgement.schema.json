@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:assignment-acknowledgement:1.0.0",
+  "title":"Proposed AssignmentAcknowledgement",
+  "description":"PROPOSED_NOT_ADOPTED. Assignee acknowledgement of one exact draft assignment.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","assignee","timing","assignment_ref","acknowledged_role","acknowledged_duties","acknowledged_scope","acknowledged_exclusions","acknowledged_lifecycle","acknowledged_revocation","acknowledged_crypto_profile","acknowledged_run_boundary","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:assignment-acknowledgement:1.0.0"},"object_type":{"const":"ASSIGNMENT_ACKNOWLEDGEMENT"},"interface_id":{"const":"IF-01"},"producer_role":{"const":"ASSIGNEE"},"key_purpose_id":{"const":"KP-ASSIGNMENT-ACKNOWLEDGEMENT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-ASSIGNMENT-ACKNOWLEDGEMENT-v1"}}}}}]},
+    "object_kind":{"const":"ASSIGNMENT_ACKNOWLEDGEMENT"},
+    "assignee":{"$ref":"authority-object-base.schema.json#/$defs/identity"},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "assignment_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "acknowledged_role":{"$ref":"common.schema.json#/$defs/id"},
+    "acknowledged_duties":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "acknowledged_scope":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "acknowledged_exclusions":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "acknowledged_lifecycle":{"type":"boolean","const":true},
+    "acknowledged_revocation":{"type":"boolean","const":true},
+    "acknowledged_crypto_profile":{"type":"boolean","const":true},
+    "acknowledged_run_boundary":{"type":"boolean","const":true},
+    "outcome":{"enum":["ACKNOWLEDGED","DECLINED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

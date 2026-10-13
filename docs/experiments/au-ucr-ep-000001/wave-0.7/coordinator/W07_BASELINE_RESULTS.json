@@ -1,0 +1,94 @@
+{
+  "branch": "cursor/populate-authority-readiness-7886",
+  "head": "39bade0506b4d5b12bb979ccf6a51bb11944a9ff",
+  "project": "AU-UCR-EP-000001",
+  "qa_manifest": {
+    "details": {
+      "EV-INF-PRE-A09-AUTHORITY-NAMES-00.json": {
+        "actual_lf_sha256": "677145c3b3a290a01eed4201384d42797856afb73adeba4aeeccd71bf9bd58b5",
+        "expected_lf_sha256": "677145c3b3a290a01eed4201384d42797856afb73adeba4aeeccd71bf9bd58b5"
+      },
+      "EV-INF-PRE-A09-DETERMINISTIC-READINESS-00.json": {
+        "actual_lf_sha256": "4477e159af6400c596a8c86ace6be0c7853a1ee019ebd003c66432eaa01bb932",
+        "expected_lf_sha256": "4477e159af6400c596a8c86ace6be0c7853a1ee019ebd003c66432eaa01bb932"
+      },
+      "EV-INF-PRE-A09-LOCAL-BRIDGE-00.json": {
+        "actual_lf_sha256": "a6e58a37724127122f2a03c07b62753ec57c05214cec2d8b0076a530b72a6e4d",
+        "expected_lf_sha256": "a6e58a37724127122f2a03c07b62753ec57c05214cec2d8b0076a530b72a6e4d"
+      },
+      "EV-STAR-00.json": {
+        "actual_lf_sha256": "dd0b05fdc0d7bad3b336549087de4c9ef454b81548dae895559ac047528d5e63",
+        "expected_lf_sha256": "dd0b05fdc0d7bad3b336549087de4c9ef454b81548dae895559ac047528d5e63"
+      },
+      "EV-STAR-01.json": {
+        "actual_lf_sha256": "28b71a0871cb1b23bda605224ddbd400ec2c6a7bf8524541d3481ec4875d339e",
+        "expected_lf_sha256": "28b71a0871cb1b23bda605224ddbd400ec2c6a7bf8524541d3481ec4875d339e"
+      },
+      "EV-STAR-02.json": {
+        "actual_lf_sha256": "49bfffae51172785032c69666b79a915a079d7be9d59d1bc18d8efa963f9f3d7",
+        "expected_lf_sha256": "49bfffae51172785032c69666b79a915a079d7be9d59d1bc18d8efa963f9f3d7"
+      },
+      "EV-STAR-03.json": {
+        "actual_lf_sha256": "22cc9c94cd74d604a7f2f73675bfd443f217d7cb192a7a195251a24f199f0eb9",
+        "expected_lf_sha256": "22cc9c94cd74d604a7f2f73675bfd443f217d7cb192a7a195251a24f199f0eb9"
+      },
+      "EV-STAR-04.json": {
+        "actual_lf_sha256": "57e4f37f6e9ac34302372481ddc6dded02f8f7347157ccc6c45c7070bdf62c17",
+        "expected_lf_sha256": "57e4f37f6e9ac34302372481ddc6dded02f8f7347157ccc6c45c7070bdf62c17"
+      },
+      "EV-STAR-05.json": {
+        "actual_lf_sha256": "bdd048415aa65aef59af315a57ed8b12fc861fbbe530ca4cffd57289f821316d",
+        "expected_lf_sha256": "bdd048415aa65aef59af315a57ed8b12fc861fbbe530ca4cffd57289f821316d"
+      }
+    },
+    "entries": 9,
+    "matches": 9
+  },
+  "roots": {
+    "qa": {
+      "bytes": 39074,
+      "files": 10,
+      "tracked": 10,
+      "untracked": 0
+    },
+    "wave-0.3": {
+      "bytes": 183602,
+      "files": 9,
+      "tracked": 9,
+      "untracked": 0
+    },
+    "wave-0.4": {
+      "bytes": 295253,
+      "files": 20,
+      "tracked": 0,
+      "untracked": 20
+    },
+    "wave-0.5": {
+      "bytes": 953337,
+      "files": 88,
+      "tracked": 0,
+      "untracked": 88
+    },
+    "wave-0.6": {
+      "bytes": 1909000,
+      "files": 92,
+      "tracked": 0,
+      "untracked": 92
+    }
+  },
+  "status": "PASS",
+  "wave06_integrated_manifest": {
+    "aggregate_sha256": "248155b2ec6d6e1dcee86a4f66650e3d9e3351fe793a3213a08ee867c6021178",
+    "declared_file_count": 90,
+    "entry_count": 90,
+    "mismatches": [],
+    "path": "docs/experiments/au-ucr-ep-000001/wave-0.6/W06_INTEGRATED_DOSSIER_MANIFEST.json"
+  },
+  "wave06_technical_manifest": {
+    "aggregate_sha256": null,
+    "declared_file_count": 54,
+    "entry_count": 54,
+    "mismatches": [],
+    "path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_TECHNICAL_FREEZE_MANIFEST.json"
+  }
+}

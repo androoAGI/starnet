@@ -1,0 +1,23 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:verifier-verdict:1.0.0",
+  "title":"Proposed IF-11 verifier verdict",
+  "description":"PROPOSED_NOT_ADOPTED. Independent verifier output; producer evidence cannot issue this object.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","session_binding_ref","arm_ref","runtime_evidence_ref","platform_result_ref","model_statement_ref","trust_store_digest","revocation_snapshot_ref","verdict","reason_codes","receipt_time","fresh_until","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:verifier-verdict:1.0.0"},"object_type":{"const":"VERIFIER_VERDICT"},"interface_id":{"const":"IF-11"},"producer_role":{"const":"VERIFIER_OPERATOR"},"key_purpose_id":{"const":"KP-VERIFIER-VERDICT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-VERIFIER-VERDICT-v1"}}}}}]},
+    "session_binding_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "arm_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "runtime_evidence_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "platform_result_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "model_statement_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "trust_store_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "revocation_snapshot_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "verdict":{"enum":["TRUSTED_ACTIVE","UNTRUSTED","SUSPENDED","REVOKED","ENDED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "receipt_time":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "fresh_until":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

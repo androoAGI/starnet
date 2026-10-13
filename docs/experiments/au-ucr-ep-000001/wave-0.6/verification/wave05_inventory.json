@@ -1,0 +1,449 @@
+{
+  "aggregate_algorithm": "sha256(path_utf8 NUL decimal_size NUL sha256_ascii LF)",
+  "aggregate_sha256": "daf4d914df7cc10207cf0d4d58545f48815e789c2aaeb4819543ec1ca2a6c4de",
+  "algorithm": "sha256",
+  "file_count": 88,
+  "files": [
+    {
+      "bytes": 28974,
+      "path": "F-04_AMENDMENT-1_POST_CORRECTION_ASSURANCE.md",
+      "sha256": "4302607f32ced7877bf1e1015715d78ba2c0ad340d752b9992615413370e0893"
+    },
+    {
+      "bytes": 24936,
+      "path": "F-04_AMENDMENT-2_FINAL_RECONCILIATION_ASSURANCE.md",
+      "sha256": "9691a99db786a6629f9ca2d68ba1587fff532ec9d170827ccdee2c532850a15e"
+    },
+    {
+      "bytes": 8676,
+      "path": "F-04_AMENDMENT-3_FINAL_METADATA_CLOSURE.md",
+      "sha256": "336dd443cef0d177bd8da5d43e974316e193e0647ecba0ee8ab6fccb137d5693"
+    },
+    {
+      "bytes": 7804,
+      "path": "F-04_AMENDMENT-4_METADATA_SUPERSESSION_CLOSURE.md",
+      "sha256": "47c9ddd665da439d4f3248b26bc9823dce3755f3e0ea3e7fe9821ee41c50f8d9"
+    },
+    {
+      "bytes": 34734,
+      "path": "F-04_INDEPENDENT_WAVE_0.5_ASSURANCE_REPORT.md",
+      "sha256": "f4266579f607b9416250db7315bb733936d7321af7b89d92f72e58abd90b67cc"
+    },
+    {
+      "bytes": 1501,
+      "path": "GATE-05_AMENDMENT-1_HUMAN_AUTHORITY_IDENTITY.md",
+      "sha256": "f276e1a43e7b9aaa6ba965c8d48a2042d804dc5d90ad7f55eea7a0fe7f7c12f4"
+    },
+    {
+      "bytes": 11631,
+      "path": "GATE-05_PROPOSED_DECISION_PACKAGE.md",
+      "sha256": "6f61e2dd3be35100c847579a171c5d8a260c03c0891bac5a66020b7cb19f9e02"
+    },
+    {
+      "bytes": 2013,
+      "path": "schemas/a01-a12-transition-record.schema.json",
+      "sha256": "7995436bc0e404dda0cc3b834d863bcc7efc2d60919b69e648edce591190d932"
+    },
+    {
+      "bytes": 1429,
+      "path": "schemas/anchor-checkpoint.schema.json",
+      "sha256": "b6e89b05a4129ea812be797816e8bc9055e719902857884212ef699c42a8d936"
+    },
+    {
+      "bytes": 2951,
+      "path": "schemas/approved-runtime-manifest.schema.json",
+      "sha256": "78306a20aeb58874f0ea9b289164e40f88635f98bd2020488bc2d78c11c5258c"
+    },
+    {
+      "bytes": 2226,
+      "path": "schemas/assignment-acknowledgement.schema.json",
+      "sha256": "18b9163a80131ba95c7fed7fe6b821bc82b6c88ba12b3feb5e2173ff618d7b8e"
+    },
+    {
+      "bytes": 2766,
+      "path": "schemas/assignment-receipt.schema.json",
+      "sha256": "2c46faac2bd0dee0882e09bab2fe439e956df643f443accba010cc0fe4a7a032"
+    },
+    {
+      "bytes": 3419,
+      "path": "schemas/attestation-evidence.schema.json",
+      "sha256": "9acb4226d2d1c3047c9c1516a54207db6cf5f6f4f30c98b53e24388e19c86755"
+    },
+    {
+      "bytes": 3215,
+      "path": "schemas/audit-ledger-record.schema.json",
+      "sha256": "49a044956d85127b12b56714be51ddd9db5024a93a694943de4a8266cf66581c"
+    },
+    {
+      "bytes": 3467,
+      "path": "schemas/authority-object-base.schema.json",
+      "sha256": "7d0758d26f11f3816602c49e8f112c90330a5663d7d0c736ab0292a57b07c6e6"
+    },
+    {
+      "bytes": 2235,
+      "path": "schemas/authority-revocation.schema.json",
+      "sha256": "1428d409b268245eb4dc751b421e577122faac2d6921239cc277a1b46bae41b3"
+    },
+    {
+      "bytes": 2255,
+      "path": "schemas/authorization-a09-decision.schema.json",
+      "sha256": "543e5a6f0f16a38b093d03f0d2fa3de13c272bea7c3f85be8285ddf1933bc64b"
+    },
+    {
+      "bytes": 2114,
+      "path": "schemas/candidate-qa-receipt.schema.json",
+      "sha256": "70252086cf75f1e8b17624ade13c8eb9a49a0790e347a6e4b4c3ba54de0676eb"
+    },
+    {
+      "bytes": 1964,
+      "path": "schemas/candidate-review-package.schema.json",
+      "sha256": "cba17841cbb043ab7889fdcbfadd49f65d8de943b082b0d76cce9b344e3960ee"
+    },
+    {
+      "bytes": 10636,
+      "path": "schemas/common.schema.json",
+      "sha256": "f1c8075a3a3d0a4e573392f3d1c08156cfb4c3305c0ce313faa6eef923ed9c84"
+    },
+    {
+      "bytes": 3198,
+      "path": "schemas/effective-configuration-measurement.schema.json",
+      "sha256": "d6cb351594ccaf19d9cd80d54738372391165dbf1c839dc46d597b6408eb61a5"
+    },
+    {
+      "bytes": 1003,
+      "path": "schemas/evidence-acceptance-receipt.schema.json",
+      "sha256": "03a742a4d0cf9cb6903bc0c624043af634c032b5960434ec60f66af649f8ea96"
+    },
+    {
+      "bytes": 3243,
+      "path": "schemas/execution-release.schema.json",
+      "sha256": "e7f5cd8dcd8b4b0453d765053cbf54b99294730833064e855c9bc5dbc5ccbd73"
+    },
+    {
+      "bytes": 2819,
+      "path": "schemas/findings-closure-receipt.schema.json",
+      "sha256": "58eaa5f468d2e02b124c47c942080fabf5733678d6f015898563c2a78eb15d1a"
+    },
+    {
+      "bytes": 610,
+      "path": "schemas/fixtures/a01-a12-transition-record.negative.json",
+      "sha256": "cb569f5515b56269c24045e3e299bc863ea9e49714caf1edaaba40a9617bd5ec"
+    },
+    {
+      "bytes": 1064,
+      "path": "schemas/fixtures/a01-a12-transition-record.positive.json",
+      "sha256": "0cddd7ba28ff8d8899712cd1ff1836e7b43c51744ca33e4788cfb8cdb8f6bd81"
+    },
+    {
+      "bytes": 596,
+      "path": "schemas/fixtures/attestation-evidence.negative.json",
+      "sha256": "42a5973b4e34e92abdd909eeea41d62526bd73263953bf57d566168da79ef6b8"
+    },
+    {
+      "bytes": 1451,
+      "path": "schemas/fixtures/attestation-evidence.positive.json",
+      "sha256": "37df9bc5e74b18c53975734464cd9200d5213c6a74a0ad07e430b0f93d868d3e"
+    },
+    {
+      "bytes": 1278,
+      "path": "schemas/fixtures/audit-ledger-record.negative.json",
+      "sha256": "cfdfb459fa8b7fb081072b6638c07da2a56ab57d31e6215e2a5f08fa04a6e607"
+    },
+    {
+      "bytes": 1277,
+      "path": "schemas/fixtures/audit-ledger-record.positive.json",
+      "sha256": "534e5017cef9d878bc411bfa74466bb1292eb24477d272fc21a72f5f14bc4e92"
+    },
+    {
+      "bytes": 848,
+      "path": "schemas/fixtures/authorization-a09-decision.negative.json",
+      "sha256": "ec3a51760c9fc1d4da583702625521dacbadb574e79b7ddac1a474c6c1d85a9f"
+    },
+    {
+      "bytes": 1970,
+      "path": "schemas/fixtures/authorization-a09-decision.positive.json",
+      "sha256": "b7e658defe2b68390f819c540902ba91322b206cc4daa0d62c9cc366a48379ca"
+    },
+    {
+      "bytes": 17345,
+      "path": "schemas/fixtures/correction-unit-fixtures.json",
+      "sha256": "1cb6299696654d4143d817ecd6fd456b9675152b682b49346fce657e13df6c76"
+    },
+    {
+      "bytes": 434,
+      "path": "schemas/fixtures/effective-configuration-measurement.negative.json",
+      "sha256": "8eadbd8851b797ca95e3bed20752045c2f2b0d57a5c249117d6fc8286e650bb2"
+    },
+    {
+      "bytes": 1134,
+      "path": "schemas/fixtures/effective-configuration-measurement.positive.json",
+      "sha256": "09515f27aef760914058fdfad8c05a3d8f68829c48ca3d5f20a0f0fa56bf83e1"
+    },
+    {
+      "bytes": 491,
+      "path": "schemas/fixtures/evidence-acceptance-receipt.negative.json",
+      "sha256": "6a234eadf7d5ec699209cbc71257c80919eb5c9af616c77192a7ddbc84af46eb"
+    },
+    {
+      "bytes": 1144,
+      "path": "schemas/fixtures/evidence-acceptance-receipt.positive.json",
+      "sha256": "4ff585aeb5a10b97d5888b8f50c90b95a19700da40fe226a7d9c170f80aba733"
+    },
+    {
+      "bytes": 2228,
+      "path": "schemas/fixtures/manifest.json",
+      "sha256": "e30484964c9ac326d7ffda75080f0602798779fe3976abdf9f9ff14943be4450"
+    },
+    {
+      "bytes": 545,
+      "path": "schemas/fixtures/session-binding.negative.json",
+      "sha256": "5368d4378373d8adc7998546071290b291e7574a170fddaed5de7abe05c8d867"
+    },
+    {
+      "bytes": 1153,
+      "path": "schemas/fixtures/session-binding.positive.json",
+      "sha256": "4a5c3af5b183e488bdb46e4a5016fdf382b075fba6a2bfd9e5b402861de032c1"
+    },
+    {
+      "bytes": 1730,
+      "path": "schemas/g3-acceptance.schema.json",
+      "sha256": "c1c88bee947bbc56f44c62d03013a87f805b540b1bbdea89e1f7736d2be4240f"
+    },
+    {
+      "bytes": 1361,
+      "path": "schemas/governed-audit-ledger-envelope.schema.json",
+      "sha256": "959b378cad6e7309b1ad8721f7ae5c0167662aaf53b93dd2249eeb1d6750dd18"
+    },
+    {
+      "bytes": 2318,
+      "path": "schemas/independent-review-receipt.schema.json",
+      "sha256": "0321fba0005f4fb17c0313252804210d0d13b657bb9a3822d110138a5e4e7740"
+    },
+    {
+      "bytes": 1997,
+      "path": "schemas/inference-receipt.schema.json",
+      "sha256": "e1fea06e9d368a22aceff73d71080182e06bc3950b69b7268c22cabe3c3b2bf8"
+    },
+    {
+      "bytes": 6439,
+      "path": "schemas/ledger-head-attestation.schema.json",
+      "sha256": "f3ac7f480b2d7b57ddbcb1080018495876aff9e4cbbaa64979d9e8a54d1eebcf"
+    },
+    {
+      "bytes": 2378,
+      "path": "schemas/model-endpoint-statement.schema.json",
+      "sha256": "a7fbd9755bbd566104dab0f509a082d26f4542ea5f2610cbda811f047a50e1fe"
+    },
+    {
+      "bytes": 3931,
+      "path": "schemas/nested-candidate-manifest.schema.json",
+      "sha256": "789d4ac34eab9e834c436abbe656e15398454bd01e1500368c2d9358dbb1777e"
+    },
+    {
+      "bytes": 1754,
+      "path": "schemas/outbox-delivery.schema.json",
+      "sha256": "d7f0313624f0aa196703b2dc09b2bf60d2793bd082e6a37b90ff688e7d79af2c"
+    },
+    {
+      "bytes": 1842,
+      "path": "schemas/platform-verification-result.schema.json",
+      "sha256": "1e7a46e3ffb76abf5fd068a7d9defe4139172b6ecceddc8d2e28e378bab4e9e2"
+    },
+    {
+      "bytes": 5973,
+      "path": "schemas/README.md",
+      "sha256": "16782d5a4cffa7b46c2d9b45fae79feaf4404f47e90d22e5b82074bd3b00d194"
+    },
+    {
+      "bytes": 1750,
+      "path": "schemas/reconciliation-result.schema.json",
+      "sha256": "6e9f9904726f30f740d4213a8c0e8c727b9f974a5151d1a0fc285c27e0cd055a"
+    },
+    {
+      "bytes": 3473,
+      "path": "schemas/reinstatement-receipt.schema.json",
+      "sha256": "9af3fef96f115e9603047fdbb0272c7f13e8159de6c238f9422c00b6725cd431"
+    },
+    {
+      "bytes": 2348,
+      "path": "schemas/revocation-snapshot.schema.json",
+      "sha256": "501d66ebfb0f5e50c77463625bf6df9f05172c4cbe2a695aaf3ad3ad4979ae6b"
+    },
+    {
+      "bytes": 3510,
+      "path": "schemas/rollback-plan.schema.json",
+      "sha256": "c38d653203e1d7d67af8283dff1b2b574fe93e57cb7f4d0367709cf04d03718f"
+    },
+    {
+      "bytes": 2420,
+      "path": "schemas/rollback-receipt.schema.json",
+      "sha256": "bc5ce277f8d88a65ad71ec65df4e726e715040ad59989dd630aca9c544bd80e1"
+    },
+    {
+      "bytes": 2344,
+      "path": "schemas/separation-conflict-assessment.schema.json",
+      "sha256": "40ff2a2c6d2535ebf42914fb36b57ec438282b1d4f69551edfadea16c41def0b"
+    },
+    {
+      "bytes": 3334,
+      "path": "schemas/session-binding.schema.json",
+      "sha256": "8a78c5953ab5581ed1fa331153467b5dd2454e2412adb313a8846424f9a7bddd"
+    },
+    {
+      "bytes": 1419,
+      "path": "schemas/verifier-challenge.schema.json",
+      "sha256": "6fdfb0c1a5c466f50a3ff14665edc5a6fa0cd6bf3818944e30e801cf9c508572"
+    },
+    {
+      "bytes": 1905,
+      "path": "schemas/verifier-verdict.schema.json",
+      "sha256": "8cfa54d5d1df1e9445d5ff8fe9a9c874930db64d9a4d9f2f800985942849bebe"
+    },
+    {
+      "bytes": 12898,
+      "path": "vectors/derive_vectors.py",
+      "sha256": "00ec1a7ac76c8c71288ff20f8286f5d640dcac3d30dfa9da5f4e782b992ef7bf"
+    },
+    {
+      "bytes": 23759,
+      "path": "vectors/derive_vectors_registry_1_2.py",
+      "sha256": "d0817f3a23cee05bb3fcd69f8e6bdd3f220c57c9bc22ebac46c739e74660fb2a"
+    },
+    {
+      "bytes": 5412,
+      "path": "vectors/reproduce_vectors.py",
+      "sha256": "c45565b4167e0c88336aaac47e1a88a3a211841d74d85aceab294ae8ac03d201"
+    },
+    {
+      "bytes": 17779,
+      "path": "vectors/reproduce_vectors_registry_1_2.py",
+      "sha256": "cadfdbb94cde699f6175e94f353343717cbe591b953d09028f938283dcb1efd3"
+    },
+    {
+      "bytes": 204024,
+      "path": "vectors/W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json",
+      "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+    },
+    {
+      "bytes": 28725,
+      "path": "vectors/W05_VECTOR_DERIVATION_AND_REPRODUCTION.md",
+      "sha256": "7df3165ca9c66213cbaca08bd566830f48e53a32f5762392385a0d34f2eb9905"
+    },
+    {
+      "bytes": 14009,
+      "path": "W05_AUTHORITY_CLOSURE_PACKAGE.md",
+      "sha256": "2a7eaaae1c0c1dd11bb47787dbde21e387bcfbc54cf6c6e906687ae5d49f0d2e"
+    },
+    {
+      "bytes": 21054,
+      "path": "W05_AUTHORITY_CONTRACT_CROSSWALK.md",
+      "sha256": "1ddf84e3418c05387a3b7bda0d7f871f785f6825e7824c05a43d8926b051d785"
+    },
+    {
+      "bytes": 20520,
+      "path": "W05_AUTHORITY_SCHEMA_REQUIREMENTS.md",
+      "sha256": "58de9a09fd4b86e84070d23a33ac9f4036d86b8350e2b7c44df66f4bc1cf72d0"
+    },
+    {
+      "bytes": 2984,
+      "path": "W05_AUTHORIZATION_INPUT_AMENDMENT_1_HUMAN_AUTHORITY.md",
+      "sha256": "0d8a3dc59e8bceda2ff2d61c2cbbec3fcd979e2a1c5a52d6bfe68a21a972c8a8"
+    },
+    {
+      "bytes": 3382,
+      "path": "W05_AUTHORIZATION_INPUT_RECORD.md",
+      "sha256": "cdbab1cb272c49e59c008281b2ca6a9a8633678a2ef373bec7f7d4d6294fe75b"
+    },
+    {
+      "bytes": 5512,
+      "path": "W05_BASE_VERIFIED_INVENTORY.md",
+      "sha256": "db989f8102c86a57786291532072cdc4994f73bce615ecdfd6553b851893b7da"
+    },
+    {
+      "bytes": 27894,
+      "path": "W05_CROSS_CONTRACT_INTEGRATION_REPORT.md",
+      "sha256": "24a26503dc78d41d9fb4eb92d0abe2dc52252a896f46bda8a59148ce481e81bc"
+    },
+    {
+      "bytes": 16582,
+      "path": "W05_G3_G4_RECEIPT_REQUIREMENTS.md",
+      "sha256": "3cab17224e7ad69e94a16091e94030df82e459f7af0f23b3951331a80af3a36d"
+    },
+    {
+      "bytes": 21887,
+      "path": "W05_IMMUTABLE_REFERENCE_CROSSWALK.md",
+      "sha256": "45e59206ee5654100871ab4e1696dbb9e500256f67df92a3a2f4569e54f5604d"
+    },
+    {
+      "bytes": 31344,
+      "path": "W05_INTERFACE_MATRIX.md",
+      "sha256": "a8345f4d688ab92ace505f6e4e0620d25b10321da958e1e2b8ab50646618c785"
+    },
+    {
+      "bytes": 23972,
+      "path": "W05_NESTED_CANDIDATE_MANIFEST_SPEC.md",
+      "sha256": "67fd56cd4b2af1893e77fb28ae5026748703e85ffffc2226659c6f7887d9d81e"
+    },
+    {
+      "bytes": 3586,
+      "path": "W05_NINE_OBJECTION_CLOSURE_MATRIX.md",
+      "sha256": "599cdd7fd83c0ae2853ff9bd32ab19a86bc4f813b3235b70f757956e92948bde"
+    },
+    {
+      "bytes": 8942,
+      "path": "W05_POST_CORRECTION_RECONCILIATION.md",
+      "sha256": "e3de7a4e27a68e2103fd12708e3f295bb6af5a424694a4bed42b4bdfbaa28193"
+    },
+    {
+      "bytes": 2837,
+      "path": "W05_POST_CORRECTION_RECONCILIATION_AMENDMENT_1.md",
+      "sha256": "9f5892f1d1ff28a8169b08720bad9b33853cba711d5fb9379d8e01777cb14d4c"
+    },
+    {
+      "bytes": 18602,
+      "path": "W05_PUBLICATION_AND_PROVENANCE_SPEC.md",
+      "sha256": "cedb71405c778770ad7626e5bc0239c8fdbfe0b505064f12de82d89ee9132ec6"
+    },
+    {
+      "bytes": 24790,
+      "path": "W05_REVIEW_PREPARATION_MATRIX.md",
+      "sha256": "7f640055a1979c158f993afc4136d71f857419f217121d46ca20fdea6f520b7f"
+    },
+    {
+      "bytes": 36170,
+      "path": "W05_SCHEMA_CONTRACT_RECONCILIATION.md",
+      "sha256": "1518760e9b571828b576d4865f6ce0f1bbbb38f524d88442c70b7e699ccca94b"
+    },
+    {
+      "bytes": 7195,
+      "path": "W05_SCRUM_TRACKER_AMENDMENT.md",
+      "sha256": "6f0a89492e5cbe0360b8fabf528ca1d2ee402451bf474890d13c343729d04410"
+    },
+    {
+      "bytes": 28725,
+      "path": "W05_SHARED_TRUST_AND_STATE_CONTRACT.md",
+      "sha256": "e3ccdfe3f73a814dde2de45bae281104538a40f18c18cb612681d6ab5fd5eea2"
+    },
+    {
+      "bytes": 18327,
+      "path": "W05_UNAUTHENTICATED_EVIDENCE_REGISTER.md",
+      "sha256": "ad7c9838c2781bd02f10a12a7ab0ebc73da1fa6cab5c869f6e9b52d4170be1b5"
+    },
+    {
+      "bytes": 19877,
+      "path": "W05_VECTOR_SCHEMA_CONTRACT_RECONCILIATION.md",
+      "sha256": "f5a03dbb5d4ff570a3d59415150d49ed7b952cc3ed61967fd3b59b05795eb5bd"
+    },
+    {
+      "bytes": 5211,
+      "path": "W05_VERIFICATION_REPORT.md",
+      "sha256": "f3f66f917cb1cd57ce5890fc0dd6127f01c4cdc68793dd5236e14786f4fd49af"
+    },
+    {
+      "bytes": 42335,
+      "path": "W05_VERSIONED_REGISTRY.md",
+      "sha256": "c39ea9240f0715d5ecaa56137745ca72fed2720913795ead5806c107b9fa05d4"
+    }
+  ],
+  "scope": "wave-0.5 files"
+}

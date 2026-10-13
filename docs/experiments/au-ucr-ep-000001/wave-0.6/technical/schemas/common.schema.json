@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:common-envelope:1.0.0",
+  "title": "AU-UCR proposed common envelope and result definitions",
+  "description": "FINAL_TECHNICAL_SPECIFICATION_NOT_ADOPTED. Registry-aligned definitions; locally validator-checked but not adopted, cryptographically verified, or authority evidence.",
+  "$defs": {
+    "proposalStatus": { "const": "PROPOSED_NOT_ADOPTED" },
+    "schemaVersion": { "const": "1.0.0" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$" },
+    "uuidUrn": { "type": "string", "pattern": "^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$" },
+    "nonce256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "interfaceId": { "enum": ["IF-01","IF-02","IF-03","IF-04","IF-05","IF-06","IF-07","IF-08","IF-09","IF-10","IF-11","IF-12","IF-13","IF-14","IF-15","IF-16","IF-17","IF-18","IF-19","IF-20","IF-21","IF-22"] },
+    "consumerDecision": { "enum": ["ALLOW","DENY","SUSPEND","REVOKE","BLOCK","NO_MUTATION"] },
+    "algorithmId": { "enum": ["ALG-HASH-SHA256-v1","ALG-SIG-ES256-v1"] },
+    "canonicalizationId": { "const": "CANON-JCS-RFC8785-v1" },
+    "framingId": { "enum": ["FRAME-LEN-DOMAIN-v1","FRAME-GPEP-EVENT-v1"] },
+    "signingProfileId": { "const": "PROFILE-LEDGER-HEAD-SIGNING-v1" },
+    "signatureEncodingId": { "const": "SIGENC-ES256-P1363-LOW-S-B64URL-v1" },
+    "es256P1363LowSBase64urlSignatureValue": { "type": "string", "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$" },
+    "domainId": { "enum": ["DOMAIN-TMC-RUNTIME-v1","DOMAIN-LEDGER-HEAD-ATTEST-v1"] },
+    "hashDomainId": {
+      "enum": ["raw-working-tree-sha256-v1","crlf-to-lf-sha256-v1","git-blob-oid-v1","git-blob-sha256-v1","git-index-path-binding-v1","git-commit-path-binding-v1","rfc8785-jcs-utf8-sha256-v1","framed-binary-sha256-v1","candidate-manifest-identity-v1","publication-receipt-identity-v1"]
+    },
+    "keyPurposeId": {
+      "enum": ["KP-ASSIGNMENT-v1","KP-ASSIGNMENT-ACKNOWLEDGEMENT-v1","KP-SEPARATION-CONFLICT-ASSESSMENT-v1","KP-QA-RECEIPT-v1","KP-INDEPENDENT-REVIEW-v1","KP-FINDINGS-CLOSURE-v1","KP-A09-DECISION-v1","KP-G3-ACCEPTANCE-v1","KP-G4-EXACT-RUN-RELEASE-v1","KP-ARM-RELEASE-v1","KP-TRUST-STORE-v1","KP-REVOCATION-SNAPSHOT-v1","KP-AUTHORITY-REVOCATION-v1","KP-TMC-RUNTIME-v1","KP-VERIFIER-CHALLENGE-v1","KP-VERIFIER-VERDICT-v1","KP-MODEL-ENDPOINT-STATEMENT-v1","KP-GPEP-EVENT-v1","KP-LEDGER-HEAD-ATTEST-v1","KP-AUDIT-ANCHOR-v1","KP-ROLLBACK-AUTHORIZATION-v1","KP-ROLLBACK-RECEIPT-v1","KP-REINSTATEMENT-AUTHORIZATION-v1"]
+    },
+    "reasonCode": {
+      "enum": ["E_REVOKED","E_REVOCATION_UNAVAILABLE","E_SIGNATURE","E_KEY_PURPOSE","E_AUTHORITY_ABSENT","E_SEPARATION","E_EXPIRED","E_NOT_YET_VALID","E_ORDERING_AMBIGUOUS","E_REPLAY","E_IDEMPOTENCY_CONFLICT","E_SCOPE","E_AUTHN","E_VERSION_UNSUPPORTED","E_UNKNOWN_REGISTRY","E_DOMAIN_MISMATCH","E_FRAMING_AMBIGUOUS","E_TRUNCATED_INPUT","E_SCHEMA","E_POLICY","E_HASH_MISMATCH","E_INTEGRITY","E_DEPENDENCY","E_ATTESTATION","E_LIVENESS","E_MODEL_BINDING","E_STALE","E_CONFLICT","E_TRANSITION","E_AUDIT_DELIVERY","E_ANCHOR","E_ORPHAN_EXTERNAL","E_ROLLBACK_AUTHORITY","E_IRREVERSIBLE_EFFECT","E_INTERNAL"]
+    },
+    "reasonCodes": { "type": "array", "maxItems": 35, "uniqueItems": true, "items": { "$ref": "#/$defs/reasonCode" } },
+    "digestRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_id","schema_id","digest","hash_domain"],
+      "properties": {
+        "object_id": { "$ref": "#/$defs/id" },
+        "schema_id": { "$ref": "#/$defs/id" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "hash_domain": { "$ref": "#/$defs/hashDomainId" },
+        "repository_id": { "$ref": "#/$defs/id" },
+        "publication_manifest_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "extensions": {
+      "type": "object", "maxProperties": 16,
+      "propertyNames": { "pattern": "^[a-z0-9]+(?:\\.[a-z0-9-]+)+$" },
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["critical","value"],
+        "properties": { "critical": { "type": "boolean" }, "value": {} }
+      }
+    },
+    "signature": {
+      "type": "object", "additionalProperties": false,
+      "required": ["algorithm_id","key_id","key_purpose_id","trust_chain_digest","key_status_digest","payload_digest","signature_value"],
+      "properties": {
+        "algorithm_id": { "const": "ALG-SIG-ES256-v1" },
+        "signature_encoding_id": { "$ref": "#/$defs/signatureEncodingId" },
+        "key_id": { "$ref": "#/$defs/id" },
+        "key_purpose_id": { "$ref": "#/$defs/keyPurposeId" },
+        "trust_chain_digest": { "$ref": "#/$defs/sha256" },
+        "key_status_digest": { "$ref": "#/$defs/sha256" },
+        "payload_digest": { "$ref": "#/$defs/sha256" },
+        "signature_value": { "type": "string", "minLength": 16, "maxLength": 2048 }
+      }
+    },
+    "signedEnvelope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract_status","schema_id","schema_version","object_type","object_id","event_id","interface_id","producer_id","producer_role","producer_assignment_ref","algorithm_id","key_purpose_id","canonicalization_id","framing_id","issued_at","not_before","expires_at","authority_counter","previous_event_digest","audience","environment","repository_id","candidate_commit","publication_manifest_digest","policy_digest","schema_bundle_digest","algorithm_registry_digest","dependency_registry_digest","reason_registry_digest","revocation_epoch","nonce","payload_digest","signature"],
+      "properties": {
+        "contract_status": { "$ref": "#/$defs/proposalStatus" },
+        "schema_id": { "$ref": "#/$defs/id" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "object_type": { "$ref": "#/$defs/id" },
+        "object_id": { "$ref": "#/$defs/uuidUrn" },
+        "event_id": { "$ref": "#/$defs/uuidUrn" },
+        "interface_id": { "$ref": "#/$defs/interfaceId" },
+        "producer_id": { "$ref": "#/$defs/id" },
+        "producer_role": { "$ref": "#/$defs/id" },
+        "producer_assignment_ref": { "$ref": "#/$defs/digestRef" },
+        "algorithm_id": { "const": "ALG-SIG-ES256-v1" },
+        "key_purpose_id": { "$ref": "#/$defs/keyPurposeId" },
+        "canonicalization_id": { "$ref": "#/$defs/canonicalizationId" },
+        "framing_id": { "const": "FRAME-LEN-DOMAIN-v1" },
+        "signing_profile_id": { "$ref": "#/$defs/signingProfileId" },
+        "domain_id": { "$ref": "#/$defs/domainId" },
+        "issued_at": { "$ref": "#/$defs/timestamp" },
+        "not_before": { "$ref": "#/$defs/timestamp" },
+        "expires_at": { "$ref": "#/$defs/timestamp" },
+        "authority_counter": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "previous_event_digest": { "$ref": "#/$defs/sha256" },
+        "audience": { "$ref": "#/$defs/id" },
+        "environment": { "$ref": "#/$defs/id" },
+        "repository_id": { "$ref": "#/$defs/id" },
+        "candidate_commit": { "$ref": "#/$defs/gitSha1" },
+        "publication_manifest_digest": { "$ref": "#/$defs/sha256" },
+        "run_id": { "$ref": "#/$defs/uuidUrn" },
+        "session_id": { "$ref": "#/$defs/uuidUrn" },
+        "object_version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "policy_digest": { "$ref": "#/$defs/sha256" },
+        "schema_bundle_digest": { "$ref": "#/$defs/sha256" },
+        "algorithm_registry_digest": { "$ref": "#/$defs/sha256" },
+        "dependency_registry_digest": { "$ref": "#/$defs/sha256" },
+        "reason_registry_digest": { "$ref": "#/$defs/sha256" },
+        "revocation_epoch": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "nonce": { "$ref": "#/$defs/nonce256" },
+        "challenge_ref": { "$ref": "#/$defs/digestRef" },
+        "payload_digest": { "$ref": "#/$defs/sha256" },
+        "extensions": { "$ref": "#/$defs/extensions" },
+        "signature": { "$ref": "#/$defs/signature" }
+      }
+    },
+    "consumerResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["interface_id","result_id","correlation_id","consumer_id","input_refs","verified_at","decision","reason_codes","retryable","recovery_authority","policy_digest","schema_bundle_digest","algorithm_registry_digest","dependency_registry_digest","reason_registry_digest","revocation_snapshot_ref","audit_ref"],
+      "properties": {
+        "interface_id": { "$ref": "#/$defs/interfaceId" },
+        "result_id": { "$ref": "#/$defs/uuidUrn" },
+        "correlation_id": { "$ref": "#/$defs/id" },
+        "consumer_id": { "$ref": "#/$defs/id" },
+        "input_refs": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "$ref": "#/$defs/digestRef" } },
+        "verified_at": { "$ref": "#/$defs/timestamp" },
+        "decision": { "$ref": "#/$defs/consumerDecision" },
+        "prior_state": { "$ref": "#/$defs/id" },
+        "resulting_state": { "$ref": "#/$defs/id" },
+        "reason_codes": { "$ref": "#/$defs/reasonCodes" },
+        "retryable": { "type": "boolean" },
+        "recovery_authority": { "$ref": "#/$defs/id" },
+        "policy_digest": { "$ref": "#/$defs/sha256" },
+        "schema_bundle_digest": { "$ref": "#/$defs/sha256" },
+        "algorithm_registry_digest": { "$ref": "#/$defs/sha256" },
+        "dependency_registry_digest": { "$ref": "#/$defs/sha256" },
+        "reason_registry_digest": { "$ref": "#/$defs/sha256" },
+        "revocation_snapshot_ref": { "$ref": "#/$defs/digestRef" },
+        "audit_ref": { "$ref": "#/$defs/digestRef" }
+      }
+    },
+    "candidateBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["repository_id","candidate_commit","root_tree","l3_manifest_ref","l4_manifest_ref","publication_receipt_ref"],
+      "properties": {
+        "repository_id": { "$ref": "#/$defs/id" },
+        "candidate_commit": { "$ref": "#/$defs/gitSha1" },
+        "root_tree": { "$ref": "#/$defs/gitSha1" },
+        "l3_manifest_ref": { "$ref": "#/$defs/digestRef" },
+        "l4_manifest_ref": { "$ref": "#/$defs/digestRef" },
+        "publication_receipt_ref": { "$ref": "#/$defs/digestRef" }
+      }
+    }
+  }
+}

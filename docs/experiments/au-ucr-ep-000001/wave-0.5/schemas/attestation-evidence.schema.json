@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:runtime-attestation-evidence:1.0.0",
+  "title": "Proposed runtime attestation evidence",
+  "description": "PROPOSED_NOT_ADOPTED. IF-08/IF-12 TMC evidence under DOMAIN-TMC-RUNTIME-v1; not validator-executed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["envelope","evidence_kind","challenge_ref","session_id","sequence","counter","channel_binding_digest","arm_ref","device_id","boot_id","tmc_id","launcher_digest","process_id","process_created_at","runtime_instance_id","runtime_key_id","platform_quote_digest","effective_configuration_digest","module_set_digest","model_digest","endpoint_tuple_digest","producer_state","security_flags"],
+  "properties": {
+    "envelope": {
+      "allOf": [
+        { "$ref": "common.schema.json#/$defs/signedEnvelope" },
+        { "properties": {
+          "schema_id": { "const": "urn:au-ucr:schema:runtime-attestation-evidence:1.0.0" },
+          "schema_version": { "const": "1.0.0" },
+          "object_type": { "const": "RUNTIME_ATTESTATION_EVIDENCE" },
+          "interface_id": { "enum": ["IF-08","IF-12"] },
+          "key_purpose_id": { "const": "KP-TMC-RUNTIME-v1" },
+          "domain_id": { "const": "DOMAIN-TMC-RUNTIME-v1" },
+          "signature": { "properties": { "key_purpose_id": { "const": "KP-TMC-RUNTIME-v1" } } }
+        }, "required": ["domain_id"] }
+      ]
+    },
+    "evidence_kind": { "enum": ["LAUNCH","LIVENESS"] },
+    "challenge_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+    "session_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "counter": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "channel_binding_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "arm_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+    "device_id": { "$ref": "common.schema.json#/$defs/id" },
+    "boot_id": { "$ref": "common.schema.json#/$defs/id" },
+    "tmc_id": { "$ref": "common.schema.json#/$defs/id" },
+    "launcher_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "process_id": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+    "process_created_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "runtime_instance_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "runtime_key_id": { "$ref": "common.schema.json#/$defs/id" },
+    "platform_quote_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "effective_configuration_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "module_set_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "model_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "endpoint_tuple_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "prior_evidence_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+    "producer_state": { "enum": ["MEASURING","EVIDENCE_ISSUED","RESPONDING","FAILED","ENDED"] },
+    "security_flags": { "type": "array", "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 64 } }
+  },
+  "allOf": [
+    { "if": { "properties": { "evidence_kind": { "const": "LIVENESS" } }, "required": ["evidence_kind"] }, "then": { "required": ["prior_evidence_digest"] } }
+  ]
+}

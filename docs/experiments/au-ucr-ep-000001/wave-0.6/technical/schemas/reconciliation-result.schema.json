@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:reconciliation-result:1.0.0",
+  "title":"Proposed IF-18 reconciliation result",
+  "description":"PROPOSED_NOT_ADOPTED. Read-only cross-domain comparison; never imports external state.",
+  "type":"object","additionalProperties":false,
+  "required":["contract_status","schema_id","schema_version","interface_id","result_id","state_ref","event_ref","outbox_ref","worm_ref","delivery_ref","checkpoint_ref","classification","differences","replay_source","decision","reason_codes","verified_at"],
+  "properties":{
+    "contract_status":{"$ref":"common.schema.json#/$defs/proposalStatus"},
+    "schema_id":{"const":"urn:au-ucr:schema:reconciliation-result:1.0.0"},
+    "schema_version":{"const":"1.0.0"},
+    "interface_id":{"const":"IF-18"},
+    "result_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "state_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "event_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "outbox_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "worm_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "delivery_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "checkpoint_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "classification":{"enum":["ORPHAN_REJECTED","MISSING_EXTERNAL","MATCHED","CONFLICT"]},
+    "differences":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "replay_source":{"const":"COMMITTED_OUTBOX_BYTES_ONLY"},
+    "decision":{"enum":["ALLOW","SUSPEND","BLOCK","NO_MUTATION"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verified_at":{"$ref":"common.schema.json#/$defs/timestamp"}
+  }
+}

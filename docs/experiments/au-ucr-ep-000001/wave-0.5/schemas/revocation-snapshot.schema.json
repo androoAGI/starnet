@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:revocation-snapshot:1.0.0",
+  "title":"Proposed IF-19 revocation snapshot",
+  "description":"PROPOSED_NOT_ADOPTED. Monotonic trust/key/authority status snapshot.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","snapshot_id","epoch","previous_snapshot_digest","affected_entries","effective_at","incident_refs","adjudication_refs","distribution_evidence_refs"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:revocation-snapshot:1.0.0"},"object_type":{"const":"REVOCATION_SNAPSHOT"},"interface_id":{"const":"IF-19"}},"oneOf":[{"properties":{"producer_role":{"const":"TRUST_STORE_PUBLISHER"},"key_purpose_id":{"const":"KP-TRUST-STORE-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-TRUST-STORE-v1"}}}}},{"properties":{"producer_role":{"const":"REVOCATION_AUTHORITY"},"key_purpose_id":{"const":"KP-REVOCATION-SNAPSHOT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-REVOCATION-SNAPSHOT-v1"}}}}}]}]},
+    "snapshot_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "epoch":{"type":"integer","minimum":0,"maximum":9007199254740991},
+    "previous_snapshot_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "affected_entries":{"type":"array","maxItems":10000,"items":{"type":"object","additionalProperties":false,"required":["object_id","object_type","scope","status","effective_order"],"properties":{"object_id":{"$ref":"common.schema.json#/$defs/id"},"object_type":{"$ref":"common.schema.json#/$defs/id"},"scope":{"$ref":"common.schema.json#/$defs/id"},"status":{"enum":["ACTIVE","SUSPENDED","REVOKED","SUPERSEDED"]},"effective_order":{"type":"integer","minimum":0,"maximum":9007199254740991}}}},
+    "effective_at":{"$ref":"common.schema.json#/$defs/timestamp"},
+    "incident_refs":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/digestRef"}},
+    "adjudication_refs":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/digestRef"}},
+    "distribution_evidence_refs":{"type":"array","minItems":2,"maxItems":16,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/digestRef"}}
+  }
+}

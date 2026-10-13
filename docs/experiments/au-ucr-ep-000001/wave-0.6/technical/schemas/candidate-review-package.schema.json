@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:candidate-review-package:1.0.0",
+  "title":"Proposed IF-02 candidate review package",
+  "description":"PROPOSED_NOT_ADOPTED. Binds exact nested-manifest candidate and typed QA/review/closure evidence.",
+  "type":"object","additionalProperties":false,
+  "required":["contract_status","schema_id","schema_version","interface_id","package_id","candidate","family_manifest_refs","qa_receipt_ref","review_receipt_ref","findings_closure_ref","dependency_state_ref","policy_digest","schema_bundle_digest","algorithm_registry_digest","dependency_registry_digest","reason_registry_digest","result"],
+  "properties":{
+    "contract_status":{"$ref":"common.schema.json#/$defs/proposalStatus"},
+    "schema_id":{"const":"urn:au-ucr:schema:candidate-review-package:1.0.0"},
+    "schema_version":{"const":"1.0.0"},
+    "interface_id":{"const":"IF-02"},
+    "package_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "candidate":{"$ref":"common.schema.json#/$defs/candidateBinding"},
+    "family_manifest_refs":{"type":"array","minItems":9,"maxItems":32,"uniqueItems":true,"items":{"$ref":"common.schema.json#/$defs/digestRef"}},
+    "qa_receipt_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "review_receipt_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "findings_closure_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "dependency_state_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "policy_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "schema_bundle_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "algorithm_registry_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "dependency_registry_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "reason_registry_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

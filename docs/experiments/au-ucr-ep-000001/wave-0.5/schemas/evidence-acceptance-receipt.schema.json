@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:profile-receipt:1.0.0",
+  "title": "Non-authorizing proposed profile receipt base",
+  "description": "PROPOSED_NOT_ADOPTED. ABSTRACT_BASE_ONLY: this schema cannot authorize QA, review, A09, G3, G4, revocation, rollback, or reinstatement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_status","schema_id","schema_version","abstract_only","object_id","typed_subject_ref","reason_codes"],
+  "properties": {
+    "contract_status": { "$ref": "common.schema.json#/$defs/proposalStatus" },
+    "schema_id": { "const": "urn:au-ucr:schema:profile-receipt:1.0.0" },
+    "schema_version": { "const": "1.0.0" },
+    "abstract_only": { "const": true },
+    "object_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "typed_subject_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+    "reason_codes": { "$ref": "common.schema.json#/$defs/reasonCodes" }
+  }
+}

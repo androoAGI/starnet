@@ -1,0 +1,297 @@
+{
+  "schema_id": "urn:au-ucr:manifest:wave-0.6-technical-freeze:1.0.0",
+  "project": "AU-UCR-EP-000001",
+  "human_principal_and_sole_final_decision_authority": "Hakeem Moore",
+  "status": "FINAL_TECHNICAL_SPECIFICATION_NOT_ADOPTED",
+  "source_baseline_commit": "39bade0506b4d5b12bb979ccf6a51bb11944a9ff",
+  "registry_id": "urn:au-ucr:registry:wave-0.5-contract:1.3.0",
+  "vector_bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+  "schema_coverage": {
+    "concrete_instantiable": 33,
+    "abstract_definition_helpers": 2,
+    "generated_full_document_cases": 160,
+    "retained_full_document_cases": 2,
+    "all_current_full_document_cases": 162
+  },
+  "normative_file_count": 54,
+  "hash_domain": "raw-working-tree-sha256-v1",
+  "files": [
+    {
+      "path": "generate_full_document_fixtures.py",
+      "bytes": 23278,
+      "sha256": "0d992aadbf8230528eb605574df8a36f87ab617de6cb5aef44922b2467ff229b"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2261,
+      "sha256": "b8d84a507fb6ecb1b426600f3c400a5856e5d1f791506325846c2543a413cb49"
+    },
+    {
+      "path": "schemas/a01-a12-transition-record.schema.json",
+      "bytes": 2013,
+      "sha256": "7995436bc0e404dda0cc3b834d863bcc7efc2d60919b69e648edce591190d932"
+    },
+    {
+      "path": "schemas/anchor-checkpoint.schema.json",
+      "bytes": 1429,
+      "sha256": "b6e89b05a4129ea812be797816e8bc9055e719902857884212ef699c42a8d936"
+    },
+    {
+      "path": "schemas/approved-runtime-manifest.schema.json",
+      "bytes": 2951,
+      "sha256": "78306a20aeb58874f0ea9b289164e40f88635f98bd2020488bc2d78c11c5258c"
+    },
+    {
+      "path": "schemas/assignment-acknowledgement.schema.json",
+      "bytes": 2226,
+      "sha256": "18b9163a80131ba95c7fed7fe6b821bc82b6c88ba12b3feb5e2173ff618d7b8e"
+    },
+    {
+      "path": "schemas/assignment-receipt.schema.json",
+      "bytes": 2766,
+      "sha256": "2c46faac2bd0dee0882e09bab2fe439e956df643f443accba010cc0fe4a7a032"
+    },
+    {
+      "path": "schemas/attestation-evidence.schema.json",
+      "bytes": 3443,
+      "sha256": "50dd7c3958e6431618b66d4476f323a86189e5219fab8dad7dfdd88a09551bc6"
+    },
+    {
+      "path": "schemas/audit-ledger-record.schema.json",
+      "bytes": 3215,
+      "sha256": "49a044956d85127b12b56714be51ddd9db5024a93a694943de4a8266cf66581c"
+    },
+    {
+      "path": "schemas/authority-object-base.schema.json",
+      "bytes": 3467,
+      "sha256": "7d0758d26f11f3816602c49e8f112c90330a5663d7d0c736ab0292a57b07c6e6"
+    },
+    {
+      "path": "schemas/authority-revocation.schema.json",
+      "bytes": 2235,
+      "sha256": "1428d409b268245eb4dc751b421e577122faac2d6921239cc277a1b46bae41b3"
+    },
+    {
+      "path": "schemas/authorization-a09-decision.schema.json",
+      "bytes": 2255,
+      "sha256": "543e5a6f0f16a38b093d03f0d2fa3de13c272bea7c3f85be8285ddf1933bc64b"
+    },
+    {
+      "path": "schemas/candidate-qa-receipt.schema.json",
+      "bytes": 2114,
+      "sha256": "70252086cf75f1e8b17624ade13c8eb9a49a0790e347a6e4b4c3ba54de0676eb"
+    },
+    {
+      "path": "schemas/candidate-review-package.schema.json",
+      "bytes": 1964,
+      "sha256": "cba17841cbb043ab7889fdcbfadd49f65d8de943b082b0d76cce9b344e3960ee"
+    },
+    {
+      "path": "schemas/common.schema.json",
+      "bytes": 10688,
+      "sha256": "86c9040147a0034da76a7ca99854d5257777c64921ecbd70986a51b7beb8d575"
+    },
+    {
+      "path": "schemas/effective-configuration-measurement.schema.json",
+      "bytes": 3198,
+      "sha256": "d6cb351594ccaf19d9cd80d54738372391165dbf1c839dc46d597b6408eb61a5"
+    },
+    {
+      "path": "schemas/evidence-acceptance-receipt.schema.json",
+      "bytes": 1003,
+      "sha256": "03a742a4d0cf9cb6903bc0c624043af634c032b5960434ec60f66af649f8ea96"
+    },
+    {
+      "path": "schemas/execution-release.schema.json",
+      "bytes": 3243,
+      "sha256": "e7f5cd8dcd8b4b0453d765053cbf54b99294730833064e855c9bc5dbc5ccbd73"
+    },
+    {
+      "path": "schemas/findings-closure-receipt.schema.json",
+      "bytes": 2819,
+      "sha256": "58eaa5f468d2e02b124c47c942080fabf5733678d6f015898563c2a78eb15d1a"
+    },
+    {
+      "path": "schemas/fixtures/audit-ledger-record.negative.json",
+      "bytes": 1278,
+      "sha256": "cfdfb459fa8b7fb081072b6638c07da2a56ab57d31e6215e2a5f08fa04a6e607"
+    },
+    {
+      "path": "schemas/fixtures/audit-ledger-record.positive.json",
+      "bytes": 1277,
+      "sha256": "534e5017cef9d878bc411bfa74466bb1292eb24477d272fc21a72f5f14bc4e92"
+    },
+    {
+      "path": "schemas/fixtures/correction-unit-fixtures.json",
+      "bytes": 17421,
+      "sha256": "c8f03f52b047e7072a330ebe74353df89a31ea35dbd83cf7f7ab4624488a764f"
+    },
+    {
+      "path": "schemas/fixtures/full-document-fixtures.json",
+      "bytes": 936171,
+      "sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127"
+    },
+    {
+      "path": "schemas/fixtures/manifest.json",
+      "bytes": 2834,
+      "sha256": "f0d66ab7eeef615375cba26d36181791b242ba63613ed8a16b6db5107b083a16"
+    },
+    {
+      "path": "schemas/g3-acceptance.schema.json",
+      "bytes": 1730,
+      "sha256": "c1c88bee947bbc56f44c62d03013a87f805b540b1bbdea89e1f7736d2be4240f"
+    },
+    {
+      "path": "schemas/governed-audit-ledger-envelope.schema.json",
+      "bytes": 1361,
+      "sha256": "959b378cad6e7309b1ad8721f7ae5c0167662aaf53b93dd2249eeb1d6750dd18"
+    },
+    {
+      "path": "schemas/independent-review-receipt.schema.json",
+      "bytes": 2318,
+      "sha256": "0321fba0005f4fb17c0313252804210d0d13b657bb9a3822d110138a5e4e7740"
+    },
+    {
+      "path": "schemas/inference-receipt.schema.json",
+      "bytes": 1997,
+      "sha256": "e1fea06e9d368a22aceff73d71080182e06bc3950b69b7268c22cabe3c3b2bf8"
+    },
+    {
+      "path": "schemas/ledger-head-attestation.schema.json",
+      "bytes": 6439,
+      "sha256": "f3ac7f480b2d7b57ddbcb1080018495876aff9e4cbbaa64979d9e8a54d1eebcf"
+    },
+    {
+      "path": "schemas/model-endpoint-statement.schema.json",
+      "bytes": 2378,
+      "sha256": "a7fbd9755bbd566104dab0f509a082d26f4542ea5f2610cbda811f047a50e1fe"
+    },
+    {
+      "path": "schemas/nested-candidate-manifest.schema.json",
+      "bytes": 3931,
+      "sha256": "789d4ac34eab9e834c436abbe656e15398454bd01e1500368c2d9358dbb1777e"
+    },
+    {
+      "path": "schemas/outbox-delivery.schema.json",
+      "bytes": 1754,
+      "sha256": "d7f0313624f0aa196703b2dc09b2bf60d2793bd082e6a37b90ff688e7d79af2c"
+    },
+    {
+      "path": "schemas/platform-verification-result.schema.json",
+      "bytes": 1842,
+      "sha256": "1e7a46e3ffb76abf5fd068a7d9defe4139172b6ecceddc8d2e28e378bab4e9e2"
+    },
+    {
+      "path": "schemas/reconciliation-result.schema.json",
+      "bytes": 1750,
+      "sha256": "6e9f9904726f30f740d4213a8c0e8c727b9f974a5151d1a0fc285c27e0cd055a"
+    },
+    {
+      "path": "schemas/reinstatement-receipt.schema.json",
+      "bytes": 3473,
+      "sha256": "9af3fef96f115e9603047fdbb0272c7f13e8159de6c238f9422c00b6725cd431"
+    },
+    {
+      "path": "schemas/revocation-snapshot.schema.json",
+      "bytes": 2348,
+      "sha256": "501d66ebfb0f5e50c77463625bf6df9f05172c4cbe2a695aaf3ad3ad4979ae6b"
+    },
+    {
+      "path": "schemas/rollback-plan.schema.json",
+      "bytes": 3510,
+      "sha256": "c38d653203e1d7d67af8283dff1b2b574fe93e57cb7f4d0367709cf04d03718f"
+    },
+    {
+      "path": "schemas/rollback-receipt.schema.json",
+      "bytes": 2420,
+      "sha256": "bc5ce277f8d88a65ad71ec65df4e726e715040ad59989dd630aca9c544bd80e1"
+    },
+    {
+      "path": "schemas/separation-conflict-assessment.schema.json",
+      "bytes": 2344,
+      "sha256": "40ff2a2c6d2535ebf42914fb36b57ec438282b1d4f69551edfadea16c41def0b"
+    },
+    {
+      "path": "schemas/session-binding.schema.json",
+      "bytes": 3334,
+      "sha256": "8a78c5953ab5581ed1fa331153467b5dd2454e2412adb313a8846424f9a7bddd"
+    },
+    {
+      "path": "schemas/verifier-challenge.schema.json",
+      "bytes": 1419,
+      "sha256": "6fdfb0c1a5c466f50a3ff14665edc5a6fa0cd6bf3818944e30e801cf9c508572"
+    },
+    {
+      "path": "schemas/verifier-verdict.schema.json",
+      "bytes": 1905,
+      "sha256": "8cfa54d5d1df1e9445d5ff8fe9a9c874930db64d9a4d9f2f800985942849bebe"
+    },
+    {
+      "path": "validate_technical_package.py",
+      "bytes": 8105,
+      "sha256": "3df2aaed740f51cc9d12973a0c29359bcbe04f402b933ff550d18e7d47613026"
+    },
+    {
+      "path": "vectors/derive_vectors.py",
+      "bytes": 12898,
+      "sha256": "00ec1a7ac76c8c71288ff20f8286f5d640dcac3d30dfa9da5f4e782b992ef7bf"
+    },
+    {
+      "path": "vectors/derive_vectors_registry_1_2.py",
+      "bytes": 23759,
+      "sha256": "d0817f3a23cee05bb3fcd69f8e6bdd3f220c57c9bc22ebac46c739e74660fb2a"
+    },
+    {
+      "path": "vectors/reproduce_vectors.py",
+      "bytes": 5412,
+      "sha256": "c45565b4167e0c88336aaac47e1a88a3a211841d74d85aceab294ae8ac03d201"
+    },
+    {
+      "path": "vectors/reproduce_vectors_registry_1_2.py",
+      "bytes": 17779,
+      "sha256": "cadfdbb94cde699f6175e94f353343717cbe591b953d09028f938283dcb1efd3"
+    },
+    {
+      "path": "vectors/W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json",
+      "bytes": 204024,
+      "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+    },
+    {
+      "path": "W05_INTERFACE_MATRIX.md",
+      "bytes": 31344,
+      "sha256": "a8345f4d688ab92ace505f6e4e0620d25b10321da958e1e2b8ab50646618c785"
+    },
+    {
+      "path": "W05_SHARED_TRUST_AND_STATE_CONTRACT.md",
+      "bytes": 28872,
+      "sha256": "9cfc12460f1ea48b32c3c51455d147abf916e42a2f40cf91e015fde1ec5db817"
+    },
+    {
+      "path": "W05_VERSIONED_REGISTRY.md",
+      "bytes": 42545,
+      "sha256": "d9d130dc8157db961df6df3f5e649f8591038ff4f41d0df762352b29ea788b5c"
+    },
+    {
+      "path": "W06_CANONICAL_VECTOR_SPEC.md",
+      "bytes": 2434,
+      "sha256": "19cabb48152e3ac9b5212c9999a2a7add39085cc49d5cd1886996a31e45e9f3b"
+    },
+    {
+      "path": "W06_SCHEMA_FULL_DOCUMENT_COVERAGE_MATRIX.md",
+      "bytes": 5186,
+      "sha256": "a300477581ba09bc9a213f0793f33dba4963b614bad7d5f906a68ea747bbac64"
+    },
+    {
+      "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+      "bytes": 5279,
+      "sha256": "2d5c117a1c08b0b9a51afc097c3c84c88a35a8563b558753ce4315c828735a07"
+    }
+  ],
+  "manifest_self_hash": "EXTERNAL_BY_DESIGN",
+  "effects": {
+    "adoption": "NONE",
+    "acceptance": "NONE",
+    "publication": "NONE",
+    "execution": "NONE"
+  }
+}

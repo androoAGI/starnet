@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:transition-request-result:1.0.0",
+  "title": "Proposed IF-14 transition request and ingress result",
+  "description": "PROPOSED_NOT_ADOPTED. IF-14 only; it cannot represent IF-15 persistence or commit an event.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_status","schema_id","schema_version","interface_id","request_id","correlation_id","principal_id","interface_inventory_id","object_id","expected_object_version","stage","requested_transition","idempotency_key","evidence_refs","ingress_result"],
+  "properties": {
+    "contract_status": { "$ref": "common.schema.json#/$defs/proposalStatus" },
+    "schema_id": { "const": "urn:au-ucr:schema:transition-request-result:1.0.0" },
+    "schema_version": { "const": "1.0.0" },
+    "interface_id": { "const": "IF-14" },
+    "request_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "correlation_id": { "$ref": "common.schema.json#/$defs/id" },
+    "principal_id": { "$ref": "common.schema.json#/$defs/id" },
+    "interface_inventory_id": { "$ref": "common.schema.json#/$defs/id" },
+    "object_id": { "$ref": "common.schema.json#/$defs/id" },
+    "expected_object_version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "stage": { "enum": ["A01","A02","A03","A04","A05","A06","A07","A08","A09","A10","A11","A12"] },
+    "requested_transition": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "idempotency_key": { "$ref": "common.schema.json#/$defs/id" },
+    "evidence_refs": { "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": { "$ref": "common.schema.json#/$defs/digestRef" } },
+    "ingress_result": {
+      "allOf": [
+        { "$ref": "common.schema.json#/$defs/consumerResult" },
+        { "properties": { "interface_id": { "const": "IF-14" }, "decision": { "enum": ["ALLOW","DENY","BLOCK","NO_MUTATION"] } } }
+      ]
+    }
+  }
+}

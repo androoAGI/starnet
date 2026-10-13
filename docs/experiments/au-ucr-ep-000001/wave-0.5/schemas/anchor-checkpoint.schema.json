@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:anchor-checkpoint:1.0.0",
+  "title":"Proposed IF-17 anchor checkpoint",
+  "description":"PROPOSED_NOT_ADOPTED. Independent checkpoint; cannot mutate governed state.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","checkpoint_id","ledger_id","sequence","head_hash","merkle_root","policy_digest","prior_checkpoint_hash","anchored_at"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:anchor-checkpoint:1.0.0"},"object_type":{"const":"ANCHOR_CHECKPOINT"},"interface_id":{"const":"IF-17"},"producer_role":{"const":"ANCHOR_SERVICE"},"key_purpose_id":{"const":"KP-AUDIT-ANCHOR-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-AUDIT-ANCHOR-v1"}}}}}]},
+    "checkpoint_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "ledger_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "sequence":{"type":"integer","minimum":0,"maximum":9007199254740991},
+    "head_hash":{"$ref":"common.schema.json#/$defs/sha256"},
+    "merkle_root":{"$ref":"common.schema.json#/$defs/sha256"},
+    "policy_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "prior_checkpoint_hash":{"$ref":"common.schema.json#/$defs/sha256"},
+    "anchored_at":{"$ref":"common.schema.json#/$defs/timestamp"}
+  }
+}

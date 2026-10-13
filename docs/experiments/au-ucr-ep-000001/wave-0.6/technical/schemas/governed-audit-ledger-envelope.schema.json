@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:governed-audit-ledger-envelope:1.0.0",
+  "title": "Proposed external governed-event ledger framing metadata",
+  "description": "PROPOSED_NOT_ADOPTED. Packages external framing metadata; record_hash is derived and not part of record_without_hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_status","framing_id","domain_ascii","ledger_id","sequence","prev_hash","record_without_hash","record_hash"],
+  "properties": {
+    "contract_status": { "$ref": "common.schema.json#/$defs/proposalStatus" },
+    "framing_id": { "const": "FRAME-GPEP-EVENT-v1" },
+    "domain_ascii": { "const": "AU-GPEP-EVENT-v1" },
+    "ledger_id": { "$ref": "common.schema.json#/$defs/uuidUrn" },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "prev_hash": { "$ref": "common.schema.json#/$defs/sha256" },
+    "record_without_hash": { "$ref": "audit-ledger-record.schema.json" },
+    "record_hash": { "$ref": "common.schema.json#/$defs/sha256" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sequence": { "const": 0 } }, "required": ["sequence"] },
+      "then": { "properties": { "prev_hash": { "const": "0000000000000000000000000000000000000000000000000000000000000000" } } }
+    }
+  ]
+}

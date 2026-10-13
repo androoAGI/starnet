@@ -1,0 +1,49 @@
+{
+  "status": "PROPOSED_NOT_ADOPTED",
+  "inspection_classification": "JSON_PARSE_REFERENCE_AND_READ_INSPECTION_ONLY_NOT_SCHEMA_VALIDATION",
+  "schema_draft": "2020-12",
+  "registry": "urn:au-ucr:registry:wave-0.5-contract:1.3.0",
+  "active_full_document_cases": [
+    {
+      "schema": "../audit-ledger-record.schema.json",
+      "fixture": "audit-ledger-record.positive.json",
+      "expected": "VALID",
+      "requirements": ["F04-NMF-02", "REGISTRY-6.2", "IF-15"]
+    },
+    {
+      "schema": "../audit-ledger-record.schema.json",
+      "fixture": "audit-ledger-record.negative.json",
+      "expected": "INVALID",
+      "requirements": ["F04-NMF-02", "REGISTRY-5.1"],
+      "single_target_defect": "decision ACCEPT is not canonical ALLOW"
+    }
+  ],
+  "active_subschema_unit_catalog": {
+    "fixture": "correction-unit-fixtures.json",
+    "pair_count": 57,
+    "positive_case_count": 57,
+    "negative_case_count": 57,
+    "one_target_negative": true,
+    "coverage": "33 record schemas plus twenty-four vocabulary/projection checks"
+  },
+  "retired_pre_correction_full_document_fixtures": [
+    "a01-a12-transition-record.positive.json",
+    "a01-a12-transition-record.negative.json",
+    "attestation-evidence.positive.json",
+    "attestation-evidence.negative.json",
+    "authorization-a09-decision.positive.json",
+    "authorization-a09-decision.negative.json",
+    "effective-configuration-measurement.positive.json",
+    "effective-configuration-measurement.negative.json",
+    "evidence-acceptance-receipt.positive.json",
+    "evidence-acceptance-receipt.negative.json",
+    "session-binding.positive.json",
+    "session-binding.negative.json"
+  ],
+  "retirement_reason": "These files target superseded pre-registry schema shapes and are retained only as append-only historical design fixtures. They are excluded from current expected-valid/invalid counts.",
+  "limitations": [
+    "No JSON Schema validator or meta-validator was executed.",
+    "Subschema unit cases do not establish complete-object validity.",
+    "Cross-object candidate equality, ordering, signature, time, replay, hash, and state-machine behavior require later authorized conformance work."
+  ]
+}

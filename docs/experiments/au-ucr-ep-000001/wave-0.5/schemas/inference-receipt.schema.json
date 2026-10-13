@@ -1,0 +1,24 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:inference-receipt:1.0.0",
+  "title":"Proposed IF-13 inference receipt",
+  "description":"PROPOSED_NOT_ADOPTED. Request/output commitments bound to accepted launch and nearest liveness evidence.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","request_id","session_id","verifier_verdict_ref","launch_evidence_ref","liveness_evidence_ref","model_endpoint_statement_ref","endpoint_tuple_digest","immutable_model_digest","input_commitment","output_commitment","decision","reason_codes","verified_at"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:inference-receipt:1.0.0"},"object_type":{"const":"INFERENCE_RECEIPT"},"interface_id":{"const":"IF-13"},"key_purpose_id":{"const":"KP-TMC-RUNTIME-v1"},"domain_id":{"const":"DOMAIN-TMC-RUNTIME-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-TMC-RUNTIME-v1"}}}},"required":["domain_id"]}]},
+    "request_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "session_id":{"$ref":"common.schema.json#/$defs/uuidUrn"},
+    "verifier_verdict_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "launch_evidence_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "liveness_evidence_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "model_endpoint_statement_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "endpoint_tuple_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "immutable_model_digest":{"$ref":"common.schema.json#/$defs/sha256"},
+    "input_commitment":{"$ref":"common.schema.json#/$defs/sha256"},
+    "output_commitment":{"$ref":"common.schema.json#/$defs/sha256"},
+    "decision":{"enum":["ALLOW","DENY","BLOCK"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verified_at":{"$ref":"common.schema.json#/$defs/timestamp"}
+  }
+}

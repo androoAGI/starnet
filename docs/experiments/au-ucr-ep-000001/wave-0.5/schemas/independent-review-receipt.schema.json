@@ -1,0 +1,26 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:independent-review-receipt:1.0.0",
+  "title":"Proposed IndependentReviewReceipt",
+  "description":"PROPOSED_NOT_ADOPTED. Exact-candidate review evidence; cannot accept or release.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","issuer","timing","candidate","prerequisites","qa_receipt_ref","review_method_ref","evidence_examined","findings","objections","limitations","methodological_participation_disposition","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:independent-review-receipt:1.0.0"},"object_type":{"const":"INDEPENDENT_REVIEW"},"interface_id":{"const":"IF-02"},"producer_role":{"const":"INDEPENDENT_REVIEWER"},"key_purpose_id":{"const":"KP-INDEPENDENT-REVIEW-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-INDEPENDENT-REVIEW-v1"}}}}}]},
+    "object_kind":{"const":"INDEPENDENT_REVIEW"},
+    "issuer":{"allOf":[{"$ref":"authority-object-base.schema.json#/$defs/issuer"},{"properties":{"role":{"const":"INDEPENDENT_REVIEWER"}}}]},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "candidate":{"$ref":"common.schema.json#/$defs/candidateBinding"},
+    "prerequisites":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "qa_receipt_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "review_method_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "evidence_examined":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "findings":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "objections":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "limitations":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "methodological_participation_disposition":{"type":"string","minLength":1,"maxLength":4096},
+    "outcome":{"enum":["REVIEW_PASS","REVIEW_REVISE","REVIEW_BLOCKED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

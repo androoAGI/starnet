@@ -1,0 +1,24 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:separation-conflict-assessment:1.0.0",
+  "title":"Proposed SeparationConflictAssessment",
+  "description":"PROPOSED_NOT_ADOPTED. Purpose-specific separation review; no real checker is asserted.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","checker","timing","assignment_ref","acknowledgement_ref","declaration_refs","checks","checker_independence_ref","disposition","affected_scope","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:separation-conflict-assessment:1.0.0"},"object_type":{"const":"SEPARATION_CONFLICT_ASSESSMENT"},"interface_id":{"const":"IF-01"},"producer_role":{"const":"SEPARATION_CHECKER"},"key_purpose_id":{"const":"KP-SEPARATION-CONFLICT-ASSESSMENT-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-SEPARATION-CONFLICT-ASSESSMENT-v1"}}}}}]},
+    "object_kind":{"const":"SEPARATION_CONFLICT_ASSESSMENT"},
+    "checker":{"allOf":[{"$ref":"authority-object-base.schema.json#/$defs/issuer"},{"properties":{"role":{"const":"SEPARATION_CHECKER"}}}]},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "assignment_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "acknowledgement_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "declaration_refs":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "checks":{"type":"array","minItems":7,"maxItems":32,"uniqueItems":true,"items":{"enum":["TRANSITIVE_IDENTITY","TRANSITIVE_ROLE","SELF_APPOINTMENT","RECIPROCAL_APPOINTMENT","SHARED_CONTROL","ORGANIZATIONAL_CONFLICT","PERSONAL_CONFLICT","CHECKER_INDEPENDENCE"]}},
+    "checker_independence_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "disposition":{"type":"string","minLength":1,"maxLength":4096},
+    "affected_scope":{"$ref":"authority-object-base.schema.json#/$defs/closedStrings"},
+    "outcome":{"enum":["CLEAR","CONFLICT_DISPOSITIONED","RECUSAL_REQUIRED","FAILED"]},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

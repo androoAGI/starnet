@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:au-ucr:schema:authority-object-base:1.0.0",
+  "title": "Proposed authority object shared definitions",
+  "description": "PROPOSED_NOT_ADOPTED. Shared shape only; cannot authorize any action or substitute for a purpose-specific schema.",
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governed_name","stable_identity","identity_system_issuer","identity_proofing_ref","organization","role"],
+      "properties": {
+        "governed_name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "stable_identity": { "$ref": "common.schema.json#/$defs/id" },
+        "identity_system_issuer": { "$ref": "common.schema.json#/$defs/id" },
+        "identity_proofing_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+        "organization": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "role": { "$ref": "common.schema.json#/$defs/id" }
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["governed_name","stable_identity","identity_system_issuer","identity_proofing_ref","organization","role","assignment_ref","acknowledgement_ref","separation_ref"],
+      "properties": {
+        "governed_name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "stable_identity": { "$ref": "common.schema.json#/$defs/id" },
+        "identity_system_issuer": { "$ref": "common.schema.json#/$defs/id" },
+        "identity_proofing_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+        "organization": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "role": { "$ref": "common.schema.json#/$defs/id" },
+        "assignment_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+        "acknowledgement_ref": { "$ref": "common.schema.json#/$defs/digestRef" },
+        "separation_ref": { "$ref": "common.schema.json#/$defs/digestRef" }
+      }
+    },
+    "authorityTiming": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issued_at","effective_from","effective_through","verification_time","event_counter","previous_event_digest","nonce","replay_register_result","status_epoch"],
+      "properties": {
+        "issued_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "effective_from": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "effective_through": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "verification_time": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "event_counter": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "previous_event_digest": { "$ref": "common.schema.json#/$defs/sha256" },
+        "nonce": { "$ref": "common.schema.json#/$defs/nonce256" },
+        "replay_register_result": { "enum": ["UNUSED_RECORDED","REPLAY_REJECTED"] },
+        "status_epoch": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "typedPrerequisites": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/digestRef" }
+    },
+    "closedStrings": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1024 }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"urn:au-ucr:schema:g3-acceptance:1.0.0",
+  "title":"Proposed G3Acceptance",
+  "description":"PROPOSED_NOT_ADOPTED. Distinct G3 acceptance object aligned to the Registry 1.1.0 purpose-separated tuple.",
+  "type":"object","additionalProperties":false,
+  "required":["envelope","object_kind","issuer","timing","candidate","prerequisites","a09_decision_ref","prior_gate_state","next_gate_state","outcome","reason_codes","verification_result"],
+  "properties":{
+    "envelope":{"allOf":[{"$ref":"common.schema.json#/$defs/signedEnvelope"},{"properties":{"schema_id":{"const":"urn:au-ucr:schema:g3-acceptance:1.0.0"},"object_type":{"const":"G3_ACCEPTANCE"},"interface_id":{"const":"IF-03"},"producer_role":{"const":"DECISION_CHAIR"},"key_purpose_id":{"const":"KP-G3-ACCEPTANCE-v1"},"signature":{"properties":{"key_purpose_id":{"const":"KP-G3-ACCEPTANCE-v1"}}}}}]},
+    "object_kind":{"const":"G3_ACCEPTANCE"},
+    "issuer":{"allOf":[{"$ref":"authority-object-base.schema.json#/$defs/issuer"},{"properties":{"role":{"const":"DECISION_CHAIR"}}}]},
+    "timing":{"$ref":"authority-object-base.schema.json#/$defs/authorityTiming"},
+    "candidate":{"$ref":"common.schema.json#/$defs/candidateBinding"},
+    "prerequisites":{"$ref":"authority-object-base.schema.json#/$defs/typedPrerequisites"},
+    "a09_decision_ref":{"$ref":"common.schema.json#/$defs/digestRef"},
+    "prior_gate_state":{"const":"CLOSED"},
+    "next_gate_state":{"const":"G3_ACCEPTED"},
+    "outcome":{"const":"G3_ACCEPTED"},
+    "reason_codes":{"$ref":"common.schema.json#/$defs/reasonCodes"},
+    "verification_result":{"$ref":"common.schema.json#/$defs/consumerResult"}
+  }
+}

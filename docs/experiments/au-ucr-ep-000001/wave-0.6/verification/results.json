@@ -1,0 +1,817 @@
+{
+  "checks": {
+    "active_full_document_fixtures": true,
+    "contract_files_present": true,
+    "fixture_manifest_consistency": true,
+    "interface_inventory_presence": true,
+    "isolated_vector_regeneration": true,
+    "local_references_resolved": true,
+    "metaschema_validation": true,
+    "positive_vector_direct_schema_instances": true,
+    "registry_bundle_literal_alignment": true,
+    "schema_ids_canonical": true,
+    "schema_ids_unique": true,
+    "strict_json_parse": true,
+    "subschema_unit_fixtures": true,
+    "vector_bundle_declared_counts": true,
+    "vector_bundle_expected_hash": true,
+    "vector_reproducer": true,
+    "vector_scripts_syntax": true
+  },
+  "classification": "NON_OPERATIONAL_LOCAL_VALIDATION_AND_REPRODUCIBILITY",
+  "design_alignment": {
+    "interfaces": {
+      "IF-01": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-02": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-03": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-04": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-05": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-06": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-07": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-08": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-09": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-10": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-11": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-12": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-13": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-14": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-15": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-16": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-17": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-18": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-19": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-20": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-21": {
+        "matrix": true,
+        "registry": true
+      },
+      "IF-22": {
+        "matrix": true,
+        "registry": true
+      }
+    },
+    "required_literals": {
+      "attestation_domain": {
+        "bundle": true,
+        "registry": true
+      },
+      "ledger_domain": {
+        "bundle": true,
+        "registry": true
+      },
+      "signature_encoding": {
+        "bundle": true,
+        "registry": true
+      },
+      "signing_profile": {
+        "bundle": true,
+        "registry": true
+      }
+    }
+  },
+  "environment": {
+    "expected_baseline_head": "39bade0506b4d5b12bb979ccf6a51bb11944a9ff",
+    "jsonschema": "4.26.0",
+    "python": "3.13.7"
+  },
+  "failures": {
+    "duplicate_schema_ids": [],
+    "fixture_pointers": [],
+    "json_parse": [],
+    "metaschema": [],
+    "reference_resolution": [],
+    "script_syntax": []
+  },
+  "fixture_validation": {
+    "active_full_document": [
+      {
+        "expected": "VALID",
+        "fixture": "audit-ledger-record.positive.json",
+        "passed": true,
+        "schema": "audit-ledger-record.schema.json",
+        "validator_messages": []
+      },
+      {
+        "expected": "INVALID",
+        "fixture": "audit-ledger-record.negative.json",
+        "passed": true,
+        "schema": "audit-ledger-record.schema.json",
+        "validator_messages": [
+          "'ALLOW' was expected"
+        ]
+      }
+    ],
+    "subschema_units": [
+      {
+        "id": "FIX-ID-001",
+        "negative_messages": [
+          "'urn:au-ucr:schema:transition-request-result:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-002",
+        "negative_messages": [
+          "'urn:au-ucr:schema:anchor-checkpoint:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-003",
+        "negative_messages": [
+          "'urn:au-ucr:schema:approved-runtime-manifest:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-004",
+        "negative_messages": [
+          "'urn:au-ucr:schema:assignment-acknowledgement:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-005",
+        "negative_messages": [
+          "'urn:au-ucr:schema:assignment-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-006",
+        "negative_messages": [
+          "'urn:au-ucr:schema:runtime-attestation-evidence:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-007",
+        "negative_messages": [
+          "'urn:au-ucr:schema:governed-audit-event:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-008",
+        "negative_messages": [
+          "'urn:au-ucr:schema:authority-revocation:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-009",
+        "negative_messages": [
+          "'urn:au-ucr:schema:a09-decision:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-010",
+        "negative_messages": [
+          "'urn:au-ucr:schema:candidate-qa-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-011",
+        "negative_messages": [
+          "'urn:au-ucr:schema:candidate-review-package:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-012",
+        "negative_messages": [
+          "'urn:au-ucr:schema:effective-configuration-measurement:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-013",
+        "negative_messages": [
+          "'urn:au-ucr:schema:profile-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-014",
+        "negative_messages": [
+          "'urn:au-ucr:schema:execution-release:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-015",
+        "negative_messages": [
+          "'urn:au-ucr:schema:findings-closure-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-016",
+        "negative_messages": [
+          "'urn:au-ucr:schema:g3-acceptance:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-017",
+        "negative_messages": [
+          "'FRAME-GPEP-EVENT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-018",
+        "negative_messages": [
+          "'urn:au-ucr:schema:independent-review-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-019",
+        "negative_messages": [
+          "'urn:au-ucr:schema:inference-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-020",
+        "negative_messages": [
+          "'urn:au-ucr:schema:ledger-head-attestation:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-021",
+        "negative_messages": [
+          "'urn:au-ucr:schema:model-endpoint-statement:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-022",
+        "negative_messages": [
+          "'urn:au-ucr:schema:nested-candidate-manifest:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-023",
+        "negative_messages": [
+          "'urn:au-ucr:schema:outbox-delivery:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-024",
+        "negative_messages": [
+          "'urn:au-ucr:schema:platform-verification-result:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-025",
+        "negative_messages": [
+          "'urn:au-ucr:schema:reconciliation-result:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-026",
+        "negative_messages": [
+          "'urn:au-ucr:schema:reinstatement-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-027",
+        "negative_messages": [
+          "'urn:au-ucr:schema:revocation-snapshot:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-028",
+        "negative_messages": [
+          "'urn:au-ucr:schema:rollback-plan:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-029",
+        "negative_messages": [
+          "'urn:au-ucr:schema:rollback-receipt:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-030",
+        "negative_messages": [
+          "'urn:au-ucr:schema:separation-conflict-assessment:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-031",
+        "negative_messages": [
+          "'urn:au-ucr:schema:session-binding:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-032",
+        "negative_messages": [
+          "'urn:au-ucr:schema:verifier-challenge:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-ID-033",
+        "negative_messages": [
+          "'urn:au-ucr:schema:verifier-verdict:1.0.0' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-001",
+        "negative_messages": [
+          "'ACCEPT' is not one of ['ALLOW', 'DENY', 'SUSPEND', 'REVOKE', 'BLOCK', 'NO_MUTATION']"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-002",
+        "negative_messages": [
+          "'RUNTIME_ATTESTATION' is not one of ['KP-ASSIGNMENT-v1', 'KP-ASSIGNMENT-ACKNOWLEDGEMENT-v1', 'KP-SEPARATION-CONFLICT-ASSESSMENT-v1', 'KP-QA-RECEIPT-v1', 'KP-INDEPENDENT-REVIEW-v1', 'KP-FINDINGS-CLOSURE-v1', 'KP-A09-DECISION-v1', 'KP-G3-ACCEPTANCE-v1', 'KP-G4-EXACT-RUN-RELEASE-v1', 'KP-ARM-RELEASE-v1', 'KP-TRUST-STORE-v1', 'KP-REVOCATION-SNAPSHOT-v1', 'KP-AUTHORITY-REVOCATION-v1', 'KP-TMC-RUNTIME-v1', 'KP-VERIFIER-CHALLENGE-v1', 'KP-VERIFIER-VERDICT-v1', 'KP-MODEL-ENDPOINT-STATEMENT-v1', 'KP-GPEP-EVENT-v1', 'KP-LEDGER-HEAD-ATTEST-v1', 'KP-AUDIT-ANCHOR-v1', 'KP-ROLLBACK-AUTHORIZATION-v1', 'KP-ROLLBACK-RECEIPT-v1', 'KP-REINSTATEMENT-AUTHORIZATION-v1']"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-003",
+        "negative_messages": [
+          "'CANON-JCS-RFC8785-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-004",
+        "negative_messages": [
+          "'git_blob_lf' is not one of ['raw-working-tree-sha256-v1', 'crlf-to-lf-sha256-v1', 'git-blob-oid-v1', 'git-blob-sha256-v1', 'git-index-path-binding-v1', 'git-commit-path-binding-v1', 'rfc8785-jcs-utf8-sha256-v1', 'framed-binary-sha256-v1', 'candidate-manifest-identity-v1', 'publication-receipt-identity-v1']"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-005",
+        "negative_messages": [
+          "'E_VERSION' is not one of ['E_REVOKED', 'E_REVOCATION_UNAVAILABLE', 'E_SIGNATURE', 'E_KEY_PURPOSE', 'E_AUTHORITY_ABSENT', 'E_SEPARATION', 'E_EXPIRED', 'E_NOT_YET_VALID', 'E_ORDERING_AMBIGUOUS', 'E_REPLAY', 'E_IDEMPOTENCY_CONFLICT', 'E_SCOPE', 'E_AUTHN', 'E_VERSION_UNSUPPORTED', 'E_UNKNOWN_REGISTRY', 'E_DOMAIN_MISMATCH', 'E_FRAMING_AMBIGUOUS', 'E_TRUNCATED_INPUT', 'E_SCHEMA', 'E_POLICY', 'E_HASH_MISMATCH', 'E_INTEGRITY', 'E_DEPENDENCY', 'E_ATTESTATION', 'E_LIVENESS', 'E_MODEL_BINDING', 'E_STALE', 'E_CONFLICT', 'E_TRANSITION', 'E_AUDIT_DELIVERY', 'E_ANCHOR', 'E_ORPHAN_EXTERNAL', 'E_ROLLBACK_AUTHORITY', 'E_IRREVERSIBLE_EFFECT', 'E_INTERNAL']"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-006",
+        "negative_messages": [
+          "'ALLOW' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-007",
+        "negative_messages": [
+          "['E_INTERNAL'] is expected to be empty"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-008",
+        "negative_messages": [
+          "'DOMAIN-LEDGER-HEAD-ATTEST-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-009",
+        "negative_messages": [
+          "'KP-ASSIGNMENT-ACKNOWLEDGEMENT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-010",
+        "negative_messages": [
+          "'KP-SEPARATION-CONFLICT-ASSESSMENT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-011",
+        "negative_messages": [
+          "'KP-FINDINGS-CLOSURE-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-012",
+        "negative_messages": [
+          "'KP-G3-ACCEPTANCE-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-013",
+        "negative_messages": [
+          "'KP-G4-EXACT-RUN-RELEASE-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-014",
+        "negative_messages": [
+          "'KP-AUTHORITY-REVOCATION-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-015",
+        "negative_messages": [
+          "'KP-REVOCATION-SNAPSHOT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-016",
+        "negative_messages": [
+          "'KP-ROLLBACK-AUTHORIZATION-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-017",
+        "negative_messages": [
+          "'KP-ROLLBACK-RECEIPT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-018",
+        "negative_messages": [
+          "'KP-REINSTATEMENT-AUTHORIZATION-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-019",
+        "negative_messages": [
+          "'KP-VERIFIER-CHALLENGE-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-020",
+        "negative_messages": [
+          "'KP-MODEL-ENDPOINT-STATEMENT-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-021",
+        "negative_messages": [
+          "'PROFILE-LEDGER-HEAD-SIGNING-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-022",
+        "negative_messages": [
+          "'SIGENC-ES256-P1363-LOW-S-B64URL-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-023",
+        "negative_messages": [
+          "'KP-LEDGER-HEAD-ATTEST-v1' was expected"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      },
+      {
+        "id": "FIX-VOC-024",
+        "negative_messages": [
+          "'E_MODEL_BINDING' is not one of ['E_TRUNCATED_INPUT', 'E_FRAMING_AMBIGUOUS', 'E_SCHEMA', 'E_VERSION_UNSUPPORTED', 'E_UNKNOWN_REGISTRY', 'E_DOMAIN_MISMATCH', 'E_KEY_PURPOSE', 'E_HASH_MISMATCH', 'E_SIGNATURE', 'E_AUTHORITY_ABSENT', 'E_REVOKED', 'E_REVOCATION_UNAVAILABLE', 'E_EXPIRED', 'E_NOT_YET_VALID', 'E_SCOPE', 'E_REPLAY', 'E_STALE', 'E_INTEGRITY', 'E_ANCHOR']"
+        ],
+        "negative_passed": true,
+        "positive_messages": [],
+        "positive_passed": true
+      }
+    ]
+  },
+  "not_executed": [
+    "general RFC 8785 conformance outside the fixture subset",
+    "ES256 signing or verification",
+    "trust-root, key-authority, revocation, assignment, or identity verification",
+    "stateful consumer rejection, replay, transition, sequence, fork, or rollback behavior",
+    "runtime, operational, lab, sandbox, browser, or network tests",
+    "dependency installation",
+    "candidate freeze, publication, retrieval, commit, push, merge, or approval"
+  ],
+  "summary": {
+    "active_full_document_fixture_cases": 2,
+    "checks_failed": 0,
+    "checks_passed": 17,
+    "checks_total": 17,
+    "direct_vector_schema_instances": 8,
+    "fixture_json_documents": 16,
+    "json_documents": 51,
+    "negative_vectors": 12,
+    "positive_vectors": 2,
+    "schema_documents": 35,
+    "schema_references": 576,
+    "subschema_case_outcomes": 114,
+    "subschema_pairs": 57,
+    "vector_scenarios": 14,
+    "wave05_files_in_inventory": 88,
+    "wave05_inventory_aggregate_sha256": "daf4d914df7cc10207cf0d4d58545f48815e789c2aaeb4819543ec1ca2a6c4de"
+  },
+  "vector_validation": {
+    "bundle_bytes": 204024,
+    "bundle_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+    "direct_schema_instances": [
+      {
+        "label": "W05-VEC-001/ledger/0/payload",
+        "messages": [],
+        "passed": true,
+        "schema": "audit-ledger-record.schema.json"
+      },
+      {
+        "label": "W05-VEC-001/ledger/0/envelope",
+        "messages": [],
+        "passed": true,
+        "schema": "governed-audit-ledger-envelope.schema.json"
+      },
+      {
+        "label": "W05-VEC-001/attestation",
+        "messages": [],
+        "passed": true,
+        "schema": "ledger-head-attestation.schema.json"
+      },
+      {
+        "label": "W05-VEC-002/ledger/0/payload",
+        "messages": [],
+        "passed": true,
+        "schema": "audit-ledger-record.schema.json"
+      },
+      {
+        "label": "W05-VEC-002/ledger/0/envelope",
+        "messages": [],
+        "passed": true,
+        "schema": "governed-audit-ledger-envelope.schema.json"
+      },
+      {
+        "label": "W05-VEC-002/ledger/1/payload",
+        "messages": [],
+        "passed": true,
+        "schema": "audit-ledger-record.schema.json"
+      },
+      {
+        "label": "W05-VEC-002/ledger/1/envelope",
+        "messages": [],
+        "passed": true,
+        "schema": "governed-audit-ledger-envelope.schema.json"
+      },
+      {
+        "label": "W05-VEC-002/attestation",
+        "messages": [],
+        "passed": true,
+        "schema": "ledger-head-attestation.schema.json"
+      }
+    ],
+    "ids": [
+      "W05-VEC-001",
+      "W05-VEC-002",
+      "W05-VEC-003",
+      "W05-VEC-004",
+      "W05-VEC-005",
+      "W05-VEC-006",
+      "W05-VEC-007",
+      "W05-VEC-008",
+      "W05-VEC-009",
+      "W05-VEC-010",
+      "W05-VEC-011",
+      "W05-VEC-012",
+      "W05-VEC-013",
+      "W05-VEC-014"
+    ],
+    "isolated_regeneration": {
+      "byte_equal_to_source_bundle": true,
+      "copied_scripts": [
+        "derive_vectors.py",
+        "derive_vectors_registry_1_2.py"
+      ],
+      "regenerated_sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+      "returncode": 0,
+      "stderr": [],
+      "stdout": [
+        "output=W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json",
+        "vectors=14",
+        "direct_schema_instance_design_mappings=8",
+        "bytes=204024",
+        "sha256=b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+        "genesis_record_hash=e0e004a5721000f0b6d81b05ef39eeb4e3471b544a9d6732615819f44156f0b8",
+        "successor_record_hash=06291931826359f280a29983f147b3be25483bd8c8e89b355ea061804706075e",
+        "single_attestation_input_sha256=9f73b04c40d924fcfa677231ce9b1289b725d1bf18e6f884eb2adbfe4368ea44",
+        "chain_attestation_input_sha256=f93d688d9d9d6c59d88465cc0d16fbb58eb94f12f269d3cccc5ee784dee4be39"
+      ]
+    },
+    "kinds": {
+      "negative": 12,
+      "positive": 2
+    },
+    "reproducer": {
+      "command": "C:\\Python313\\python.exe C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2\\docs\\experiments\\au-ucr-ep-000001\\wave-0.5\\vectors\\reproduce_vectors.py",
+      "returncode": 0,
+      "stderr": [],
+      "stdout": [
+        "bundle_sha256=b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52",
+        "vectors=14",
+        "direct_schema_instance_design_mappings=8",
+        "semantic_byte_checks=15",
+        "digest_checks=22",
+        "signature_profile_checks=5",
+        "oracle_checks=14",
+        "result=ALL_REGISTRY_1_3_DERIVED_BYTES_REPRODUCED"
+      ]
+    }
+  }
+}
