@@ -1,0 +1,1985 @@
+{
+  "aggregate": {
+    "algorithm": "sha256",
+    "framing": "path_utf8 || NUL || git_domain_ascii || NUL || object_format:oid_ascii || NUL || decimal_blob_bytes || NUL || blob_sha256_ascii || NUL || normalized_domain_ascii || NUL || decimal_normalized_bytes || NUL || normalized_sha256_ascii || LF",
+    "sha256": "defad8411df0b6e63b14c71345346976d4ea8c9e2e372d126126b9a0fca7ea8d"
+  },
+  "authorization_effect": "NONE",
+  "domains": [
+    "git-blob-oid-v1",
+    "crlf-to-lf-sha256-v1"
+  ],
+  "effects": {
+    "acceptance": "NONE",
+    "adoption": "NONE",
+    "gate_p": "NO_CHANGE_BLOCKED_BY_EVIDENCE",
+    "preservation": "NONE",
+    "publication": "NONE",
+    "supersession": "PROPOSED_ONLY"
+  },
+  "entries": [
+    {
+      "git_blob": {
+        "bytes": 22723,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 555
+        },
+        "object_format": "sha1",
+        "oid": "bf840bd9fd8574806f21e5b387e0fd258d4eb4c4",
+        "sha256": "1e1d6460a4c436f200ba255e0abc5f8c5e47b5800c85a5d2357fca2c8f9371c4"
+      },
+      "historical_v1_0_0": {
+        "bytes": 23278,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "0d992aadbf8230528eb605574df8a36f87ab617de6cb5aef44922b2467ff229b"
+      },
+      "normalized": {
+        "bytes": 22723,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 555
+        },
+        "sha256": "1e1d6460a4c436f200ba255e0abc5f8c5e47b5800c85a5d2357fca2c8f9371c4"
+      },
+      "path": "generate_full_document_fixtures.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/generate_full_document_fixtures.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 2215,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 46
+        },
+        "object_format": "sha1",
+        "oid": "ac357c635b77dd50e56b17981aedc3598055754f",
+        "sha256": "b41c6ee6e889cbe1a849ba887d8eced14c56eb42e7840fca32e2fbc0d3d48aa7"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2261,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "b8d84a507fb6ecb1b426600f3c400a5856e5d1f791506325846c2543a413cb49"
+      },
+      "normalized": {
+        "bytes": 2215,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 46
+        },
+        "sha256": "b41c6ee6e889cbe1a849ba887d8eced14c56eb42e7840fca32e2fbc0d3d48aa7"
+      },
+      "path": "README.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/README.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 1982,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 31
+        },
+        "object_format": "sha1",
+        "oid": "be248de93a35a3dcbdacd3e8a1e4324304201eb4",
+        "sha256": "3b836edc6dcff804b80fab42dc2955d4c1bd568c50c9c5e42bf7b48a98fb5e95"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2013,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "7995436bc0e404dda0cc3b834d863bcc7efc2d60919b69e648edce591190d932"
+      },
+      "normalized": {
+        "bytes": 1982,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 31
+        },
+        "sha256": "3b836edc6dcff804b80fab42dc2955d4c1bd568c50c9c5e42bf7b48a98fb5e95"
+      },
+      "path": "schemas/a01-a12-transition-record.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/a01-a12-transition-record.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1410,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "object_format": "sha1",
+        "oid": "05e27206844b2d6cd69d053ae10038e7bc468394",
+        "sha256": "6f618b2cd019b5a896bceeb9f51ecf8184d7f7514688580b61ed5032af5493f2"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1429,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "b6e89b05a4129ea812be797816e8bc9055e719902857884212ef699c42a8d936"
+      },
+      "normalized": {
+        "bytes": 1410,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "sha256": "6f618b2cd019b5a896bceeb9f51ecf8184d7f7514688580b61ed5032af5493f2"
+      },
+      "path": "schemas/anchor-checkpoint.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/anchor-checkpoint.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2924,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "4f908df3f3db1307ee5bee0a358670b52b540111",
+        "sha256": "b0442b763382d200696161b57c2b4a54116db1520bd6f7dbde5f033b7ffbd5ea"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2951,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "78306a20aeb58874f0ea9b289164e40f88635f98bd2020488bc2d78c11c5258c"
+      },
+      "normalized": {
+        "bytes": 2924,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "b0442b763382d200696161b57c2b4a54116db1520bd6f7dbde5f033b7ffbd5ea"
+      },
+      "path": "schemas/approved-runtime-manifest.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/approved-runtime-manifest.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2200,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "object_format": "sha1",
+        "oid": "408649fafca73c1f702b6290371c29448e41a839",
+        "sha256": "aded920f75474b1bdbdd7784b412c71736406ef1e0788dff1305086ac7672b55"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2226,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "18b9163a80131ba95c7fed7fe6b821bc82b6c88ba12b3feb5e2173ff618d7b8e"
+      },
+      "normalized": {
+        "bytes": 2200,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "sha256": "aded920f75474b1bdbdd7784b412c71736406ef1e0788dff1305086ac7672b55"
+      },
+      "path": "schemas/assignment-acknowledgement.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/assignment-acknowledgement.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2740,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "object_format": "sha1",
+        "oid": "4efaf48f51510e393e4a052de8c1581410522acb",
+        "sha256": "c7146533e6351d539f57ecc4b5cdedca827241f110d947bfbaf2e023931350a8"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2766,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "2c46faac2bd0dee0882e09bab2fe439e956df643f443accba010cc0fe4a7a032"
+      },
+      "normalized": {
+        "bytes": 2740,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "sha256": "c7146533e6351d539f57ecc4b5cdedca827241f110d947bfbaf2e023931350a8"
+      },
+      "path": "schemas/assignment-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/assignment-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3392,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 51
+        },
+        "object_format": "sha1",
+        "oid": "57c121774c479c1323e56bcb1ace8d6da8ac3890",
+        "sha256": "20b178a59e55072bc94a104dca969f35f3783beed417335fd5a57cbbae8cd96b"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3443,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "50dd7c3958e6431618b66d4476f323a86189e5219fab8dad7dfdd88a09551bc6"
+      },
+      "normalized": {
+        "bytes": 3392,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 51
+        },
+        "sha256": "20b178a59e55072bc94a104dca969f35f3783beed417335fd5a57cbbae8cd96b"
+      },
+      "path": "schemas/attestation-evidence.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/attestation-evidence.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3173,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 42
+        },
+        "object_format": "sha1",
+        "oid": "eea31b179abb35915a5f87dea5695d37ee34e4ad",
+        "sha256": "ccd0bfe09efe626c32a8e8a00042aa1aea64178841a588c3d465c408437a9b47"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3215,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "49a044956d85127b12b56714be51ddd9db5024a93a694943de4a8266cf66581c"
+      },
+      "normalized": {
+        "bytes": 3173,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 42
+        },
+        "sha256": "ccd0bfe09efe626c32a8e8a00042aa1aea64178841a588c3d465c408437a9b47"
+      },
+      "path": "schemas/audit-ledger-record.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/audit-ledger-record.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3401,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 66
+        },
+        "object_format": "sha1",
+        "oid": "b4a9016db6e8f61f1e0afc0da67b25d0ceed49f5",
+        "sha256": "c80f4bd7af3447cf79f6ee42efac13105e56aafd5271b9f8e559d32a88344765"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3467,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "7d0758d26f11f3816602c49e8f112c90330a5663d7d0c736ab0292a57b07c6e6"
+      },
+      "normalized": {
+        "bytes": 3401,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 66
+        },
+        "sha256": "c80f4bd7af3447cf79f6ee42efac13105e56aafd5271b9f8e559d32a88344765"
+      },
+      "path": "schemas/authority-object-base.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/authority-object-base.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2209,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "object_format": "sha1",
+        "oid": "b7d0d7c22468d9912d70bf2e2313d37f542a5bb2",
+        "sha256": "ce8eba01b06540a21966e4cc11d84cbae3e456503eb1a0d0007ddad5cdcf4bef"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2235,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "1428d409b268245eb4dc751b421e577122faac2d6921239cc277a1b46bae41b3"
+      },
+      "normalized": {
+        "bytes": 2209,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "sha256": "ce8eba01b06540a21966e4cc11d84cbae3e456503eb1a0d0007ddad5cdcf4bef"
+      },
+      "path": "schemas/authority-revocation.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/authority-revocation.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2218,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "object_format": "sha1",
+        "oid": "3208981e43e75295c8decb89a48bca0585f43824",
+        "sha256": "5d08be767c9f207f4b924475325a7c4be261dbc8a4369d1cdd98a53d5b463683"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2255,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "543e5a6f0f16a38b093d03f0d2fa3de13c272bea7c3f85be8285ddf1933bc64b"
+      },
+      "normalized": {
+        "bytes": 2218,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "sha256": "5d08be767c9f207f4b924475325a7c4be261dbc8a4369d1cdd98a53d5b463683"
+      },
+      "path": "schemas/authorization-a09-decision.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/authorization-a09-decision.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2089,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 25
+        },
+        "object_format": "sha1",
+        "oid": "f996242645e85da47e2e2abcb9f204ba23912630",
+        "sha256": "ab391145f39c50a475f3cb4c19255c262ab82c9315d29522baf0598d8d94d51e"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2114,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "70252086cf75f1e8b17624ade13c8eb9a49a0790e347a6e4b4c3ba54de0676eb"
+      },
+      "normalized": {
+        "bytes": 2089,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 25
+        },
+        "sha256": "ab391145f39c50a475f3cb4c19255c262ab82c9315d29522baf0598d8d94d51e"
+      },
+      "path": "schemas/candidate-qa-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/candidate-qa-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1937,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "c1d1610f234c4dd17e042e875c70d0d0460f250d",
+        "sha256": "9d103caae8ea9269bbdf2d6386de03a6b297dd3e929b57d369ac8998b7582fad"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1964,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "cba17841cbb043ab7889fdcbfadd49f65d8de943b082b0d76cce9b344e3960ee"
+      },
+      "normalized": {
+        "bytes": 1937,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "9d103caae8ea9269bbdf2d6386de03a6b297dd3e929b57d369ac8998b7582fad"
+      },
+      "path": "schemas/candidate-review-package.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/candidate-review-package.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 10536,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 152
+        },
+        "object_format": "sha1",
+        "oid": "fdab2cd215c4de6d38793a60bd98373247637dd0",
+        "sha256": "f81f57ed056e086147f1ab09f5c006a2b32fa8d171ea6cd1ab9856e381767aad"
+      },
+      "historical_v1_0_0": {
+        "bytes": 10688,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "86c9040147a0034da76a7ca99854d5257777c64921ecbd70986a51b7beb8d575"
+      },
+      "normalized": {
+        "bytes": 10536,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 152
+        },
+        "sha256": "f81f57ed056e086147f1ab09f5c006a2b32fa8d171ea6cd1ab9856e381767aad"
+      },
+      "path": "schemas/common.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/common.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3149,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 49
+        },
+        "object_format": "sha1",
+        "oid": "46ec61a0a653883cc69806c53e30a9c001e58255",
+        "sha256": "486c5558a2aa34ffca61a06bc5e44038c10afeccab0042ed11dd7263acff25bc"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3198,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "d6cb351594ccaf19d9cd80d54738372391165dbf1c839dc46d597b6408eb61a5"
+      },
+      "normalized": {
+        "bytes": 3149,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 49
+        },
+        "sha256": "486c5558a2aa34ffca61a06bc5e44038c10afeccab0042ed11dd7263acff25bc"
+      },
+      "path": "schemas/effective-configuration-measurement.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/effective-configuration-measurement.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 985,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 18
+        },
+        "object_format": "sha1",
+        "oid": "0405871626b2156c32af2329d9d6d8ac7bf5af74",
+        "sha256": "5597a46a9dd3c74c819ef05d82168e59c14f2a8136cc203d66f63a30df671bd2"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1003,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "03a742a4d0cf9cb6903bc0c624043af634c032b5960434ec60f66af649f8ea96"
+      },
+      "normalized": {
+        "bytes": 985,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 18
+        },
+        "sha256": "5597a46a9dd3c74c819ef05d82168e59c14f2a8136cc203d66f63a30df671bd2"
+      },
+      "path": "schemas/evidence-acceptance-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/evidence-acceptance-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3206,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "object_format": "sha1",
+        "oid": "29e3b231601e6681cfdaff93e9dc6a790229563b",
+        "sha256": "24e29a3c92e3bb47f5db09c6c260a340a2b2deaa4952a14e431b285bb31bfdfa"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3243,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "e7f5cd8dcd8b4b0453d765053cbf54b99294730833064e855c9bc5dbc5ccbd73"
+      },
+      "normalized": {
+        "bytes": 3206,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "sha256": "24e29a3c92e3bb47f5db09c6c260a340a2b2deaa4952a14e431b285bb31bfdfa"
+      },
+      "path": "schemas/execution-release.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/execution-release.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2792,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "f5484cfa8d6109fc749e3defbcec4591887c8c18",
+        "sha256": "d6bca66f66184c5c26eea95073decab9e31c0ab6ea82043f1707873be5a18948"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2819,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "58eaa5f468d2e02b124c47c942080fabf5733678d6f015898563c2a78eb15d1a"
+      },
+      "normalized": {
+        "bytes": 2792,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "d6bca66f66184c5c26eea95073decab9e31c0ab6ea82043f1707873be5a18948"
+      },
+      "path": "schemas/findings-closure-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/findings-closure-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1277,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1
+        },
+        "object_format": "sha1",
+        "oid": "a417b0a83aef469dc3f2913027be4abd1ce09437",
+        "sha256": "8a89f36554473dfc636306ae9de4514b03491b977601e73a7426766b7ee871ef"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1278,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "cfdfb459fa8b7fb081072b6638c07da2a56ab57d31e6215e2a5f08fa04a6e607"
+      },
+      "normalized": {
+        "bytes": 1277,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1
+        },
+        "sha256": "8a89f36554473dfc636306ae9de4514b03491b977601e73a7426766b7ee871ef"
+      },
+      "path": "schemas/fixtures/audit-ledger-record.negative.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/fixtures/audit-ledger-record.negative.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1276,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1
+        },
+        "object_format": "sha1",
+        "oid": "b48914f03232394748b0f9216b0d44dfdb50504b",
+        "sha256": "4f56b42a87fd3094daf667ea2155884be48d6e766774149fb7dd68cb3a305091"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1277,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "534e5017cef9d878bc411bfa74466bb1292eb24477d272fc21a72f5f14bc4e92"
+      },
+      "normalized": {
+        "bytes": 1276,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1
+        },
+        "sha256": "4f56b42a87fd3094daf667ea2155884be48d6e766774149fb7dd68cb3a305091"
+      },
+      "path": "schemas/fixtures/audit-ledger-record.positive.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/fixtures/audit-ledger-record.positive.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 17357,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 64
+        },
+        "object_format": "sha1",
+        "oid": "1894c3f3472a7c0ae46f22b772a5e5ab832fd707",
+        "sha256": "f7532e558a2c89517970c7f2cdad5309fe9a238149b7d8f271192e6b16a942ce"
+      },
+      "historical_v1_0_0": {
+        "bytes": 17421,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "c8f03f52b047e7072a330ebe74353df89a31ea35dbd83cf7f7ab4624488a764f"
+      },
+      "normalized": {
+        "bytes": 17357,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 64
+        },
+        "sha256": "f7532e558a2c89517970c7f2cdad5309fe9a238149b7d8f271192e6b16a942ce"
+      },
+      "path": "schemas/fixtures/correction-unit-fixtures.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/fixtures/correction-unit-fixtures.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 936171,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 18735
+        },
+        "object_format": "sha1",
+        "oid": "f0e5c3cdb0accd5023dab8b361fa15dd371c1268",
+        "sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127"
+      },
+      "historical_v1_0_0": {
+        "bytes": 936171,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127"
+      },
+      "normalized": {
+        "bytes": 936171,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 18735
+        },
+        "sha256": "893b91567107fcd61c8a0325a1bafbfcba10ecf63abb0891a620fa4075cbd127"
+      },
+      "path": "schemas/fixtures/full-document-fixtures.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": true,
+        "historical_digest_equals_normalized": true
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/fixtures/full-document-fixtures.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2774,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 60
+        },
+        "object_format": "sha1",
+        "oid": "ea36d1e91e2170109d35003300a6b355e77a7dd0",
+        "sha256": "2f2d98e967ae76ac256a31467449adee47f71f988f41a502d9444a1b5d1aa740"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2834,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "f0d66ab7eeef615375cba26d36181791b242ba63613ed8a16b6db5107b083a16"
+      },
+      "normalized": {
+        "bytes": 2774,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 60
+        },
+        "sha256": "2f2d98e967ae76ac256a31467449adee47f71f988f41a502d9444a1b5d1aa740"
+      },
+      "path": "schemas/fixtures/manifest.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/fixtures/manifest.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1708,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 22
+        },
+        "object_format": "sha1",
+        "oid": "0fbd31028ae4ae84d62858bf02e81e4723b1331a",
+        "sha256": "81a80c1d8aa1a406a34d361dca614406350777202016d323e9f7797e35035d67"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1730,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "c1c88bee947bbc56f44c62d03013a87f805b540b1bbdea89e1f7736d2be4240f"
+      },
+      "normalized": {
+        "bytes": 1708,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 22
+        },
+        "sha256": "81a80c1d8aa1a406a34d361dca614406350777202016d323e9f7797e35035d67"
+      },
+      "path": "schemas/g3-acceptance.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/g3-acceptance.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1336,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 25
+        },
+        "object_format": "sha1",
+        "oid": "5eb083bda3ed7d1635e123151287ccb16c4416ec",
+        "sha256": "224b3d7f986252c82683d2808e6f0c950b6f4db04e1be8673bcda5c33b182e2f"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1361,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "959b378cad6e7309b1ad8721f7ae5c0167662aaf53b93dd2249eeb1d6750dd18"
+      },
+      "normalized": {
+        "bytes": 1336,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 25
+        },
+        "sha256": "224b3d7f986252c82683d2808e6f0c950b6f4db04e1be8673bcda5c33b182e2f"
+      },
+      "path": "schemas/governed-audit-ledger-envelope.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/governed-audit-ledger-envelope.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2292,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "object_format": "sha1",
+        "oid": "8198439d3de1df31c18928480e409d13c5d93f8f",
+        "sha256": "69ce6c1da22db3a94a6588c1bfce61f4159ea220cb53ecc524438d03684315a4"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2318,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "0321fba0005f4fb17c0313252804210d0d13b657bb9a3822d110138a5e4e7740"
+      },
+      "normalized": {
+        "bytes": 2292,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 26
+        },
+        "sha256": "69ce6c1da22db3a94a6588c1bfce61f4159ea220cb53ecc524438d03684315a4"
+      },
+      "path": "schemas/independent-review-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/independent-review-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1973,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 24
+        },
+        "object_format": "sha1",
+        "oid": "01e17bf2cde3f6e5efb2e2b5538f0e26a37f380d",
+        "sha256": "6f00de73708d8a22e6ed12d61a3564acedd409d889772f77e1e487f3a383d55d"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1997,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "e1fea06e9d368a22aceff73d71080182e06bc3950b69b7268c22cabe3c3b2bf8"
+      },
+      "normalized": {
+        "bytes": 1973,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 24
+        },
+        "sha256": "6f00de73708d8a22e6ed12d61a3564acedd409d889772f77e1e487f3a383d55d"
+      },
+      "path": "schemas/inference-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/inference-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 6358,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 81
+        },
+        "object_format": "sha1",
+        "oid": "4f3eb1fd4b9b8a4a40c95153ce0c3bd4e333ad09",
+        "sha256": "6222f563cc2c38bde6f98f8c04fdb3a06d10fac909805d605e096d3e8d366b5c"
+      },
+      "historical_v1_0_0": {
+        "bytes": 6439,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "f3ac7f480b2d7b57ddbcb1080018495876aff9e4cbbaa64979d9e8a54d1eebcf"
+      },
+      "normalized": {
+        "bytes": 6358,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 81
+        },
+        "sha256": "6222f563cc2c38bde6f98f8c04fdb3a06d10fac909805d605e096d3e8d366b5c"
+      },
+      "path": "schemas/ledger-head-attestation.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/ledger-head-attestation.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2349,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 29
+        },
+        "object_format": "sha1",
+        "oid": "fb7a00b6d92e8c83e35ee4ca521a3a0cb6cc009f",
+        "sha256": "052355ff85a4edef4c572003cd9c7bf4c59cb023d34db5bedb7a56d59fb6b5a7"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2378,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "a7fbd9755bbd566104dab0f509a082d26f4542ea5f2610cbda811f047a50e1fe"
+      },
+      "normalized": {
+        "bytes": 2349,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 29
+        },
+        "sha256": "052355ff85a4edef4c572003cd9c7bf4c59cb023d34db5bedb7a56d59fb6b5a7"
+      },
+      "path": "schemas/model-endpoint-statement.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/model-endpoint-statement.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3894,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "object_format": "sha1",
+        "oid": "f1745aa0848461bcff76415477f079dcf567ff2e",
+        "sha256": "821a4b6f26596a1fb7496964b535ce30d250e13a259dfdd058f47aba6a91c6cd"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3931,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "789d4ac34eab9e834c436abbe656e15398454bd01e1500368c2d9358dbb1777e"
+      },
+      "normalized": {
+        "bytes": 3894,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 37
+        },
+        "sha256": "821a4b6f26596a1fb7496964b535ce30d250e13a259dfdd058f47aba6a91c6cd"
+      },
+      "path": "schemas/nested-candidate-manifest.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/nested-candidate-manifest.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1727,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "3d85ad1f6587ad914bff7de6d67a05648b2c12be",
+        "sha256": "416d093d95ca4dc09f64aaafacf391d2b47d6e0a8a2d4acbab784e17a6de56f5"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1754,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "d7f0313624f0aa196703b2dc09b2bf60d2793bd082e6a37b90ff688e7d79af2c"
+      },
+      "normalized": {
+        "bytes": 1727,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "416d093d95ca4dc09f64aaafacf391d2b47d6e0a8a2d4acbab784e17a6de56f5"
+      },
+      "path": "schemas/outbox-delivery.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/outbox-delivery.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1814,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 28
+        },
+        "object_format": "sha1",
+        "oid": "57108ad82ce16706ad945cd4f9ac905de2027814",
+        "sha256": "11b66a5c2a563facf1de5d2764f4f7c62dfd2a147b69d88f0832bc3e340c4f4d"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1842,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "1e7a46e3ffb76abf5fd068a7d9defe4139172b6ecceddc8d2e28e378bab4e9e2"
+      },
+      "normalized": {
+        "bytes": 1814,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 28
+        },
+        "sha256": "11b66a5c2a563facf1de5d2764f4f7c62dfd2a147b69d88f0832bc3e340c4f4d"
+      },
+      "path": "schemas/platform-verification-result.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/platform-verification-result.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1723,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "612f0ff76e3a0ab7370147345c7a97543708db46",
+        "sha256": "1686bc41580f3a6df2762bc30dd97c057ca0626d99dd550d6ab3d91109863f2c"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1750,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "6e9f9904726f30f740d4213a8c0e8c727b9f974a5151d1a0fc285c27e0cd055a"
+      },
+      "normalized": {
+        "bytes": 1723,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "1686bc41580f3a6df2762bc30dd97c057ca0626d99dd550d6ab3d91109863f2c"
+      },
+      "path": "schemas/reconciliation-result.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/reconciliation-result.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3434,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 39
+        },
+        "object_format": "sha1",
+        "oid": "c8016492847dacf075fbdb2a3826c45b023cc204",
+        "sha256": "ddd5401cc3489bf2b8336269355ef34d7cb8981010db43ac8a11d32f84a47af8"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3473,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "9af3fef96f115e9603047fdbb0272c7f13e8159de6c238f9422c00b6725cd431"
+      },
+      "normalized": {
+        "bytes": 3434,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 39
+        },
+        "sha256": "ddd5401cc3489bf2b8336269355ef34d7cb8981010db43ac8a11d32f84a47af8"
+      },
+      "path": "schemas/reinstatement-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/reinstatement-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2329,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "object_format": "sha1",
+        "oid": "c918051ff993098c95158b3e99755c3281b458fc",
+        "sha256": "994ee875d9579610a4fc93398b7e6574d9b3fc0cdfdf2056d8f922aa711a1662"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2348,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "501d66ebfb0f5e50c77463625bf6df9f05172c4cbe2a695aaf3ad3ad4979ae6b"
+      },
+      "normalized": {
+        "bytes": 2329,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "sha256": "994ee875d9579610a4fc93398b7e6574d9b3fc0cdfdf2056d8f922aa711a1662"
+      },
+      "path": "schemas/revocation-snapshot.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/revocation-snapshot.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3468,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 42
+        },
+        "object_format": "sha1",
+        "oid": "4bdbdf446e1f5aab49e3b1af01a6d1ddf05c156a",
+        "sha256": "8455479207e0869fa8fd7dbc5857150e0548922671e6f31738137f3667ce4192"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3510,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "c38d653203e1d7d67af8283dff1b2b574fe93e57cb7f4d0367709cf04d03718f"
+      },
+      "normalized": {
+        "bytes": 3468,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 42
+        },
+        "sha256": "8455479207e0869fa8fd7dbc5857150e0548922671e6f31738137f3667ce4192"
+      },
+      "path": "schemas/rollback-plan.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/rollback-plan.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2393,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "object_format": "sha1",
+        "oid": "a967ed2ac4121bf921f317ee1eaff4d4c1134115",
+        "sha256": "10ea212359ed0ff8316dc909046c15cbf14dde76985d65ad4bfbe325da416b82"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2420,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "bc5ce277f8d88a65ad71ec65df4e726e715040ad59989dd630aca9c544bd80e1"
+      },
+      "normalized": {
+        "bytes": 2393,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 27
+        },
+        "sha256": "10ea212359ed0ff8316dc909046c15cbf14dde76985d65ad4bfbe325da416b82"
+      },
+      "path": "schemas/rollback-receipt.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/rollback-receipt.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 2320,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 24
+        },
+        "object_format": "sha1",
+        "oid": "ba8cbed779c3aecf347d0d41a202a6a231cade11",
+        "sha256": "f47648cd6327e4b686415cf780bd4bc048e3452870258c2b3229c3124e339a66"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2344,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "40ff2a2c6d2535ebf42914fb36b57ec438282b1d4f69551edfadea16c41def0b"
+      },
+      "normalized": {
+        "bytes": 2320,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 24
+        },
+        "sha256": "f47648cd6327e4b686415cf780bd4bc048e3452870258c2b3229c3124e339a66"
+      },
+      "path": "schemas/separation-conflict-assessment.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/separation-conflict-assessment.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 3291,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 43
+        },
+        "object_format": "sha1",
+        "oid": "46a48607e39f657d153661531b792f33e8392b3c",
+        "sha256": "c2c89015b413e1773f57794bff5790f5ff720f35bdbfdecf13d877d2cbd63880"
+      },
+      "historical_v1_0_0": {
+        "bytes": 3334,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "8a78c5953ab5581ed1fa331153467b5dd2454e2412adb313a8846424f9a7bddd"
+      },
+      "normalized": {
+        "bytes": 3291,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 43
+        },
+        "sha256": "c2c89015b413e1773f57794bff5790f5ff720f35bdbfdecf13d877d2cbd63880"
+      },
+      "path": "schemas/session-binding.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/session-binding.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1400,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "object_format": "sha1",
+        "oid": "5c9841ea431e38fdf724c81ff680b20977bc7011",
+        "sha256": "0a0d4f0293bd975e91f571ed9266e4e884e1722c6ecd95838bb6257b533463c1"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1419,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "6fdfb0c1a5c466f50a3ff14665edc5a6fa0cd6bf3818944e30e801cf9c508572"
+      },
+      "normalized": {
+        "bytes": 1400,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 19
+        },
+        "sha256": "0a0d4f0293bd975e91f571ed9266e4e884e1722c6ecd95838bb6257b533463c1"
+      },
+      "path": "schemas/verifier-challenge.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/verifier-challenge.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 1882,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 23
+        },
+        "object_format": "sha1",
+        "oid": "bfcd71f75bc1bc437177e87bb00e8a011e6bf9c4",
+        "sha256": "3eea7d033e59c57bc1faa44f1499ebf4354195c6803463231807da9dce8f612f"
+      },
+      "historical_v1_0_0": {
+        "bytes": 1905,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "8cfa54d5d1df1e9445d5ff8fe9a9c874930db64d9a4d9f2f800985942849bebe"
+      },
+      "normalized": {
+        "bytes": 1882,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 23
+        },
+        "sha256": "3eea7d033e59c57bc1faa44f1499ebf4354195c6803463231807da9dce8f612f"
+      },
+      "path": "schemas/verifier-verdict.schema.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/schemas/verifier-verdict.schema.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 7898,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 207
+        },
+        "object_format": "sha1",
+        "oid": "1095cc0af0c0fd4cbe6d5f270bb0e364d9165789",
+        "sha256": "4ef026b8ecff2e6dd5c765d2729d0614f99fcee0778c59553e4f4cb66990ba48"
+      },
+      "historical_v1_0_0": {
+        "bytes": 8105,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "3df2aaed740f51cc9d12973a0c29359bcbe04f402b933ff550d18e7d47613026"
+      },
+      "normalized": {
+        "bytes": 7898,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 207
+        },
+        "sha256": "4ef026b8ecff2e6dd5c765d2729d0614f99fcee0778c59553e4f4cb66990ba48"
+      },
+      "path": "validate_technical_package.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/validate_technical_package.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 12589,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 309
+        },
+        "object_format": "sha1",
+        "oid": "39abab77749de34d2eafdfb8f26c0c506ae4e5c7",
+        "sha256": "bf28877933a31ec4dc5117b1fe4d2e1976ae28bdfe1555e282424c77a26dcb6e"
+      },
+      "historical_v1_0_0": {
+        "bytes": 12898,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "00ec1a7ac76c8c71288ff20f8286f5d640dcac3d30dfa9da5f4e782b992ef7bf"
+      },
+      "normalized": {
+        "bytes": 12589,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 309
+        },
+        "sha256": "bf28877933a31ec4dc5117b1fe4d2e1976ae28bdfe1555e282424c77a26dcb6e"
+      },
+      "path": "vectors/derive_vectors.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/vectors/derive_vectors.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 23197,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 562
+        },
+        "object_format": "sha1",
+        "oid": "2c81179b34c882178d93eaa1cdba8eabb840cfbf",
+        "sha256": "7d6af51752546de17c20116db2b08d332757f9ea41be305a9da2a7472fce130d"
+      },
+      "historical_v1_0_0": {
+        "bytes": 23759,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "d0817f3a23cee05bb3fcd69f8e6bdd3f220c57c9bc22ebac46c739e74660fb2a"
+      },
+      "normalized": {
+        "bytes": 23197,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 562
+        },
+        "sha256": "7d6af51752546de17c20116db2b08d332757f9ea41be305a9da2a7472fce130d"
+      },
+      "path": "vectors/derive_vectors_registry_1_2.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/vectors/derive_vectors_registry_1_2.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 5256,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 156
+        },
+        "object_format": "sha1",
+        "oid": "6965a6657a6f001f433dacf638e0dc0d0761ec0c",
+        "sha256": "bddcd61b0551dda3d6453f9a3203c816bef8b93307a01213c140376ffb65abbb"
+      },
+      "historical_v1_0_0": {
+        "bytes": 5412,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "c45565b4167e0c88336aaac47e1a88a3a211841d74d85aceab294ae8ac03d201"
+      },
+      "normalized": {
+        "bytes": 5256,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 156
+        },
+        "sha256": "bddcd61b0551dda3d6453f9a3203c816bef8b93307a01213c140376ffb65abbb"
+      },
+      "path": "vectors/reproduce_vectors.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/vectors/reproduce_vectors.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 17336,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 443
+        },
+        "object_format": "sha1",
+        "oid": "08ba26c431914beb5bc9bea0443a3aa9e82eecbf",
+        "sha256": "2e4200d5d4a4d84e67711e7c56d1ab48bcb0f870145863d6227ee3d072527113"
+      },
+      "historical_v1_0_0": {
+        "bytes": 17779,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "cadfdbb94cde699f6175e94f353343717cbe591b953d09028f938283dcb1efd3"
+      },
+      "normalized": {
+        "bytes": 17336,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 443
+        },
+        "sha256": "2e4200d5d4a4d84e67711e7c56d1ab48bcb0f870145863d6227ee3d072527113"
+      },
+      "path": "vectors/reproduce_vectors_registry_1_2.py",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/vectors/reproduce_vectors_registry_1_2.py"
+    },
+    {
+      "git_blob": {
+        "bytes": 204024,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1732
+        },
+        "object_format": "sha1",
+        "oid": "8352edf24fdf6fe627edd5d7eda618ad80d28f8d",
+        "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+      },
+      "historical_v1_0_0": {
+        "bytes": 204024,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+      },
+      "normalized": {
+        "bytes": 204024,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 1732
+        },
+        "sha256": "b174bddaf8ace7e405701dd7c96f5f47f07dc2313fec3f96191005da4a4fac52"
+      },
+      "path": "vectors/W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": true,
+        "historical_digest_equals_normalized": true
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/vectors/W05_CANONICAL_LEDGER_ATTESTATION_VECTORS.json"
+    },
+    {
+      "git_blob": {
+        "bytes": 31071,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 273
+        },
+        "object_format": "sha1",
+        "oid": "8f2390f07ab6b200a543ea2fbb49897c9f5674aa",
+        "sha256": "c382239fa4288dce1b8ea90271766ff2496e5886730f280d2cbcecc825147706"
+      },
+      "historical_v1_0_0": {
+        "bytes": 31344,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "a8345f4d688ab92ace505f6e4e0620d25b10321da958e1e2b8ab50646618c785"
+      },
+      "normalized": {
+        "bytes": 31071,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 273
+        },
+        "sha256": "c382239fa4288dce1b8ea90271766ff2496e5886730f280d2cbcecc825147706"
+      },
+      "path": "W05_INTERFACE_MATRIX.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W05_INTERFACE_MATRIX.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 28380,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 492
+        },
+        "object_format": "sha1",
+        "oid": "c31df17ef71b17891f66ff379806b176fe5a9496",
+        "sha256": "d99bc400366df885237ecb704a33a12149fb4f05fb680943d640cdf8df5bf530"
+      },
+      "historical_v1_0_0": {
+        "bytes": 28872,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "9cfc12460f1ea48b32c3c51455d147abf916e42a2f40cf91e015fde1ec5db817"
+      },
+      "normalized": {
+        "bytes": 28380,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 492
+        },
+        "sha256": "d99bc400366df885237ecb704a33a12149fb4f05fb680943d640cdf8df5bf530"
+      },
+      "path": "W05_SHARED_TRUST_AND_STATE_CONTRACT.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W05_SHARED_TRUST_AND_STATE_CONTRACT.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 41881,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 664
+        },
+        "object_format": "sha1",
+        "oid": "aed3111cc38a25bd499d613bc6ffaaf9381002d8",
+        "sha256": "d97579a8634ece57965904c58c1d07013aa6277185c07b47aa0ee199664b90f1"
+      },
+      "historical_v1_0_0": {
+        "bytes": 42545,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "d9d130dc8157db961df6df3f5e649f8591038ff4f41d0df762352b29ea788b5c"
+      },
+      "normalized": {
+        "bytes": 41881,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 664
+        },
+        "sha256": "d97579a8634ece57965904c58c1d07013aa6277185c07b47aa0ee199664b90f1"
+      },
+      "path": "W05_VERSIONED_REGISTRY.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W05_VERSIONED_REGISTRY.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 2386,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 48
+        },
+        "object_format": "sha1",
+        "oid": "58768b7845437c6ae6617a453460d61d5e046336",
+        "sha256": "56cc6c8f56f25897be279c3047991d5adee6ba7ccf57bd3d8bdb81b2732705c8"
+      },
+      "historical_v1_0_0": {
+        "bytes": 2434,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "19cabb48152e3ac9b5212c9999a2a7add39085cc49d5cd1886996a31e45e9f3b"
+      },
+      "normalized": {
+        "bytes": 2386,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 48
+        },
+        "sha256": "56cc6c8f56f25897be279c3047991d5adee6ba7ccf57bd3d8bdb81b2732705c8"
+      },
+      "path": "W06_CANONICAL_VECTOR_SPEC.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_CANONICAL_VECTOR_SPEC.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 5186,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 68
+        },
+        "object_format": "sha1",
+        "oid": "719f196b36c3d631fb7482ae6df8316507c3aa5d",
+        "sha256": "a300477581ba09bc9a213f0793f33dba4963b614bad7d5f906a68ea747bbac64"
+      },
+      "historical_v1_0_0": {
+        "bytes": 5186,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "a300477581ba09bc9a213f0793f33dba4963b614bad7d5f906a68ea747bbac64"
+      },
+      "normalized": {
+        "bytes": 5186,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 68
+        },
+        "sha256": "a300477581ba09bc9a213f0793f33dba4963b614bad7d5f906a68ea747bbac64"
+      },
+      "path": "W06_SCHEMA_FULL_DOCUMENT_COVERAGE_MATRIX.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": true,
+        "historical_digest_equals_normalized": true
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_SCHEMA_FULL_DOCUMENT_COVERAGE_MATRIX.md"
+    },
+    {
+      "git_blob": {
+        "bytes": 5192,
+        "domain": "git-blob-oid-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 87
+        },
+        "object_format": "sha1",
+        "oid": "4866a953016b6dbe1dfe692f82abba94d26d3452",
+        "sha256": "29067f96049e32f8d07eac753c373f227dd3b50e0be1ae335b1b8d5c82891226"
+      },
+      "historical_v1_0_0": {
+        "bytes": 5279,
+        "domain": "raw-working-tree-sha256-v1",
+        "sha256": "2d5c117a1c08b0b9a51afc097c3c84c88a35a8563b558753ce4315c828735a07"
+      },
+      "normalized": {
+        "bytes": 5192,
+        "domain": "crlf-to-lf-sha256-v1",
+        "line_endings": {
+          "crlf_pairs": 0,
+          "lone_cr": 0,
+          "lone_lf": 87
+        },
+        "sha256": "29067f96049e32f8d07eac753c373f227dd3b50e0be1ae335b1b8d5c82891226"
+      },
+      "path": "W06_TECHNICAL_COMPLETION_REPORT.md",
+      "relations": {
+        "git_blob_equals_normalized": true,
+        "historical_digest_equals_git_blob": false,
+        "historical_digest_equals_normalized": false
+      },
+      "repo_path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_TECHNICAL_COMPLETION_REPORT.md"
+    }
+  ],
+  "member_count": 54,
+  "ordering_rule": "ascending case-folded path; duplicate normalized paths prohibited",
+  "path_rule": "repository-relative UTF-8 paths with forward slashes; reject absolute, traversal, and duplicate paths",
+  "project": "AU-UCR-EP-000001",
+  "proposed_commit_binding": {
+    "commit_oid": "01b5e02a84fe260558c4ae66d03df91bb7f66c20",
+    "domain": "git-commit-path-binding-v1",
+    "object_format": "sha1",
+    "path_root": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical",
+    "tree_oid": "dca22c304034f1662db99230a29d3ccc3ca38889"
+  },
+  "schema_id": "urn:au-ucr:manifest:wave-0.6-technical-freeze:1.1.0-proposal",
+  "source_manifest": {
+    "blob_sha256": "69d71ec5905abc626ed3337a61dad51a5ebbbe1fda2a04c3b4a84140681757ec",
+    "git_blob": "sha1:b50dcb6308c43abd81e336d46975cb1939410402",
+    "path": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical/W06_TECHNICAL_FREEZE_MANIFEST.json",
+    "schema_id": "urn:au-ucr:manifest:wave-0.6-technical-freeze:1.0.0"
+  },
+  "status": "PROPOSED_NOT_ADOPTED"
+}
