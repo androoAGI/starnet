@@ -92,7 +92,7 @@ def main() -> int:
             or relative.startswith("/")
             or re.match(r"^[A-Za-z]:", relative)
             or any(part in {"", ".", ".."} for part in parts)
-            or any(char in relative for char in "\0\r\n")
+            or any(ord(char) < 0x20 or ord(char) == 0x7F for char in relative)
         ):
             raise ValueError(f"unsafe manifest path: {relative}")
         relative = "/".join(parts)
