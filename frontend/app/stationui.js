@@ -2297,6 +2297,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   const CF_GROUPS = [
     { id: 'cf-grp-purpose', label: 'PURPOSE' },
     { id: 'cf-grp-knows', label: 'INSTRUCTIONS' },
+    { id: 'cf-grp-loadout', label: 'SKILLS & PRESET' },
     { id: 'cf-grp-model', label: 'MODEL' },
     { id: 'cf-grp-personality', label: 'PERSONALITY' },
     { id: 'cf-grp-behaves', label: 'ACCESS' },
@@ -2308,10 +2309,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const content = [
       purpose ? fileCard(a, purpose) : '',
       CONFIG_FILES.filter(f => f.key !== 'purpose').map(f => fileCard(a, f)).join(''),
+      agentLoadoutCard(a),
       modelCard(a), personaCard(a),
       agSkills(a.id) + executionProfileCard(a) + approvalCard(a), agCommand(a)
     ];
     const summaries = [a.purpose || 'What should this agent accomplish?', 'Identity, context and operating rules · edit each source file',
+      (Array.isArray(a.skills) ? a.skills.length : 0) + ' assigned skills · reusable class settings',
       a.model || 'Follow station default', (typeof Personas !== 'undefined' && Personas.get(a.personaId)?.name) || 'Station personality',
       'Effective reach, execution and approval settings',
       ((typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[a.skin]) || {}).name || 'Choose a skin'];
@@ -2320,6 +2323,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const key = a.id + ':' + g.id;
         return '<details class="cf-group" id="' + g.id + '" data-cf-group="' + esc(key) + '"' + (cfOpen.get(key) ? ' open' : '') + '><summary><span class="cf-group-title">' + g.label + '</span><span class="cf-group-summary">' + esc(summaries[i]) + '</span></summary><div class="cf-group-body">' + content[i] + '</div></details>';
       }).join('') + '<div class="cf-card" id="ag-away-link"><button class="bb sm" data-away-open>WHILE I’M AWAY → AUTOMATION</button></div>';
+  }
+
+  function agentLoadoutCard(a) {
+    const spec = typeof Specialties !== 'undefined' ? Specialties.get(a.specialtyId) : null;
+    const skills = Array.isArray(a.skills) ? a.skills : [];
+    return '<div class="cf-card" id="ag-loadout-card">' +
+      '<p><b>Saved class:</b> ' + esc(spec ? spec.name : 'No saved class') + '</p>' +
+      '<p><b>Assigned skills:</b> ' + (skills.length ? skills.map(s => '<code>' + esc(s) + '</code>').join(', ') : 'None assigned') + '</p>' +
+      '<p class="dim">These skills are assigned to this agent alongside station-enabled skills. They load when relevant and their required equipment is available; assignment is not proof of a successful run.</p>' +
+      '<p><b>Class equipment:</b> ' + esc(spec && spec.kit.length ? spec.kit.join(', ') : 'Not specified') + '</p>' +
+      '<p class="dim">Equipment is shared. The class does not restrict capabilities. CONFIG → ACCESS shows effective access; Abilities switches affect the whole station.</p>' +
+      '<p><b>Saved reasoning effort:</b> ' + esc(a.reasoningEffort || 'Provider default') + '. The selected model must support this setting.</p>' +
+      (spec ? '<p>Copy this class’s purpose, instructions, non-empty project context, assigned skills and reasoning effort into ' + esc(a.name) + '. Model, identity and access stay as configured.</p><button class="bb sm" id="ag-loadout-apply">APPLY SAVED CLASS PRESET</button>' : '') + '</div>';
   }
 
   // W3 per-agent AWAY-WORKSHOP surface (rebuilt 2026-07-15 UX audit — the queue was invisible, the cadence
@@ -2511,6 +2527,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // .md save wiring on purpose: that handler used to omit the id, so a doc edit landed on the focused agent
     // instead of this one (see App.applyAgentConfig's targeting note).
     const a = present[sel];
+    const presetButton = body.querySelector('#ag-loadout-apply');
+    if (presetButton) presetButton.addEventListener('click', () => {
+      const spec = typeof Specialties !== 'undefined' && Specialties.get(a.specialtyId);
+      if (!spec || !access.config || !access.config.apply) return;
+      const patch = Object.assign({}, Specialties.compose(spec), { skills: spec.skills.slice() });
+      if (spec.reasoningEffort) patch.reasoningEffort = spec.reasoningEffort;
+      access.config.apply(patch, a && a.id);
+      notify('Applied saved class settings to ' + a.name, 'good');
+      rerender('agents');
+    });
     // CONFIG group jump-nav: scroll the pane so the chosen rule sits at the top. Same landing math as BRIEF's
     // setup-strip jump (offsetTop delta, not scrollIntoView — the minimum scroll leaves the target at the bottom
     // edge, which reads as "nothing happened"), and it does NOT rerender: the pane is already the right one.

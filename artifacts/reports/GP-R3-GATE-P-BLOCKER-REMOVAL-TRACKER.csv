@@ -1,5 +1,5 @@
 work_item_id,workstream,status,depends_on,accountable_role,performing_role,acceptance_gate,evidence_required,gate_effect
-GP3-001,Scope,READY_FOR_DRAFT,,Human Authority,Evidence Preparer,"Signed scope record binds packet commit/tree, candidate commit/tree, aggregate, and review receipt","Signed candidate-scope record",NO_CHANGE
+GP3-001,Scope,DRAFTED,,Human Authority,Evidence Preparer,"Signed scope record binds packet commit/tree, candidate commit/tree, aggregate, and review receipt","Signed candidate-scope record",NO_CHANGE
 GP3-002,Authority,BLOCKED_HUMAN_SIGNATURE,GP3-001,Human Authority,Human Authority,"Identity, mandate, scope, duties, effective time, expiry, and revocation verify","Signed mandate and signed acknowledgement",NO_CHANGE
 GP3-003,Appointments,BLOCKED_HUMAN_SELECTION,GP3-002,Human Authority,Human Authority,"Decision Chair, Publication Custodian, and Independent Verifier have effective signed appointments and acknowledgements","Three appointment records and three acknowledgement records",NO_CHANGE
 GP3-004,Separation,BLOCKED_ROLE_IDENTITIES,GP3-003,Human Authority,Independent Assessor,"Every prohibited or material role pairing is explicitly assessed with no unresolved conflict","Signed separation and conflict assessment",NO_CHANGE

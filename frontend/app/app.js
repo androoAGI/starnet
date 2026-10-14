@@ -412,6 +412,7 @@ const App = (() => {
       if (typeof patch.purpose === 'string') { d.purpose = patch.purpose; a.purpose = patch.purpose.trim(); }
       if (typeof patch.manual === 'string') d.manual = patch.manual;
       if (typeof patch.context === 'string') d.context = patch.context;
+      if (Array.isArray(patch.skills)) a.skills = [...new Set(patch.skills.filter(s => typeof s === 'string').map(s => s.trim()).filter(Boolean))];
       if (typeof patch.model === 'string' && patch.model.trim()) {
         a.model = patch.model.trim();
         if (focused) {
@@ -1035,6 +1036,7 @@ const App = (() => {
     if (!patch) return;
     agentDocs(a);
     a.docs.purpose = patch.purpose; a.docs.manual = patch.manual;
+    if (typeof patch.context === 'string') a.docs.context = patch.context;
     a.purpose = (patch.purpose || '').trim();
     a.specialtyId = spec.id;
   }

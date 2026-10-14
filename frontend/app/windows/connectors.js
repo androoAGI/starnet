@@ -308,7 +308,7 @@
       '</details>';
 
     const host = mountConsole(body, 'connectors', [
-      { id: 'toolsets', label: 'BUILT-IN ABILITIES', glyph: '▤', desc: 'Inspect an agent’s capability grants. Switches apply in ASK mode; Full Access overrides them. Connected services still need working credentials.', build: frag(secToolsets) },
+      { id: 'toolsets', label: 'BUILT-IN ABILITIES', glyph: '▤', desc: 'Inspect effective capabilities for the selected agent. These switches change the WHOLE STATION in ASK mode; selecting an agent does not make them agent-specific. Full Access overrides them. Connected services still need working credentials.', build: frag(secToolsets) },
       { id: 'computer', label: 'COMPUTER CONTROL', glyph: '▣', desc: 'Choose how agents interact with native desktop apps. Full Power or a paired remote-owner lease is required.', build: frag(
         '<div class="set-about">CUA targets windows and accessibility elements, works in the background where supported, and reports evidence for each action. Foreground input can move focus when needed.</div>' +
         '<div id="cu-status" class="set-about" role="status" aria-live="polite">Checking computer control…</div>' +
@@ -724,7 +724,7 @@
         const r = await Harness.api.post('/api/toolsets/' + encodeURIComponent(id), { enabled });
         const j = r.j || {};
         if (!r.ok || j.error) { cb.checked = !enabled; sfx('bad'); notify('✕ ' + (j.error || 'toggle failed')); }
-        else { sfx('tick'); notify((enabled ? 'Enabled ' : 'Disabled ') + id, enabled ? 'good' : undefined); }
+        else { sfx('tick'); notify((enabled ? 'Enabled ' : 'Disabled ') + id + ' for the whole station', enabled ? 'good' : undefined); }
       } catch (e) { cb.checked = !enabled; sfx('bad'); notify('✕ ' + ((e && e.message) || 'request failed')); }
       cb.disabled = false;
       tsRefresh();

@@ -3593,8 +3593,9 @@ const Marketplace = (() => {
     const basics = '<label class="mkt-lbl">Name<input class="mkt-in" id="mkt-b-name" maxlength="28" value="' + esc(d.name || '') + '" placeholder="e.g. Travel Planner"></label>' +
       '<label class="mkt-lbl">Short description <span class="mkt-opt">optional</span><input class="mkt-in" id="mkt-b-tag" maxlength="48" value="' + esc(d.tagline || '') + '" placeholder="Plans practical trips around your budget"></label>' +
       '<label class="mkt-lbl">What should this class do?<textarea class="mkt-in" id="mkt-b-purpose" rows="3" placeholder="Describe its job and what a useful result looks like.">' + esc(d.purpose || '') + '</textarea></label>' +
-      '<label class="mkt-lbl">Always follow these instructions <span class="mkt-opt">optional</span><textarea class="mkt-in" id="mkt-b-manual" rows="3" placeholder="e.g. Compare costs, cite sources, and ask before booking.">' + esc(d.manual || '') + '</textarea></label>';
-    const tools = '<p class="mkt-detail-note">Choose at least one tool this class will use. Skills are optional.</p>' +
+      '<label class="mkt-lbl">Always follow these instructions <span class="mkt-opt">optional</span><textarea class="mkt-in" id="mkt-b-manual" rows="3" placeholder="e.g. Compare costs, cite sources, and ask before booking.">' + esc(d.manual || '') + '</textarea></label>' +
+      '<label class="mkt-lbl">Project context <span class="mkt-opt">optional</span><textarea class="mkt-in" id="mkt-b-context" rows="5" placeholder="Project paths, source documents, role boundaries and acceptance criteria.">' + esc(d.context || '') + '</textarea></label>';
+    const tools = '<p class="mkt-detail-note">Choose at least one tool this class will use. Skills are optional. These tools describe shared station equipment; they do not restrict this agent’s access. Check CONFIG → ACCESS for effective capabilities.</p>' +
       '<div class="mkt-kitpicks" id="mkt-b-kit">' + buildKitChipsHTML() + '</div>' +
       '<label class="mkt-lbl">Find a skill<input class="mkt-in" id="mkt-b-skill-search" placeholder="Search skills"></label>' +
       '<div class="mkt-chips" id="mkt-b-skills"><span class="mkt-hint">Loading skills…</span></div>';
@@ -3712,6 +3713,7 @@ const Marketplace = (() => {
         tagline: (stage.querySelector('#mkt-b-tag').value || '').trim(),
         purpose: (stage.querySelector('#mkt-b-purpose').value || '').trim(),
         manual: (stage.querySelector('#mkt-b-manual').value || '').trim(),
+        context: (stage.querySelector('#mkt-b-context').value || '').trim(),
         // LOADOUT (Class Loadouts S3): the picked kit/skills/effort round-trip into the saved custom spec
         // (Specialties.normCustom normalizes + freezes them) so a user class is a full loadout, applied at summon.
         kit: buildKit.slice(), skills: buildSkills.slice(), reasoningEffort: buildEffort

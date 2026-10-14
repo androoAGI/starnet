@@ -82,6 +82,7 @@
       blurb: s.blurb || '',
       purpose: s.purpose || '',                       // -> purpose.md
       manual: s.manual || '',                         // -> operating-manual.md (standing orders)
+      context: typeof s.context === 'string' ? s.context : '',
       persona: s.persona || 'friendly',              // recommended personaId (the Commander can override)
       model: TIERS[s.model] ? s.model : 'balanced',   // tier KEY (see TIERS); advisory
       accent: s.accent || '#ffaa33',                  // suggested avatar suit
@@ -123,7 +124,7 @@
     return {
       id: s.id, name: String(s.name || 'My Specialist'),
       emoji: s.emoji || '✦', tagline, blurb: s.blurb || '',
-      purpose, manual,
+      purpose, manual, context: typeof s.context === 'string' ? s.context : '',
       persona: s.persona || 'friendly', model: TIERS[s.model] ? s.model : 'balanced',
       accent: s.accent || '#ffaa33',
       // a saved custom carries its own ranking tags; pre-tags customs (or older saves) get them classified
@@ -158,7 +159,10 @@
   function compose(idOrSpec) {
     const s = typeof idOrSpec === 'string' ? get(idOrSpec) : idOrSpec;
     if (!s) return null;
-    return { purpose: s.purpose || '', manual: s.manual || '' };
+    const patch = { purpose: s.purpose || '', manual: s.manual || '' };
+    // Legacy templates must not erase an existing agent's project context.
+    if (s.context) patch.context = s.context;
+    return patch;
   }
 
   // build a draft custom spec from a LIVE agent's docs — the "save current agent as a specialty" capture.
@@ -173,6 +177,10 @@
       blurb: meta.blurb || '',
       purpose: (typeof d.purpose === 'string' && d.purpose) || (agent && agent.purpose) || '',
       manual: (typeof d.manual === 'string' && d.manual) || '',
+      context: typeof d.context === 'string' ? d.context : '',
+      skills: Array.isArray(agent && agent.skills) ? agent.skills.slice() : [],
+      kit: (get(agent && agent.specialtyId) || {}).kit || [],
+      reasoningEffort: normEffort(agent && agent.reasoningEffort),
       persona: (agent && agent.personaId) || 'friendly',
       accent: (agent && agent.color) || '#ffaa33',
       model: 'balanced',
