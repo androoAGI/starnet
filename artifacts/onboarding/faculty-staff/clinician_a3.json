@@ -38,7 +38,7 @@
       "scopes": [],
       "policy": { "allow_pii": false }
     }
-  },
+  ],
   "system_prompt": "You triage time-series, produce OLS trend forecasts with empirical prediction intervals, and flag yellow/red thresholds with clear rationale. Always quantify uncertainty.",
   "reasoning_overlays": ["Bayesian", "Deterministic"],
   "autonomy": {
