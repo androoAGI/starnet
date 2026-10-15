@@ -1,5 +1,27 @@
 {
   "taggedAt": "2026-10-15",
+  "reconciledAt": "2026-10-15",
+  "activeWorkflow": {
+    "experiment": "AU-UCR-EP-000001",
+    "governancePlan": "GP-R3",
+    "technicalSpine": "docs/experiments/au-ucr-ep-000001/wave-0.6/technical",
+    "humanGate": "docs/experiments/au-ucr-ep-000001/wave-0.7/governance/Minimum_Human_Action_Next_Gate.md",
+    "operationalPlans": [
+      "artifacts/plans/GP-R3-GATE-P-BLOCKER-REMOVAL-PLAN.md",
+      "artifacts/reports/GP-R3-GATE-P-BLOCKER-REMOVAL-TRACKER.csv"
+    ],
+    "parkedUntilIntegration": "artifacts/plans/GP-GOVERNANCE-BACKLOG.md (GP-BLK-21: Agents University inside StarNet product)",
+    "runtimeProductSeparate": {
+      "hospitalDashboard": "D:\\AML_University_Training_Hospital (domain pack Streamlit + launcher)",
+      "portableOrchestrator": "aml harness branch: run_portable_orchestrator.py (not part of Gate P evidence chain)"
+    }
+  },
+  "removedFromStarNetRepoAsDuplicates": [
+    "artifacts/onboarding/faculty-staff/*.json (authoritative: D:\\AML_University_Training_Hospital\\examples\\agents)",
+    "artifacts/onboarding/The_Mechanic_Master_ASE.md (persona archive; not in UCR/GP-R3 chain)",
+    "artifacts/onboarding/imhotep.starnet-skill.json (duplicate of C:/Users/hakee/.agents/skills/imhotep/SKILL.md)",
+    "artifacts/plans/__pycache__"
+  ],
   "rule": "Keep Agents University Hospital and closed-loop system local as part of this project. Other Agents University assets are uploaded to OneDrive and removed from their old local paths.",
   "keepLocal": [
     {
