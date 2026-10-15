@@ -1,0 +1,49 @@
+{
+  "taggedAt": "2026-10-15",
+  "rule": "Keep Agents University Hospital and closed-loop system local as part of this project. Other Agents University assets are uploaded to OneDrive and removed from their old local paths.",
+  "keepLocal": [
+    {
+      "tag": "Agents University Hospital",
+      "path": "D:\\AML_University_Training_Hospital",
+      "projectLink": "local-keep/agents-university-hospital",
+      "reason": "Live hospital tree, including Agent Hospital. Stays on this machine."
+    },
+    {
+      "tag": "closed-loop system",
+      "path": "C:\\closedloop_sissa_artifacts",
+      "projectLink": "local-keep/closed-loop-system",
+      "reason": "Closed-loop SISSA tree. Stays on this machine."
+    },
+    {
+      "tag": "closed-loop system",
+      "path": "C:\\Users\\hakee\\closedloop_sissa_artifacts_live_smoke",
+      "projectLink": "local-keep/closed-loop-live-smoke",
+      "reason": "Closed-loop live smoke artifacts. Stays on this machine."
+    },
+    {
+      "tag": "this project",
+      "path": "C:\\Users\\hakee\\.cursor\\starnet-ucr-publish-2",
+      "reason": "Current StarNet project. Left in place."
+    }
+  ],
+  "cloud": {
+    "destination": "C:\\Users\\hakee\\OneDrive\\Agents-University-Cloud",
+    "movedAfterVerifiedCopy": [
+      "aml-university-bootstrap",
+      "AU-SBX-001",
+      "university_aml_full_install_export",
+      "university_aml_full_install_export.git",
+      "AML-labeler-fix",
+      "AML-rebase-pr11"
+    ],
+    "alreadyOnGitHub": [
+      {
+        "tag": "Agents University snapshot",
+        "localCheckout": "D:\\starnet-consolidation",
+        "remote": "https://github.com/mrrobot787/starnet/tree/chore/import-agents-university/agents-university",
+        "commit": "26981346d97a9b076e9fa8f6c520ebd8da94b8a0",
+        "note": "Working tree matches origin. Not deleted, because this checkout is a full StarNet tree and the Agents University folder itself is only a few megabytes."
+      }
+    ]
+  }
+}

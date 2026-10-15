@@ -211,3 +211,6 @@ sidecar/mcp/google-client.json
 /.local/google-review/
 
 src-tauri/frontend-embed/
+
+# Local junctions to the hospital and closed-loop trees. Do not commit those trees.
+/local-keep/
