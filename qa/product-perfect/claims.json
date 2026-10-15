@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "6fb2505ded64590b243912b36a4f456178fc0100",
+    "sourceCommit": "f16d3e82a4412262e33401f727a91d8466c5a7c5",
     "pathSetSha256": "d399b7dc9c6d8ef4e165d0c6560b5770636dbaf73b81f662e7c4b31d7cc55045",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 392592,
-        "sha256": "8268f7969bdf94f29937fa91bac300ac9fddb559ed7ca878feee734ae0850399"
+        "bytes": 392815,
+        "sha256": "ad8a03ffac54b4b2411f1f727ad170d5f8f7372de86f277ea1d5bc5114e5e0cb"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -628,8 +628,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 272496,
-        "sha256": "082a7c77da177200a78b8423c869c7308935715565d37279a9a9ac986494fb4d"
+        "bytes": 272991,
+        "sha256": "3ebe52c9425590b1c2e923656007816c34ac00b6019b05141211c903e723b0c7"
       },
       {
         "path": "frontend/app/mint.js",
@@ -1033,8 +1033,8 @@
       },
       {
         "path": "frontend/app/specialties.js",
-        "bytes": 11468,
-        "sha256": "ef00e20f33937e4fc3012953079cdad682dfae2f84f59b2bfbdd1aa2b710738a"
+        "bytes": 12007,
+        "sha256": "21acc43bf81d04e67f19d26188e953df41afb00d70fb40dbb8ec66406571d2e7"
       },
       {
         "path": "frontend/app/starters.js",
@@ -1073,8 +1073,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 737739,
-        "sha256": "54eafb79d484178035be7a286a0de9f6667c803a147befc40170e46282e03f48"
+        "bytes": 739975,
+        "sha256": "8b1676d691499b9d880f3c258f51f6735ad68c31b23e263e81e72a0e95de518a"
       },
       {
         "path": "frontend/app/study.js",
@@ -1223,8 +1223,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 137393,
-        "sha256": "8d24498b793ff7cd019d62ffcf1d8b88a811015f74ef8b5d74a7f7291e08d41b"
+        "bytes": 137514,
+        "sha256": "1e32ad970e3e021fd977d2dbd7c5f027e2a3e7caedd4a1ed5ba8bfbd4965242a"
       },
       {
         "path": "frontend/app/windows/logbook.js",
