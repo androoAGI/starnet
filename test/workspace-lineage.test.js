@@ -34,6 +34,25 @@ try {
     fs.unlinkSync(path.join(current, f));
   }
 
+  // Quest-refresh scheduler bookkeeping (#123): armQuestRefresh's boot catch-up tick persists
+  // _station.questrefresh.json (+ .bak via saveResilient) ~3 s into EVERY boot — no key, no station needed (the
+  // cycle records an honest 'skipped'). It matched the `_station.*.json` evidence alternative, so a fresh install
+  // opened and closed once gated on its next boot, and START FRESH held only until the following boot's tick
+  // wrote the file straight back. Same class as the E-STOP case above, different writer.
+  for (const f of ['_station.questrefresh.json', '_station.questrefresh.json.bak']) {
+    fs.writeFileSync(path.join(current, f), '{"v":1,"state":{"v":1,"ledger":[{"outcome":"skipped"}]}}');
+  }
+  v = inspectWorkspaceLineage({ fs, path, workspaceRoot: current, candidateRoots: [legacy], snapshotsRoot: snapshots, platform: process.platform });
+  A.eq(v.priorInstallEvidence, false, 'quest-refresh scheduler bookkeeping (_station.questrefresh.json + .bak) is not prior-station evidence');
+  A.eq(v.onboardingAllowed, true, 'a fresh install whose boot tick already ran still onboards');
+  // the carve-out is that ONE scheduler file, not the _station.* family: a real station-wide authority still gates.
+  fs.writeFileSync(path.join(current, '_station.quests.json'), '{"v":1}');
+  v = inspectWorkspaceLineage({ fs, path, workspaceRoot: current, candidateRoots: [legacy], snapshotsRoot: snapshots, platform: process.platform });
+  A.eq(v.priorInstallEvidence, true, 'other _station.* authorities (_station.quests.json) remain prior-station evidence');
+  for (const f of ['_station.quests.json', '_station.questrefresh.json', '_station.questrefresh.json.bak']) {
+    fs.unlinkSync(path.join(current, f));
+  }
+
   fs.writeFileSync(path.join(current, 'future-cache-v2.json'), '{"cache":true}');
   v = inspectWorkspaceLineage({ fs, path, workspaceRoot: current, candidateRoots: [legacy], snapshotsRoot: snapshots, platform: process.platform });
   A.eq(v.priorInstallEvidence, false, 'unknown cache files cannot become prior-station evidence by denylist omission');

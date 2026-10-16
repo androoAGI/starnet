@@ -9,7 +9,9 @@ const { note: failNote } = require('./failopen.js');
 // even on a station that was never created — so a fresh install that was merely opened and closed once
 // carried "prior station evidence" and stranded on the recovery gate forever (2026-08-25). A file the
 // sidecar can write WITHOUT a Commander having created a station must never count as a prior station.
-const INFRA = /^(?:\.starnet-workspace-owner\.json|\.schema-version\.json(?:\.bak)?|\.migrated|\.migration-receipt\.json|cron\.lock|proc-ledger\.json|liveprices\.cache\.json|(?:cron\.halt|loops\.halt|nightshift\.state)\.json(?:\.bak)?)$/i;
+// Same class, different writer (#123): the quest-refresh boot tick (index.js armQuestRefresh) persists
+// _station.questrefresh.json (+ .bak) ~3 s into EVERY boot — key or no key, station or no station.
+const INFRA = /^(?:\.starnet-workspace-owner\.json|\.schema-version\.json(?:\.bak)?|\.migrated|\.migration-receipt\.json|cron\.lock|proc-ledger\.json|liveprices\.cache\.json|(?:cron\.halt|loops\.halt|nightshift\.state)\.json(?:\.bak)?|_station\.questrefresh\.json(?:\.bak)?)$/i;
 // Positive evidence only. The former "anything not on the infrastructure denylist" rule made every newly
 // introduced cache/receipt a fake prior station. This covers the harness-owned durable authorities without
 // treating an arbitrary future `*.cache.json` as proof that a Commander already created a station.
