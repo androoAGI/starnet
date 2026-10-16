@@ -62,6 +62,7 @@
 <link rel="stylesheet" href="css/cabinet-clean.css"><!-- CABINET CLEAN: one shape + header for every panel, quiet widget pins, the CTX bar, title-only starters -->
 <link rel="stylesheet" href="css/pipglass.css"><!-- PIP-GLASS: glass panels in the Pip-Boy 3000 screen language (phosphor type, curved glass, ticked rules, lit rows, tab-strip dock, segmented gauges) -->
 <link rel="stylesheet" href="css/comms-convo.css"><!-- COMMS AS A CONVERSATION: the transcript's reading layer (bubbles, visible stamps, time breaks, run footer) — loaded last on purpose -->
+<link rel="stylesheet" href="css/liteview.css"><!-- LITE VIEW (app/liteview.js): the paused-station panel, the LITE key, and COMMS taking the freed width -->
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
 
@@ -816,6 +817,7 @@
 <script src="app/asciifx.js"></script><!-- ASCII-motion kit (AsciiFX): decode/dissolve/typewriter primitives; must load before its consumers (chat.js, stationui.js) -->
 <script src="js/audio.js"></script>
 <script src="js/arcade.js"></script>
+<script src="app/liteview.js"></script><!-- LITE VIEW: pause the station picture to save memory. Loads BEFORE the art modules (industrialtextures, propremaster) and world.js, which all ask LiteView.on() as they start -->
 <script src="app/backdrop-bake.js"></script>
 <script src="app/spacebg.js"></script><!-- THE VOID: shared deep-space backdrop (dense starfield + nebulas) — one sky for world.js AND build.js so BUILD MODE never jumps the stars -->
 <script src="app/terrain.js"></script><!-- THE GROUND: world-space ground layer for a LANDED station — pans AND zooms with the world (a backdrop must not), drawn under the station bake -->

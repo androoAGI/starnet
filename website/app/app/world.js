@@ -645,8 +645,34 @@ const World = (() => {
     if (agent && agent.fond) agent.fond.clear();        // forget the old floor's haunts — the new floor earns its own
     for (const b of crew) if (!b.summoned) seizeFromIdle(b);
     crew = crew.filter(b => b.summoned);                // drop plan-derived crew (rebuilt from the new floor's bays); KEEP summoned crew (app-level, not floor-bound)
-    if (station && station.onChange) unsub = station.onChange(() => { geoDirty = true; });
+    if (station && station.onChange) unsub = station.onChange(() => { geoDirty = true; liteSyncSoon(); });
     rederive();
+  }
+
+  /* LITE VIEW (liteview.js): no frame ever runs, and a frame is where a floor edit normally recompiles + POSTs the
+     routing plan (frameBody: `if (geoDirty) rederive()`). Keep that truth without the picture: an edit made outside
+     BUILD MODE (an agent's station tool, an assignment) syncs shortly after it lands. BUILD MODE keeps its own rule —
+     nothing posts mid-edit; its close() calls start(), which syncs then (see startOrLite). */
+  let liteSyncT = 0;
+  const liteOn = () => { try { return typeof LiteView !== 'undefined' && LiteView.on(); } catch (_) { return false; } };
+  const buildOpen = () => { try { return typeof Build !== 'undefined' && !!(Build.isOpen && Build.isOpen()); } catch (_) { return false; } };
+  function liteSyncSoon() {
+    if (running || liteSyncT || !liteOn()) return;
+    liteSyncT = setTimeout(() => { liteSyncT = 0; if (station && geoDirty && !running && !buildOpen() && liteOn()) rederive(); }, 250);
+  }
+  // Drop what the picture costs: the baked station plates, the backdrop's tiles and the painted texture copies.
+  // Everything here is rebuilt by the next frame or still that needs it.
+  function releasePlates() {
+    cache = null; bakeDirty = true;
+    try { if (typeof SpaceBG !== 'undefined' && SpaceBG.invalidate) SpaceBG.invalidate(); } catch (_) {}
+    try { if (typeof IndustrialTextures !== 'undefined' && IndustrialTextures.releasePlates) IndustrialTextures.releasePlates(); } catch (_) {}
+  }
+  function releaseView() { stop(); releasePlates(); }
+  // The PUBLIC rebake (a lighting setting, prop art arriving) bakes on the spot. In LITE VIEW nothing is drawn, so it
+  // only marks the bake stale (keeping the routing truth current); the next real frame or still bakes for real.
+  function rebakeOrDefer() {
+    if (!running && liteOn()) { if (station && geoDirty) rederive(); cache = null; bakeDirty = true; return; }
+    rebake();
   }
 
   function rederive() {
@@ -1616,6 +1642,19 @@ const World = (() => {
     frame(performance.now());
   }
 
+  /* The PUBLIC start (app boot, BUILD MODE close, the HUD, a LITE VIEW switch back). In LITE VIEW there is no draw
+     loop: do the one functional thing a first frame does — post the floor's routing plan if it changed (BUILD MODE
+     close lands here) — and drop any plates an on-demand still or BUILD MODE left behind. Otherwise re-read the
+     stage size first (a no-op unless it changed while nothing drew) so the first fit frames the real canvas. */
+  function startOrLite() {
+    if (liteOn()) {
+      if (station && (geoDirty || !geo)) rederive();
+      releasePlates();
+      return;
+    }
+    if (!running) resize();
+    start();
+  }
   function start() {
     if (running) return;
     running = true; last = performance.now(); if (!floorLiveAt) floorLiveAt = last;
@@ -10834,7 +10873,7 @@ const World = (() => {
     pollFeed: () => pollFeedState(),
     pollShip: () => pollShipStats()
   });
-  return { init, rebake, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
+  return { init, rebake: rebakeOrDefer, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, slagLog: () => (slaglog ? slaglog.recent() : []),
     // LINE WATCH: the Workflow panel pushes the step-test session it polls; reads today's numbers for a line
     noteStepTest, lineStatsFor: id => (lineStats.known ? (lineStats.byLine[id] || null) : null), pollLineStats,
     // a bay's live state — the lamp's own fold (WORKING only once the sidecar confirmed the run), with how long it has held
@@ -10874,7 +10913,7 @@ const World = (() => {
        floor to the router. `station: false` = no floor loaded (nothing is known). */
     planStatus: () => Object.assign({ station: !!station, pending: !!(station && (geoDirty || !geo)),
       errors: (routingPlan && routingPlan.errors ? routingPlan.errors : []).filter(e => !e.warn), hash: routingPlan ? routingPlan.hash : null }, planPoster.state()),
-    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, cameraState, restoreCamera, setFrameCap, setOverlays, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnPluginTerminal, setOnDesk, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgDeskClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
+    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: noteRunEnd, focusBody, lockBody, cameraMode, cameraState, restoreCamera, setFrameCap, setOverlays, setCinecamIdle, setChatFocus, chatFocusPing, start: startOrLite, stop, releaseView, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnPluginTerminal, setOnDesk, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgDeskClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
     // AGENT GROWTH: XpStore pushes pre-computed Xp.compute() snapshots here; pulseLevelUp fires
     // the addressed body's gold ring. The colony headline is the top-bar STATION chip.
     setXp: (agentId, a) => {

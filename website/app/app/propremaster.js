@@ -279,7 +279,8 @@ const PropRemaster = (() => {
   function remasterOn(){
     return typeof IndustrialTextures!=='undefined' && typeof IndustrialTextures.isRemaster==='function' && IndustrialTextures.isRemaster();
   }
-  function enabled(id,view='s'){return remasterOn()&&entries.has(id+':'+view);}
+  // the first ask for authored art starts a deferred (lite view) load; it answers false until the art is prepared
+  function enabled(id,view='s'){if(!loading&&remasterOn())load();return remasterOn()&&entries.has(id+':'+view);}
   function draw(ctx,id,view,x,y,w,h,state,drawNative) {
     if(!enabled(id,view))return false;
     const e=entries.get(id+':'+view),v=e.spec;
@@ -356,7 +357,15 @@ const PropRemaster = (() => {
     const trigger=e.spec.activity,amount=trigger==='fired'?Math.max(0,Math.min(1,+state.fired||0)):trigger==='work'&&state.work?1:trigger==='ambient'?.3:0;
     if(amount&&!e.approved&&e.indicators){ctx.globalAlpha*=amount*(state.still?.45:.35+.15*Math.sin((+state.now||0)/280));ctx.drawImage(e.indicators[state.bad?1:0],x+e.frame.x,y+e.frame.y,e.body.width/DENSITY,e.body.height/DENSITY);}
   }
-  const ready=(async()=>{
+  /* LITE VIEW (liteview.js): this art exists only to be drawn, and preparing it decodes every authored sheet (~480 MB
+     of GPU uploads on a real station). A lite station starts the load on the first draw that asks for authored art
+     (enabled(): BUILD MODE, a remote still) instead of at boot. A full view loads at boot exactly as before, and
+     `ready` settles once the load has run either way. */
+  let loading=null,settle=null;
+  const ready=new Promise(r=>{settle=r;});
+  const liteNow=()=>{try{return typeof LiteView!=='undefined'&&LiteView.on();}catch(_){return false;}};
+  function load(){if(!loading)loading=prepareAll().then(()=>settle(),()=>settle());return ready;}
+  async function prepareAll(){
     if(typeof document==='undefined'||typeof Image==='undefined'||typeof fetch!=='function')return;
     try{
       // Classic avoids all optional asset traffic and remains independently runnable.
@@ -380,7 +389,8 @@ const PropRemaster = (() => {
         document.documentElement.dataset.propRasterPixels=String(pixelBudget);
       }
     }catch(e){failures.push({view:'manifest',reason:String(e.message||e)});}
-  })();
+  }
+  if(!liteNow())load();
   function emitter(id,view='s',w,h){
     const e=enabled(id,view)&&entries.get(id+':'+view),p=e&&e.screen&&e.screen.centroid;
     if(e&&(e.lost||(w!=null&&w!==e.spec.footprint.w*12)||(h!=null&&h!==e.spec.footprint.h*12)))return null;

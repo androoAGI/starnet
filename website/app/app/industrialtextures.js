@@ -13,7 +13,25 @@ const IndustrialTextures = (() => {
     crateReview = query.get('propReview') === 'crate';
     projectionReview = query.get('textures') !== 'classic' && query.get('propReview') !== 'skins' && query.get('propSet') !== 'approved';
   } catch (_) {}
-  const images = {}, originals = {}, failed = [];
+  const originals = {}, failed = [], painted = {};
+  /* LITE VIEW (liteview.js): the pack still LOADS in lite — enabled()/isRemaster() steer geometry as well as looks
+     (desk footprints, seats), and the station's shape must not depend on whether it is drawn — but the exposure-
+     painted copies (~350 MB on a real station) only exist to be drawn. So `images` paints on first READ: a full
+     view paints every asset at load exactly as before; a lite view paints only what something actually draws (BUILD
+     MODE, a remote still), and releasePlates() hands them back. Every reader keeps its plain images[name] access. */
+  const liteNow = () => { try { return typeof LiteView !== 'undefined' && LiteView.on(); } catch (_) { return false; } };
+  const images = new Proxy(painted, {
+    get(t, name) {
+      if (typeof name === 'string' && !Object.prototype.hasOwnProperty.call(t, name) && originals[name]) {
+        try { t[name] = paintOriginal(name, originals[name]); } catch (_) { return undefined; }
+      }
+      return t[name];
+    }
+  });
+  function releasePlates() {
+    for (const name of Object.keys(painted)) delete painted[name];
+    materials.clear(); wallStrips.clear(); emitters.clear(); shellTints.clear();
+  }
   // Exposed to the existing CRT lab for a live, reproducible material review.
   // Values read back from the live CRT lab after the combined-room review.
   const lighting = { fixtureTint: projectionReview?.14:.04, propTint: projectionReview?.65:.48,
@@ -81,7 +99,7 @@ const IndustrialTextures = (() => {
     img.onload = () => {
       try {
         originals[name] = img;
-        images[name] = paintOriginal(name, img);
+        if (!liteNow()) images[name] = paintOriginal(name, img);   // lite: painted on first draw instead (see `images`)
       } catch (_) { failed.push(name); }
       resolve();
     };
@@ -541,7 +559,7 @@ const IndustrialTextures = (() => {
     ctx.drawImage(im, x + (w - dw) / 2, y + h - dh, dw, dh);
     ctx.restore(); return true;
   }
-  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, baseLayers, discardBaseLayer, restoreMaterials, _dbgLoseMaterials, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
+  return Object.freeze({ ready, enabled, isRemaster, lighting, detailContext, baseLayers, discardBaseLayer, restoreMaterials, releasePlates, _dbgLoseMaterials, drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
     status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images) }) });
 })();

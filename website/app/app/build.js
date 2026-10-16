@@ -341,6 +341,8 @@ const Build = (() => {
     if (convey) convey.reset(), convey = null;
     if (ghost) ghost.reset(), ghost = null;
     propThumbs.length = 0; lastThumbTs = 0;   // free the preview tiles' canvases
+    cache = null; cacheGeo = null;            // …and the editor's baked plates: open() always re-takes or re-bakes them, and a
+                                              // closed editor holding a whole-station bake was pure memory (LITE VIEW, liteview.js)
     if (unsub) unsub(), unsub = null;
     if (ro) { try { ro.disconnect(); } catch (e) {} ro = null; }
     if (typeof WorkflowPanel !== 'undefined' && WorkflowPanel.isOpen()) WorkflowPanel.close();   // saves its open fields while the station is still ours

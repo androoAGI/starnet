@@ -1,0 +1,44 @@
+/* LITE VIEW (app/liteview.js): the station picture paused to save memory; everything else keeps working.
+   body.lite-view hides the stage canvas + its camera overlay, shows one quiet panel in their place, and hands the
+   reclaimed width to COMMS. Deliberately no backdrop-filter / animation here: this mode exists to cost less GPU. */
+
+#lite-panel { display: none; }
+body.lite-view #stage-wrap > #stage,
+body.lite-view #stage-wrap > .cam-hud { display: none !important; }
+body.lite-view #lite-panel {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.lite-card {
+  box-sizing: border-box; max-width: 340px; padding: 16px 18px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  font: 16px/1.35 'VT323', monospace; color: var(--ph);
+  background: rgba(6, 4, 2, .6); border: 1px solid rgba(var(--ph-rgb), .2); border-radius: 8px;
+}
+.lite-title { font-weight: normal; font-size: 18px; letter-spacing: 1px; color: var(--ph-bright); }
+.lite-copy { margin: 0; color: var(--ph-dim); }
+.lite-show, .cam-lite {
+  box-sizing: border-box; height: 28px; padding: 0 12px; margin: 0; cursor: pointer;
+  font: 15px/26px 'VT323', monospace; letter-spacing: .8px; white-space: nowrap;
+  color: var(--ph); background: rgba(6, 4, 2, .6);
+  border: 1px solid rgba(var(--ph-rgb), .3); border-radius: 8px;
+}
+.lite-show:is(:hover, :focus-visible), .cam-lite:is(:hover, :focus-visible) {
+  color: var(--ph-bright); border-color: rgba(var(--ph-rgb), .55);
+}
+.lite-hint { font-size: 13px; color: var(--ph-dim); }
+
+/* COMMS takes the room the picture gave back (the paused panel keeps a modest column) */
+body.lite-view:not(.hud-mode) #screen-game.active:not(.cinema) {
+  grid-template-columns:
+    calc(var(--crew-w, 232px) * var(--cz))
+    minmax(calc(220px * var(--cz)), 2fr)
+    minmax(calc(var(--chat-w, 360px) * var(--cz)), 3fr);
+}
+
+/* the LITE key: bottom-left of the station view, mirroring CINEMA in the bottom-right */
+.cam-lite { position: absolute; left: 12px; bottom: 7px; z-index: 4; pointer-events: auto; }
+body.glass-demo:not(.hud-mode) #screen-game #stage-wrap .cam-lite { left: 24px; bottom: 24px; }
+#screen-game.cinema .cam-lite,
+html body.hud-mode #stage-wrap .cam-lite,
+html body.hud-mode #lite-panel { display: none !important; }
