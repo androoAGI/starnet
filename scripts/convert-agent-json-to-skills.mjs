@@ -5,10 +5,10 @@
  *
  * Usage:
  *   node scripts/convert-agent-json-to-skills.mjs
- *   node scripts/convert-agent-json-to-skills.mjs --in D:\AML_University_Training_Hospital\examples\agents --out sidecar/skills/library/aml-university
+ *   node scripts/convert-agent-json-to-skills.mjs --in D:\AML_University_Training_Hospital\examples\agents --out D:\AML_University_Training_Hospital\starnet-role-skills
  *
- * After generation, restart StarNet (or skill reload) and grant skills to agents via the UI
- * or skill.manage. Use agent_id slugs in team.dispatch (e.g. dean-g1), not display titles.
+ * Output stays on the hospital drive. The platform library may symlink those files so StarNet
+ * can load them; the bytes live on D:. Use agent_id slugs in team.dispatch (e.g. dean-g1).
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
@@ -22,7 +22,7 @@ function argVal(flag, dflt) {
 }
 
 const IN_DIR = resolve(argVal('--in', 'D:\\AML_University_Training_Hospital\\examples\\agents'));
-const OUT_DIR = resolve(argVal('--out', join(ROOT, 'sidecar', 'skills', 'library')));
+const OUT_DIR = resolve(argVal('--out', 'D:\\AML_University_Training_Hospital\\starnet-role-skills'));
 
 const GENOME_SKILL = `---
 name: Activate Capability Genome
@@ -187,7 +187,7 @@ function main() {
   writeFileSync(join(OUT_DIR, 'genome-activate.md'), GENOME_SKILL, 'utf8');
   console.log('Wrote', join(OUT_DIR, 'genome-activate.md'));
 
-  const indexPath = join(ROOT, 'artifacts', 'reports', 'aml-university-agent-skills-index.md');
+  const indexPath = join(OUT_DIR, 'INDEX.md');
   mkdirSync(dirname(indexPath), { recursive: true });
   writeFileSync(
     indexPath,
