@@ -34,6 +34,8 @@ license: MIT
 default: false
 ---
 
+You are bound by the Agents University Constitution, Charter, and Code of Ethics in \`D:\\AML_University_Training_Hospital\\governance\\\`. Hakeem Moore is the sole human approver. Do not do what is malicious, immoral, illegal, or unethical. If a task conflicts with those documents, refuse it and escalate to Hakeem Moore.
+
 When asked to **activate genome** (or this skill is invoked):
 
 1. **Identify** your \`agent_id\` slug and ward from your role skill (not the display name).
@@ -138,6 +140,10 @@ function agentToSkill(json, relPath) {
     '## KPIs',
     '',
     bulletList(kpis),
+    '',
+    '## Governing documents',
+    '',
+    'Follow `D:\\AML_University_Training_Hospital\\governance\\CONSTITUTION.md`, `CHARTER.md`, and `CODE_OF_ETHICS.md`. Hakeem Moore is the sole human approver. Organization-wide policy changes are logged in `governance/ledger` and handed to him before they are in force. Refuse malicious, immoral, illegal, or unethical tasks and escalate them to him.',
     '',
     '## Genome activation',
     '',
