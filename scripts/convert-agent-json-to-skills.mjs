@@ -41,7 +41,7 @@ When asked to **activate genome** (or this skill is invoked):
 3. **List** 3–5 capabilities you own (tools / scopes from registry) and 2 red lines you must not cross.
 4. **Emit** a compact JSON object (for the lead/host) with keys:
    \`agent_id\`, \`title\`, \`ward\`, \`capabilities\`, \`red_lines\`, \`ready\` (boolean).
-5. **Do not** delegate to yourself; if you are the lead, dispatch workers using exact \`agent_id\` values.
+5. **Do not** delegate to yourself. If you are the lead, call \`team.dispatch\` with \`agentId\` set to the exact registry slug.
 
 Keep output under one screen unless \`resultSchema\` requires strict JSON only.
 `;
@@ -187,7 +187,7 @@ function main() {
   writeFileSync(join(OUT_DIR, 'genome-activate.md'), GENOME_SKILL, 'utf8');
   console.log('Wrote', join(OUT_DIR, 'genome-activate.md'));
 
-  const indexPath = join(OUT_DIR, 'INDEX.md');
+  const indexPath = join(dirname(OUT_DIR), 'STARNET_ROLE_SKILLS.md');
   mkdirSync(dirname(indexPath), { recursive: true });
   writeFileSync(
     indexPath,
