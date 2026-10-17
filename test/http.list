@@ -19,6 +19,7 @@ test/github-device.http.test.js
 test/workspace-owner.e2e.test.js
 test/workspace-lineage.http.test.js
 test/lineage-stationless-halt.http.test.js
+test/lineage-stationless-questrefresh.http.test.js
 test/update-preparation.http.test.js
 test/codex-status.e2e.test.js
 test/oauth-status.e2e.test.js
