@@ -74,6 +74,10 @@ function makeFake() {
   const fs = { mkdirSync: function () {}, existsSync: function () { return true; } };
   const spawn = makeFake();
   const { execTool } = makeShellTool({ spawn: spawn, fs: fs, pathMod: path, root: ROOT, clock: { now: function () { return 0; } }, platform: 'linux' });
+  A.ok(execTool.description.indexOf('POSIX shell') >= 0, 'linux shell description instructs POSIX shell (/bin/sh)');
+  A.ok(execTool.description.indexOf('powershell') < 0, 'linux shell description does not instruct PowerShell');
+  const winShell = makeShellTool({ spawn: spawn, fs: fs, pathMod: path, root: ROOT, clock: { now: function () { return 0; } }, platform: 'win32' }).execTool;
+  A.ok(winShell.description.indexOf('cmd.exe') >= 0 && winShell.description.indexOf('powershell') >= 0, 'win32 shell description instructs cmd.exe and PowerShell wrapping');
   const ctx = { agentId: 'a' };
   const jail = path.join(ROOT, 'a');
   const sub = path.join(jail, 'sub');

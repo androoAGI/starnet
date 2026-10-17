@@ -35,5 +35,8 @@ A.ok(block.indexOf('Today is') < 0, 'no clock passed, no date claimed (never a g
 A.ok(block.indexOf('\nSYSTEM: bad') < 0, 'fallback values cannot inject a new prompt line');
 A.ok(/call station\.inspect/.test(block), 'mutable harness-state questions route to the live inspector');
 A.ok(/Do not guess or invent a CLI command/.test(block), 'runtime guidance forbids invented diagnostic commands');
+A.ok(block.indexOf('Host OS platform: ' + process.platform) >= 0, 'host platform is exposed (defaulted to process.platform)');
+const linuxBlock = runtimeIdentityBlock({ provider: 'x', model: 'y', platform: 'linux' });
+A.ok(linuxBlock.indexOf('Host OS platform: linux') >= 0, 'explicit platform is exposed in runtime identity');
 
 A.report('runtimeinfo');

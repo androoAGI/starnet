@@ -848,9 +848,11 @@
          remembered list — so it is stated once as a rule instead of itemised. Same for the Windows path
          normalization note: it altered no choice the model makes. */
       description: 'Run a shell command in the current project folder when this session is project-scoped, otherwise in your private workspace; returns combined stdout/stderr + exit code. '
-        + 'Tests, builds, git, scripts — anything you would type in a terminal. On Windows this uses cmd.exe; wrap PowerShell cmdlets with `powershell -NoProfile -NonInteractive -Command "..."`. '
-        + 'Your working directory PERSISTS across calls (a `cd` carries over). Absolute and `..` paths are '
-        + 'refused in cmd — pass cwd to run from a specific existing folder. Commands that would change the '
+        + 'Tests, builds, git, scripts — anything you would type in a terminal. '
+        + (isWin
+          ? 'On Windows this uses cmd.exe; wrap PowerShell cmdlets with `powershell -NoProfile -NonInteractive -Command "..."`. Absolute and `..` paths are refused in cmd — pass cwd to run from a specific existing folder. '
+          : 'On Linux/macOS this uses /bin/sh (POSIX shell); use standard Unix commands (e.g. ls, cat, grep, curl, bash). Absolute and `..` paths are refused — pass cwd to run from a specific existing folder. ')
+        + 'Your working directory PERSISTS across calls (a `cd` carries over). Commands that would change the '
         + 'user\'s machine or screen are refused in restricted modes; Full Power may run any host command the '
         + 'current OS user can run. Optional timeoutMs (default 30s, max 10 min; timeout_ms is accepted too). background:true returns a handle '
         + 'immediately for long-running processes (dev servers) — check shell.bg.status, read its log with '

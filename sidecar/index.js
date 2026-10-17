@@ -5248,7 +5248,7 @@ const terminalSessions = makeTerminalSessions({
   onExit: (s) => { try { console.log('[terminal] ' + s.agentId + '/' + s.name + ' ' + s.state + (s.exitCode == null ? '' : ' exit=' + s.exitCode)); } catch (_) {} }
 });
 if (terminalPtyLoadError && require.main === module) console.warn('[terminal] PTY runtime unavailable: ' + terminalPtyLoadError);
-const cronScriptTool = makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg }).execTool;
+const cronScriptTool = makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg, platform: process.platform }).execTool;
 
 function cronStringList(v, max, pattern) {
   if (!Array.isArray(v)) return [];
@@ -20451,7 +20451,7 @@ async function runOnceCore(o) {
   makeSpotifyTools({ store: spotifyStore }).register(registry);
   // shell.exec (the workbench capability): registered every run, but only EXPOSED + dispatchable when a 'workbench'
   // object is in the agent's room (resolveTools gates it) — no object, no shell. redact() scrubs stdout of secrets.
-  makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg }).register(registry);
+  makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg, platform: process.platform }).register(registry);
   makeTerminalTools({
     manager: terminalSessions, environment: executionEnvironment, fs: fs, pathMod: path, root: WORKSPACES,
     // sanitizeChildEnv strips every *_API_KEY, so the KEYS-tab vars are merged back exactly as shell.exec gets them
@@ -20459,7 +20459,7 @@ async function runOnceCore(o) {
     platform: process.platform, envFor: (surface) => Object.assign(sanitizeChildEnv(process.env), executionEnvironmentDeps.serviceEnv(surface))
   }).register(registry);
   // verify.run (same workbench gate as shell): run the project check + emit verify.result. Also workbench-only.
-  makeVerifyTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() } }).register(registry);
+  makeVerifyTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, platform: process.platform }).register(registry);
   // Native driver registration is harmless by itself: the per-run remote-owner lease below is still required
   // at authority, capability, consent, and tool boundaries before any desktop action can reach Windows.
   if (computerControl.selection() === 'cua') {
@@ -22389,7 +22389,7 @@ async function runOnceCore(o) {
   const manualBlock = (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual())
     : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
   const runtimeVersion = computeVersionSurface();
-  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app, now: Date.now() });
+  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness, app: runtimeVersion.app, platform: process.platform, now: Date.now() });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
