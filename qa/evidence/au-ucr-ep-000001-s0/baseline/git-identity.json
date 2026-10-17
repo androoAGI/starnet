@@ -1,0 +1,25 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-001",
+  "owner_lane": "unassigned_role_only",
+  "branch": "cursor/ucr-s0-execution-3141",
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "canonical_s0": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "gov_addendum": "3f2dd71db76ddc89ff2dabad391665f4a381698c",
+  "authority_branch_local": {
+    "name": "feat/harness-backend",
+    "commit": "fbddbf992f8e7082196f07c3024781fcf1c276fc"
+  },
+  "authority_branch_origin": {
+    "name": "origin/feat/harness-backend",
+    "commit": "0b73cb2fb9c3046fee800c18337100a6fb0f4ac3"
+  },
+  "gate_set": [
+    "test:fast",
+    "test:http"
+  ],
+  "reviewer": null,
+  "review_outcome": "not_recorded",
+  "created_at_utc": "2026-10-03T19:29:35.086Z"
+}

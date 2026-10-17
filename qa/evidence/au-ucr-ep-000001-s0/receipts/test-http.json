@@ -1,0 +1,20 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-001",
+  "owner_lane": "unassigned_role_only",
+  "branch": "cursor/ucr-s0-execution-3141",
+  "commit_tested": "cdc793ba738c688ef2493fcd196043bfb3fddd77",
+  "gate_set": ["test:http"],
+  "outcome": "fail",
+  "reviewer": null,
+  "review_outcome": "not_recorded",
+  "created_at_utc": "2026-10-03T19:33:26Z",
+  "command": "npm run test:http",
+  "install": "npm ci --ignore-scripts",
+  "log": "qa/evidence/au-ucr-ep-000001-s0/receipts/test-http.log",
+  "exit_code": 1,
+  "failure_point": "test/image-task.e2e.test.js",
+  "step": "38/156",
+  "notes": "image-task.e2e.test.js reported three failures, including an impossible route that was expected to make 0 model calls and observed 4. Dependencies were installed with npm ci --ignore-scripts. This is a baseline gate result for this worktree. It is not an S0 acceptance result."
+}

@@ -1,0 +1,4 @@
+C:/Users/hakee/.cursor/starnet-ucr-publish-2  cdc793ba7 [cursor/ucr-s0-execution-3141]
+cursor/ucr-gov-001-3141      3f2dd71db [origin/cursor/ucr-gov-001-3141] docs: add AU-UCR-GOV-001 release authority addendum
+* cursor/ucr-s0-execution-3141 cdc793ba7 [origin/cursor/ucr-s0-execution-3141] docs: implement AU-UCR-EP-000001 sprint 0 artifacts
+  feat/harness-backend         fbddbf992 [origin/feat/harness-backend: behind 5] fix(station.layout): the tool's clock is injected; with none, how long ago a Bay last ran is not claimed

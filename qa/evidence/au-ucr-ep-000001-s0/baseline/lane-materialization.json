@@ -1,0 +1,39 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-002",
+  "owner_lane": "unassigned_role_only",
+  "lanes": [
+    {
+      "branch": "cursor/ucr-coordination-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    },
+    {
+      "branch": "cursor/ucr-001-contract-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    },
+    {
+      "branch": "cursor/ucr-runtime-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    },
+    {
+      "branch": "cursor/ucr-governance-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    },
+    {
+      "branch": "cursor/ucr-campus-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    },
+    {
+      "branch": "cursor/ucr-qa-evidence-3141",
+      "local": false,
+      "owner": "unassigned_role_only"
+    }
+  ],
+  "worktrees": "C:/Users/hakee/.cursor/starnet-ucr-publish-2  cdc793ba7 [cursor/ucr-s0-execution-3141]"
+}
