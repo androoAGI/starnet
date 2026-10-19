@@ -187,7 +187,8 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
     A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\);/.test(idx), 'the station master bypass is withheld too');
     A.ok(/withholdHostPower: hostPowerWithheld,/.test(idx), 'the verdict rides the host-context connectorAuthority into delegated workers');
     A.ok(!/fullAccess: FULL_ACCESS \|\| masterBypassOn\(\) \|\| agentFullAccessNow\(\)/.test(idx), 'no taint-boundary site reads the raw bypass anymore');
-    A.ok(/masterBypass: stationBypassNow\(\), fullAccess: agentFullAccessNow,/.test(idx), 'the run authority gets the withheld-aware bypass');
+    // …and a REMOTE SSH agent's Full Power never becomes input/screen authority on this computer (2026-10-19)
+    A.ok(/masterBypass: stationBypassNow\(\) && !remoteMachineNow\(\), fullAccess: \(\) => agentFullAccessNow\(\) && !remoteMachineNow\(\),/.test(idx), 'the run authority gets the withheld-aware bypass');
     // sweep 2026-10-02: a withheld run (phone, non-owner) can't launder Full Access through STANDING work that fires later
     A.ok(/if \(hostPowerWithheld && standingWorkEscalates\(c\.name, c\.args\)\) \{\s*return \{ ok: false, isError: true, summary: 'withheld',/.test(idx), 'the dispatch guard refuses standing work from a withheld run');
     const { standingWorkEscalates } = require('../sidecar/run-origin.js');
