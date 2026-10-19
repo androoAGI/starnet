@@ -300,6 +300,10 @@
       dockerExtraArgs: Array.isArray(overrides.dockerExtraArgs) ? overrides.dockerExtraArgs : readListEnv(firstEnv(env, ['STARNET_DOCKER_EXTRA_ARGS'], '')),
       sshBin: overrides.sshBin || firstEnv(env, ['STARNET_SSH_BIN'], 'ssh'),
       scpBin: overrides.scpBin || firstEnv(env, ['STARNET_SCP_BIN'], 'scp'),
+      // workspace sync moves only CHANGED files, all of them in ONE sftp batch session (sftp ships with every OpenSSH client)
+      sftpBin: overrides.sftpBin || firstEnv(env, ['STARNET_SFTP_BIN'], 'sftp'),
+      // a remote checkpoint is a FULL tar of the workspace (not a git delta like the local store's 50), so it keeps fewer
+      sshCheckpointKeep: clamp(overrides.sshCheckpointKeep || firstEnv(env, ['STARNET_SSH_CHECKPOINT_KEEP'], '10'), 1, 200),
       sshConnectTimeoutSeconds: clamp(overrides.sshConnectTimeoutSeconds || firstEnv(env, ['STARNET_SSH_CONNECT_TIMEOUT_SECONDS'], '10'), 3, 60)
     };
   }
@@ -837,12 +841,18 @@
       const state = stateFor(agentId);
       state.availability = 'unavailable'; state.error = String(message || 'SSH unavailable').slice(0, 300); state.lastProbeAt = nowMs();
     }
+    /* WHERE A FOREGROUND COMMAND'S FATE IS UNKNOWN (2026-10-19 live proof). Stopping or losing the LOCAL ssh client
+       never proves anything about the remote process: it may still be running, or it may have finished. Only ssh's
+       own transport status (255, or -1 for a spawn/signal failure) and our own timeout/stop are that boundary — a
+       command that ran `exit 3` reports 3 and is an ordinary result, not a lost connection. */
+    const REMOTE_UNCONFIRMED = 'the command STARTED on the remote machine and may still be running there or may already have finished — check the remote state before running it again';
     function foregroundBoundary(result) {
-      if (result && result.aborted) return 'foreground SSH transport was aborted before completion';
-      if (result && result.timedOut) return 'foreground SSH transport timed out before completion';
-      if (result && result.exitCode !== 0) return 'foreground SSH transport exited ' + String(result.exitCode) + ' before completion';
+      if (result && result.aborted) return 'StarNet stopped the command and closed the SSH connection before it finished';
+      if (result && result.timedOut) return 'the command reached its timeout and StarNet closed the SSH connection before it finished';
+      if (result && (result.exitCode === 255 || result.exitCode === -1)) return 'foreground SSH transport exited ' + String(result.exitCode) + ' before the command finished (the connection ended, or the remote process was killed)';
       return '';
     }
+    function transportLost(result) { return !!(result && !result.aborted && !result.timedOut && (result.exitCode === 255 || result.exitCode === -1)); }
     function enqueue(agentId, work) {
       const aid = safeAgentId(agentId || 'agent');
       const previous = operations.get(aid) || Promise.resolve();
@@ -896,63 +906,129 @@
         maxBytes: opts.maxBytes || 64000, signal: opts.signal, clock: opts.clock || clock, isWin: WIN
       });
     }
-    function runScp(row, source, destinationPath, opts) {
+    /* WORKSPACE SYNC = CHANGED FILES ONLY (2026-10-19 live proof). The first version scp'd the WHOLE agent tree up
+       before, and back after, every command — `.starnet/` and its full-tar checkpoints included — so a 20 MB
+       workspace made a plain `echo` take 5-10 s on loopback and grew BOTH disks by a full copy per command. Now:
+         · the station keeps the last SYNCED state (path -> sha256) next to the cwd file, plus a size/mtime cache so
+           an unchanged local file is never re-hashed;
+         · push sends only local files whose hash differs from that state — nothing changed, no connection at all;
+         · pull lists only remote files whose CTIME is newer than a stamp taken before the previous listing (an
+           extracted or `cp -p` file keeps its old mtime, never its old ctime), hashes just those, and fetches only
+           the ones that differ;
+         · each transfer is ONE `sftp -b -` batch session with the same strict host-key + batch-only options;
+         · `.starnet/` (checkpoints, jobs, stamps) never syncs in either direction.
+       Sync still never deletes a file on either side. */
+    function sftpArg(value) { return '"' + String(value).replace(/[\\"]/g, '\\$&') + '"'; }
+    function runSftp(row, aid, batch, opts) {
       opts = opts || {};
-      const args = ['-q', '-r', '-p'].concat(commonOptions(row), ['-P', String(row.port), source, destinationPath]);
+      const args = commonOptions(row).concat(['-P', String(row.port), '-b', '-', destination(row)]);
       return runProcess({
-        spawn, file: cfg.scpBin || 'scp', args,
-        spawnOptions: { windowsHide: true, shell: false, env: childEnv(), cwd: ROOT },
-        timeoutMs: opts.timeoutMs || 120000, maxTimeoutMs: opts.maxTimeoutMs || 600000,
+        spawn, file: cfg.sftpBin || 'sftp', args,
+        spawnOptions: { windowsHide: true, shell: false, env: childEnv(), cwd: ensureWorkspace(aid), stdio: ['pipe', 'pipe', 'pipe'] },
+        input: batch, timeoutMs: opts.timeoutMs || 120000, maxTimeoutMs: opts.maxTimeoutMs || 600000,
         maxBytes: opts.maxBytes || 64000, signal: opts.signal, clock: opts.clock || clock, isWin: WIN
       });
     }
-    function assertLocalTreeSafe(agentId) {
-      const root = ensureWorkspace(agentId), stack = [root];
+    function syncStateFile(agentId) { return P.join(ROOT, '.execution', 'ssh', safeAgentId(agentId) + '.manifest.json'); }
+    function readSyncState(agentId) {
+      try {
+        const v = JSON.parse(fs.readFileSync(syncStateFile(agentId), 'utf8'));
+        if (!v || !v.files || typeof v.files !== 'object') return { files: {}, local: {}, committed: false, known: false };
+        return { files: v.files, local: v.local && typeof v.local === 'object' ? v.local : {}, committed: v.committed === true, known: true };
+      } catch (_) { return { files: {}, local: {}, committed: false, known: false }; }
+    }
+    function saveSyncState(agentId, sync) {
+      const file = syncStateFile(agentId), tmp = file + '.tmp'; fs.mkdirSync(P.dirname(file), { recursive: true });
+      fs.writeFileSync(tmp, JSON.stringify({ version: 2, files: sync.files, local: sync.local, committed: sync.committed === true }));
+      fs.renameSync(tmp, file);
+      const proven = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!proven || JSON.stringify(proven.files) !== JSON.stringify(sync.files) || proven.committed !== (sync.committed === true)) throw new Error('SSH sync state could not be read back');
+      sync.known = true;
+    }
+    function localManifest(agentId, cache) {
+      cache = cache || {};
+      const root = ensureWorkspace(agentId), files = {}, local = {}, stack = [root];
       let seen = 0;
-      while (stack.length) {
-        const current = stack.pop();
-        const names = fs.readdirSync(current);
-        for (const name of names) {
-          if (++seen > 100000) throw new Error('workspace sync refused: local tree exceeds the 100000-entry safety bound');
-          const full = P.join(current, name), stat = fs.lstatSync(full);
-          if (stat.isSymbolicLink()) throw new Error('workspace sync refused: symbolic links are not allowed (' + P.relative(root, full) + ')');
-          if (stat.isDirectory()) stack.push(full);
-        }
-      }
-    }
-    function assertRemoteTreeSafe(row, opts) {
-      const script = 'if find ' + quote(row.remoteRoot) + ' -type l -print -quit | grep -q .; then printf starnet-sync-symlink; exit 96; fi\nprintf starnet-sync-safe\n';
-      return runSsh(row, script, { timeoutMs: opts.timeoutMs, maxTimeoutMs: opts.maxTimeoutMs, maxBytes: 4096, signal: opts.signal }).then(function (result) {
-        if (result.exitCode !== 0 || String(result.out || '').indexOf('starnet-sync-safe') < 0) throw new Error('workspace pull refused: remote tree contains a symbolic link or could not be verified');
-      });
-    }
-    function manifestFile(agentId) { return P.join(ROOT, '.execution', 'ssh', safeAgentId(agentId) + '.manifest.json'); }
-    function readBaseline(agentId) { try { const v = JSON.parse(fs.readFileSync(manifestFile(agentId), 'utf8')); return v && v.files && typeof v.files === 'object' ? v.files : null; } catch (_) { return null; } }
-    function saveBaseline(agentId, files) {
-      const file = manifestFile(agentId), tmp = file + '.tmp'; fs.mkdirSync(P.dirname(file), { recursive: true });
-      fs.writeFileSync(tmp, JSON.stringify({ version: 1, files })); fs.renameSync(tmp, file);
-      const proven = JSON.parse(fs.readFileSync(file, 'utf8')); if (!proven || JSON.stringify(proven.files) !== JSON.stringify(files)) throw new Error('SSH sync baseline could not be read back');
-    }
-    function localManifest(agentId) {
-      const root = ensureWorkspace(agentId), out = {}, stack = [root];
       while (stack.length) {
         const dir = stack.pop();
         for (const name of fs.readdirSync(dir)) {
+          if (++seen > 100000) throw new Error('workspace sync refused: local tree exceeds the 100000-entry safety bound');
           const full = P.join(dir, name), stat = fs.lstatSync(full), rel = P.relative(root, full).replace(/\\/g, '/');
+          if (rel === '.starnet') continue;   // remote checkpoints/jobs/stamps are never workspace content
           if (stat.isSymbolicLink()) throw new Error('workspace sync refused: symbolic links are not allowed (' + rel + ')');
           if (stat.isDirectory()) stack.push(full);
-          else if (stat.isFile()) out[rel] = nodeCrypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex');
+          else if (stat.isFile()) {
+            const c = cache[rel];
+            const sha = Array.isArray(c) && c[0] === stat.size && c[1] === stat.mtimeMs && typeof c[2] === 'string'
+              ? c[2] : nodeCrypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex');
+            files[rel] = sha; local[rel] = [stat.size, stat.mtimeMs, sha];
+          }
         }
       }
-      return out;
+      return { files, local };
     }
-    async function remoteManifest(row, opts) {
-      const script = 'cd ' + quote(row.remoteRoot) + ' || exit 97\nfind . -type f ! -path "./.starnet/*" -exec sha256sum {} \\;\n';
-      const result = await runSsh(row, script, { timeoutMs: opts.timeoutMs || 60000, maxTimeoutMs: opts.maxTimeoutMs, maxBytes: 4 << 20, signal: opts.signal });
-      if (result.exitCode !== 0 || result.truncated) throw new Error('workspace sync refused: remote manifest could not be proven completely');
-      const out = {};
-      for (const line of String(result.out || '').split(/\r?\n/)) { const m = /^([a-f0-9]{64})\s+\*?\.\/(.+)$/.exec(line); if (m) out[m[2]] = m[1]; }
-      return out;
+    // a remote path is DATA from another machine: it must name a file strictly inside the workspace, and on a
+    // Windows station it must be a name Windows can hold (a `a:b` file would otherwise fail every pull)
+    function safeRemoteRel(rel) {
+      if (!rel || rel.indexOf('\\') >= 0 || rel.charAt(0) === '/') return false;
+      const parts = rel.split('/');
+      if (parts.some(s => s === '' || s === '.' || s === '..')) return false;
+      return !(WIN && parts.some(s => /[<>:"|?*\u0000-\u001f]|[. ]$/.test(s)));
+    }
+    async function remoteChanges(row, sync, opts) {
+      const script = 'cd ' + quote(row.remoteRoot) + ' || exit 97\n'
+        + 'if find . -type l -print -quit | grep -q .; then printf starnet-sync-symlink; exit 96; fi\n'
+        + 'mkdir -p .starnet || exit 97\n'
+        // no station-side state = list everything; the last listing fully pulled = its stamp becomes the reference
+        + (sync.known ? '' : 'rm -f .starnet/sync.ref .starnet/sync.next\n')
+        + (sync.committed ? 'if [ -f .starnet/sync.next ]; then mv -f .starnet/sync.next .starnet/sync.ref || exit 97; fi\n' : '')
+        + ': > .starnet/sync.next.tmp && mv -f .starnet/sync.next.tmp .starnet/sync.next || exit 97\n'
+        + 'if command -v sha256sum >/dev/null 2>&1; then H=sha256sum; else H="shasum -a 256"; fi\n'
+        + 'if [ -f .starnet/sync.ref ]; then find . -type f ! -path "./.starnet/*" -cnewer .starnet/sync.ref -exec $H {} + || exit 98\n'
+        + 'else find . -type f ! -path "./.starnet/*" -exec $H {} + || exit 98; fi\n'
+        + 'printf "\\nSTARNET_SYNC_LISTED\\n"\n';
+      const result = await runSsh(row, script, { timeoutMs: opts.timeoutMs || 60000, maxTimeoutMs: opts.maxTimeoutMs, maxBytes: 32 << 20, signal: opts.signal });
+      const out = String(result.out || '');
+      if (result.exitCode === 96 || out.indexOf('starnet-sync-symlink') >= 0) throw new Error('workspace pull refused: remote tree contains a symbolic link or could not be verified');
+      if (result.exitCode !== 0 || result.truncated || out.indexOf('STARNET_SYNC_LISTED') < 0) {
+        throw new Error('workspace sync refused: the remote change list could not be proven completely' + (result.exitCode ? ' (exit ' + result.exitCode + ')' : ''));
+      }
+      const listed = {}, skipped = [];
+      for (const line of out.split(/\r?\n/)) {
+        const m = /^([a-f0-9]{64})\s+\*?\.\/(.+)$/.exec(line);
+        if (!m) continue;
+        if (safeRemoteRel(m[2])) listed[m[2]] = m[1]; else skipped.push(m[2]);
+      }
+      return { listed, skipped };
+    }
+    async function pushChanged(row, aid, changed, opts) {
+      const dirs = new Set();
+      for (const rel of changed) { const parts = rel.split('/'); for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join('/')); }
+      let batch = '';
+      for (const d of Array.from(dirs).sort((a, b) => a.split('/').length - b.split('/').length || (a < b ? -1 : a > b ? 1 : 0))) batch += '-mkdir ' + sftpArg(row.remoteRoot + '/' + d) + '\n';
+      for (const rel of changed) batch += 'put -p ' + sftpArg(rel) + ' ' + sftpArg(row.remoteRoot + '/' + rel) + '\n';
+      const result = await runSftp(row, aid, batch, opts);
+      if (result.exitCode !== 0) throw new Error('workspace push failed' + (result.out ? ': ' + String(result.out).trim().slice(-200) : ''));
+    }
+    async function pullChanged(row, aid, changed, opts) {
+      const root = ensureWorkspace(aid);
+      let batch = '';
+      for (const rel of changed) {
+        const parts = rel.split('/'), dest = P.join.apply(P, [root].concat(parts));
+        if (!hostInside(P, dest, root) || P.resolve(dest) === P.resolve(root)) throw new Error('workspace pull refused: ' + rel + ' would land outside the agent workspace');
+        // never write THROUGH a local link: an existing parent must be a real directory inside the workspace
+        let at = root;
+        for (const part of parts.slice(0, -1)) {
+          at = P.join(at, part);
+          let st = null;
+          try { st = fs.lstatSync(at); } catch (_) { st = null; }
+          if (st && (st.isSymbolicLink() || !st.isDirectory())) throw new Error('workspace pull refused: ' + rel + ' crosses a local link or file');
+        }
+        fs.mkdirSync(P.dirname(dest), { recursive: true });
+        batch += 'get -p ' + sftpArg(row.remoteRoot + '/' + rel) + ' ' + sftpArg(rel) + '\n';
+      }
+      const result = await runSftp(row, aid, batch, opts);
+      if (result.exitCode !== 0) throw new Error('workspace pull failed' + (result.out ? ': ' + String(result.out).trim().slice(-200) : ''));
     }
     function syncConflicts(base, local, remote) {
       const conflicts = [], keys = new Set(Object.keys(local).concat(Object.keys(remote), base ? Object.keys(base) : []));
@@ -987,32 +1063,45 @@
       opts = opts || {};
       const aid = safeAgentId(agentId || 'agent'), row = target(aid), state = stateFor(aid);
       const direction = ['push', 'pull', 'both'].indexOf(String(opts.direction || 'both')) >= 0 ? String(opts.direction || 'both') : 'both';
+      const wantPush = direction === 'push' || direction === 'both', wantPull = direction === 'pull' || direction === 'both';
       ensureWorkspace(aid);
       state.sync.state = 'syncing'; state.sync.direction = direction; state.sync.error = null;
-      const remote = destination(row) + ':' + row.remoteRoot;
       return ensureReadyRaw(aid).then(async function () {
-        let local = null, remoteFiles = null;
+        const sync = readSyncState(aid);
+        const local = wantPush || opts.conflictAware ? localManifest(aid, sync.local) : null;
+        const remote = wantPull || opts.conflictAware ? await remoteChanges(row, sync, opts) : null;
+        // the listing just moved the remote stamp: until a pull FINISHES, the next listing must not trust it
+        if (remote) { sync.committed = false; saveSyncState(aid, sync); }
         if (opts.conflictAware) {
-          assertLocalTreeSafe(aid); await assertRemoteTreeSafe(row, opts);
-          local = localManifest(aid); remoteFiles = await remoteManifest(row, opts);
-          const conflicts = syncConflicts(readBaseline(aid), local, remoteFiles);
+          const conflicts = syncConflicts(sync.known && Object.keys(sync.files).length ? sync.files : null, local.files, Object.assign({}, sync.files, remote.listed));
           if (conflicts.length) throw new Error('workspace sync conflict: both local and remote changed ' + conflicts.slice(0, 20).join(', ') + '; neither side was overwritten');
         }
-        if (direction === 'push' || direction === 'both') {
-          assertLocalTreeSafe(aid);
-          const pushed = await runScp(row, aid + '/.', remote + '/', opts);
-          if (pushed.exitCode !== 0) throw new Error('workspace push failed' + (pushed.out ? ': ' + String(pushed.out).trim().slice(0, 200) : ''));
-          state.sync.lastPushAt = nowMs();
+        const pushed = new Set();
+        if (wantPush) {
+          const changed = Object.keys(local.files).filter(k => local.files[k] !== sync.files[k]).sort();
+          if (changed.length) {
+            await pushChanged(row, aid, changed, opts);
+            for (const k of changed) { sync.files[k] = local.files[k]; pushed.add(k); }
+            state.sync.lastPushAt = nowMs();
+          }
+          sync.local = local.local;
+          state.sync.pushed = changed.length;
         }
-        if (direction === 'pull' || direction === 'both') {
-          await assertRemoteTreeSafe(row, opts);
-          const pulled = await runScp(row, remote + '/.', aid, opts);
-          if (pulled.exitCode !== 0) throw new Error('workspace pull failed' + (pulled.out ? ': ' + String(pulled.out).trim().slice(0, 200) : ''));
-          state.sync.lastPullAt = nowMs();
+        let pulledCount = 0;
+        if (wantPull) {
+          // a file this same sync just pushed is newer than the listing taken before the push
+          const differs = Object.keys(remote.listed).filter(k => !pushed.has(k) && remote.listed[k] !== sync.files[k]);
+          const fetch = differs.filter(k => !(local && local.files[k] === remote.listed[k])).sort();
+          if (fetch.length) { await pullChanged(row, aid, fetch, opts); state.sync.lastPullAt = nowMs(); }
+          for (const k of differs) sync.files[k] = remote.listed[k];
+          sync.committed = true;
+          pulledCount = fetch.length;
+          state.sync.pulled = pulledCount;
+          state.sync.skipped = remote.skipped.length;
         }
-        if (opts.conflictAware) saveBaseline(aid, direction === 'pull' ? remoteFiles : local);
+        saveSyncState(aid, sync);
         state.sync.state = 'ready'; state.sync.direction = direction; state.sync.error = null;
-        return { ok: true, needed: true, backend: 'ssh', agentId: aid, direction, lastPushAt: state.sync.lastPushAt, lastPullAt: state.sync.lastPullAt };
+        return { ok: true, needed: true, backend: 'ssh', agentId: aid, direction, pushed: pushed.size, pulled: pulledCount, skipped: remote ? remote.skipped.length : 0, lastPushAt: state.sync.lastPushAt, lastPullAt: state.sync.lastPullAt };
       }).catch(function (e) {
         state.sync.state = 'error'; state.sync.error = String((e && e.message) || e || 'workspace sync failed').slice(0, 300);
         throw e;
@@ -1049,7 +1138,10 @@
       const aid = safeAgentId(agentId || 'agent'), row = target(aid);
       const id = 'sshcp_' + stableHash(aid + '\n' + nowMs() + '\n' + (++jobSeq) + '\n' + String(opts.label || 'checkpoint'));
       const dir = row.remoteRoot + '/.starnet/checkpoints', archive = dir + '/' + id + '.tar';
-      const script = 'mkdir -p ' + quote(dir) + '\ncd ' + quote(row.remoteRoot) + ' || exit 97\ntar -cf ' + quote(archive) + ' --exclude=./.starnet . || exit 98\ndigest=$(sha256sum ' + quote(archive) + ' | cut -d" " -f1)\nbytes=$(wc -c < ' + quote(archive) + ')\nprintf %s "$digest" > ' + quote(dir + '/' + id + '.sha256') + '\nprintf %s ' + quote(String(nowMs())) + ' > ' + quote(dir + '/' + id + '.at') + '\nprintf "STARNET_CHECKPOINT\\t' + id + '\\t%s\\t%s\\n" "$digest" "$bytes"\n';
+      const script = 'mkdir -p ' + quote(dir) + '\ncd ' + quote(row.remoteRoot) + ' || exit 97\ntar -cf ' + quote(archive) + ' --exclude=./.starnet . || exit 98\ndigest=$(sha256sum ' + quote(archive) + ' | cut -d" " -f1)\nbytes=$(wc -c < ' + quote(archive) + ')\nprintf %s "$digest" > ' + quote(dir + '/' + id + '.sha256') + '\nprintf %s ' + quote(String(nowMs())) + ' > ' + quote(dir + '/' + id + '.at') + '\n'
+        // each checkpoint is a FULL tar of the workspace: keep the newest sshCheckpointKeep, prune the rest (newest-first by mtime)
+        + 'ls -1t ' + quote(dir) + '/sshcp_*.tar 2>/dev/null | tail -n +' + String((cfg.sshCheckpointKeep || 10) + 1) + ' | while IFS= read -r old; do rm -f -- "$old" "${old%.tar}.sha256" "${old%.tar}.at"; done\n'
+        + 'printf "STARNET_CHECKPOINT\\t' + id + '\\t%s\\t%s\\n" "$digest" "$bytes"\n';
       const result = await runSsh(row, script, { timeoutMs: opts.timeoutMs || 120000, maxBytes: 4096, signal: opts.signal });
       const m = /STARNET_CHECKPOINT\t(sshcp_[a-f0-9]{8})\t([a-f0-9]{64})\t(\d+)/.exec(String(result.out || ''));
       if (result.exitCode !== 0 || !m) throw new Error('remote checkpoint could not be verified');
@@ -1074,13 +1166,17 @@
       if (!/^sshcp_[a-f0-9]{8}$/.test(String(snapshotId || ''))) return Promise.resolve(false);
       return enqueue(aid, async function () {
         const row = target(aid), dir = row.remoteRoot + '/.starnet/checkpoints', archive = dir + '/' + snapshotId + '.tar';
-        const script = 'test -f ' + quote(archive) + ' || exit 44\nwant=$(cat ' + quote(dir + '/' + snapshotId + '.sha256') + ' 2>/dev/null || true)\ngot=$(sha256sum ' + quote(archive) + ' | cut -d" " -f1)\ntest -n "$want" && test "$want" = "$got" || exit 45\nfind ' + quote(row.remoteRoot) + ' -mindepth 1 -maxdepth 1 ! -name .starnet -exec rm -rf -- {} + || exit 46\ntar -xf ' + quote(archive) + ' -C ' + quote(row.remoteRoot) + ' || exit 47\nprintf starnet-checkpoint-restored\n';
+        const script = 'test -f ' + quote(archive) + ' || exit 44\nwant=$(cat ' + quote(dir + '/' + snapshotId + '.sha256') + ' 2>/dev/null || true)\ngot=$(sha256sum ' + quote(archive) + ' | cut -d" " -f1)\ntest -n "$want" && test "$want" = "$got" || exit 45\nfind ' + quote(row.remoteRoot) + ' -mindepth 1 -maxdepth 1 ! -name .starnet -exec rm -rf -- {} + || exit 46\ntar -xf ' + quote(archive) + ' -C ' + quote(row.remoteRoot) + ' || exit 47\n'
+          // the rewound tree is new content as far as sync knows: drop the change stamps so the pull below lists everything
+          + 'rm -f ' + quote(row.remoteRoot + '/.starnet/sync.ref') + ' ' + quote(row.remoteRoot + '/.starnet/sync.next') + '\n'
+          + 'printf starnet-checkpoint-restored\n';
         const result = await runSsh(row, script, { timeoutMs: opts.timeoutMs || 120000, maxBytes: 4096 });
         if (result.exitCode === 44) return false;
         if (result.exitCode !== 0 || String(result.out || '').indexOf('starnet-checkpoint-restored') < 0) throw new Error('remote checkpoint restore could not be verified');
         const local = ensureWorkspace(aid), rootResolved = P.resolve(ROOT), localResolved = P.resolve(local);
         if (!hostInside(P, localResolved, rootResolved) || localResolved === rootResolved) throw new Error('local SSH mirror boundary could not be proven');
         for (const name of fs.readdirSync(local)) fs.rmSync(P.join(local, name), { recursive: true, force: true });
+        saveSyncState(aid, { files: {}, local: {}, committed: false });   // the mirror is empty: nothing is synced any more
         await syncWorkspaceRaw(aid, { direction: 'pull', timeoutMs: opts.timeoutMs || 120000 });
         return true;
       });
@@ -1100,14 +1196,18 @@
           const result = await runSsh(row, script, opts); result.remoteCheckpointId = checkpoint.id; return result;
         }).then(function (result) {
           const boundary = foregroundBoundary(result);
-          if (boundary) markUnavailable(aid, boundary);
+          if (transportLost(result)) markUnavailable(aid, boundary);
           return syncWorkspaceRaw(aid, { direction: 'pull', timeoutMs: opts.timeoutMs, maxTimeoutMs: opts.maxTimeoutMs, signal: opts.signal })
             .then(function () {
-              if (boundary) result.remoteBoundary = boundary + '; remote process continuation and command completion are unconfirmed';
+              if (boundary) result.remoteBoundary = boundary + '; ' + REMOTE_UNCONFIRMED;
               return result;
             }).catch(function (e) {
               if (!boundary) throw e;
-              throw new Error(boundary + '; workspace recovery failed: ' + String((e && e.message) || e));
+              // the command already STARTED remotely: this must reach the agent as-is, never be re-labelled
+              // "host unreachable, nothing ran" by the routing layer (execution-router honestProxy keeps it)
+              const lost = new Error(boundary + '; ' + REMOTE_UNCONFIRMED + '; workspace recovery failed: ' + String((e && e.message) || e));
+              lost.code = 'remote_unconfirmed'; lost.remoteBoundary = boundary;
+              throw lost;
             });
         });
       });
@@ -1243,7 +1343,7 @@
       killBackground,
       killAllBackground,
       spawnStdio: function () { throw new Error('mcp stdio is not available through the SSH backend'); },
-      _internals: { states, operations, target, runSsh, runScp, quote, assertLocalTreeSafe, assertRemoteTreeSafe, parseJobLine, remoteJobDir, localManifest, remoteManifest, syncConflicts }
+      _internals: { states, operations, target, runSsh, runSftp, sftpArg, quote, safeRemoteRel, parseJobLine, remoteJobDir, localManifest, remoteChanges, readSyncState, syncConflicts, foregroundBoundary }
     };
   }
 

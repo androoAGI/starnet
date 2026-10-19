@@ -77,15 +77,19 @@ ok(/accWrap\.querySelectorAll\('\[data-access-posture\]'\)/.test(src) && /if \(P
 {
   const ap = /function approvalCard\(a\) \{[\s\S]*?\n  \}\n/.exec(src);
   ok(!!ap, 'the dossier asking pair is still its own card');
-  ok(ap && /chip\('ask', 'ASK FOR APPROVAL', 'stops to check with you before it writes, runs, or reaches out'/.test(ap[0]) && /chip\('full', 'FULL POWER', 'uses the whole local computer without approval prompts'/.test(ap[0]), 'the fold reads ASK FOR APPROVAL / FULL POWER, as the candidate had it');
+  ok(ap && /chip\('ask', 'ASK FOR APPROVAL', 'stops to check with you before it writes, runs, or reaches out'/.test(ap[0]) && /chip\('full', 'FULL POWER', remote \? '[^']+' : 'uses the whole local computer without approval prompts'/.test(ap[0]), 'the fold reads ASK FOR APPROVAL / FULL POWER, as the candidate had it');
+  // a REMOTE SSH agent's Full Power stays on its own machine (Andrew 2026-10-19): the card says so instead of "the whole local computer"
+  ok(ap && /const remote = executionProfileId\(a\) === 'remote-ssh'/.test(ap[0]) && /on that machine only<\/b>: it gets nothing on this computer/.test(ap[0]), 'a REMOTE SSH agent\'s card says where its Full Power applies');
   ok(ap && /ASK respects the selected reach profile and pauses before risky calls\. FULL POWER authorizes the whole local computer/.test(ap[0]) && /<code>\/yolo<\/code> is the Full Power shortcut/.test(ap[0]), 'the fold keeps the candidate\'s copy');
   ok(ap && !/ASKS FIRST|NEVER ASKS|never-ask|CHECK WITH ME|LET IT WORK/.test(ap[0]), 'the fold carries no struck P08 name');
   ok(ap && /data-tip="' \+ esc\(desc\)/.test(ap[0]) && !/title="/.test(ap[0]), 'the whole-computer warning is a station data-tip, never a native title');
   ok(/chip\.textContent = 'FULL POWER — SURE\?'/.test(src) && !/NEVER ASKS — SURE/.test(src), 'FULL POWER keeps its two-press confirm');
   // a custom mix on approvalMode full: the saved reach limits nothing (unrestrictedHostNow), so the row never says
   // "it reaches <reach> and never asks" — reach wording is kept for the asks-first case only
-  ok(/AP \? AP\.agentBlurb : full \? 'full power · the whole local computer' : 'asks first · ' \+ p\.short/.test(src)
-    && /\? 'it has <b>full power<\/b> over the whole local computer; the saved reach below does not limit it'\s*: 'it reaches <b>' \+ esc\(p\.plainLabel\.toLowerCase\(\)\) \+ '<\/b> and asks before risky steps'/.test(src)
+  // …except a REMOTE SSH agent (Andrew 2026-10-19): its Full Power stays on its own machine, and the row says so
+  ok(/AP \? AP\.agentBlurb : full \? \(id === 'remote-ssh' \? 'full power · on its own remote machine' : 'full power · the whole local computer'\) : 'asks first · ' \+ p\.short/.test(src)
+    && /: 'it has <b>full power<\/b> over the whole local computer; the saved reach below does not limit it'\)\s*: 'it reaches <b>' \+ esc\(p\.plainLabel\.toLowerCase\(\)\) \+ '<\/b> and asks before risky steps'/.test(src)
+    && /'it has <b>full power on its own remote machine<\/b> and none over this computer'/.test(src)
     && !/'never asks · '|\(full \? 'never asks' :/.test(src),
     'a FULL POWER custom mix says full power over the whole local computer; only an asks-first mix names its reach');
   ok(!/postureRung|levelSet/.test(src) && !/accessPostures:/.test(src), 'no struck P08 posture-notice rung and no create-screen table export');

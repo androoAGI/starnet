@@ -45,7 +45,13 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), '
 A.ok(/executionProfile\.capabilityObjects[\s\S]{0,180}stationWithObject/.test(src), 'run projection materializes profile capability objects');
 A.ok(/executionProfile\.connectors[\s\S]{0,120}stationWithConnectors/.test(src), 'trusted profiles materialize connector projection');
 A.ok(/executionProfile\.filesystemScope === 'host-paths-except-hard-floor'/.test(src), 'This Computer reaches the path-trust authority seam');
-A.ok(/const unrestrictedHostNow = \(\) => stationBypassNow\(\) \|\| agentFullAccessNow\(\)/.test(src), 'one central predicate composes every Full Power scope');
+A.ok(/const fullPowerNow = \(\) => stationBypassNow\(\) \|\| agentFullAccessNow\(\)/.test(src), 'one central predicate composes every Full Power scope');
+// REMOTE SSH keeps its machine (Andrew 2026-10-19): Full Power on a remote agent is never authority over THIS computer,
+// it never asks (the consent bypass reads fullPowerNow) and the router never forces it local
+A.ok(/const unrestrictedHostNow = \(\) => fullPowerNow\(\) && !remoteMachineNow\(\)/.test(src), 'host-wide authority excludes a REMOTE SSH agent');
+A.ok(/bypass: \(\) => fullPowerNow\(\) \|\| \(ownerTrusted && !prompt\)/.test(src), 'a REMOTE SSH agent on Full Power still never asks');
+A.ok(/forceLocalForAgent: \(agentId\) => \{[\s\S]{0,160}executionProfile === 'remote-ssh'\) return false/.test(src), 'the router never forces a REMOTE SSH agent onto this computer');
+A.ok(/runInputContext\(accessSurface, isTask, remoteDesktopAuthorized, unrestrictedHostNow\(\), remoteFullPowerNow\(\)\)/.test(src), 'the remote-only Full Power flag reaches the tool context');
 A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\)/.test(src), 'the station scopes (env + master bypass) are one withheld-aware predicate');
 A.ok(/Object\.keys\(CAP_REGISTRY\)[\s\S]{0,120}stationWithObject/.test(src), 'Full Power materializes every available built-in capability family');
 A.ok(/exact: '\/api\/execution-profiles'/.test(src), 'backend exposes the authoritative profile/runtime catalog');

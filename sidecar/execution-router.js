@@ -110,6 +110,9 @@ function makeExecutionRouter(deps) {
         const args = Array.prototype.slice.call(arguments);
         const agentId = args[0] && typeof args[0] === 'object' ? args[0].agentId : args[0];
         const retype = e => {
+          // a command that STARTED remotely and then lost its connection is not "the host was unreachable, nothing
+          // ran": the backend's own boundary is the truth (2026-10-19 live proof — the command had finished remotely)
+          if (e && e.code === 'remote_unconfirmed') return e;
           const res = resolveBackend(profileId, agentId);
           if (res.matched !== false) return e;
           const typed = sandboxError(res);

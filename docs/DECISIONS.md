@@ -46,6 +46,11 @@ many of these — they win on any wording conflict.
   caps, checkpoints, truthful telemetry, OS account privileges, elevation prompts, credentials,
   unavailable hardware, and disconnected external services remain real engineering/runtime facts,
   not StarNet permission denials. ASK and narrower execution modes remain restricted as labeled.
+  **Amended 2026-10-19 (Andrew): a REMOTE SSH agent keeps its machine.** When an agent's reach is
+  ANOTHER MACHINE, per-agent Full Access or the station master bypass means it never asks and its
+  shell is not held to its remote folder ON THAT MACHINE — it is never routed to, and never gains
+  host paths, apps, screen or input on, this computer. Only choosing THIS COMPUTER as its reach
+  brings it here (`sidecar/index.js` remoteMachineNow / forceLocalForAgent).
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't
   prove. Object = capability: a prop in the world is a real grant, not decoration. Tool
   surface must never exceed wired reality.

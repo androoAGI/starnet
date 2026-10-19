@@ -78,4 +78,13 @@ A.eq(row(leadView, 'orchestrator').placed, false, 'runtime grant does not fabric
 A.eq(row(leadView, 'orchestrator').grantSource, 'lead run', 'runtime grant source is explicit');
 A.eq(row(effectiveToolsets({...base, lead:true, disabled:{orchestrator:false}}), 'orchestrator').available, false, 'lead grant respects family kill switch');
 A.eq(row(ask, 'orchestrator').available, false, 'worker view never invents lead authority');
+// REMOTE SSH (Andrew 2026-10-19): Full Access on an agent whose reach is another machine is no prompts THERE, never
+// host-wide authority here — the disclosure must not say "Whole local computer" or project every toolset
+{
+  const remoteFull = effectiveToolsets({ ...base, agent: { ...(base.agent || {}), executionProfile: 'remote-ssh', approvalMode: 'full' } });
+  A.ok(remoteFull.authority.unrestricted === false && remoteFull.authority.remoteMachine === true, 'remote Full Access is not host-wide authority');
+  A.ok(!/Whole local computer/.test(remoteFull.authority.filesystemLabel) && /remote machine/.test(remoteFull.authority.filesystemLabel), 'its scope reads as its own remote machine');
+  A.eq(remoteFull.authority.approvalLabel, 'FULL ACCESS — no StarNet approval prompts', 'it still never asks');
+  A.ok(remoteFull.toolsets.every(r => r.grantSource !== 'Full Access'), 'no toolset is granted by Full Access alone');
+}
 A.report('effective-toolsets');

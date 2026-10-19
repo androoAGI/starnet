@@ -7,15 +7,20 @@ const profiles = require('../execution-profiles.js');
 function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {}, fullAccess = false, masterBypass = false, lead = false, backendId = 'local' } = {}) {
   agent = agent || {};
   const source = fullAccess ? 'environment' : masterBypass ? 'station' : agent.approvalMode === 'full' ? 'agent' : null;
-  const unrestricted = !!source;
+  // REMOTE SSH (Andrew 2026-10-19): Full Power on an agent whose reach is ANOTHER MACHINE means no prompts and no
+  // folder limit THERE; it is never host-wide authority over this computer, so its tools stay its profile's.
+  const remoteMachine = !!source && agent.executionProfile === 'remote-ssh';
+  const unrestricted = !!source && !remoteMachine;
+  const noPrompts = !!source;
   const profile = profiles.resolve(agent.executionProfile, { approvalMode: agent.approvalMode, backendId });
   const onFloor = new Set(placed);
   const projected = new Set(profile.capabilityObjects);
   return {
-    authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source,
+    authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source, remoteMachine,
       context: lead ? 'interactive lead' : 'capability grants',
-      profile: profile.id, profileLabel: profile.label, filesystemLabel: unrestricted ? 'Whole local computer' : profile.filesystemLabel,
-      approvalLabel: unrestricted ? 'FULL ACCESS — no StarNet approval prompts' : 'ASK — standing grants apply',
+      profile: profile.id, profileLabel: profile.label,
+      filesystemLabel: unrestricted ? 'Whole local computer' : remoteMachine ? 'Its own remote machine — no folder limit there, nothing on this computer' : profile.filesystemLabel,
+      approvalLabel: noPrompts ? 'FULL ACCESS — no StarNet approval prompts' : 'ASK — standing grants apply',
       revoke: source === 'environment' ? 'Clear SKYNET_FULL_ACCESS in the launch environment and restart.' : source === 'station' ? 'Turn off the station master bypass in Settings → Permissions; individual Full Access agents stay unrestricted.' : source === 'agent' ? 'Set this agent to ASK in its dossier.' : 'Revoke standing grants in Settings → Permissions.' },
     toolsets: toolsetRows(registry).map(r => {
       const enabled = disabled[r.id] !== false;
@@ -25,7 +30,7 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
       return Object.assign({}, r, { toolCount: r.tools.length, enabled, placed: placedHere, profileGranted, runtimeGranted,
         available: unrestricted || (enabled && (placedHere || profileGranted || runtimeGranted)),
         grantSource: unrestricted ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
-        switchEffective: !unrestricted, consentGated: !unrestricted && r.consentGated });
+        switchEffective: !unrestricted, consentGated: !noPrompts && r.consentGated });
     })
   };
 }

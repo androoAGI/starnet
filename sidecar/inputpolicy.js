@@ -316,13 +316,16 @@ function enforceEnabledToolsets(resolved, registry, enabledToolsets) {
   });
 }
 
-function runInputContext(surface, isTask, remoteDesktopAuthorized, unrestrictedHost) {
+// remoteHostFull: Full Power held by a REMOTE SSH agent (Andrew 2026-10-19). It lifts the remote workspace clamp ON THAT
+// MACHINE only; it is never unrestrictedHost, so it grants nothing on this computer (no host paths, input or screen).
+function runInputContext(surface, isTask, remoteDesktopAuthorized, unrestrictedHost, remoteHostFull) {
   const remote = remoteDesktopAuthorized === true;
   const fullPower = unrestrictedHost === true;
   return {
     surface: remote ? 'interactive' : (surface || 'autonomous'),
     isTask: !!isTask,
     unrestrictedHost: fullPower,
+    remoteHostFull: !fullPower && remoteHostFull === true,
     physicalInputAuthorized: remote || fullPower,
     remoteDesktopAuthorized: remote,
     inputMode: fullPower ? 'full-power' : (remote ? 'remote-owner' : 'synthetic')
