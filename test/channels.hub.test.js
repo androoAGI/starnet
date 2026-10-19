@@ -924,7 +924,7 @@ async function run() {
     const clean = await endWith({ reason: 'done' }, { token: 'all done' });
     A.eq(clean, 'all done', 'a clean reply gets no note');
     const unpriced = await endWith({ reason: 'budget', budgetScope: 'run', unpricedModel: 'x/mystery', unpricedTokens: 2000001, unpricedCapTokens: 2000000 }, { token: 'partial' });
-    A.ok(/2,000,000-token safety ceiling/.test(unpriced) && /does not change this/.test(unpriced) && !/raise it in the app under SETTINGS › SPENDING LIMITS/.test(unpriced), 'the unpriced TOKEN ceiling is named as itself, not a $ cap to raise: ' + unpriced);
+    A.ok(/2,000,000-token safety ceiling/.test(unpriced) && /does not change this/.test(unpriced) && /Runtime limits/.test(unpriced) && !/raise it in the app under SETTINGS › SPENDING LIMITS/.test(unpriced), 'the unpriced TOKEN ceiling is named as itself and points at Runtime limits, not a $ cap: ' + unpriced);
     A.ok(!/\)\.\)/.test(unpriced) && /SKYNET_MODEL_PRICES\.\)$/.test(unpriced), 'the unpriced note ends cleanly, never "…).)" (review voice-remote-channels-12): ' + unpriced);
     const subscription = await endWith({ reason: 'budget', budgetScope: 'run', subscriptionModel: 'claude-opus', subscriptionCapTokens: 2000000 }, { token: 'partial' });
     A.ok(/2,000,000-token per-run ceiling/.test(subscription) && /Runtime limits/.test(subscription), 'the subscription TOKEN ceiling names its real lever: ' + subscription);

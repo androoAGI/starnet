@@ -88,13 +88,13 @@ for (const [scope, cap, want] of [
 {
   const line = budgetStopLine('run', null, false, { model: 'x/mystery', capTokens: 2000000 });
   A.ok(/2,000,000-token safety ceiling for x\/mystery/.test(line), 'COMMS names the token ceiling and the model: ' + line);
-  A.ok(/does not change this/.test(line) && !/raise it in SETTINGS/.test(line), 'and says raising the $ limit does not help: ' + line);
+  A.ok(/does not change this/.test(line) && /Runtime limits/.test(line) && !/raise it in SETTINGS › SPENDING LIMITS/.test(line), 'and points at Runtime limits, not a $ raise: ' + line);
   const harness = read('frontend/app/harness.js');
   A.ok(/unpricedModel = payload\.unpricedModel/.test(harness), 'Harness.chat reads the additive unpricedModel field off agent.run.end');
-  A.ok(/offerUnpricedDoor\(\)/.test(chat), 'the unpriced stop offers a model door, not SPENDING LIMITS');
+  A.ok(/offerUnpricedDoor\(\)/.test(chat) && /OPEN RUNTIME LIMITS/.test(chat) && /openTerm\('settings', 'system'\)/.test(chat), 'the unpriced stop opens APP & BACKUP Runtime limits, not SPENDING LIMITS');
   const { endNote } = require('../sidecar/channels/hub.js');
   const note = endNote('budget', { budgetScope: 'run', unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 });
-  A.ok(/2,000,000-token safety ceiling/.test(note) && !/SPENDING LIMITS/.test(note), 'channels name the token ceiling too: ' + note);
+  A.ok(/2,000,000-token safety ceiling/.test(note) && /Runtime limits/.test(note) && !/SPENDING LIMITS/.test(note), 'channels name the token ceiling and its Runtime limits lever: ' + note);
   const { stopSentence } = require('../sidecar/stop-reason.js');
   // the SUBSCRIPTION-token ceiling (2026-10-12): a Claude Code sign-in books $0 per turn, so its run is bounded in tokens
   const sub = budgetStopLine('run', null, false, null, { model: 'claude-opus-5-5', capTokens: 2000000 });
@@ -102,7 +102,7 @@ for (const [scope, cap, want] of [
   A.ok(/subscriptionModel = payload\.subscriptionModel/.test(harness) && /else if \(endReason === 'budget' && !subscription\) offerBudgetDoor/.test(chat), 'the subscription stop rides to COMMS and never offers the $ door');
   const subNote = endNote('budget', { budgetScope: 'run', subscriptionModel: 'claude-opus-5-5', subscriptionCapTokens: 2000000 });
   A.ok(/2,000,000-token per-run ceiling/.test(subNote) && /STARNET_MAX_SUBSCRIPTION_TOKENS/.test(subNote) && !/SPENDING LIMITS/.test(subNote), 'channels name the subscription ceiling too: ' + subNote);
-  A.ok(/STARNET_MAX_UNPRICED_TOKENS/.test(stopSentence('budget', { unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 })), 'and the server-side sentence names the real knob');
+  A.ok(/STARNET_MAX_UNPRICED_TOKENS/.test(stopSentence('budget', { unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 })) && /Runtime limits/.test(stopSentence('budget', { unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 })), 'and the server-side sentence names Runtime limits + the env knob');
   // the sidecar owns the fact: admission's clamp sets it, the lead's own per-run stop at that ceiling carries it
   const idx = read('sidecar/index.js');
   A.ok(/const chosenCapUsd = \(runCapUsd > 0 && isFinite\(runCapUsd\)\) \? runCapUsd : 0;[^\n]*\n    runCapUsd = budgetCaps\.managedRunCapUsd\([^\n]*\);\n(?:    \/\/[^\n]*\n)*    runCapIsBalance = budgetCaps\.managedCapIsBalance\(chosenCapUsd, runCapUsd, avail\);/.test(idx),

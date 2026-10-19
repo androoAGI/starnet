@@ -9067,7 +9067,7 @@ const Chat = (() => {
        agent.run.end fields. Name the real limit and the real ways out. */
     if (unpriced && unpriced.model) {
       const n = Number(unpriced.capTokens) > 0 ? Number(unpriced.capTokens).toLocaleString('en-US') + '-token' : 'token';
-      return 'hit the ' + n + ' safety ceiling for ' + unpriced.model + ', a model StarNet has no price for — raising the $ spending limit does not change this; pick a priced model to keep going';
+      return 'hit the ' + n + ' safety ceiling for ' + unpriced.model + ', a model StarNet has no price for — raising the $ spending limit does not change this; change the ceiling in SETTINGS › APP & BACKUP › Runtime limits (0 = no ceiling), or pick a priced model';
     }
     // nor is the SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens): a Claude Code sign-in books $0 per turn
     if (subscription && subscription.model) {
@@ -9103,17 +9103,15 @@ const Chat = (() => {
       try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('settings', 'budget'); } catch (_) {}
     });
   }
-  // the unpriced-model token ceiling's door: a DIFFERENT (priced) model — the model dock, the same ▸ PICK A MODEL door
-  // friendlyerror owns — never SPENDING LIMITS, where no setting governs this ceiling. Retry rides alongside.
+  // the unpriced-model token ceiling's door: Runtime limits (APP & BACKUP) owns maxUnpricedTokens — never SPENDING
+  // LIMITS, where no $ setting governs this ceiling. Retry rides alongside.
   function offerUnpricedDoor() {
-    const pick = (typeof Friendly !== 'undefined' && Friendly.actionButton) ? Friendly.actionButton({ action: 'settings', kind: 'model_not_found' }) : null;
-    if (!pick) { offerTryAgain(); return; }
     choices([
-      { label: pick.label, value: 'model' },
+      { label: '⚙ OPEN RUNTIME LIMITS', value: 'limits' },
       { label: '↻ Try again', value: 'retry', quiet: true }
     ], it => {
       if (it && it.value === 'retry') { retryLast(); return; }
-      pick.run();
+      try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('settings', 'system'); } catch (_) {}
     });
   }
   // a one-tap recovery chip dropped under a failed turn (reuses the suggestion-pill row, which self-removes on

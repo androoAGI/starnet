@@ -57,6 +57,8 @@ ok(!/Managed credits need a per-run budget cap/.test(src), 'managed credits: the
 ok(/if \(!\(runCapUsd > 0\)\) \{[\s\S]{0,1200}return;[\s\S]{0,300}const adm = credits\.beginRun\(\{ runId, agentId, capUsd: runCapUsd \}\);/.test(src), 'managed credits: an unknown/empty balance still fails CLOSED before any reservation (never spends against an unknown wallet)');
 ok(/resolveKnob\('CONSENT_TIMEOUT_MS', 'consentTimeoutMs', 120000\)/.test(src), 'P1-9: consent timeout is now env>saved>default (was hardcoded)');
 ok(/resolveKnob\('CRON_TICK_MS', 'cronTickMs', 60000\)/.test(src), 'P1-9: cron tick resolves via resolveKnob');
+ok(/resolveKnob\('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000\)/.test(src), 'P1-9: unpriced-model token ceiling resolves via resolveKnob');
+ok(/key: 'maxUnpricedTokens', env: 'MAX_UNPRICED_TOKENS'/.test(src), 'P1-9: maxUnpricedTokens is in RUNTIME_KNOB_DEFS (SETTINGS › Runtime limits)');
 ok(/function knobEnvLocked\(/.test(src) && /envLocked: locked/.test(src), 'P1-9: the status reports which knobs are env-locked');
 ok(/'\/api\/runtime\/knobs'/.test(src), 'P1-9: the runtime-knobs routes are registered');
 // an env-locked knob can't be overwritten from the UI

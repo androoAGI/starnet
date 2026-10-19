@@ -76,7 +76,7 @@ ok(/Runtime limits\s*<span class="dim">/.test(ui), 'P1-9: SETTINGS has an ADVANC
 ok(/function wireAdvanced\(/.test(ui), 'P1-9: wireAdvanced is wired');
 ok(/\/api\/runtime\/knobs/.test(ui), 'P1-9: the card reads/writes /api/runtime/knobs');
 ok(/environment variable always overrides|env-locked|envLocked/i.test(ui), 'P1-9: precedence (env wins) is disclosed + env-locked fields are shown');
-for (const k of ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs']) ok(new RegExp("key: '" + k + "'").test(ui), 'P1-9: knob offered: ' + k);
+for (const k of ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs', 'maxSubscriptionTokens', 'maxUnpricedTokens']) ok(new RegExp("key: '" + k + "'").test(ui), 'P1-9: knob offered: ' + k);
 
 // ---- P1-10 memory controls ----
 ok(/id="mc-reflect-on"/.test(ui), 'P1-10: MEMORY tab has a reflection on/off toggle');
