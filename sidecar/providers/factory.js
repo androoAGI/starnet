@@ -12,14 +12,15 @@
       require('./anthropic.js'),
       require('./gemini.js'),
       require('./registry.js'),
-      require('./claude-cli.js')
+      require('./claude-cli.js'),
+      require('./azure-foundry.js')
     );
   } else {
     root.SK = root.SK || {};
     root.SK.providers = root.SK.providers || {};
-    root.SK.providers.factory = factory(root.SK.providers.openrouter, root.SK.providers.codex, root.SK.providers.openaiCompatible, root.SK.providers.anthropic, root.SK.providers.gemini, root.SK.providers.registry, root.SK.providers.claudeCli);
+    root.SK.providers.factory = factory(root.SK.providers.openrouter, root.SK.providers.codex, root.SK.providers.openaiCompatible, root.SK.providers.anthropic, root.SK.providers.gemini, root.SK.providers.registry, root.SK.providers.claudeCli, root.SK.providers.azureFoundry);
   }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (openrouter, codex, openaiCompatible, anthropic, gemini, registry, claudeCli) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (openrouter, codex, openaiCompatible, anthropic, gemini, registry, claudeCli, azureFoundry) {
   'use strict';
 
   const PROVIDER_IDS = registry.providerIds();
@@ -143,19 +144,20 @@
          prompt to its tail, so a local Qwen lead never even saw team.dispatch (2026-10-11 user report). Such an
          endpoint borrows the Ollama profile's WIRE (native /api/chat + sized window, output ceiling, model-load
          timeout); the native path still drops back to /v1 by itself when the server has no /api/chat. */
+      const azure = id === 'azure' ? azureFoundry : null;
       const wire = (id === 'custom' && looksLikeOllama(opts.baseUrl || profile.baseUrl) && registry.getProviderProfile('ollama')) || profile;
       const mergedHeaders = (profile.extraHeaders || opts.headers)
         ? Object.assign({}, profile.extraHeaders || {}, opts.headers || {})
         : undefined;
       return openaiCompatible.makeOpenAICompatibleProvider({
-        fetch: opts.fetch,
+        fetch: azure ? ((url, init) => (opts.fetch || globalThis.fetch)(url, Object.assign({}, init, { redirect: 'error' }))) : opts.fetch,
         clock: opts.clock,
         // device-OAuth errors must carry the provider's NAME (e.g. "Grok (xAI) http 401 - …") so a mid-run
         // token death classifies to the ⏼ RECONNECT door, mirroring the pre-run oauthLabel() wrap. Keyed
         // openai-compatible providers keep the generic label (their recovery door is the key field either way).
-        label: isDeviceOAuth ? (profile.name || profile.id) : undefined,
-        key: isDeviceOAuth ? (opts.token || opts.key) : opts.key,
-        baseUrl: opts.baseUrl || profile.baseUrl,
+        label: (isDeviceOAuth || azure) ? (profile.name || profile.id) : undefined,
+        key: azure ? '' : isDeviceOAuth ? (opts.token || opts.key) : opts.key,
+        baseUrl: azure ? azure.normalizeEndpoint(opts.baseUrl || profile.baseUrl) : opts.baseUrl || profile.baseUrl,
         chatPath: profile.chatPath,
         modelsPath: profile.modelsPath,
         reasoningEffort: opts.reasoningEffort,
@@ -188,7 +190,7 @@
         numCtx: resolveMaxOutputTokens(wire, 'numCtx'),
         maxCtx: resolveMaxOutputTokens(wire, 'maxCtx'),
         defaultContext: opts.defaultContext,
-        headers: mergedHeaders,
+        headers: azure ? Object.assign({}, mergedHeaders, { 'api-key': opts.key || '' }) : mergedHeaders,
         // run attribution header (starnet only — the profile names it; see openai-compatible requestHeaders)
         runIdHeader: typeof profile.runIdHeader === 'string' ? profile.runIdHeader : undefined
       });

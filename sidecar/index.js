@@ -25522,7 +25522,7 @@ async function handleProviderProbe(req, res) {
     const key = providerRuntimeKey(id, String(body.key || ''));
     // An optional custom key still needs proof: a public catalog cannot authenticate it.
     // Keyless local endpoints retain their existing health semantics without buying inference.
-    let credentialVerified = catalogAvailable && (profile.modelsRequireAuth !== false || (!providerRequiresKey(id) && !key));
+    let credentialVerified = id !== 'azure' && catalogAvailable && (profile.modelsRequireAuth !== false || (!providerRequiresKey(id) && !key));
     let credentialError = '';
     if (profile.credentialProbePath && key) {
       // Re-check the current credential at the same authenticated endpoint used when saving it.
@@ -25542,7 +25542,7 @@ async function handleProviderProbe(req, res) {
         credentialError = ctrl.signal.aborted ? 'credential verification timed out' : 'credential verification failed';
       } finally { clearTimeout(timer); }
     }
-    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, ...(credentialError ? { error: credentialError } : {}) });
+    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, ...(id === 'azure' ? { error: 'Use CHECK & USE on the Azure card to verify your deployment.' } : {}), ...(credentialError ? { error: credentialError } : {}) });
   } catch (e) {
     json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: (e && e.message) || 'provider probe failed', code: (e && e.code) || '' });
   }
@@ -25575,6 +25575,10 @@ async function handleProviderValidate(req, res) {
       const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
       if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
+    }
+    if (id === 'azure') {
+      const checked = await require('./providers/azure-foundry.js').validateDeployment({ fetch: globalThis.fetch, baseUrl, key: candidate, model: body.model, signal: ctrl.signal });
+      return json({ ok: true, provider: id, reachable: true, credentialVerified: true, ...checked });
     }
     const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
     const models = await provider.listModels();

@@ -5132,6 +5132,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     { id: 'grok',          name: 'GROK (XAI)',        endpoint: 'OAuth · SuperGrok / X Premium+', blurb: 'sign-in, no API key', live: true },
     { id: 'kimi',          name: 'KIMI FOR CODING',   endpoint: 'OAuth · Moonshot subscription', blurb: 'sign-in, no API key', live: true },
     { id: 'openai',        name: 'OPENAI API',        endpoint: 'api.openai.com/v1',          blurb: 'OpenAI-compatible', live: true },
+    { id: 'azure', name: 'AZURE FOUNDRY', endpoint: 'your resource /openai/v1', blurb: 'Azure deployment + API key', live: true },
     { id: 'anthropic',     name: 'ANTHROPIC',         endpoint: 'api.anthropic.com/v1',       blurb: 'Claude native API', live: true },
     { id: 'gemini',        name: 'GEMINI',            endpoint: 'generativelanguage.googleapis.com/v1beta', blurb: 'Google native API', live: true },
     { id: 'xai',           name: 'XAI',               endpoint: 'api.x.ai/v1',                blurb: 'Grok API', live: true },
@@ -5675,7 +5676,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   function addKeyHtml(provider, empty) {
     provider = provider || 'openrouter';
-    if (provider === 'custom') return '<div class="key-empty"><p>' + ADD_ON_CARD + '</p></div>';
+    if (provider === 'custom' || provider === 'azure') return '<div class="key-empty"><p>' + ADD_ON_CARD + '</p></div>';
     return '<div class="key-empty">' +
       '<p>' + (empty
           ? 'No API keys connected. Paste a key here to reconnect - it stays on this machine.'
@@ -5707,7 +5708,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const h = H();
       const credentialSaved = isOAuthProvider(p.id) ? (ks.length > 0 && !codexDead) : !!(h && h.hasStoredCredential && h.hasStoredCredential(p.id));
       const endpointConfigured = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && !!(h && h.getBaseUrl && h.getBaseUrl(p.id)));
-      const configured = credentialSaved || endpointConfigured;
+      const configured = (credentialSaved || endpointConfigured) && (p.id !== 'azure' || !!(h && h.getBaseUrl && h.getBaseUrl('azure')));
       const health = providerHealth[p.id];
       // ACTIVE is reserved for a selected model whose endpoint and credential (when applicable) were proven by
       // the no-generation probe. Selection plus a model id is not evidence that a run can leave the station.
@@ -5742,7 +5743,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const n = ks.length;
       // NO-KEY cards that accept a key get an inline, collapsible paste-and-save row so the user never has to hunt
       // for where keys live. It reuses the SAME save path (Harness.setKey) as the key list below — no duplicate logic.
-      const wantsInline = p.live && !credentialSaved && providerAcceptsKey(p.id);
+      const wantsInline = p.live && (p.id === 'azure' || !credentialSaved) && providerAcceptsKey(p.id);
       // A never-signed-in device-code provider (codex/grok/kimi) gets its FIRST sign-in right on the card.
       // Codex is NOT exempt: its connect-screen block only exists on the overseer/brain screen, so after a
       // ✕ DISCONNECT (or on a machine that never signed in there) this button is the ONLY reachable sign-in —
@@ -5766,15 +5767,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '</span>' +
         '</button>' +
           '<span class="prov-stat"><span class="prov-stat-t">' + stat + statWhy + (credentialSaved && !isOAuthProvider(p.id) ? '<i>' + n + (n === 1 ? ' key' : ' keys') + '</i>' : '') + '</span></span>' +   // org P03: the reason sits right under the verdict it explains, above the key count
-        (wantsInline ? '<button class="bb sm prov-addkey" data-act="prov-add-toggle" data-provider="' + esc(p.id) + '" aria-label="Add a ' + esc(p.name) + ' key" title="paste a ' + esc(p.name) + ' key without leaving this card">＋ ADD KEY</button>' : '') +
+        (wantsInline ? '<button class="bb sm prov-addkey" data-act="prov-add-toggle" data-provider="' + esc(p.id) + '" aria-label="Add a ' + esc(p.name) + ' key" title="paste a ' + esc(p.name) + ' key without leaving this card">' + (p.id === 'azure' ? 'CONFIGURE' : '＋ ADD KEY') + '</button>' : '') +
         (wantsClaudeSignin && !claudeFlowing && !(typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active()) ? '<button class="bb sm prov-addkey" data-act="prov-claude-signin" aria-label="Sign in with Claude" title="opens Claude in your browser — Claude Code keeps the sign-in, StarNet never sees it">' + (claudeCard.failed ? '⏼ TRY AGAIN' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsClaudeInstall ? '<button class="bb sm prov-addkey" data-act="prov-claude-install" aria-label="Get Claude Code" title="Claude Code needs a Pro, Max, Team or Enterprise plan">↗ GET CLAUDE CODE</button>' : '') +
         (wantsOAuthSignin ? '<button class="bb sm prov-addkey" data-act="prov-oauth-signin" data-provider="' + esc(p.id) + '" aria-label="Sign in to ' + esc(p.name) + '" title="device-code sign-in — no API key needed">' + (codexDead ? '⏼ RECONNECT' : '⏼ SIGN IN') + '</button>' : '') +
         (wantsInline
           ? '<div class="key-edit prov-key-edit" id="prov-key-edit-' + esc(p.id) + '" hidden>' +
-            (p.id === 'custom' ? customEndpointInputHtml('prov-base-in-custom') : '') +
+            (p.id === 'custom' ? customEndpointInputHtml('prov-base-in-custom') : p.id === 'azure'
+              ? '<input type="url" class="key-input base-input" id="prov-base-in-azure" aria-label="Azure resource endpoint" placeholder="https://your-resource.services.ai.azure.com" value="' + esc((h && h.getBaseUrl && h.getBaseUrl('azure')) || '') + '">' +
+                '<input type="text" class="key-input" id="prov-model-in-azure" aria-label="Azure deployment name" placeholder="Deployment name (not base model name)" value="' + esc(localStorage.getItem('starnet.azure.deployment') || '') + '">' +
+                '<p class="cf-desc">Checks one small response using Azure quota, then saves and selects your deployment.</p>' : '') +
             '<input type="password" class="key-input" id="prov-key-in-' + esc(p.id) + '" placeholder="paste ' + esc(p.name) + ' key' + (p.id === 'custom' ? ' (optional)' : '') + '…" autocomplete="off" spellcheck="false">' +
-            '<button class="bb sm" data-act="prov-add-save" data-provider="' + esc(p.id) + '">SAVE</button>' +
+            '<button class="bb sm" data-act="prov-add-save" data-provider="' + esc(p.id) + '">' + (p.id === 'azure' ? 'CHECK & USE' : 'SAVE') + '</button>' +
             '</div>'
           : '') +
         (wantsClaudeSignin && !claudeCard.account ? claudeFlowBoxHtml(claudeFlowing, claudeBox) : '') +
@@ -6164,6 +6168,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function wireProviderActions(body) {
     // save a pasted key from a NO-KEY card's inline row, reusing the SAME store path as the key list (Harness.setKey).
     const saveInline = (provider) => {
+      if (provider === 'azure') {
+        const h = H();
+        const button = body.querySelector('[data-act="prov-add-save"][data-provider="azure"]');
+        if (button) button.disabled = true;
+        return h.connectAzure({ baseUrl: body.querySelector('#prov-base-in-azure').value.trim(), key: body.querySelector('#prov-key-in-azure').value.trim(), model: body.querySelector('#prov-model-in-azure').value.trim() }).then(() => {
+          providerHealth.azure = { reachable: true, credentialVerified: true, catalogAvailable: false };
+          if (typeof App !== 'undefined' && App.agentConfig && App.agentConfig.setModel) App.agentConfig.setModel('agent', h.getModel(), 'azure');
+          if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+          if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+          notify('Azure Foundry deployment verified and selected', 'good'); rerender('settings');
+        }).catch(err => { notify((err && err.message) || 'Azure Foundry setup failed', 'bad'); }).finally(() => { if (button) button.disabled = false; });
+      }
       if (provider === 'custom') return saveCustomEndpoint(body.querySelector('#prov-base-in-custom'), body.querySelector('#prov-key-in-custom'));
       const h = H();
       const inp = body.querySelector('#prov-key-in-' + provider);   // provider ids are simple slugs — safe to interpolate
@@ -6207,6 +6223,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           return;
         }
         h.setProv(p);
+        if (p === 'azure' && h.setModel) {
+          h.setModel(localStorage.getItem('starnet.azure.deployment') || '');
+          if (typeof App !== 'undefined' && App.agentConfig && App.agentConfig.setModel) App.agentConfig.setModel('agent', h.getModel(), 'azure');
+        }
         // the station default (the Overseer's pin) follows the pick, so unpinned agents do too (#24 follow-up)
         if (typeof App !== 'undefined' && App.setStationProvider) App.setStationProvider(p);
         if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();

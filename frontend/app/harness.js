@@ -484,6 +484,7 @@ const Harness = (() => {
     const p = String(provider || getProv() || 'openrouter').trim().toLowerCase();
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
+    if (['azure', 'azure-foundry', 'azure-openai', 'foundry'].includes(p)) return 'azure';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
     if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
     // grok/kimi are their OWN keyless OAuth (subscription) providers — NOT aliases for the API-key
@@ -538,6 +539,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider);
     if (p === 'ollama' || p === 'claude-cli') return true;
     if (p === 'custom' && getBaseUrl(p)) return true;
+    if (p === 'azure' && !getBaseUrl(p)) return false;
     // STARNET MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
     // through to the keyless branch below, which would answer "configured" for every station simply because
     // there is no key to look for, and claim a station can run on credits it has never been linked to.
@@ -736,7 +738,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider || getProv());
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(cleanKey).filter(Boolean))).slice(0, 8);
     for (const candidate of cleaned) {
-      const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
+      const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === 'azure' ? (localStorage.getItem('starnet.azure.deployment') || '') : p === getProv() ? getModel() : '' });
       if (!r.ok || !j.credentialVerified) throw new Error((r.ok && !j.error ? 'a spare key was rejected' : keyCheckFailure(r.status, j, text)) + ' — your previous spare keys are unchanged');
     }
     return setKeyPool(cleaned, p);
@@ -934,6 +936,10 @@ const Harness = (() => {
     try {
       let list;
       const p = normalizeProviderId(provider || getProv());
+      if (p === 'azure') {
+        const id = localStorage.getItem('starnet.azure.deployment') || '';
+        return id ? [{ id, name: id, provider: p, fallback: true }] : [];
+      }
       try {
         const q = (p === 'custom' && getBaseUrl(p)) ? ('?baseUrl=' + encodeURIComponent(getBaseUrl(p))) : '';
         list = await fetchModelCatalog('/api/models/' + encodeURIComponent(p) + q, 'models');
@@ -962,7 +968,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider || getProv());
     const baseUrl = getBaseUrl(p) || '';
     const credentialSaved = hasStoredCredential(p);
-    const endpointConfigured = p === 'ollama' || p === 'claude-cli' || (p === 'custom' && !!baseUrl);
+    const endpointConfigured = p === 'ollama' || p === 'claude-cli' || ((p === 'custom' || p === 'azure') && !!baseUrl);
     const selected = p === getProv();
     const fallback = { provider: p, credentialSaved, endpointConfigured, reachable: false, catalogAvailable: false, credentialVerified: false, selected, error: 'station unreachable' };
     if (p === 'custom' && !endpointConfigured) return Object.assign({}, fallback, { error: 'endpoint not configured' });
@@ -985,11 +991,42 @@ const Harness = (() => {
 
   // Replace a credential as one user-visible operation: prove the candidate first, then commit it. Validation
   // never mutates provider state, so a rejection/timeout leaves the previous working key untouched.
+  async function connectAzure({ baseUrl, key, model }) {
+    // Require the key explicitly so changing resources cannot send a previous tenant's key to a new host.
+    const candidate = cleanKey(key);
+    const deployment = String(model || '').trim();
+    if (!candidate) throw new Error('Enter an Azure Foundry API key');
+    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: 'azure', key: candidate, baseUrl, model: deployment });
+    if (!r.ok || !j.credentialVerified) throw new Error(keyCheckFailure(r.status, j, text));
+    // Keys and endpoints are one connection. Commit both in one existing store operation, before changing
+    // renderer state, so a denied save cannot pair an old key with a new endpoint or move the model selection.
+    const previous = engineConfigOf('azure');
+    if (previous.baseUrl && previous.baseUrl !== j.baseUrl && keyPoolSize('azure')) {
+      throw new Error('Remove the Azure spare keys before changing resources; they belong to the previous endpoint');
+    }
+    let stored;
+    if (DESKTOP) {
+      await invoke('harness_store_provider_key', { provider: 'azure', key: candidate, baseUrl: j.baseUrl });
+      setDesktopConfigured('azure', true);
+      stored = { stored: true };
+    } else {
+      const saved = await postKeyCheck('/api/providers/engine-key', { provider: 'azure', key: candidate, keyPool: previous.keyPool, baseUrl: j.baseUrl });
+      if (!saved.r.ok || !saved.j.ok) throw new Error('Could not confirm the Azure connection was saved to the station; check the connection before retrying');
+      writeScoped(LS.key, 'azure', candidate);
+      setEngineSyncState('azure', { rev: String(saved.j.rev || ''), pending: false });
+      stored = { stored: true, engine: { ok: true, unattendedReady: !!saved.j.unattendedReady } };
+    }
+    writeScoped(LS.baseUrl, 'azure', j.baseUrl);
+    localStorage.setItem('starnet.azure.deployment', deployment);
+    setProv('azure'); setModel(deployment);
+    return Object.assign({}, j, stored);
+  }
+
   async function validateAndSetKey(key, provider) {
     const p = normalizeProviderId(provider || getProv());
     const candidate = cleanKey(key);
     if (!candidate) return setKey('', p);
-    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
+    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === 'azure' ? (localStorage.getItem('starnet.azure.deployment') || '') : p === getProv() ? getModel() : '' });
     if (!r.ok || !j.credentialVerified) {
       throw new Error(keyCheckFailure(r.status, j, text) + ' — your previous key is unchanged');
     }
@@ -1727,7 +1764,7 @@ const Harness = (() => {
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, normalizeReasoningEffort, init, configured, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
-    listModels, probeProvider, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
+    listModels, probeProvider, connectAzure, validateAndSetKey, priceOf, contextLimitOf, contextState, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,
     memoryProposals, memoryTurnin, memoryVeto, memoryReset, memoryRecords, memoryDeclined, memoryRestore, memoryPending, memoryPin, memoryEdit, memoryForget,
     studyProposals, studyPending,

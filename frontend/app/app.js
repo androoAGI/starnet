@@ -852,6 +852,7 @@ const App = (() => {
     const p = String(provider || 'openrouter').trim().toLowerCase();
     if (p === 'codex' || p === 'openai-codex') return 'codex';
     if (p === 'openai' || p === 'openai-api') return 'openai';
+    if (['azure', 'azure-foundry', 'azure-openai', 'foundry'].includes(p)) return 'azure';
     if (p === 'anthropic' || p === 'claude') return 'anthropic';
     if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
     // grok/kimi are their OWN keyless OAuth (subscription) providers — never aliases for the API-key ones
@@ -887,6 +888,7 @@ const App = (() => {
   function providerKeyPlaceholder(provider, configured) {
     const p = normalizeProviderId(provider);
     if (configured) return 'stored locally - leave blank to keep';
+    if (p === 'azure') return 'Azure Foundry resource API key';
     if (p === 'openai') return 'sk-...  -  platform.openai.com/api-keys';
     if (p === 'anthropic') return 'sk-ant-...  -  console.anthropic.com/settings/keys';
     if (p === 'gemini') return 'AIza...  -  aistudio.google.com/app/apikey';

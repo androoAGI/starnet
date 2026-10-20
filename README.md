@@ -100,6 +100,8 @@ Open <http://localhost:8787>, then connect a provider —
 station state, transcripts, memory, and ledgers stay in the local StarNet workspace unless you
 explicitly use a network tool or connector. See [PRIVACY.md](PRIVACY.md) for the full data map.
 
+Azure-hosted models: see [Azure Foundry setup](docs/AZURE_FOUNDRY.md).
+
 ### Run free with a local model
 
 No key, no account, no bill: install [Ollama](https://ollama.com), pull a model

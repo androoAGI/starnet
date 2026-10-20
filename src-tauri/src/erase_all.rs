@@ -202,9 +202,10 @@ pub fn telegram_bot_ids(workspaces: &Path) -> Vec<String> {
 }
 
 /// Provider ids whose keys/pools the desktop may have stored (credentials::normalize_provider's outputs).
-pub const PROVIDER_IDS: [&str; 18] = [
+pub const PROVIDER_IDS: [&str; 19] = [
     "openrouter",
     "openai",
+    "azure",
     "anthropic",
     "gemini",
     "xai",
