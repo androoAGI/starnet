@@ -160,7 +160,7 @@ module.exports = (async () => {
     for (const [label, keychain] of [['keychain status sweep', true], ['legacy has_key fallback', false]]) {
       const fetched = [];
       const ctx = {
-        DESKTOP: true, DEVMODE: false, Object, Array, Number, String, Promise, JSON,
+        DESKTOP: true, DEVMODE: false, DEV_HOST_KEY: false, Object, Array, Number, String, Promise, JSON,
         ensureApiToken: async () => 't', syncEngineKeysOnBoot() {}, noteTokenWithheld() {}, bootNotices() {}, getProv: () => 'starnet', getBaseUrl: () => '', getKey: () => '',
         providerNeedsKey: () => true,
         invoke: async cmd => {

@@ -61,6 +61,10 @@
       authType: 'oauth_device_code',
       keyRequired: false,
       baseUrl: 'https://chatgpt.com/backend-api/codex',
+      // The hosts the SIGN-IN itself talks to (the device code and the token exchange). They are not the
+      // inference host, so a host list built from baseUrl alone cannot reach them — a sign-in would fail
+      // with "host not allowed" while the card looks perfectly configured (2026-10-20, lab guard).
+      authHosts: ['auth.openai.com'],
       defaultReasoningEffort: 'low',
       unmetered: true,
       credentialPool: false,
@@ -90,6 +94,8 @@
       modelsRequireAuth: true,
       baseUrl: 'https://api.x.ai/v1',
       modelsPath: '/models',
+      // the device-code sign-in runs on auth.x.ai (index.js holds the two URLs); the inference runs on api.x.ai
+      authHosts: ['auth.x.ai'],
       defaultReasoningEffort: 'medium',
       unmetered: true,
       credentialPool: false,
@@ -126,6 +132,10 @@
       baseUrl: 'https://api.kimi.com/coding/v1',
       chatPath: '/chat/completions',
       modelsPath: '/models',
+      // Kimi runs TWO regional deployments: the sign-in lives on auth.kimi.com (cn) or auth.kimi.ai (global),
+      // and a global credential talks to api.kimi.ai. All four hosts are named here, so a host list built from
+      // the registry reaches the sign-in of BOTH regions (providers/kimi-region.js picks the pair).
+      authHosts: ['auth.kimi.com', 'auth.kimi.ai', 'api.kimi.ai'],
       defaultReasoningEffort: 'none',
       unmetered: true,
       credentialPool: false,

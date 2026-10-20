@@ -39,8 +39,11 @@ Deshalb steht das Labor jetzt auf `https://opencode.ai/zen/go/v1` (`lab/start.cj
 und `frontend/js/lab-theme.js`). Der alte Pay-as-you-go-Pfad bleibt als Fallback
 im Code (Katalog-Fallback `listModelsForProvider`), wird aber nicht mehr benutzt.
 
-**Antwort auf „brauche ich einen neuen Key?": Nein.** Derselbe Key, den OpenCode
-akzeptiert (403 statt 401), gehört auf den Go-Pfad.
+**Antwort auf „brauche ich einen neuen Key?": Kommt darauf an.** Ein **403**
+(freies Modell im Free-Tier) ist kein Key-Problem – derselbe Key gehört auf den
+Go-Pfad. Ein **401 „Invalid credential"** dagegen heißt: OpenCode erkennt diesen
+Key nicht. Dann hilft nur ein anderer Key (Service-Account-Key `oc_sk_…` aus der
+Console, Permission *Inference*, aus dem Workspace mit dem Go-Abo).
 
 ## Was der gemeldete Fehler wirklich war
 
@@ -63,6 +66,46 @@ Der Schlüssel selbst wurde am 18.10. 23:09 beim Speichern mit **401 „Invalid
 credential"** abgelehnt (wortgleich zu einem Testkey) – das war ein echter
 Schlüssel-Fehler, unabhängig vom Modell. Seitdem lag **kein** Schlüssel auf der
 Station; die Läufe endeten mit 401 „Missing API key".
+
+## Was am 20.10.2026 Vormittag noch dazukam (gemessen, nicht vermutet)
+
+Zwei Meldungen kamen gleichzeitig: „andere Anbieter lassen sich nicht hinzufügen"
+und „der Custom-Provider sagt, der Key wird abgelehnt". Beides war gemessen:
+
+| Beobachtung | Messung | Ursache |
+|---|---|---|
+| ChatGPT/Grok/Kimi: **Anmeldung startet nicht** | `LAB_BLOCKED: auth.openai.com is not on the allowed host list` | Die Anbieter-Karte nennt den **Inferenz**-Host; die **Anmeldung** (Device-Code) läuft über den Auth-Host. Der Guard kannte nur die Inferenz-Hosts. |
+| OpenCode-Key: **401 „Invalid credential"** | Wortgleich mit einem **erfundenen** Key (`oc_sk_6aFAKE…`) | Der Key selbst wird von OpenCode nicht erkannt – abgelaufen, widerrufen, aus einem anderen Workspace oder unvollständig kopiert. **Nicht** StarNets Fehler. |
+| Lauf antwortet **„Go requires a credential"** | Der Key kam **gar nicht** an | Das Labor startet im Dev-Schnellpfad (`STARNET_DEV=1`). Der nimmt an, der Server halte den Key – im Labor tut er das nicht. Die Seite schickte den eingefuegten Key deshalb **weder** mit dem Lauf **noch** an die Station. |
+| **Anderer** Anbieter (OpenRouter) | Key geprueft, **verifiziert** | Das Hinzufuegen geht. Nur der OpenCode-Key passt dort natuerlich nicht – das sagt die Oberflaeche jetzt auch. |
+
+Gemessen am 20.10.2026 mit dem OpenCode-CLI-Key dieses Rechners (`~/.local/share/opencode/auth.json`):
+
+| Aufruf | Antwort |
+|---|---|
+| Go-Pfad, **gültiger** Key, mit `x-opencode-session` | **200** – das Modell antwortet (`LAB-OK`) |
+| Go-Pfad, gültiger Key, **ohne** Session-ID | 400 `MissingSessionID` |
+| Go-Pfad, **erfundener** Key | 401 `Invalid credential` |
+| Go-Pfad, **kein** Key | 401 `Go requires a credential` |
+| Pay-as-you-go-Pfad, Go-Key | 402 `Insufficient account funds` |
+
+Damit ist klar: **StarNets Weg ist richtig** (Modell antwortet), der eingefuegte Key
+war es nicht. Und: der eingefuegte Key muss **verwendet** werden – der
+Dev-Schnellpfad liess ihn frueher fallen.
+
+## Was daraus gefixt wurde (20.10.2026)
+
+1. **Die Auth-Hosts sind erlaubt** (Anbieter-Registry `authHosts` → Guard-Liste):
+   `auth.openai.com`, `auth.x.ai`, `auth.kimi.com`, `auth.kimi.ai`, `api.kimi.ai`.
+   ChatGPT, Grok und Kimi koennen sich anmelden.
+2. **Der eingefuegte Key wird benutzt.** Der Dev-Schnellpfad unterschied jetzt
+   „der Server haelt den Key" (nur wenn er wirklich einen haelt – `DEV.hasKey`) von
+   „hier laeuft ein Dev-Host". Im Labor gilt die zweite Variante: die Seite schickt
+   den Key mit jedem Lauf und uebergibt der Station eine Kopie.
+3. **Der Retext wird nicht mehr abgeschnitten.** Vorher endete die Meldung genau
+   dort, wo der Retext begann („…is refused with exactly this me"), also ohne
+   Handlungsanweisung. Jetzt bleibt der Rat vollständig: welche Art von Key, wo
+   er herkommt, was zu tun ist.
 
 ## Regeln für OpenCode (aus der OpenCode-Doku, 20.10.2026)
 

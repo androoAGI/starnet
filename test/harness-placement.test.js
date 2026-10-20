@@ -10,7 +10,7 @@ const source = harness.slice(start, harness.indexOf('\n  }\n', start) + 4);
   let captured;
   const chat = vm.runInNewContext('(' + source + ')', {
     getModel: () => 'qwen3:14b', getProv: () => 'ollama', getKey: () => '', getReasoningEffort: () => '',
-    providerNeedsKey: () => false, getBaseUrl: () => '', DESKTOP: true, DEVMODE: false,
+    providerNeedsKey: () => false, getBaseUrl: () => '', DESKTOP: true, DEVMODE: false, DEV_HOST_KEY: false,
     fetch: async (url, opts) => { captured = JSON.parse(opts.body); throw new Error('stop after capture'); }
   });
   for (const input of [{ placed: [] }, { placed: ['cabinet'] }, {}, { workbench: true }]) {

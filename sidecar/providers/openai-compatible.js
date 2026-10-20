@@ -930,6 +930,11 @@
         err.requestId = upstreamError.requestId;
         err.providerCode = upstreamError.code;
         err.upstreamProvider = upstreamError.providerName;
+        /* THE REMEDY IS ITS OWN FIELD, so a caller that CAPS the message keeps it. The upstream text is the truth and
+           may be capped (a chatty provider must not flood a log or a toast); the clause that says what to DO — where a
+           key comes from, which card it belongs on, which endpoint answers — must never be the part that gets cut.
+           A cap that ate the remedy turned a fixable refusal into a bare "the key was rejected" (2026-10-20). */
+        if (hint) err.hint = hint;
         /* KEEP THE PROVIDER'S ERROR BODY (same law as codex.js): errorClass reads error.code/type off it (an OpenAI
            429 carrying code 'insufficient_quota' is an empty wallet, not a busy moment). The message stays this
            adapter's own sentence — label + status, which the UI routes on ("Kimi For Coding http 401"); err.ownMessage tells

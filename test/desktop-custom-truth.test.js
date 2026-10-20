@@ -27,7 +27,7 @@ function sandbox(opts) {
   const invokes = [], warns = [];
   const scope = {
     JSON, Promise, Set, Array, String, Number, Math, Object,
-    DESKTOP: !!opts.desktop, DEVMODE: false, DEV: null, selectionRevision: 0,
+    DESKTOP: !!opts.desktop, DEVMODE: false, DEV: null, DEV_HOST_KEY: false, selectionRevision: 0,
     LS: { key: 'starnet.byok.key', baseUrl: 'starnet.byok.baseUrl', prov: 'starnet.byok.prov' },
     _configured: false, _configuredByProvider: Object.assign({}, opts.configured || {}),
     getProv: () => 'openrouter',

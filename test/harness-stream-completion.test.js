@@ -27,7 +27,7 @@ async function exercise(source, wire, options = {}) {
     releaseLock() { released = true; }
   };
   const scope = {
-    TextDecoder, console, DESKTOP: false, DEVMODE: true,
+    TextDecoder, console, DESKTOP: false, DEVMODE: true, DEV_HOST_KEY: false,
     getModel: () => 'test', getProv: () => 'openrouter', getKey: () => '',
     getReasoningEffort: () => '', getBaseUrl: () => '', providerNeedsKey: () => false,
     fetch: async () => ({ ok: true, body: { getReader: () => reader } }),

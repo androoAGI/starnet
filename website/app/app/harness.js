@@ -155,6 +155,16 @@ const Harness = (() => {
   // origin (a new worktree port) auto-resumes the server-seeded save with no connect screen / awakening.
   const DEV = (typeof window !== 'undefined' && window.__STARNET_DEV__ && typeof window.__STARNET_DEV__ === 'object') ? window.__STARNET_DEV__ : null;
   const DEVMODE = !!DEV;
+  /* THE FAST-PATH HAS TWO HALVES, AND ONLY ONE OF THEM IS ABOUT KEYS.
+     · the AUTO-RESUME hint (model + provider, so a fresh origin walks straight into the station) — always true in
+       dev, and it stays true: the lab boots into the world, not into a connect screen;
+     · "THE HOST HOLDS THE KEY" (the page keeps no key; the station's env is the credential) — true ONLY when the
+       sidecar says it holds one (DEV.hasKey).
+     The second half was assumed instead of read, so a dev/lab host that holds NO key silently SWALLOWED the key the
+     Commander pasted: the page neither sent it with a run nor handed the station a copy, and every run answered
+     "Go requires a credential" while the card said the key was saved (2026-10-20, lab). A host that holds no key
+     must behave like a normal browser station: keep the key, send it, hand it over. */
+  const DEV_HOST_KEY = !!(DEVMODE && DEV && DEV.hasKey === true);
   if (DEVMODE) {
     try {
       if (DEV.model) localStorage.setItem('starnet.byok.model', String(DEV.model));
@@ -650,7 +660,7 @@ const Harness = (() => {
   }
   async function syncEngineKey(provider, boot) {
     const p = normalizeProviderId(provider || getProv());
-    if (DESKTOP || DEVMODE || ENGINE_SYNC_SKIP[p]) return { ok: true, skipped: true };
+    if (DESKTOP || DEV_HOST_KEY || ENGINE_SYNC_SKIP[p]) return { ok: true, skipped: true };
     const config = engineConfigOf(p);
     const removing = !(config.key || config.keyPool.length || config.baseUrl);
     const state = engineSyncState(p);
@@ -688,7 +698,7 @@ const Harness = (() => {
   // change (a save OR a REMOVE) never reached the station. Each rides as a BOOT hand-over (see above): it fills a
   // station that holds nothing and retries this page's own failed change, but never overwrites a newer one.
   function syncEngineKeysOnBoot() {
-    if (DESKTOP || DEVMODE) return Promise.resolve([]);
+    if (DESKTOP || DEV_HOST_KEY) return Promise.resolve([]);
     const seen = new Set();
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -1026,7 +1036,7 @@ const Harness = (() => {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
-    if (providerNeedsKey(provider) && !DESKTOP && !DEVMODE && !key) throw new Error('no API key set');
+    if (providerNeedsKey(provider) && !DESKTOP && !DEV_HOST_KEY && !key) throw new Error('no API key set');
     if (!model) throw new Error('no model selected');
 
     /* TRANSPORT PROVENANCE (night N2, 2026-10-15 — found by the GH#116 lane). A transport loss is known by WHERE an
@@ -1097,8 +1107,12 @@ const Harness = (() => {
       // available when the STATION has the required shared gear (a specialist owns only a desk yet still gets its
       // class skills). Sent separately so the tool projection is untouched; the sidecar uses it for skills only.
       if (Array.isArray(stationPlaced) && stationPlaced.length) reqBody.stationPlaced = stationPlaced;
-      if (!DESKTOP && !DEVMODE && provider !== 'codex' && provider !== 'grok' && provider !== 'kimi') reqBody.key = key;   // dev/desktop + the OAuth providers keep secrets server-side (custom/ollama may still ride an optional key)
-      if (!DESKTOP && !DEVMODE) {
+      // THE KEY RIDES THE RUN whenever the station does not already hold it: the desktop app (OS keychain) and a dev
+      // host that HOLDS a key keep secrets server-side, and the OAuth providers need none. A dev host that holds NO
+      // key (the lab) sends the key the Commander pasted — otherwise every run went out keyless and answered
+      // "Go requires a credential" while the card said the key was saved (2026-10-20).
+      if (!DESKTOP && !DEV_HOST_KEY && provider !== 'codex' && provider !== 'grok' && provider !== 'kimi') reqBody.key = key;
+      if (!DESKTOP && !DEV_HOST_KEY) {
         try { const pool = JSON.parse(readScoped(LS.keyPool, provider) || '[]'); if (Array.isArray(pool) && pool.length) reqBody.keyPool = pool; } catch (_) {}
       }
       res = await fetch('/api/run', {

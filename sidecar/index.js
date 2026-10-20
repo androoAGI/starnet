@@ -25611,7 +25611,9 @@ function noteKeyCheckFailure(route, id, result, candidate) {
     const status = result && result.status && why.indexOf('HTTP ' + result.status) < 0 ? ' (HTTP ' + result.status + ')' : '';
     const k = String(candidate || '');
     if (k.length >= 6) why = why.split(k).join('[key]');
-    const line = '[providers] ' + route + ' ' + String(id || 'unknown') + ': ' + redact(why).slice(0, 240) + status;
+    // The line must carry the REMEDY, not just the refusal: the cap keeps the log bounded, the remedy
+    // ("create a service-account key", "it belongs on the CUSTOM card") is the part worth reading.
+    const line = '[providers] ' + route + ' ' + String(id || 'unknown') + ': ' + redact(why).slice(0, 600) + status;
     const now = Date.now(), last = keyCheckNoted.get(line) || 0;
     if (now - last < 10 * 60 * 1000) return;
     keyCheckNoted.set(line, now);
@@ -25646,6 +25648,21 @@ function credentialFingerprint(key) {
    OpenCode serves only inside its own app (403 on every key). So: the model the Commander picked first (unless it
    is one of those), then a few catalog models, until one answers. A 401 stops the search at once — that is the KEY,
    and the next model would fail identically. */
+/* The failure text of a provider call, CAPPED but never at the cost of the remedy. The upstream sentence is the
+   truth and may be long (a chatty provider must not flood a log or a toast). StarNet's own clause — "a console
+   SERVICE-ACCOUNT key belongs here", "this key belongs on the CUSTOM card" — is what the Commander acts on, so it
+   is kept WHOLE even when the upstream part is cut. A cap that ate the remedy turned a fixable refusal into a bare
+   "the key was rejected" (2026-10-20: the OpenCode remedy ended in the cut, so the user was left with no way out).
+   The adapter hands the clause over separately (err.hint); a message without one is simply capped. */
+function providerFailureText(e, cap) {
+  const msg = String((e && e.message) || e || '');
+  const hint = String((e && e.hint) || '');
+  const max = cap || 300;
+  if (!hint || msg.indexOf(hint) < 0) return msg.slice(0, max);
+  const at = msg.indexOf(hint);
+  const head = msg.slice(0, at).replace(/[\s—–-]+$/, '');     // the separator in front of the clause
+  return head.slice(0, max) + ' — ' + hint;
+}
 async function proveEndpointAnswers(opts) {
   const o = opts || {};
   const providerId = String(o.provider || 'custom');
@@ -25653,7 +25670,7 @@ async function proveEndpointAnswers(opts) {
   const key = String(o.key || '');
   let models = [];
   try { models = await listModelsForProvider(providerId, { key, baseUrl }); }
-  catch (e) { return { ok: false, answered: false, error: String((e && e.message) || e).slice(0, 300), model: '', status: 0 }; }
+  catch (e) { return { ok: false, answered: false, error: providerFailureText(e, 300), model: '', status: 0 }; }
   const wanted = String(o.model || '').trim();
   const candidates = [];
   const push = id => {
@@ -25678,7 +25695,7 @@ async function proveEndpointAnswers(opts) {
       if (answered) return { ok: true, answered: true, error: '', model, status: 200 };
       last = 'the endpoint accepted the request but did not answer';
     } catch (e) {
-      const msg = String((e && e.message) || e).slice(0, 300);
+      const msg = providerFailureText(e, 300);
       last = msg;
       // The KEY is wrong: another model would fail the same way. Stop the search here.
       if (/\bhttp 401\b/.test(msg) || /Missing API key|Invalid credential/i.test(msg)) return { ok: false, answered: false, error: msg, model, status: 401 };

@@ -39,8 +39,15 @@ function defaultAllowHosts() {
     const registry = require('../sidecar/providers/registry.js');
     for (const p of (registry.listProviderProfiles({ public: false }) || [])) {
       const url = String((p && p.baseUrl) || '');
-      if (!/^https?:\/\//i.test(url)) continue;
-      try { hosts.add(new URL(url).hostname.toLowerCase()); } catch (_) {}
+      if (/^https?:\/\//i.test(url)) {
+        try { hosts.add(new URL(url).hostname.toLowerCase()); } catch (_) {}
+      }
+      // The card also names the hosts its SIGN-IN runs on (registry authHosts). They belong to the same
+      // promise as the baseUrl: a provider card that is reachable must be reachable END TO END.
+      for (const h of (p && p.authHosts) || []) {
+        const host = String(h || '').trim().toLowerCase();
+        if (host) hosts.add(host);
+      }
     }
   } catch (_) { /* no registry: the explicit list below still applies */ }
   for (const h of OAUTH_HOSTS) hosts.add(h);          // the device-code sign-ins

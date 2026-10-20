@@ -10,7 +10,8 @@
        localStorage), so an older page can never put back a key the Commander rotated or removed
      · a save or REMOVE that could not reach the station is remembered as pending and retried at the next boot (a
        failed REMOVE used to be forgotten while the station kept spending on the key); a 4xx refusal is not retried
-     · the desktop app (keychain), dev (server-held key) and the sign-in providers never send a key
+     · the desktop app (keychain), a dev host that HOLDS the key, and the sign-in providers never send a key; a dev
+       host that holds none keeps the key in the page (the lab: the key the Commander pasted is used)
      · it NEVER rejects: the key is saved in this browser either way; a refusal / dead station resolves { ok:false,
        error } — worded for what failed (a failed REMOVE says the station KEEPS using its copy, never "chat works") —
        and SETTINGS, the backup pool, the endpoint editor, the keyless REMOVE and onboarding all show that warning */
@@ -38,6 +39,11 @@ function sandbox(opts) {
   const scope = {
     JSON, Promise, Set, Array, String, Number, Math, Object,
     DESKTOP: !!opts.desktop, DEVMODE: !!opts.dev, selectionRevision: 0,
+    // THE DEV FAST-PATH HAS TWO HALVES. Only the "the host holds the key" one is about the key hand-over, and it is
+    // true only when the sidecar SAYS it holds one (DEV.hasKey). A dev host without a key (the lab) keeps the key in
+    // the page: it sends it with every run and hands the station a copy, exactly like a normal browser station.
+    DEV: opts.dev ? { prov: 'openrouter', hasKey: opts.devHasKey === true } : null,
+    DEV_HOST_KEY: !!(opts.dev && opts.devHasKey === true),
     LS: { key: 'starnet.byok.key', keyPool: 'starnet.byok.keyPool', model: 'starnet.byok.model', prov: 'starnet.byok.prov', baseUrl: 'starnet.byok.baseUrl', effort: 'starnet.byok.reasoningEffort' },
     _configured: false, _configuredByProvider: {}, _alternateCountByProvider: {},
     getProv: () => 'openrouter', getBaseUrl: () => '',
@@ -136,9 +142,17 @@ function sandbox(opts) {
     const desk = sandbox({ desktop: true });
     await desk.api.syncEngineKey('openrouter');
     A.eq(desk.posts.length, 0, 'the desktop app keeps keys in the OS keychain: nothing is posted');
-    const dev = sandbox({ dev: true, storage: { 'starnet.byok.key.openrouter': 'k' } });
+    // a dev host that HOLDS the key (the seeded dev station: the key is in the sidecar's env) needs no copy
+    const dev = sandbox({ dev: true, devHasKey: true, storage: { 'starnet.byok.key.openrouter': 'k' } });
     await dev.api.syncEngineKeysOnBoot();
-    A.eq(dev.posts.length, 0, 'dev mode holds the key server-side: nothing is posted');
+    A.eq(dev.posts.length, 0, 'dev mode with a host-held key posts nothing: the station already has it');
+    // a dev host that holds NO key (the lab) must NOT swallow the key the Commander pasted: the page keeps it,
+    // sends it with every run and hands the station a copy — otherwise every run went out keyless (2026-10-20)
+    const lab = sandbox({ dev: true, devHasKey: false, storage: { 'starnet.byok.key.openrouter': 'k' } });
+    await lab.api.syncEngineKeysOnBoot();
+    A.eq(lab.posts.length, 1, 'a dev host WITHOUT a key hands its key to the station');
+    A.eq(lab.posts[0].url, '/api/providers/engine-key', 'through the token-gated engine-key route');
+    A.eq(lab.posts[0].body.key, 'k', 'the key the page holds rides the hand-over');
     const oauth = sandbox();
     for (const p of ['codex', 'grok', 'kimi', 'starnet', 'claude-cli']) await oauth.api.syncEngineKey(p);
     A.eq(oauth.posts.length, 0, 'sign-in / managed providers never send a key');

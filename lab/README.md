@@ -16,7 +16,10 @@ URL: `http://127.0.0.1:8790`. Zustand: `.lab-state/`, vom Git ausgeschlossen.
 **Der Start ist live** (echte Modellaufrufe moeglich). Erlaubt sind alle Hosts, die
 StarNets eigene Anbieter-Karten benutzen (opencode.ai, openrouter.ai, api.anthropic.com,
 api.openai.com, generativelanguage.googleapis.com, api.x.ai, api.kimi.com, chatgpt.com,
-127.0.0.1) – mehr nicht. Ein weiterer Host gehoert beim Start dazu:
+127.0.0.1) **plus die Anmelde-Hosts der Abonnement-Anbieter** (auth.openai.com,
+auth.x.ai, auth.kimi.com, auth.kimi.ai, api.kimi.ai) – mehr nicht. Die Anmelde-Hosts
+stehen in der Anbieter-Registry (`authHosts`), damit eine neue Karte ohne Handgriff
+im Labor funktioniert. Ein weiterer Host gehoert beim Start dazu:
 
 ```sh
 LAB_ALLOW_HOSTS=opencode.ai,openrouter.ai,mein-eigener-host node lab/start.cjs
@@ -42,6 +45,16 @@ node lab/start.cjs --offline
   es). Details und Aenderung: [`MODELS.md`](MODELS.md).
 - **Der Schluessel fehlt noch.** In der Oberflaeche: `SETTINGS → PROVIDERS → CUSTOM`,
   Basis-URL stehen lassen, OpenCode-Schluessel einfuegen, dann das Modell waehlen.
+  Der eingefuegte Schluessel wird ab jetzt auch **benutzt**: die Seite schickt ihn mit
+  jedem Lauf und uebergibt der Station eine Kopie (fuer Routinen ohne offenen Browser).
+  Das Labor startet im Dev-Schnellpfad, und der friss frueher jeden eingefuegten
+  Schluessel weg, ohne dass der Server etwas davon sagte (20.10.2026).
+  **Schluessel holen:** `node lab/opencode-key.cjs` zeigt (oder `--copy` kopiert) den
+  OpenCode-Key, den die OpenCode-CLI auf diesem Rechner schon hat
+  (`~/.local/share/opencode/auth.json`, Eintrag `opencode-go`) — der funktioniert.
+  `--push` legt ihn zusaetzlich in der Station ab (fuer Laeufe ohne offenen Browser).
+  Neu anlegen: opencode.ai/console → Keys → Add Service Account → Add API Key
+  (Permission *Inference*).
 - Werkzeuge und Unterprozesse sind im Live-Modus erlaubt, weil echte Agentenarbeit sie
   braucht. Das ist eine bewusste Erweiterung — nur im vertrauenswuerdigen Netz starten.
 - Weiterhin nicht eingerichtet: Veroeffentlichungen, Uploads, Pinterest, Newsletter-Versand.
