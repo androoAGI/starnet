@@ -40,8 +40,17 @@ const { makeOpenAICompatibleProvider } = require('../sidecar/providers/openai-co
   A.ok(badKey.indexOf('SERVICE-ACCOUNT') >= 0, 'the invalid-credential hint names the service-account key');
   const noKey = identity.failureHint({ baseUrl: 'https://opencode.ai/x', status: 401, detail: 'Missing API key.' });
   A.ok(noKey.indexOf('no API key') >= 0, 'the missing-key hint says exactly that');
+  const goNoKey = identity.failureHint({ baseUrl: 'https://opencode.ai/zen/go/v1', status: 401, detail: 'Upstream request failed: Go requires a credential' });
+  A.ok(goNoKey.indexOf('oc_sk_') >= 0, 'the Go hint names the console key');
+  const wrongPath = identity.failureHint({ baseUrl: 'https://opencode.ai/inference/openai/v1', status: 403, detail: 'Upstream request failed: Model access is disabled' });
+  A.ok(wrongPath.indexOf('zen/go/v1') >= 0, 'a Go key on the pay-as-you-go path is sent to the GO endpoint');
   A.eq(identity.failureHint({ baseUrl: 'https://openrouter.ai/api/v1', status: 403, detail: 'free tier' }), '', 'no opencode hint for other providers');
   A.eq(identity.failureHint({ baseUrl: 'https://opencode.ai/x', status: 500, detail: 'boom' }), '', 'no hint without a known cause');
+
+  // --- the GO plan has its own endpoint, and the hint knows it ---
+  A.ok(identity.isGoPath('https://opencode.ai/zen/go/v1'), 'the GO path is recognized');
+  A.ok(!identity.isGoPath('https://opencode.ai/inference/openai/v1'), 'the pay-as-you-go path is not the GO path');
+  A.eq(identity.GO_BASE_URL, 'https://opencode.ai/zen/go/v1', 'the GO base URL is the documented one');
 
   // --- the adapter's error message carries the hint, upstream text included ---
   const provider = makeOpenAICompatibleProvider({

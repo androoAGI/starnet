@@ -7,14 +7,18 @@ document.documentElement.dataset.labStyle = labStyle;
    provider, boot would strand on the RESUME screen — pin the dev provider instead. */
 try {
   if (localStorage.getItem('starnet.byok.prov') !== 'custom') localStorage.setItem('starnet.byok.prov', 'custom');
-  /* OpenCode: chat lives under /inference/openai/v1, the catalog under
-     /inference/v1. A stale chat base (the old /inference/v1) would 404 every
-     run, so normalize opencode.ai custom endpoints to the chat base. */
+  /* OpenCode has TWO endpoints and they are not interchangeable:
+     - Go plan (the lab's setup):  https://opencode.ai/zen/go/v1
+     - pay-as-you-go:               https://opencode.ai/inference/openai/v1
+     A GO key has NO model access on the pay-as-you-go path ("Model access is disabled"), so the lab pins
+     the GO path. The GO gateway also demands a conversation id in x-opencode-session — StarNet sends one
+     per run. */
   const baseKey = 'starnet.byok.baseUrl.custom';
+  const GO_BASE = 'https://opencode.ai/zen/go/v1';
   const base = localStorage.getItem(baseKey) || '';
   let host = null; try { host = base ? new URL(base).hostname : null; } catch (_) { host = null; }
   if (!base || (host && /(^|\.)opencode\.ai$/i.test(host))) {
-    if (base !== 'https://opencode.ai/inference/openai/v1') localStorage.setItem(baseKey, 'https://opencode.ai/inference/openai/v1');
+    if (base !== GO_BASE) localStorage.setItem(baseKey, GO_BASE);
   }
   if (!localStorage.getItem('starnet.byok.model.custom')) localStorage.setItem('starnet.byok.model.custom', 'deepseek-v4.1-flash');
 } catch (_) {}

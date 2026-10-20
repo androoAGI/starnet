@@ -10,17 +10,37 @@ OpenAI-kompatiblen Endpunkt. Der Endpunkt dahinter ist OpenCode:
 
 | Einstellung | Wert |
 |---|---|
-| Basis-URL (Chat) | `https://opencode.ai/inference/openai/v1` |
-| Chat-Endpunkt | `…/inference/openai/v1/chat/completions` |
-| Modellkatalog | `…/inference/v1/models` (der Server liest ihn automatisch mit) |
-| Standardmodell | `deepseek-v4.1-flash` (Go-Modell) |
+| Basis-URL (Chat **und** Katalog) | `https://opencode.ai/zen/go/v1` |
+| Chat-Endpunkt | `…/zen/go/v1/chat/completions` |
+| Modellkatalog | `…/zen/go/v1/models` (34 Go-Modelle) |
+| Standardmodell | `deepseek-v4.1-flash` |
 | Alle Agenten | derselbe Anbieter und dasselbe Modell |
 
-OpenCode nutzt für Chat und Modellliste **verschiedene Pfade**. Genau daran scheiterte
-die frühere Einrichtung: Die Modellliste lag unter `/inference/v1`, der Chat unter
-`/inference/openai/v1`. Der Server liest den Katalog jetzt über den dokumentierten
-Pfad, auch wenn die Basis-URL auf den Chat zeigt (`sidecar/index.js`, Abschnitt
-`listModelsForProvider`).
+## Die zwei OpenCode-Endpunkte (der Knackpunkt)
+
+OpenCode hat **zwei** Endpunkte, und sie sind **nicht austauschbar**:
+
+| Zweck | Basis-URL | Katalog | Wer darf dort ran? |
+|---|---|---|---|
+| **Go-Abo** | `https://opencode.ai/zen/go/v1` | `…/zen/go/v1/models` | Go-Keys (Abo) |
+| Pay-as-you-go | `https://opencode.ai/inference/openai/v1` | `…/inference/v1/models` | Keys mit Guthaben |
+
+Gemessen am 20.10.2026:
+
+- Ein **Go-Key auf dem Pay-as-you-go-Pfad** antwortet mit
+  **403 „Model access is disabled"** – der Key ist gültig, hat dort aber keinen
+  Modellzugriff. Genau das war der letzte gemeldete Fehler.
+- Der **Go-Pfad verlangt** `x-opencode-session` (eine Gesprächs-ID). Ohne sie:
+  **400 „MissingSessionID"**. StarNet sendet die Chat-Stream-ID pro Lauf.
+- Der Go-Pfad kennt **34 Modelle** (u. a. `deepseek-v4.1-flash`, `deepseek-v4-pro`,
+  `glm-5.1`, `grok-4.6`). Die `…-free`-Modelle des Free Tiers gibt es dort nicht.
+
+Deshalb steht das Labor jetzt auf `https://opencode.ai/zen/go/v1` (`lab/start.cjs`
+und `frontend/js/lab-theme.js`). Der alte Pay-as-you-go-Pfad bleibt als Fallback
+im Code (Katalog-Fallback `listModelsForProvider`), wird aber nicht mehr benutzt.
+
+**Antwort auf „brauche ich einen neuen Key?": Nein.** Derselbe Key, den OpenCode
+akzeptiert (403 statt 401), gehört auf den Go-Pfad.
 
 ## Was der gemeldete Fehler wirklich war
 
@@ -49,13 +69,15 @@ Station; die Läufe endeten mit 401 „Missing API key".
 1. **Schlüssel = Service-Account-Key** aus der Console (`oc_sk_…`), Permission
    mindestens *Inference*. Ein Member- oder Session-Token wird mit „Invalid
    credential" abgelehnt. Anlegen: opencode.ai/console → *Keys* → *Add Service Account*
-   → *Add API Key* (wird nur einmal angezeigt).
+   → *Add API Key* (wird nur einmal angezeigt). **Das Go-Abo selbst ist kein Key** –
+   der Key gehört zum Workspace, der das Abo trägt.
 2. **Freie Chat-Modelle** (Katalog-IDs mit `-free`) sind der OpenCode-App vorbehalten.
    Ein Fremd-Client bekommt dort immer 403. Sie stehen deshalb nicht mehr im
    Modell-Picker (gefiltert in `listModelsForProvider`).
 3. **Fremd-Clients melden sich**: eigener User-Agent (`starnet/<Version>`) und eine
    stabile Session-ID in `x-opencode-session` (die Chat-Stream-ID). Das verlangt
-   OpenCode für das **Go-Abo** ausdrücklich. Umgesetzt in
+   OpenCode für das **Go-Abo** ausdrücklich – ohne Session-ID antwortet der
+   Go-Pfad mit 400 `MissingSessionID`. Umgesetzt in
    `sidecar/providers/opencode-identity.js`; der Adapter hängt die Kopfzeilen an
    jeden OpenCode-Aufruf.
 4. **Go-Abo**: deckt u. a. `deepseek-v4.1-flash` ab (0,15 $/0,60 $ pro 1 M Token
@@ -65,7 +87,7 @@ Station; die Läufe endeten mit 401 „Missing API key".
 ## Modell wählen
 
 - In der Oberfläche: **SETTINGS → AI & MODELS** oder das Modellfeld unten in COMMS.
-  Die Liste zeigt die Go-/Bezahl-Modelle; `DEEPSEEK V4.1 FLASH` ist vorausgewählt.
+  Die Liste zeigt die 34 Go-Modelle; `DEEPSEEK V4.1 FLASH` ist vorausgewählt.
 - Für alle Agenten gleichzeitig (ohne UI):
 
 ```sh

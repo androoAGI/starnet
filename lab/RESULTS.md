@@ -149,7 +149,25 @@ Stand: 18. Oktober 2026. Getesteter Upstream-Commit: `d540d503d9c8d5140685881880
   werden; das Go-Abo allein genuegt der Inference-API nicht (ohne Key: 401
   "Missing API key"). Details: `MODELS.md`.
 
+### Nachtrag: Go-Pfad statt Pay-as-you-go (20. Oktober 2026)
+
+- Der gemeldete Fehler "Model access is disabled" ist **kein Key-Problem**, sondern
+  ein **Pfad-Problem**: OpenCode hat zwei Endpunkte. Ein Go-Key auf dem
+  Pay-as-you-go-Pfad (`/inference/openai/v1`) hat dort keinen Modellzugriff (403
+  "Model access is disabled" - der Key selbst wird akzeptiert). Der Go-Pfad ist
+  `https://opencode.ai/zen/go/v1` (Chat **und** Katalog, 34 Modelle) und verlangt
+  `x-opencode-session` (ohne: 400 "MissingSessionID").
+- Umgesetzt: Labor und Browser-Start stellen die CUSTOM-Basis-URL auf den Go-Pfad
+  (`lab/start.cjs`, `frontend/js/lab-theme.js`). Die Identitaets-Kopfzeilen
+  (User-Agent + Session-ID) waren dafuer bereits im Spiel - der Go-Pfad hat sie
+  akzeptiert und erst am fehlenden Schluessel gestoppt.
+- **Es ist kein neuer Key noetig**: derselbe Key, nur auf dem Go-Pfad.
+- Labor-Haltung: Live-Modus ist jetzt der Standard (vorher blockierte der
+  Offline-Default jede Anbieter-Karte mit "LAB_OFFLINE"), erlaubt sind alle
+  bekannten Anbieter-Hosts, und `--offline` schaltet die stille Haltung wieder zu.
+
 ### Basisentscheidung
+
 
 StarNet ist eine brauchbare technische Basis fuer den gewuenschten Ansatz. Der entscheidende
 Machbarkeitsnachweis fuer externe Workflow-Autoren ist positiv. Vor einem Austausch von Colony OS

@@ -3,19 +3,53 @@
 /* Test-process guard for the local StarNet lab. NOT an OS sandbox.
 
    Two postures, chosen at launch:
-     offline (default) - no outbound connections, no helper processes, only
+     offline (--offline) - no outbound connections, no helper processes, only
                          authoring writes reach the station.
-     live (LAB_LIVE=1)  - outbound is allowed ONLY to the hostnames in
-                         LAB_ALLOW_HOSTS (default opencode.ai, openrouter.ai),
-                         API writes are allowed so keys, runs and tools work.
-                         Helper processes stay available because agent tools need
-                         them; that is a real widening, so live mode is opt-in.
+     live (DEFAULT)      - outbound is allowed to the KNOWN PROVIDER HOSTS (every host
+                         StarNet's own provider cards talk to), API writes are allowed,
+                         helper processes stay available because agent tools need them.
+
+   Why live is the default: the lab exists to test the REAL station. In offline mode not
+   one provider card can be set up and not one model can run — every key save and every
+   run is answered with "LAB_OFFLINE", which reads like a broken installation rather
+   than a chosen posture. The live posture still holds the line that matters: only the
+   known provider hosts are reachable, so the lab cannot wander off into arbitrary
+   network traffic. --offline keeps the old, completely silent posture for scripted
+   authoring tests.
+
+   The allow list can be widened or narrowed with LAB_ALLOW_HOSTS (comma separated; it
+   REPLACES the default list) and is reported by GET /api/lab/status.
 */
 
-const LIVE = /^(1|true|yes|on)$/i.test(String(process.env.LAB_LIVE || '').trim());
-const ALLOW_HOSTS = String(process.env.LAB_ALLOW_HOSTS || 'opencode.ai,openrouter.ai')
-  .split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
-const deny = () => { throw new Error('LAB_OFFLINE: outbound connections and subprocesses are disabled'); };
+/* The posture comes from the launcher (lab/start.cjs sets LAB_LIVE=1|0): this module is --require'd by the
+   sidecar, so the launcher's own argv never reaches it. Unset means live — the lab is meant to work. */
+const LIVE = !/^(0|false|no|off)$/i.test(String(process.env.LAB_LIVE || '').trim());
+
+/* The hosts StarNet's own provider cards talk to. Derived from the provider registry, so a
+   NEW provider card is reachable without touching this file. */
+function defaultAllowHosts() {
+  const hosts = new Set(['opencode.ai']);            // the lab's CUSTOM card points here
+  try {
+    const registry = require('../sidecar/providers/registry.js');
+    for (const p of (registry.listProviderProfiles({ public: false }) || [])) {
+      const url = String((p && p.baseUrl) || '');
+      if (!/^https?:\/\//i.test(url)) continue;
+      try { hosts.add(new URL(url).hostname.toLowerCase()); } catch (_) {}
+    }
+  } catch (_) { /* no registry: the explicit list below still applies */ }
+  hosts.add('localhost');                            // a local Ollama / vLLM on this machine
+  hosts.add('127.0.0.1');
+  return [...hosts].filter(Boolean).sort();
+}
+
+const ALLOW_HOSTS = String(process.env.LAB_ALLOW_HOSTS || '').trim()
+  ? String(process.env.LAB_ALLOW_HOSTS).split(',').map(v => v.trim().toLowerCase()).filter(Boolean)
+  : defaultAllowHosts();
+
+const deny = () => {
+  throw new Error('LAB_OFFLINE: outbound connections and subprocesses are disabled — start the lab with --live '
+    + '(or LAB_LIVE=1) to allow provider calls and agent tools');
+};
 
 function hostAllowed(hostname) {
   const h = String(hostname || '').toLowerCase();
@@ -29,7 +63,11 @@ if (LIVE) {
       let url;
       try { url = new URL(typeof input === 'string' ? input : (input && input.url) || ''); }
       catch (_) { throw new Error('LAB_OFFLINE: unreadable request target'); }
-      if (!hostAllowed(url.hostname)) throw new Error('LAB_OFFLINE: ' + url.hostname + ' is not on the allowed host list');
+      if (!hostAllowed(url.hostname)) {
+        throw new Error('LAB_BLOCKED: ' + url.hostname + ' is not on the allowed host list (allowed: '
+          + ALLOW_HOSTS.join(', ') + ') — start the lab with LAB_ALLOW_HOSTS=' + url.hostname
+          + ' to reach that host');
+      }
       return realFetch.call(this, input, init);
     };
   }
@@ -61,11 +99,11 @@ http.createServer = function (...args) {
     }
     if (!LIVE && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !writable.has(pathname)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ ok: false, error: 'LAB_OFFLINE: execution and external actions disabled' }));
+      return res.end(JSON.stringify({ ok: false, error: 'LAB_OFFLINE: execution and external actions disabled — start the lab with --live (or LAB_LIVE=1) to add a provider and run a model' }));
     }
     return handler(req, res);
   };
   return createServer.apply(this, args);
 };
 
-module.exports = { LIVE, ALLOW_HOSTS, hostAllowed };
+module.exports = { LIVE, ALLOW_HOSTS, hostAllowed, defaultAllowHosts };

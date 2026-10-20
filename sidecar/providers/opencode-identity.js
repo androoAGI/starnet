@@ -32,6 +32,15 @@
     catch (_) { return false; }
   }
 
+  /* The OpenCode GO plan has its OWN endpoint: https://opencode.ai/zen/go/v1 (chat + /models). A GO key on the
+     pay-as-you-go inference path (/inference/openai/v1) has NO model access there — the gateway answers
+     403 "Model access is disabled" (measured 2026-10-20). The GO path in turn REQUIRES the session header:
+     without it the gateway answers 400 "MissingSessionID" and points at opencode.ai/docs/go. */
+  const GO_BASE_URL = 'https://opencode.ai/zen/go/v1';
+  function isGoPath(baseUrl) {
+    return /\/zen\/go(\/|$)/i.test(String(baseUrl || ''));
+  }
+
   /* The reserved free chat models. OpenCode serves them ONLY inside its own app — a third-party client gets
      403 FreeTierError for them no matter which key it holds. Their catalog id carries the "-free" suffix. */
   function isFreeOnlyModel(modelId) {
@@ -64,8 +73,18 @@
     if (status === 403 && /free tier/i.test(detail)) {
       return "OpenCode serves its free chat models only inside the OpenCode app itself — a third-party client (StarNet) always gets this 403, whatever key it holds. Pick a Go/paid model instead (e.g. deepseek-v4.1-flash) and use a console service-account key (oc_sk_...) on a workspace with credits or an OpenCode Go subscription.";
     }
+    if (status === 403 && /model access is disabled/i.test(detail)) {
+      return 'this key has no model access on the pay-as-you-go inference path — an OpenCode GO key belongs on the GO endpoint (' + GO_BASE_URL
+        + '). Point the CUSTOM base URL there; the GO plan also demands the x-opencode-session header, which StarNet sends.';
+    }
+    if (status === 400 && /missing x-opencode-session/i.test(detail)) {
+      return 'the OpenCode GO endpoint needs a conversation id in x-opencode-session — StarNet sends one per run, so this means the request did not come from a run (a manual probe against a raw endpoint).';
+    }
     if (status === 401 && /invalid credential/i.test(detail)) {
       return 'OpenCode refused this key. It wants a console SERVICE-ACCOUNT key (oc_sk_...) with the "Inference" permission — a member token, a session token or a key from another account is refused with exactly this message. Create a new one under opencode.ai/console → Keys.';
+    }
+    if (status === 401 && /go requires a credential/i.test(detail)) {
+      return 'the OpenCode GO endpoint wants a credential: paste the console key (oc_sk_...) of the workspace that carries the Go subscription. The Go plan itself is not a key.';
     }
     if (status === 401 && /missing api key/i.test(detail)) {
       return 'no API key is connected to this provider card — paste the console service-account key (oc_sk_...) into SETTINGS → PROVIDERS.';
@@ -76,5 +95,5 @@
     return '';
   }
 
-  return { isOpenCodeHost, isFreeOnlyModel, identityHeaders, failureHint };
+  return { isOpenCodeHost, isFreeOnlyModel, identityHeaders, failureHint, isGoPath, GO_BASE_URL };
 });

@@ -4,7 +4,9 @@ const { test } = require('node:test');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
-test('lab process refuses model fetch, raw sockets and helper processes before I/O', () => {
+const GUARD = path.join(__dirname, 'guard.cjs');
+
+test('lab process refuses model fetch, raw sockets and helper processes before I/O (offline posture)', () => {
   const script = `
     const assert = require('node:assert/strict');
     (async () => {
@@ -14,8 +16,44 @@ test('lab process refuses model fetch, raw sockets and helper processes before I
       assert.throws(() => require('node:child_process').execFile('anything'), /LAB_OFFLINE/);
     })().catch(e => { console.error(e); process.exitCode = 1; });
   `;
-  const result = spawnSync(process.execPath, ['--require', path.join(__dirname, 'guard.cjs'), '-e', script], { encoding: 'utf8', timeout: 10000 });
+  const result = spawnSync(process.execPath, ['--require', GUARD, '-e', script],
+    { encoding: 'utf8', timeout: 10000, env: Object.assign({}, process.env, { LAB_LIVE: '0' }) });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('the live posture lets every provider host through and names the ones it blocks', () => {
+  const script = `
+    const assert = require('node:assert/strict');
+    const { ALLOW_HOSTS, hostAllowed } = require(${JSON.stringify(GUARD)});
+    (async () => {
+      // The hosts StarNet's own provider cards talk to must be reachable, or no card can be set up.
+      for (const host of ['opencode.ai', 'openrouter.ai', 'api.anthropic.com', 'api.openai.com',
+        'generativelanguage.googleapis.com', 'api.x.ai', 'api.kimi.com', 'chatgpt.com', '127.0.0.1']) {
+        assert.ok(hostAllowed(host), host + ' must be allowed');
+      }
+      assert.ok(!hostAllowed('evil.example.test'), 'an unknown host stays out');
+      // A blocked host must say WHAT is allowed and HOW to widen it — not just "LAB_OFFLINE".
+      assert.throws(() => fetch('https://evil.example.test/model'), /LAB_BLOCKED/);
+      assert.throws(() => fetch('https://evil.example.test/model'), /LAB_ALLOW_HOSTS/);
+      // An allowed host is not blocked by the guard (it fails on the network, not on the lab).
+      let guardBlocked = false;
+      try { await fetch('http://127.0.0.1:1/nothing'); } catch (e) { guardBlocked = /LAB_(BLOCKED|OFFLINE)/.test(String(e && e.message)); }
+      assert.equal(guardBlocked, false, 'an allowed host is not blocked by the lab');
+    })().catch(e => { console.error(e); process.exitCode = 1; });
+  `;
+  const result = spawnSync(process.execPath, ['--require', GUARD, '-e', script],
+    { encoding: 'utf8', timeout: 20000, env: Object.assign({}, process.env, { LAB_LIVE: '1' }) });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test('the default allow list is derived from the provider registry, not hand-kept', () => {
+  const { defaultAllowHosts } = require('./guard.cjs');
+  const hosts = defaultAllowHosts();
+  assert.ok(hosts.includes('openrouter.ai'), 'openrouter is reachable');
+  assert.ok(hosts.includes('api.anthropic.com'), 'anthropic is reachable');
+  assert.ok(hosts.includes('opencode.ai'), 'the lab own custom endpoint is reachable');
+  assert.ok(hosts.includes('localhost'), 'a local model server is reachable');
+  assert.ok(!hosts.includes('evil.example.test'), 'nothing else is');
 });
 
 test('authoring adapter rejects non-local targets before requesting anything', async () => {

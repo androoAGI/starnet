@@ -8,7 +8,10 @@ const state = path.join(root, '.lab-state');
 const workspace = path.join(state, 'workspaces');
 const home = path.join(state, 'home');
 const argv = process.argv.slice(2);
-const live = argv.includes('--live') || /^(1|true|yes|on)$/i.test(String(process.env.LAB_LIVE || '').trim());
+/* LIVE is the default: the lab exists to test the real station, and in the old offline default NOT ONE provider
+   card could be set up and NOT ONE model could run (every save answered "LAB_OFFLINE"). --offline keeps the
+   silent posture for scripted authoring tests. */
+const live = !argv.includes('--offline') && !/^(0|false|no|off)$/i.test(String(process.env.LAB_LIVE || '').trim());
 const portArg = argv.find(a => /^\d+$/.test(a));
 const port = Number(portArg || 8790);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid lab port');
@@ -44,15 +47,20 @@ const env = {
   STARNET_COLONY_LEGACY_BRANDS: '1',
   STARNET_CLOUD_URL: '', STARNET_CREDITS_URL: ''
 };
-// Live mode: real OpenCode model calls. Outbound stays limited to the allow list.
+// Live mode: real model calls. Outbound stays limited to the known provider hosts (the guard's default list),
+// so a provider card can be set up and used without opening the lab to arbitrary network traffic.
+env.LAB_LIVE = live ? '1' : '0';
 if (live) {
-  env.LAB_LIVE = '1';
-  env.LAB_ALLOW_HOSTS = process.env.LAB_ALLOW_HOSTS || 'opencode.ai,openrouter.ai';
-  // OpenCode serves chat at /inference/openai/v1/chat/completions but the model
-  // catalog at /inference/v1/models. The sidecar's OpenCode catalog fallback
-  // follows the documented split; the base URL must be the chat one.
-  env.CUSTOM_OPENAI_BASE_URL = 'https://opencode.ai/inference/openai/v1';
-  env.OPENAI_COMPATIBLE_BASE_URL = 'https://opencode.ai/inference/openai/v1';
+  // Only an EXPLICIT list replaces the guard's default (every host StarNet's provider cards talk to).
+  if (String(process.env.LAB_ALLOW_HOSTS || '').trim()) env.LAB_ALLOW_HOSTS = process.env.LAB_ALLOW_HOSTS;
+  // OpenCode serves TWO endpoints, and they are not interchangeable:
+  //   Go plan (the lab's setup):  https://opencode.ai/zen/go/v1        (chat + /models in the same base)
+  //   pay-as-you-go:               https://opencode.ai/inference/openai/v1 (chat) with the catalog at /inference/v1/models
+  // A GO key on the pay-as-you-go path has NO model access there ("Model access is disabled", measured
+  // 2026-10-20) — so the lab points at the GO path, which also demands the x-opencode-session header
+  // (StarNet sends one per conversation; the gateway answers 400 MissingSessionID without it).
+  env.CUSTOM_OPENAI_BASE_URL = 'https://opencode.ai/zen/go/v1';
+  env.OPENAI_COMPATIBLE_BASE_URL = 'https://opencode.ai/zen/go/v1';
   env.STARNET_DEFAULT_MODEL = process.env.LAB_MODEL || 'deepseek-v4.1-flash';
 }
 // A managed-provider value stranded in the save would boot into the RESUME screen.
@@ -60,9 +68,16 @@ const repair = require('./repair.cjs');
 const repaired = { save: repair.repairSave(workspace), roster: repair.repairRoster(workspace) };
 if (repaired.save.changed) console.log('[lab] repaired save provider -> ' + repaired.save.to);
 console.log(`StarNet local lab: http://127.0.0.1:${port}\nIsolated state: ${state}`);
-console.log(live
-  ? 'LIVE MODE — real model calls to: ' + env.LAB_ALLOW_HOSTS + '\nDefault model: ' + env.STARNET_DEFAULT_MODEL + '\nProvider base URL: ' + env.CUSTOM_OPENAI_BASE_URL + '\nA provider key is still required. No publishing or uploads are wired.'
-  : 'OFFLINE — no models, keys, uploads, outbound connections or subprocesses.\nStart with --live to allow real OpenCode model calls.');
+if (live) {
+  const allowed = String(env.LAB_ALLOW_HOSTS || require('./guard.cjs').defaultAllowHosts().join(','));
+  console.log('LIVE MODE — echte Modellaufrufe moeglich. Erlaubte Hosts: ' + allowed);
+  console.log('Standardmodell: ' + env.STARNET_DEFAULT_MODEL + ' · Anbieter-Basis-URL: ' + env.CUSTOM_OPENAI_BASE_URL);
+  console.log('Ein Anbieter-Schluessel wird gebraucht: SETTINGS -> PROVIDERS -> CUSTOM. Weiterer Host? Start mit LAB_ALLOW_HOSTS=' + allowed + ',<host>.');
+  console.log('Kein Veroeffentlichen, keine Uploads. Nur im vertrauenswuerdigen Netz nutzen.');
+} else {
+  console.log('OFFLINE — keine Modelle, keine Schluessel, keine Uploads, keine ausgehenden Verbindungen, keine Unterprozesse.');
+  console.log('Fuer einen benutzbaren Laborbetrieb: ohne --offline starten.');
+}
 const child = spawn(process.execPath, ['--require', path.join(__dirname, 'guard.cjs'), path.join(root, 'sidecar/index.js')], {
   cwd: root, env, stdio: 'inherit'
 });

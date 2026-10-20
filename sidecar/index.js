@@ -25798,6 +25798,8 @@ async function handleProviderValidate(req, res) {
       if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
+    // The adapter instance: its catalog status/fetch error is what tells a REFUSED key from an unreachable endpoint.
+    const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl, headers: openCodeClientHeaders(baseUrl, 'validate') });
     // Same catalog path as the model picker (OpenCode: chat base + /v1/models catalog).
     const models = await listModelsForProvider(id, { key: candidate, baseUrl });
     // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no

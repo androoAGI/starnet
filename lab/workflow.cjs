@@ -93,9 +93,11 @@ async function main(args) {
   const [command = 'help', ...rest] = args;
   const flag = key => { const i = rest.indexOf(key); return i < 0 ? undefined : rest[i + 1]; };
   if (command === 'help') return { commands: ['read', 'validate', 'create --spec FILE [--apply]', 'edit --step ID --patch FILE [--apply]'],
-    notes: ['Changes are dry-run unless --apply is present.', 'Browser must be reloaded after external edits.', 'No model or workflow execution.'], base: 'http://127.0.0.1:8790' };
+    notes: ['Changes are dry-run unless --apply is present.', 'Browser must be reloaded after external edits.', 'No model or workflow execution.',
+      'Against a LIVE lab, editing needs the explicit opt-in --live-authoring (the offline lab needs nothing).'],
+    base: 'http://127.0.0.1:8790' };
   if (!['read', 'validate', 'create', 'edit'].includes(command)) throw new Error('Unknown command');
-  const request = await client(flag('--base') || 'http://127.0.0.1:8790');
+  const request = await client(flag('--base') || 'http://127.0.0.1:8790', { allowLiveAuthoring: rest.includes('--live-authoring') });
   const state = await request('/api/save');
   if (!state.save || !state.save.agent) throw new Error('No lab station save');
   const save = structuredClone(state.save);

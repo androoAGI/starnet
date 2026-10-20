@@ -13,24 +13,38 @@ node lab/start.cjs
 
 URL: `http://127.0.0.1:8790`. Zustand: `.lab-state/`, vom Git ausgeschlossen.
 
-## Live-Modus (echte Modellaufrufe)
+**Der Start ist live** (echte Modellaufrufe moeglich). Erlaubt sind alle Hosts, die
+StarNets eigene Anbieter-Karten benutzen (opencode.ai, openrouter.ai, api.anthropic.com,
+api.openai.com, generativelanguage.googleapis.com, api.x.ai, api.kimi.com, chatgpt.com,
+127.0.0.1) – mehr nicht. Ein weiterer Host gehoert beim Start dazu:
 
 ```sh
-node lab/start.cjs --live
+LAB_ALLOW_HOSTS=opencode.ai,openrouter.ai,mein-eigener-host node lab/start.cjs
 ```
 
-- Ausgehende Verbindungen sind nur zu `opencode.ai` und `openrouter.ai` erlaubt
-  (`LAB_ALLOW_HOSTS` überschreibt die Liste).
-- Der Anbieter im Lab ist auf `CUSTOM` gestellt; die Basis-URL wird auf
-  `https://opencode.ai/inference/openai/v1` gesetzt (Chat). Den Modellkatalog liest der
-  Server zusätzlich von `https://opencode.ai/inference/v1/models` (85 Modelle).
-- Standardmodell und alle Agenten: `deepseek-v4.1-flash` (`LAB_MODEL=…` überschreibt
-  es). Details, kostenlose Alternative und Änderung: [`MODELS.md`](MODELS.md).
-- **Der Schlüssel fehlt noch.** In der Oberfläche: `SETTINGS → PROVIDERS → CUSTOM`,
-  Basis-URL stehen lassen, OpenCode-Schlüssel einfügen, dann das Modell wählen.
+Fuer die alte, vollstaendig stille Haltung (nur Autoren-Schreibzugriffe, keine
+Aufrufe, keine Unterprozesse):
+
+```sh
+node lab/start.cjs --offline
+```
+
+## Live-Modus (echte Modellaufrufe)
+
+- Ausgehende Verbindungen sind nur zu den bekannten Anbieter-Hosts erlaubt
+  (`LAB_ALLOW_HOSTS` ersetzt die Liste). Ein blockierter Host nennt selbst, was
+  erlaubt ist und wie man ihn freischaltet.
+- Der Anbieter im Lab ist auf `CUSTOM` gestellt; die Basis-URL ist der **Go-Pfad**
+  `https://opencode.ai/zen/go/v1` (Chat **und** Katalog, 34 Modelle). Der
+  Pay-as-you-go-Pfad (`/inference/openai/v1`) nimmt einen Go-Key nicht an
+  ("Model access is disabled") - Details: [`MODELS.md`](MODELS.md).
+- Standardmodell und alle Agenten: `deepseek-v4.1-flash` (`LAB_MODEL=…` ueberschreibt
+  es). Details und Aenderung: [`MODELS.md`](MODELS.md).
+- **Der Schluessel fehlt noch.** In der Oberflaeche: `SETTINGS → PROVIDERS → CUSTOM`,
+  Basis-URL stehen lassen, OpenCode-Schluessel einfuegen, dann das Modell waehlen.
 - Werkzeuge und Unterprozesse sind im Live-Modus erlaubt, weil echte Agentenarbeit sie
-  braucht. Das ist eine bewusste Erweiterung — nur im vertrauenswürdigen Netz starten.
-- Weiterhin nicht eingerichtet: Veröffentlichungen, Uploads, Pinterest, Newsletter-Versand.
+  braucht. Das ist eine bewusste Erweiterung — nur im vertrauenswuerdigen Netz starten.
+- Weiterhin nicht eingerichtet: Veroeffentlichungen, Uploads, Pinterest, Newsletter-Versand.
 - `node lab/repair.cjs` korrigiert einen Lab-Stand, dessen Anbieter auf `starnet`
   (verwaltete Abrechnung) gerutscht ist — ohne Konto strandet der Start sonst im
   RESUME-Bildschirm. Läuft bei jedem Start automatisch.
