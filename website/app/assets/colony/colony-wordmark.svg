@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="238" height="54" viewBox="0 0 238 54" role="img" aria-label="Colony">
+  <g fill="none" stroke="#deb17a" stroke-width="2" stroke-linejoin="round">
+    <path d="m5 20 19-11 19 11v22H5Z"/>
+    <path d="m5 20 19 11 19-11M24 31v11M12 24v11m24-11v11"/>
+  </g>
+  <text x="57" y="32" fill="#fff1dc" font-family="Segoe UI,DejaVu Sans,sans-serif" font-size="25" font-weight="600" letter-spacing="2">COLONY</text>
+  <text x="58" y="46" fill="#bba48b" font-family="Segoe UI,DejaVu Sans,sans-serif" font-size="8" letter-spacing="1.8">WORKFLOW STUDIO</text>
+</svg>

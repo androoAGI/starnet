@@ -5772,7 +5772,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // the codex OAuth path, which IS real auth) rather than the over-claiming "CONNECTED". The
       // ACTIVE/runnable badge logic below is unchanged — that already gates on selected provider + model.
       const connLabel = isOAuthProvider(p.id) ? '● SIGNED IN' : '● KEY SAVED';
-      const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved);
+      // A CUSTOM endpoint without a key is only "keyless" when it runs ON this machine (Ollama, vLLM, LM Studio).
+      // A remote custom endpoint (opencode.ai and friends) that has no key is a MISSING KEY, not a local server:
+      // calling it "LOCAL ENDPOINT CONFIGURED" hid the one thing the Commander had to do (2026-10-20).
+      const customBase = p.id === 'custom' && h && h.getBaseUrl ? String(h.getBaseUrl('custom') || '') : '';
+      const customIsLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(customBase);
+      const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved && customIsLocal);
       const localStat = !endpointConfigured ? '○ NO ENDPOINT' : health === undefined ? '◐ LOCAL ENDPOINT CONFIGURED · CHECKING…'
         : health && health.reachable ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
       const keyStat = health === undefined ? connLabel + ' · CHECKING…'
@@ -5782,7 +5787,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         : !claudeCliSt.installed ? '○ CLAUDE CODE NOT INSTALLED' : !claudeCliSt.loggedIn ? '○ NOT SIGNED IN'
         : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
       const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
-        : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+        : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat
+          : (p.id === 'custom' && endpointConfigured && !customIsLocal && health && health.credentialVerified) ? '● ENDPOINT VERIFIED · NO KEY NEEDED'
+            : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' && !endpointConfigured ? '○ NO ENDPOINT' : '○ NO KEY'));
       // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
       // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
       // org P03: a probe that gave no reason still says what it saw — never a bare NOT VERIFIED / CHECK FAILED.

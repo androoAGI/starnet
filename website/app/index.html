@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STARNET</title>
+<link rel="stylesheet" href="demo.css?v=20260921"><!-- WEBSITE EMBED ONLY: camera viewport without duplicate page glass -->
+<script src="demo-boot.js?v=20260922-current-starter-v6"></script><!-- WEBSITE EMBED ONLY: seeds the captured demo save + DEV seam before any store reads -->
+<script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
 <!-- no favicon file ships: an empty data: icon stops a full browser probing /favicon.ico (a 404 in the console on every load) -->
 <link rel="icon" href="data:,">
 <!-- VT323 — THE STARNET FONT — has exactly ONE source: the local @font-face in css/style.css
@@ -67,9 +70,17 @@
 <link rel="stylesheet" href="css/comms-convo.css"><!-- COMMS AS A CONVERSATION: the transcript's reading layer (bubbles, visible stamps, time breaks, run footer) — loaded last on purpose -->
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
-
+<link rel="stylesheet" href="css/lab-theme.css">
+<script src="js/lab-mobile-ui.js"></script>
+<script src="js/lab-theme.js"></script>
+<!-- Colony entry points (Station-OS rooms/pipelines + layout). Deferred, so they run after the document is
+     parsed and after legacymigrate/glass-boot. Kept with the head scripts so the boot order stays readable;
+     bootguard itself sits above, at the very top of <head>. -->
+<script src="js/colony-entry.js" defer></script>
+<script src="app/colony-layout.js" defer></script>
 </head>
 <body class="theme-amber glass-demo">
+<div id="lab-notice" role="status" title="Status des lokalen Testbetriebs.">Testbetrieb · Status wird geprüft …</div>
 
 <!-- ============ BOOT VEIL ============ -->
 <!-- The ONLY screen that ships class="active": a neutral phosphor holding-card shown during init()'s async
@@ -819,9 +830,6 @@
   <div id="terms"></div>
 </section>
 
-<link rel="stylesheet" href="demo.css?v=20260921"><!-- WEBSITE EMBED ONLY: camera viewport without duplicate page glass -->
-<script src="demo-boot.js?v=20260922-current-starter-v6"></script><!-- WEBSITE EMBED ONLY: seeds the captured demo save + DEV seam before any store reads -->
-<script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
 <script src="app/legacymigrate.js"></script>
 <script src="app/glass-boot.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
 <script src="js/util.js"></script>

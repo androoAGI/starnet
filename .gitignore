@@ -230,3 +230,4 @@ dev/.scratch-workspace.recovery-owner.json.generations/
 # Lab-only WebP derivatives of StarNet's non-MIT industrial art (lab/make-webp.cjs).
 # Generated locally; the PNG originals remain the source of truth.
 frontend/assets/industrial/**/*.webp
+website/app/assets/industrial/**/*.webp

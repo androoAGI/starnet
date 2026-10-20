@@ -1886,6 +1886,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // a crew member is WORKING iff IT has a live run — read from the real agent.run.start/end events, NOT the
   // single global hero activity (which used to mark the whole crew WORKING in lockstep with the hero). The
   // talk/task text flavor still comes from the global activity (right for the common single-agent station).
+  const colonyTeamStatus = new Map();
+  let colonyTeamSeenAt = -Infinity;
+  function setColonyTeam(snapshot) {
+    colonyTeamStatus.clear(); colonyTeamSeenAt = -Infinity;
+    if (snapshot && snapshot.online === true && Array.isArray(snapshot.team)) {
+      for (const row of snapshot.team) colonyTeamStatus.set(row.id, row);
+      colonyTeamSeenAt = Date.now();
+    }
+    crewTick();
+  }
   function crewTick() {
     if (!present.length) return;
     // self-heal: drop any tracked id no longer on the roster (a left agent, or a stale id left behind when an
@@ -1897,15 +1907,23 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // the agent whose sessions the rail is narrowed to (App owns it; '' = every session)
     let railFilter = '';
     try { railFilter = (typeof App !== 'undefined' && App.railAgentFilter && App.railAgentFilter()) || ''; } catch (_) {}
-    let working = 0, visible = 0;
+    let working = 0, visible = 0, offline = 0, waiting = 0;
     present.forEach(a => {
-      const live = agentLive(a.id);
+      const managed = /^colony_(lifestruct|ashveil|homestackr)_/.test(a.id);
+      const linked = typeof World === 'undefined' || !World.linkState || !World.linkState().down;
+      const live = agentLive(a.id) && (!managed || linked);
+      const phase = managed ? (!linked || Date.now() - colonyTeamSeenAt > 30000 ? 'offline' : colonyTeamStatus.get(a.id)?.state || 'offline') : null;
+      if (!live && phase === 'offline') offline++;
+      if (!live && (phase === 'waiting_user' || phase === 'waiting_external')) waiting++;
       if (live) working++;
       const e = $('#cs-' + a.id);
       if (e) {
-        const status = live ? (a.id === focusedId && act === 'talk' ? 'IN CONVERSATION' : lineTestOnly(a.id) ? 'ON A WORKFLOW' : 'WORKING') : 'IDLE';
+        const status = live ? (a.id === focusedId && act === 'talk' ? 'IN CONVERSATION' : lineTestOnly(a.id) ? 'ON A WORKFLOW' : 'WORKING')
+          : phase ? ({offline:'OFFLINE',waiting_user:'WAITS FOR YOU',waiting_external:'WAITS FOR DATA',available:'AVAILABLE',active:'WORKING'}[phase] || 'OFFLINE') : 'IDLE';
         if (e.textContent !== status) e.textContent = status;
-        const tip = status === 'ON A WORKFLOW' ? LINE_TEST_TIP : '';
+        const run = managed && colonyTeamStatus.get(a.id)?.runs?.[0];
+        const tip = run ? 'Task ' + run.taskId + ' · ' + run.processId + ' · ' + run.stepId +
+          (run.artifactVersions?.length ? ' · Artefakte: ' + run.artifactVersions.join(', ') : '') : status === 'ON A WORKFLOW' ? LINE_TEST_TIP : '';
         if ((e.getAttribute('data-tip') || '') !== tip) { if (tip) e.setAttribute('data-tip', tip); else e.removeAttribute('data-tip'); }
         const row = e.closest('.crew-row');
         row.classList.toggle('selected', a.id === focusedId);
@@ -1923,12 +1941,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // crewcards.js seats this beside the CREW title ("2 WORKING · 1 IDLE"); the ▮ ▯ marks were fallback-font glyphs
     if (sum) sum.innerHTML =
       '<span class="pos">' + working + ' WORKING</span>' +
-      '<span class="dim">' + (present.length - working) + ' IDLE</span>';
+      '<span class="dim">' + (present.length - working - offline - waiting) + ' IDLE</span>' +
+      (offline ? '<span class="dim">' + offline + ' OFFLINE</span>' : '') + (waiting ? '<span class="dim">' + waiting + ' WAITING</span>' : '');
     // #8: keep the canvas's screen-reader live region in sync (the <canvas> itself is opaque to AT).
     // Update only when the text actually changes so the region doesn't spam announcements every tick.
     const stageSum = $('#stage-summary');
     if (stageSum) {
-      const txt = 'Station crew: ' + working + ' working, ' + (present.length - working) + ' idle.';
+      const txt = 'Station crew: ' + working + ' working, ' + (present.length - working - offline - waiting) + ' idle.' +
+        (offline ? ' ' + offline + ' offline.' : '') + (waiting ? ' ' + waiting + ' waiting.' : '');
       if (txt !== lastStageSummary) { lastStageSummary = txt; stageSum.textContent = txt; }
     }
   }
@@ -5752,7 +5772,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // the codex OAuth path, which IS real auth) rather than the over-claiming "CONNECTED". The
       // ACTIVE/runnable badge logic below is unchanged — that already gates on selected provider + model.
       const connLabel = isOAuthProvider(p.id) ? '● SIGNED IN' : '● KEY SAVED';
-      const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved);
+      // A CUSTOM endpoint without a key is only "keyless" when it runs ON this machine (Ollama, vLLM, LM Studio).
+      // A remote custom endpoint (opencode.ai and friends) that has no key is a MISSING KEY, not a local server:
+      // calling it "LOCAL ENDPOINT CONFIGURED" hid the one thing the Commander had to do (2026-10-20).
+      const customBase = p.id === 'custom' && h && h.getBaseUrl ? String(h.getBaseUrl('custom') || '') : '';
+      const customIsLocal = /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(customBase);
+      const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved && customIsLocal);
       const localStat = !endpointConfigured ? '○ NO ENDPOINT' : health === undefined ? '◐ LOCAL ENDPOINT CONFIGURED · CHECKING…'
         : health && health.reachable ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
       const keyStat = health === undefined ? connLabel + ' · CHECKING…'
@@ -5762,7 +5787,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         : !claudeCliSt.installed ? '○ CLAUDE CODE NOT INSTALLED' : !claudeCliSt.loggedIn ? '○ NOT SIGNED IN'
         : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
       const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
-        : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+        : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat
+          : (p.id === 'custom' && endpointConfigured && !customIsLocal && health && health.credentialVerified) ? '● ENDPOINT VERIFIED · NO KEY NEEDED'
+            : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' && !endpointConfigured ? '○ NO ENDPOINT' : '○ NO KEY'));
       // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
       // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
       // org P03: a probe that gave no reason still says what it saw — never a bare NOT VERIFIED / CHECK FAILED.
@@ -12202,7 +12229,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
+  return { init, enter, setRoster, setColonyTeam, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

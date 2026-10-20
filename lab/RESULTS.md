@@ -123,6 +123,32 @@ Stand: 18. Oktober 2026. Getesteter Upstream-Commit: `d540d503d9c8d5140685881880
 - Anbieter-Prüfung bestätigt: erreichbar, Katalog vorhanden, Schlüssel akzeptiert.
   Es wurde kein Chat-Aufruf gestartet. Details: `MODELS.md`.
 
+### Nachtrag: OpenCode-Schluessel und Go-Vertrag (20. Oktober 2026)
+
+- Die Agenten meldeten "der OpenCode-Key wird nicht akzeptiert". Nachgemessen gegen
+  `opencode.ai`: ein **403 FreeTierError** entsteht **vor** der Schluesselpruefung und
+  betrifft nur die freien Chat-Modelle (`…-free`). Ein gueltiger und ein ungueltiger
+  Key liefern dort dieselbe Antwort. Zum Fehlerzeitpunkt liefen die Agenten auf
+  `deepseek-v4.1-flash-free` – die 403 war das Modell, nicht der Key.
+- Der Key selbst wurde am 18.10. beim Speichern mit **401 "Invalid credential"**
+  abgelehnt (wortgleich zu einem Testkey) und ist deshalb nie gespeichert worden.
+  Die Station hatte seither keinen Key; Laeufe endeten mit 401 "Missing API key".
+- Behoben in StarNet:
+  - Fremd-Client meldet sich wie von OpenCode fuer das Go-Abo verlangt: eigener
+    User-Agent (`starnet/<Version>`) und stabile Session-ID in `x-opencode-session`.
+  - Die Anbieter-Pruefung beweist einen entfernten Custom-Endpunkt mit einem **echten**
+    Aufruf statt mit der oeffentlichen Modellliste. Vorher meldete sie "verified" fuer
+    eine Station ganz ohne Key. Gemessen: `credentialVerified:false`,
+    `keyConnected:false`, Fehlertext nennt den fehlenden Service-Account-Key.
+  - Die 403/401-Fehlertexte sagen jetzt, was zu tun ist, statt den Key zu beschuldigen.
+  - Die freien Modelle (`…-free`) stehen nicht mehr im Modell-Picker (76 statt 85
+    Modelle); ein Beweis- oder Pruef-Aufruf ueberspringt sie und nutzt das gewaehlte
+    Modell, nicht den ersten Katalogeintrag (der ist ein Platzhalter).
+- Offen: ein **neuer** Console-Service-Account-Key (`oc_sk_...`, Permission
+  `Inference`) muss erstellt und in `SETTINGS -> PROVIDERS -> CUSTOM` eingetragen
+  werden; das Go-Abo allein genuegt der Inference-API nicht (ohne Key: 401
+  "Missing API key"). Details: `MODELS.md`.
+
 ### Basisentscheidung
 
 StarNet ist eine brauchbare technische Basis fuer den gewuenschten Ansatz. Der entscheidende

@@ -1,0 +1,149 @@
+/* Draftidea-inspired palette: slate signs, warm oak, amber lamps. Opt-out: ?lab-style=original. */
+html[data-lab-style="custom"] body {
+  --ph: #deb17a;
+  --ph-bright: #fff1dc;
+  --ph-dim: #a58970;
+  --ph-faint: #403831;
+  --ink: #25262c;
+  --ph-glow: rgba(222, 177, 122, .12);
+  --ph-glow2: rgba(222, 177, 122, .04);
+  --ph-rgb: 222, 177, 122;
+  --ph-bright-rgb: 255, 241, 220;
+  --bg: #20232b;
+  --panel: #292a30;
+  --panel2: #343238;
+  --text: #eee6db;
+  --gold: #efb968;
+  --gold-rgb: 239, 185, 104;
+  --ok: #93b69d;
+  --ok-rgb: 147, 182, 157;
+  --warn: #edc48b;
+  --cam-grade: saturate(1.08) brightness(1.12);
+  --pg-glow: none;
+  --pg-glow-soft: none;
+  --bezel: 0 8px 26px #0004, inset 0 1px 0 #ffffff0a;
+  --well: inset 0 1px 4px #0003;
+  --glass: none;
+  --gd-face: #292a30;
+  --cg-glass: #292a30;
+  --cg-card: #36343a;
+  --menu-glass: #292a30;
+  --r: 9px;
+  --r-lg: 12px;
+  font-family: 'Segoe UI', 'DejaVu Sans', sans-serif;
+  background: radial-gradient(ellipse at 45% 0%, #59453555, transparent 60%), #20232b;
+  text-shadow: none;
+}
+html[data-lab-style="custom"] body::before,
+html[data-lab-style="custom"] body::after {
+  display: none !important;
+}
+html[data-lab-style="custom"] body :is(#screen-game, #topbar, #left, #chat-panel, #bottombar, .term, .sn-menu),
+html[data-lab-style="custom"] body :is(#screen-game, .term, .sn-menu) :is(button, input, textarea, select, h3, h4, label, span, p, div) {
+  font-family: 'Segoe UI', 'DejaVu Sans', sans-serif !important;
+  text-shadow: none !important;
+  letter-spacing: normal;
+}
+html[data-lab-style="custom"] body :is(pre, code, kbd) {
+  font-family: 'DejaVu Sans Mono', monospace !important;
+}
+html[data-lab-style="custom"] body #screen-game {
+  animation: none !important;
+  opacity: 1 !important;
+}
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #screen-game :is(#topbar, #left, #chat-panel, #bottombar) {
+  background: var(--panel);
+  border: 1px solid #8a75624d;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px #0003;
+  backdrop-filter: none;
+}
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #screen-game :is(#topbar, #left, #chat-panel, #bottombar)::before,
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #screen-game :is(#topbar, #left, #chat-panel, #bottombar)::after,
+html[data-lab-style="custom"] body #stage-wrap::before,
+html[data-lab-style="custom"] body .term::before {
+  display: none !important;
+}
+html[data-lab-style="custom"] body :is(#left > h3, #chat-panel > h3, .term-bar) {
+  background: #22242b;
+  color: #f4e6d2;
+  border-bottom: 1px solid #c6965d66;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+html[data-lab-style="custom"] body :is(.crew-name, .ws-title, .ws-name) { font-size: 12px; line-height: 1.5; }
+html[data-lab-style="custom"] body :is(.crew-status, #crew-sum, .crew-clock, .ws-tab, .tb-lbl, #sig) { font-size: 10px; line-height: 1.5; }
+html[data-lab-style="custom"] body :is(.tb-val, #status-pill) { font-size: 12px; }
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #crew .crew-row {
+  background: #323138;
+  border-color: #77665655;
+  box-shadow: none;
+}
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #crew .crew-row.selected {
+  background: #443a32;
+  border-color: #d5a36588;
+  box-shadow: inset 3px 0 #d5a365;
+}
+html[data-lab-style="custom"] body #crew .crew-portrait {
+  background: radial-gradient(ellipse at center, #b18b5b33, #22242b);
+}
+html[data-lab-style="custom"] body :is(.cmsg-empty-line, .cmsg-starter-title) {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+html[data-lab-style="custom"] body.glass-demo:not(.hud-mode) #chat-panel .cmsg-starter {
+  background: #343138;
+  border-color: #aa8c6555;
+  box-shadow: none;
+}
+html[data-lab-style="custom"] body :is(.cmsg-empty-hint, .cmsg-empty-note, #chat-input) { font-size: 12px; line-height: 1.6; }
+html[data-lab-style="custom"] body :is(.bb, .term-title, .wfw h3, .wfw h4) {
+  font-size: 12px;
+  line-height: 1.45;
+}
+html[data-lab-style="custom"] body :is(.term, .sn-menu) {
+  background: #292a30 !important;
+  border-color: #b48c6355 !important;
+  box-shadow: 0 14px 45px #0006 !important;
+}
+html[data-lab-style="custom"] body :is(.term-body, .term-screen, .wfw) { background: #292a30; }
+html[data-lab-style="custom"] body .wfw :is(.wfw-name, .wfw-title) { font-size: 16px; line-height: 1.5; }
+html[data-lab-style="custom"] body .wfw :is(button, p, .wfw-step, .wfw-card) { font-size: 12px; line-height: 1.5; }
+html[data-lab-style="custom"] body .logo-img {
+  background-color: transparent !important;
+  background-image: url('../assets/colony/colony-wordmark.svg') !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  aspect-ratio: 238 / 54 !important;
+  width: 180px !important;
+  height: 30px !important;
+  filter: none !important;
+  -webkit-mask: none !important;
+  mask: none !important;
+}
+html[data-lab-style="custom"] body :is(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid #efb968 !important;
+  outline-offset: 3px;
+}
+#lab-notice {
+  position: fixed;
+  bottom: 5px;
+  left: 8px;
+  z-index: 100000;
+  pointer-events: none;
+  padding: 5px 9px;
+  color: #fff1dc;
+  background: #2b2930;
+  border-radius: 5px;
+  font: 11px/1.4 system-ui, sans-serif;
+}
+
+/* The phone menu is for reading/controls, not another animated glass surface. */
+body.lab-mobile-menu-open :is(.term, .term-scrim, .bb-menu, .swap-in) {
+  animation: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

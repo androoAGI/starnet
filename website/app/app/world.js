@@ -1723,6 +1723,20 @@ const World = (() => {
     handedBake = null;   // BUILD MODE's floor is taken by this first frame's rebake or not at all
   }
   function stop() { cancelArrival(); running = false; cancelScheduled(); }
+  // Mobile menus own the main thread while open. This only suspends the scene;
+  // SSE, backend work, approvals and DOM updates remain live. Never call start()
+  // to resume a stopped world (BUILD MODE and lifecycle still own that state).
+  let menuPaused = false;
+  function setMenuPaused(on) {
+    const next = on === true;
+    if (menuPaused === next) return;
+    menuPaused = next;
+    if (next) cancelScheduled();
+    else if (running) {
+      last = performance.now();   // no idle-simulation catch-up burst after reading a menu
+      scheduleFrame(paceMs(last));
+    }
+  }
   /* FRAME CAP (HUD widget, 2026-09-29): an opt-in ceiling on how often the floor is DRAWN. Frames in between are
      skipped whole; the simulation still reads the real clock, so bodies move at their true speed, just drawn fewer
      times a second. 0 = no caller cap (the station's own RENDER PACING below then decides). */
@@ -1808,14 +1822,14 @@ const World = (() => {
   }
   // the ONE place the next frame is booked: rAF at a draw-rate pace, a timer then rAF at a low one
   function scheduleFrame(pace) {
-    if (!running) return;
+    if (!running || menuPaused) return;
     const wait = pace >= PACE_TIMER_MIN_MS ? lastDrawnAt + pace - performance.now() - 2 : 0;
     if (wait > 0) paceTimer = setTimeout(() => { paceTimer = 0; if (running && !raf) raf = requestAnimationFrame(frame); }, wait);
     else raf = requestAnimationFrame(frame);
   }
   // focus / input / visible again: drop a pending low-rate wait and draw on the very next vsync
   function paceWake() {
-    if (!running || !paceTimer) return;
+    if (!running || menuPaused || !paceTimer) return;
     clearTimeout(paceTimer); paceTimer = 0;
     if (!raf) raf = requestAnimationFrame(frame);
   }
@@ -1836,9 +1850,9 @@ const World = (() => {
   // a per-frame ease tuned at 60 Hz, held to the same WALL-CLOCK speed at any draw rate (the 30 fps pace, a 240 Hz panel)
   function easeK(k60, dt) { return dt > 0 ? 1 - Math.pow(1 - k60, dt / (1000 / 60)) : 0; }
   function renderPace() {
-    const now = performance.now(), pace = running ? paceMs(now) : 0;
-    return { running, focused: pageFocused(), motion: now < motionUntil, paceMs: +pace.toFixed(1), vsyncMs: +vsyncMs.toFixed(2),
-      mode: !running ? 'stopped' : frameCapMs ? 'capped' : pace > PACE_VISIBLE_MS + 0.5 ? 'budget' : pace < PACE_VISIBLE_MS - 0.5 ? 'motion' : 'visible',
+    const now = performance.now(), pace = running && !menuPaused ? paceMs(now) : 0;
+    return { running, menuPaused, focused: pageFocused(), motion: now < motionUntil, paceMs: +pace.toFixed(1), vsyncMs: +vsyncMs.toFixed(2),
+      mode: !running ? 'stopped' : menuPaused ? 'menu-paused' : frameCapMs ? 'capped' : pace > PACE_VISIBLE_MS + 0.5 ? 'budget' : pace < PACE_VISIBLE_MS - 0.5 ? 'motion' : 'visible',
       drawCostMs: +drawCostMs.toFixed(2), budgetMs: +budgetMs().toFixed(1), strained, strainProbeMs: +strainProbeMs.toFixed(1),
       draws: pacedDraws, simMs: Math.round(simMs), timerWait: !!paceTimer };
   }
@@ -3091,11 +3105,33 @@ const World = (() => {
     b.px = f.x; b.py = f.y; b.home = tileOf(f.x, f.y);
     b.pathPts = null; b.target = null; b.state = 'idle'; b.idleUntil = now + U.irnd(400, 1200);
   }
+  const colonyTeam = new Map();
+  let colonyTeamAt = -Infinity;
+  const isColonyBody = id => /^colony_(lifestruct|ashveil|homestackr)_/.test(String(id || ''));
+  function setColonyTeam(snapshot) {
+    colonyTeam.clear(); colonyTeamAt = -Infinity;
+    if (snapshot && snapshot.online === true && Array.isArray(snapshot.team)) {
+      for (const row of snapshot.team) if (isColonyBody(row.id)) colonyTeam.set(row.id, row);
+      colonyTeamAt = fnow;
+    }
+  }
+  function colonyStateFor(id) {
+    if (!isColonyBody(id)) return null;
+    if (linkDown(fnow)) return 'offline';
+    const body = crew.find(b => b.agentId === id);
+    if (body && body.working) return 'active';
+    if (fnow - colonyTeamAt > 30000) return 'offline';
+    return colonyTeam.get(id)?.state || 'offline';
+  }
   function stepCrew(dt, now) {
     if (!geo || !crew.length) return;
     for (const b of crew) {
       if (b.unplaced) continue;
       containBody(b, now);   // never step (or render) a body that is off the floor
+      if (typeof colonyStateFor === 'function' && colonyStateFor(b.agentId) === 'offline') {
+        b.working = false; b.sitting = false; b.target = null; b.pathPts = null; b.goal = 'offline'; b.state = 'idle';
+        continue; // no lounge/idle walking as a substitute for a missing worker
+      }
       if (crewIsAwaiting(b)) { b.working = false; b.sitting = false; b.target = null; b.pathPts = null; b.goal = 'awaiting'; b.state = 'idle'; continue; }
       if (b.working) {                                 // running → sit at its desk if it has one, else stand where work is delivered
         const dp = deskPropFor(b.agentId), s = dp ? deskSeat(dp) : null;
@@ -4151,6 +4187,7 @@ const World = (() => {
   // is body `b` a valid social participant right now? idle, placed, not chat-focused, not already in a beat.
   // Reuses bodyIsIdle (the Tier C read-only idle test) — so it excludes tasked/walking/mid-goal/mid-run bodies.
   function socialEligible(b, now) {
+    if (b && typeof colonyStateFor === 'function' && colonyStateFor(b.agentId) === 'offline') return false;
     if (!b || b.unplaced || b.social) return false;              // already in an encounter, or nobody
     if (b.gather || gathering) return false;                     // TIER E: the assembly owns the whole floor while it lasts — no ordinary huddle may start inside one, or pull a body out of the formation
     if (b.stilling) return false;                                // don't yank a deliberate stillness hold (eerie calm wins)
@@ -6528,6 +6565,7 @@ const World = (() => {
   function frame(now, force) {
     raf = 0;
     if (paceTimer) { clearTimeout(paceTimer); paceTimer = 0; }   // exactly one booking alive (redrawNow / start call in directly)
+    if (menuPaused && force !== true) return;   // a forced resize may repaint the still once, never restart the loop
     const pace = paceMs(now);
     { const d = now - lastRafAt; if (lastRafAt && d > 2 && d < 50) vsyncMs = !vsyncMs || d < vsyncMs ? d : vsyncMs + (d - vsyncMs) * 0.02; lastRafAt = now; }
     paceLowRate = pace >= PACE_TIMER_MIN_MS;
@@ -7945,7 +7983,10 @@ const World = (() => {
      Anchored just above the head, clamped to the viewport. Intentionally small: a glance, not a window. */
   const PLATE_FONT = '"VT323","Courier New",monospace';   // the station terminal face (mirrors the body font stack)
   function floorDisplayName(who) {
-    const raw = String((who && who.name) || '');
+    const state = typeof colonyStateFor === 'function' ? colonyStateFor(who && (who.agentId || who.id)) : null;
+    const label = { offline: 'OFFLINE', active: 'ARBEIT', waiting_external: 'WARTET DATEN', waiting_user: 'WARTET FREIGABE', available: 'VERFÜGBAR' };
+    const run = state && colonyTeam.get(who && (who.agentId || who.id))?.runs?.[0];
+    const raw = String((who && who.name) || '') + (run ? ' · ' + run.processId : '') + (state ? ' · ' + (label[state] || state) : '');
     const key = raw.trim().toUpperCase();
     const bodies = [agent].concat(crew || []).filter(Boolean);
     const duplicate = key && bodies.filter(b => String(b.name || '').trim().toUpperCase() === key).length > 1;
@@ -10479,7 +10520,11 @@ const World = (() => {
       if (a.skin && typeof DATA !== 'undefined' && DATA.SKINS && DATA.SKINS[a.skin]) ex.skin = a.skin;
       return;
     }
-    const f = geo ? workerFoot() : { x: 0, y: 0 };                        // pre-geo: parked at origin, re-footed on first syncCrewFromPlan
+     // A saved worker may own a desk in another room without crewing a pipeline.
+     // Materialize at that real, walkable seat rather than in the founder's room;
+     // idle containment otherwise leaves it roaming there until its first job.
+     const ownDesk = geo && deskPropFor(a.id), ownSeat = ownDesk && deskSeat(ownDesk);
+     const f = geo ? (ownSeat ? seatFoot(ownSeat) : workerFoot()) : { x: 0, y: 0 }; // pre-geo: re-footed on first syncCrewFromPlan
     const b = makeCrewBody(a.id, a.name || a.id, a.color || crewColor(a.id), f.x, f.y, a.skin);
     b.summoned = true; b.wakeAt = fnow;                                   // a small materialize ripple
     b.idleUntil = fnow + U.irnd(1400, 3200);                              // hold a beat after materializing, then it strolls
@@ -10499,6 +10544,7 @@ const World = (() => {
      (a welcome is not ambient chatter) but the fired encounter still arms it, so a burst of spawns
      produces ONE welcome, not one per body. */
   function greetNewcomer(newBody, now) {
+    if (newBody && typeof colonyStateFor === 'function' && colonyStateFor(newBody.agentId) === 'offline') return false;
     if (!newBody || newBody.unplaced || !geo || socialBeat || reduceMotion()) return false;
     // Not during BOOT: replaying a saved roster spawns every body at once, and nobody welcomes a
     // floor that is still materializing. (This deliberately does NOT key on firstWakeDone — that
@@ -11585,7 +11631,7 @@ const World = (() => {
     pollFeed: () => pollFeedState(),
     pollShip: () => pollShipStats()
   });
-  return { init, rebake, invalidatePropShadows, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, renderPace, slagLog: () => (slaglog ? slaglog.recent() : []),
+  return { init, rebake, invalidatePropShadows, frameReviewRoom, renderStill, renderStillOfTiles, crewFrames, crt: CRT, renderPace, setMenuPaused, setColonyTeam, colonyStateFor, slagLog: () => (slaglog ? slaglog.recent() : []),
     // LINE WATCH: the Workflow panel pushes the step-test session it polls; reads today's numbers for a line
     noteStepTest, lineStatsFor: id => (lineStats.known ? (lineStats.byLine[id] || null) : null), pollLineStats,
     // a bay's live state — the lamp's own fold (WORKING only once the sidecar confirmed the run), with how long it has held

@@ -188,6 +188,9 @@ const oauthTokenStore = require('./providers/oauth-token-store.js');
 // Kimi's two deployments (#70): an account is China (kimi.com) or Global (kimi.ai); sign-in, refresh and inference
 // must all hit the account's own region. The region rides WITH the credential (tokens.json `region`; none = China).
 const kimiRegion = require('./providers/kimi-region.js');
+// OpenCode's client contract for third-party agents (opencode.ai/docs/console/go): our own user agent + a stable
+// session id, so the gateway does not treat StarNet as an anonymous caller of the reserved free tier.
+const openCodeIdentity = require('./providers/opencode-identity.js');
 const { effectiveModel: resolveEffectiveModel, effectiveUsd, effectiveRunUsd } = require('./spend.js');
 const { makeEmitter } = require('../shared/emitter.js');
 const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeContext, compactionMemoryBlock, compactionSummaryPrompt, RUN_CONTEXT_DEFAULTS, foldFreedEnough } = require('./context.js');
@@ -2725,6 +2728,17 @@ function providerOperatorKey(id) {
   if (id === 'openrouter') return runtimeKey || envFirst(profile && profile.keyEnv);
   return envFirst(profile && profile.keyEnv);
 }
+/* The wire headers a THIRD-PARTY client must send to OpenCode's inference gateway: our own user agent and a stable
+   session id (one per conversation). Without them the gateway treats the request as an anonymous caller of the
+   RESERVED free tier and answers 403 "OpenCode's free tier can only be used from within OpenCode" — a sentence
+   that reads like a rejected key and had the whole diagnosis hunting the key (2026-10-20). Empty for every other
+   endpoint: StarNet must not announce itself as an OpenCode client anywhere else. */
+function openCodeClientHeaders(baseUrl, sessionId) {
+  try {
+    const ver = computeVersionSurface();
+    return openCodeIdentity.identityHeaders({ baseUrl, sessionId, version: ver.app || ver.harness || '' });
+  } catch (_) { return {}; }
+}
 function providerRuntimeKeyPool(provider, explicitPool, runKey) {
   const id = normalizeProvider(provider);
   const source = Array.isArray(explicitPool)
@@ -2910,7 +2924,7 @@ async function probeChannelRunConfig(config, timeoutMs) {
     } else if (providerUsesDeviceOAuth(providerId)) {
       provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl: c.baseUrl, reasoningEffort });
     } else {
-      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort });
+      provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort, headers: openCodeClientHeaders(c.baseUrl, 'station') });
     }
     let answered = false;
     for await (const ev of provider.stream({ model: c.model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort, signal: ctrl.signal })) {
@@ -9863,7 +9877,7 @@ async function runQuestRefreshCycle(why) {
     if (provider) { /* an extra sign-in carries the refresh */ }
     else if (usingCodex) { const token = await ensureCodexAccessToken(); provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token, renewToken: forceRefreshCodexAccessToken, baseUrl }); }
     else if (usingDeviceOAuth) { const token = await ensureOAuthAccessToken(providerId); provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token, headers: oauthInferenceHeaders(providerId), baseUrl }); }
-    else provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl });
+    else provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, headers: openCodeClientHeaders(baseUrl, 'station') });
     // #118: the pinned Codex default can be a slug this account refuses. The SAME sign-in's live list keeps the pinned
     // slug while it still offers it (no silent move to a costlier flagship), names its top model only when it does not,
     // and the pinned slug stays when the list is offline, empty or silent. An explicit aux model is the Commander's and wins.
@@ -13361,7 +13375,7 @@ function providerForRunConfig(c, reasoningEffort) {
   if (extra) return Promise.resolve(extra);
   if (providerUsesCodex(providerId)) return ensureCodexAccessToken().then(token => selectProvider({ provider: providerId, fetch: globalThis.fetch, token, renewToken: forceRefreshCodexAccessToken, baseUrl: c.baseUrl, reasoningEffort }));
   if (providerUsesDeviceOAuth(providerId)) return ensureOAuthAccessToken(providerId).then(token => selectProvider({ provider: providerId, fetch: globalThis.fetch, token, headers: oauthInferenceHeaders(providerId), baseUrl: c.baseUrl, reasoningEffort }));
-  return Promise.resolve(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort }));
+  return Promise.resolve(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: c.key, baseUrl: c.baseUrl, reasoningEffort, headers: openCodeClientHeaders(c.baseUrl, 'station') }));
 }
 /* ONE BILLED CALL ON THE STATION'S DEFAULT MODEL — NOT RIGHT?'s suggested fixes and SET IT UP FOR ME's drafted line share it. The COST
    GATE is read before any spend (side-effect-free: an exhausted pool names the actionable reason); the model is the station default
@@ -21448,7 +21462,9 @@ async function runOnceCore(o) {
     }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
   } else {
-    provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort });
+    // The session id is the conversation (the chat stream); a run without one falls back to its own id. OpenCode
+    // routes and caches on it (see openCodeClientHeaders) — every other endpoint ignores these headers.
+    provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort, headers: openCodeClientHeaders(baseUrl, streamId || runId) });
   }
   let activeProviderId = providerId;
   auxVisionProvider = provider;   // late-bind the aux vision route to the run's real provider (see makeImageTools above)
@@ -21512,14 +21528,14 @@ async function runOnceCore(o) {
       const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
       if (warm) {
         activePrimaryKey = warm;
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort });
+        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort, headers: openCodeClientHeaders(baseUrl, streamId || runId) });
         auxVisionProvider = provider;
         ordered.splice(ordered.indexOf(warm), 1);
         ordered.push(runKey);   // the cooling primary becomes the LAST resort rather than the first try
       }
     }
     rotationFallbacks = ordered.map(rk => ({
-      provider: selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort }),
+      provider: selectProvider({ provider: providerId, fetch: globalThis.fetch, key: rk, baseUrl, reasoningEffort, headers: openCodeClientHeaders(baseUrl, streamId || runId) }),
       providerId, model, credKey: rk
     }));
   }
@@ -24675,7 +24691,7 @@ async function handleLiveDoctor(req, res) {
       } else if (providerUsesDeviceOAuth(providerId)) {
         provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: await ensureOAuthAccessToken(providerId), headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
       } else {
-        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, reasoningEffort });
+        provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, reasoningEffort, headers: openCodeClientHeaders(baseUrl, 'station') });
       }
       let answered = false;
       for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply exactly OK.' }], reasoningEffort, signal: ctrl.signal })) {
@@ -25604,6 +25620,84 @@ function noteKeyCheckFailure(route, id, result, candidate) {
     recordDiagError(line);
   } catch (e) { failNote('providers.keycheck.note', e); }
 }
+/* A custom endpoint on THIS machine or the LAN. Its catalog answers locally and a real proof would mean loading
+   a local model inside a health check — so a local endpoint keeps its cheap semantics, while a REMOTE one gets
+   the honest credential proof (see proveCustomCredential). */
+function isLocalEndpointHost(baseUrl) {
+  try {
+    const h = new URL(String(baseUrl || '')).hostname.toLowerCase();
+    if (h === 'localhost' || h === '::1' || h === '[::1]' || h.endsWith('.local')) return true;
+    if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+    return false;
+  } catch (_) { return false; }
+}
+/* The credential proof for a REMOTE custom endpoint: one bounded tiny inference call ("Reply with OK.") against
+   the endpoint's own model, exactly like the save-time validation. The result is cached per key fingerprint for
+   ten minutes, so a Settings repaint storm cannot turn a health check into a bill. The fingerprint is a hash —
+   the key itself never lands in the cache. */
+const CUSTOM_CREDENTIAL_PROOF_TTL_MS = 10 * 60 * 1000;
+const customCredentialProofs = new Map();
+function credentialFingerprint(key) {
+  try { return crypto.createHash('sha256').update(String(key || '')).digest('hex').slice(0, 32); }
+  catch (_) { return ''; }
+}
+/* Which model can answer a proof call? The FIRST catalog entry is often a placeholder or a free-tier model that
+   OpenCode serves only inside its own app (403 on every key). So: the model the Commander picked first (unless it
+   is one of those), then a few catalog models, until one answers. A 401 stops the search at once — that is the KEY,
+   and the next model would fail identically. */
+async function proveEndpointAnswers(opts) {
+  const o = opts || {};
+  const providerId = String(o.provider || 'custom');
+  const baseUrl = String(o.baseUrl || '');
+  const key = String(o.key || '');
+  let models = [];
+  try { models = await listModelsForProvider(providerId, { key, baseUrl }); }
+  catch (e) { return { ok: false, answered: false, error: String((e && e.message) || e).slice(0, 300), model: '', status: 0 }; }
+  const wanted = String(o.model || '').trim();
+  const candidates = [];
+  const push = id => {
+    const s = String(id || '').trim();
+    if (!s || candidates.indexOf(s) >= 0) return;
+    if (openCodeIdentity.isOpenCodeHost(baseUrl) && openCodeIdentity.isFreeOnlyModel(s)) return;   // reserved for the OpenCode app
+    candidates.push(s);
+  };
+  push(wanted);
+  for (const m of (models || []).slice(0, 6)) push(m && m.id);
+  if (!candidates.length) return { ok: false, answered: false, error: 'the endpoint lists no model that could answer a test call', model: '', status: 0 };
+  const provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, key, baseUrl, headers: openCodeClientHeaders(baseUrl, o.sessionId || 'probe') });
+  let last = '';
+  for (const model of candidates.slice(0, 4)) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000); if (timer.unref) timer.unref();
+    try {
+      let answered = false;
+      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], signal: ctrl.signal })) {
+        if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
+      }
+      if (answered) return { ok: true, answered: true, error: '', model, status: 200 };
+      last = 'the endpoint accepted the request but did not answer';
+    } catch (e) {
+      const msg = String((e && e.message) || e).slice(0, 300);
+      last = msg;
+      // The KEY is wrong: another model would fail the same way. Stop the search here.
+      if (/\bhttp 401\b/.test(msg) || /Missing API key|Invalid credential/i.test(msg)) return { ok: false, answered: false, error: msg, model, status: 401 };
+    } finally { clearTimeout(timer); }
+  }
+  return { ok: false, answered: false, error: last, model: '', status: 0 };
+}
+async function proveCustomCredential(opts) {
+  const id = String((opts && opts.id) || 'custom');
+  const key = String((opts && opts.key) || '');
+  const fingerprint = credentialFingerprint(key);
+  const now = Date.now();
+  const hit = customCredentialProofs.get(id);
+  if (hit && hit.fingerprint === fingerprint && (now - hit.at) < CUSTOM_CREDENTIAL_PROOF_TTL_MS) return hit;
+  const proof = await proveEndpointAnswers({ provider: id, key, baseUrl: String((opts && opts.baseUrl) || ''), model: String((opts && opts.model) || ''), sessionId: 'probe' });
+  const out = { fingerprint, ok: !!proof.ok, error: proof.error || '', model: proof.model || '', status: proof.status || 0, at: now };
+  customCredentialProofs.set(id, out);
+  return out;
+}
 async function handleProviderProbe(req, res) {
   let id = '', probeKey = '';
   const json = (obj) => {
@@ -25614,7 +25708,7 @@ async function handleProviderProbe(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ reachable: false, catalogAvailable: false, credentialVerified: false, error: 'bad json' }); }
   id = normalizeProvider(body.provider);
   body.key = cleanProviderKey(body.key);
-  probeKey = providerRequiresKey(id) ? providerRuntimeKey(id, body.key) : '';
+  probeKey = (providerRequiresKey(id) || id === 'custom') ? providerRuntimeKey(id, body.key) : '';
   const profile = getProviderProfile(id);
   if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
   try {
@@ -25632,6 +25726,7 @@ async function handleProviderProbe(req, res) {
     // Keyless local endpoints retain their existing health semantics without buying inference.
     let credentialVerified = catalogAvailable && (profile.modelsRequireAuth !== false || (!providerRequiresKey(id) && !key));
     let credentialError = '';
+    let keyConnected = profile.keyRequired === true;
     if (profile.credentialProbePath && key) {
       // Re-check the current credential at the same authenticated endpoint used when saving it.
       // OpenRouter's public/cached catalog alone can never prove or disprove this key.
@@ -25649,8 +25744,24 @@ async function handleProviderProbe(req, res) {
         credentialVerified = false;
         credentialError = ctrl.signal.aborted ? 'credential verification timed out' : 'credential verification failed';
       } finally { clearTimeout(timer); }
+    } else if (id === 'custom') {
+      /* A custom endpoint's model list is often PUBLIC (opencode.ai serves it without auth), so "the catalog
+         answered" proves REACHABILITY — never that the key works. The badge used to say VERIFIED for a station
+         that had no key at all (2026-10-20). A REMOTE endpoint is therefore proven the only honest way: one
+         bounded tiny inference call, exactly like the save-time validation — with the key when there is one, and
+         without one when the endpoint is meant to run keyless (a paid model without a key answers "Missing API
+         key", which is the truth the Commander needs). A LOCAL endpoint keeps its cheap semantics: proving it
+         would mean loading a local model inside a health check. */
+      keyConnected = !!key;
+      if (isLocalEndpointHost(providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || ''))) {
+        credentialVerified = catalogAvailable;
+      } else {
+        const proof = await proveCustomCredential({ id, key, baseUrl: providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || ''), model: String(body.model || '') });
+        credentialVerified = proof.ok;
+        if (!proof.ok) credentialError = proof.error;
+      }
     }
-    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, ...(credentialError ? { error: credentialError } : {}) });
+    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, keyConnected, ...(credentialError ? { error: credentialError } : {}) });
   } catch (e) {
     json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: (e && e.message) || 'provider probe failed', code: (e && e.code) || '' });
   }
@@ -25687,7 +25798,6 @@ async function handleProviderValidate(req, res) {
       if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
-    const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
     // Same catalog path as the model picker (OpenCode: chat base + /v1/models catalog).
     const models = await listModelsForProvider(id, { key: candidate, baseUrl });
     // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
@@ -25702,14 +25812,11 @@ async function handleProviderValidate(req, res) {
     // A custom endpoint may expose /models without authenticating it. When a candidate key was supplied, prove
     // the actual inference wire with a bounded tiny response before allowing replacement.
     if (id === 'custom' && candidate) {
-      const model = String(body.model || (models[0] && models[0].id) || '').trim();
-      if (!model) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'no model is available to validate this key' });
-      let answered = false;
-      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], signal: ctrl.signal })) {
-        if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
-      }
-      if (!answered) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'the endpoint accepted the request but did not answer' });
-      return json({ ok: true, provider: id, reachable: true, credentialVerified: true, model });
+      // Prove the KEY, not the currently picked model: on OpenCode a free model is refused for EVERY key (the
+      // free tier lives inside the OpenCode app), so a free selection would fail a perfectly good key (2026-10-20).
+      const proof = await proveEndpointAnswers({ provider: id, key: candidate, baseUrl, model: String(body.model || ''), sessionId: 'validate' });
+      if (!proof.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: proof.status || 0, error: proof.error || 'the endpoint did not answer' });
+      return json({ ok: true, provider: id, reachable: true, credentialVerified: true, model: proof.model });
     }
     return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
   } catch (e) {
@@ -25741,7 +25848,7 @@ async function listModelsForProvider(providerId, opts) {
     const token = await ensureOAuthAccessToken(id);
     provider = selectProvider({ provider: id, fetch: globalThis.fetch, token, headers: oauthInferenceHeaders(id), baseUrl });
   } else {
-    provider = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl });
+    provider = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl, headers: openCodeClientHeaders(baseUrl, 'catalog') });
   }
   let models = await provider.listModels();
   /* OPENCODE CATALOG FALLBACK (2026-10-19): OpenCode serves chat at
@@ -25760,6 +25867,12 @@ async function listModelsForProvider(providerId, opts) {
         models = await catalog.listModels();
       }
     } catch (_) { /* keep the empty live answer — never invent a catalog */ }
+  }
+  /* OpenCode's FREE chat models (the catalog ids ending in "-free") are served only inside the OpenCode app
+     itself (opencode.ai/docs/console/go) — a third-party client gets 403 FreeTierError for them whatever key
+     it holds. They are therefore not offered in the picker: a listed free model is a guaranteed 403 (2026-10-20). */
+  if (openCodeIdentity.isOpenCodeHost(baseUrl)) {
+    models = models.filter(m => !openCodeIdentity.isFreeOnlyModel(m && m.id));
   }
   return models.filter(item => ImageTask.isAgentModel(id, item && item.id));
 }

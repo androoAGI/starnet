@@ -1481,6 +1481,7 @@ const App = (() => {
   // the full backoff loop (the roster is re-derivable from local state and re-pushed constantly): track a
   // single failed flag, warn EXACTLY once on the healthy→failing edge, and let the next persist re-attempt.
   let rosterPushFailed = false;
+  let colonyInstallationStamp = null;
   /* S3 — MAKE THE METERS LOAD-BEARING (without gating anything).
      Until now every reader of an agent's stats was a display surface: the level chip, the dossier, /whoami.
      Nothing in the station ACTED on them, so a TRUSTED veteran and a stranger were identical to delegation —
@@ -1516,7 +1517,7 @@ const App = (() => {
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;
       // a legacy stamp-less push still writes as before (backward compatible). Date.now() is monotonic-enough for
       // this last-write anti-clobber (mirrors save.js's own updatedAt stamp).
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents: list, updatedAt: Date.now() }) })
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents: list, updatedAt: Date.now(), colonyInstallation: typeof colonyInstallationStamp !== 'undefined' ? colonyInstallationStamp : null }) })
         .then(async r => {
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);
           // EL-11 FIX 1: the sidecar answers REFUSALS as HTTP 200 { ok:false, ... } (degraded workspace /
@@ -1613,6 +1614,7 @@ const App = (() => {
     const roster = liveAgents();
     const dossier = (typeof DossierStore !== 'undefined') ? DossierStore.serialize() : undefined;   // the station-wide Commander model
     const saveState = Object.assign({ _saveDirty: true, _saveRevision: typeof CloudSave !== 'undefined' && CloudSave.revision ? CloudSave.revision() : 0, agent: hero, agents: roster.length > 1 ? roster.map(serializeAgentLite) : undefined, usage: Harness.totals(), prov, reasoningEffort, reasoningMigrated: '0125' /* = REASONING_MIGRATION; a literal so persist() also runs when lifted alone */, station: station ? station.serialize() : undefined, stationStats, profile, worksignal, dossier }, Workstreams.serialize());
+    if (typeof colonyInstallationStamp !== 'undefined' && colonyInstallationStamp) saveState.colonyInstallation = colonyInstallationStamp;
     // #121 WRITE-THROUGH: build the envelope ONCE and always queue it for the station file. The browser cache holds the
     // whole save under one key and refuses it past the browser's per-site cap; gating the station file on that write
     // froze BOTH copies at the first failure, so every restart reverted the station.
@@ -3351,6 +3353,7 @@ const App = (() => {
     registerHero(agent);                           // found the registry with the hero…
     rehydrateRoster(saved.agents);                 // …then restore any summoned crew (older saves: no-op)
     recomposeOrchestrators();                      // …and only NOW does the hero's YOUR CREW clause see them (composing above sees an empty registry)
+    if (typeof colonyInstallationStamp !== 'undefined') colonyInstallationStamp = saved.colonyInstallation || null;
     if (savedStationProv(saved) && Harness.setProv) Harness.setProv(savedStationProv(saved));   // keep the provider with the agent (codex vs openrouter)
     if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
     if (!agent.provider && saved.prov) agent.provider = saved.prov;   // #4: older hero saves stored provider only at the top level — stamp it onto the hero object so focusAgent restores it
@@ -3419,7 +3422,12 @@ const App = (() => {
     }
     if (World.setOnBayAssign) World.setOnBayAssign(pid => { if (typeof Build !== 'undefined' && Build.openAssign) Build.openAssign(pid); });   // belt legibility: click an unbound BAY's "NO AGENT" nag → BUILD MODE opens straight into its agent picker
     if (World.setOnIntakeFeed) World.setOnIntakeFeed(() => { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('messaging'); });   // belt legibility: click a starved INTAKE's "NO FEED" nag → the CHANNELS panel (wire a real feed)
-    if (World.setOnIntakeSample) World.setOnIntakeSample(o => { if (typeof Chat !== 'undefined' && Chat.sampleCard) Chat.sampleCard(o); });   // guided workflow Phase 4: click the INBOX on a COMPLETE line → the RUN-A-SAMPLE-JOB card (POST /api/routing/sample)
+    if (World.setOnIntakeSample) World.setOnIntakeSample(o => {
+      const mappings = typeof window !== 'undefined' && window.ColonyRoomState?.mappings;
+      const processId = mappings && Object.keys(mappings).find(id => mappings[id].intake === o.id);
+      if (processId) { window.open('/colony/index.html?process=' + encodeURIComponent(processId), '_blank', 'noopener'); return; }
+      if (typeof Chat !== 'undefined' && Chat.sampleCard) Chat.sampleCard(o);
+    });
     if (opts.awaitingPurpose) World.beginAwakening();        // wake in darkness — the awakening lifts the room to first light (set BEFORE start so there's no flash of the lit room)
     else if (opts.wake) { World.wakeIn(); SFX.level(); }
     // the canonical station the builder edits — restored from the save, or a fresh starter room. LOAD it
@@ -6018,7 +6026,31 @@ const App = (() => {
   // (never an id in the UI) and keys its standing candidates against the focused hero.
   // currentAgent/agents/applyConfig (slash-plan): the slash-command suite reads/writes the live roster
   // and per-agent config (/agents, /model, /personality, …).
-  return { show, refreshUsage, persist, pushRoster, refreshRail: renderRail, sessionDisplayName, openWorkstream, waitingSessionOf, launchRecipe, summonAgent, summonForRequest, crewCount: () => agents.size,
+  async function adoptColonyInstallation(saved, installation) {
+    if (!station || !saved || !installation.installed || typeof ColonyLayout === 'undefined' || typeof CloudSave === 'undefined') return false;
+    if (colonyInstallationStamp?.commitId === installation.commitId) return true;
+    if (typeof Channels !== 'undefined' && Channels.anyBusy()) return false;
+    const signature = ColonyLayout.stable(station.serialize());
+    const localDigest = await ColonyLayout.digest(station.serialize());
+    if (signature !== ColonyLayout.stable(station.serialize()) || !ColonyLayout.canAdopt({
+      beforeDigest: installation.baseStationDigest, localDigest, targetDigest: installation.stationDigest,
+      busy: typeof Channels !== 'undefined' && Channels.anyBusy(), commitId: colonyInstallationStamp?.commitId, targetCommitId: installation.commitId
+    })) return false;
+    if (saved.colonyInstallation?.commitId !== installation.commitId) return false;
+    if (!CloudSave.adoptExternalRevision(saved._saveRevision, installation.commitId)) return false;
+    const before = new Set(liveAgents().map(a => a.id));
+    rehydrateRoster(saved.agents); // adds only, never overwrites local profiles or sessions
+    colonyInstallationStamp = saved.colonyInstallation;
+    station = WorldModel.deserialize(saved.station); watchStationSave();
+    if (World.loadStation) World.loadStation(station);
+    for (const a of liveAgents()) if (!before.has(a.id) && World.spawnAgent) World.spawnAgent(a);
+    recomposeOrchestrators();
+    if (typeof StationUI !== 'undefined' && StationUI.setRoster) StationUI.setRoster(liveAgents());
+    if (typeof Chat !== 'undefined' && Chat.refreshIdBar) Chat.refreshIdBar();
+    refreshUsage(); renderRail(); persist(); await pushRoster();
+    return true;
+  }
+  return { show, refreshUsage, persist, pushRoster, adoptColonyInstallation, colonyInstallation: () => colonyInstallationStamp, refreshRail: renderRail, sessionDisplayName, openWorkstream, waitingSessionOf, launchRecipe, summonAgent, summonForRequest, crewCount: () => agents.size,
     tierModelFor,   // org P22 fix: the bay's MODEL helper names a SETTINGS tier pin instead of promising a copy
     // a team.spawn clone ('sub-<id>', never on the roster) is a HELPER: its raw id was the name on its approval card and NEEDS
     // YOU once its ask could outlive the lead's turn (live walk 2026-10-14); the sidecar says "a helper" for it too

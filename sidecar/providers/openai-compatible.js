@@ -3,9 +3,9 @@
    It implements the same LLMProvider seam as OpenRouter and Codex. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./ollama-native.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openaiCompatible = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.ollamaNative); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, ollamaNative) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./ollama-native.js'), require('./opencode-identity.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openaiCompatible = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.ollamaNative, root.SK.providers.opencodeIdentity); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, ollamaNative, opencodeIdentity) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -920,7 +920,11 @@
           && String(body.model || '').indexOf('/') > 0) {
           detail += ' — "' + body.model + '" is a routed-catalog model id (vendor/model), but this provider calls the vendor API directly. Switch the provider in the model picker (STARNET or OPENROUTER for routed ids), or pick a model from this provider\'s own catalog.';
         }
-        const err = new Error(errLabel + ' http ' + res.status + ' - ' + detail);
+        // The upstream text stays (it is the truth). For the endpoints that answer with a sentence about ACCOUNT
+        // tiers or key kinds, a second clause says what to DO — otherwise an agent reads "free tier ... only from
+        // within OpenCode" as "the API key was rejected" and reports a key problem where the key is fine.
+        const hint = opencodeIdentity.failureHint({ baseUrl, status: res.status, detail });
+        const err = new Error(errLabel + ' http ' + res.status + ' - ' + detail + (hint ? ' — ' + hint : ''));
         err.status = res.status;
         err.headers = res.headers;
         err.requestId = upstreamError.requestId;

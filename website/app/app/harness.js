@@ -969,7 +969,9 @@ const Harness = (() => {
     try {
       const r = await fetch('/api/providers/probe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: p, key: getKey(p) || '', baseUrl })
+        // The picked model rides along: a proof call must use a model the endpoint really serves (the first
+        // catalog entry can be a placeholder or a model reserved for the provider's own app).
+        body: JSON.stringify({ provider: p, key: getKey(p) || '', baseUrl, model: p === getProv() ? (getModel() || '') : '' })
       });
       const text = await r.text().catch(() => '');
       let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
