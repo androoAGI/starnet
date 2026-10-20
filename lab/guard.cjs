@@ -27,6 +27,12 @@ const LIVE = !/^(0|false|no|off)$/i.test(String(process.env.LAB_LIVE || '').trim
 
 /* The hosts StarNet's own provider cards talk to. Derived from the provider registry, so a
    NEW provider card is reachable without touching this file. */
+/* The OAuth SIGN-IN hosts. A provider card names where INFERENCE goes; the sign-in (the RFC 8628 device code)
+   goes to the vendor's AUTH host, which no registry row mentions. Without them the ChatGPT / Grok / Kimi
+   sign-in cannot start in the lab at all ("LAB_BLOCKED: auth.openai.com is not on the allowed host list",
+   2026-10-20). */
+const OAUTH_HOSTS = ['auth.openai.com', 'auth.x.ai', 'auth.kimi.com', 'auth.kimi.ai'];
+
 function defaultAllowHosts() {
   const hosts = new Set(['opencode.ai']);            // the lab's CUSTOM card points here
   try {
@@ -37,6 +43,7 @@ function defaultAllowHosts() {
       try { hosts.add(new URL(url).hostname.toLowerCase()); } catch (_) {}
     }
   } catch (_) { /* no registry: the explicit list below still applies */ }
+  for (const h of OAUTH_HOSTS) hosts.add(h);          // the device-code sign-ins
   hosts.add('localhost');                            // a local Ollama / vLLM on this machine
   hosts.add('127.0.0.1');
   return [...hosts].filter(Boolean).sort();

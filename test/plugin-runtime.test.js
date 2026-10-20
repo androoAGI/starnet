@@ -30,6 +30,12 @@ async function plugin(id, source) {
 
 (async () => {
   await fsp.rm(DIR, { recursive: true, force: true });
+  // A plugin is CommonJS and the worker LOADS IT IN ITS OWN PROCESS. Node reads the module type from the
+  // NEAREST package.json — and a temp root under /tmp can inherit a STRAY package.json of an unrelated tool
+  // (this host had /tmp/package.json with "type": "module"), which turned the plugin into an ES module:
+  // "module is not defined", no subscription, no tool. The plugin root pins its own type.
+  await fsp.mkdir(DIR, { recursive: true });
+  await fsp.writeFile(path.join(DIR, 'package.json'), JSON.stringify({ name: 'starnet-plugin-runtime', private: true, type: 'commonjs' }) + '\n', 'utf8');
   await fsp.mkdir(DIR, { recursive: true });
   const logs = [];
   const storeCalls = [];
