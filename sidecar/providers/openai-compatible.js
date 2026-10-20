@@ -395,8 +395,14 @@
     // reference adds that reasoning_effort 'none' disables thinking. Only 'none' is meaningful here.
     const offEffort = canonicalEffort(opts.reasoningOffEffort) === 'none' ? 'none' : '';
     function withOff(list) { return (offEffort && list.length && list.indexOf(offEffort) < 0) ? [offEffort].concat(list) : list; }
-    // Opt-in (registry `replayReasoningContent`): capture streamed reasoning_content and hand it back next request.
-    const replayReasoning = opts.replayReasoningContent === true;
+    /* THINKING + TOOLS: every turn's reasoning_content must come back on the next request, or the endpoint
+       refuses the FOLLOW-UP (the request after a tool call) with "the reasoning_content in the thinking mode
+       must be passed back to the API". DeepSeek's own endpoint has that rule and StarNet switched it on for
+       the deepseek profile. OpenCode's Go path serves the SAME thinking models (deepseek-v4.1-flash and
+       friends) behind the generic "custom" card, where no profile says anything — so the rule has to be read
+       from the ENDPOINT, not from the provider id. Without it every agent turn with a tool died on its second
+       request (2026-10-20, lab). */
+    const replayReasoning = opts.replayReasoningContent === true || opencodeIdentity.isOpenCodeHost(baseUrl);
     function declare(m) {
       if (!m) return m;
       if (!m.reasoningEffortsDeclared) {
@@ -898,9 +904,11 @@
             attempt--; continue;
           }
         }
-        // DeepSeek thinking mode refused a history without reasoning_content (a turn this process never saw, e.g.
-        // after a restart): hand every assistant turn its field and resend, and remember the model thinks.
-        if (replayReasoning && !healedReasoning && res.status === 400 && /reasoning_content/i.test(detail) && /passed back/i.test(detail)) {
+        // A thinking model refused a history without reasoning_content (a turn this process never saw, e.g. a
+        // restored transcript, or an endpoint that does not capture it): hand every assistant turn its field and
+        // resend. This does NOT wait for the capture to be on — the endpoint named the missing field, so the
+        // remedy is the field, whatever this adapter was told to capture (2026-10-20, lab).
+        if (!healedReasoning && res.status === 400 && /reasoning_content/i.test(detail) && /passed back/i.test(detail)) {
           healedReasoning = true;
           noteEmitter(baseUrl, body.model);
           body.messages = replayReasoningContent(body.messages, true, true);
