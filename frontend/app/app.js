@@ -831,6 +831,7 @@ const App = (() => {
       kimi: 'KIMI',
       openrouter: 'OPENROUTER',
       openai: 'OPENAI',
+      azure: 'AZURE FOUNDRY',
       anthropic: 'ANTHROPIC',
       gemini: 'GEMINI',
       xai: 'XAI',
@@ -883,12 +884,12 @@ const App = (() => {
     return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'starnet' && p !== 'claude-cli';
   }
   function providerNeedsBaseUrl(provider) {
-    return normalizeProviderId(provider) === 'custom';
+    return ['custom', 'azure'].includes(normalizeProviderId(provider));
   }
   function providerKeyPlaceholder(provider, configured) {
     const p = normalizeProviderId(provider);
+    if (p === 'azure') return 'Enter the Azure API key for this resource';
     if (configured) return 'stored locally - leave blank to keep';
-    if (p === 'azure') return 'Azure Foundry resource API key';
     if (p === 'openai') return 'sk-...  -  platform.openai.com/api-keys';
     if (p === 'anthropic') return 'sk-ant-...  -  console.anthropic.com/settings/keys';
     if (p === 'gemini') return 'AIza...  -  aistudio.google.com/app/apikey';
@@ -908,6 +909,7 @@ const App = (() => {
   function providerSignupUrl(provider) {
     const p = normalizeProviderId(provider);
     const map = {
+      azure: 'https://ai.azure.com',
       openai: 'https://platform.openai.com/api-keys',
       anthropic: 'https://console.anthropic.com/settings/keys',
       gemini: 'https://aistudio.google.com/app/apikey',
@@ -929,6 +931,7 @@ const App = (() => {
   // stranding the user on an empty required field. Reuses the curated FALLBACK_MODELS lineup (first = best pick).
   function defaultModelFor(provider) {
     const p = normalizeProviderId(provider);
+    if (p === 'azure') return ''; // Deployment names are chosen by the resource owner.
     const list = FALLBACK_MODELS[p] || FALLBACK_MODELS.openrouter;
     return (list && list[0]) || 'anthropic/claude-sonnet-4.6';
   }
@@ -1687,6 +1690,18 @@ const App = (() => {
   async function loadModels(provider) {
     const p = normalizeProviderId(provider || pickedProvider);
     const countEl = el('model-count'), inp = el('in-model');
+    if (p === 'azure') {
+      // Azure catalogs name base models, not this tenant's deployments. Never invent a deployment or
+      // inherit another provider's recommended slug; use only the saved or explicitly entered name.
+      const deployment = inp.value.trim() || localStorage.getItem('starnet.azure.deployment') || '';
+      inp.value = deployment;
+      const field = el('in-azure-deployment'); if (field) field.value = deployment;
+      genesisModels = deployment ? [{ id: deployment, name: deployment, fallback: true }] : [];
+      genesisOffline = false;
+      countEl.textContent = '(enter your Azure deployment name)';
+      inp.placeholder = 'Azure deployment name';
+      updateHint(); return;
+    }
     el('model-hint').textContent = 'loading model catalog…';
     const list = await Harness.listModels(p);
     if (p !== normalizeProviderId(pickedProvider)) return;
@@ -2013,6 +2028,7 @@ const App = (() => {
   function updateHint() {
     const id = el('in-model').value.trim(), hint = el('model-hint');
     window.OverseerSetup?.reflectModel(genesisModels.find(m => m.id === id) || { id, name: id }, pickedProvider === 'openai' && codexConnected && !el('in-key').value.trim() ? 'codex' : pickedProvider);
+    if (pickedProvider === 'azure') { hint.textContent = id ? 'Azure deployment: ' + id + ' · billed by your Azure resource' : 'Enter the deployment name from your Azure resource.'; return; }
     syncModelPicks();   // keep the recommended-chip highlight in lockstep with whatever's in the field
     if (isOAuthProviderId(pickedProvider)) { hint.textContent = 'included in your ' + OAUTH_GENESIS[pickedProvider].sub.replace(/ subscription$/, '') + ' subscription'; return; }
     if (!id) { hint.textContent = 'pick or type a model slug'; return; }
@@ -2081,14 +2097,20 @@ const App = (() => {
       const configured = !!(Harness.hasStoredCredential && Harness.hasStoredCredential(pickedProvider));
     keyBlock.classList.toggle('hidden', !providerUsesKeyBox(pickedProvider));
     if (keyInput) {
-      keyInput.value = Harness.getKey ? Harness.getKey(pickedProvider) : '';
+      keyInput.value = pickedProvider === 'azure' ? '' : Harness.getKey ? Harness.getKey(pickedProvider) : '';
       keyInput.placeholder = providerKeyPlaceholder(pickedProvider, configured && !keyInput.value);
     }
     if (baseBlock) baseBlock.classList.toggle('hidden', !providerNeedsBaseUrl(pickedProvider));
+    const azureField = el('in-azure-deployment');
+    const azureBlock = el('azure-deployment-block');
+    if (azureBlock) azureBlock.classList.toggle('hidden', pickedProvider !== 'azure');
+    for (const id of ['ov-model-open', 'ov-model-label']) { const node = el(id); if (node) node.classList.toggle('hidden', pickedProvider === 'azure'); }
+    if (azureField) azureField.oninput = () => { if (pickedProvider === 'azure') { el('in-model').value = azureField.value.trim(); updateHint(); } };
     if (baseInput) {
       baseInput.value = (Harness.getBaseUrl && Harness.getBaseUrl(pickedProvider)) || '';
+      baseInput.placeholder = pickedProvider === 'azure' ? 'https://your-resource.services.ai.azure.com' : 'https://your-host.example/v1';
       baseInput.onchange = () => {
-        if (Harness.setBaseUrl) Harness.setBaseUrl(baseInput.value.trim(), pickedProvider);
+        if (pickedProvider !== 'azure' && Harness.setBaseUrl) Harness.setBaseUrl(baseInput.value.trim(), pickedProvider);
         loadModels(pickedProvider);
       };
       baseInput.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); onWake(); } };
@@ -3121,11 +3143,12 @@ const App = (() => {
     // must never make us coach the Commander to pick gpt-5.5 for an unrelated /v1 endpoint.
     const baseUrl = el('in-base-url') ? el('in-base-url').value.trim() : '';
     if (providerNeedsBaseUrl(pickedProvider) && !baseUrl) {
-      msg.textContent = 'enter your Custom /v1 base URL.';
+      msg.textContent = pickedProvider === 'azure' ? 'enter your Azure resource endpoint URL.' : 'enter your Custom /v1 base URL.';
       return false;
     }
-    const model = el('in-model').value.trim();
+    const model = pickedProvider === 'azure' ? (el('in-azure-deployment')?.value || '').trim() : el('in-model').value.trim();
     if (!model) {
+      if (pickedProvider === 'azure') { msg.textContent = 'enter your Azure deployment name — use the name you created in Azure, not a public model ID.'; return false; }
       // COLD-START: never strand a beginner on an empty required field. Pre-fill a sensible default for the
       // chosen provider (Codex discovers its own lineup, so leave that path to its own picker) and say so.
       if (pickedProvider !== 'codex') {
@@ -3167,6 +3190,10 @@ const App = (() => {
     } else if (isOAuthProviderId(pickedProvider)) {
       if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
+    } else if (pickedProvider === 'azure') {
+      msg.textContent = 'checking your Azure deployment…';
+      await Harness.connectAzure({ baseUrl, key: el('in-key').value.trim(), model });
+      wireVia = 'your Azure Foundry deployment';
     } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && codexConnected) {
       // MERGED OPENAI CARD, ChatGPT half: a LIVE sign-in with no key TYPED rides codex. A typed key wins
       // (explicit beats ambient); a key merely STORED does NOT — the green card is what the Commander sees,

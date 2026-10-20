@@ -224,6 +224,7 @@
                 <button class="prov" data-prov="kimi" aria-pressed="false">KIMI</button>
                 <button class="prov" data-prov="openrouter" aria-pressed="false">OPENROUTER</button>
                 <button class="prov" data-prov="openai" aria-pressed="false">OPENAI</button>
+                <button class="prov" data-prov="azure" aria-pressed="false">AZURE FOUNDRY</button>
                 <button class="prov" data-prov="anthropic" aria-pressed="false">ANTHROPIC</button>
                 <button class="prov" data-prov="gemini" aria-pressed="false">GEMINI</button>
                 <!-- THE FREE PATH: a local model through Ollama — no key, no account, no bill. The tag makes the
@@ -260,6 +261,12 @@
             <div id="base-url-block" class="hidden">
               <label for="in-base-url">Endpoint URL</label>
               <input id="in-base-url" type="text" placeholder="https://your-host.example/v1" autocomplete="off" spellcheck="false">
+            </div>
+
+            <div id="azure-deployment-block" class="hidden">
+              <label for="in-azure-deployment">Azure deployment name</label>
+              <input id="in-azure-deployment" type="text" placeholder="Your deployment name, not the base model name" autocomplete="off" spellcheck="false">
+              <p class="dim hint">Waking verifies your deployment and starts your Overseer using your Azure quota. Enter the API key for this resource.</p>
             </div>
 
             <div id="codex-block" class="hidden">
@@ -339,7 +346,7 @@
               </div>
             </div>
 
-            <div class="ov-model-lab"><label>Model</label></div>
+            <div id="ov-model-label" class="ov-model-lab"><label>Model</label></div>
             <button type="button" id="ov-model-open" class="ov-model-selection" aria-haspopup="dialog"><span><strong id="ov-model-name">Choose a model</strong><small id="ov-model-detail">Browse the model catalog</small></span><span aria-hidden="true">⌄</span></button>
             <!-- Themed grouped model picker (replaces the native <datalist>, which rendered ~370 raw slugs in an
                  unstyleable OS dropdown). #in-model stays the text input (search-as-you-type); #model-pop is a

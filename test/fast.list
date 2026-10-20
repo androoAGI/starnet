@@ -1255,3 +1255,4 @@ test/walk-consistency-1014.test.js
 test/delegated-ledger-first-read.test.js
 test/provider.azure.test.js
 test/provider-azure-ui.test.js
+test/genesis-azure.test.js
