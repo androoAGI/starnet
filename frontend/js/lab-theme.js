@@ -42,8 +42,9 @@ if (labStyle === 'custom') {
         const notice = document.getElementById('lab-notice');
         if (!notice) return;
         if (status && status.live) {
-          notice.textContent = 'Testbetrieb · KI aktiv (' + (status.hosts || []).join(', ') + ')';
-          notice.title = 'Live-Modus: echte Modellaufrufe sind erlaubt. Veröffentlichungen und Uploads sind nicht eingerichtet.';
+          notice.textContent = 'Testbetrieb · KI aktiv (' + (status.hosts || []).length + ' Hosts · OpenCode Go-Pfad)';
+          notice.title = 'Live-Modus: echte Modellaufrufe sind erlaubt. Der OpenCode-Key (oc_sk_…) gehört auf die Karte '
+            + 'CUSTOM mit der Basis-URL ' + GO_BASE + '. Veröffentlichungen und Uploads sind nicht eingerichtet.';
         } else {
           notice.textContent = 'Testbetrieb · KI noch nicht aktiviert';
           notice.title = 'Offline-Modus: Modellaufrufe und Uploads sind gesperrt. Start mit --live für echte Aufrufe.';

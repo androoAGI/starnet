@@ -25758,7 +25758,7 @@ async function handleProviderProbe(req, res) {
       } else {
         const proof = await proveCustomCredential({ id, key, baseUrl: providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || ''), model: String(body.model || '') });
         credentialVerified = proof.ok;
-        if (!proof.ok) credentialError = proof.error;
+        if (!proof.ok) credentialError = proof.error + misplacedKeyHint(id, key, providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || ''));
       }
     }
     json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, keyConnected, ...(credentialError ? { error: credentialError } : {}) });
@@ -25770,6 +25770,24 @@ async function handleProviderProbe(req, res) {
 // Candidate-key validation is deliberately separate from persistence: Settings keeps the proven old key active,
 // sends the proposed value here in memory, and commits it only after this route proves provider authentication.
 // The candidate is never logged, echoed, placed on the bus, or written to disk.
+/* A key that belongs on ANOTHER card must say where it belongs. An OpenCode console key (oc_sk_…) pasted into the
+   OpenRouter card answered "provider rejected this key (HTTP 401)" with no way forward (2026-10-20) — a rejected
+   key and a key on the wrong card look identical from the outside. */
+function misplacedKeyHint(providerId, key, baseUrl) {
+  const k = String(key || '').trim();
+  if (!/^oc_sk_/i.test(k)) return '';
+  const goUrl = openCodeIdentity.GO_BASE_URL;
+  let host = '';
+  try { host = new URL(String(baseUrl || '')).hostname.toLowerCase(); } catch (_) { host = ''; }
+  if (providerId === 'custom') {
+    if (!host) return ' — this is an OpenCode console key: the CUSTOM card needs the base URL ' + goUrl + ' (the OpenCode GO endpoint).';
+    if (!/(^|\.)opencode\.ai$/i.test(host)) {
+      return ' — this is an OpenCode console key: the CUSTOM card must point at ' + goUrl + ' (the OpenCode GO endpoint), not at ' + host + '.';
+    }
+    return '';
+  }
+  return ' — this is an OpenCode console key: it belongs on the CUSTOM card with the base URL ' + goUrl + ', not on ' + providerId + '.';
+}
 async function handleProviderValidate(req, res) {
   let id = '', candidate = '';
   const json = (obj) => {
@@ -25795,7 +25813,7 @@ async function handleProviderValidate(req, res) {
     if (profile.credentialProbePath) {
       const u = String(baseUrl || profile.baseUrl || '').replace(/\/$/, '') + profile.credentialProbePath;
       const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
-      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
+      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: (r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status) + misplacedKeyHint(id, candidate, baseUrl) });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
     // The adapter instance: its catalog status/fetch error is what tells a REFUSED key from an unreachable endpoint.
@@ -25805,7 +25823,7 @@ async function handleProviderValidate(req, res) {
     // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
     // models" — same words as the credential-probe branch above. Adapters that keep no status keep the old line.
     const refusedStatus = !models.length && typeof provider.catalogHttpStatus === 'function' ? Number(provider.catalogHttpStatus()) || 0 : 0;
-    if (refusedStatus) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: refusedStatus, error: refusedStatus === 401 || refusedStatus === 403 ? 'provider rejected this key (HTTP ' + refusedStatus + ')' : 'the provider\'s model list answered HTTP ' + refusedStatus });
+    if (refusedStatus) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: refusedStatus, error: (refusedStatus === 401 || refusedStatus === 403 ? 'provider rejected this key (HTTP ' + refusedStatus + ')' : 'the provider\'s model list answered HTTP ' + refusedStatus) + misplacedKeyHint(id, candidate, baseUrl) });
     // ...and one that never REACHED the provider (DNS / refused connection / proxy) is not the key's fault either: the
     // catch below names the network cause (#62), exactly as for an adapter whose listModels throws.
     const unreached = !models.length && typeof provider.catalogFetchError === 'function' ? provider.catalogFetchError() : null;
@@ -25817,7 +25835,7 @@ async function handleProviderValidate(req, res) {
       // Prove the KEY, not the currently picked model: on OpenCode a free model is refused for EVERY key (the
       // free tier lives inside the OpenCode app), so a free selection would fail a perfectly good key (2026-10-20).
       const proof = await proveEndpointAnswers({ provider: id, key: candidate, baseUrl, model: String(body.model || ''), sessionId: 'validate' });
-      if (!proof.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: proof.status || 0, error: proof.error || 'the endpoint did not answer' });
+      if (!proof.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: proof.status || 0, error: (proof.error || 'the endpoint did not answer') + misplacedKeyHint(id, candidate, baseUrl) });
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true, model: proof.model });
     }
     return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
