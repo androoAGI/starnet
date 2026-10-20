@@ -469,6 +469,19 @@ const CloudSave = (() => {
     localStorage.removeItem('starnet.save');
     location.reload();
   }
-  return { localSnapshot: () => latestLocal, memorySave, reloadCurrent, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
+  // Only after App proves an additive external layout commit and no local floor
+  // edits: preserve this window, then let its existing sessions save on the new
+  // revision. No reload and no replacement of conversation state.
+  function adoptExternalRevision(nextRevision, commitId) {
+    if (activeFlushes.size || !Number.isSafeInteger(nextRevision) || nextRevision < revision || !/^[A-Za-z0-9_-]{1,80}$/.test(commitId)) return false;
+    try {
+      const local = pending || latestLocal || memoryDoc || JSON.parse(localStorage.getItem('starnet.save') || 'null');
+      if (local) localStorage.setItem('starnet.colony.before-adopt.' + commitId, JSON.stringify(local));
+    } catch (_) { return false; } // a failed backup is not permission to discard pending work
+    if (timer) clearTimeout(timer); if (retryTimer) clearTimeout(retryTimer);
+    timer = null; retryTimer = null; pending = null; latestLocal = null; conflict = null;
+    revision = nextRevision; return true;
+  }
+  return { localSnapshot: () => latestLocal, memorySave, reloadCurrent, adoptExternalRevision, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = CloudSave;

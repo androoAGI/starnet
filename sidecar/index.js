@@ -131,6 +131,7 @@ const { starnetManual, starnetManualIndex, starnetManualPointer } = require('./m
 const FinishLine = require('./finish-line.js');     // immutable "crawl to the finish line" task doctrine at the final prompt seam
 const { makeHarnessSnapshot } = require('./harness-snapshot.js');   // bounded secret-free build/scheduler/connectors/diagnostics truth for station.inspect
 const { makeOpenRouterProvider } = require('./providers/openrouter.js');
+const { makeOpenAICompatibleProvider } = require('./providers/openai-compatible.js');
 const edgetts = require('./edgetts.js');   // V-EDGE: free keyless neural TTS floor (decoupled from the LLM provider)
 const localVoice = require('./local-voice.js');
 const { makeMediaService } = require('./media-service.js');
@@ -715,6 +716,12 @@ if (!workspaceOwnerClaim.ok) {
 // Synchronous and idempotent: covers ordinary returns and every process.exit path. SIGKILL/TerminateProcess
 // cannot run handlers, so their valid PID-stamped claim is recovered by the next boot instead.
 process.once('exit', () => { try { workspaceOwner.release(); } catch (_) {} });
+// Finish an interrupted, fenced Colony configuration commit before any roster,
+// save or routing projection is opened. No agent or external action starts here.
+const colonyInstallation = require('./colony/installation.js').makeInstallation({ fs, path, root: WORKSPACES,
+  now: () => Date.now(), newId: () => crypto.randomUUID() });
+try { colonyInstallation.recover(); }
+catch (error) { console.error('[colony] installation is blocked: ' + String(error.code || 'COLONY_INSTALLATION_RECOVERY_REQUIRED')); }
 
 // Capture lineage before this process stamps schema/cache/runtime files. It is bounded metadata only: names and
 // counts, never file contents. In packaged mode we also inspect known legacy roots and verified update snapshots;
@@ -11529,7 +11536,93 @@ async function handleRemoteRevoke(req, res) {
   respondJson(res, 200, remoteSnapshot());
 }
 
+// Lazy, single-owner Colony aggregate. It never starts a job on boot or on GET.
+let colonyServicePromise;
+function colonyBoundaryOptions() { return { legacy: ENV('COLONY_LEGACY_BRANDS') === '1' }; }
+function colonyBrandOfAgent(id) { return require('./colony/boundary.js').scopedBrand(id, colonyBoundaryOptions()); }
+function getColonyService() {
+  colonyInstallation.assertReady();
+  if (!colonyServicePromise) colonyServicePromise = Promise.resolve().then(async () => {
+    const svc = require('./colony/service.js').makeService({ fs, path, root: WORKSPACES,
+      now: () => Date.now(), newId: () => crypto.randomUUID(),
+      ready: wire => { const provider = normalizeProvider(wire.provider); return providerHasCredential(provider,
+        providerRuntimeKey(provider, ''), providerRuntimeBaseUrl(provider, '')); } });
+    const state = svc.read();
+    if (Object.values(state.tasks).some(t => t.activeAttempt)) await svc.recover(state.revision);
+    return svc;
+  }).catch(error => { colonyServicePromise = null; throw error; });
+  return colonyServicePromise;
+}
+const colonyExecutor = require('./colony/runtime.js').makeExecutor({ runOnce,
+  now: () => Date.now(), halted: () => cronHalted === true || processFaultQuiesced === true,
+  emit: (name, payload) => chanEmit(name, payload),
+  registerAbort: (id, controller) => {
+    runs.set(id, controller); runsMeta.set(id, { source: 'colony', startedAt: Date.now() });
+    return () => { runs.delete(id); runsMeta.delete(id); };
+  },
+  resolve: (id, attempt) => {
+    const svc = colonyServiceResolved;
+    const state = svc && svc.read();
+    const wire = state && state.configuration.models[id];
+    if (!wire) return { ready: false };
+    if (!getProviderProfile(wire.provider) || getProviderProfile(wire.provider).id !== wire.provider) return { ready: false };
+    let floor = {};
+    if (state.configuration.installation) {
+      const m = state.configuration.mappings[attempt.context.processId];
+      const process = state.processes[attempt.context.processId];
+      const dockId = m && m.steps[process.roles.indexOf(attempt.stepId)];
+      if (!dockId || router.getPlan()?.agentOfDock?.[dockId] !== id) return { ready: false, error: 'COLONY_PIPELINE_CONFIGURATION_CHANGED' };
+      floor = { dockId, lineId: router.lineOfDock(dockId) };
+    }
+    const provider = normalizeProvider(wire.provider);
+    const key = providerRuntimeKey(provider, '');
+    const baseUrl = providerRuntimeBaseUrl(provider, '');
+    return { ...floor, provider, key, baseUrl, model: wire.model, ready: providerHasCredential(provider, key, baseUrl) };
+  }
+});
+let colonyServiceResolved = null;
+const handleColony = require('./colony/routes.js').makeRoutes({
+  getService: async () => { colonyServiceResolved = await getColonyService(); return colonyServiceResolved; },
+  execute: colonyExecutor, disabled: () => cronHalted === true || processFaultQuiesced === true || process.env.LAB_LIVE !== '1'
+});
+async function handleColonyInstallation(req, res) {
+  const json = (code, value) => respondJson(res, code, value);
+  try {
+    const bare = req.url.split('?')[0];
+    if (req.method === 'GET' && bare === '/api/colony/installation') return json(200, { ok: true, ...colonyInstallation.status() });
+    const svc = await getColonyService();
+    const prepare = require('../lab/colony-authoring.cjs').prepare;
+    if (req.method === 'GET' && bare === '/api/colony/installation/preview') {
+      const p = colonyInstallation.preview(svc.read(), prepare);
+      return json(200, { ok: true, expectedSaveRevision: p.nativeSaveRevision, expectedStateRevision: p.stateRevision,
+        previewDigest: p.previewDigest, report: p.prepared.report, rooms: p.prepared.rooms, mappings: p.prepared.mappings });
+    }
+    if (req.method !== 'POST') return json(404, { ok: false, error: 'COLONY_ROUTE_NOT_FOUND' });
+    const body = JSON.parse(await readBody(req, 4096));
+    if (coreRunsLive || runs.size || hostLiveRuns.size) return json(409, { ok: false, error: 'COLONY_INSTALLATION_RUNS_ACTIVE' });
+    const result = await svc.exclusive(() => {
+      if (bare === '/api/colony/installation/install') return colonyInstallation.install(svc.read(), body, prepare,
+        (state, installation) => require('./colony/core.js').reduce(state, {
+          type: 'installation.bind', expectedRevision: state.revision, installation
+        }, { now: Date.now(), id: installation.commitId }).state);
+      if (bare === '/api/colony/installation/rollback') return colonyInstallation.rollback(body.commitId);
+      throw new Error('COLONY_ROUTE_NOT_FOUND');
+    });
+    // All four files are committed before any live projection is changed.
+    replaceAgentRoster([]); agentRosterUpdatedAt = 0; loadAgentRoster();
+    const plan = loadResilient(ROUTING_FILE, 'routing');
+    const accepted = router.setPlan(plan);
+    if (!accepted.ok) throw new Error('COLONY_ROUTING_REAPPLY_FAILED');
+    return json(200, { ok: true, ...result });
+  } catch (error) {
+    const code = /^COLONY_[A-Z_]+$/.test(error.code || error.message || '') ? (error.code || error.message) : 'COLONY_INSTALLATION_FAILED';
+    return json(409, { ok: false, error: code });
+  }
+}
+
 const ROUTES = [
+  { m: ['GET', 'POST'], qprefix: '/api/colony/installation', h: handleColonyInstallation },
+  { m: ['GET', 'POST'], qprefix: '/api/colony', h: handleColony },
   { m: 'GET', qsplit: '/api/groups', h: handleGroups },
   { m: 'POST', exact: '/api/groups', h: handleGroups },
   { m: 'POST', exact: '/api/update/prepare', h: handleUpdatePrepare },
@@ -12465,6 +12558,9 @@ function handleRouting(req, res) {
   readBody(req, 1 << 20).then(raw => {
     let plan = null;
     if (raw && raw.trim()) { try { plan = JSON.parse(raw); } catch (_) { res.writeHead(400); return res.end('bad json'); } }
+    try {
+      if (!colonyInstallation.acceptsPlan(plan)) return respondJson(res, 409, { ok: false, colonyStale: true, error: 'COLONY_STALE_ROUTING_RELOAD_REQUIRED' });
+    } catch (_) { return respondJson(res, 503, { ok: false, error: 'COLONY_INSTALLATION_PENDING' }); }
     const r = router.setPlan(plan);
     // persist every ACCEPTED plan (incl. an accepted clear) so routing survives a sidecar restart (2026-07-06).
     // A REFUSED post persists the REFUSED PLAN ITSELF, never the previously-accepted file (2026-08-04): stale
@@ -18215,6 +18311,8 @@ async function handleRoster(req, res) {
     // a numeric agentId would previously coerce through String() and pass the id regex silently).
     if (typeof a.agentId !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(a.agentId)) return json(400, { error: 'each agent needs a valid string agentId' });
   }
+  try { if (!colonyInstallation.acceptsRoster(body)) return json(409, { ok: false, colonyStale: true, error: 'COLONY_STALE_ROSTER_RELOAD_REQUIRED' }); }
+  catch (_) { return json(503, { ok: false, error: 'COLONY_INSTALLATION_PENDING' }); }
   // P1.1 anti-clobber (mirrors savestore.js:145-171): if the pusher stamped a freshness `updatedAt` and it is
   // OLDER than what we last accepted, refuse — a stale background tab / out-of-sync frontend can no longer legally
   // overwrite a newer roster. 200 { ok:false, stale:true } (NOT an HTTP error: the pusher's data isn't malformed,
@@ -19763,6 +19861,13 @@ async function runOnceCoreCounted(o) {
   finally { coreRunsLive--; }
 }
 async function runOnceCore(o) {
+  colonyInstallation.assertReady();
+  const colonyBoundary = require('./colony/boundary.js');
+  if (o.delegatedBy && !colonyBoundary.sameBrand(o.delegatedBy, o.agentId, colonyBoundaryOptions())) throw new Error('COLONY_CROSS_BRAND_DELEGATION');
+  // New managed identities cannot be launched through a generic chat, routine,
+  // browser or delegated tool path that omits their durable task envelope.
+  if (/^colony_(lifestruct|ashveil|homestackr)_/.test(String(o.agentId || '')) &&
+    !(o.colonyExecution && o.outputOnly === true && o.internal === true)) throw new Error('COLONY_USE_TASK_RUNTIME');
   if (updatePreparation.isFrozen()) {
     throw Object.assign(new Error('StarNet is frozen at a verified pre-update recovery point.'), { code: 'UPDATE_MUTATIONS_FROZEN' });
   }
@@ -19797,6 +19902,7 @@ async function runOnceCore(o) {
     if (vr.wanted && vr.wanted.model) runStartExtra.voiceRoute.wanted = { provider: String(vr.wanted.provider || ''), model: String(vr.wanted.model) };
   }
   if (o.dockId) runStartExtra.dockId = String(o.dockId);
+  if (o.colonyExecution) Object.assign(runStartExtra, o.colonyExecution);
   if (o.workitemId) runStartExtra.workitemId = String(o.workitemId);
   // and WHICH stream it runs on (additive, 2026-09-29): a line test's run (a step test's steptest-…, RUN ONE REAL JOB's
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
@@ -20412,7 +20518,7 @@ async function runOnceCore(o) {
   makeFsTools({ fsp, pathMod: path, root: WORKSPACES, environment: executionEnvironment, limits: { writeBytes: 1 << 20, readReturn: 24000 }, redact, pathTrust: runPathTrust, docExtract, imageWire, editDiagnostics: lspManager, spawn: childSpawn }).register(registry);   // redact: scrub secrets out of surfaced fs.search lines (§5.6); baseline-before-edit LSP feedback; spawn: lets fs.search use `rg` when the machine has it
   makeNotebookTools({ store: notebookStore, clock: { now: () => Date.now() }, redact, rank, nextTrust: memcore.nextTrust, findSimilar: memcore.findSimilar, similarity: memcore.tokenJaccard, onSaved: recordRunReceipt, sharedStanding: () => (tasteWithheld || !personalizationStore.read().enabled) ? [] : FeedbackMemory.stationStanding(notebookStore.get('notebook:' + agentId), otherAgentNotebooks(agentId)).filter(r => r.foreign) }).register(registry);   // §5.6: scrub secrets at the write boundary; rank: explicit read shares auto-recall's relevance order; nextTrust: notebook.feedback rating fold; findSimilar: near-dupe guard so the same belief can't accumulate in N phrasings; similarity: the same-subject listing; onSaved: this run's COMMS receipt
   widgetTools.register(registry);   // WIDGET RAILS Phase 2: widget.set — agent-fed rail readouts (memory capability: sandboxed local write, no consent, no network)
-  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld }).register(registry);   // H1.3: recall_conversation — agent searches its own past dialogue (transcriptstore); joins the NOTEBOOK (memory) capability · a non-owner/group run (and its workers) never reads the Commander's other workstreams
+  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld || !!colonyBrandOfAgent(agentId) }).register(registry);   // Brand runs never widen an explicit read into another brand's chat.
   makeSkillTools({
     store: skillStore,
     gate: skillGate,   // guard verdict enforcement: a withheld skill lists as withheld and refuses to load its body
@@ -22956,6 +23062,7 @@ async function runOnceCore(o) {
       // operator's narrowly authorized continuation and make the recovery non-idempotent.
       limits: {
         maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
+        maxTotalTokens: o.colonyExecution ? o.colonyTokenCap : undefined,
         // A capped greeting must not become five paid generations. Task replies retain normal
         // continuation, including brief answers promoted to tasks by a pending clarification.
         outputContinuation: !isTask && !internal ? false : undefined,
@@ -23147,7 +23254,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', colony: o.colonyExecution, pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from business approval; Colony metadata joins the exact durable task attempt
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -23415,6 +23522,7 @@ async function runOnceCore(o) {
   // team.dispatch/team.spawn stamp these with the worker's agentId so the LEAD knows what its workers
   // actually saved and in WHOSE workspace (the ghost-file fix). Additive — existing callers ignore it.
   if (result) {
+    if (o.colonyExecution) result.colony = Object.assign({}, o.colonyExecution);
     if (!result.artifacts) { try { result.artifacts = execution.artifactList(); } catch (_) {} }
     result.model = result.model || model;
     result.reasoningEffort = internalEffortRan() || reasoningEffort;   // the effort this run actually ran on (self-talk rides the aux effort)
@@ -25564,6 +25672,9 @@ async function handleProviderValidate(req, res) {
   candidate = cleanProviderKey(body.key);
   const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '');
   if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
+  // A keyless catalog must never count as a VERIFIED credential: custom endpoints
+  // publish /models without auth, so an empty candidate would otherwise pass.
+  if (id === 'custom' && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required to verify this endpoint' });
   if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000); if (timer && timer.unref) timer.unref();
@@ -25577,7 +25688,8 @@ async function handleProviderValidate(req, res) {
       return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
     }
     const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
-    const models = await provider.listModels();
+    // Same catalog path as the model picker (OpenCode: chat base + /v1/models catalog).
+    const models = await listModelsForProvider(id, { key: candidate, baseUrl });
     // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
     // models" — same words as the credential-probe branch above. Adapters that keep no status keep the old line.
     const refusedStatus = !models.length && typeof provider.catalogHttpStatus === 'function' ? Number(provider.catalogHttpStatus()) || 0 : 0;
@@ -25631,7 +25743,24 @@ async function listModelsForProvider(providerId, opts) {
   } else {
     provider = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl });
   }
-  const models = await provider.listModels();
+  let models = await provider.listModels();
+  /* OPENCODE CATALOG FALLBACK (2026-10-19): OpenCode serves chat at
+     /inference/openai/v1/chat/completions but its model catalog at
+     /inference/v1/models. A custom endpoint pointed at the chat base therefore
+     lists zero models even though chat is correct. Read the documented catalog
+     from the same host instead of hiding every model from the picker. */
+  if (id === 'custom' && !models.length) {
+    try {
+      const u = new URL(baseUrl);
+      if (/(^|\.)opencode\.ai$/i.test(u.hostname)) {
+        // Public catalog: never send the candidate key here, so a bad key is
+        // reported by the real chat proof instead of as "no models".
+        const catalog = makeOpenAICompatibleProvider({ fetch: globalThis.fetch,
+          baseUrl: 'https://opencode.ai/inference', modelsPath: '/v1/models' });
+        models = await catalog.listModels();
+      }
+    } catch (_) { /* keep the empty live answer — never invent a catalog */ }
+  }
   return models.filter(item => ImageTask.isAgentModel(id, item && item.id));
 }
 
@@ -26392,6 +26521,7 @@ async function handleNotebookRestore(req, res) {
 // secret is returned: the envelope never contains the API key/tokens. Missing -> { save: null }, never a 500.
 function serveSaveLoad(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  try { colonyInstallation.assertReady(); } catch (_) { return json(503, { ok: false, error: 'COLONY_INSTALLATION_PENDING' }); }
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
@@ -26426,6 +26556,8 @@ async function handleSaveWrite(req, res) {
   // valid 30-90 day save at the former 8 MiB limit. History is never compacted or discarded here.
   let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'a save envelope object is required' });
+  try { if (!colonyInstallation.acceptsSave(body)) return json(409, { ok: false, conflict: true, colonyStale: true, error: 'COLONY_STALE_SAVE_RELOAD_REQUIRED' }); }
+  catch (_) { return json(503, { ok: false, error: 'COLONY_INSTALLATION_PENDING' }); }
   // the record key is the agent's OWN id — body.agent is the agent OBJECT ({id,name,...}), not a selector
   // string, so derive from body.agent.id (an explicit body.agentId wins if a future caller sends one).
   const agentId = String(body.agentId || (body.agent && body.agent.id) || 'agent');
@@ -27421,7 +27553,7 @@ function otherAgentNotebooks(agentId) {
     try { const l = notebookStore.get('notebook:' + id); if (Array.isArray(l) && l.length) out.push({ agentId: String(id), records: l }); }
     catch (e) { failNote('feedback.taste.read', e); }
   }
-  return out;
+  return require('./colony/boundary.js').sharedNotebooks(String(agentId || 'agent'), out, colonyBoundaryOptions());
 }
 /* DESIGN ANCHOR (tasteref.js): the rated run's own reference, read from its durable record — the runstore row's artifacts
    + toolTrace, its transcript rows (image_generate arguments paired with their results; the parked review packet when
@@ -27981,7 +28113,31 @@ async function serveStatic(req, res) {
     const rel = (url === '/' ? 'index.html' : url.replace(/^\/+/, ''));
     const abs = path.resolve(FRONTEND, rel);
     if (abs !== FRONTEND && abs.indexOf(FRONTEND + path.sep) !== 0) { res.writeHead(403); return res.end('forbidden'); }
-    let data = await fsp.readFile(abs);
+    /* WEBP NEGOTIATION (2026-10-19) — the remaster art is ~230 MB as PNG and
+       ~38 MB as WebP along the same .png URLs; the local lab generates the
+       .webp siblings. A browser that accepts WebP and a PNG URL with a sibling
+       .webp gets the smaller bytes; anything else gets the untouched PNG.
+       Served side by side with Vary so shared caches stay correct. */
+    let target = abs, ext = path.extname(abs).toLowerCase(), vary = ext === '.png' ? 'Accept' : '';
+    if (ext === '.png' && /\bimage\/webp\b/.test(String(req.headers.accept || ''))) {
+      const alt = abs.slice(0, -4) + '.webp';
+      try { if ((await fsp.stat(alt)).isFile()) { target = alt; ext = '.webp'; } } catch (_) {}
+    }
+    const stat = await fsp.stat(target);
+    if (!stat.isFile()) { res.writeHead(404); return res.end('not found'); }
+    /* Static code/art may be cached and revalidated. Until 2026-10-19 every file
+       carried no-store, so each visit re-downloaded tens of MB (worst on the
+       Tailscale link). The app page keeps no-store because it carries a fresh
+       boot nonce and token. */
+    const cacheable = abs.toLowerCase() !== path.resolve(FRONTEND, 'index.html').toLowerCase();
+    const etag = 'W/"' + stat.size.toString(16) + '-' + Math.floor(stat.mtimeMs).toString(16) + '"';
+    const cacheHeaders = cacheable
+      ? { 'Cache-Control': 'public, max-age=0, must-revalidate', 'ETag': etag }
+      : { 'Cache-Control': 'no-store' };
+    if (cacheable && String(req.headers['if-none-match'] || '') === etag) {
+      res.writeHead(304, cacheHeaders); return res.end();
+    }
+    let data = await fsp.readFile(target);
     const isAppPage = abs.toLowerCase() === path.resolve(FRONTEND, 'index.html').toLowerCase();
     let scriptNonce = '';
     if (isAppPage ||
@@ -28011,8 +28167,20 @@ async function serveStatic(req, res) {
        no plugins, no <base> hijack. Other static files keep the framing-only policy. */
     const csp = "frame-ancestors 'self'; frame-src 'self' http://127.0.0.1:" + PORT + ' http://localhost:' + PORT +
       (scriptNonce ? "; script-src 'self' 'nonce-" + scriptNonce + "'; object-src 'none'; base-uri 'none'; worker-src 'self' blob:" : '');
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(abs).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store',
-      'X-Frame-Options': 'SAMEORIGIN', 'Content-Security-Policy': csp, 'X-Content-Type-Options': 'nosniff' });
+    const headers = Object.assign({ 'Content-Type': MIME[ext] || 'application/octet-stream',
+      'X-Frame-Options': 'SAMEORIGIN', 'Content-Security-Policy': csp, 'X-Content-Type-Options': 'nosniff' }, cacheHeaders);
+    // Text is ~11 MB of unbundled JS; gzip takes most of it off the wire.
+    // Images/fonts are already compressed and stay untouched.
+    const TEXT = { '.js': 1, '.mjs': 1, '.css': 1, '.json': 1, '.svg': 1, '.html': 1, '.txt': 1, '.map': 1, '.md': 1 };
+    if (cacheable && TEXT[ext] && data.length > 1024 && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) {
+      try {
+        data = require('node:zlib').gzipSync(data, { level: 6 });
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+      } catch (_) { /* send the readable original if compression fails */ }
+    }
+    if (vary) headers['Vary'] = headers['Vary'] ? headers['Vary'] + ', ' + vary : vary;
+    res.writeHead(200, headers);
     res.end(data);
   } catch (e) { res.writeHead(404); res.end('not found'); }
 }

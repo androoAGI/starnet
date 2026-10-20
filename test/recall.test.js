@@ -337,8 +337,8 @@ let clk = 1000; const clock = { now: () => clk };
     const idx = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
     A.ok(/connectorAuthority: \{[\s\S]{0,2500}?withholdTaste: tasteWithheld,/.test(idx),
       'the host mints withholdTaste (non-owner, group, their workers) onto the run ctx the recall tool reads');
-    A.ok(/makeRecallTool\(\{ transcriptStore, ownStreamOnly: \(\) => tasteWithheld \}\)/.test(idx),
-      'the host pins recall to the run\'s own chat exactly when it withholds the Commander\'s taste (non-owner, group, their workers)');
+    A.ok(/makeRecallTool\(\{ transcriptStore, ownStreamOnly: \(\) => tasteWithheld \|\| !!colonyBrandOfAgent\(agentId\)/.test(idx),
+      'the host pins recall for non-owners/groups and additionally for brand-scoped runs');
     A.ok(/role: 'assistant', taint: 'scheduled script output'/.test(idx), 'a script-only routine\'s stdout is stamped untrusted, as its run is');
   }
 

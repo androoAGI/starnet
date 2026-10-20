@@ -920,6 +920,7 @@
     const graceEnabled = (limits.grace !== false);
     let graceUsed = false;
     let maxCostUsd = (limits.maxCostUsd != null) ? limits.maxCostUsd : Infinity;
+    const maxTotalTokens = Number.isFinite(limits.maxTotalTokens) && limits.maxTotalTokens > 0 ? limits.maxTotalTokens : Infinity;
     // UNPRICED SEATBELT (2026-08-21). A metered provider whose model prices to nothing (no catalog pricing,
     // no prices.js row) reconciles every turn at $0, so maxCostUsd above can never fire — the run is
     // structurally uncapped. The host passes a TOKEN ceiling for exactly that case (index.js
@@ -1754,6 +1755,7 @@
     // Reconcile each attempt before enforcing the same spending limits again. Retries and
     // post-compaction calls are paid work too, even when the turn counter does not advance.
     function stopForSpend() {
+      if (spentTokens >= maxTotalTokens) return end('budget', { budgetScope: 'run' });
       if (spentUsd >= maxCostUsd) return end('budget', { budgetScope: 'run', budgetCapUsd: maxCostUsd });   // per-RUN hard ceiling
       // per-RUN token ceiling for turns nothing could price (the $ ceiling above is blind to them — see maxUnpricedTokens)
       if (unpricedTokens >= maxUnpricedTokens) {
@@ -1898,6 +1900,15 @@
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
           if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
           if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
+          if (Number.isFinite(maxTotalTokens)) {
+            // Admission uses the same context ruler as compaction. Actual usage
+            // is reconciled afterwards; provider accounting may exceed an estimate.
+            const prompt = context && typeof context.estimateMessages === 'function'
+              ? context.estimateMessages(req.messages) : Math.ceil(JSON.stringify(req.messages).length / 4);
+            const remaining = Math.floor(maxTotalTokens - spentTokens - prompt);
+            if (remaining < 128) { waiting.stop(); return end('budget', { budgetScope: 'run' }); }
+            req.maxTokens = Math.min(req.maxTokens || 4096, remaining);
+          }
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;

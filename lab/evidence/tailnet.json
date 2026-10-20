@@ -1,0 +1,16 @@
+{
+  "ready": true,
+  "calls": 0,
+  "workflows": [
+    "Lifestruct Pinterest Pilot"
+  ],
+  "saveStatus": 200,
+  "runStatus": 403,
+  "url": "https://sandboxhp-virtual-machine.tailcfc506.ts.net:8791",
+  "TLS": "verified; no certificate bypass",
+  "unauthenticatedStatus": 401,
+  "oldLANListener": "closed",
+  "existingServeEntries": "unchanged",
+  "starNetFunnel": false,
+  "pageErrors": []
+}

@@ -391,7 +391,7 @@ function makeChainRunner(o) {
     const s = seed || {};
     // Exact terminal authority for the floor: a barrier release alone may have more work after it.
     // Existing event, additive metadata (like dockId): no output text or guessed route leaves here.
-    if (s.lineId && out && out.stopped == null && !out.partial && out.outboxId && String(out.text || '').trim() && provenClean(s)) {
+    if (s.lineId && out && out.stopped == null && !out.partial && !out.loopExhausted && out.outboxId && String(out.text || '').trim() && provenClean(s)) {
       say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: 'outbox', agentId: out.agentId,
         box: 'line-output', lineId: String(s.lineId), outboxId: out.outboxId,
         entryRunId: s.runId ? String(s.runId) : null, workitemIds: evidence.workitemIds, ms: 0, ts: now() }, out.dockId));
@@ -402,7 +402,7 @@ function makeChainRunner(o) {
   // SEND TO: did this job leave its line clean at a stage that ships to the OUTBOX? then tell the host (see onShipped above)
   function shipped(s, out) {
     const lineId = (s.lineId != null && String(s.lineId)) || null;
-    if (!lineId || !out || out.stopped != null || !out.agentId || !String(out.text || '').trim()) return;
+    if (!lineId || !out || out.stopped != null || out.loopExhausted || !out.agentId || !String(out.text || '').trim()) return;
     let ships = false;
     try { ships = !!(lastStage && (out.dockId ? lastStage(out.agentId, out.dockId) : lastStage(out.agentId))); } catch (e) { failNote('chain.onShipped.lastStage', e); ships = false; }
     if (!ships) return;
@@ -600,7 +600,14 @@ function makeChainRunner(o) {
           const d = loopDecision(step, ctx, n, visited, out.text);
           target = asNode(d.target); out.text = d.text;
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
-          else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) out.loopExhausted = true; }
+          else {
+            openLoops.delete(step.loop); looping = openLoops.size > 0;
+            if (d.exhausted) {
+              out.loopExhausted = true;
+              out.stopped = 'review loop exhausted without meeting its criterion — blocked, not approved';
+              return out;
+            }
+          }
           // the gate let the work out onto a DONE lane that meets a JOINER: this branch parks there like any other
           if (!d.again && !target && step.afterJoin) step = step.afterJoin;
           else loopDone = true;

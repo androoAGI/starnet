@@ -113,6 +113,10 @@ A.eq(serialize(current), serialize(prev), 'checked-in snapshot matches the deter
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-events-neg-'));
   // events.js requires ./schema.js relative to itself — copy that sibling too so the copy loads standalone.
   fs.copyFileSync(path.resolve(__dirname, '..', 'shared', 'schema.js'), path.join(tmpDir, 'schema.js'));
+  // Pin the copy to CommonJS. events.js is a UMD file that only takes its CJS branch under CJS; without this the
+  // nearest package.json (whatever an unrelated tool left in os.tmpdir()) decides, and a "type":"module" tmpdir
+  // loads the copy as ESM, where module.exports is never set and the snapshot sees an empty namespace.
+  fs.writeFileSync(path.join(tmpDir, 'package.json'), '{"type":"commonjs"}');
 
   // (a) REMOVE an event: delete the whole `agent.token` entry. A rename would look the same to the diff (old gone).
   const removedEvent = realSrc.replace(/'agent\.token': obj\(\[[^\]]*\], \{[^}]*\}\),/, '/* removed for negative test */');

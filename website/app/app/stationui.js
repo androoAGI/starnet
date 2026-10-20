@@ -1510,11 +1510,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      left section rail + a right content pane that shows ONE section at a time (with the .swap-in
      crossfade), plus an optional cross-section search.
 
-     KEY DESIGN: every section's pane is built up-front and lives in the DOM at once (inactive panes
+     DEFAULT: every section's pane is built up-front and lives in the DOM at once (inactive panes
      hidden, not removed). That lets the caller run its existing wiring (wireBudget/wireFallbackChain/…)
      ONCE against the returned content root and reach every control — no per-section rewire, and no
      regression of the settings behaviour/ids the tests source-lock. The builder returns nothing; it
      calls mountConsole(body, key, sections, opts) and then wires the returned host.
+     Opt-in opts.lazy builds/wires each pane on first use through sec.onBuild(slot).
+     A built pane stays mounted, preserving drafts and bindings across tab changes.
 
      `sec.onShow(bodyEl)` (optional) is the escape hatch for content that is EXPENSIVE and INVISIBLE.
      Building every pane up-front is what makes the single wiring pass work, but it also means a
@@ -1580,6 +1582,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
     const railItems = {};    // id -> rail/tab button
     const panes = {};        // id -> pane wrapper element
+    const built = {};
+    function buildPane(id) {
+      if (built[id] || !panes[id]) return;
+      built[id] = true;
+      const sec = sections.find(s => s.id === id), slot = panes[id].querySelector('.con-sec-body');
+      try {
+        sec.build(slot);
+        // Settings passes per-section hooks; the dossier scopes one shared hook by id.
+        const hook = typeof opts.onBuild === 'function' ? opts.onBuild : sec.onBuild;
+        if (opts.lazy && typeof hook === 'function') opts.onBuild ? hook(id, slot, sec) : hook(slot);
+        panes[id].dataset.built = 'true';
+      } catch (e) { slot.innerHTML = '<p class="con-sec-desc">This section failed to render.</p>'; }
+    }
     // Optional intent groups keep existing section IDs/deep links and search intact.
     const groups = Array.isArray(opts.groups) ? opts.groups : [];
     const groupButtons = new Map();
@@ -1627,9 +1642,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         (sec.desc ? '<p class="con-sec-desc">' + esc(sec.desc) + '</p>' : '');
       const slot = mkEl('div', 'con-sec-body');
       pane.appendChild(slot);
-      try { sec.build(slot); } catch (e) { slot.innerHTML = '<p class="con-sec-desc">This section failed to render.</p>'; }
       host.appendChild(pane);
       panes[sec.id] = pane;
+      if (!opts.lazy) buildPane(sec.id);
     });
 
     // Search spans every pane, so a zero-hit query needs its own honest result surface. Without this,
@@ -1649,7 +1664,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     /* first-reveal hook. Fires at most once per pane per mount; a throw is swallowed for the same
        reason sec.build's is — one expensive extra must never take the console down with it. */
     const revealed = {};
+    let mounting = true;
     function reveal(id) {
+      buildPane(id);
+      if (mounting) return;   // the caller's eager wiring pass has not run yet
       if (revealed[id] || !panes[id]) return;
       revealed[id] = true;
       const sec = sections.find(x => x.id === id);
@@ -1798,7 +1816,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
        actually looking at. selectSection still runs synchronously so the pane itself is visible now. */
     const landing = activeId;
     selectSection(activeId, false);
-    delete revealed[landing];
+    mounting = false;
     (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0))(() => reveal(landing));
     return host;   // caller wires its controls against this (spans every section pane)
   }
@@ -3519,6 +3537,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       elx.appendChild(sub);
       try { s.build(sub); } catch (_) { sub.innerHTML = ''; }
     };
+    const lazy = typeof LabMobileUI !== 'undefined' && LabMobileUI.enabled();
     const host = mountConsole(body, 'agents', [
       /* TAB ORDER (Andrew, 2026-08-07): BRIEF · GROWTH · RECORD · MEMORY · CONFIG. GROWTH sits second,
          directly after BRIEF, because the two answer the same question at different depths — BRIEF states
@@ -3546,6 +3565,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       { id: 'config', label: 'CONFIG', glyph: '▣', desc: 'Adjust this agent’s instructions, model, access, and appearance.',
         build: frag(agConfig(a)) }
     ], {
+      // A phone builds only the tab it shows; each pane's own bindings follow its
+      // first render. Desktop keeps the original eager pass below unchanged.
+      lazy,
+      onBuild: (id, slot) => {
+        const root = slot.closest('.con-pane') || slot;
+        if (id === 'brief') { wireHead(body); drawPortrait(slot.querySelector('#ag-portrait'), a); }
+        else if (id === 'config') { wireConfig(root); loadEffectiveAccess(root, a); }
+        else if (id === 'growth') loadPractice(a && a.id ? a.id : 'agent');
+        else if (id === 'memory') { wireMemoryLive(); loadMemoryCore(a); }
+        else if (id === 'record') lanes.forEach(l => { try { if (typeof l.wire === 'function') l.wire(); } catch (_) {} });
+      },
       // tabsTop: the five section tabs (BRIEF/GROWTH/RECORD/MEMORY/CONFIG) render as a horizontal strip at the
       // top of the right pane; the left rail becomes the agent roster full-height (railTop below).
       tabsTop: true,
@@ -3571,14 +3601,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     });
     // ONE wire pass against the all-panes host (mirrors buildSettings/buildSkills). The BRIEF-only tick and the
     // memory live-refresh never wipe CONFIG/MEMORY DOM, so open editors survive.
-    wireHead(host);
-    wireConfig(host);
-    loadEffectiveAccess(host, a);
-    wireMemoryLive();
-    loadMemoryCore(a);
-    loadPractice(a && a.id ? a.id : 'agent');   // S5: fill the GROWTH tab's B3 meter from the agent's real skillbase
-    drawPortrait(host.querySelector('#ag-portrait'), a);
-    lanes.forEach(l => { try { if (typeof l.wire === 'function') l.wire(); } catch (_) {} });
+    if (!lazy) {
+      wireHead(host);
+      wireConfig(host);
+      loadEffectiveAccess(host, a);
+      wireMemoryLive();
+      loadMemoryCore(a);
+      loadPractice(a && a.id ? a.id : 'agent');   // S5: fill the GROWTH tab's B3 meter from the agent's real skillbase
+      drawPortrait(host.querySelector('#ag-portrait'), a);
+      lanes.forEach(l => { try { if (typeof l.wire === 'function') l.wire(); } catch (_) {} });
+    }
   }
   function drawPortrait(cv, a) {
     if (!cv) return;
@@ -7656,9 +7688,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function buildSettings(body) {
     const settingsWindow = body.closest('.term');
     if (settingsWindow) settingsWindow.classList.add('settings-console');
-    refreshCodexConnectionStatus();
-    refreshExtraOAuthStatus();   // the same live-status probe for the other keyless sign-ins (grok/kimi)
-    refreshKeychainMode();   // learn keychain-vs-browser once, so the key-save confirmation can name the real store
     const s = store.settings;
     const awakeDesktop = !!(typeof KeepAwake !== 'undefined' && KeepAwake.isDesktop && KeepAwake.isDesktop());
     const awakeChecked = awakeDesktop && !!s.keepComputerAwake;
@@ -8193,7 +8222,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     /* the backdrop swatches are painted by the REAL world renderer, which costs a full sky/ground build
        per chip. Assigned by the APPEARANCE wiring below and fired by mountConsole's onShow, so a panel
        opened on PROVIDERS never pays for a picker nobody looked at. */
-    let paintBackdropSwatches = () => {};
+    const settingsState = { paintBackdropSwatches: () => {}, syncPerm: () => {} };
+    repaintAutonomyDial = null;
+    repaintPermAgents = null;
 
     const sections = [
       { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'Connect an AI service, manage its saved keys, and choose fallback models and agent defaults.', build: frag(secProviders + secModels) },
@@ -8204,7 +8235,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       { id: 'budget', label: 'SPENDING LIMITS', glyph: '$', desc: 'Set spending limits and review recorded usage.', build: frag(secBudget) },
       // build, not frag: the pane is created lazily when the section is opened, so wiring at MOUNT time
       // ran before this element existed and left the list stuck on its placeholder. Paint it when it is born.
-      { id: 'appearance', label: 'LOOK & SOUND', glyph: '☀', desc: 'Text size, room lighting, phosphor colour, CRT effects, terminal sound, and your agents’ spoken voices.', build: el => { el.innerHTML = secAppearance + secLiveVoice; arrangeSettingsPane(el); wireLiveVoice(el); }, onShow: () => paintBackdropSwatches() },
+      { id: 'appearance', label: 'LOOK & SOUND', glyph: '☀', desc: 'Text size, room lighting, phosphor colour, CRT effects, terminal sound, and your agents’ spoken voices.', build: el => { el.innerHTML = secAppearance + secLiveVoice; arrangeSettingsPane(el); wireLiveVoice(el); }, onShow: () => settingsState.paintBackdropSwatches() },
       // NAV CONDENSE (2026-08-04) — two label renames, ids untouched (remembered-section keys + wiring
       // bind to the id): 'NOTIFICATIONS' collided with the SYSTEM-dock NOTIFICATIONS panel (inbox vs
       // preferences — same word, two doors), and a 'SYSTEM' section inside SETTINGS inside the SYSTEM
@@ -8228,8 +8259,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     ];
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
-    const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
+    const lazy = typeof LabMobileUI !== 'undefined' && LabMobileUI.enabled();
+    if (lazy) sections.forEach(sec => { sec.onBuild = el => wireSettingsPane(el, sec.id, settingsState); });
+    const host = mountConsole(body, 'settings', sections, { lazy, search: true, searchPlaceholder: 'search settings…' });
+    if (!lazy) wireSettingsPane(host, null, settingsState);
+  }
 
+  // The same bindings for desktop's all-pane host and mobile's first-use pane.
+  // Scoped wiring avoids rebinding earlier panes or touching unseen services.
+  function wireSettingsPane(host, only, settingsState) {
+    const s = store.settings, wants = id => !only || only === id;
+    if (wants('providers')) {
+    refreshCodexConnectionStatus();
+    refreshExtraOAuthStatus();
+    refreshKeychainMode();
     wireProviderActions(host);
     wireKeyActions(host);
     queueProviderHealthRefresh();
@@ -8243,15 +8286,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       }).catch(() => {});
     })();
     wireCredits(host);
-    wireBudget(host);
     wireFallbackChain(host);
     wireTierModels(host);
     wireVoiceChatModel(host);
-    wireNotifyPrefs(host);
-    wireAdvanced(host);
-    wireBackup(host);
-    wireDiagnostics(host);
+    }
+    if (wants('budget')) wireBudget(host);
+    if (wants('notifs')) wireNotifyPrefs(host);
+    if (wants('system')) { wireAdvanced(host); wireBackup(host); wireDiagnostics(host); }
     const appMsg = () => host.querySelector('#appearance-msg');
+    if (wants('appearance')) {
     // switch theme in place — applySettings repaints via the body class; do NOT rerender (it would wipe an open key editor).
     const hueIn = host.querySelector('#set-hue'), satIn = host.querySelector('#set-sat'), glowIn = host.querySelector('#set-glow'), brightIn = host.querySelector('#set-bright');
     const sliderVal = (id, txt) => { const e = host.querySelector(id); if (e) e.textContent = txt; };
@@ -8354,7 +8397,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (bdChips.length && typeof SpaceBG !== 'undefined' && SpaceBG.paintSample) {
       // One real sample at a time in a worker. A closed/rebuilt panel cancels the remaining
       // queue; unsupported worker contexts keep the original one-sample-per-frame fallback.
-      paintBackdropSwatches = () => {
+      settingsState.paintBackdropSwatches = () => {
         const queue = [...bdChips];
         const step = async () => {
           const b = queue.shift();
@@ -8393,6 +8436,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         flashSaved(appMsg());
       }));
     }
+    }
+    if (wants('system')) {
     const awakeToggle = host.querySelector('#set-awake');
     if (awakeToggle) awakeToggle.addEventListener('change', ev => {
       const desired = !!ev.target.checked;
@@ -8477,11 +8522,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       wireLifecyclePreference(startMinimizedToggle, Lifecycle.setStartMinimized, 'Start minimized', 'startMinimized');
       wireLifecyclePreference(closeToTrayToggle, Lifecycle.setCloseToTray, 'Close to tray', 'closeToTray');
     }
-    // PERMISSIONS panel repaint hook — set by the permissions block below; called whenever the granular dial
-    // changes so the posture cards stay in sync with the dial. No-op until that block wires it.
-    let syncPerm = function () {};
-    repaintAutonomyDial = null;   // GROWTH Tier 3: re-armed per settings render (the closure below owns the live DOM)
-    repaintPermAgents = null;     // same contract: the PERMISSIONS block below re-arms it against THIS render's DOM
+    }
+    if (wants('autonomy')) {
     // AUTONOMY dial — retune Initiative / Reach in place (AutonomyStore persists; no rerender so it won't wipe an
     // open key editor). The describe() line repaints live so the posture is always honestly spelled out.
     if (typeof AutonomyStore !== 'undefined' && AutonomyStore.summary) {
@@ -8522,7 +8564,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         for (const wrap of [initWrap, reachWrap, paceWrap]) if (wrap) wrap.querySelectorAll('button').forEach(x => { x.disabled = sync.pending; });
         if (autoDesc) { autoDesc.setAttribute('role', 'status'); autoDesc.textContent = sync.pending ? 'Confirming autonomy settings…' : (sync.error ? sync.error + (sync.loaded ? ' Current setting: ' + AutonomyStore.describe() : ' Reopen this panel to retry.') : sync.loaded ? AutonomyStore.describe() : 'Autonomy settings have not been confirmed.'); }
         try { paintEarned(a); } catch (_) {}   // GROWTH Tier 3: the EARNED badge on an earned rung
-        try { syncPerm(); } catch (_) {}   // keep the permissions level highlight + blurb in step with the dial
+        try { settingsState.syncPerm(); } catch (_) {}   // keep already-mounted permissions in step with the dial
       };
       // a MANUAL set retires the earned record (the user override wins, recorded as such) BEFORE the dial writes —
       // so a set above an earned rung reads as a plain user grant, a set below as a user override (no badge either way).
@@ -8850,10 +8892,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const postureHost = host.querySelector('#perm-postures');
       if (postureHost) postureHost.addEventListener('click', e => { if (e.target.closest('[data-posture]')) setTimeout(refreshPanel, 600); });
     }
+    }
     // PERMISSIONS panel — the never→fully-autonomous LEVEL chooser + the OS-style standing-grant list
     // (permissionsstore). Grants live server-side, so paint from cache now, refresh from the sidecar, repaint. A
     // level click sets BOTH posture + the write grant (so it repaints the dial); the dial syncs back via syncPerm.
-    if (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) {
+    if (wants('permissions') && typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) {
       // (the four-rung unattended ladder that used to sit here lives in AUTONOMY only; a posture still sets it)
       const grantsWrap = host.querySelector('#perm-grants'), permStatus = host.querySelector('#perm-status');
       paintConsentTip(host);
@@ -9406,11 +9449,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (snap.loaded) wireGrants();
         }
       };
-      syncPerm = repaintPerm;
+      settingsState.syncPerm = repaintPerm;
       repaintPerm();
       if (PermissionsStore.refresh) Promise.resolve(PermissionsStore.refresh()).then(repaintPerm).catch(() => {});
     }
-    if (typeof Updates !== 'undefined' && Updates.wireSettings) Updates.wireSettings(host);
+    if (wants('system') && typeof Updates !== 'undefined' && Updates.wireSettings) Updates.wireSettings(host);
     // two-step arm/confirm — no native dialogs inside the phosphor terminal
     const clr = host.querySelector('#set-clear');
     if (clr) ArmConfirm.wire(clr, {

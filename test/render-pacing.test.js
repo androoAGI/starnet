@@ -41,7 +41,7 @@ const sandbox = {
   clearTimeout: () => {},
 };
 vm.createContext(sandbox);
-vm.runInContext('let frameCapMs = 0, lastDrawnAt = 0, running = true, raf = 0, camUserAt = 0; function frame() {}\n' + world.slice(from, to) +
+vm.runInContext('let frameCapMs = 0, lastDrawnAt = 0, running = true, menuPaused = false, raf = 0, camUserAt = 0; function frame() {}\n' + world.slice(from, to) +
   '\nthis.api = { paceMs, simSlices, easeK, scheduleFrame, paceWake, userActive, cameraMoved, camUser: () => camUserAt, noteDrawCost, budgetMs, resetBudget: () => { drawCostMs = 0; },' +
   ' noteStrain, strain: () => ({ strained, strainProbe, strainDraws }), strainConsts: { STRAIN_ENTER_MS, STRAIN_EXIT_MS, STRAIN_SETTLE_DRAWS, STRAIN_PROBE_DRAWS, STRAIN_EXIT_PROBES },' +
   ' set: o => { if ("cap" in o) frameCapMs = o.cap; if ("low" in o) paceLowRate = o.low; if ("drawn" in o) lastDrawnAt = o.drawn; if ("raf" in o) raf = o.raf; },' +
@@ -201,7 +201,7 @@ function floorSim() {
     setTimeout: () => 1, clearTimeout: () => {}, console, clk,
     StationBake: { bake: () => { clk.now += 2500; return { doorOccluders: [] }; } } };
   vm.createContext(sb);
-  vm.runInContext('let frameCapMs = 0, lastDrawnAt = 0, running = true, raf = 0, renderFaults = 0, lastFaultMsg = "", reviewParts = null, reviewStamp = 0;\n' +
+  vm.runInContext('let frameCapMs = 0, lastDrawnAt = 0, running = true, menuPaused = false, raf = 0, renderFaults = 0, lastFaultMsg = "", reviewParts = null, reviewStamp = 0;\n' +
     'const RENDER_FAULT_LIMIT = 30, reviewPerformance = { enabled: false, samples: [] };\n' +
     'let station = {}, geo = {}, cache = null, geoDirty = false, bakeDirty = true, bakedAnchorKey = null, handedBake = null;\n' +
     'function buildHoldsFloor() { return false; } function rederive() {} function fixtureAnchorKey() { return ""; } function recordBakeProbe() {} function drawRenderFault() {}\n' +

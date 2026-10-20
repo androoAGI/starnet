@@ -99,7 +99,7 @@ const handedText = (entry) => (entry.text.split('produced:\n')[1] || '').split('
     A.ok(R.log.filter(l => l.agentId !== 'reviewer').every(l => !/YOUR VERDICT DECIDES/.test(l.text)), 'the writer and publisher are not');
     A.ok(/\[LOOP — pass 2 of 5/.test(R.log[3].text), 're-entries are numbered');
   }
-  /* never approved -> exits on DONE at MAX with the exhaustion marker */
+  /* never approved -> hard block, no publisher or shipment after MAX */
   {
     const R = rig(loopFloor({ maxIter: 2, when: 'approved' }), {
       writer: { text: 'draft', usd: 0.01 },
@@ -107,10 +107,10 @@ const handedText = (entry) => (entry.text.split('produced:\n')[1] || '').split('
       publisher: (t) => ({ text: t, usd: 0.01 })
     });
     const res = await R.c.advance({ agentId: 'writer', text: 'draft', originalText: 'go', lineId: R.lineId, runId: 'v2' });
-    A.eq(res.stopped, null, 'ran to its end (' + res.stopped + ')');
-    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer,writer,reviewer,publisher', '2 passes back round, then DONE regardless');
+    A.ok(/blocked, not approved/.test(res.stopped), 'exhaustion blocks the line');
+    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer,writer,reviewer', '2 passes back round, then stops without downstream execution');
     A.ok(res.loopExhausted === true, 'out.loopExhausted is set');
-    A.ok(/^\[LOOP — exhausted: 2 passes round the gate at [\d,]+ without VERDICT: approved — leaving on DONE unapproved\]/.test(handedText(R.log[5])), 'the downstream handoff is marked EXHAUSTED (' + handedText(R.log[5]) + ')');
+    A.ok(!R.log.some(x => x.agentId === 'publisher'), 'unapproved work never reaches a publisher');
   }
   /* a reviewer that emits NO verdict line is treated as not-approved (goes round), and the DONE lane can be an OUTBOX */
   {
@@ -149,7 +149,7 @@ const handedText = (entry) => (entry.text.split('produced:\n')[1] || '').split('
   {
     const R = rig(loopFloor({ maxIter: 1, when: 'code' }), { writer: { text: 'd', usd: 0.01 }, reviewer: { text: 'r', usd: 0.01 }, publisher: (t) => ({ text: t, usd: 0.01 }) }, { getTag: () => 'code' });
     const res = await R.c.advance({ agentId: 'writer', text: 'd', originalText: 'w', lineId: R.lineId, runId: 'v6' });
-    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer,publisher');
+    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer');
     A.ok(res.loopExhausted && /while the output still read as code/.test(res.text), 'exhaustion mark names the tag');
   }
   A.report('loop-verdict');

@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-19",
+  "provider": "custom (OpenCode endpoint)",
+  "baseUrl": "https://opencode.ai/inference/openai/v1",
+  "catalogUrl": "https://opencode.ai/inference/v1/models",
+  "model": "deepseek-v4.1-flash",
+  "agents": 13,
+  "unique": [
+    "deepseek-v4.1-flash|custom"
+  ],
+  "revision": 115,
+  "probe": {
+    "reachable": true,
+    "catalogAvailable": true,
+    "credentialVerified": false,
+    "note": "Katalog-only probe; no station key stored at that time"
+  },
+  "keyStatus": {
+    "stored": false,
+    "checkedBy": "lab-prodtest chat attempt",
+    "error": "openai-compatible http 401 - [type AuthError] Missing API key."
+  },
+  "fix": "handleProviderValidate now uses the same OpenCode catalog path as the picker and proves a custom key with one tiny chat request"
+}

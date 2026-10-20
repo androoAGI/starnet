@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "modelCalls": "not executed; run endpoint blocked",
+  "checks": [
+    "create dry-run",
+    "create via HTTP API",
+    "read",
+    "edit dry-run",
+    "edit via HTTP API",
+    "routing compiler",
+    "stale revision rejected",
+    "unauthenticated read rejected",
+    "execution blocked"
+  ],
+  "workflow": [
+    {
+      "id": "p11",
+      "role": "ANALYST",
+      "agentId": "agent",
+      "label": "Pinterest auswerten",
+      "brief": "Nur Testdaten auswerten: Zeitraum, Impressionen und ausgehende Klicks je Pin vergleichen. Fehlende Werte und kleine Stichproben markieren. Keine PDF-Verkaeufe aus Klicks erfinden. Der technische Datenimport ist kein KI-Schritt.",
+      "hands": "Priorisierte Themen, belegte Zahlen, Datenluecken und Empfehlungen fuer neue Pins."
+    },
+    {
+      "id": "p13",
+      "role": "WRITER",
+      "agentId": "life_content",
+      "label": "Pin-Entwuerfe erstellen",
+      "brief": "Drei Test-Pins auf Basis einer belegten Analyse und des bestaetigten PDF-Briefings vorbereiten. Ohne PDF-Inhalt, echte Verkaufsseiten-URL oder Bildmaterial warten. Keine erfundenen Produktversprechen. Keine Modellaufrufe oder Uploads im lokalen Offline-Test.",
+      "hands": "Pin-Entwuerfe mit Text, Bildzuordnung, Ziel-URL und offen markierten fehlenden Angaben."
+    },
+    {
+      "id": "p14",
+      "role": "REVIEWER",
+      "agentId": "life_review",
+      "label": "Batch-Vorbereitung pruefen",
+      "brief": "PDF-Aussagen, Markenregeln und Vollstaendigkeit pruefen. Danach gepruefte Daten an die vorhandenen CSV-Scripte uebergeben, sobald deren Schnittstelle bekannt ist. Keine Scripte erfinden oder Uploads starten. Der Betreiber gibt den fertigen Batch frei.",
+      "hands": "Pruefbericht und Script-Eingabedaten; fehlende CSV-Schnittstelle als Blockade ausweisen."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "ready": true,
+  "calls": 0,
+  "workflows": [
+    "Lifestruct Pinterest Pilot"
+  ],
+  "saveStatus": 200,
+  "runStatus": 403,
+  "url": "http://172.26.61.46:8791",
+  "unauthenticatedStatus": 401,
+  "foreignOriginStatus": 403,
+  "pageErrors": []
+}

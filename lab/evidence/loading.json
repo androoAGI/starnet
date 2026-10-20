@@ -1,0 +1,34 @@
+{
+  "measured": "2026-10-19",
+  "sourceHar": "sandboxhp-virtual-machine.tailcfc506.ts.net.har (Chrome on Windows, 2026-10-18)",
+  "before": {
+    "onLoadSeconds": 309.75,
+    "domContentLoadedSeconds": 30.56,
+    "texturePngMB": 232,
+    "textureFiles": 267,
+    "javascriptMB": 11.3,
+    "javascriptFiles": 264,
+    "cacheControl": "no-store",
+    "harObservation": "30+ individual 1-3 MB PNGs; per-file receive 40-195 s; all requests on one Tailscale HTTP/2 connection"
+  },
+  "after": {
+    "textureWebpMB": 38.9,
+    "textureWebpFiles": 267,
+    "opaqueTexturesWebpMB": 26.4,
+    "transparentPropsWebpMB": 12.5,
+    "firstLoadTransferMB": 44.42,
+    "firstLoadLocalSeconds": 14.24,
+    "reloadTransferMB": 0.81,
+    "reloadLocalSeconds": 13.35,
+    "javascriptGzipTransferMB": 3.08,
+    "cacheControl": "public, max-age=0, must-revalidate + ETag (304 on revalidation)",
+    "appPageCacheControl": "no-store",
+    "webpNegotiation": "same .png URL; Content-Type image/webp when Accept lists image/webp and a sibling .webp exists; Vary: Accept"
+  },
+  "method": "Headless Chromium, 1200x800, resource timing buffer 4000, local loopback. 261 texture requests counted. Reload in the same browser context after clearing resource timings. Tailscale throughput and a real PC/phone were not measured.",
+  "notes": [
+    "StarNet artwork is not MIT licensed (NOTICE.md); WebP derivatives are lab-local, gitignored and not published.",
+    "The first load still transfers ~38 MB of textures; only repeated loads drop below 1 MB.",
+    "JavaScript boot/CPU work remains and is not reduced by these transfer changes."
+  ]
+}

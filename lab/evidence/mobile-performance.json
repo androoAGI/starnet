@@ -1,0 +1,87 @@
+{
+  "method": "Local Chromium, 390x844/DPR3, CPU 6x slowdown. One warm-up discarded, then 3 real-tap samples per mode; medians include automation/paint waits, not a measurement of the real phone. All writes/external requests blocked.",
+  "results": [
+    {
+      "optimized": false,
+      "cpuSlowdown": 6,
+      "warmupDiscarded": {
+        "popupMs": 6404,
+        "settingsMs": 8588,
+        "builtPanes": 9,
+        "menuPaused": false,
+        "agentsMs": 3942,
+        "dossierBuiltPanes": 5
+      },
+      "samples": [
+        {
+          "popupMs": 1271,
+          "settingsMs": 2737,
+          "builtPanes": 9,
+          "menuPaused": false,
+          "agentsMs": 3486,
+          "dossierBuiltPanes": 5
+        },
+        {
+          "popupMs": 1744,
+          "settingsMs": 3369,
+          "builtPanes": 9,
+          "menuPaused": false,
+          "agentsMs": 3705,
+          "dossierBuiltPanes": 5
+        },
+        {
+          "popupMs": 1458,
+          "settingsMs": 3215,
+          "builtPanes": 9,
+          "menuPaused": false,
+          "agentsMs": 3711,
+          "dossierBuiltPanes": 5
+        }
+      ],
+      "medianPopupMs": 1458,
+      "medianSettingsMs": 3215,
+      "medianAgentsMs": 3705
+    },
+    {
+      "optimized": true,
+      "cpuSlowdown": 6,
+      "warmupDiscarded": {
+        "popupMs": 4562,
+        "settingsMs": 6327,
+        "builtPanes": 1,
+        "menuPaused": true,
+        "agentsMs": 2315,
+        "dossierBuiltPanes": 1
+      },
+      "samples": [
+        {
+          "popupMs": 1085,
+          "settingsMs": 897,
+          "builtPanes": 1,
+          "menuPaused": true,
+          "agentsMs": 1699,
+          "dossierBuiltPanes": 1
+        },
+        {
+          "popupMs": 1087,
+          "settingsMs": 884,
+          "builtPanes": 1,
+          "menuPaused": true,
+          "agentsMs": 1668,
+          "dossierBuiltPanes": 1
+        },
+        {
+          "popupMs": 1078,
+          "settingsMs": 1228,
+          "builtPanes": 1,
+          "menuPaused": true,
+          "agentsMs": 1787,
+          "dossierBuiltPanes": 1
+        }
+      ],
+      "medianPopupMs": 1085,
+      "medianSettingsMs": 897,
+      "medianAgentsMs": 1699
+    }
+  ]
+}

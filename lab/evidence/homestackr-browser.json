@@ -1,0 +1,248 @@
+[
+  {
+    "ready": true,
+    "room": {
+      "id": "r17",
+      "name": "HomeStackR"
+    },
+    "lines": [
+      {
+        "name": "HomeStackR · Wissen",
+        "key": "p27",
+        "steps": [
+          {
+            "id": "p28",
+            "agentId": "hsr_research",
+            "desk": true
+          },
+          {
+            "id": "p30",
+            "agentId": "hsr_writer",
+            "desk": true
+          },
+          {
+            "id": "p31",
+            "agentId": "hsr_editor",
+            "desk": true
+          }
+        ]
+      },
+      {
+        "name": "HomeStackR · Pinterest",
+        "key": "p32",
+        "steps": [
+          {
+            "id": "p33",
+            "agentId": "hsr_pin_analysis",
+            "desk": true
+          },
+          {
+            "id": "p35",
+            "agentId": "hsr_pin_content",
+            "desk": true
+          },
+          {
+            "id": "p36",
+            "agentId": "hsr_pin_review",
+            "desk": true
+          }
+        ]
+      },
+      {
+        "name": "HomeStackR · Pflege & Affiliate",
+        "key": "p37",
+        "steps": [
+          {
+            "id": "p38",
+            "agentId": "hsr_audit",
+            "desk": true
+          },
+          {
+            "id": "p40",
+            "agentId": "hsr_update",
+            "desk": true
+          },
+          {
+            "id": "p41",
+            "agentId": "hsr_quality",
+            "desk": true
+          }
+        ]
+      }
+    ],
+    "agentCount": 9,
+    "calls": 0,
+    "rosterSynced": true,
+    "mode": "desktop",
+    "pageErrors": [],
+    "deniedRequests": [
+      {
+        "method": "POST",
+        "path": "/api/dossier"
+      },
+      {
+        "method": "POST",
+        "path": "/api/autonomy/posture"
+      },
+      {
+        "method": "POST",
+        "path": "/api/goals"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/telegram/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/discord/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/slack/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/matrix/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/signal/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/scout/context"
+      },
+      {
+        "method": "POST",
+        "path": "/api/away/briefing/deliver"
+      },
+      {
+        "method": "POST",
+        "path": "/api/activity"
+      }
+    ]
+  },
+  {
+    "ready": true,
+    "room": {
+      "id": "r17",
+      "name": "HomeStackR"
+    },
+    "lines": [
+      {
+        "name": "HomeStackR · Wissen",
+        "key": "p27",
+        "steps": [
+          {
+            "id": "p28",
+            "agentId": "hsr_research",
+            "desk": true
+          },
+          {
+            "id": "p30",
+            "agentId": "hsr_writer",
+            "desk": true
+          },
+          {
+            "id": "p31",
+            "agentId": "hsr_editor",
+            "desk": true
+          }
+        ]
+      },
+      {
+        "name": "HomeStackR · Pinterest",
+        "key": "p32",
+        "steps": [
+          {
+            "id": "p33",
+            "agentId": "hsr_pin_analysis",
+            "desk": true
+          },
+          {
+            "id": "p35",
+            "agentId": "hsr_pin_content",
+            "desk": true
+          },
+          {
+            "id": "p36",
+            "agentId": "hsr_pin_review",
+            "desk": true
+          }
+        ]
+      },
+      {
+        "name": "HomeStackR · Pflege & Affiliate",
+        "key": "p37",
+        "steps": [
+          {
+            "id": "p38",
+            "agentId": "hsr_audit",
+            "desk": true
+          },
+          {
+            "id": "p40",
+            "agentId": "hsr_update",
+            "desk": true
+          },
+          {
+            "id": "p41",
+            "agentId": "hsr_quality",
+            "desk": true
+          }
+        ]
+      }
+    ],
+    "agentCount": 9,
+    "calls": 0,
+    "rosterSynced": true,
+    "mode": "mobile",
+    "pageErrors": [],
+    "deniedRequests": [
+      {
+        "method": "POST",
+        "path": "/api/dossier"
+      },
+      {
+        "method": "POST",
+        "path": "/api/autonomy/posture"
+      },
+      {
+        "method": "POST",
+        "path": "/api/goals"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/telegram/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/discord/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/slack/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/matrix/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/channels/signal/sync"
+      },
+      {
+        "method": "POST",
+        "path": "/api/scout/context"
+      },
+      {
+        "method": "POST",
+        "path": "/api/away/briefing/deliver"
+      },
+      {
+        "method": "POST",
+        "path": "/api/activity"
+      }
+    ]
+  }
+]

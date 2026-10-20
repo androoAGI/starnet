@@ -1,0 +1,82 @@
+[
+  {
+    "style": "original",
+    "accent": "#ffaa33",
+    "ready": true,
+    "calls": 0,
+    "lines": [
+      {
+        "name": "Lifestruct Pinterest Pilot",
+        "key": "p10",
+        "steps": [
+          {
+            "id": "p11",
+            "role": "ANALYST",
+            "agentId": "agent",
+            "brief": "Nur Testdaten auswerten: Zeitraum, Impressionen und ausgehende Klicks je Pin vergleichen. Fehlende Werte und kleine Stichproben markieren. Keine PDF-Verkaeufe aus Klicks erfinden. Der technische Datenimport ist kein KI-Schritt.",
+            "desk": true
+          },
+          {
+            "id": "p13",
+            "role": "WRITER",
+            "agentId": "life_content",
+            "brief": "Drei Test-Pins auf Basis einer belegten Analyse und des bestaetigten PDF-Briefings vorbereiten. Ohne PDF-Inhalt, echte Verkaufsseiten-URL oder Bildmaterial warten. Keine erfundenen Produktversprechen. Keine Modellaufrufe oder Uploads im lokalen Offline-Test.",
+            "desk": true
+          },
+          {
+            "id": "p14",
+            "role": "REVIEWER",
+            "agentId": "life_review",
+            "brief": "PDF-Aussagen, Markenregeln und Vollstaendigkeit pruefen. Danach gepruefte Daten an die vorhandenen CSV-Scripte uebergeben, sobald deren Schnittstelle bekannt ist. Keine Scripte erfinden oder Uploads starten. Der Betreiber gibt den fertigen Batch frei.",
+            "desk": true
+          }
+        ]
+      }
+    ],
+    "pageErrors": [],
+    "screenshots": [
+      "/tmp/opencode/starnet-lab-visual/original-station.png",
+      "/tmp/opencode/starnet-lab-visual/original-workflow.png"
+    ]
+  },
+  {
+    "style": "custom",
+    "accent": "#deb17a",
+    "ready": true,
+    "calls": 0,
+    "lines": [
+      {
+        "name": "Lifestruct Pinterest Pilot",
+        "key": "p10",
+        "steps": [
+          {
+            "id": "p11",
+            "role": "ANALYST",
+            "agentId": "agent",
+            "brief": "Nur Testdaten auswerten: Zeitraum, Impressionen und ausgehende Klicks je Pin vergleichen. Fehlende Werte und kleine Stichproben markieren. Keine PDF-Verkaeufe aus Klicks erfinden. Der technische Datenimport ist kein KI-Schritt.",
+            "desk": true
+          },
+          {
+            "id": "p13",
+            "role": "WRITER",
+            "agentId": "life_content",
+            "brief": "Drei Test-Pins auf Basis einer belegten Analyse und des bestaetigten PDF-Briefings vorbereiten. Ohne PDF-Inhalt, echte Verkaufsseiten-URL oder Bildmaterial warten. Keine erfundenen Produktversprechen. Keine Modellaufrufe oder Uploads im lokalen Offline-Test.",
+            "desk": true
+          },
+          {
+            "id": "p14",
+            "role": "REVIEWER",
+            "agentId": "life_review",
+            "brief": "PDF-Aussagen, Markenregeln und Vollstaendigkeit pruefen. Danach gepruefte Daten an die vorhandenen CSV-Scripte uebergeben, sobald deren Schnittstelle bekannt ist. Keine Scripte erfinden oder Uploads starten. Der Betreiber gibt den fertigen Batch frei.",
+            "desk": true
+          }
+        ]
+      }
+    ],
+    "pageErrors": [],
+    "screenshots": [
+      "/tmp/opencode/starnet-lab-visual/custom-station.png",
+      "/tmp/opencode/starnet-lab-visual/custom-workflow.png"
+    ]
+  }
+]

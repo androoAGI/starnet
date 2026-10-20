@@ -341,6 +341,12 @@
         // other row stays byte-identical.
         ...(ID_RE.test(str(e.lineId)) ? { lineId: str(e.lineId) } : {}),
         ...(ID_RE.test(str(e.dockId)) ? { dockId: str(e.dockId) } : {}),
+        ...(e.colony && ['lifestruct', 'ashveil', 'homestackr'].includes(e.colony.businessUnitId)
+          && ID_RE.test(str(e.colony.taskId)) && ID_RE.test(str(e.colony.attemptId)) ? { colony: {
+            taskId: str(e.colony.taskId), businessUnitId: e.colony.businessUnitId,
+            processVersion: num(e.colony.processVersion), stepId: str(e.colony.stepId).slice(0, 40),
+            attemptId: str(e.colony.attemptId), roleVersion: num(e.colony.roleVersion)
+          } } : {}),
         // DELEGATION (additive, #57): the LEAD agentId whose team.dispatch/spawn/resume started this worker run. Set only by
         // orchestration — parentRunId alone also links overseer reviews and connector continuations, which are not
         // delegated work. Present only when set, so every other row stays byte-identical.

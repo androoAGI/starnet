@@ -1,0 +1,38 @@
+[
+  {
+    "mode": "mobile",
+    "initialSettingsPanes": 1,
+    "allTabsBuiltAndWired": true,
+    "draftPreserved": true,
+    "searchWorks": true,
+    "sceneResumed": true,
+    "dossierTabsBuilt": 5,
+    "dossierDraftPreserved": true,
+    "errors": [],
+    "modelCalls": 0
+  },
+  {
+    "mode": "desktop",
+    "initialSettingsPanes": 9,
+    "allTabsBuiltAndWired": true,
+    "draftPreserved": true,
+    "searchWorks": true,
+    "sceneResumed": true,
+    "dossierTabsBuilt": 5,
+    "dossierDraftPreserved": true,
+    "errors": [],
+    "modelCalls": 0
+  },
+  {
+    "mode": "mobile-off",
+    "initialSettingsPanes": 9,
+    "allTabsBuiltAndWired": true,
+    "draftPreserved": true,
+    "searchWorks": true,
+    "sceneResumed": true,
+    "dossierTabsBuilt": 5,
+    "dossierDraftPreserved": true,
+    "errors": [],
+    "modelCalls": 0
+  }
+]

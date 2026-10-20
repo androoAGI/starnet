@@ -1,0 +1,277 @@
+{
+  "valid": true,
+  "errors": [],
+  "lines": [
+    {
+      "id": "p10",
+      "name": "Lifestruct Pinterest Pilot",
+      "graph": {
+        "ok": true,
+        "graph": {
+          "nodes": [
+            {
+              "id": "p10",
+              "t": "intake",
+              "w": 2,
+              "h": 2,
+              "pin": {
+                "x": 3,
+                "y": 4
+              }
+            },
+            {
+              "id": "p11",
+              "t": "bay",
+              "w": 2,
+              "h": 2,
+              "pin": {
+                "x": 7,
+                "y": 4
+              },
+              "role": "ANALYST",
+              "agentId": "agent"
+            },
+            {
+              "id": "p13",
+              "t": "bay",
+              "w": 2,
+              "h": 2,
+              "pin": {
+                "x": 11,
+                "y": 8
+              },
+              "role": "WRITER",
+              "agentId": "life_content"
+            },
+            {
+              "id": "p14",
+              "t": "bay",
+              "w": 2,
+              "h": 2,
+              "pin": {
+                "x": 15,
+                "y": 6
+              },
+              "role": "REVIEWER",
+              "agentId": "life_review"
+            },
+            {
+              "id": "p12",
+              "t": "outbox",
+              "w": 2,
+              "h": 2,
+              "pin": {
+                "x": 11,
+                "y": 4
+              }
+            }
+          ],
+          "links": [
+            {
+              "id": "l1",
+              "from": {
+                "node": "p10",
+                "port": "out"
+              },
+              "to": {
+                "node": "p11"
+              },
+              "path": [
+                {
+                  "x": 5,
+                  "y": 4,
+                  "d": "E"
+                },
+                {
+                  "x": 6,
+                  "y": 4,
+                  "d": "E"
+                }
+              ]
+            },
+            {
+              "id": "l2",
+              "from": {
+                "node": "p11",
+                "port": "out"
+              },
+              "to": {
+                "node": "p13"
+              },
+              "path": [
+                {
+                  "x": 9,
+                  "y": 6,
+                  "d": "S"
+                },
+                {
+                  "x": 9,
+                  "y": 7,
+                  "d": "E"
+                },
+                {
+                  "x": 10,
+                  "y": 7,
+                  "d": "E"
+                },
+                {
+                  "x": 11,
+                  "y": 7,
+                  "d": "S"
+                }
+              ]
+            },
+            {
+              "id": "l3",
+              "from": {
+                "node": "p13",
+                "port": "out"
+              },
+              "to": {
+                "node": "p14"
+              },
+              "path": [
+                {
+                  "x": 13,
+                  "y": 7,
+                  "d": "E"
+                },
+                {
+                  "x": 14,
+                  "y": 7,
+                  "d": "E"
+                }
+              ]
+            },
+            {
+              "id": "l4",
+              "from": {
+                "node": "p14",
+                "port": "out"
+              },
+              "to": {
+                "node": "p12"
+              },
+              "path": [
+                {
+                  "x": 14,
+                  "y": 5,
+                  "d": "W"
+                },
+                {
+                  "x": 13,
+                  "y": 5,
+                  "d": "W"
+                }
+              ]
+            }
+          ]
+        },
+        "floor": {
+          "rects": [
+            {
+              "x1": 0,
+              "y1": 0,
+              "x2": 17,
+              "y2": 10
+            }
+          ],
+          "blocked": [
+            {
+              "x": 8,
+              "y": 1,
+              "w": 2,
+              "h": 1
+            },
+            {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 2
+            },
+            {
+              "x": 1,
+              "y": 9,
+              "w": 1,
+              "h": 1
+            },
+            {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            {
+              "x": 3,
+              "y": 1,
+              "w": 2,
+              "h": 1
+            },
+            {
+              "x": 14,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            {
+              "x": 17,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            {
+              "x": 5,
+              "y": 1,
+              "w": 2,
+              "h": 1
+            },
+            {
+              "x": 10,
+              "y": 1,
+              "w": 2,
+              "h": 1
+            }
+          ],
+          "belts": {},
+          "junctions": []
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "p11",
+      "role": "ANALYST",
+      "agentId": "agent",
+      "label": "Pinterest auswerten",
+      "brief": "Nur Testdaten auswerten: Zeitraum, Impressionen und ausgehende Klicks je Pin vergleichen. Fehlende Werte und kleine Stichproben markieren. Keine PDF-Verkaeufe aus Klicks erfinden. Der technische Datenimport ist kein KI-Schritt.",
+      "hands": "Priorisierte Themen, belegte Zahlen, Datenluecken und Empfehlungen fuer neue Pins.",
+      "hasCompute": true
+    },
+    {
+      "id": "p13",
+      "role": "WRITER",
+      "agentId": "life_content",
+      "label": "Pin-Entwuerfe erstellen",
+      "brief": "Drei Test-Pins auf Basis einer belegten Analyse und des bestaetigten PDF-Briefings vorbereiten. Ohne PDF-Inhalt, echte Verkaufsseiten-URL oder Bildmaterial warten. Keine erfundenen Produktversprechen. Keine Modellaufrufe oder Uploads im lokalen Offline-Test.",
+      "hands": "Pin-Entwuerfe mit Text, Bildzuordnung, Ziel-URL und offen markierten fehlenden Angaben.",
+      "hasCompute": true
+    },
+    {
+      "id": "p14",
+      "role": "REVIEWER",
+      "agentId": "life_review",
+      "label": "Batch-Vorbereitung pruefen",
+      "brief": "PDF-Aussagen, Markenregeln und Vollstaendigkeit pruefen. Danach gepruefte Daten an die vorhandenen CSV-Scripte uebergeben, sobald deren Schnittstelle bekannt ist. Keine Scripte erfinden oder Uploads starten. Der Betreiber gibt den fertigen Batch frei.",
+      "hands": "Pruefbericht und Script-Eingabedaten; fehlende CSV-Schnittstelle als Blockade ausweisen.",
+      "hasCompute": true
+    }
+  ],
+  "applied": false
+}

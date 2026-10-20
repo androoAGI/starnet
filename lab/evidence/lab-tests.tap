@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: lab process refuses model fetch, raw sockets and helper processes before I/O
+ok 1 - lab process refuses model fetch, raw sockets and helper processes before I/O
+  ---
+  duration_ms: 69.053099
+  type: 'test'
+  ...
+# Subtest: authoring adapter rejects non-local targets before requesting anything
+ok 2 - authoring adapter rejects non-local targets before requesting anything
+  ---
+  duration_ms: 14.817221
+  type: 'test'
+  ...
+# Subtest: external author creates a real three-step Lifestruct graph
+ok 3 - external author creates a real three-step Lifestruct graph
+  ---
+  duration_ms: 41.827859
+  type: 'test'
+  ...
+# Subtest: external edits keep geometry and routing, and undo works
+ok 4 - external edits keep geometry and routing, and undo works
+  ---
+  duration_ms: 16.001922
+  type: 'test'
+  ...
+# Subtest: invalid specifications and unknown agents do not touch station
+ok 5 - invalid specifications and unknown agents do not touch station
+  ---
+  duration_ms: 0.985602
+  type: 'test'
+  ...
+# Subtest: duplicate creation and unsupported edits fail without modifying station
+ok 6 - duplicate creation and unsupported edits fail without modifying station
+  ---
+  duration_ms: 15.829122
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 169.07744

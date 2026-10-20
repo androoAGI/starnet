@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Colony · Business-Steuerung</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/colony/style.css">
+  <script src="/colony/app.js" defer></script>
+</head>
+<body>
+<header><a href="/">← Roboterhaus</a><h1>Business-Steuerung</h1><p id="connection" role="status">Verbindung wird geprüft …</p></header>
+<main>
+  <p class="notice">Vorbereitungsbetrieb: keine automatischen Veröffentlichungen, Uploads oder Versände. Ein echter Pilot ist noch nicht abgenommen.</p>
+  <nav aria-label="Marke"><label>BusinessUnit <select id="brand"><option value="all">Alle Marken</option><option value="lifestruct">Lifestruct</option><option value="ashveil">Ashveil</option><option value="homestackr">HomeStackR</option></select></label><button id="refresh">Aktualisieren</button></nav>
+  <section><h2>Freigabe-Inbox</h2><p>Nur vollständig intern geprüfte Versionen. Freigabe bedeutet noch keine erfolgte Außenaktion.</p><div id="inbox"></div></section>
+  <section><h2>Aufträge</h2><div id="tasks"></div></section>
+  <section><h2>Team</h2><p>Geplante Markenidentitäten. Modellkonfiguration und tatsächliche Einrichtung im Roboterhaus sind getrennte Nachweise.</p><div id="team" class="grid"></div></section>
+  <section><h2>Abläufe je BusinessUnit</h2><div id="processes" class="grid"></div></section>
+  <section><h2>Verbesserungsfälle</h2><div id="cases"></div></section>
+  <section><h2>Noch offene Anschlüsse</h2><ul id="limitations"></ul></section>
+  <details><summary>BU-Räume und Pipelines sicher einrichten</summary>
+    <p>Bestehende Arbeit bleibt erhalten. Die Einrichtung erweitert die Räume und ergänzt Markenagenten sowie 13 Abläufe. Keine Modellaufrufe und keine Außenaktionen. Vor dem Speichern wird der gesamte Stand privat gesichert.</p>
+    <button id="preview-install">Vorschau berechnen</button><pre id="installation-preview"></pre>
+    <button id="install" disabled>Geprüfte Einrichtung speichern</button>
+  </details>
+  <details><summary>Auftrag und Modellkonfiguration vorbereiten</summary>
+    <p>Echte Quellen, Konto, Zielseiten und Budgets zuerst klären. Die Beispieldaten sind ausdrücklich kein geprüfter Quellenbestand. Kein Schlüssel gehört in diese Formulare.</p>
+    <label>Neuer L01-Auftrag (JSON)<textarea id="task-input" rows="12" spellcheck="false"></textarea></label>
+    <button id="create">Auftrag speichern – noch nicht ausführen</button>
+    <label>Modelle je Markenagent (JSON)<textarea id="model-input" rows="5" spellcheck="false">{"colony_lifestruct_research":{"provider":"custom","model":"MODELL_EINTRAGEN"},"colony_lifestruct_editorial":{"provider":"custom","model":"MODELL_EINTRAGEN"},"colony_lifestruct_review":{"provider":"custom","model":"VISION_MODELL_EINTRAGEN"}}</textarea></label>
+    <label><input id="enable" type="checkbox"> Interne, werkzeugfreie Modellläufe innerhalb der Auftragsbudgets zulassen</label>
+    <label>Zusätzliche gemeinsame Budgetgrenze für alle Aufträge (JSON)<textarea id="pool-input" rows="2">{"usd":0,"tokens":0,"ms":0}</textarea></label>
+    <button id="configure">Konfiguration speichern</button>
+  </details>
+  <p id="error" role="alert"></p>
+</main>
+</body></html>

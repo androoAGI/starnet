@@ -308,15 +308,15 @@ function rig(floor, script, opts) {
       fixer: { text: 'salvaged by the fixer', usd: 0.01 }
     });
     const res = await R.c.advance({ agentId: 'reviewer', text: 'first review\nVERDICT: revise', originalText: 'write a post', lineId: R.lineId, runId: 'runE1' });
-    A.eq(res.stopped, null, 'the escalated line runs to its end (' + res.stopped + ')');
-    A.eq(res.hops.map(h => h.agentId).join(','), 'drafter,reviewer,drafter,reviewer,fixer',
-      'two passes round the gate, then the FIXER — not the publisher');
-    A.eq(res.text, 'salvaged by the fixer', 'the escalation dock has the last word');
+    A.ok(/blocked, not approved/.test(res.stopped), 'exhaustion is a hard stop, not another unchecked model run');
+    A.eq(res.hops.map(h => h.agentId).join(','), 'drafter,reviewer,drafter,reviewer',
+      'two passes round the gate, then no downstream execution');
+    A.ok(/still bad 2/.test(res.text), 'the last failed review is retained as evidence');
     A.ok(res.loopExhausted, 'the run is still marked exhausted (honest telemetry)');
     const fixerTurn = R.log[R.log.length - 1];
-    A.eq(fixerTurn.agentId, 'fixer');
-    A.ok(/\[LOOP — escalated: 2 passes round the gate at 12,4 without VERDICT: approved — handed to the escalation lane\]/.test(fixerTurn.text),
-      'the fixer\'s handoff says exactly why it has the crate');
+    A.eq(fixerTurn.agentId, 'reviewer');
+    A.ok(!R.log.some(x => x.agentId === 'publisher' || x.agentId === 'fixer'),
+      'neither publication nor an unreviewed automatic fix escapes the hard stop');
   }
   /* the SAME floor with the verdict PASSING never touches the fixer */
   {
@@ -349,7 +349,7 @@ function rig(floor, script, opts) {
         publisher: { text: 'published', usd: 0.01 }
       });
       const res = await R.c.advance({ agentId: 'reviewer', text: 'no\nVERDICT: revise', originalText: 'x', lineId: P.lineOf(plan2, 'reviewer'), runId: 'runE3' });
-      A.ok(res.hops[res.hops.length - 1].agentId === 'publisher', 'an already-visited esc dock falls back to the done lane');
+      A.ok(res.hops[res.hops.length - 1].agentId !== 'publisher', 'an already-visited esc dock cannot fall back to publishing');
       A.ok(res.loopExhausted, 'still marked exhausted');
     } else {
       A.ok(true, 'visited-esc fallback floor did not compile as intended — covered by the runner guard');

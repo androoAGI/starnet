@@ -1,0 +1,76 @@
+{
+  "name": "HomeStackR",
+  "agents": [
+    { "id": "hsr_research", "name": "HSR Recherche", "purpose": "HomeStackR: belegte Themen und Primärquellen für einsteigerfreundliche Smart-Home-Wissensartikel recherchieren." },
+    { "id": "hsr_writer", "name": "HSR Redaktion", "purpose": "HomeStackR: verständliche Wissensartikel als Entwurf, lokal-first und für Einsteiger und Mieter schreiben." },
+    { "id": "hsr_editor", "name": "HSR Faktencheck", "purpose": "HomeStackR: Wissensentwürfe unabhängig auf Belege, Verständlichkeit, Sicherheit und redaktionelle Regeln prüfen." },
+    { "id": "hsr_pin_analysis", "name": "HSR Pin-Analyse", "purpose": "HomeStackR: Pinterest-Daten und freigegebene Artikel für konkrete Pin-Briefings auswerten; keine Verkäufe aus Klicks ableiten." },
+    { "id": "hsr_pin_content", "name": "HSR Pin-Studio", "purpose": "HomeStackR: Pinterest-Texte und Bildbriefings ausschließlich zu bestätigten Artikeln vorbereiten; keine Bilderzeugung oder Uploads." },
+    { "id": "hsr_pin_review", "name": "HSR Pin-Prüfung", "purpose": "HomeStackR: Pins unabhängig auf korrekte Aussagen, Ziel-URL, Bildrechte und Vollständigkeit prüfen." },
+    { "id": "hsr_audit", "name": "HSR Bestandscheck", "purpose": "HomeStackR: bestehende Artikel nach belegten Fehlern, veralteten Inhalten und sinnvollen Affiliate-Verbesserungen priorisieren." },
+    { "id": "hsr_update", "name": "HSR Pflege", "purpose": "HomeStackR: gezielte Aktualisierungs- und Affiliate-Vorschläge für bestehende Artikel vorbereiten, ohne die Website zu ändern." },
+    { "id": "hsr_quality", "name": "HSR Qualitätscheck", "purpose": "HomeStackR: Pflegevorschläge auf Quellen, Datenschutz, Kontext und ehrliche Empfehlungen prüfen; Betreiberfreigabe bleibt erforderlich." }
+  ],
+  "lines": [
+    {
+      "name": "HomeStackR · Wissen",
+      "steps": [
+        {
+          "role": "RESEARCHER", "agentId": "hsr_research", "label": "Thema und Quellen",
+          "brief": "Erforderlicher Input: Thema oder Leserproblem, Zielgruppe, vorhandene Artikel/Links und verlässliche Quellen bzw. ein freigegebener Rechercheauftrag. Prüfe zuerst, ob das Thema schon abgedeckt ist. Liefere Suchabsicht, Nutzen für Einsteiger/Mieter, Gliederung und eine Tabelle Aussage -> Primärquelle -> Stand. Fokus lokale Steuerung und Datenschutz; keine erfundenen Produkte, Kompatibilitäten, Test-Erfahrungen oder Zahlen. Unzugängliche Quellen und fehlende Unterlagen als BLOCKIERT markieren. Keine News-Publikation und keine Website-Änderungen.",
+          "hands": "Themenbriefing, Gliederung, Quellen-/Aussagentabelle, vorhandene Artikel und offene Fragen."
+        },
+        {
+          "role": "WRITER", "agentId": "hsr_writer", "label": "Artikel entwerfen",
+          "brief": "Schreibe anhand des belegten Briefings einen deutschen Wissensartikel-Entwurf: klare Antwort, nachvollziehbare Schritte, Voraussetzungen/Kompatibilität, Grenzen und sinnvolle interne Links. Keine behaupteten eigenen Tests. Beachte HomeStackR CONTENT.md: reine Theorie, Recht, Versicherung und Glossar werbefrei; Empfehlungen nur wenn der Bedarf vorher erklärt wurde, mit konkretem Grund und nur bestätigten Produkten/Link-IDs. Keine erfundenen Affiliate-URLs, Preise oder Einsparversprechen. Fehlende Belege sichtbar lassen, nicht ersetzen. Liefere Entwurf, Meta-Titel/-Beschreibung und Quellenliste als Review-Paket, nicht als veröffentlichte Seite. Kein Repo-Schreibzugriff, Commit, Push, PR oder Deployment.",
+          "hands": "Artikelentwurf, Metadaten, Quellen, interne Linkvorschläge und offene Punkte für den Faktencheck."
+        },
+        {
+          "role": "REVIEWER", "agentId": "hsr_editor", "label": "Fakten und Lesbarkeit",
+          "brief": "Prüfe den Entwurf unabhängig anhand der Primärquellen: fachliche Aussagen, Aktualität, Produktgenerationen, lokale/cloudabhängige Funktionen, Kompatibilität, Verständlichkeit und sichere Anweisungen. Keine gefährlichen Elektroarbeiten empfehlen. Prüfe Datenschutz und HomeStackR CONTENT.md: keine Tracking-Vorschläge, keine Affiliate-Links auf Theorie-/Rechtsseiten, keine doppelten Werbeplatzierungen. Liefere Status ENTWURF GEPRÜFT, NACHARBEIT oder BLOCKIERT mit konkreten Fundstellen. Ein Prüfurteil ist KEINE Betreiberfreigabe. Ergebnis bleibt in der Outbox zur manuellen Prüfung; keine Veröffentlichung, automatischen Folgeaufträge oder Repository-Änderungen.",
+          "hands": "Geprüftes Artikelpaket mit Quellen-/Fehlerliste und Status; wartet auf manuelle Betreiberfreigabe."
+        }
+      ]
+    },
+    {
+      "name": "HomeStackR · Pinterest",
+      "steps": [
+        {
+          "role": "ANALYST", "agentId": "hsr_pin_analysis", "label": "Artikel und Pin-Daten",
+          "brief": "Erforderlicher Input: bestätigter Artikelinhalt mit echter kanonischer HomeStackR-URL, Zielgruppe, gewünschte Pin-Anzahl und optional ein Pinterest-Export mit Zeitraum, Pin-ID/Titel, Impressionen, ausgehenden Klicks und Saves. Mit Export: Erfolgsquoten und Datenlücken sachlich auswerten. Ohne Export: nur inhaltsbasiertes Pin-Briefing, ausdrücklich keine Performance-Analyse behaupten. Keine Affiliate-Umsätze oder Käufe aus Klicks erfinden. Fasse drei belegte Leserprobleme und passende Pin-Winkel zusammen. Ohne echten Artikel/URL BLOCKIERT melden. Keine automatischen Importe, Website-Änderungen oder Veröffentlichung.",
+          "hands": "Pin-Briefing, bestätigte Artikel-URL, belegte Aussagen, ggf. Kennzahlen sowie fehlende Daten."
+        },
+        {
+          "role": "WRITER", "agentId": "hsr_pin_content", "label": "Pins vorbereiten",
+          "brief": "Erstelle die beauftragte Anzahl Pinterest-Entwürfe; ohne Mengenangabe höchstens drei. Je Pin: Titel, Beschreibung, Overlay-Text, Bildbriefing/Zuordnung, Alt-Text, bestätigte Artikel-URL und ein Board-Vorschlag aus der bereitgestellten Board-Liste. Fehlt diese, als Vorschlag kennzeichnen. Nur Aussagen aus dem Artikel, keine Clickbait-Versprechen, keine erfundenen Produktbilder oder Bildrechte. Ziel ist der Artikel, kein ungeprüfter Händlerlink. Nutze bereitgestellte Marken-/Bildvorgaben; fehlende Assets als offen markieren. Keine kostenpflichtige Bilderzeugung, Downloads fremder Bilder, CSV-/Upload-Scripte oder Pinterest-Aufrufe. Liefere Entwürfe, keinen vermeintlich hochgeladenen Batch.",
+          "hands": "Strukturierte Pin-Entwürfe mit Artikel-URL, Bildbedarf und klar markierten fehlenden Assets/Angaben."
+        },
+        {
+          "role": "REVIEWER", "agentId": "hsr_pin_review", "label": "Pins und Links prüfen",
+          "brief": "Vergleiche jeden Pin mit dem bestätigten Artikel. Prüfe korrekte Aussagen, Einsteigerverständlichkeit, Ziel-URL, Titel/Overlay, vorhandene Bildrechte, Markenstil und Board-Zuordnung. Ohne tatsächlichen Linktest keinen funktionierenden Link behaupten. Ohne freigegebene Bilder/Board-Liste nur als Entwurf kennzeichnen. Liefere Status ENTWURF GEPRÜFT, NACHARBEIT oder BLOCKIERT und offene Punkte pro Pin. Eine CSV-Schnittstelle ist noch NICHT angebunden: keine fertige Upload-Datei oder automatische Übertragung behaupten. Geprüfte Entwürfe enden in der Outbox, Betreiber gibt sie separat frei. Kein Upload, Versand, Scheduler oder Folgeauftrag.",
+          "hands": "Geprüfte Pin-Entwürfe und offene Punkte pro Pin; manuelle Freigabe, kein Upload."
+        }
+      ]
+    },
+    {
+      "name": "HomeStackR · Pflege & Affiliate",
+      "steps": [
+        {
+          "role": "ANALYST", "agentId": "hsr_audit", "label": "Bestand prüfen",
+          "brief": "Erforderlicher Input: bestehender Artikelinhalt/URL und aktueller Stand; optional Umami-/Search-Console-Export, freigegebener Affiliate-Katalog und aktuelle Primärquellen. Suche belegte Fehler, veraltete Aussagen, defekte Links und echte Leserprobleme. Trenne überprüfte Befunde von Vermutungen. Priorisiere höchstens drei konkrete Verbesserungen nach Nutzen/Vertrauen; ohne Messdaten keine Traffic-/Conversion-Verluste behaupten. Keine Tracking-Pixel oder Cookie-Analytics empfehlen. Keine ungefragten GitHub-Issues, Quellcodeänderungen oder Produktlinks anlegen. Bei fehlenden Artikel-/Quellendaten BLOCKIERT mit genauer Rückfrage.",
+          "hands": "Höchstens drei priorisierte Befunde mit Belegen, betroffenem Abschnitt und Änderungsvorschlag."
+        },
+        {
+          "role": "WRITER", "agentId": "hsr_update", "label": "Änderungen vorbereiten",
+          "brief": "Bereite gezielte Vorher/Nachher-Textvorschläge und ein Änderungsbriefing vor, ohne das Repository zu verändern. Nutze nur bestätigte Quellen und freigegebene Affiliate-Katalogeinträge. Beachte CONTENT.md: Theorie, Recht, Versicherung und Glossar werbefrei; Empfehlungen erst nach Erklärung des Bedarfs, konkret begründet; native Empfehlung ODER passender Kaufberatungsblock, nicht beides. Keine erfundenen Händler-URLs, Preise, Verfügbarkeiten oder Testergebnisse. lastUpdated nur bei sachlich wesentlicher Inhaltsänderung vorschlagen, nicht für Formatierung oder Linkkosmetik. Fehlende Katalogeinträge als offen melden. Kein Commit, Push, PR, Deployment oder Publizieren.",
+          "hands": "Gezieltes Änderungsbriefing, Textvorschläge, bestätigte Link-IDs und Begründung für ein Datumsupdate."
+        },
+        {
+          "role": "REVIEWER", "agentId": "hsr_quality", "label": "Qualität und Vertrauen",
+          "brief": "Prüfe die Vorschläge gegen Artikel, Primärquellen und HomeStackR CONTENT.md: fachlich korrekt, verständlich, kontextuelle Empfehlungen, begründete Produktauswahl, richtige Kennzeichnung, keine doppelte Werbeplatzierung, reine Theorie/Recht werbefrei. Cookie-freier Datenschutz bleibt bestehen; keine personenbezogenen Analytics-Daten übernehmen. Prüfe, ob ein vorgeschlagenes lastUpdated wirklich eine sachliche Änderung widerspiegelt. Benenne fehlende Prüfungen/Belege ehrlich. Status ENTWURF GEPRÜFT, NACHARBEIT oder BLOCKIERT. Outbox enthält nur das geprüfte Änderungspaket; Umsetzung und Veröffentlichung brauchen einen eigenen, ausdrücklich freigegebenen Auftrag. Keine Website-/Repo-Änderung oder automatische Übergabe an bestehende Routinen.",
+          "hands": "Geprüftes Änderungspaket mit Risiken und offenen Prüfungen; wartet auf manuelle Betreiberfreigabe."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Lifestruct Pinterest Pilot",
+  "steps": [
+    {
+      "role": "ANALYST",
+      "agentId": "agent",
+      "label": "Pinterest auswerten",
+      "brief": "Nur Testdaten auswerten: Zeitraum, Impressionen und ausgehende Klicks je Pin vergleichen. Fehlende Werte und kleine Stichproben markieren. Keine PDF-Verkaeufe aus Klicks erfinden. Der technische Datenimport ist kein KI-Schritt.",
+      "hands": "Priorisierte Themen, belegte Zahlen, Datenluecken und Empfehlungen fuer neue Pins."
+    },
+    {
+      "role": "WRITER",
+      "agentId": "life_content",
+      "label": "Pin-Entwuerfe erstellen",
+      "brief": "Auf Basis der Analyse und eines bestaetigten PDF-Briefings Pin-Entwuerfe vorbereiten. Ohne PDF-Inhalt, echte Verkaufsseiten-URL oder Bildmaterial auf den Betreiber warten. Keine Uploads. Im Offline-Test keine echten Texte oder Bilder als KI-Ergebnis behaupten.",
+      "hands": "Pin-Entwuerfe mit Text, Bildzuordnung, Ziel-URL und offen markierten fehlenden Angaben."
+    },
+    {
+      "role": "REVIEWER",
+      "agentId": "life_review",
+      "label": "Batch-Vorbereitung pruefen",
+      "brief": "PDF-Aussagen, Markenregeln und Vollstaendigkeit pruefen. Danach gepruefte Daten an die vorhandenen CSV-Scripte uebergeben, sobald deren Schnittstelle bekannt ist. Keine Scripte erfinden oder Uploads starten. Der Betreiber gibt den fertigen Batch frei.",
+      "hands": "Pruefbericht und Script-Eingabedaten; fehlende CSV-Schnittstelle als Blockade ausweisen."
+    }
+  ]
+}

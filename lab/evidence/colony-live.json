@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-10-19T22:16:33.806821+00:00",
+  "url": "https://sandboxhp-virtual-machine.tailcfc506.ts.net:8791",
+  "httpsCertificateValidated": true,
+  "accessChecks": {
+    "anonymous": 401,
+    "missingToken": 403,
+    "foreignOrigin": 403
+  },
+  "live": true,
+  "configuredProfiles": 31,
+  "model": "deepseek-v4.1-flash",
+  "saveUnchanged": true,
+  "inferenceTested": false,
+  "realPilotAccepted": false,
+  "checks": [
+    {
+      "mode": "desktop",
+      "rooms": [
+        "Lifestruct",
+        "HomeStackR",
+        "ORCHESTRATOR",
+        "Ashveil",
+        "Verbindung · Lifestruct",
+        "Verbindung · Ashveil",
+        "Verbindung · HomeStackR"
+      ],
+      "pipelines": 13,
+      "calls": 0,
+      "commitId": "af3bc8d7-8940-4529-835a-87d422127b61",
+      "notice": "Testbetrieb · KI aktiv (opencode.ai, openrouter.ai)",
+      "businessConsoleConnected": true,
+      "pageErrors": []
+    },
+    {
+      "mode": "mobile",
+      "rooms": [
+        "Lifestruct",
+        "HomeStackR",
+        "ORCHESTRATOR",
+        "Ashveil",
+        "Verbindung · Lifestruct",
+        "Verbindung · Ashveil",
+        "Verbindung · HomeStackR"
+      ],
+      "pipelines": 13,
+      "calls": 0,
+      "commitId": "af3bc8d7-8940-4529-835a-87d422127b61",
+      "notice": "Testbetrieb · KI aktiv (opencode.ai, openrouter.ai)",
+      "businessConsoleConnected": true,
+      "pageErrors": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-19T10:36:07+00:00",
+  "commitId": "af3bc8d7-8940-4529-835a-87d422127b61",
+  "backup": "colony/backups/af3bc8d7-8940-4529-835a-87d422127b61",
+  "labBackup": "/home/sandboxhp/Schreibtisch/StarNet-Lab/.lab-state/authoring-backups/before-colony-takeover-1792403838995.json",
+  "rooms": [
+    "Ashveil",
+    "HomeStackR",
+    "Lifestruct",
+    "ORCHESTRATOR"
+  ],
+  "pipelines": 13,
+  "installedIdentities": 17,
+  "identitiesInSave": 18,
+  "roleCatalogue": 23,
+  "crewRows": 30,
+  "crewSummary": "0 WORKING13 IDLE17 OFFLINE",
+  "modelCalls": 0,
+  "offlineNegativeChecks": {
+    "run": 403,
+    "command": 403
+  },
+  "realPilotAccepted": false,
+  "screenshot": "/tmp/opencode/colony-implementation/takeover/desktop.png"
+}

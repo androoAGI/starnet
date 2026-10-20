@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+.lab-state/
 
 # OS junk
 Thumbs.db
@@ -225,3 +226,7 @@ dev/.scratch-workspace-usl-proof/
 dev/.scratch-workspace.recovery-owner.json.generations/
 # local gate/sweep logs and scratch output moved out of the repo root. Never committed.
 /logs/
+
+# Lab-only WebP derivatives of StarNet's non-MIT industrial art (lab/make-webp.cjs).
+# Generated locally; the PNG originals remain the source of truth.
+frontend/assets/industrial/**/*.webp
