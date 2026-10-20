@@ -104,6 +104,7 @@ test/provider.openrouter.test.js
 test/provider.openai-compatible.test.js
 test/provider.opencode-identity.test.js
 test/provider.remedy.test.js
+test/lab-notice-status.test.js
 test/provider.ollama-native.test.js
 test/provider.ollama-system.test.js
 test/provider.host-notes.test.js

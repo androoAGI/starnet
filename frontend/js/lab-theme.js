@@ -3,6 +3,12 @@
 const labStyle = new URLSearchParams(location.search).get('lab-style') === 'original' ? 'original' : 'custom';
 document.documentElement.dataset.labStyle = labStyle;
 
+/* The Go endpoint the lab points the CUSTOM card at. It belongs to the FILE, not to the try-block below:
+   a `const` inside a block is not visible outside it, and the notice text below reads it — so the block-scoped
+   copy made the whole status line throw a ReferenceError, and the catch turned that into the false banner
+   "Status nicht erreichbar — Seite neu laden" while the station answered 200 the whole time (2026-10-20). */
+const GO_BASE = 'https://opencode.ai/zen/go/v1';
+
 /* The lab has no managed (STARNET) account. If a previous session persisted that
    provider, boot would strand on the RESUME screen — pin the dev provider instead. */
 try {
@@ -14,7 +20,6 @@ try {
      the GO path. The GO gateway also demands a conversation id in x-opencode-session — StarNet sends one
      per run. */
   const baseKey = 'starnet.byok.baseUrl.custom';
-  const GO_BASE = 'https://opencode.ai/zen/go/v1';
   const base = localStorage.getItem(baseKey) || '';
   let host = null; try { host = base ? new URL(base).hostname : null; } catch (_) { host = null; }
   if (!base || (host && /(^|\.)opencode\.ai$/i.test(host))) {
