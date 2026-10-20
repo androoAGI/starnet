@@ -36,6 +36,11 @@ async function writePlugin(id, source, manifest) {
 
 (async () => {
   await fsp.mkdir(PLUGINS, { recursive: true });
+  // A plugin is CommonJS (module.exports / require). Node reads the module type from the NEAREST package.json —
+  // and a temp root under /tmp can inherit a STRAY package.json of an unrelated tool (this host had
+  // /tmp/package.json with "type": "module"), which turned every plugin into an ES module: "module is not
+  // defined" and not a single plugin loaded. The plugin root pins its own type.
+  await fsp.writeFile(path.join(DIR, 'package.json'), JSON.stringify({ name: 'starnet-plugins', private: true, type: 'commonjs' }) + '\n', 'utf8');
   try {
     // ---- 1. A PLUGIN SUBSCRIBES TO THE SPINE AND ITS HANDLER ACTUALLY FIRES ----
     {

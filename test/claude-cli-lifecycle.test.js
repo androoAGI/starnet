@@ -234,6 +234,10 @@ const msgs = () => [{ role: 'system', content: 'Lifecycle fixture' }, { role: 'u
   //    persistent child (mocked) whose system prompt is a REAL temp file, then exits without releasing it.
   {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-cli-exit-'));
+    // The host script is CommonJS. Node reads the module type from the NEAREST package.json — and a temp root
+    // under /tmp can inherit a STRAY package.json of an unrelated tool (this host had /tmp/package.json with
+    // "type": "module"), which turned the host into an ES module: "require is not defined". Pin the type here.
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'starnet-cli-exit-host', private: true, type: 'commonjs' }) + '\n', 'utf8');
     const host = path.join(dir, 'host.js');
     fs.writeFileSync(host, [
       "'use strict';",

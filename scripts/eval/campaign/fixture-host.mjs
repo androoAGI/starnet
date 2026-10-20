@@ -93,6 +93,13 @@ function listFiles(root) {
 
 export function materializeFixture(fixture, root) {
   mkdirSync(root, { recursive: true });
+  /* THE FIXTURE'S OWN MODULE TYPE (2026-10-20). A fixture writes CommonJS files (module.exports, require) and
+     then runs them with node. Node decides the module type from the NEAREST package.json — and in a temp root
+     under /tmp that can be a STRAY package.json of an unrelated tool (this host had /tmp/package.json with
+     "type": "module" from a desktop runtime). The fixture then ran as ESM: "require is not defined", exit 1
+     instead of the expected 7, and the recovery scenario scored as broken. The fixture root therefore PINS its
+     own type, so the fixture means the same thing on every machine. */
+  writeFileSync(resolve(root, 'package.json'), JSON.stringify({ name: 'starnet-eval-fixture', private: true, type: 'commonjs' }) + '\n', 'utf8');
   for (const [name, content] of Object.entries(fixture.setup?.files || {})) {
     const file = resolve(root, name); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, String(content), 'utf8');
   }

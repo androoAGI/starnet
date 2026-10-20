@@ -9,21 +9,57 @@
 //
 // Zero dependencies: Node 22 has global fetch + global WebSocket.
 import { spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* WHERE THE BROWSER LIVES (2026-10-20). The candidate list was Windows-only (the original dev box), so on any
+   Linux or macOS machine the visual tests could not even start: "No Chrome/Chromium binary found". The list now
+   knows the usual Linux/macOS installs AND the Playwright browser cache, which is where a headless Chromium
+   usually already sits on a CI box or a dev container. SKYNET_CHROME still wins. */
 const CHROME_CANDIDATES = [
   process.env.SKYNET_CHROME,
+  // Windows (the original dev box)
   'C:/Users/andro/AppData/Local/ms-playwright/chromium_headless_shell-1228/chrome-headless-shell-win64/chrome-headless-shell.exe',
   'C:/Users/andro/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  // Linux
+  '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+  '/snap/bin/chromium',
+  // macOS
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
 ].filter(Boolean);
+
+/* The Playwright browser cache: ~/.cache/ms-playwright/chromium-<build>/chrome-linux64/chrome (and the headless
+   shell). The build number changes with every Playwright release, so the directory is READ, not guessed. */
+function playwrightChromium() {
+  const roots = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    join(process.env.HOME || '', '.cache', 'ms-playwright'),
+    join(process.env.HOME || '', 'Library', 'Caches', 'ms-playwright'),
+  ].filter(Boolean);
+  const out = [];
+  for (const root of roots) {
+    let entries = [];
+    try { entries = readdirSync(root); } catch (_) { continue; }
+    for (const dir of entries.filter((d) => /^chromium(_headless_shell)?-\d+$/.test(d)).sort().reverse()) {
+      const base = join(root, dir);
+      for (const rel of ['chrome-linux64/chrome', 'chrome-linux/chrome', 'chrome-headless-shell-linux64/chrome-headless-shell',
+        'chrome-mac/Chromium.app/Contents/MacOS/Chromium', 'chrome-win/chrome.exe']) {
+        const full = join(base, rel);
+        if (existsSync(full)) out.push(full);
+      }
+    }
+  }
+  return out;
+}
 
 export function findChrome() {
   for (const c of CHROME_CANDIDATES) if (existsSync(c)) return c;
-  throw new Error('No Chrome/Chromium binary found. Set SKYNET_CHROME.');
+  for (const c of playwrightChromium()) if (existsSync(c)) return c;
+  throw new Error('No Chrome/Chromium binary found. Set SKYNET_CHROME (or install a Chromium).');
 }
 
 // Launch a headless Chrome with the CDP endpoint open. Returns the child process.
