@@ -58,9 +58,10 @@ fn connector_encryption_key_with(
 fn valid_connector_key(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|c| c.is_ascii_hexdigit())
 }
-pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
+pub(crate) const KEYCHAIN_PROVIDERS: [&str; 14] = [
     "openrouter",
     "openai",
+    "azure",
     "anthropic",
     "gemini",
     "xai",
@@ -87,8 +88,9 @@ pub(crate) const SIDECAR_CHANNEL_TOKEN_ENVS: [(&str, &str); 4] = [
     ("matrix", "SKYNET_MATRIX_TOKEN"),
 ];
 
-pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
+pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 13] = [
     ("openai", "SKYNET_OPENAI_API_KEY"),
+    ("azure", "SKYNET_AZURE_API_KEY"),
     ("anthropic", "SKYNET_ANTHROPIC_API_KEY"),
     ("gemini", "SKYNET_GEMINI_API_KEY"),
     ("xai", "SKYNET_XAI_API_KEY"),
@@ -106,6 +108,7 @@ pub(crate) fn normalize_provider(provider: &str) -> &'static str {
     match provider.trim().to_ascii_lowercase().as_str() {
         "codex" | "openai-codex" => "codex",
         "openai" | "openai-api" => "openai",
+        "azure" | "azure-foundry" | "azure-openai" | "foundry" => "azure",
         "anthropic" | "claude" => "anthropic",
         "gemini" | "google" | "google-ai" | "google-gemini" => "gemini",
         "grok" | "grok-oauth" | "xai-oauth" => "grok",
@@ -555,6 +558,8 @@ mod tests {
     fn provider_aliases_normalize_to_runtime_ids() {
         let cases = [
             (" OpenAI-API ", "openai"),
+            (" Azure-Foundry ", "azure"),
+            ("azure-openai", "azure"),
             ("claude", "anthropic"),
             ("google-gemini", "gemini"),
             ("grok-oauth", "grok"),

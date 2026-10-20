@@ -226,3 +226,4 @@ test/skills.candidate-lifecycle.http.test.js
 test/skills.evaluation-spend.http.test.js
 test/lean-prompt.e2e.test.js
 test/host-notes.strict-template.e2e.test.js
+test/provider-azure.http.test.js

@@ -6,6 +6,7 @@ window.OverseerSetup = (() => {
   const screen = () => el('screen-connect');
   const providers = {
     grok: ['Grok','Sign in'], kimi: ['Kimi','Sign in'], openrouter: ['OpenRouter','API key'],
+    azure: ['Azure Foundry','Enterprise · API key'],
     openai: ['OpenAI','ChatGPT or API key'], anthropic: ['Anthropic','API key'], gemini: ['Gemini','API key'],
     ollama: ['Ollama','Free · local'], xai: ['xAI','API key'], groq: ['Groq','API key'],
     mistral: ['Mistral','API key'], deepseek: ['DeepSeek','API key'], together: ['Together','API key'],
@@ -19,6 +20,7 @@ window.OverseerSetup = (() => {
     if (help) help.textContent = provider === 'starnet' ? 'Confirm your account in the browser, then choose a model.'
       : provider === 'ollama' ? 'Choose a model installed on this computer.'
       : provider === 'claude-cli' ? 'Sign in with your Claude subscription, then choose a model.'
+      : provider === 'azure' ? 'Connect your Azure resource with its endpoint, deployment name, and API key.'
       : provider === 'custom' ? 'Enter your endpoint, then choose or enter a model ID.'
       : provider === 'openai' ? 'Sign in with ChatGPT or add an OpenAI API key.'
       : ['grok','kimi','codex'].includes(provider) ? 'Sign in, then choose a model from your account.'

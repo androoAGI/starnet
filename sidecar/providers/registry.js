@@ -583,6 +583,22 @@
       order: 60
     },
     {
+      id: 'azure',
+      aliases: ['azure-foundry', 'azure-openai', 'foundry'],
+      name: 'Azure Foundry', label: 'AZURE FOUNDRY',
+      priceFamily: null, // Azure deployment names and enterprise rates cannot be priced as public OpenAI models.
+      endpoint: 'your Azure resource /openai/v1',
+      blurb: 'Azure model deployments', live: true,
+      adapter: 'openai-compatible', apiMode: 'chat_completions',
+      authType: 'api_key', keyRequired: true,
+      keyEnv: ['AZURE_OPENAI_API_KEY', 'AZURE_AI_API_KEY', 'SKYNET_AZURE_API_KEY'],
+      baseUrl: '', baseUrlEnv: ['AZURE_OPENAI_ENDPOINT', 'AZURE_AI_ENDPOINT'],
+      requiresBaseUrl: true, modelsPath: '/models', modelsRequireAuth: true,
+      defaultReasoningEffort: 'medium', wireReasoningEffort: true,
+      unmetered: false, credentialPool: true,
+      supportsTools: null, supportsReasoning: null, order: 21
+    },
+    {
       id: 'custom',
       aliases: ['openai-compatible', 'local', 'vllm', 'lmstudio'],
       name: 'Custom OpenAI-Compatible',

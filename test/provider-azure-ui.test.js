@@ -1,0 +1,72 @@
+'use strict';
+const assert = require('node:assert/strict');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const path = require('node:path');
+
+(async () => {
+  const values = new Map();
+  const localStorage = { getItem: k => values.get(k) || null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k) };
+  let valid = true, saveAllowed = true, nativeAllowed = true;
+  const nativeCalls = [];
+  const calls = [];
+  const load = (desktop = false) => {
+    const context = { localStorage, console, window: desktop ? { __TAURI__: { core: { invoke: async (command, args) => { nativeCalls.push({ command, args }); if (!nativeAllowed) throw new Error('keychain denied'); } } } } : {}, location: { search: '', origin: 'http://127.0.0.1:8787' }, URLSearchParams, URL, AbortController, setTimeout, clearTimeout,
+      fetch: async (url, init) => {
+        const body = JSON.parse(init.body); calls.push({ url, body });
+        if (url.endsWith('/validate')) return Response.json(valid ? { credentialVerified: true, baseUrl: new URL(body.baseUrl).origin + '/openai/v1', model: body.model } : { credentialVerified: false, error: 'deployment refused' });
+        return Response.json({ ok: saveAllowed, rev: 'test-revision', unattendedReady: true }, { status: saveAllowed ? 200 : 500 });
+      }
+    };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../frontend/app/harness.js'), 'utf8') + ';globalThis.h=Harness;', context);
+    return context.h;
+  };
+  let h = load();
+  h.setProv('openai'); h.setModel('previous-model');
+  await h.connectAzure({ baseUrl: 'https://example.openai.azure.com', key: 'test-azure-key', model: 'actual-deployment' });
+  assert.equal(h.getProv(), 'azure');
+  assert.equal(h.getModel(), 'actual-deployment');
+  assert.equal(h.getKey('azure'), 'test-azure-key');
+  assert.equal(h.getKey('openrouter'), '');
+  assert.equal(h.getBaseUrl('azure'), 'https://example.openai.azure.com/openai/v1');
+  assert.equal(calls[0].url, '/api/providers/validate');
+  assert.ok(calls.some(c => c.url.endsWith('/engine-key') && c.body.provider === 'azure' && c.body.key === 'test-azure-key'));
+  assert.equal(calls.filter(c => c.url.endsWith('/engine-key')).length, 1, 'key and endpoint are saved together once');
+  const before = JSON.stringify([...values]);
+  valid = false;
+  await assert.rejects(h.connectAzure({ baseUrl: 'https://wrong.openai.azure.com', key: 'bad-key', model: 'wrong' }), /deployment refused/);
+  assert.equal(JSON.stringify([...values]), before, 'rejected setup preserves all saved state');
+  valid = true; saveAllowed = false;
+  await assert.rejects(h.connectAzure({ baseUrl: 'https://example.openai.azure.com', key: 'replacement-key', model: 'new-deployment' }), /Could not confirm/);
+  assert.equal(JSON.stringify([...values]), before, 'a rejected store preserves renderer credentials, endpoint, model, and selection');
+  saveAllowed = true;
+  await assert.rejects(h.connectAzure({ baseUrl: 'https://another.openai.azure.com', key: '', model: 'other' }), /Enter an Azure/);
+  assert.equal(JSON.stringify([...values]), before, 'a previous resource key is never silently reused');
+  h = load();
+  assert.equal(h.getProv(), 'azure');
+  assert.equal(h.getModel(), 'actual-deployment');
+  const catalog = await h.listModels('azure');
+  assert.equal(catalog[0].id, 'actual-deployment');
+  assert.equal(catalog[0].fallback, true, 'saved deployment is not passed off as a fetched catalog');
+  await h.setKeyPool(['spare-for-original-resource'], 'azure');
+  const beforeResourceChange = JSON.stringify([...values]);
+  await assert.rejects(h.connectAzure({ baseUrl: 'https://another.openai.azure.com', key: 'other-resource-key', model: 'other' }), /Remove the Azure spare keys/);
+  assert.equal(JSON.stringify([...values]), beforeResourceChange, 'spare keys cannot be carried to another resource');
+  values.clear();
+  h = load(true);
+  await h.connectAzure({ baseUrl: 'https://example.openai.azure.com', key: 'native-test-key', model: 'native-deployment' });
+  assert.equal(nativeCalls.length, 1);
+  assert.equal(nativeCalls[0].command, 'harness_store_provider_key');
+  assert.equal(nativeCalls[0].args.provider, 'azure');
+  assert.equal(nativeCalls[0].args.key, 'native-test-key');
+  assert.equal(nativeCalls[0].args.baseUrl, 'https://example.openai.azure.com/openai/v1');
+  assert.equal(h.getKey('azure'), '', 'native credential is never exposed to the renderer');
+  assert.equal(localStorage.getItem('starnet.byok.key.azure'), null, 'native key is never stored in browser storage');
+  assert.equal(h.configured('azure'), true);
+  const beforeDeniedKeychain = JSON.stringify([...values]);
+  nativeAllowed = false;
+  await assert.rejects(h.connectAzure({ baseUrl: 'https://another.openai.azure.com', key: 'new-native-key', model: 'other' }), /keychain denied/);
+  assert.equal(JSON.stringify([...values]), beforeDeniedKeychain, 'denied keychain write preserves the old endpoint, deployment, and selection');
+  console.log('provider-azure-ui.test: OK');
+})().catch(error => { console.error(error); process.exitCode = 1; });
