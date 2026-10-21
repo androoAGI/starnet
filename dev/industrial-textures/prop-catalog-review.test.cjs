@@ -3,8 +3,13 @@ const assert = require('node:assert/strict');
 global.IndustrialTextures = { isRemaster: () => true, enabled: () => true, ready: Promise.resolve() };
 const P = require('../../frontend/app/propsprites.js'), M = require('../../frontend/app/worldmodel.js');
 const F = require('../../frontend/app/prop-catalog-fixture.js'), data = require('../../frontend/app/prop-catalog-data.js');
-const expected = P.CATALOG.flatMap(s => P.facings(s.id).map(r => s.id + ':' + ['s', 'w', 'n', 'e'][r]));
-assert.equal(data.catalogTypes, 161);   // + plugin_terminal (2026-09-29, wears the dispatch pylon art)
+/* A PROP THE PROJECTION PACK DOES NOT CARRY is drawn procedurally only (the SIGNS, 2026-10-21 — their
+   art is live, with the Commander's own words on it). The review harness pages through the PACK, so
+   such a prop is not in it: the expectation skips exactly the props the pack does not carry. */
+const manifest = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', '..', 'frontend', 'assets', 'industrial', 'projection-correction', 'manifest.json'), 'utf8'));
+const projected = s => !!manifest.props[s.artId || s.id];
+const expected = P.CATALOG.filter(projected).flatMap(s => P.facings(s.id).map(r => s.id + ':' + ['s', 'w', 'n', 'e'][r]));
+assert.equal(data.catalogTypes, 164);   // + plugin_terminal (2026-09-29, wears the dispatch pylon art) + the three SIGNS (2026-10-21)
 assert.deepEqual(data.views.map(v => v.key).sort(), expected.sort());
 assert.equal(new Set(data.views.map(v => v.key)).size, data.views.length);
 assert.equal(data.supportedViews, 209);

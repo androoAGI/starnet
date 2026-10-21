@@ -349,3 +349,22 @@ body:has(.refit-workflow-editor):has(> .tut-coach:not(.kit)) > .tut-ring { visib
   .refit-sub, .refit-spacer { display:none; }
   .refit-top .bb { padding-inline:7px; }
 }
+
+/* ---------- THE SIGN EDITOR (2026-10-21) ----------
+   The words on a board standing on the floor. One field, one honest readout: the size the text
+   asks for, before it is set. Theme vars only — the card is the same card as every other picker. */
+.refit-sign-editor .refit-guide-card { width: min(360px, 92vw); }
+.refit-sign-note { color: var(--text); font-size: 13.5px; line-height: 1.35; margin: 0 0 10px; }
+.refit-sign-note b { color: var(--ph-bright); font-weight: normal; }
+.refit-sign-text {
+  width: 100%; min-height: 74px; resize: vertical;
+  font-family: var(--font-mono, monospace); font-size: 14px; line-height: 1.35; letter-spacing: .5px;
+  color: var(--text); background: rgba(0, 0, 0, .35);
+  border: 1px solid var(--ph-dim); border-radius: 4px; padding: 7px 8px;
+}
+.refit-sign-text:focus { outline: none; border-color: var(--ph); box-shadow: 0 0 0 2px rgba(120, 190, 200, .18); }
+.refit-sign-size {
+  margin: 7px 0 10px; font-family: var(--font-mono, monospace); font-size: 11.5px;
+  letter-spacing: 2px; color: var(--ph-dim); text-align: right;
+}
+.refit-sign-editor .refit-actions { display: flex; gap: 6px; justify-content: flex-end; }

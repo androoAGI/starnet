@@ -827,6 +827,9 @@ test/proprotate.test.js
 test/recliner-side-seat.test.js
 test/sprite-sit-facing.test.js
 test/prop-search.test.js
+test/signtext.test.js
+test/sign-prop.test.js
+test/sign-editor.test.js
 test/prop-starter-shelf.test.js
 test/waitanchor.test.js
 test/harness.integration.test.js

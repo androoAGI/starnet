@@ -1231,7 +1231,7 @@ const Build = (() => {
     const density = typeof PropRemaster !== 'undefined' && PropRemaster.isProjection && PropRemaster.isProjection() ? 4 : 1;
     const off = document.createElement('canvas'); off.width = nativeW * density; off.height = nativeH * density;
     const o = off.getContext('2d'); o.scale(density, density); o.translate(12, 12); o.imageSmoothingEnabled = true;
-    try { PropSprites.setCtx(o); PropSprites.setNow(0); PropSprites.draw({ t: p.t, x: 0, y: 0, w: p.w || 1, h: p.h || 1, r: p.r | 0, m: p.m ? 1 : 0 }, false); }
+    try { PropSprites.setCtx(o); PropSprites.setNow(0); PropSprites.draw({ t: p.t, x: 0, y: 0, w: p.w || 1, h: p.h || 1, r: p.r | 0, m: p.m ? 1 : 0, text: p.text || '' }, false); }
     catch (e) { return; }
     finally { if (ctx) PropSprites.setCtx(ctx); }
     const c = document.createElement('canvas'); c.width = 84; c.height = 54;   // the card's art well (refit-easy.css .refit-sel-art)
@@ -1776,7 +1776,7 @@ const Build = (() => {
   // latched, then Props, it painted every line outline and junction plate over the furnishing with no visible way off (wave 2, build-11)
   const altOn = () => altHeld || (altLatched && buildGroup === 'workflow');
   const placingProp = () => tool === 'prop' || !!hand;   // a piece is in hand — through the PROP tool or the hotbar
-  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide'];
+  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide', 'text'];   // 'text' = a SIGN's own words ride along with a copy
   // an agent this station crews (a pipette or a copy may carry only these — an id from elsewhere is dropped)
   const agentHere = aid => !!aid && (((opts && typeof opts.agents === 'function' && opts.agents()) || []).some(a => a && a.id === aid));
   // what the pipette picks up: the type, its settings (passes, verdict, wait), its facing, and for a BAY its crew, role and brief
@@ -5377,6 +5377,9 @@ const Build = (() => {
     // an UNBOUND connector/plugin terminal says "CLICK TO BIND" on the floor and in its hover card — so one click
     // opens the bind editor (it only selected it, and members reported "no bind option": only unbind/cancel showed)
     if((p.t==='connector_portal'&&!p.connectorId)||(p.t==='plugin_terminal'&&!p.pluginId))return configureProp(p,ev);
+    // a SIGN is nothing but its words: one click opens the editor (the board is the label, the
+    // label is the board — there is no other setting to show first)
+    if(isSignProp(p.t))return openSignEditor(p.id,ev);
     // THE CARD AND THE FLOOR ARE ONE LINE: a click on a line machine opens the docked Workflow panel on it
     // (or re-selects it there), without panning — the floor is where the Commander is looking
     if(WF_PART[p.t]){const id=p.id;inspectTimer=setTimeout(()=>{if(running&&selectedPropId===id&&!pinchLock){finFocusLine(id);openWorkflowPanel(id,true);}},400);}
@@ -5429,6 +5432,7 @@ const Build = (() => {
       if(!made.side&&!made.symmetric)add('\u21bb SIDE VIEW',async()=>{setHint('Starting a side view of '+(made.label||'this prop')+'\u2026');const r=await startMakeSide(p.t);if(!r)setHint('A prop job is already running \u00b7 wait for it to finish');else setHint(r.ok?'Making a side view of '+(made.label||'this prop')+' \u00b7 about $0.30 \u00b7 it turns with R when it lands':(r.message||'That side view could not be started.'));});
     }
     if(isEditableProp(p.t)&&!WORKSTATION_TYPES[p.t])add('CONFIGURE',()=>configureProp(p,orientEv()));
+    if(isSignProp(p.t))add('WORDS',()=>openSignEditor(p.id,orientEv()));   // a SIGN's own text (sign editor)
     addKey('DELETE','Del',()=>deleteSelected(orientEv()),'refit-sel-del');
     // typing an exact tile: its own key in the grid (the arrows nudge; this is for "put it at 12, 4"), the fields only when asked
     addKey('POSITION','',()=>{positionOpen=!positionOpen;renderSelection();},'refit-sel-pos').setAttribute('aria-expanded',String(positionOpen));
@@ -5454,6 +5458,7 @@ const Build = (() => {
     if (p.routes && typeof p.routes === 'object') cfg.routes = Object.assign({}, p.routes);
     if (p.def) cfg.def = p.def;
     if (p.door) cfg.door = p.door;
+    if (p.text) cfg.text = p.text;   // a SIGN's words belong to the copy, not to the shelf
     return { t: p.t, w: p.w || 1, h: p.h || 1, block: s.blocks !== false, cfg };
   }
   // the nearest clear spot for a copy: right of it, below, left, above — then ring by ring outward
@@ -6217,6 +6222,51 @@ const Build = (() => {
     if (line) key('DELETE LINE', 'Del', () => deleteLine(line.id, orientEv()), 'refit-sel-del');
     else key('DELETE', 'Del', () => deleteGroup(orientEv()), 'refit-sel-del');
   }
+  /* THE SIGN EDITOR (2026-10-21) — the words the Commander writes on a board standing on the
+     floor. The board MEASURES the words: signtext.js is the one rule that turns text into a size,
+     the model stores that size, and the art draws the words onto the board it was given. So the
+     editor shows the size the text asks for BEFORE it is set — the answer is never a surprise. */
+  function openSignEditor(propId, ev) {
+    if (!root || typeof SignText === 'undefined') return;
+    const p = station.propById(propId); if (!p || !SignText.isSign(p.t)) return;
+    cardCloseAll();
+    const g = document.createElement('div');
+    g.className = 'refit-guide refit-sign-editor';
+    g.innerHTML = `
+      <div class="refit-guide-card">
+        <h3>▮ ${esc(propLabel(p.t))} — WORDS</h3>
+        <p class="refit-sign-note">The board measures your words: a short label stays a small plate, every extra line makes it taller. <b>Enter</b> starts a new line — a new line is a new paragraph, and paragraphs make the board taller.</p>
+        <textarea class="refit-sign-text" rows="3" spellcheck="false" placeholder="YOUR TEXT HERE"></textarea>
+        <div class="refit-sign-size" aria-live="polite"></div>
+        <div class="refit-actions">
+          <button type="button" class="btn-sm" id="sign-clear">CLEAR</button>
+          <button type="button" class="btn-sm" id="sign-cancel">CANCEL</button>
+          <button type="button" class="btn-sm primary" id="sign-apply">SET WORDS</button>
+        </div>
+      </div>`;
+    root.appendChild(g);
+    requestAnimationFrame(() => g.classList.add('refit-swap'));   // soft rise-in on open (reduced-motion safe)
+    const area = g.querySelector('.refit-sign-text'), size = g.querySelector('.refit-sign-size');
+    area.value = String(p.text || '');
+    const measure = () => { const b = SignText.box(area.value, p.t); size.textContent = b.w + ' × ' + b.h + ' TILES'; };
+    area.addEventListener('input', measure);
+    measure();
+    const closeP = () => { if (g.parentNode) g.parentNode.removeChild(g); };
+    cardRegister(g, closeP);
+    const apply = text => {
+      const b = SignText.box(text, p.t);
+      const res = station.setPropText(p.id, text, b);
+      if (res && res.ok) { sfx('click'); flashTip(ev, 'words set · the board is now ' + res.w + ' × ' + res.h, true); closeP(); renderSelection(); }
+      else { sfx('bad'); flashTip(ev, (res && res.msg) || 'the board does not fit where it stands', false); }
+    };
+    g.querySelector('#sign-apply').onclick = () => apply(area.value);
+    g.querySelector('#sign-clear').onclick = () => { area.value = ''; apply(''); };
+    g.querySelector('#sign-cancel').onclick = closeP;
+    g.addEventListener('click', e => { if (e.target === g) closeP(); });
+    setTimeout(() => { try { area.focus(); area.select(); } catch (_) {} }, 30);
+  }
+  const isSignProp = t => typeof SignText !== 'undefined' && SignText.isSign(t);
+
   function configureProp(p, ev) {
     if (!p) return;
     const t = p.t;
@@ -6227,6 +6277,7 @@ const Build = (() => {
     if (t === 'airlock') return openDoorPicker(p.id, ev);
     if (t === 'connector_portal') return openConnectorEditor(p.id, ev);
     if (t === 'plugin_terminal') return openPluginBinder(p.id, ev);
+    if (isSignProp(t)) return openSignEditor(p.id, ev);   // a SIGN carries words, not settings (sign editor)
     if (t === 'intake' || t === 'outbox' || t === 'merger' || t === 'splitter' || t === 'joiner' || t === 'loop') return openFlowCard(p.id);
     // no config surface: answer the click honestly instead of doing nothing
     const sp = propSpec(t);
@@ -6271,6 +6322,11 @@ const Build = (() => {
     const row = rowSpots(d);
     if (row) return commitRow(row, ev);
     const s = propBox(propType, propFacing(propType));   // the TURNED box, not the catalog's
+    // a SIGN starts as the EMPTY board: its size is the engine's answer for no words yet, and it
+    // grows the moment the Commander writes on it. (The catalog row already says that; this keeps
+    // the two from drifting apart.) The guard is inline on purpose: this function is also read
+    // OUT of this file by the headless tests, which run it without the page's globals.
+    if (typeof SignText !== 'undefined' && SignText.isSign(propType)) { const b = SignText.box('', propType); s.w = b.w; s.h = b.h; }
     let px = d.cur.tx, py = d.cur.ty;
     // JUNCTION SNAP (connect-mode UX): a filter/splitter/merger only works ON a line — if it's dropped
     // NEXT to one, snap it onto the nearest belt tile instead of leaving an inert junction (the exact
@@ -6289,6 +6345,12 @@ const Build = (() => {
        BAY's crew (only an agent this station has), role, brief and hand-off — all in ONE undo with the piece itself */
     const held = hand && hand.t === propType ? hand : null;
     if (held && held.cfg) for (const k of HAND_CFG_KEYS) if (held.cfg[k] != null) placement[k] = held.cfg[k];
+    // a SIGN placed from the hand carries its WORDS — so it must also carry the size those words
+    // ask for, or the copy would be a board with text spilling over its frame.
+    if (typeof SignText !== 'undefined' && SignText.isSign(propType) && placement.text) {
+      const b = SignText.box(placement.text, propType);
+      placement.w = b.w; placement.h = b.h; s.w = b.w; s.h = b.h;
+    }
     if (held && propType === 'bay' && agentHere(held.agentId)) placement.agentId = held.agentId;
     const bayExtras = held && propType === 'bay' && (held.role || held.brief || held.hands);
     /* A JUNCTION ON A BELT goes through the model's junctionOnBelt (THE HAND, 2026-10-10): never on a belt's first or last tile
@@ -6335,6 +6397,9 @@ const Build = (() => {
       // ESC / right-click still drops the tool; rooms and blueprints keep their one-shot flow.
       // Configuration is a separate, explicit click on the placed object.
     }
+    // a SIGN is placed empty and asks for its words right away: the board is nothing but its text,
+    // so the editor opens the moment it lands (the same beat as a desk asking who sits there).
+    if (res && res.ok && typeof SignText !== 'undefined' && SignText.isSign(propType)) { selectedPropId = res.id; renderSelection(); openSignEditor(res.id, ev); }
     if (res && res.ok) renderEquipmentInfo(propType);
     if (res && res.ok && held && held.newLine) {   // NEW LINE (startNewLine): one INBOX, where they clicked — then the hand's way on
       setHand(null, { silent: true });
@@ -9352,6 +9417,10 @@ const Build = (() => {
       // a NAMED line's INBOX hover names the line (line naming) — the card is the ONE hover voice in
       // BUILD MODE (one-voice law), so the fact rides here; the canvas glance covers the card-less contexts.
       assign = '<div class="pc-assign ok">▸ LINE · ' + esc(placed.label) + '</div>';
+    } else if (placed && isSignProp(placed.t)) {
+      // a SIGN's words are the whole fact about it — the card shows them (or that there are none)
+      const words = String(placed.text || '').replace(/\s+/g, ' ').trim();
+      assign = '<div class="pc-assign' + (words ? ' ok' : '') + '">' + (words ? '▸ ' + esc(words.length > 72 ? words.slice(0, 72) + '…' : words) : 'NO WORDS YET — click it to write on it') + '</div>';
     }
     // a briefed dock's hover shows its duty line (a glance answer to "what does this step DO?")
     if (placed && placed.t === 'bay' && placed.brief) {

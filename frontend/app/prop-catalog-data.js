@@ -2,7 +2,7 @@
 'use strict';
 const PropCatalogData = {
   "version": 1,
-  "catalogTypes": 161,
+  "catalogTypes": 164,
   "supportedViews": 209,
   "source": "frontend/assets/industrial/projection-correction/manifest.json",
   "sourceSha256": "33b4b3030043946fc04d26a5334ab239e14d2a90c489fbaf023e516ab65a6774",
@@ -50,6 +50,14 @@ const PropCatalogData = {
     {
       "id": "decor",
       "label": "DECOR"
+    },
+    {
+      "id": "signs",
+      "label": "SIGNS"
+    },
+    {
+      "id": "yours",
+      "label": "MADE BY YOU"
     }
   ],
   "views": [

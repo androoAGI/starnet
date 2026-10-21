@@ -1728,6 +1728,7 @@ const WorldModel = (() => {
       if (opts.m) prop.m = 1;                              // mirrored handedness
       applyJunctionCfg(prop, opts);   // a FILTER/MERGER carries its routes/def/bufferSize (inert on other props)
       if (cleanDoor(opts.door)) prop.door = opts.door;   // an AIRLOCK carries its seal state (inert on other props)
+      if (typeof opts.text === 'string' && opts.text.trim()) prop.text = opts.text.replace(/\r\n?/g, '\n').slice(0, 240);   // a SIGN carries the words the Commander wrote on it
       doc.props.push(prop);
       emit([{ x1: x, y1: y, x2: x + w - 1, y2: y + h - 1 }].concat(sealRoomRects([prop])), { staticBakeUnchanged: t !== 'airlock' });
       return { ok: true, id };
@@ -4212,6 +4213,7 @@ const WorldModel = (() => {
         if (p.brief) lp.brief = p.brief;   // a dock's standing job brief -> the compiled plan (step editor; prompt text only)
         if (p.hands) lp.hands = p.hands;   // a dock's HANDS OFF phrase -> composed into that brief by the compiler (workflow panel)
         if (p.label) lp.label = p.label;   // an INTAKE's line name (step editor; legibility only, never routing)
+        if (p.text) lp.text = p.text;   // a SIGN's own words -> the words on the board (sign editor; legibility only)
         if (p.t === 'outbox' && p.sendTo) lp.sendTo = p.sendTo;   // SEND TO: the INBOX this OUTBOX hands its line's finished work on to -> plan.sendTo
         if (p.t === 'intake' && p.projectRoot) lp.projectRoot = p.projectRoot;
         if (p.limits) lp.limits = p.limits;   // an INTAKE's LINE BUDGET -> the compiled plan (pipeline normalizes; chain executor reads)
@@ -4614,6 +4616,30 @@ const WorldModel = (() => {
       emit([{ x1: p.x, y1: p.y, x2: p.x + (p.w || 1) - 1, y2: p.y + (p.h || 1) - 1 }], { staticBakeUnchanged: true });
       return { ok: true, id: propId, label: p.label || null };
     }
+    /* set/clear a SIGN's own TEXT (sign editor, 2026-10-21) — the words the Commander wrote on a
+       board standing on the floor. The model stores the words and the BOARD'S SIZE; it does not
+       measure the words: the size comes from the caller (signtext.js is the one rule), because the
+       model never imports the prop catalog. So the caller hands in the box the text asks for and
+       the model keeps the two in step — a board that must grow is re-measured here, and a board
+       that would grow INTO something else is refused (a sign must never eat a machine). */
+    function setPropText(propId, text, box) {
+      const p = doc.props.find(q => q.id === propId);
+      if (!p) return fail('NOT_FOUND', 'no such prop');
+      const t = (text == null ? '' : String(text)).replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').trim().slice(0, 240);
+      const w = Math.max(1, Math.min(16, (box && box.w | 0) || p.w || 1));
+      const h = Math.max(1, Math.min(16, (box && box.h | 0) || p.h || 1));
+      if ((p.text || '') === t && (p.w || 1) === w && (p.h || 1) === h) return { ok: true, id: propId, text: p.text || null, w, h };
+      const before = propFootprint(p);
+      if (w !== (p.w || 1) || h !== (p.h || 1)) {
+        const v = checkProp({ x1: p.x, y1: p.y, x2: p.x + w - 1, y2: p.y + h - 1 }, p.id, p.t);
+        if (!v.ok) return v;   // OVERLAP / OFF_DECK — the builder turns this into a sentence
+      }
+      snapshot();
+      if (t) p.text = t; else delete p.text;
+      p.w = w; p.h = h;
+      emit([before, propFootprint(p)], { staticBakeUnchanged: true });
+      return { ok: true, id: propId, text: p.text || null, w, h };
+    }
     function setPropProject(propId, projectRoot) {
       const p = doc.props.find(q => q.id === propId);
       if (!p) return fail('NOT_FOUND', 'no such prop');
@@ -4892,7 +4918,7 @@ const WorldModel = (() => {
       },
       // mutations
       addRoom, placeHallway, removeRoom, moveRoom, moveRooms, resizeRoom, setRoomKind, setFloor, setMaterial, setDeck, setWalls, setHull, paintTiles, renameRoom,
-      addProp, removeProp, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
+      addProp, removeProp, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropText, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
       setBelt, removeBelt, removeBelts, placeBeltRun, connectBelt, connectionPreview, hookedBelts, stampBlueprint, insertBayBetween, canInsertBayBetween, transact, lineGraph, applyLineLayout, blueprintGraph,
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
@@ -4964,7 +4990,7 @@ const WorldModel = (() => {
     // lookup is installed (i.e. a real client with the catalog); plain node tests keep every prop.
     if (propRules) doc.props = doc.props.filter(p => !(p && typeof p.t === 'string') || !!propRules(p.t));
     doc.props = doc.props.filter(p => p && typeof p === 'object' && typeof p.t === 'string')
-      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (p.t === 'bay' && typeof p.hands === 'string' && p.hands.trim()) o.hands = p.hands.slice(0, 160); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (p.t === 'outbox' && typeof p.sendTo === 'string' && p.sendTo.trim()) o.sendTo = p.sendTo.trim().slice(0, 64); if (p.t === 'intake' && typeof p.projectRoot === 'string' && p.projectRoot.trim()) o.projectRoot = p.projectRoot.trim().slice(0, 4096); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); if (p.t === 'plugin_terminal' && typeof p.pluginId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.pluginId.trim())) o.pluginId = p.pluginId.trim(); return o; });
+      .map(p => { const o = { id: p.id || null, t: p.t, x: p.x | 0, y: p.y | 0, w: Math.max(1, p.w | 0 || 1), h: Math.max(1, p.h | 0 || 1) }; if (p.block === false && !LEGACY_WALKABLE_DOCKS[p.t]) o.block = false; if (typeof p.agentId === 'string' && p.agentId) o.agentId = p.agentId; const r0 = cleanRot(p.r); if (r0) o.r = r0; if (p.m) o.m = 1; if (typeof p.role === 'string' && p.role) o.role = p.role.slice(0, 24); if (typeof p.brief === 'string' && p.brief.trim()) o.brief = p.brief.slice(0, 2000); if (p.t === 'bay' && typeof p.hands === 'string' && p.hands.trim()) o.hands = p.hands.slice(0, 160); if (typeof p.label === 'string' && p.label.trim()) o.label = p.label.slice(0, 48); if (typeof p.text === 'string' && p.text.trim()) o.text = p.text.replace(/\r\n?/g, '\n').slice(0, 240); if (p.t === 'outbox' && typeof p.sendTo === 'string' && p.sendTo.trim()) o.sendTo = p.sendTo.trim().slice(0, 64); if (p.t === 'intake' && typeof p.projectRoot === 'string' && p.projectRoot.trim()) o.projectRoot = p.projectRoot.trim().slice(0, 4096); if (p.t === 'intake' && p.limits && typeof p.limits === 'object') { const nl = normalizeLimits(p.limits); if (nl) o.limits = { maxHops: nl.maxHops, maxUsdPerMessage: nl.maxUsdPerMessage, maxUsdPerDay: nl.maxUsdPerDay }; } applyJunctionCfg(o, p); if (cleanDoor(p.door)) o.door = p.door; if (typeof p.connectorId === 'string' && p.connectorId.trim()) o.connectorId = p.connectorId.trim(); if (p.t === 'plugin_terminal' && typeof p.pluginId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(p.pluginId.trim())) o.pluginId = p.pluginId.trim(); return o; });
     // Explicit, pack-owned shrinking only. Keep the rendered centre and floor line;
     // never enlarge obstacles or reinterpret a custom saved size. Idempotent on reload.
     for (const p of doc.props) {

@@ -17,6 +17,14 @@
    Headless-safe: requiring the module does nothing until setCtx() is called. */
 'use strict';
 
+/* THE SIGN ENGINE (2026-10-21) — the pure text->size rule the sign art draws with. In the
+   browser it is the global signtext.js puts on the page (loaded BEFORE this file); under node it
+   is the module itself, so the headless render tests see the same chrome the browser does.
+   Deliberately NOT named SignText: that name belongs to the browser global, and a second
+   top-level `const SignText` in another script would be a duplicate global binding. */
+const SignEngine = (typeof SignText !== 'undefined') ? SignText
+  : (typeof require === 'function' ? require('./signtext.js') : null);
+
 const PropSprites = (() => {
   const TILE = 12;
   // The industrial remaster changes authored materials and construction, never world units.
@@ -10727,6 +10735,147 @@ const PropSprites = (() => {
     F.seatchair(x,y,w,h,f);
   };
 
+  /* ===================== THE SIGNS (2026-10-21) =====================
+     Three boards that carry the Commander's own words. The WORDS decide the size, and signtext.js
+     is the one rule that measures them — the art here never invents a size of its own, it only
+     draws the board it is handed and sets the words on it. The board is measured in TILES (the
+     footprint the model stores), so a board that grew is really a bigger board on the floor, not
+     a stretched picture.
+
+     The text is drawn in the station's own terminal face (VT323, the same face the bay nameplate
+     and the screens use) — a sign is a screen with a frame around it. */
+  /* the words as they fit INTO this board: the engine shrinks the letter before it clips anything */
+  function signLines(o, type, wTiles, hTiles) {
+    if (!SignEngine) return null;
+    try { return SignEngine.fit(o && o.text, type, wTiles, hTiles); } catch (e) { return null; }
+  }
+  /* set the words on the face: centred, one phosphor colour, the station's pixel font */
+  function signText(face, lines) {
+    if (!face || !lines || !lines.lines || !lines.lines.length) return;
+    const lh = lines.lineH, blockH = lines.lines.length * lh;
+    let y = face.y + Math.max(0, Math.floor((face.h - blockH) / 2)) + lh - 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = lines.font + "px 'VT323','Courier New',monospace";
+    ctx.fillStyle = face.ink;
+    for (const line of lines.lines) { ctx.fillText(line.text, face.x + face.w / 2, y); y += lh; }
+    ctx.restore();
+  }
+  /* an EMPTY board says so honestly: a dim dashed rule where the words would be, never a
+     placeholder sentence pretending to be the Commander's text. */
+  function signBlank(face, tint) {
+    const y = face.y + Math.floor(face.h / 2);
+    for (let x = face.x + 2; x < face.x + face.w - 2; x += 4) px(x, y, 2, 1, tint);
+  }
+  /* THE FACE — the rectangle the words are set in. It is derived from the board's own box and the
+     mood's chrome (the frame, the legs, the emitter, the mast) — the SAME numbers the engine
+     measured the board with, so the words always land inside the plate and never below it. */
+  function signFace(type, x, y, w, h) {
+    if (!SignEngine) return null;
+    const st = SignEngine.STYLES[type]; if (!st) return null;
+    const top = y - h, plateH = h - st.extraH;
+    return { x: x + st.frameX, y: top + st.frameY, w: w - 2 * st.frameX, h: plateH - 2 * st.frameY, top, plateH, st };
+  }
+
+  /* SIGN BOARD — a steel plate on two legs, bolted to the deck. The face is a dark inset panel
+     with a phosphor line of text; the legs carry it a few pixels above the floor so it reads as a
+     board standing on the floor rather than a panel painted on the wall. */
+  F.sign_board = (x, y, w, h, o) => {
+    const r = RAMP.steel, W = w, H = h;
+    const face = signFace('sign_board', x, y, W, H); if (!face) return;
+    const fy = face.top, fhh = face.plateH, legH = face.st.extraH;
+    shadow2(x + 3, y, W - 6);
+    // LEGS — two posts with splayed feet, so the board stands on the deck.
+    for (const lx of [x + 3, x + W - 6]) {
+      px(lx, y - legH, 3, legH, r.dk);
+      px(lx, y - legH, 3, 1, r.face);
+      px(lx, y - legH, 1, legH, r.lit);
+      px(lx - 1, y - 1, 5, 1, r.ao);                  // the foot
+      px(lx - 1, y - 1, 5, 1, shade(r.face, 0.10));
+    }
+    // THE PLATE — chamfered carcass, a stepped bezel and a recessed face.
+    chamf(x - 1, fy - 1, W + 2, fhh + 2, LINE, 2);
+    chamf(x, fy, W, fhh, r.face, 2);
+    px(x + 1, fy, W - 2, 1, r.top);                   // north-lit crown
+    keyEdge(x + 2, fy, Math.min(14, W - 4), 1, 0.26);
+    px(x, fy + 2, 1, fhh - 4, r.lit);                // west-lit flank
+    px(x + W - 1, fy + 2, 1, fhh - 4, r.dk);
+    rimEdge(x + W - 1, fy + 2, 1, fhh - 4, 0.20);
+    px(x + 1, fy + fhh - 1, W - 2, 1, r.ao);
+    wear(x + 2, fy + 1, W - 4, fhh - 2, 4, shade(r.face, -0.10));
+    for (const bx of [x + 2, x + W - 3]) { px(bx, fy + 2, 1, 1, r.sheen); px(bx, fy + fhh - 3, 1, 1, r.ao); }
+    // THE FACE — a dark inset panel: the words sit in a well, not on the steel.
+    inset(face.x - 1, face.y - 1, face.w + 2, face.h + 2, '#0d1418');
+    px(face.x, face.y, face.w, 1, shade('#0d1418', -0.4));
+    face.ink = '#cfe3e6';
+    const lines = signLines(o, 'sign_board', Math.max(1, (W / TILE) | 0), Math.max(1, (H / TILE) | 0));
+    if (lines && lines.lines.length) signText(face, lines);
+    else signBlank(face, shade('#cfe3e6', -0.62));
+  };
+
+  /* HOLO SIGN — an emitter on the deck throwing a light panel above it. No frame: the words hang
+     in the air, so the panel is drawn as light (a bright core, a soft falloff, scanlines), and the
+     emitter is the only solid thing on the floor. */
+  F.sign_holo = (x, y, w, h, o) => {
+    const W = w, H = h;
+    const face = signFace('sign_holo', x, y, W, H); if (!face) return;
+    const py = face.top, ph = face.plateH, emH = face.st.extraH;
+    shadow2(x + 2, y, W - 4);
+    // THE EMITTER — a squat drum with a lit slot.
+    chamf(x, y - emH, W, emH, LINE, 1);
+    px(x + 1, y - emH, W - 2, emH - 1, RAMP.gun.face);
+    px(x + 1, y - emH, W - 2, 1, RAMP.gun.top);
+    px(x + 2, y - emH + 1, W - 4, 1, shade(ACC.data, -0.3));
+    px(x + 3, y - 2, W - 6, 1, RAMP.gun.ao);
+    // THE PANEL — the light itself: a glass well, a bright core and a rim of bloom.
+    ctx.globalAlpha = 0.20; px(x - 1, py - 1, W + 2, ph + 2, ACC.data); ctx.globalAlpha = 1;
+    px(x, py, W, ph, shade(ACC.data, -0.72));
+    px(x + 1, py + 1, W - 2, ph - 2, shade(ACC.data, -0.58));
+    bloom(x + 1, py + 1, W - 2, ph - 2, ACC.data, 0.20);
+    scanl(x + 1, py + 1, W - 2, ph - 2, 0.14);
+    px(x, py, W, 1, shade(ACC.data, 0.20));
+    px(x, py + ph - 1, W, 1, shade(ACC.data, -0.40));
+    face.ink = '#e8fbff';
+    const lines = signLines(o, 'sign_holo', Math.max(1, (W / TILE) | 0), Math.max(1, (H / TILE) | 0));
+    if (lines && lines.lines.length) signText(face, lines);
+    else signBlank(face, shade('#e8fbff', -0.5));
+    // the emitter's beam: a light shaft from the drum up into the panel.
+    glow(x + 2, y - emH - 2, W - 4, 2, ACC.data, 0.30);
+  };
+
+  /* SIGN PYLON — a slim stele: a base plate, a mast and a small head carrying the words. The
+     narrowest of the three, for the short label at the head of a line. */
+  F.sign_pylon = (x, y, w, h, o) => {
+    const r = RAMP.gun, W = w, H = h;
+    const face = signFace('sign_pylon', x, y, W, H); if (!face) return;
+    const headY = face.top, headH = face.plateH, mastH = face.st.extraH;
+    shadow2(x, y, W);
+    // THE BASE — a splayed shoe bolted to the deck.
+    chamf(x - 1, y - 3, W + 2, 3, LINE, 1);
+    px(x, y - 2, W, 2, r.face);
+    px(x, y - 2, W, 1, r.top);
+    px(x + 1, y - 1, W - 2, 1, r.ao);
+    // THE MAST — one narrow column from the shoe up to the head.
+    const mw = Math.max(2, Math.min(4, W - 2)), mx = x + Math.floor((W - mw) / 2);
+    px(mx, headY + headH, mw, y - 3 - (headY + headH), r.dk);
+    px(mx, headY + headH, 1, y - 3 - (headY + headH), r.lit);
+    px(mx + mw - 1, headY + headH, 1, y - 3 - (headY + headH), r.ao);
+    // THE HEAD — a small framed plate, chamfered, with the words in it.
+    chamf(x - 1, headY - 1, W + 2, headH + 2, LINE, 2);
+    chamf(x, headY, W, headH, r.face, 2);
+    px(x + 1, headY, W - 2, 1, r.top);
+    keyEdge(x + 1, headY, Math.min(10, W - 2), 1, 0.24);
+    px(x, headY + 2, 1, headH - 4, r.lit);
+    px(x + W - 1, headY + 2, 1, headH - 4, r.dk);
+    px(x + 1, headY + headH - 1, W - 2, 1, r.ao);
+    inset(face.x - 1, face.y - 1, face.w + 2, face.h + 2, '#0b1114');
+    face.ink = '#d8e4d0';
+    const lines = signLines(o, 'sign_pylon', Math.max(1, (W / TILE) | 0), Math.max(1, (H / TILE) | 0));
+    if (lines && lines.lines.length) signText(face, lines);
+    else signBlank(face, shade('#d8e4d0', -0.6));
+  };
+
   const CATALOG = [
     // Industrial construction kit: cosmetic furniture, never new capability grants.
     { id: "industrial_locker", label: "MODULAR LOCKER", cat: "storage", tier: "cosmetic", w: 2, h: 1, animated: false, blocks: true },
@@ -10791,6 +10940,16 @@ const PropSprites = (() => {
     // capability objects get their own category, never mixed into cosmetics).
     { id: "missionboard", label: "MISSION BOARD", cat: "command", tier: "functional", w: 3, h: 1, animated: true, blocks: false, desc: "MISSION BOARD — the quest log made physical. Every pinned card is a real open quest; click the board to read them. It suggests, never gates." },
     { id: "trophycase", label: "TROPHY CASE", cat: "command", tier: "functional", w: 2, h: 2, animated: true, blocks: true, desc: "TROPHY CASE — the station's real achievements made permanent. Earned milestones, completed quests, and your living tools stand behind glass; click to open the case. It grants nothing — it remembers." },
+
+    /* ===================== SIGNS (2026-10-21) =====================
+       Three boards that stand on the floor and carry the Commander's OWN words. The text decides
+       how big the board is (signtext.js owns that rule: a short label is a small plate, a text with
+       two paragraphs is a tall one), so the catalog row is only the EMPTY board — the size the
+       words ask for arrives with the words. Pure decoration: a sign grants no power and routes no
+       work; it is the label a production line wears. */
+    { id: "sign_board", label: "SIGN BOARD", cat: "signs", tier: "cosmetic", w: 2, h: 2, animated: false, blocks: true, desc: "SIGN BOARD — a steel plate on two legs. Click it and write your own text: the board measures the words, so a short label stays a small plate and a notice with two paragraphs becomes a tall board. It labels a line; it does no work." },
+    { id: "sign_holo", label: "HOLO SIGN", cat: "signs", tier: "cosmetic", w: 2, h: 2, animated: true, blocks: true, desc: "HOLO SIGN — a light panel projected over its emitter. Click it and write your own text: the panel grows with the words. A label that glows on the floor; it does no work." },
+    { id: "sign_pylon", label: "SIGN PYLON", cat: "signs", tier: "cosmetic", w: 2, h: 2, animated: false, blocks: true, desc: "SIGN PYLON — a slim standing stele with a small head, for the short label at the start of a line. Click it and write your own text; the head grows with the words. It labels a line; it does no work." },
 
     /* ===================== COSMETIC ===================== */
     // SCREENS — ops & display dressing.
@@ -11007,6 +11166,7 @@ const PropSprites = (() => {
     workstation: 'WORKSTATIONS', workflow: 'WORKFLOW', capability: 'CAPABILITY', isolation: 'ISOLATION',
     command: 'COMMAND',   // G1b: mission surfaces — functional-but-not-capability (MISSION BOARD)
     screens: 'SCREENS', lab: 'LAB', storage: 'STORAGE', comms: 'COMMS', lounge: 'LOUNGE', decor: 'DECOR',
+    signs: 'SIGNS',   // the boards that carry the Commander's own text (2026-10-21)
     yours: 'MADE BY YOU',   // player-made props (userprops.js): decoration only, one south view each
   };
 
@@ -11339,7 +11499,8 @@ const PropSprites = (() => {
     // applied — a prop function must never bake its own mount height.
     const lift = surfaceLift(f);
     const X = f.x * TILE, Y = f.y * TILE - lift, W = (f.w || 1) * TILE, H = (f.h || 1) * TILE;
-    const o = { x: f.x, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null, tagRoom: f.tagRoom || null };
+    const o = { x: f.x, t: f.t, work: !!work, agentId: f.agentId || null, dockName: f.dockName || null, door: f.door || null, tagRoom: f.tagRoom || null };
+    if (f.text) o.text = f.text;   // a SIGN's own words -> the face of the board (sign editor)
     o.occupied = live && typeof live.occupied === 'boolean' ? live.occupied : !!work;
     o.still = !!(live && live.still);
     o.scanning = !!(live && live.scanning);
