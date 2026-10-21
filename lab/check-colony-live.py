@@ -50,7 +50,8 @@ def main():
         assert ids == {a['id'] for a in view['team'] if a['nativeInstalled']}
         saved = get('/api/save')['save']
         profiles = [saved['agent'], *saved.get('agents', [])]
-        assert all(a.get('provider') == 'custom' and a.get('model') == 'deepseek-v4.1-flash' for a in profiles)
+        assert all(a.get('provider') == 'custom' and a.get('model') for a in profiles)
+        assert all(wire.get('provider') == 'custom' and wire.get('model') for wire in view['configuration']['models'].values()), view['configuration']['models']
         browser = p.chromium.launch(executable_path=binary, args=['--no-sandbox', '--disable-dev-shm-usage'])
         try:
             for mode, width, height in [('desktop', 1440, 1000), ('mobile', 390, 900)]:
@@ -99,7 +100,7 @@ def main():
         api.dispose()
     evidence = {'checkedAt': datetime.now(timezone.utc).isoformat(), 'url': BASE,
                 'httpsCertificateValidated': True, 'accessChecks': {'anonymous': 401, 'missingToken': 403, 'foreignOrigin': 403},
-                'live': True, 'configuredProfiles': len(profiles), 'model': 'deepseek-v4.1-flash',
+                    'live': True, 'configuredProfiles': len(profiles), 'modelsByAgent': {key: value['model'] for key, value in view['configuration']['models'].items()},
                 'saveUnchanged': True, 'inferenceTested': False, 'realPilotAccepted': False, 'checks': reports}
     (ROOT / 'lab/evidence/colony-live.json').write_text(json.dumps(evidence, indent=2, ensure_ascii=False))
     print(json.dumps(evidence, indent=2, ensure_ascii=False))

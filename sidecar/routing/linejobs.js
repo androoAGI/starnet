@@ -69,6 +69,11 @@ function normJob(j) {
   // (additive) a standing refusal counted on one record: how many hand-offs it stands for
   const rep = Math.floor(num(j.repeats));
   if (rep > 1) job.repeats = Math.min(rep, 1e6);
+  if (j.editorial && j.editorial.version === 1 && ['ready_for_owner', 'needs_revision', 'blocked'].includes(j.editorial.status)) {
+    job.editorial = { version: 1, status: j.editorial.status, packetId: str(j.editorial.packetId, 64), draftHash: str(j.editorial.draftHash, 64),
+      checkedAt: num(j.editorial.checkedAt), sourceCount: num(j.editorial.sourceCount), findings: num(j.editorial.findings), summary: str(j.editorial.summary, 1500),
+      costKnown: j.editorial.costKnown === true, operatorApproved: false };
+  }
   return job;
 }
 function normalizeAll(value) {
@@ -90,7 +95,7 @@ function start(state, o) {
 function finish(state, id, o) {
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
-  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs }));
+  const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, editorial: o.editorial || state.jobs[i].editorial }));
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: { jobs }, job };
 }
@@ -150,6 +155,7 @@ function summary(j) {
     usd: j.usd, steps: j.runs.length, preview: j.output.replace(/\s+/g, ' ').trim().slice(0, 240), error: j.error, retryOf: j.retryOf,
     streamId: j.streamId, notes: j.notes.length, from: j.from || null, sentTo: j.sentTo || null };
   if (j.repeats > 1) s.repeats = j.repeats;
+  if (j.editorial) s.editorial = j.editorial;
   return s;
 }
 function list(state, o) {

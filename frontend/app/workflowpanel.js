@@ -63,6 +63,8 @@ const WorkflowPanel = (() => {
     return W.lineFlow(H.plan(), c, typeof Pipeline !== 'undefined' ? Pipeline : null, g ? g.props : []);
   }
   const prop = id => (id && H.station().propById(id)) || null;
+  const businessOf = f => !f || typeof HomeStackRWorkflows === 'undefined' ? null : HomeStackRWorkflows.describe(f.trigger.propId, f.order.map(id => (prop(id) || {}).agentId), window.ColonyRoomState, window.ColonyProcessState);
+  const businessHTML = b => '<section class="wf-sec wf-business"><h3>' + esc(b.label) + '</h3><p class="wf-help">' + esc(b.reason) + '</p><a class="bb" href="' + esc(b.href) + '" target="_blank" rel="noopener noreferrer">Business-Steuerung öffnen</a></section>';
   const nameOf = aid => H.agentLabel(aid);
   /* an agent is shown by its SKIN — the same body the floor draws (AgentPortraits.thumbHTML: crisp, cached per skin
      + size + device scale, a neutral silhouette while a skin loads). An id the roster does not know gets the
@@ -401,7 +403,7 @@ const WorkflowPanel = (() => {
   function paintHead(f) {
     const head = $('#wf-head'); if (!head) return;
     const W = WL(), c = comp(), intake = f && f.trigger.propId ? prop(f.trigger.propId) : null;
-    const tr = triggers(f);
+    const tr = triggers(f), business = businessOf(f);
     const r = f && c ? W.readiness(f, c, { hasCompute: H.hasCompute, errors: (H.plan() || {}).errors || [], labelOf: H.valLabel, isCrew,
       briefOf: pid => { const p = prop(pid); return p && (p.brief || p.hands); }, stepName: pid => { const p = prop(pid); return p && p.label; }, triggers: tr }) : null;
     const est = f ? W.costEstimate(f, testsMap()) : null;
@@ -434,8 +436,9 @@ const WorkflowPanel = (() => {
        on — the send box lives on the INBOX card). The pill keeps the station's own word — the status an agent reads with
        station.layout, held equal by station-layout.e2e — and beside it a key, ▶ SEND A JOB, takes you to that box (hidden while
        the INBOX card is the one open: the box is right there). */
-    const sendTo = r && r.ready && f && f.trigger && f.trigger.propId ? f.trigger.propId : '';
-    if (r) { pill.textContent = W.pillText(r); pill.className = 'wf-pill' + (r.ready ? ' ok' : ''); pill.dataset.go = r.ready ? sendTo : (r.blocking[0].propId || ''); }
+    const sendTo = !business && r && r.ready && f && f.trigger && f.trigger.propId ? f.trigger.propId : '';
+    if (business) { pill.textContent = business.label; pill.className = 'wf-pill'; pill.dataset.go = ''; }
+    else if (r) { pill.textContent = W.pillText(r); pill.className = 'wf-pill' + (r.ready ? ' ok' : ''); pill.dataset.go = r.ready ? sendTo : (r.blocking[0].propId || ''); }
     else { pill.textContent = 'CONNECT IT TO A LINE'; pill.className = 'wf-pill'; pill.dataset.go = ''; }
     const toSend = () => { select(sendTo); setTimeout(() => { const t = $('#wf-send-in'); if (t) t.focus(); }, 0); };
     pill.onclick = () => { if (!pill.dataset.go) return; if (pill.dataset.go === sendTo) toSend(); else select(pill.dataset.go); };
@@ -738,7 +741,7 @@ const WorkflowPanel = (() => {
     let html = '<span class="wf-foot-note">' + (S.view === 'test' ? (testModeNow() === 'watch' && !(S.session && S.session.lineId === S.lineKey && WL() && WL().isLive(S.session)) ? 'WATCH IT is free: no agent runs.' : 'Real test runs count against the LINE BUDGET.') : 'Edits save as you go.') + '</span>';
     /* ONE TEST CONTROL (2026-09-28): the footer's single TEST opens the TEST view, whose modes say what each test is —
        WATCH IT (free) · STEP THROUGH (real, pauses) · SEND A REAL JOB (real, lands in the OUTBOX). */
-    if (c && S.seam !== null) {
+    if (c && S.seam !== null && !businessOf(f)) {
       html += S.view === 'test' ? '<button type="button" class="bb sm" id="wf-back">◂ SETUP</button>'
         : '<button type="button" class="bb sm refit-primary" id="wf-test">' + (s && W.isLive(s) ? '▶ TEST · ' + s.state.toUpperCase() : '▶ TEST') + '</button>';
     }
@@ -764,6 +767,8 @@ const WorkflowPanel = (() => {
     if (wasOpen) for (const [k, d] of detailsKeys(body)) if (wasOpen.has(k) && d.open !== wasOpen.get(k)) d.open = wasOpen.get(k);
   }
   function paintBodyInner(body, f) {
+    const business = businessOf(f);
+    if (business && S.view === 'test') { body.innerHTML = businessHTML(business); return; }
     // The picker owns capability fallback; an older sidecar still offers WATCH IT and SEND A REAL JOB.
     if (S.view === 'test' && comp()) { paintTest(body, f); restoreDrafts(); return; }
     const p = prop(S.sel);
@@ -956,6 +961,7 @@ const WorkflowPanel = (() => {
     const c = comp(), W = WL();
     const none = { html: '', wire() {} };
     if (!c || !p.agentId || S.seam !== true) return none;
+    if (businessOf(f)) return none;
     const t = testOf(p.id), src = W.testInputFor(f, p.id, testsMap(), (S.testJob[S.lineKey] || '').trim());
     const pending = !!S.trying[p.id], err = S.tryErr[p.id];
     const nb = f ? W.neighbours(f, p.id) : null;
@@ -995,6 +1001,7 @@ const WorkflowPanel = (() => {
     } };
   }
   function tryStep(pid, agentId, text) {
+    if (businessOf(flow())) return;
     const c = comp(); if (!c) return;
     saveOpenFields();
     S.trying[pid] = true; delete S.tryErr[pid]; S.busy = true; paint(true);
@@ -1031,6 +1038,8 @@ const WorkflowPanel = (() => {
 
   /* ===== THE TRIGGER (INBOX): name lives in the header; here — schedules, channels, the test job, LINE BUDGET ===== */
   function paintTrigger(body, f, p) {
+    const business = businessOf(f);
+    if (business) { body.innerHTML = businessHTML(business); return; }
     const W = WL(), tr = triggers(f), c = comp();
     const docks = f ? f.order.map(pid => f.docks[pid]).filter(d => d.agentId) : [];
     const firstName = docks.length ? ((prop(docks[0].propId) || {}).label || docks[0].role) : '';   // the first step by its NAME, else its role (conveyor-ui-15)
@@ -1818,6 +1827,7 @@ const WorkflowPanel = (() => {
     }).catch(() => { S.sessionErr = 'sidecar unreachable'; }).then(() => { S.busy = false; paint(true); poll(); });
   }
   function startSession(text, pause) {
+    if (businessOf(flow())) return;
     const c = comp(); if (!c) return;
     const issue = stepTestUnavailable();
     if (issue) { S.sessionErr = issue; paint(true); return; }
@@ -1935,6 +1945,7 @@ const WorkflowPanel = (() => {
     const send = $('#wf-send'); if (!send || send._wired) return;
     send._wired = true;
     send.onclick = () => {
+      if (businessOf(flow())) return;
       const job = $('#wf-send-in'), cc = comp(); if (!cc || !job) return;
       const t = job.value.trim();
       if (!t) { refuse('write the job first: what should the line work on?', send); job.focus(); return; }

@@ -11559,6 +11559,7 @@ function getColonyService() {
   if (!colonyServicePromise) colonyServicePromise = Promise.resolve().then(async () => {
     const svc = require('./colony/service.js').makeService({ fs, path, root: WORKSPACES,
       now: () => Date.now(), newId: () => crypto.randomUUID(),
+      modelDefaults: () => Object.fromEntries([...agentRoster.entries()].filter(([id, a]) => /^colony_(lifestruct|ashveil|homestackr)_/.test(id) && a.provider && a.model).map(([id, a]) => [id, { provider: a.provider, model: a.model }])),
       ready: wire => { const provider = normalizeProvider(wire.provider); return providerHasCredential(provider,
         providerRuntimeKey(provider, ''), providerRuntimeBaseUrl(provider, '')); } });
     const state = svc.read();
@@ -11584,9 +11585,16 @@ const colonyExecutor = require('./colony/runtime.js').makeExecutor({ runOnce,
     if (state.configuration.installation) {
       const m = state.configuration.mappings[attempt.context.processId];
       const process = state.processes[attempt.context.processId];
-      const dockId = m && m.steps[process.roles.indexOf(attempt.stepId)];
-      if (!dockId || router.getPlan()?.agentOfDock?.[dockId] !== id) return { ready: false, error: 'COLONY_PIPELINE_CONFIGURATION_CHANGED' };
-      floor = { dockId, lineId: router.lineOfDock(dockId) };
+      const plan = router.getPlan(); let dockId = m?.roleDocks?.[attempt.stepId];
+      if (!dockId && m?.standaloneRoles?.includes(attempt.stepId)) dockId = null;
+      else if (!dockId && m && process) {
+        const expected = m.steps[process.roles.indexOf(attempt.stepId)];
+        dockId = expected && plan?.agentOfDock?.[expected] === id ? expected : m.steps.find(candidate => plan?.agentOfDock?.[candidate] === id);
+      }
+      if (dockId) {
+        if (plan?.agentOfDock?.[dockId] !== id) return { ready: false, error: 'COLONY_PIPELINE_CONFIGURATION_CHANGED' };
+        floor = { dockId, lineId: router.lineOfDock(dockId) };
+      } else if (!m?.standaloneRoles?.includes(attempt.stepId)) return { ready: false, error: 'COLONY_PIPELINE_CONFIGURATION_CHANGED' };
     }
     const provider = normalizeProvider(wire.provider);
     const key = providerRuntimeKey(provider, '');
@@ -11616,6 +11624,10 @@ async function handleColonyInstallation(req, res) {
     if (coreRunsLive || runs.size || hostLiveRuns.size) return json(409, { ok: false, error: 'COLONY_INSTALLATION_RUNS_ACTIVE' });
     const result = await svc.exclusive(() => {
       if (bare === '/api/colony/installation/install') return colonyInstallation.install(svc.read(), body, prepare,
+        (state, installation) => require('./colony/core.js').reduce(state, {
+          type: 'installation.bind', expectedRevision: state.revision, installation
+        }, { now: Date.now(), id: installation.commitId }).state);
+      if (bare === '/api/colony/installation/upgrade') return colonyInstallation.install(svc.read(), body, prepare,
         (state, installation) => require('./colony/core.js').reduce(state, {
           type: 'installation.bind', expectedRevision: state.revision, installation
         }, { now: Date.now(), id: installation.commitId }).state);
@@ -23077,8 +23089,9 @@ async function runOnceCore(o) {
       // to synthesize that checkpoint and settle once; starting fresh alternate-path attempts would exceed the
       // operator's narrowly authorized continuation and make the recovery non-idempotent.
       limits: {
-        maxIters: o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
+        maxIters: o.colonyExecution ? 2 : o.outputOnly ? 1 : runMaxIters, maxCostUsd: runCapUsd, failureRecovery: (o.recovery || o.outputOnly) ? false : undefined,
         maxTotalTokens: o.colonyExecution ? o.colonyTokenCap : undefined,
+        maxOutputTokens: o.colonyExecution ? o.colonyOutputTokenCap : undefined,
         // A capped greeting must not become five paid generations. Task replies retain normal
         // continuation, including brief answers promoted to tasks by a pending clarification.
         outputContinuation: !isTask && !internal ? false : undefined,

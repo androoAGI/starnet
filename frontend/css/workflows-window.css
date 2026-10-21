@@ -141,6 +141,45 @@ textarea.wfw-field { min-height: 76px; }
 .wfw-map .wf-belt { min-width: 40px; }
 .wfw-stepbox .wfw-does { max-height: 160px; }
 
+/* HomeStackR: tasks and hand-offs, not tiny generic role thumbnails. */
+.wfw-business { padding: 12px; margin-top: 10px; border-radius: 10px; background: var(--wf-plate); border-left: 3px solid var(--gold); }
+.wfw-business p { margin: 0; overflow-wrap: anywhere; }
+.wfw-business .bb { justify-self: start; white-space: normal; text-align: center; }
+.wfw-home .wfw-rname, .wfw-home .wfw-rstat { white-space: normal; overflow: visible; }
+.wfw-route { font-size: 16px; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.wfw-home .wf-pill { white-space: normal; }
+.wfw-map.wfw-readable { min-width: 0; flex-direction: column; align-items: stretch; }
+.wfw-readable .wf-node { width: 100%; display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 4px 12px; text-align: left; align-items: start; padding: 12px; }
+.wfw-readable .wf-nart { grid-column: 1; grid-row: 1 / 5; width: 64px; align-self: center; }
+.wfw-readable :is(.wf-nname,.wf-nmeta,.wfw-task,.wfw-output) { grid-column: 2; min-width: 0; max-width: none; overflow-wrap: anywhere; }
+.wfw-readable .wf-nname { padding-right: 16px; font-size: 19px; line-height: 1.25; }
+.wfw-readable .wf-nmeta { white-space: normal; overflow: visible; font-size: 14px; }
+.wfw-readable .wf-nbadge { top: 6px; left: 8px; }
+.wfw-task, .wfw-output { font-size: 16px; line-height: 1.4; color: var(--text); }
+.wfw-output { margin-top: 4px; }
+.wfw-readable .wf-belt { flex: 0 0 22px; min-width: 0; width: 2px; min-height: 22px; align-self: center; background: var(--wf-edge); }
+.wfw-readable .wf-belt::after { content: '↓'; position: absolute; left: -5px; bottom: -3px; font-size: 16px; color: var(--ph-dim); }
+.wfw-readable .wf-belt .rail { display: none; }
+
+@media (max-width: 720px) {
+  .wfw { min-width: 0; padding-inline: 0; }
+  .wfw-head .wf-pill { white-space: normal; }
+  .wfw-home .wfw-rt { grid-column: 1 / -1; }
+  .wfw-home .wfw-crew { display: none; }
+  .wfw-home .wf-pill, .wfw-home .bb { grid-column: 1 / -1; justify-self: start; }
+  .wfw-home .bb { white-space: normal; }
+  .wfw-map { min-width: 0; flex-direction: column; align-items: stretch; }
+  .wfw-map .wf-node { width: 100%; }
+  .wfw-map .wf-nmeta { white-space: normal; overflow: visible; }
+  .wfw-map .wf-belt { flex: 0 0 22px; min-width: 0; width: 2px; min-height: 22px; align-self: center; background: var(--wf-edge); }
+  .wfw-map .wf-belt::after { content: '↓'; position: absolute; left: -5px; bottom: -3px; font-size: 16px; color: var(--ph-dim); }
+  .wfw-map .wf-belt .rail { display: none; }
+  .wfw-readable .wf-node { grid-template-columns: 44px minmax(0,1fr); }
+  .wfw-readable .wf-nart { width: 44px; grid-row: 1 / 3; }
+  .wfw-readable .wf-nart .wf-mthumb { width: 44px; }
+  .wfw-readable :is(.wfw-task,.wfw-output) { grid-column: 1 / -1; }
+}
+
 /* FINISH SETUP: each missing thing with the key that fixes it */
 .wfw-setup { gap: 8px; }
 .wfw-fixrow { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); border-radius: 10px;

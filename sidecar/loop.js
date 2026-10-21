@@ -1907,7 +1907,8 @@
               ? context.estimateMessages(req.messages) : Math.ceil(JSON.stringify(req.messages).length / 4);
             const remaining = Math.floor(maxTotalTokens - spentTokens - prompt);
             if (remaining < 128) { waiting.stop(); return end('budget', { budgetScope: 'run' }); }
-            req.maxTokens = Math.min(req.maxTokens || 4096, remaining);
+            const requestedOutput = Number.isFinite(limits.maxOutputTokens) && limits.maxOutputTokens > 0 ? Math.floor(limits.maxOutputTokens) : req.maxTokens || 4096;
+            req.maxTokens = Math.min(requestedOutput, remaining);
           }
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
           for await (const ev of provider.stream(req)) {

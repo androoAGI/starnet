@@ -74,14 +74,15 @@ function makeInstallation({ fs, path, root, now, newId }) {
     const j = journal();
     if (!j) return { state: 'absent', installed: false };
     return { state: j.state, installed: j.state === 'committed', commitId: j.id, saveRevision: j.saveRevision, backup: j.backup,
-      baseStationDigest: j.baseStationDigest, stationDigest: j.stationDigest, agentIds: j.agentIds, mappings: j.mappings, rooms: j.rooms };
+      previousCommitId: j.previousCommitId || null, baseStationDigest: j.baseStationDigest, stationDigest: j.stationDigest,
+      agentIds: j.agentIds, mappings: j.mappings, rooms: j.rooms };
   }
   function preview(currentState, prepare) {
     assertReady();
     const value = raw('agent.save.json'); if (!value) fail('COLONY_NATIVE_SAVE_REQUIRED');
     const wrapper = JSON.parse(value), doc = wrapper.doc;
     if (!doc || !doc.agent) fail('COLONY_NATIVE_SAVE_REQUIRED');
-    const prepared = prepare(doc);
+    const prepared = prepare(doc, currentState.configuration.installation || null);
     // Compare semantic station content, not volatile timestamps/dirty flags from
     // routine browser heartbeats. Save/state revisions still fence concurrent edits.
     const station = doc.station, agents = [doc.agent, ...(doc.agents || [])].filter(Boolean).map(a => a.id);
@@ -90,9 +91,12 @@ function makeInstallation({ fs, path, root, now, newId }) {
       original: doc, prepared };
   }
   function install(currentState, args, prepare, bind) {
+    const old = journal(), previousCommitId = args.previousCommitId || null;
+    if (previousCommitId) {
+      if (!old || old.state !== 'committed' || old.id !== previousCommitId || currentState.configuration.installation?.commitId !== previousCommitId) fail('COLONY_INSTALLATION_NOT_CURRENT');
+    } else if (old && old.state !== 'rolled_back') fail('COLONY_ALREADY_INSTALLED');
     const p = preview(currentState, prepare);
     if (args.expectedSaveRevision !== p.nativeSaveRevision || args.expectedStateRevision !== p.stateRevision || args.previewDigest !== p.previewDigest) fail('COLONY_INSTALLATION_REVISION_CONFLICT');
-    const old = journal(); if (old && old.state !== 'rolled_back') fail('COLONY_ALREADY_INSTALLED');
     const id = newId(), stamp = now(), target = p.prepared.save;
     target._saveRevision = p.nativeSaveRevision + 1; target._saveDirty = false;
     target.updatedAt = Math.max(stamp, (p.original.updatedAt || 0) + 1);
@@ -120,6 +124,7 @@ function makeInstallation({ fs, path, root, now, newId }) {
       JSON.stringify(p.prepared.plan), JSON.stringify(nextState)];
     const parts = FILES.map((name, i) => { const before = raw(name); return { name, before, after: values[i], beforeDigest: digest(before), afterDigest: digest(values[i]) }; });
     const j = { version: 1, id, state: 'pending', at: stamp, parts, saveRevision: target._saveRevision,
+      ...(previousCommitId ? { previousCommitId } : {}),
       baseStationDigest: digest(p.original.station), stationDigest: digest(target.station), agentIds, mappings: p.prepared.mappings, rooms: p.prepared.rooms };
     busy = true;
     try {

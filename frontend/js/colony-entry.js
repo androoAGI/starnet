@@ -8,6 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
   notice.insertAdjacentElement('afterend', link);
   let syncing = false;
   let framedRadial = false;
+  let workflowStatusKey = null;
+  const refreshWorkflowStatus = () => {
+    const key = JSON.stringify([window.ColonyRoomState?.mappings, window.ColonyProcessState?.processes]);
+    if (key === workflowStatusKey) return;
+    workflowStatusKey = key;
+    if (typeof WorkflowsWindow !== 'undefined') WorkflowsWindow.refresh();
+    if (typeof WorkflowPanel !== 'undefined' && WorkflowPanel.isOpen()) WorkflowPanel.refresh();
+  };
   const headers = () => ({ 'X-StarNet-Token': window.__STARNET_API_TOKEN__ });
   // Trust a body only after the status says it succeeded — a failed Colony read must never be
   // adopted as state (see connectors.js readJSON).
@@ -21,10 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
     syncing = true;
     try {
       const response = await fetch('/api/colony/installation', { headers: headers(), cache: 'no-store' });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error('COLONY_INSTALLATION_READ_FAILED');
       const installation = await response.json();
       window.ColonyRoomState = installation;
-      if (!installation.installed) return;
+      if (!installation.installed) { window.ColonyProcessState = null; refreshWorkflowStatus(); return; }
       const value = App.colonyInstallation()?.commitId === installation.commitId ? null : await readJSON('/api/save');
       const adopted = value ? await App.adoptColonyInstallation(value.save, installation) : true;
       // Frame the star once on opening it; never reset a user's pan/zoom on polling.
@@ -40,9 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.append(banner);
       } else if (adopted && banner) banner.remove();
       const snapshot = await readJSON('/api/colony');
+      window.ColonyProcessState = snapshot;
       if (typeof World !== 'undefined' && World.setColonyTeam) World.setColonyTeam(snapshot);
       if (typeof StationUI !== 'undefined' && StationUI.setColonyTeam) StationUI.setColonyTeam(snapshot);
+      refreshWorkflowStatus();
     } catch (_) {
+      window.ColonyProcessState = null;
+      refreshWorkflowStatus();
       if (typeof World !== 'undefined' && World.setColonyTeam) World.setColonyTeam(null);
       if (typeof StationUI !== 'undefined' && StationUI.setColonyTeam) StationUI.setColonyTeam(null);
     }

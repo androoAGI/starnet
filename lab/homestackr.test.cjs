@@ -98,4 +98,7 @@ test('live configuration requires opt-in and rejects execution and credential ro
   await request('/api/save', { _saveRevision: 47 });
   await request('/api/routing', {});
   assert.deepEqual(requests.slice(-3), [['GET', '/api/save'], ['POST', '/api/save'], ['POST', '/api/routing']]);
+  await request('/api/colony/installation');
+  assert.deepEqual(requests.at(-1), ['GET', '/api/colony/installation']);
+  await assert.rejects(request('/api/colony/installation', {}), /route denied/);
 });

@@ -109,8 +109,10 @@ html[data-lab-style="custom"] body :is(.term, .sn-menu) {
   box-shadow: 0 14px 45px #0006 !important;
 }
 html[data-lab-style="custom"] body :is(.term-body, .term-screen, .wfw) { background: #292a30; }
-html[data-lab-style="custom"] body .wfw :is(.wfw-name, .wfw-title) { font-size: 16px; line-height: 1.5; }
-html[data-lab-style="custom"] body .wfw :is(button, p, .wfw-step, .wfw-card) { font-size: 12px; line-height: 1.5; }
+/* Workflow tasks must stay readable; the compact HUD's 12px scale is not body copy. */
+html[data-lab-style="custom"] body .wfw :is(.wfw-name, .wfw-title) { font-family: 'Segoe UI', 'DejaVu Sans', sans-serif !important; font-size: 22px; line-height: 1.3; }
+html[data-lab-style="custom"] body .wfw :is(button, p, .wfw-step, .wfw-card, .bb) { font-size: 16px; line-height: 1.5; }
+html[data-lab-style="custom"] body .wfw :is(h3, h4) { font-size: 18px; line-height: 1.35; }
 html[data-lab-style="custom"] body .logo-img {
   background-color: transparent !important;
   background-image: url('../assets/colony/colony-wordmark.svg') !important;

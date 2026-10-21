@@ -15,6 +15,7 @@ function createCommand() {
     sources: [{ id: 's1', businessUnitId: 'lifestruct', confirmed: true, uri: 'https://example.org/source',
       asOf: '2026-10-19', version: '1', excerpt: 'KI kann beim Planen helfen. Der Guide kostet 59 EUR.' }],
     targets: [{ url: 'https://example.org/guide', promise: 'Ein Guide, kein kostenloser Download.' }], boards: ['Planung'],
+    inputs: { metrics: [{ metric: 'outbound_clicks', unit: 'count', period: '2026-10', level: 'pin', sourceId: 's1', value: 2 }] },
     budget: { usd: 5, tokens: 40000, ms: 600000 } };
 }
 function rig() {
@@ -65,12 +66,13 @@ test('hard brand filters: feedback, lead, unknown legacy; explicit context rejec
   packet.sources[0].businessUnitId = 'ashveil';
   assert.throws(() => Boundary.assertContext('colony_lifestruct_review', packet), /FOREIGN/);
 });
-test('bad scope, stale revision, missing budgets and unimplemented processes fail without mutation', () => {
+test('bad scope, stale revision, missing budgets and unknown processes fail without mutation', () => {
   const r = rig(), before = JSON.stringify(r.state());
   assert.throws(() => r.send({ ...createCommand(), businessUnitId: 'ashveil' }), /BRAND_MISMATCH/);
   assert.throws(() => r.send({ ...createCommand(), expectedRevision: 0 }), /REVISION/);
   assert.throws(() => r.send({ ...createCommand(), budget: { usd: 0, tokens: 10, ms: 10 } }), /BUDGET_REQUIRED/);
-  assert.throws(() => r.send({ ...createCommand(), processId: 'A01' }), /NOT_CONNECTED/);
+  assert.throws(() => r.send({ ...createCommand(), processId: 'UNKNOWN' }), /NOT_CONNECTED/);
+  assert.throws(() => r.send({ ...createCommand(), processId: 'A01' }), /BRAND_MISMATCH/);
   assert.equal(JSON.stringify(r.state()), before);
 });
 test('full checked version only enters inbox; independent reviewer and no self-argument in initial context', () => {
@@ -92,6 +94,13 @@ test('missing visual review, open findings and bare pass cannot become ready', (
     step(r, output); assert.notEqual(r.task().status, 'ready_for_approval');
     assert.throws(() => approve(r), /UNCHECKED/);
   }
+});
+test('independent review output stays compact and uses actionable bounded findings', () => {
+  const r = rig(); step(r, facts); step(r, pins);
+  r.send({ type: 'task.design', taskId: r.id, artifacts: [{ pinId: 'p1', businessUnitId: 'lifestruct', sha256: 'a'.repeat(64), mime: 'image/png' }] });
+  r.send({ type: 'task.formal', taskId: r.id, verified: true, digest: C.snapshotDigest(r.task()) });
+  const bad = { ...review, findings: Array.from({ length: 7 }, (_, i) => ({ pinId: 'p1', dimension: 'facts', message: 'Issue ' + i })), summary: 'Review' };
+  assert.throws(() => { const a = r.send({ type: 'attempt.start', taskId: r.id, reserve }); r.send({ type: 'attempt.finish', taskId: r.id, attemptId: a.id, ok: true, output: bad, usage }); }, /COLONY_INVALID_REVIEW/);
 });
 test('rejection creates brand-scoped human feedback and KVP case; only changed components rerun', () => {
   const r = rig(); ready(r); const oldFacts = structuredClone(r.task().facts);
@@ -203,6 +212,11 @@ test('additive three-room migration preview uses native compiler, preserves old 
   assert.deepEqual(preview.save.agent, before.agent); assert.equal(preview.report.previewOnly, true);
   assert.equal(Object.keys(preview.mappings).length, 13); assert.equal(P.ok(preview.plan), true);
   const world = WM.create(preview.save.station);
+  assert.ok(Object.values(preview.mappings).every(m => m.blueprint === 'fire_escape' && m.backendFinalReview === true), 'all process quality loops reuse the existing Review + Fixer blueprint and keep the Colony final-review gate');
+  const l01 = preview.mappings.L01, nativeQualityBays = l01.steps.map(id => world.propById(id));
+  assert.deepEqual(nativeQualityBays.map(p => p.role), ['WRITER', 'REVIEWER', 'FIXER'], 'no custom bays or conveyor stages are added to the preset');
+  assert.deepEqual(l01.standaloneRoles, ['research']); assert.equal(l01.roleDocks.editorial, l01.steps[0]);
+  assert.equal(world.lineGraph(l01.intake).graph.nodes.filter(p => p.t === 'bay').length, 3);
   for (const brand of Object.keys(Catalog.BRANDS)) assert.equal(world.roomById(preview.rooms[brand]).name, Catalog.BRANDS[brand].name);
   for (const prop of st.props()) assert.deepEqual(world.propById(prop.id), prop);
   assert.throws(() => prepare(preview.save), /ALREADY_PREPARED/);

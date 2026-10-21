@@ -68,6 +68,26 @@ test('rollback without intervening work restores all exact original representati
   assert.equal(r.install.status().state, 'rolled_back');
   for (const [i, name] of FILES.entries()) assert.equal(fs.existsSync(path.join(r.root, name)) ? fs.readFileSync(path.join(r.root, name), 'utf8') : null, original[i]);
 });
+test('commit-fenced L01 pilot upgrade adds the existing Fire Escape blueprint and preserves the installed line', t => {
+  const r = fixture(t), first = r.install.install(r.state, r.args, prepare, r.bind);
+  const state = JSON.parse(fs.readFileSync(path.join(r.root, 'colony/state.json'), 'utf8'));
+  const preview = r.install.preview(state, prepare);
+  assert.equal(preview.prepared.report.upgrade, true);
+  assert.deepEqual(preview.prepared.report.changedProcesses, ['L01']);
+  const upgrade = r.install.install(state, { expectedSaveRevision: preview.nativeSaveRevision, expectedStateRevision: preview.stateRevision,
+    previewDigest: preview.previewDigest, previousCommitId: first.commitId }, prepare, r.bind);
+  assert.equal(upgrade.installed, true); assert.equal(upgrade.previousCommitId, first.commitId);
+  assert.equal(upgrade.mappings.L01.blueprint, 'fire_escape'); assert.equal(upgrade.mappings.L01.backendFinalReview, true);
+  assert.deepEqual(Object.keys(upgrade.mappings), Object.keys(first.mappings));
+  for (const id of Object.keys(first.mappings).filter(id => id !== 'L01')) assert.deepEqual(upgrade.mappings[id], first.mappings[id]);
+  const saved = JSON.parse(fs.readFileSync(path.join(r.root, 'agent.save.json'), 'utf8')).doc;
+  assert.deepEqual(saved.workstreams, r.doc.workstreams);
+  const world = WM.create(saved.station), mapping = upgrade.mappings.L01;
+  assert.equal(world.propById(first.mappings.L01.intake).label, 'L01 · Legacy (nicht Pilot)');
+  assert.deepEqual(mapping.steps.map(id => world.propById(id).role), ['WRITER', 'REVIEWER', 'FIXER']);
+  assert.equal(world.lineGraph(mapping.intake).graph.nodes.filter(p => p.t === 'bay').length, 3);
+  assert.equal(r.install.acceptsSave(saved), true); assert.equal(r.install.acceptsPlan(JSON.parse(fs.readFileSync(path.join(r.root, 'routing.plan.json')))), true);
+});
 test('layout adoption requires matching floor and idle state; digest uses same canonical form as backend', async () => {
   const L = require('../frontend/app/colony-layout.js'), v = { b: [3, { a: 1 }], a: 'x' };
   assert.equal(await L.digest(v), C.digest(v));

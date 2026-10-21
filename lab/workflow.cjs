@@ -79,7 +79,7 @@ async function client(base, { allowLiveAuthoring = false } = {}) {
   const token = JSON.parse(match[1]);
   return async (route, body) => {
     // This opt-in grants configuration only, NEVER key checks, jobs or execution.
-    if (liveAuthoring && !(body === undefined ? route === '/api/save' : ['/api/save', '/api/routing'].includes(route))) throw new Error('Live authoring route denied');
+    if (liveAuthoring && !(body === undefined ? ['/api/save', '/api/colony/installation'].includes(route) : ['/api/save', '/api/routing'].includes(route))) throw new Error('Live authoring route denied');
     const res = await fetch(new URL(route, url), { method: body === undefined ? 'GET' : 'POST',
       headers: { Origin: url.origin, 'X-StarNet-Token': token, 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000) });

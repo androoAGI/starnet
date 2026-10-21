@@ -201,6 +201,8 @@
 .wf-sec h4 { padding: 0; border: 0; background: none; text-transform: none; margin: 6px 0 0; font-weight: normal; font-size: 16px; letter-spacing: 1.4px; color: var(--ph-dim); }
 .wf-help { margin: 0; font-size: 17px; line-height: 1.45; color: var(--text); }
 .wf-help.dim, .wf-panel .dim { color: var(--ph-dim); }
+.wf-business { padding: 12px; border-radius: 10px; background: var(--wf-plate); border-left: 3px solid var(--gold); }
+.wf-business .bb { justify-self: start; white-space: normal; }
 .wf-help b { font-weight: normal; color: var(--ph-bright); }
 .wf-help.bad, .wf-warnline { color: var(--warn); font-size: 17px; line-height: 1.45; display: block; }
 /* TOO LONG (2026-10-09): the line's stage ceiling said under the pill, with the one key that raises it */

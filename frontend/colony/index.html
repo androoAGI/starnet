@@ -6,6 +6,7 @@
   <title>Colony · Business-Steuerung</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/colony/style.css">
+  <script src="/app/homestackr-workflows.js" defer></script>
   <script src="/colony/app.js" defer></script>
 </head>
 <body>
@@ -13,6 +14,19 @@
 <main>
   <p class="notice">Vorbereitungsbetrieb: keine automatischen Veröffentlichungen, Uploads oder Versände. Ein echter Pilot ist noch nicht abgenommen.</p>
   <nav aria-label="Marke"><label>BusinessUnit <select id="brand"><option value="all">Alle Marken</option><option value="lifestruct">Lifestruct</option><option value="ashveil">Ashveil</option><option value="homestackr">HomeStackR</option></select></label><button id="refresh">Aktualisieren</button></nav>
+  <section id="prepare-task">
+    <h2>Auftrag vorbereiten</h2>
+    <p>Ein vorhandener Ablauf verarbeitet bestätigte Eingaben, erstellt das Ergebnis und führt interne Prüfung/Nacharbeit durch. Erst danach erscheint es in der Freigabe-Inbox.</p>
+    <label>Ablauf <select id="process-select"></select></label>
+    <p id="process-help" class="muted"></p>
+    <div class="grid"><label>Ziel<input id="task-goal" type="text" maxlength="2000" placeholder="Was soll konkret entstehen?"></label><label>Konto / Arbeitsbereich<input id="task-account" type="text" maxlength="120" placeholder="Bestätigte Konto-Kennung"></label><label>Zielgruppe<input id="task-audience" type="text" maxlength="200"></label><label>Termin und Zeitzone<input id="task-schedule" type="text" maxlength="120" placeholder="z. B. nur vorbereiten, Europe/Berlin"></label></div>
+    <label>Quellen-/Datenpaket importieren (JSON)<input id="packet-file" type="file" accept="application/json,.json"></label>
+    <label>Bestätigte Quellen und prozessspezifische Eingaben<textarea id="source-packet" rows="10" spellcheck="false"></textarea></label>
+    <label><input id="confirm-packet" type="checkbox"> Dieses Paket gehört zur gewählten Marke und zum genannten Konto. Inhalt, Herkunft und Stand sind bestätigt.</label>
+    <details><summary>Eigene Bilder oder Prüf-Screenshots beifügen</summary><p>PNG bis 8 Megapixel. Die Datei wird nur lokal gespeichert, nicht veröffentlicht.</p><input id="asset-file" type="file" accept="image/png"><label>Seiten-ID (nur für H05-Screenshots)<input id="asset-page-id" type="text" maxlength="120"></label><label><input id="asset-rights" type="checkbox"> Ich darf dieses Bild für den angegebenen Auftrag verwenden.</label><button id="upload-asset">Bild lokal übernehmen</button><pre id="asset-result"></pre></details>
+    <div class="grid"><label>Gesamtes Tokenlimit<input id="task-tokens" type="number" min="1000" max="1000000" value="150000"></label><label>Gesamte Laufzeit (Minuten)<input id="task-minutes" type="number" min="1" max="60" value="15"></label></div>
+    <button id="save-task">Auftrag speichern – noch nicht ausführen</button><button id="cancel-edit" hidden>Bearbeitung abbrechen</button>
+  </section>
   <section><h2>Freigabe-Inbox</h2><p>Nur vollständig intern geprüfte Versionen. Freigabe bedeutet noch keine erfolgte Außenaktion.</p><div id="inbox"></div></section>
   <section><h2>Aufträge</h2><div id="tasks"></div></section>
   <section><h2>Team</h2><p>Geplante Markenidentitäten. Modellkonfiguration und tatsächliche Einrichtung im Roboterhaus sind getrennte Nachweise.</p><div id="team" class="grid"></div></section>
@@ -24,12 +38,15 @@
     <button id="preview-install">Vorschau berechnen</button><pre id="installation-preview"></pre>
     <button id="install" disabled>Geprüfte Einrichtung speichern</button>
   </details>
-  <details><summary>Auftrag und Modellkonfiguration vorbereiten</summary>
-    <p>Echte Quellen, Konto, Zielseiten und Budgets zuerst klären. Die Beispieldaten sind ausdrücklich kein geprüfter Quellenbestand. Kein Schlüssel gehört in diese Formulare.</p>
+  <details><summary>Fortgeschritten: Modelllimits und JSON-Auftrag</summary>
+    <p>Für normale Fachaufträge bitte oben „Auftrag vorbereiten“ verwenden. Diese JSON-Form ist für gezielte Diagnose und Migration. Echte Quellen, Konto, Zielseiten und Budgets zuerst klären. Kein Schlüssel gehört in diese Formulare.</p>
     <label>Neuer L01-Auftrag (JSON)<textarea id="task-input" rows="12" spellcheck="false"></textarea></label>
     <button id="create">Auftrag speichern – noch nicht ausführen</button>
+    <button id="sync-catalog">Dokumentierte Fachabläufe aktualisieren</button>
+    <button id="load-models">Vorhandene Agentenmodelle übernehmen</button>
     <label>Modelle je Markenagent (JSON)<textarea id="model-input" rows="5" spellcheck="false">{"colony_lifestruct_research":{"provider":"custom","model":"MODELL_EINTRAGEN"},"colony_lifestruct_editorial":{"provider":"custom","model":"MODELL_EINTRAGEN"},"colony_lifestruct_review":{"provider":"custom","model":"VISION_MODELL_EINTRAGEN"}}</textarea></label>
     <label><input id="enable" type="checkbox"> Interne, werkzeugfreie Modellläufe innerhalb der Auftragsbudgets zulassen</label>
+    <label>Verbrauchsgrenze<select id="accounting-mode"><option value="priced">Geld, Tokens und Zeit – unbekannte Preise blockieren</option><option value="tokens">Go/Abo: Tokens und Zeit – Dollarverbrauch bleibt gegebenenfalls unbekannt</option></select></label>
     <label>Zusätzliche gemeinsame Budgetgrenze für alle Aufträge (JSON)<textarea id="pool-input" rows="2">{"usd":0,"tokens":0,"ms":0}</textarea></label>
     <button id="configure">Konfiguration speichern</button>
   </details>

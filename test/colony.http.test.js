@@ -76,7 +76,7 @@ test('real sidecar: L01 revision, PNG review, human manifest, restart and auth; 
   const task = await post({ type: 'task.create', processId: 'L01', businessUnitId: 'lifestruct', goal: 'Lokaler synthetischer Test',
     account: 'fixture', audience: 'fixture', schedule: '2026-10-22T12:00:00+02:00 Europe/Berlin',
     sources: [{ id: 's1', businessUnitId: 'lifestruct', confirmed: true, version: '1', asOf: '2026-10-19', uri: 'https://example.org/guide', excerpt: 'Der Guide kostet 59 EUR.' }],
-    targets: [{ url: 'https://example.org/guide', promise: 'Guide für 59 EUR.' }], boards: ['Planung'], budget: { usd: 2, tokens: 80000, ms: 300000 } });
+    targets: [{ url: 'https://example.org/guide', promise: 'Guide für 59 EUR.' }], boards: ['Planung'], inputs: { metrics: [{ metric: 'outbound_clicks', unit: 'count', period: '2026-10', level: 'pin', sourceId: 's1', value: 2 }] }, budget: { usd: 2, tokens: 80000, ms: 300000 } });
   const run = await api('/api/colony/run', { taskId: task.id, expectedRevision: view.revision, reserve: { usd: 0.1, tokens: 14000, ms: 30000 } });
   assert.equal(run.status, 200, JSON.stringify(run.value));
   view = (await api('/api/colony')).value;
@@ -114,12 +114,14 @@ test('real sidecar: L01 revision, PNG review, human manifest, restart and auth; 
   const second = await post({ type: 'task.create', processId: 'L01', businessUnitId: 'lifestruct', goal: 'Synthetischer nativer Dock-Test',
     account: 'fixture', audience: 'fixture', schedule: '2026-10-22T12:00:00+02:00 Europe/Berlin',
     sources: [{ id: 's1', businessUnitId: 'lifestruct', confirmed: true, version: '1', asOf: '2026-10-19', uri: 'https://example.org/guide', excerpt: 'Der Guide kostet 59 EUR.' }],
-    targets: [{ url: 'https://example.org/guide', promise: 'Guide für 59 EUR.' }], boards: ['Planung'], budget: { usd: 2, tokens: 80000, ms: 300000 } });
+    targets: [{ url: 'https://example.org/guide', promise: 'Guide für 59 EUR.' }], boards: ['Planung'], inputs: { metrics: [{ metric: 'outbound_clicks', unit: 'count', period: '2026-10', level: 'pin', sourceId: 's1', value: 2 }] }, budget: { usd: 2, tokens: 80000, ms: 300000 } });
   const nativeRun = await api('/api/colony/run', { taskId: second.id, expectedRevision: view.revision, reserve: { usd: 0.1, tokens: 14000, ms: 30000 } });
   assert.equal(nativeRun.status, 200, JSON.stringify(nativeRun.value));
-  assert.equal(nativeRun.value.result.status, 'ready_for_approval'); assert.equal(writes, 8);
+  assert.equal(nativeRun.value.result.status, 'ready_for_approval', JSON.stringify(nativeRun.value.result)); assert.equal(writes, 8);
   const dockRows = fs.readFileSync(path.join(dir, 'runs.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-  assert.ok(dockRows.filter(r => r.colony?.taskId === second.id).every(r => r.dockId && r.lineId), 'every managed model run records its actual native dock');
+  const installedRows = dockRows.filter(r => r.colony?.taskId === second.id);
+  assert.ok(installedRows.filter(r => ['editorial', 'review'].includes(r.colony.stepId)).every(r => r.dockId && r.lineId), 'the installed Review + Fixer blueprint supplies its mapped production and review docks');
+  assert.ok(installedRows.filter(r => r.colony.stepId === 'research').every(r => !r.dockId && !r.lineId), 'process-specific research remains a separate tool-free Colony stage');
   await stop(); headers = await boot();
   const restored = (await api('/api/colony')).value;
   assert.equal(restored.tasks[task.id].status, 'approved'); assert.equal(writes, 8, 'restart never calls a model');
