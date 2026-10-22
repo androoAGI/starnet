@@ -232,6 +232,8 @@ const { makeStationShowTool } = require('./tools/builtin/station-show.js');   //
 const memcore = require('./memcore.js');
 const SecondBrain = require('./secondbrain.js');            // the second brain: one graph over every agent's notebook (pure)
 const SecondBrainVault = require('./secondbrain-vault.js');  // the second brain on disk: Obsidian vault + .base views + graph.json
+const BrainSources = require('./brain-sources.js');          // graphify graph.json + basemode .base/graph.nq, folded into the same brain (pure)
+const SecondBrainReflect = require('./secondbrain-reflect.js'); // the station-wide reflection pass: proposals that ride the existing Keep/Edit/Discard deck (pure)
 const { makeConsentBroker } = require('./permissions.js');
 const { makeGrantManager } = require('./permgrants.js');
 const { makeProjectsStore } = require('./projects-store.js');   // NS-5: known-projects (blessed roots) durable store
@@ -12028,6 +12030,10 @@ const ROUTES = [
   { m: 'POST', exact: '/api/secondbrain/recall', h: handleSecondBrainRecall },
   { m: 'GET', exact: '/api/secondbrain/vault', h: handleSecondBrainVaultInfo },
   { m: 'POST', exact: '/api/secondbrain/export', h: handleSecondBrainExport },
+  { m: 'GET', exact: '/api/secondbrain/sources', h: handleSecondBrainSources },
+  { m: 'POST', exact: '/api/secondbrain/ingest', h: handleSecondBrainIngest },
+  { m: 'POST', exact: '/api/secondbrain/sources/clear', h: handleSecondBrainSourcesClear },
+  { m: 'POST', exact: '/api/secondbrain/reflect', h: handleSecondBrainReflect },
   { m: 'GET', qrx: /^\/shared\//, h: serveShared }
 ];
 
@@ -27832,10 +27838,65 @@ function readBrainStores() {
   return { ids: ids, notebooks: notebooks, embeddings: embeddings, records: records, roster: roster };
 }
 
+/* ---- imported knowledge graphs (graphify + basemode) ----
+   Optional amplifiers, never dependencies: the app works with neither installed. We only ever read the two
+   files those tools actually produce, at the two names they actually use — accepting an arbitrary path here
+   would turn an ingest route into a file-read oracle for anything holding the API token. */
+const BRAIN_SOURCES_FILE = path.join(WORKSPACES, 'second-brain.sources.json');
+const BRAIN_SOURCE_MAX_BYTES = 8 * 1024 * 1024;   // an 8MB graph.json is already a very large repo
+function readBrainSources() {
+  try {
+    const raw = fs.readFileSync(BRAIN_SOURCES_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const src = parsed && parsed.sources && typeof parsed.sources === 'object' ? parsed.sources : {};
+    const out = [];
+    for (const k of Object.keys(src)) {
+      const s = src[k];
+      if (!s) continue;
+      // basemode calls its list `records`, graphify calls it `nodes` — normalise on the way in so every consumer
+      // (graph, export, the SOURCES readout) sees one shape. Reading only `.nodes` silently dropped basemode.
+      const nodes = Array.isArray(s.nodes) ? s.nodes : (Array.isArray(s.records) ? s.records : null);
+      if (!nodes) continue;
+      out.push({ source: s.source || k, nodes: nodes, edges: Array.isArray(s.edges) ? s.edges : [], importedAt: s.importedAt || null, path: s.path || null, version: s.version || null });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+function writeBrainSources(list) {
+  const sources = {};
+  for (const s of (Array.isArray(list) ? list : [])) {
+    if (!s || !s.source) continue;
+    const nodes = Array.isArray(s.nodes) ? s.nodes : (Array.isArray(s.records) ? s.records : []);
+    sources[s.source] = { source: s.source, nodes: nodes, edges: Array.isArray(s.edges) ? s.edges : [], importedAt: s.importedAt || Date.now(), path: s.path || null, version: s.version || null };
+  }
+  // same crash-safe atomic+fsync writer the protected stores use (deps first: { fs, path }, then file, then data)
+  writeFileDurableRaw({ fs: fs, path: path }, BRAIN_SOURCES_FILE, JSON.stringify({ version: 1, updatedAt: Date.now(), sources }, null, 2));
+  return sources;
+}
+// Where each tool leaves its graph. A directory is accepted for convenience, but the FILE name is fixed.
+function locateBrainSource(kind, input) {
+  const p = path.resolve(String(input || ''));
+  let st = null;
+  try { st = fs.statSync(p); } catch (_) { return { error: 'no such path' }; }
+  if (st.isDirectory()) {
+    const candidates = kind === 'graphify'
+      ? [path.join(p, 'graphify-out', 'graph.json'), path.join(p, 'graph.json')]
+      : [path.join(p, '.base', 'graph.nq'), path.join(p, 'graph.nq')];
+    for (const c of candidates) { try { if (fs.statSync(c).isFile()) return { file: c }; } catch (_) {} }
+    return { error: 'no ' + (kind === 'graphify' ? 'graphify-out/graph.json' : '.base/graph.nq') + ' under ' + p };
+  }
+  const base = path.basename(p).toLowerCase();
+  if (kind === 'graphify' && base !== 'graph.json') return { error: 'expected a graphify graph.json' };
+  if (kind === 'base' && base !== 'graph.nq') return { error: 'expected a basemode graph.nq' };
+  if (st.size > BRAIN_SOURCE_MAX_BYTES) return { error: 'file too large (' + st.size + ' bytes)' };
+  return { file: p };
+}
+
 function brainGraphNow() {
   const store = readBrainStores();
   const graph = SecondBrain.buildGraph({
-    agents: store.roster, notebooks: store.notebooks, embeddings: store.embeddings, now: Date.now()
+    agents: store.roster, notebooks: store.notebooks, embeddings: store.embeddings,
+    sources: readBrainSources(), now: Date.now()
   });
   graph.records = store.records;
   return graph;
@@ -27878,6 +27939,90 @@ function safeBrainVaultRoot(requested) {
   const ok = [path.join(os.homedir(), 'Documents'), path.join(os.homedir(), 'OneDrive'), WORKSPACES]
     .some(base => { const b = path.resolve(base); return candidate === b || candidate.indexOf(b + path.sep) === 0; });
   return ok ? candidate : fallback;
+}
+
+// GET /api/secondbrain/sources — which external graphs are folded in, and what they contributed
+function handleSecondBrainSources(req, res) {
+  const list = readBrainSources();
+  respondJson(res, 200, { ok: true, sources: list.map(s => ({ source: s.source, nodes: (s.nodes || []).length, edges: (s.edges || []).length, importedAt: s.importedAt || null, path: s.path || null })) });
+}
+
+// POST /api/secondbrain/ingest { kind: 'graphify'|'base', path } — fold one external graph into the brain.
+// Read-only on the source: we parse it and store the parsed nodes/edges, never touch the file itself.
+async function handleSecondBrainIngest(req, res) {
+  let b;
+  try { b = JSON.parse(await readBody(req, 16 * 1024) || '{}') || {}; }
+  catch (_) { return respondJson(res, 400, { ok: false, error: 'bad json' }); }
+  const kind = String(b.kind || '');
+  if (kind !== 'graphify' && kind !== 'base') return respondJson(res, 400, { ok: false, error: 'kind must be graphify or base' });
+  const loc = locateBrainSource(kind, b.path);
+  if (loc.error) return respondJson(res, 400, { ok: false, error: loc.error });
+  let parsed;
+  try {
+    const text = fs.readFileSync(loc.file, 'utf8');
+    parsed = kind === 'graphify' ? BrainSources.parseGraphify(text) : BrainSources.parseBaseNQuads(text);
+  } catch (e) { return respondJson(res, 500, readRouteFailure('secondbrain.ingest', e)); }
+  if (!parsed.ok) return respondJson(res, 400, { ok: false, error: parsed.error || 'could not parse ' + loc.file });
+  parsed.importedAt = Date.now();
+  parsed.path = loc.file;
+  const list = readBrainSources().filter(s => s.source !== kind);
+  list.push(parsed);
+  writeBrainSources(list);
+  respondJson(res, 200, {
+    ok: true, source: kind, path: loc.file,
+    nodes: (parsed.nodes || parsed.records || []).length,
+    edges: (parsed.edges || []).length,
+    version: parsed.version || null
+  });
+}
+
+// POST /api/secondbrain/sources/clear { kind? } — forget one imported graph (or all of them)
+async function handleSecondBrainSourcesClear(req, res) {
+  let b = {};
+  try { const raw = await readBody(req, 4096); b = raw ? (JSON.parse(raw) || {}) : {}; } catch (_) {}
+  const kind = b && b.kind ? String(b.kind) : '';
+  const list = kind ? readBrainSources().filter(s => s.source !== kind) : [];
+  writeBrainSources(list);
+  respondJson(res, 200, { ok: true, remaining: list.length });
+}
+
+/* POST /api/secondbrain/reflect — the AUTO-IMPROVING pass, station-wide.
+   Turns cross-agent patterns into ordinary proposals so they ride the SAME Keep/Edit/Discard deck and the same
+   trust mechanics as a run's own reflection. Nothing is written: a proposal is a suggestion until the Commander
+   answers it. Declined beliefs are filtered here (discard = never again, and not just inside one notebook). */
+let brainReflecting = false;
+async function handleSecondBrainReflect(req, res) {
+  if (brainReflecting) return respondJson(res, 409, { ok: false, error: 'a reflection pass is already running' });
+  let b = {};
+  try { const raw = await readBody(req, 4096); b = raw ? (JSON.parse(raw) || {}) : {}; } catch (_) {}
+  brainReflecting = true;
+  try {
+    const store = readBrainStores();
+    const graph = SecondBrain.buildGraph({ agents: store.roster, notebooks: store.notebooks, embeddings: store.embeddings, sources: readBrainSources(), now: Date.now() });
+    const declined = {};
+    for (const id of store.ids) {
+      try { const d = notebookStore.get('declined:' + id); if (Array.isArray(d)) declined[id] = d; } catch (_) {}
+    }
+    const now = Date.now();
+    const only = b.agentId ? String(b.agentId) : null;
+    const plan = SecondBrainReflect.propose(graph, { now: now, records: store.records, declined: declined })
+      .filter(p => !only || p.agentId === only);
+    const runId = 'sb-' + now;
+    const staged = [];
+    for (const entry of plan) {
+      try {
+        stashProposals(entry.agentId, runId, entry.proposals);
+        await queuePending(entry.agentId, runId, entry.proposals);
+        for (const p of entry.proposals) {
+          chanEmit('memory.proposed', { agentId: entry.agentId, runId: runId, id: p.id, kind: p.kind, scope: p.scope || 'global' });
+        }
+        staged.push({ agentId: entry.agentId, proposals: entry.proposals.length, kinds: entry.proposals.map(p => p.reason || 'proposal') });
+      } catch (e) { failNote('secondbrain.reflect.stage', e); }
+    }
+    respondJson(res, 200, { ok: true, runId: runId, total: staged.reduce((n, s) => n + s.proposals, 0), staged: staged });
+  } catch (e) {
+    respondJson(res, 500, readRouteFailure('secondbrain.reflect', e));
+  } finally { brainReflecting = false; }
 }
 
 // GET /api/secondbrain/vault — where the vault would be written + the last export's outcome

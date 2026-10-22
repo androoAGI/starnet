@@ -77,6 +77,7 @@ const SecondBrain = (() => {
     '.sb-btn.ghost{border-color:rgba(255,255,255,.14);background:transparent;color:#b9bec4}',
     '.sb-probe{display:flex;gap:6px}',
     '.sb-probe input{flex:1;min-width:0;font:inherit;font-size:11px;padding:6px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:#e8eaec}',
+    '.sb-probe select{font:inherit;font-size:10px;padding:6px 4px;border-radius:4px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:#b9bec4}',
     '.sb-note{font-size:10px;color:#6f747b;line-height:1.5}',
     '.sb-empty{font-size:11px;color:#8b8f96;padding:14px;text-align:center}',
     '.sb-on{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7bc88a;box-shadow:0 0 6px #7bc88a;margin-right:5px;animation:sb-pulse 2.2s infinite}',
@@ -133,7 +134,7 @@ const SecondBrain = (() => {
 
     // ---- stat tiles ----
     const tiles = {};
-    const tileDefs = [['agents', 'agents'], ['memories', 'beliefs'], ['edges', 'links'], ['communities', 'neighbourhoods'], ['totalRecalls', 'recalls'], ['crossAgentLinks', 'cross-agent']];
+    const tileDefs = [['agents', 'agents'], ['memories', 'beliefs'], ['knowledge', 'knowledge'], ['edges', 'links'], ['communities', 'neighbourhoods'], ['totalRecalls', 'recalls'], ['crossAgentLinks', 'cross-agent']];
     for (const d of tileDefs) {
       const t = el('div', 'sb-stat', '<b>—</b><span>' + d[1] + '</span>');
       tiles[d[0]] = t.querySelector('b');
@@ -143,6 +144,18 @@ const SecondBrain = (() => {
     // ---- controls ----
     const refreshBtn = el('button', 'sb-btn ghost', 'refresh');
     const exportBtn = el('button', 'sb-btn', 'export to obsidian');
+    const reflectBtn = el('button', 'sb-btn', 'reflect · auto-improve');
+    const ingestBtn = el('button', 'sb-btn ghost', 'attach a graph');
+    const ingestRow = el('div', 'sb-probe');
+    ingestRow.hidden = true;
+    const kindSel = el('select');
+    kindSel.className = 'sb-kind';
+    kindSel.innerHTML = '<option value="graphify">graphify graph.json</option><option value="base">basemode .base/graph.nq</option>';
+    const pathIn = el('input');
+    pathIn.type = 'text';
+    pathIn.placeholder = 'path to the repo (or the graph file)…';
+    const addBtn = el('button', 'sb-btn ghost', 'add');
+    ingestRow.appendChild(kindSel); ingestRow.appendChild(pathIn); ingestRow.appendChild(addBtn);
     const probe = el('div', 'sb-probe');
     const probeIn = el('input');
     probeIn.type = 'text';
@@ -151,6 +164,8 @@ const SecondBrain = (() => {
     const probeBtn = el('button', 'sb-btn ghost', 'probe');
     probe.appendChild(probeIn); probe.appendChild(probeBtn);
     acts.appendChild(refreshBtn); acts.appendChild(exportBtn);
+    acts.appendChild(reflectBtn); acts.appendChild(ingestBtn);
+    actPanel.insertBefore(ingestRow, noteBox);
     actPanel.insertBefore(probe, noteBox);
     noteBox.textContent = 'Reading every agent notebook. Nothing is written until you export.';
 
@@ -221,7 +236,8 @@ const SecondBrain = (() => {
       let i = 0;
       for (const n of (g.nodes || [])) if (n.type === 'agent') { cols[n.agentId] = n.color || AGENT_COLORS[i % AGENT_COLORS.length]; i++; }
       return agents.map(a => '<span><i style="background:' + esc(cols[a.agentId] || '#ffd34a') + '"></i>' + esc(a.label) + '</span>').join('') +
-        '<span><i style="background:#5b6470"></i>neighbourhood</span>';
+        '<span><i style="background:#5b6470"></i>neighbourhood</span>' +
+        (num((g.stats || {}).knowledge) ? '<span><i style="background:#8fa3b0"></i>imported knowledge</span>' : '');
     }
 
     async function load(quiet) {
@@ -562,6 +578,43 @@ const SecondBrain = (() => {
         paintFeed();
       }
     }
+    // AUTO-IMPROVE: the station-wide reflection pass. It only PROPOSES — the proposals land in the same
+    // Keep/Edit/Discard deck a run uses, so nothing here writes a belief on its own.
+    reflectBtn.addEventListener('click', async () => {
+      reflectBtn.disabled = true;
+      noteBox.textContent = 'reading every notebook for cross-agent patterns…';
+      try {
+        const api = (typeof Harness !== 'undefined' && Harness.api) ? Harness.api : null;
+        const out = api ? await api.post('/api/secondbrain/reflect', {}) : await fetchJson('/api/secondbrain/reflect', {});
+        noteBox.innerHTML = out.total
+          ? '<b>' + num(out.total) + '</b> proposal(s) staged across ' + (out.staged || []).length + ' agent(s).<br>' +
+            'They are waiting in the confirm deck — keep, edit or discard each one.'
+          : 'Nothing to propose: the crew already holds what the graph shows. (Beliefs you discarded are never re-proposed.)';
+        if (typeof notify === 'function' && out.total) notify('Second brain proposed ' + out.total + ' belief(s)', 'good');
+      } catch (e) {
+        noteBox.textContent = 'Reflection failed — ' + ((e && e.message) || e);
+      } finally { reflectBtn.disabled = false; }
+    });
+
+    // ATTACH A GRAPH: fold graphify's graph.json or basemode's .base/graph.nq into this same brain.
+    ingestBtn.addEventListener('click', () => { ingestRow.hidden = !ingestRow.hidden; if (!ingestRow.hidden) pathIn.focus(); });
+    addBtn.addEventListener('click', async () => {
+      const p = pathIn.value.trim();
+      if (!p) { pathIn.focus(); return; }
+      addBtn.disabled = true;
+      noteBox.textContent = 'reading ' + kindSel.value + ' graph…';
+      try {
+        const api = (typeof Harness !== 'undefined' && Harness.api) ? Harness.api : null;
+        const body = { kind: kindSel.value, path: p };
+        const out = api ? await api.post('/api/secondbrain/ingest', body) : await fetchJson('/api/secondbrain/ingest', body);
+        noteBox.innerHTML = 'Folded in <b>' + num(out.nodes) + '</b> nodes / ' + num(out.edges) + ' links from ' + esc(out.source) + '.<br><span style="word-break:break-all">' + esc(out.path || '') + '</span>';
+        ingestRow.hidden = true; pathIn.value = '';
+        await load();
+      } catch (e) {
+        noteBox.textContent = 'Could not read that graph — ' + ((e && e.message) || e);
+      } finally { addBtn.disabled = false; }
+    });
+
     probeBtn.addEventListener('click', runProbe);
     probeIn.addEventListener('keydown', ev => { if (ev.key === 'Enter') runProbe(); });
 

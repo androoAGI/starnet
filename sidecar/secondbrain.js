@@ -377,6 +377,38 @@
       for (const memId of c.members) edges.push({ source: memId, target: c.id, type: 'in_concept', weight: 0.4 });
     }
 
+    // ---- external knowledge graphs (graphify / basemode), folded into the SAME map ----------------------
+    // The station's beliefs are one half of what the Commander knows; a code/doc graph (graphify) and a workspace
+    // ontology (basemode) are the other. They arrive already parsed (brain-sources.js) so this module stays pure
+    // and has no idea what a tree-sitter or an N-Quad is. Their nodes are 'knowledge' — visibly a different kind
+    // of thing from a belief — and keep their own ids, so two tools describing "auth" never collide.
+    const extNodes = [], extEdges = [], bySource = {};
+    for (const s of (Array.isArray(opts.sources) ? opts.sources : [])) {
+      if (!s) continue;
+      const srcName = String(s.source || s.kind || 'imported');
+      const list = Array.isArray(s.nodes) ? s.nodes : (Array.isArray(s.records) ? s.records : []);
+      const links = Array.isArray(s.edges) ? s.edges : [];
+      const ids = {};
+      for (const n of list) {
+        if (!n || !n.id) continue;
+        ids[n.id] = 1;
+        extNodes.push({
+          id: String(n.id), type: 'knowledge', source: srcName, label: String(n.label || n.id),
+          kind: n.kind || null, community: n.community != null ? String(n.community) : null,
+          file: n.file || null, trust: Number(n.trust) || 0.5, domain: n.domain || null
+        });
+      }
+      for (const e of links) {
+        if (!e || !ids[e.source] || !ids[e.target]) continue;
+        extEdges.push({ source: String(e.source), target: String(e.target), type: String(e.type || 'relates'), weight: Number(e.weight) || 0.5, external: true });
+      }
+      bySource[srcName] = { nodes: list.length, edges: links.length };
+    }
+    if (extNodes.length) {
+      for (const n of extNodes) nodes.push(n);
+      for (const e of extEdges) edges.push(e);
+    }
+
     // ---- stats ------------------------------------------------------------------------------------------
     const byKind = {}, byAgent = {}, byConfirmation = { 'user-confirmed': 0, inferred: 0 };
     let totalUse = 0, totalTrust = 0, stale = 0, pinned = 0;
@@ -404,6 +436,9 @@
       stale: stale,
       totalRecalls: totalUse,
       avgTrust: memories.length ? Math.round((totalTrust / memories.length) * 1000) / 1000 : 0,
+      knowledge: extNodes.length,
+      knowledgeEdges: extEdges.length,
+      sources: bySource,
       sampled: sampled
     };
 

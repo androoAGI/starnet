@@ -13,6 +13,12 @@ StarNet is unchanged upstream. This fork keeps every bit of its memory architect
 - `frontend/app/secondbrain.js` — the **live BRAIN window**: a force-directed canvas fed by the station's existing
   SSE bridge, so every `memory.write` / `memory.used` / `memory.proposed` / `memory.forget` is visible as it
   happens, plus a recall probe that lights up exactly which beliefs a piece of text would surface.
+- `sidecar/brain-sources.js` — folds **graphify** (`graphify-out/graph.json`) and **basemode**
+  (`.base/graph.nq`, [ChristopherKahler/base](https://github.com/ChristopherKahler/base)) into the same graph as
+  `knowledge` nodes. Both are optional: the app works with neither installed.
+- `sidecar/secondbrain-reflect.js` — the **auto-improving pass**, station-wide: it proposes consolidations of
+  near-duplicate beliefs and teaches proven lessons across agents, all through the existing Keep/Edit/Discard
+  deck. Nothing is written without a verdict.
 
 ## Where it lives in the app
 

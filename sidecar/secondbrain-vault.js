@@ -344,13 +344,45 @@ function memoryNote(rec, agentLabel, naming, graph) {
 }
 
 function scopeNote(kind, label, pathOrId, members, naming) {
-  const name = naming(label);
+  const name = naming(safeFileBase(label, pathOrId));
   return {
     name: name,
     content: frontmatter({ type: kind, path: pathOrId, memories: members.length, generated_by: GENERATED_BY, tags: ['agent-os/' + kind] }) +
       '\n# ' + mdEscape(label) + '\n\n' + members.length + ' belief' + (members.length === 1 ? '' : 's') + '.\n\n' +
       members.map(m => '- [[' + m.brainName + ']]').join('\n') + '\n'
   };
+}
+
+/* An imported knowledge node — a graphify concept or a basemode record. It is NOT a belief: nobody earned it,
+   trust is the parser's confidence, and it belongs to a tool rather than an agent. The note says so plainly so a
+   reader (human or model) never mistakes a parsed code symbol for something the Commander confirmed. */
+// A filename-safe base for a note name. Windows rejects : * ? " < > | outright, and a graphify label like
+// "release:prod script" would otherwise land as "release" (the colon truncates it) — a note silently renamed.
+function safeFileBase(s, fallback) {
+  const t = String(s == null ? '' : s).replace(/[\\/:*?"<>|#^[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70);
+  return t || String(fallback || 'untitled');
+}
+
+function knowledgeNote(n, neighbours, naming) {
+  const name = naming(safeFileBase(n.label || n.id, n.id));
+  n.brainName = name;
+  return {
+    name: name,
+    content: frontmatter({
+      type: 'knowledge', source: n.source || 'imported', kind: n.kind || '',
+      community: n.community || '', file: n.file || '', domain: n.domain || '',
+      trust: Math.round((Number(n.trust) || 0) * 100) / 100,
+      generated_by: GENERATED_BY, tags: ['agent-os/knowledge', 'source/' + (n.source || 'imported')]
+    }) + '\n# ' + mdEscape(n.label || n.id) + '\n\n' +
+      'Imported from **' + mdEscape(n.source || 'an external graph') + '**' +
+      (n.file ? ' · `' + mdEscape(n.file) + '`' : '') + '.\n\n' +
+      'This is a parsed concept, not a belief any agent holds and not something the Commander confirmed.\n' +
+      (neighbours.length ? '\n## Connected\n\n' + neighbours.map(x => '- [[' + (x.brainName || x.label || x.id) + ']]').join('\n') + '\n' : '')
+  };
+}
+
+function knowledgeBase() {
+  return `filters:\n  and:\n    - file.inFolder("Knowledge")\n    - 'type == "knowledge"'\nproperties:\n  source:\n    displayName: Source\n  kind:\n    displayName: Kind\n  trust:\n    displayName: Confidence\nviews:\n  - type: table\n    name: Imported knowledge\n    order:\n      - file.name\n      - source\n      - kind\n      - trust\n    sort:\n      - property: source\n        direction: ASC\n`;
 }
 
 function conceptNote(c, members, naming) {
@@ -464,6 +496,21 @@ async function writeVault(deps) {
     await write(pathMod.join('Memories', agentFolder, note.name + '.md'), note.content);
   }
 
+  // ---- imported knowledge (graphify / basemode) ----
+  const knowledgeNodes = graph.nodes.filter(n => n.type === 'knowledge');
+  for (const name of graph.edges.filter(e => e.external).map(e => e.type)) { /* relation names are data, not files */ }
+  for (const k of knowledgeNodes) {
+    const neighbours = graph.edges
+      .filter(e => e.source === k.id || e.target === k.id)
+      .map(e => graph.nodes.find(n => n.id === (e.source === k.id ? e.target : e.source)))
+      .filter(Boolean).slice(0, 20);
+    const folder = String(k.source || 'imported').replace(/[\\/:*?"<>|]/g, '-');
+    // pass a namer that actually registers the (sanitized) name — a closure returning the raw label bypassed
+    // both the collision registry and safeFileBase, which is how "release:prod script" became "release".
+    const note = knowledgeNote(k, neighbours, x => naming(x));
+    await write(pathMod.join('Knowledge', folder, note.name + '.md'), note.content);
+  }
+
   // ---- projects + streams ----
   for (const p of graph.nodes.filter(n => n.type === 'project')) {
     const members = memNodes.filter(m => m.projectRoot && String(m.projectRoot).replace(/\\/g, '/').replace(/\/+$/, '') === p.path);
@@ -491,6 +538,7 @@ async function writeVault(deps) {
   await write('Concepts.base', conceptsBase());
   await write('Preferences.base', preferencesBase());
   await write('Stale.base', staleBase());
+  if (knowledgeNodes.length) await write('Knowledge.base', knowledgeBase());
   await write('Brain.md', brainDashboard(graph.stats, now));
 
   // ---- graphify-shaped graph: nodes/links with a community per node, which is what graphify's own output
@@ -555,4 +603,4 @@ function hexToInt(hex) {
   return isFinite(n) ? n : 0xffd34a;
 }
 
-module.exports = { writeVault, memoriesBase, agentsBase, conceptsBase, preferencesBase, staleBase, GENERATED_BY };
+module.exports = { writeVault, memoriesBase, agentsBase, conceptsBase, preferencesBase, staleBase, knowledgeBase, knowledgeNote, GENERATED_BY };

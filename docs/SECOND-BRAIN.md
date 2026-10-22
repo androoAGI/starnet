@@ -55,7 +55,60 @@ demand, so it can never drift from what the agents believe.
 
 ---
 
-## 2. What the second brain adds
+## 2. The three graphs, folded into one
+
+| Source | What it is | How it gets in |
+| --- | --- | --- |
+| **Agent OS memory** | every agent notebook (beliefs, trust, recall counts) | read directly from `WORKSPACES/*.notebook.json` |
+| **graphify** ([Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify)) | a code/doc corpus as a graph — `graphify-out/graph.json` | **BRAIN ▸ ATTACH A GRAPH** → graphify, or `POST /api/secondbrain/ingest` |
+| **basemode** ([ChristopherKahler/base](https://github.com/ChristopherKahler/base)) | a workspace as RDF — `.base/graph.nq` (N-Quads) | **BRAIN ▸ ATTACH A GRAPH** → basemode, same route |
+
+They are **optional amplifiers, never dependencies** — the app works with neither installed. Both are parsed
+locally (`sidecar/brain-sources.js`, pure) and merged as `knowledge` nodes: visibly a different kind of thing
+from a belief, with ids namespaced (`gfy:…`, `base:…`) so a graphify `auth` symbol and an agent's notion of
+`auth` never collapse into one dot.
+
+What is carried across, honestly:
+
+- graphify's `confidence` — `EXTRACTED` (read from source) becomes weight 0.9, `INFERRED` becomes 0.4. Dangling
+  links are dropped rather than drawn as floating nodes.
+- basemode's vocabulary from its own `docs/markdown-ontology-protocol.md`: `rdf:type` → node kind,
+  `ops:summary` → label, `ops:relatedTo` / `ops:supersedes` → real edges, `ops:verified` → higher confidence.
+  A subject target that is not in the file is not invented.
+
+```bash
+# by hand, if you prefer the CLI
+uv tool install graphifyy && graphify /path/to/repo   # writes graphify-out/graph.json
+base scaffold && base sync --ast --target src         # writes .base/graph.nq
+```
+
+## 3. The auto-improving loop (station-wide)
+
+StarNet's reflection loop already works **inside one notebook**: propose → Keep/Edit/Discard → `memory.feedback`
+moves trust → trust decays when unreinforced → an explicit Discard lands in `declined:<agent>` so it is never
+proposed again. That is the Hermes-shaped loop.
+
+`sidecar/secondbrain-reflect.js` widens it to the **whole crew** without inventing a second memory system. It
+reads the merged graph and emits ordinary proposals, which ride the *same* deck and the *same* turn-in route:
+
+| Rule | Fires when | Proposal shape |
+| --- | --- | --- |
+| **consolidate** | two beliefs in one notebook are ≥0.62 similar | `replaceId` — Keep **rewrites** the record, it does not add a duplicate |
+| **cross-learn** | a teammate's belief is recalled ≥2×, is confirmed or trusted ≥0.3, and shares the same project/workstream | a new belief prefixed `Learned on this station by <agent>: …` |
+
+Guardrails, deliberately:
+
+- **Never** proposes a forget, a pin, or a trust bump — a proposal deck must not be able to destroy something you
+  pinned or confirmed, and endorsement is earned through `memory.feedback`, not asserted by a reflector.
+- Never rewrites a pinned belief.
+- Skips anything in `declined:` (discard = never again, station-wide).
+- Bounded to 4 proposals per agent, deterministic for the same inputs.
+
+`POST /api/secondbrain/reflect` stages them durably (`pending:<agent>`) and emits `memory.proposed`, so they
+appear in the normal confirm deck. Verified end-to-end: reflect → Keep → a real record landed in the target
+agent's notebook.
+
+## 4. What the second brain adds
 
 `sidecar/secondbrain.js` (pure, no IO):
 
@@ -75,7 +128,7 @@ demand, so it can never drift from what the agents believe.
 
 ---
 
-## 3. In the app
+## 5. In the app
 
 - **CREW ▸ BRAIN** — the station-wide window (one graph, every agent).
 - **AGENT DOSSIER ▸ BRAIN** — the same graph scoped to one agent.
@@ -97,7 +150,7 @@ getting throttled" and watch which beliefs it would surface, ranked, across ever
 
 ---
 
-## 4. The Obsidian vault
+## 6. The Obsidian vault
 
 **BRAIN ▸ EXPORT TO OBSIDIAN** writes to `~/Documents/Agent OS Brain` (override with `AGENT_OS_BRAIN_VAULT`).
 
@@ -108,15 +161,20 @@ Agents.base                  the crew, sized by beliefs
 Concepts.base                the detected neighbourhoods
 Preferences.base             the Commander's taste (origin: feedback)
 Stale.base                   beliefs nothing has recalled
+Knowledge.base               imported graphify / basemode nodes (only when present)
 Agents/<Agent>.md            one hub note per agent
 Memories/<Agent>/<Title>.md  one note per belief, with provenance + related links
+Knowledge/<source>/<Name>.md one note per imported concept — typed `knowledge`, says it is not a belief
 Projects/<slug>.md
 Streams/<slug>.md
 Concepts/<slug>.md
-graph.json                   nodes/links, graphify-shaped
+graph.json                   nodes/links for the WHOLE brain (beliefs + imported), graphify-shaped
 .obsidian/graph.json         colour groups per agent
 Attach an AI.md              the paste-in prompt below
 ```
+
+`.base` here means the Obsidian **Bases** core plugin format (1.9+) — unrelated to basemode, which is the RDF
+graph tool whose `.base/graph.nq` we ingest. Same word, two things.
 
 `.base` files are the Obsidian **Bases** core plugin format (1.9+): views, filters and formulas over note
 properties. Example — `Memories.base`:
@@ -150,12 +208,12 @@ already Obsidian-ready without it — graphify is optional enrichment, not a dep
 
 ---
 
-## 5. The prompt pack — attaching your other AIs
+## 7. The prompt pack — attaching your other AIs
 
 Any AI that can read files (Claude Code, Codex, Cursor, Gemini CLI, local models with a filesystem tool) can be
 pointed at the vault. `Attach an AI.md` is written into the vault for exactly this.
 
-### 5a. The prompt for a *reader* (let an AI use your brain)
+### 7a. The prompt for a *reader* (let an AI use your brain)
 
 ```text
 You are connected to my Agent OS second brain at C:\Users\bryce\Documents\Agent OS Brain.
@@ -170,7 +228,7 @@ Before answering anything about me, my projects, or my preferences:
 Do not rewrite notes you did not create. Do not edit Brain.md — it is generated.
 ```
 
-### 5b. The prompt for a *writer* (let an AI contribute memories back)
+### 7b. The prompt for a *writer* (let an AI contribute memories back)
 
 Give this to an AI whose work you want folded into the station. It writes new notes in the exact shape the
 vault uses, which then round-trips into Agent OS as beliefs.
@@ -209,7 +267,7 @@ tags: ["agent-os/memory", "agent/<your-name>", "kind/note", "inferred"]
 <One line: what future task this should change.>
 ```
 
-### 5c. The prompt for an AI that already has its own memory
+### 7c. The prompt for an AI that already has its own memory
 
 Use this to *migrate* an existing assistant's memory into the brain. It asks the AI to dump what it knows, then
 you paste the result into `Memories/Imported/` or feed it through the app.
@@ -229,7 +287,7 @@ Rules for the list:
 Then attach the output — either write the notes into `Memories/Imported/` using the writer prompt's shape, or
 paste each line into the agent's MEMORY tab in the app to seed it directly.
 
-### 5d. Keeping them in sync
+### 7d. Keeping them in sync
 
 - Agent OS → other AIs: export, and every AI reading the vault sees the same brain.
 - Other AIs → Agent OS: their notes land in `Memories/<TheirName>/`, and the next Agent OS export/import cycle
@@ -239,7 +297,7 @@ paste each line into the agent's MEMORY tab in the app to seed it directly.
 
 ---
 
-## 6. Rebrand note
+## 8. Rebrand note
 
 Display text says **Agent OS**. Deliberately unchanged, because they are load-bearing:
 
