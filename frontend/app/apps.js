@@ -1,7 +1,7 @@
 /* frontend/app/apps.js — APPS: describe it, get it (2026-09-29).
 
    The Commander names an app and says, in their own words, what it should be — a tracker, a timer, a dashboard,
-   a game, a feed that refreshes itself: anything. StarNet creates it at once (its window opens on a "building"
+   a game, a feed that refreshes itself: anything. Agent OS creates it at once (its window opens on a "building"
    page), then hands the build to the lead in the app's OWN COMMS session — so the work is visible, runs under the
    station's normal rules, and the page appears the moment the crew writes it. Changing an app is the same move
    from the bar under its window: describe the change.
@@ -166,12 +166,12 @@
   }
   // the model's own sense of the date is its training era: every hand-off states the real one
   const today = () => { try { return 'Today is ' + new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + '. '; } catch (_) { return ''; } };
-  const buildText = (a, what) => 'Build my new StarNet app "' + a.name + '" (app id: ' + a.id + ').\n\nWhat it should do: ' + what + '\n\n' + today() +
+  const buildText = (a, what) => 'Build my new Agent OS app "' + a.name + '" (app id: ' + a.id + ').\n\nWhat it should do: ' + what + '\n\n' + today() +
     'Use the app tools (find them with tool.search "app"): read it with app.read, write index.html with app.write, app.check it, ' +
     'and make it exactly what I described — if I said how it should look or behave, do that; where I did not, match the station. ' +
     'If it should update by itself, app.schedule it FIRST (before any web research); if it shows information, fill it with REAL content now with app.publish; if it is a tool I use myself, make it work and keep what I enter. ' +
     'Then tell me in a sentence what it does.';
-  const changeText = (a, what) => 'Change my StarNet app "' + a.name + '" (app id: ' + a.id + '): ' + what + '\n\n' + today() +
+  const changeText = (a, what) => 'Change my Agent OS app "' + a.name + '" (app id: ' + a.id + '): ' + what + '\n\n' + today() +
     'Read it first with app.read (find the app tools with tool.search "app"), then app.write the new version and app.check it. Keep what already works.';
 
   /* create(name, what) -> { app, sent } — the app exists either way; `sent` says whether the crew has the build. */

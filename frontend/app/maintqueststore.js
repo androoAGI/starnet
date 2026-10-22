@@ -1,4 +1,4 @@
-/* STARNET — maintqueststore.js : the live wiring around the pure MaintQuests engine (G1c).
+/* AGENT OS — maintqueststore.js : the live wiring around the pure MaintQuests engine (G1c).
 
    The maintenance-quest generator, wired to real signals. It owns everything the pure engine can't touch:
      • the SLAG SIGNAL — on every sync it re-reads the live SlagLog ring (World.slagPostmortems) and tallies it

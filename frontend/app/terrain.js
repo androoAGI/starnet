@@ -1,4 +1,4 @@
-/* STARNET — terrain.js : THE GROUND. What the station is standing ON.
+/* AGENT OS — terrain.js : THE GROUND. What the station is standing ON.
 
    THIS IS NOT A BACKDROP, AND THE DIFFERENCE IS THE WHOLE POINT.
 

@@ -1,4 +1,4 @@
-/* STARNET — mint.js : THE AUTO-MINT engine — notice the jobs you keep asking for, and offer to save them.
+/* AGENT OS — mint.js : THE AUTO-MINT engine — notice the jobs you keep asking for, and offer to save them.
 
    The moat move (personalization P3 slice 2). As the Commander assigns tasks, this watches for a RECURRING
    SHAPE of request — "brief me on X", "fix the bug in Y", "summarize Z" — and, once a shape repeats enough,

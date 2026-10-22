@@ -1,6 +1,6 @@
 # Props (furniture) — contract
 
-Placeable, animated furniture ported from the v7 StarNet sim. Companion to `BUILDER.md`.
+Placeable, animated furniture ported from the v7 Agent OS sim. Companion to `BUILDER.md`.
 
 ## Data model (worldmodel.js — additive, no `shared/` change)
 

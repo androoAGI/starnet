@@ -1,4 +1,4 @@
-/* STARNET — recquality.js : THE RECOMMENDATION QUALITY LOOP (pure, node-testable, zero DOM / zero fetch / zero clock).
+/* AGENT OS — recquality.js : THE RECOMMENDATION QUALITY LOOP (pure, node-testable, zero DOM / zero fetch / zero clock).
 
    The spine (recommend.js) decides WHO speaks: one voice, evidence or silence. It answers "can this offer cite?"
    — a yes/no. This module answers the two questions that come after:

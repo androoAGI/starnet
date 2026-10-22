@@ -1,4 +1,4 @@
-/* STARNET titlebar.js
+/* AGENT OS titlebar.js
    Custom window chrome for the Windows desktop shell. The Rust shell drops the
    native titlebar/border (decorations(false)) and stamps
    window.__STARNET_CUSTOM_CHROME__ = 1 in its init script; ONLY then does this

@@ -1,4 +1,4 @@
-/* STARNET — projects.js : pure display helpers for the PROJECTS rail view (NS-5c).
+/* AGENT OS — projects.js : pure display helpers for the PROJECTS rail view (NS-5c).
 
    The Projects rail is the SESSIONS↔PROJECTS toggle's second face. It renders GET /api/projects — every folder
    the Commander has blessed as a trusted project root (the NS-5 known-projects store, joined against the live

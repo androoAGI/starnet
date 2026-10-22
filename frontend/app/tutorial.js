@@ -1,4 +1,4 @@
-/* STARNET — tutorial.js : THE FIRST COMMAND + coachmarks + Field Manual (diegetic onboarding, P0–P3).
+/* AGENT OS — tutorial.js : THE FIRST COMMAND + coachmarks + Field Manual (diegetic onboarding, P0–P3).
 
    The default station starts furnished with five essential capability props. The
    optional tour explains the workstation, reads the actual equipment in the agent's
@@ -533,7 +533,7 @@ const Tutorial = (() => {
     });
   }
   // the demo is a REAL run — only attempt it when it can actually land: a configured brain AND a reachable sidecar.
-  // Without both, Chat.send throws a raw "no key" / "cannot reach the STARNET sidecar" line and the run never walks
+  // Without both, Chat.send throws a raw "no key" / "cannot reach the AGENT OS sidecar" line and the run never walks
   // (the user's "the end test fails" report). Preflight, and if it can't run, narrate the truth and teach on.
   function demoPreflight() {
     const model = (typeof Harness !== 'undefined' && Harness.getModel) ? Harness.getModel() : '';
@@ -554,7 +554,7 @@ const Tutorial = (() => {
     if (!active) return;
     const line = (why === 'brain')
       ? 'the file example hasn’t started. choose a model in COMMS and check its connection in SYSTEM › SETTINGS, then try again. adding more equipment won’t fix a model connection.'
-      : 'the file example hasn’t started because the local service isn’t responding. reconnect or restart StarNet, then try again. your station does not need rebuilding.';
+      : 'the file example hasn’t started because the local service isn’t responding. reconnect or restart Agent OS, then try again. your station does not need rebuilding.';
     say([seg(line, 52, 0)], () => finishOrientation(true));
   }
   /* ---- the kit-out spotlight: a coach bubble PINNED to a safe zone (.tut-coach.kit — so it can never cover the

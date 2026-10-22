@@ -1,4 +1,4 @@
-/* STARNET — permissionsstore.js : the thin live wiring around the pure Permissions Panel engine (permissions.js).
+/* AGENT OS — permissionsstore.js : the thin live wiring around the pure Permissions Panel engine (permissions.js).
    Autonomy Stage B / B1 — the OS-style trust panel where the Commander dials the station never→fully-autonomous
    and sees / revokes every standing capability grant.
 

@@ -1,4 +1,4 @@
-/* StarNet generation II scene compositor.
+/* Agent OS generation II scene compositor.
  * Geometry and work state arrive from the existing model/simulation. This module owns
  * draw order, light lifecycle and measured render costs; it cannot emit harness events.
  * A renderer backend can change here without changing the station save or its mechanics.

@@ -1,5 +1,5 @@
 /* ============================================================================
-   STARNET — audio.js : the colony sound Director.
+   AGENT OS — audio.js : the colony sound Director.
 
    The generative background score was removed (2026-07-04, by decision): the
    station now speaks only through designed SFX (see util.js). What remains is

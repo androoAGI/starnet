@@ -1,4 +1,4 @@
-/* STARNET — tooltip.js : the station's own hover card, replacing the browser's native `title` bubble.
+/* AGENT OS — tooltip.js : the station's own hover card, replacing the browser's native `title` bubble.
 
    WHY (Andrew, 2026-07-27): a native tooltip is OS chrome — a grey box in the system font, drawn by
    Windows over the phosphor terminal, on the OS's own ~500ms timer. It is the same defect class as the

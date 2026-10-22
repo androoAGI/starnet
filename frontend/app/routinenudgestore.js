@@ -1,4 +1,4 @@
-/* STARNET — routinenudgestore.js : the "you keep launching this — schedule it?" nudge (lane D).
+/* AGENT OS — routinenudgestore.js : the "you keep launching this — schedule it?" nudge (lane D).
 
    A recipe the Commander keeps hand-launching is a routine that hasn't been admitted yet. This store watches
    the REAL per-recipe launch counters (ProspectStore.launches — the scout usage read) and, when a recipe

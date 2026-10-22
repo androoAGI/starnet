@@ -50,7 +50,7 @@ function parseDocument(text, sourceUrl) {
   // a standard SKILL.md keeps author/version (and sometimes license) under `metadata:`; top-level wins when both exist
   const md = fm.meta.metadata && typeof fm.meta.metadata === 'object' && !Array.isArray(fm.meta.metadata) ? fm.meta.metadata : {};
   const scalarText = (v) => (v == null || typeof v === 'object') ? '' : str(v);
-  // the spec `name` is an identifier (pdf-processing); a StarNet export also carries its display title under
+  // the spec `name` is an identifier (pdf-processing); a Agent OS export also carries its display title under
   // metadata.title, which reads better in the panel and round-trips the original name
   const title = scalarText(md.title).replace(/\s+/g, ' ').trim();
   const name = (title && title.length <= 80 ? title : scalarText(fm.meta.name)).trim();
@@ -234,7 +234,7 @@ function makeSkillExchange(deps) {
   /* EXPORT WHAT WE WROTE (2026-09-29). Export used to refuse every skill without a sealed install package, i.e.
      everything the Commander or their agents authored: the one kind of skill most worth sharing. This builds a
      standard Agent Skills folder from the skill as it is now: SKILL.md with a spec name (lowercase letters, digits,
-     hyphens, max 64), the description, license when known, and the display title under metadata.title so StarNet
+     hyphens, max 64), the description, license when known, and the display title under metadata.title so Agent OS
      can show the same name after import; setup notes and body below; support files at their own paths. A skill the
      guard BLOCKED is never packaged for someone else. */
   function specName(name) {
@@ -278,7 +278,7 @@ function makeSkillExchange(deps) {
       instructions: [
         'Extract the standard skill folder represented by the package and host it without changing bytes.',
         'Set sourceUrl to the public HTTPS URL of SKILL.md and add the registry entry to a starnet-skill-registry/v1 index.',
-        'Inspect the hosted URL in StarNet and confirm its package SHA-256 is ' + exported.digest + ' before sharing.'
+        'Inspect the hosted URL in Agent OS and confirm its package SHA-256 is ' + exported.digest + ' before sharing.'
       ],
       uploaded: false
     };

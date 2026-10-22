@@ -1,4 +1,4 @@
-/* STARNET — browserstream.js : one live picture of a real browser, and (optionally) your hands on it.
+/* AGENT OS — browserstream.js : one live picture of a real browser, and (optionally) your hands on it.
 
    The BROWSER window shows two streamed browsers — an agent's (view only) and the Commander's own (driven) — and
    both are the same thing on the wire: a long-polled JPEG of the page plus, when allowed, mouse/keyboard events

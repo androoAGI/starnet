@@ -1,4 +1,4 @@
-/* STARNET — cloudsavecore.js : the pure, testable brain of the durable-mirror sync.
+/* AGENT OS — cloudsavecore.js : the pure, testable brain of the durable-mirror sync.
 
    cloudsave.js does the I/O (fetch/beacon/timers); THIS module holds the state machine that
    decides "when do we retry?" and "is the durable mirror stale?" — no browser globals, no

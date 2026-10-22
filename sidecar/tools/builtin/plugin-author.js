@@ -119,7 +119,7 @@ function makePluginAuthorTools(deps) {
   const tools = [
     {
       name: 'plugin.draft_start',
-      description: 'Start a StarNet plugin DRAFT (a plugin is the Commander\'s own app/dashboard/tool inside StarNet: windows built from the station kit, plus optional code with crew tools). '
+      description: 'Start a Agent OS plugin DRAFT (a plugin is the Commander\'s own app/dashboard/tool inside Agent OS: windows built from the station kit, plus optional code with crew tools). '
         + 'Starts from a working template (a window with a notes list + a KIT reference tab, and code with two example tools). To change an INSTALLED plugin use plugin.draft_from_installed instead. '
         + 'Drafts never run. Then edit with plugin.draft_write, check with plugin.check, show with plugin.preview, and install with plugin.submit.',
       schema: { type: 'object', required: ['id'], properties: {
@@ -234,7 +234,7 @@ function makePluginAuthorTools(deps) {
         const id = idOf(a);
         const r = await check(id);
         if (!r.screens || !r.screens.length) throw new Error('this draft has no windows to preview' + (r.problems.length ? ': ' + r.problems.join('; ') : ''));
-        if (!preview) throw new Error('previews need the StarNet window open');
+        if (!preview) throw new Error('previews need the Agent OS window open');
         const out = await preview(id, a.screen ? String(a.screen) : r.screens[0].id);
         if (!out || !out.ok) throw new Error((out && out.error) || 'the station could not open the preview');
         return { content: 'The DRAFT window "' + (out.title || id) + '" is open on the Commander\'s screen. Ask them how it looks; edit and preview again as needed, then plugin.submit.', summary: 'previewed ' + id };
@@ -242,7 +242,7 @@ function makePluginAuthorTools(deps) {
     },
     {
       name: 'plugin.submit',
-      description: 'Install a checked plugin draft into StarNet. It is installed OFF: the Commander switches it on in ABILITIES → EXTENSIONS after reviewing its code (you cannot approve it). Replacing an installed plugin turns it off until they approve the new code.',
+      description: 'Install a checked plugin draft into Agent OS. It is installed OFF: the Commander switches it on in ABILITIES → EXTENSIONS after reviewing its code (you cannot approve it). Replacing an installed plugin turns it off until they approve the new code.',
       schema: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       run: async (a) => {
         const id = idOf(a);

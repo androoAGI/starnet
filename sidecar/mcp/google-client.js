@@ -21,7 +21,7 @@ function loadDesktopClient({ env, readFile }) {
   } catch (_) { return null; } // UI reports unavailable; release staging fails with a useful operator error.
 }
 
-const UNAVAILABLE = 'Google sign-in is not available in this build. StarNet needs to finish enabling it. You do not need to create an app or enter credentials.';
+const UNAVAILABLE = 'Google sign-in is not available in this build. Agent OS needs to finish enabling it. You do not need to create an app or enter credentials.';
 // Release scope, deliberately source-controlled: publisher credentials do not enable this feature.
 // true = each Workspace service is gated by RELEASED below. Only test/review preloads set it false.
 const RELEASE_DEFERRED = true;

@@ -1,4 +1,4 @@
-/* STARNET — worksignal.js : the PURE capability-usage histogram (the "what work does the Commander actually do"
+/* AGENT OS — worksignal.js : the PURE capability-usage histogram (the "what work does the Commander actually do"
    substrate for adaptive recruitment).
 
    The recruiter's fuel. Where profile.js tracks the {code|research|general} INTEREST tag of every task, this

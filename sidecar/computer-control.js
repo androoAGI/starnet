@@ -33,7 +33,7 @@ function makeComputerControl(deps) {
       backend: selection(), supported, nativeSupported: platform === 'win32', desktopShell: shell, installed: installed(),
       customBinary: !!env.STARNET_CUA_BINARY,
       available: available(), installing: !!installing, envLocked: locked, version: VERSION,
-      detail: !shell ? 'Native control requires the StarNet desktop app.'
+      detail: !shell ? 'Native control requires the Agent OS desktop app.'
         : !supported ? 'CUA installation currently supports Windows x64. The existing Windows driver remains available on Windows.'
         : selection() === 'off' ? 'Native control is off.'
         : selection() === 'cua' && !installed() ? 'Install CUA to use accessibility targeting.'

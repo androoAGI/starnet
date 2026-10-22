@@ -2,7 +2,7 @@
 
    gracefulShutdown reaps children on SIGINT/SIGTERM — but a FORCE-kill (desktop shell dying, TerminateProcess,
    crash) runs no handlers, and detached/unref'd children (dev servers, CDP browsers) orphan silently. The
-   2026-07-12 incident: a smoke-test Edge + vite outlived StarNet entirely, kept playing game audio, and the
+   2026-07-12 incident: a smoke-test Edge + vite outlived Agent OS entirely, kept playing game audio, and the
    game's cursor confinement was left stuck on the user's desktop.
 
    This ledger closes the gap ACROSS process death: every long-lived child is recorded to a JSON file the moment

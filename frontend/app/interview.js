@@ -1,4 +1,4 @@
-/* STARNET — interview.js : the PURE engine for THE INTAKE INTERVIEW (Commander Dossier, Phase B).
+/* AGENT OS — interview.js : the PURE engine for THE INTAKE INTERVIEW (Commander Dossier, Phase B).
 
    The station actively gets to know its Commander: a short, optional, skippable Q&A — one question per
    blank dossier dimension — whose answers become durable dossier beliefs. This is the "deeply research the

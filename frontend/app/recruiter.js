@@ -1,4 +1,4 @@
-/* STARNET — recruiter.js : the PURE adaptive-recruitment matcher (the "which teammate to recruit NEXT" brain).
+/* AGENT OS — recruiter.js : the PURE adaptive-recruitment matcher (the "which teammate to recruit NEXT" brain).
 
    Given what the Commander ACTUALLY does (the worksignal capability histogram), what they're interested in (the
    profile affinity vector), what they've told the station (the dossier goals/pain/ambition beliefs), and who's

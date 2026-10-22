@@ -172,7 +172,7 @@ function makePush(deps) {
 
   async function send(deviceIds, msg) {
     const m = msg || {};
-    const payload = JSON.stringify({ title: String(m.title || 'StarNet').slice(0, 80), body: String(m.body || '').slice(0, 240),
+    const payload = JSON.stringify({ title: String(m.title || 'Agent OS').slice(0, 80), body: String(m.body || '').slice(0, 240),
       tag: String(m.tag || '').slice(0, 80), url: String(m.url || '').slice(0, 200) });
     if (Buffer.byteLength(payload) > MAX_PAYLOAD) return [];
     const ids = (Array.isArray(deviceIds) ? deviceIds : subscribed()).filter(has);

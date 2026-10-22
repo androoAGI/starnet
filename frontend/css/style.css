@@ -1,4 +1,4 @@
-/* STARNET — style.css : RAW Fallout / New Vegas pip-boy terminal aesthetic.
+/* AGENT OS — style.css : RAW Fallout / New Vegas pip-boy terminal aesthetic.
    Design language: monochrome phosphor on black glass. 2px hard lines.
    Inverted blocks for headers & selection. Segmented bars. Heavy bloom.
    No rounded corners, no gradients-as-decoration, no "web app" softness. */
@@ -376,7 +376,7 @@ b { font-weight: normal; color: var(--ph-bright); }
 body:has(#screen-game.active):not(.refit-on) #logo { display: flex; }
 #logo-anchor { flex-shrink: 0; }
 .logo-mark { font-size: 27px; color: var(--bad); text-shadow: 0 0 12px rgba(255,92,77,0.7); animation: pulse 2.8s infinite; }
-/* the STARNET wordmark image sits in the chrome top-left; the big version
+/* the AGENT OS wordmark image sits in the chrome top-left; the big version
    lives on the title screen where it has room to read */
 /* MASKED, not placed. The mark paints as var(--ph) through starnet-wordmark.svg, so it re-tints
    with the theme (the PNG was gold in every one) and re-rasterizes at whatever the device asks
@@ -639,7 +639,7 @@ body.crt-dull #chat-log, body.crt-dull .term-body, body.crt-dull #left, body.crt
    (same --warn token the ctx-gauge + refit notes use), with a slow pulse so it reads as "attention" not
    "error". Truthful telemetry: this only lights when CloudSave can't PROVE a recent backup. */
 #save-dot.stale { color: var(--warn); text-shadow: 0 0 8px rgba(255,233,122,0.55); animation: save-dot-stale 2.4s ease-in-out infinite; }
-/* EL-11 FIX 1: workspace written by a NEWER StarNet — the sidecar is REFUSING backup writes. Persistent red
+/* EL-11 FIX 1: workspace written by a NEWER Agent OS — the sidecar is REFUSING backup writes. Persistent red
    (--bad), distinct from the amber transient states; the title (stationui refreshSaveDurability) advises. */
 #save-dot.degraded { color: var(--bad); text-shadow: 0 0 8px rgba(255,92,77,0.55); animation: save-dot-stale 2.4s ease-in-out infinite; }
 @keyframes save-dot-stale { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }

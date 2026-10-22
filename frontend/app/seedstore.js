@@ -1,4 +1,4 @@
-/* STARNET — seedstore.js : the browser wiring for the SELF-GROWING SEED SHELF (pure engine: seeds.js).
+/* AGENT OS — seedstore.js : the browser wiring for the SELF-GROWING SEED SHELF (pure engine: seeds.js).
 
    When the mint detector (mintstore.js) has watched the Commander ask for the same shape of task enough times,
    the agent gently offers to AUTHOR it as a one-tap seed — a custom recipe whose {input} becomes a REQUIRED gap

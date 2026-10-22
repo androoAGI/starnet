@@ -1,4 +1,4 @@
-/* STARNET — panelchrome.css : the PANEL CHROME premium pass.
+/* AGENT OS — panelchrome.css : the PANEL CHROME premium pass.
    One additive layer over the four game-screen chrome panels — #topbar (instrument deck),
    #left (CREW rail), #chat-panel (COMMS), #bottombar (command deck). Loads AFTER
    style/app/comms/motion/topbar/widgets (index.html), so every rule here wins by cascade

@@ -59,7 +59,7 @@
       // station.inspect and the same always-present object, so the prompt's "call manual.read" can never name a
       // tool the run lacks. A constant text lookup: no IO, no network, no consent.
       { capId: 'stationinfo', tool: 'manual.read', scope: 'read', requiresConsent: false, network: false },
-      // SHOWING the station (2026-10-04): station.show opens a StarNet window/tab on the Commander's screen (frontend/app/places.js).
+      // SHOWING the station (2026-10-04): station.show opens a Agent OS window/tab on the Commander's screen (frontend/app/places.js).
       // Read scope + no consent: it changes only what they LOOK at (no harness state), so neither an approval card nor the Task
       // Brief gate stands between "show me" and the window; the page obeys only the run they are watching. Deferred: found by
       // tool_search "show open window" (the manual's navigation section names it), so it costs no prompt bytes.
@@ -150,7 +150,7 @@
          which is also the moment a human is around to answer its consent card. */
       { capId: 'web', tool: 'browser.attach', scope: 'execute', requiresConsent: true, network: true, deferred: true },
       { capId: 'web', tool: 'browser.detach', scope: 'execute', requiresConsent: false, network: true, deferred: true },
-      /* #61: the supported recovery for a wedged station browser (ends only StarNet's own orphaned browser on the
+      /* #61: the supported recovery for a wedged station browser (ends only Agent OS's own orphaned browser on the
          station profile). Deferred: a repair move, found through tool.search when a browser error names it. */
       { capId: 'web', tool: 'browser.reset', scope: 'execute', requiresConsent: false, network: true, deferred: true },
       /* Deferred, same reasoning as attach: specialist moves, not the ordinary browse loop. pdf is a
@@ -232,7 +232,7 @@
     workbench: [
       { capId: 'workbench', tool: 'shell.exec', scope: 'execute', requiresConsent: true, network: true },
       { capId: 'workbench', tool: 'verify.run', scope: 'execute', requiresConsent: true, network: true },
-      // Local UI/game verification stays inside StarNet's headless CDP session. Pointer/keyboard
+      // Local UI/game verification stays inside Agent OS's headless CDP session. Pointer/keyboard
       // lock is emulated in-page, and coordinate/key input is synthetic — never Win32 input.
       // Deferred: a run that places the workbench is usually there to run shell, not to drive the local UI
       // harness. Still granted and dispatchable — tool.search reveals the set when a UI check is what's needed.
@@ -274,7 +274,7 @@
       { capId: 'orchestrator', tool: 'team.steer', scope: 'write', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'team.interrupt', scope: 'write', requiresConsent: false, network: false },
       { capId: 'orchestrator', tool: 'team.resume', scope: 'execute', requiresConsent: false, network: true },
-      // ROUTINES: create StarNet scheduled jobs through the built-in cron store (the same surface as the
+      // ROUTINES: create Agent OS scheduled jobs through the built-in cron store (the same surface as the
       // ROUTINES panel), never through OS crontab / Windows Task Scheduler. Lead-only like the rest of
       // orchestration; creation is consent-gated because it persists autonomous future work.
       { capId: 'orchestrator', tool: 'routine.list', scope: 'read', requiresConsent: false, network: false },
@@ -316,7 +316,7 @@
       { capId: 'orchestrator', tool: 'station.map', scope: 'read', requiresConsent: false, network: false, deferred: true },
       { capId: 'orchestrator', tool: 'station.plan', scope: 'read', requiresConsent: false, network: false, deferred: true },
       { capId: 'orchestrator', tool: 'station.build', scope: 'write', requiresConsent: true, network: false, deferred: true },
-      // MAKE A PROP (2026-10-01): a new piece drawn by StarNet's prop maker, paid with StarNet credits (consent, the card names the price)
+      // MAKE A PROP (2026-10-01): a new piece drawn by Agent OS's prop maker, paid with Agent OS credits (consent, the card names the price)
       { capId: 'orchestrator', tool: 'station.make_prop', scope: 'write', requiresConsent: true, network: true, deferred: true },
       { capId: 'orchestrator', tool: 'station.test_line', scope: 'write', requiresConsent: true, network: true, deferred: true },
       { capId: 'orchestrator', tool: 'station.start_line', scope: 'write', requiresConsent: true, network: false, deferred: true },

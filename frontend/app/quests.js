@@ -1,4 +1,4 @@
-/* STARNET — quests.js : the PURE quest-skin engine. Dresses the station's EXISTING, honest progress as RPG
+/* AGENT OS — quests.js : the PURE quest-skin engine. Dresses the station's EXISTING, honest progress as RPG
    quests — without inventing anything. It is a read PROJECTION over three real sources:
      • xp.js MILESTONES   — real achievements (tasks shipped, memories reused…); earned = a done quest.
      • the Commander dossier — each still-blank dimension is a "get to know you" quest; known = done.

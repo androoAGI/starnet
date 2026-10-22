@@ -1,4 +1,4 @@
-/* STARNET — recruiterstore.js : the live read surface that joins the adaptive-recruitment inputs and runs the
+/* AGENT OS — recruiterstore.js : the live read surface that joins the adaptive-recruitment inputs and runs the
    pure Recruiter matcher (engine in recruiter.js).
 
    The browser glue between the persisted models and the two delivery surfaces (the bay's CURATED shelf +

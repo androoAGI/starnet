@@ -1,4 +1,4 @@
-/* STARNET — study.js : the PURE STUDY ENGINE — the dossier's missing Phase B (work → understanding).
+/* AGENT OS — study.js : the PURE STUDY ENGINE — the dossier's missing Phase B (work → understanding).
 
    Phase A (dossier.js) is a one-time intake form: the dossier grows ONLY from the Commander's own onboarding
    docs + explicit panel edits (dossierstore.js:9 — "folds nothing automatically"). This engine is Phase B:

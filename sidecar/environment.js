@@ -2,7 +2,7 @@
 
    The reference harness' terminal layer is built around an environment boundary: the tool asks an
    environment to execute, while the environment decides whether that means host
-   shell, Docker, SSH, or a cloud sandbox. StarNet's first parity step is the same
+   shell, Docker, SSH, or a cloud sandbox. Agent OS's first parity step is the same
    seam. This module keeps the local backend behavior-compatible, and adds a
    Docker backend that runs commands in one durable, per-agent container against
    the same workspace bind mount.
@@ -60,13 +60,13 @@
   }
   /* The `_`-boundary requirement meant a CONCATENATED name never matched, so the ambient secrets people
      actually have leaked straight into every task child's env: STRIPE_APIKEY, ANTHROPIC_APIKEY, GITHUB_PAT,
-     FOO_ACCESSTOKEN. (StarNet's own KEYS vars always end in _API_KEY, which is why this never showed up in
+     FOO_ACCESSTOKEN. (Agent OS's own KEYS vars always end in _API_KEY, which is why this never showed up in
      our own fixtures.) Keep the boundary form for the words that read as prose (PASS, AUTH, KEY) and add
      the glued spellings that are unambiguous on their own. */
   const SECRET_ENV_NAME_RE = /(?:^|_)(?:TOKEN|KEY|SECRET|PASSWORD|PASS|AUTH|BEARER|COOKIE|CREDENTIAL)(?:_|$)|(?:APIKEY|ACCESSTOKEN|ACCESSKEY|SECRETKEY|AUTHTOKEN|APITOKEN|PRIVATEKEY|PASSWD)|(?:^|_)PAT(?:_|$)/i;
-  const INTERNAL_ENV_NAME_RE = /^(?:STARNET|SKYNET)_/i;
+  const INTERNAL_ENV_NAME_RE = /^(?:AGENT OS|SKYNET)_/i;
   const EXECUTION_HOOK_ENV_RE = /^(?:NODE_OPTIONS|NODE_PATH|npm_config_script_shell|COMSPEC)$/i;
-  /* Agent-driven commands: the shared station-secret strip (child-env.js — StarNet's own names, the service-key
+  /* Agent-driven commands: the shared station-secret strip (child-env.js — Agent OS's own names, the service-key
      names the sidecar exported, any held secret VALUE), then every secret-SHAPED name on top. */
   function sanitizeChildEnv(base) {
     const src = stationChildEnv(base || {});
@@ -527,7 +527,7 @@
       if (cfg.dockerCpus) args.push('--cpus', String(cfg.dockerCpus));
       if (cfg.dockerMemory) args.push('--memory', String(cfg.dockerMemory));
       for (let i = 0; i < (cfg.dockerExtraArgs || []).length; i++) args.push(String(cfg.dockerExtraArgs[i]));
-      // Put identity after owner-configurable extras so duplicate --name/--label flags cannot make StarNet
+      // Put identity after owner-configurable extras so duplicate --name/--label flags cannot make Agent OS
       // lose the deterministic handle or ownership receipt it later verifies before reuse.
       args.push('--name', containerName(agentId),
         '--label', 'ai.starnet.managed=1',

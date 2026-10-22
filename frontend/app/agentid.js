@@ -1,4 +1,4 @@
-/* STARNET — agentid.js : allocate a stable, unique agentId for a SUMMONED agent.
+/* AGENT OS — agentid.js : allocate a stable, unique agentId for a SUMMONED agent.
 
    The backend keys notebooks, the fs jail, checkpoints, cost and the run loop by agentId, and the
    wire grammar for those paths is ^[A-Za-z0-9_-]{1,40}$ (sidecar/tools/builtin/fs.js + index.js

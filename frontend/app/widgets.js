@@ -1,4 +1,4 @@
-/* STARNET — widgets.js : the WIDGET RAILS (user-pinnable telemetry instruments).
+/* AGENT OS — widgets.js : the WIDGET RAILS (user-pinnable telemetry instruments).
 
    Two rails of compact instruments live in the chrome's DEAD SPACE — the empty middle of
    #topbar (between the logo anchor and the instrument cluster) and of #bottombar (between
@@ -520,7 +520,7 @@ const Widgets = (() => {
   async function sourceCards(force = false) {
     if (!popEl || popMode !== 'list' || popFilter !== 'apps') return;
     const root = popEl, epoch = ++studioEpoch, list = root.querySelector('.wg-library-list'); list.replaceChildren();
-    studioText(list, 'p', selectedPreset ? 'Choose the app for ' + selectedPreset.label + '.' : 'Choose an app, then tell StarNet what to display.', 'wg-studio-note');
+    studioText(list, 'p', selectedPreset ? 'Choose the app for ' + selectedPreset.label + '.' : 'Choose an app, then tell Agent OS what to display.', 'wg-studio-note');
     if (!sourceRows || force) {
       const loading = studioText(list, 'p', 'Loading connected apps…', 'wg-studio-note');
       try {
@@ -542,7 +542,7 @@ const Widgets = (() => {
       const row = studioText(list, 'div', '', 'wg-app-row');
       const caption = studioText(row, 'div', '', 'wg-app-caption');
       studioText(caption, 'strong', s.label);
-      studioText(caption, 'small', s.kind === 'agent' ? 'Information StarNet manages' : s.kind === 'servicekey' && s.available ? 'API key configured' : s.available ? 'Connected' : s.state);
+      studioText(caption, 'small', s.kind === 'agent' ? 'Information Agent OS manages' : s.kind === 'servicekey' && s.available ? 'API key configured' : s.available ? 'Connected' : s.state);
       const b = addStudioButton(row, s.available ? 'Choose' : 'Reconnect', () => {
         if (s.available) showWidgetForm(s, null, selectedPreset);
         else { closePop(); if (typeof StationUI !== 'undefined') StationUI.openTerm('connectors', s.kind === 'servicekey' ? 'keys' : 'mcp'); }

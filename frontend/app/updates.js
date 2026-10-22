@@ -1,4 +1,4 @@
-/* STARNET updates.js
+/* AGENT OS updates.js
    Desktop Update Center: autonomous check loop + native Tauri updater bridge. */
 'use strict';
 
@@ -193,13 +193,13 @@ const Updates = (() => {
         state.update = r.update;
         state.phase = 'available';
         if (CORE.shouldNotify(prefs, r.update.version, Date.now(), !!r.update.critical)) {
-          notify((r.update.critical ? 'Critical update' : 'StarNet update') + ' v' + r.update.version + ' is ready in Update Center', r.update.critical ? 'warn' : 'gold', undefined, { kind: r.update.critical ? 'alert' : 'result', key: 'update-ready', go: { term: 'updates' } });
+          notify((r.update.critical ? 'Critical update' : 'Agent OS update') + ' v' + r.update.version + ' is ready in Update Center', r.update.critical ? 'warn' : 'gold', undefined, { kind: r.update.critical ? 'alert' : 'result', key: 'update-ready', go: { term: 'updates' } });
           prefs = CORE.recordNotified(prefs, r.update.version);
         }
       } else {
         state.update = null;
         state.phase = 'current';
-        if (manual) notify('StarNet is up to date', 'good');
+        if (manual) notify('Agent OS is up to date', 'good');
       }
       savePrefs();
     } catch (e) {
@@ -302,7 +302,7 @@ const Updates = (() => {
   async function install(opts) {
     opts = opts || {};
     if (!TAURI || !CORE || busy || !state.update) {
-      notify('No StarNet update is ready to install', 'warn');
+      notify('No Agent OS update is ready to install', 'warn');
       return snapshot();
     }
     const Channel = TAURI.Channel;
@@ -337,8 +337,8 @@ const Updates = (() => {
       state.phase = 'available';
       // #121: name the save when it is the save that was not proven — the user's newest edits are the thing at risk
       state.error = drained.saveConfirmed === false
-        ? 'Your latest station changes are not confirmed in the station file yet, so the update was not installed. StarNet stays open; try again in a moment.'
-        : 'State could not be verified on disk. The update was not installed; your current StarNet remains open.';
+        ? 'Your latest station changes are not confirmed in the station file yet, so the update was not installed. Agent OS stays open; try again in a moment.'
+        : 'State could not be verified on disk. The update was not installed; your current Agent OS remains open.';
       busy = false;
       notify(drained.saveConfirmed === false ? 'Update paused - latest station changes are not confirmed in the station file' : 'Update paused - state verification failed', 'warn');
       emit();
@@ -370,7 +370,7 @@ const Updates = (() => {
     try {
       await invoke('starnet_update_install', { onEvent });
       state.phase = 'restarting';
-      notify('StarNet update installed - restarting', 'good');
+      notify('Agent OS update installed - restarting', 'good');
     } catch (e) {
       installing = false;   // install failed; the app lives on, so the quit guard resumes normally
       let thawError = null;
@@ -427,7 +427,7 @@ const Updates = (() => {
     savePrefs();
     state.update = null;
     state.phase = 'skipped';
-    notify('StarNet v' + prefs.ignoredVersion + ' will be skipped', 'warn');
+    notify('Agent OS v' + prefs.ignoredVersion + ' will be skipped', 'warn');
     schedule();
     emit();
   }
@@ -482,7 +482,7 @@ const Updates = (() => {
 
   function html() {
     if (!TAURI) {
-      return '<div class="fb-empty">DESKTOP UPDATES ARE AVAILABLE IN THE PACKAGED STARNET APP.<br><span>This browser preview cannot install native releases.</span></div>';
+      return '<div class="fb-empty">DESKTOP UPDATES ARE AVAILABLE IN THE PACKAGED AGENT OS APP.<br><span>This browser preview cannot install native releases.</span></div>';
     }
     const update = state.update;
     const pct = CORE.progress(state.downloaded, state.contentLength);
@@ -503,7 +503,7 @@ const Updates = (() => {
         // Channels-confirmed, and the choice is the Commander's, not a side effect.
         out += '<div class="up-guard">' +
           esc(guardN === 1 ? '1 AGENT IS STILL WORKING' : guardN + ' AGENTS ARE STILL WORKING') +
-          ' - INSTALLING RESTARTS STARNET AND KILLS ' + (guardN === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
+          ' - INSTALLING RESTARTS AGENT OS AND KILLS ' + (guardN === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
           '<div class="up-actions">' +
           '<button class="bb sm" id="up-guard-wait">WAIT FOR AGENTS</button>' +
           '<button class="bb sm danger" id="up-install-force" ' + (busy ? 'disabled' : '') + '>INSTALL ANYWAY</button>' +
@@ -514,12 +514,12 @@ const Updates = (() => {
           (update.critical ? '' : '<button class="bb sm danger" id="up-ignore">SKIP VERSION</button>') + '</div></div>';
       }
     } else if (state.phase === 'current') {
-      out += '<div class="up-empty">You have the latest StarNet (checked ' + esc(fmtTime(state.lastCheckedAt)) + ').</div>';
+      out += '<div class="up-empty">You have the latest Agent OS (checked ' + esc(fmtTime(state.lastCheckedAt)) + ').</div>';
     } else if (state.phase === 'skipped') {
       // Never "latest": a newer release exists, the Commander chose to skip it.
       out += '<div class="up-empty">v' + esc(prefs.ignoredVersion) + ' is skipped. Press CHECK NOW to see it again.</div>';
     } else if (state.phase === 'checking') {
-      out += '<div class="up-empty">Checking for a newer StarNet...</div>';
+      out += '<div class="up-empty">Checking for a newer Agent OS...</div>';
     } else if (state.phase === 'idle') {
       // Not checked this launch: say only what is known — when the last check ran and what it found.
       const known = prefs.availableVersion && prefs.availableVersion !== state.currentVersion && prefs.availableVersion !== prefs.ignoredVersion ? prefs.availableVersion : '';
@@ -531,7 +531,7 @@ const Updates = (() => {
         ? 'The last check found v' + esc(known) + '. Press CHECK NOW to get it ready to install.'
         : skipped ? 'v' + esc(skipped) + ' is skipped. Press CHECK NOW to see it again.'
         : (state.lastCheckedAt ? 'Not checked since ' + esc(fmtTime(state.lastCheckedAt)) + '.' : 'Never checked for updates.') +
-          ' Press CHECK NOW to look for a newer StarNet.') + '</div>';
+          ' Press CHECK NOW to look for a newer Agent OS.') + '</div>';
     }
     if (state.phase === 'preparing' || state.phase === 'downloading' || state.phase === 'installing' || state.phase === 'restarting') {
       out += '<div class="up-progress"><div style="width:' + pct + '%"></div></div>' +

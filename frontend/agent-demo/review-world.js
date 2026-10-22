@@ -1,4 +1,4 @@
-/* STARNET — world.js : the LIVE station the agent lives inside.
+/* AGENT OS — world.js : the LIVE station the agent lives inside.
 
    Renders the player-built WorldModel station (multi-room) with the generalized
    procedural bake (stationbake.js), under a pan/zoom camera. The agent has a
@@ -1214,7 +1214,7 @@ const World = (() => {
     // element), so without this guard each new agent stacked another full set of listeners and SSE streams.
     if (listenersBound) return;
     listenersBound = true;
-    // THE STARNET FONT, ON CANVAS. `font-display: block` (style.css) governs the DOM only —
+    // THE AGENT OS FONT, ON CANVAS. `font-display: block` (style.css) governs the DOM only —
     // canvas has no equivalent: `ctx.font` resolves against whatever is loaded AT DRAW TIME and
     // silently falls through to the next family in the stack when VT323 has not landed yet.
     // The live frame redraws continuously so it heals itself, but StationBake paints its layers

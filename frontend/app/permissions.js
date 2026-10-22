@@ -1,4 +1,4 @@
-/* STARNET — permissions.js : the PURE engine for the PERMISSIONS PANEL (autonomy Stage B / B1).
+/* AGENT OS — permissions.js : the PURE engine for the PERMISSIONS PANEL (autonomy Stage B / B1).
 
    The user-facing "how autonomous" SPECTRUM + the curated catalog of standing capability grants. This is the
    trust UX the Commander picked: an OS-style panel where they dial the station from "never acts on its own" all

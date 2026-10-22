@@ -1,4 +1,4 @@
-/* STARNET hudmode.js — HUD MODE: StarNet as a small always-on-top panel.
+/* AGENT OS hudmode.js — HUD MODE: Agent OS as a small always-on-top panel.
    For the Commander who is gaming or doing something else on the PC and wants every piece of work the
    station is doing one glance away, with a hand on each of them, without the whole station on screen.
 
@@ -687,7 +687,7 @@
     open.setAttribute('aria-label', 'Open activity'); open.title = 'Click to open activity · drag to move';
     const box = el('section', 'hud-widget');
     box.id = 'hud-widget';
-    box.setAttribute('aria-label', 'StarNet HUD: your agents at work');
+    box.setAttribute('aria-label', 'Agent OS HUD: your agents at work');
     box.setAttribute('data-tauri-drag-region', '');
     const rows = el('div', 'hud-wrows'); rows.setAttribute('data-tauri-drag-region', '');
     const more = el('button', 'hud-wmore'); more.type = 'button'; more.hidden = true;
@@ -1073,7 +1073,7 @@
         toggle();
       }
     });
-    // The tray's HUD Mode / Open StarNet items (hud_mode.rs) ask the page to switch.
+    // The tray's HUD Mode / Open Agent OS items (hud_mode.rs) ask the page to switch.
     try {
       const ev = root.__TAURI__ && root.__TAURI__.event;
       if (ev && typeof ev.listen === 'function') {

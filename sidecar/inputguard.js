@@ -1,7 +1,7 @@
 /* sidecar/inputguard.js - observe cursor confinement without changing global input state.
 
    Windows keeps one global cursor clip rectangle. A previous recovery guard called
-   ClipCursor(NULL) at StarNet boot, shutdown, and E-STOP. Windows does not expose a reliable
+   ClipCursor(NULL) at Agent OS boot, shutdown, and E-STOP. Windows does not expose a reliable
    owner for that rectangle, so doing so can release another application's legitimate pointer
    lock and interfere with the user.
 

@@ -1,4 +1,4 @@
-/* STARNET — ghostline.js : the GHOST PROJECTION (guided workflows Phase 3, 2026-08-05).
+/* AGENT OS — ghostline.js : the GHOST PROJECTION (guided workflows Phase 3, 2026-08-05).
 
    While a compiled line is INCOMPLETE — uncrewed docks, or an intake nothing feeds (the SAME
    truth the finish-the-line card reads: unbound bays from the compiled plan + the server-proven

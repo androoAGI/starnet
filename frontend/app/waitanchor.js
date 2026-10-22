@@ -1,4 +1,4 @@
-/* STARNET — waitanchor.js : where a permission-blocked agent WALKS TO and WAITS (G4 embodiment, feature 1).
+/* AGENT OS — waitanchor.js : where a permission-blocked agent WALKS TO and WAITS (G4 embodiment, feature 1).
 
    When a run blocks on a `permission.prompt`, the acting agent's body stops working, stands, and walks to a
    waiting anchor where it visibly waits until the Commander approves or denies. This module is the PURE

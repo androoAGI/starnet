@@ -1,4 +1,4 @@
-/* STARNET — worksignalstore.js : the live wiring that folds REAL tool activity into the capability-usage
+/* AGENT OS — worksignalstore.js : the live wiring that folds REAL tool activity into the capability-usage
    histogram (pure engine in worksignal.js).
 
    The browser half of the workflow-signal system, modelled on profilestore.js + stationqueststore.js:

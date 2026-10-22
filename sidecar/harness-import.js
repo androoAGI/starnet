@@ -1,5 +1,5 @@
 /* sidecar/harness-import.js — IMPORT-AN-AGENT read core: turn an on-disk OpenClaw or Hermes agent home into ONE
-   normalized preview the frontend can mint a StarNet agent from. PURE + injected-data only (no fs/path/os/clock/
+   normalized preview the frontend can mint a Agent OS agent from. PURE + injected-data only (no fs/path/os/clock/
    env requires) so it is node-testable exactly like configexport.js; index.js does the filesystem work (candidate
    existence, directory enumeration, bounded file reads) and hands this module plain strings.
 

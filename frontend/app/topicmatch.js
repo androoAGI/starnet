@@ -1,4 +1,4 @@
-/* STARNET — topicmatch.js : the ONE pure matcher between a LEARNED INTEREST TOPIC and a candidate's text.
+/* AGENT OS — topicmatch.js : the ONE pure matcher between a LEARNED INTEREST TOPIC and a candidate's text.
 
    WHY THIS EXISTS — the station learns what the Commander actually keeps working on in sidecar/interests.js: a
    decayed histogram of SPECIFIC topics ("gpu price tracking", "songwriting"), each carrying the verbatim evidence

@@ -1,4 +1,4 @@
-/* STARNET — seedreuse.js : the PURE seed-reuse AGGREGATE engine (Game session, Phase G3b / Layer 6).
+/* AGENT OS — seedreuse.js : the PURE seed-reuse AGGREGATE engine (Game session, Phase G3b / Layer 6).
 
    G3a's SeedCredit is per-MOMENT ("this run reused the seed you saved"). This is the AGGREGATE half of the
    meta loop: it counts how often each Commander-saved seed genuinely ran, over a rolling 7-day window AND

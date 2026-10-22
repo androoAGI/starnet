@@ -31,7 +31,7 @@ body.glass-demo:not(.hud-mode) #screen-game .widget-rail[data-empty="1"] .wg-add
   color: var(--ph-bright); border-color: rgba(var(--ph-rgb), .45); background: rgba(var(--ph-rgb), .1);
 }
 
-/* (the CTX gauge keeps StarNet's own ▮▯ ASCII cells — Andrew 10-01: smoothing it away read as "not starnet") */
+/* (the CTX gauge keeps Agent OS's own ▮▯ ASCII cells — Andrew 10-01: smoothing it away read as "not starnet") */
 
 /* ---------- COMMS starters: title only, the detail is the tip ---------- */
 body.glass-demo:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter { min-height: 46px; align-items: center; padding-block: 11px; }

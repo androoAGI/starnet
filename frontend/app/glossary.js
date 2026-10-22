@@ -1,4 +1,4 @@
-/* STARNET — glossary.js : the one place the station explains its own words to a first-minute user.
+/* AGENT OS — glossary.js : the one place the station explains its own words to a first-minute user.
 
    A pure term -> one-sentence map, consumed by hint.js (data-hint="<term>" tooltips). Copy law:
    lowercase station voice, eerie-not-cute, one plain sentence a beginner can act on. Every entry
@@ -33,7 +33,7 @@
     context:      'the conversation and evidence currently visible to the model; older material can be compacted safely.',
     fallback:     'the next configured model or credential tried when the current provider cannot continue.',
     settings:     'the station controls for providers, models, voice, budget, permissions, and saved data.',
-    update:       'a new StarNet build; the UPDATES panel shows the version and its verified delivery state.',
+    update:       'a new Agent OS build; the UPDATES panel shows the version and its verified delivery state.',
     restore:      'return an agent’s workspace files to a saved restore point without rewriting unrelated station data.',
     logbook:      'this agent’s durable run history — what ran, how it ended, and what it cost.',
     notification: 'an agent waiting on you, work that finished while you were elsewhere, or something that stopped — click one to go there.',

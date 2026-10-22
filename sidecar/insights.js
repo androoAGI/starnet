@@ -1,7 +1,7 @@
 /* sidecar/insights.js — usage insights folded from the durable run history (H3.3).
 
    The reference harness has an InsightsEngine (overview, per-model, activity-over-time, notable sessions) wired to
-   its `insights` command; StarNet had no aggregate usage surface at all. This is the pure fold behind GET
+   its `insights` command; Agent OS had no aggregate usage surface at all. This is the pure fold behind GET
    /api/insights: given the run-history rows (runstore — each carries reason, usd, tokens, model, agentId, ts),
    it computes an overview + per-model spend + outcome breakdown + per-agent + a runs/spend-over-time series.
 

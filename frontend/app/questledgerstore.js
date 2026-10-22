@@ -1,4 +1,4 @@
-/* STARNET — questledgerstore.js : the QUEST V2 backend ledger's frontend citizen (plan §C).
+/* AGENT OS — questledgerstore.js : the QUEST V2 backend ledger's frontend citizen (plan §C).
 
    The sidecar now OWNS a durable, agent-aware quest ledger (sidecar/quest-store.js, routes /api/quests*).
    This thin live store is its browser-side read+write surface. It POLLS GET /api/quests on the station's

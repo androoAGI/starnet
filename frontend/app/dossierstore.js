@@ -1,4 +1,4 @@
-/* STARNET — dossierstore.js : the live wiring around the pure Commander Dossier engine (dossier.js).
+/* AGENT OS — dossierstore.js : the live wiring around the pure Commander Dossier engine (dossier.js).
 
    The browser half of the dossier system, modelled on profilestore.js / xpstore.js: it owns the one
    station-wide dossier object, seeds it from the onboarding docs the Commander already authored, persists

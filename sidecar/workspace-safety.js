@@ -24,7 +24,7 @@ function workspaceCandidates(deps) {
   if (home) bases.push(path.join(home, '.local', 'share'));
   const out = [];
   for (const base of bases.filter(Boolean)) {
-    for (const app of ['StarNet', 'Skynet', 'ai.skynet.harness']) {
+    for (const app of ['Agent OS', 'Skynet', 'ai.skynet.harness']) {
       const candidate = path.join(String(base), app, 'workspaces');
       if (!out.some(existing => normalize(existing, path, platform) === normalize(candidate, path, platform))) out.push(candidate);
     }

@@ -1,4 +1,4 @@
-/* STARNET — channels.js : per-workstream COMMS run-state (THE GATE).
+/* AGENT OS — channels.js : per-workstream COMMS run-state (THE GATE).
 
    The single defect that made genuine multi-agent impossible was that chat.js kept ONE
    global run-state (one `busy`, one `currentRunId`, one in-flight stream) and wiped the DOM

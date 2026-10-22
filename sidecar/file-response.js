@@ -65,7 +65,7 @@ function isTextDocument(file) { return TEXT_DOC_EXTS.has(path.extname(String(fil
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-/* MARKDOWN, READ AS THE FINISHED DOCUMENT (review 10-14: the doc view showed "# StarNet Launch Tagline" with its raw
+/* MARKDOWN, READ AS THE FINISHED DOCUMENT (review 10-14: the doc view showed "# Agent OS Launch Tagline" with its raw
    marks). ESCAPE FIRST, then a small block subset — headings, paragraphs (the author's line breaks kept), lists,
    quotes, rules, pipe tables, fenced code — and inline **bold**, *em*, `code`, ~~strike~~ and http(s) links. Every
    tag on the page is one this function writes; file text only ever lands escaped, so the page is as inert as <pre>. */
@@ -161,7 +161,7 @@ function documentViewHtml(name, text) {
     + '.doc blockquote{border-left:3px solid #b9791c;margin-left:0;padding-left:14px;color:#e6c08a}.doc hr{border:0;border-top:1px solid #4a3410;margin:1.6em 0}'
     + '.doc table{border-collapse:collapse}.doc th,.doc td{border:1px solid #4a3410;padding:4px 10px;text-align:left}.doc th{color:#ffaa33}'
     + '::selection{background:#ffaa33;color:#0b0904}'
-    + '</style></head><body><main><header><div class="name">' + title + '</div><span>StarNet · read-only</span></header>'
+    + '</style></head><body><main><header><div class="name">' + title + '</div><span>Agent OS · read-only</span></header>'
     + (md ? '<article class="doc">' + markdownHtml(text) + '</article>' : '<pre>' + escapeHtml(text) + '</pre>') + '</main></body></html>';
 }
 

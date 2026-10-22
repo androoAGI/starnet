@@ -1,4 +1,4 @@
-/* STARNET — profile.js : the PURE user-affinity engine (the "knows how you work" substrate).
+/* AGENT OS — profile.js : the PURE user-affinity engine (the "knows how you work" substrate).
 
    The recommender's fuel: a tiny per-interest histogram (the same {code|research|general} tags
    classify.js already derives from every message) with EWMA recency decay + a sample count, so it

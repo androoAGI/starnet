@@ -83,7 +83,7 @@
       ''
     ] : [];
     return [
-      'You are StarNet background skill review. Improve the agent skillbase after a completed run.',
+      'You are Agent OS background skill review. Improve the agent skillbase after a completed run.',
       '',
       'Rules:',
       '- No change is the correct result when evidence is insufficient. Never invent a lesson or infer a procedure from a rating alone.',

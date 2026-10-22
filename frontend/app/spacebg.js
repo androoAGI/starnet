@@ -1,4 +1,4 @@
-/* STARNET — spacebg.js : THE BACKDROP. What the station floats in.
+/* AGENT OS — spacebg.js : THE BACKDROP. What the station floats in.
 
    One shared backdrop for the live world (world.js) AND REFIT (build.js), so entering/exiting
    build mode never jumps the sky. Originally a single hardcoded deep-space field; now a small

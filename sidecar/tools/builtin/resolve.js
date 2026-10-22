@@ -1,7 +1,7 @@
 /* sidecar/tools/builtin/resolve.js — DaVinci Resolve, the STUDIO's edit bay.
 
    A native port of the Hermes Agent `davinci-resolve` plugin (wassermanproductions, pinned bbd5b207), rebuilt
-   for StarNet and fixed where the original was wrong. Three tools, all granted by the STUDIO object:
+   for Agent OS and fixed where the original was wrong. Three tools, all granted by the STUDIO object:
 
      resolve_timeline_file  (write, consent) — build an FCPXML 1.10 timeline from a clip plan and save it into the
                             workspace. Works with FREE Resolve (File > Import > Timeline), no scripting needed.
@@ -179,11 +179,11 @@
       ? el('gap', { name: 'Gap', offset: ftime(s.offF, rate), start: '0s', duration: ftime(s.durF, rate) }, s.children)
       : el('asset-clip', { ref: s.clip.ref, name: s.clip.name, offset: ftime(s.offF, rate), start: ftime(s.srcF, rate), duration: ftime(s.durF, rate) }, s.children));
     const fmt = el('format', { id: 'r1', name: 'FFVideoFormat' + H + 'p' + String(plan.fps || 24).replace('.', ''), frameDuration: ftime(1, rate), width: String(W), height: String(H) });
-    const title = str(plan.name) || 'StarNet Timeline';
+    const title = str(plan.name) || 'Agent OS Timeline';
     const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE fcpxml>\n' +
       el('fcpxml', { version: '1.10' }, [
         el('resources', {}, [fmt].concat(assets)),
-        el('library', {}, [el('event', { name: 'StarNet' }, [el('project', { name: title }, [
+        el('library', {}, [el('event', { name: 'Agent OS' }, [el('project', { name: title }, [
           el('sequence', { format: 'r1', duration: ftime(total, rate), tcStart: '0s', tcFormat: 'NDF', audioLayout: 'stereo', audioRate: '48k' },
             [el('spine', {}, spineXml)])
         ])])])
@@ -482,7 +482,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
           else notes.push(baseName(k) + ': not probed (' + m.reason + ') — stream flags guessed from the extension');
         }
         const plan = {
-          name: str(args.name) || 'StarNet Timeline', fps: num(args.fps, 24), width: num(args.width, 1920), height: num(args.height, 1080),
+          name: str(args.name) || 'Agent OS Timeline', fps: num(args.fps, 24), width: num(args.width, 1920), height: num(args.height, 1080),
           clips: clipsIn.map(c => ({ path: absOf[str(c.path)], url: fileUrl(absOf[str(c.path)]), name: c.name, in: num(c.in, 0), out: c.out, lane: c.lane, at: c.at })),
           markers: Array.isArray(args.markers) ? args.markers : []
         };

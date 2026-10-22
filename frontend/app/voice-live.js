@@ -162,7 +162,7 @@ const VoiceLive = (() => {
         '<option value="2600">PATIENT · 2.6S</option>',
       '</select></label>',
       '<details class="lv-details"><summary>VOICE DETAILS</summary><dl class="lv-rail">',
-        '<div class="lv-row"><dt>ROUTE</dt><dd id="lv-route">LOCAL SPEECH · ACTIVE STARNET AGENT</dd></div>',
+        '<div class="lv-row"><dt>ROUTE</dt><dd id="lv-route">LOCAL SPEECH · ACTIVE AGENT OS AGENT</dd></div>',
         '<div class="lv-row lv-row-dl"><dt>SPEECH</dt><dd id="lv-model">LOCAL MODELS: CHECKING</dd></div>',
         '<div class="lv-row"><dt>LATENCY</dt><dd id="lv-timing" title="First words: detected speech to transcript. Send: last voiced frame to submission. Speech start: latest spoken chunk queued to actual playback.">Speak to measure this turn.</dd></div>',
         '<div class="lv-row"><dt>TASK</dt><dd id="lv-task" class="lv-task">No active task detected.</dd></div>',
@@ -350,7 +350,7 @@ const VoiceLive = (() => {
     const withheld = response.status === 403 && typeof Harness !== 'undefined' && Harness
       && typeof Harness.tokenWithheld === 'function' && Harness.tokenWithheld()
       ? ((typeof Harness.tokenWithheldNotice === 'function' && Harness.tokenWithheldNotice())
-        || 'StarNet could not confirm this browser is yours — see the station notice.')
+        || 'Agent OS could not confirm this browser is yours — see the station notice.')
       : '';
     return {
       probeFailed: true,
@@ -1261,7 +1261,7 @@ const VoiceLive = (() => {
       $('live-voice-panel').hidden = false;
       setState('offline');
       const withheld = readiness.tokenWithheld;   // not a restart: a reload only re-runs the same check
-      caption('user', withheld ? 'StarNet could not confirm this browser is yours.'
+      caption('user', withheld ? 'Agent OS could not confirm this browser is yours.'
         : readiness.staleSession ? 'This page lost its connection when the station restarted.'
         : 'Local Live could not reach the station.');
       caption('agent', withheld ? 'Voice cannot start on this page.'
@@ -1415,7 +1415,7 @@ const VoiceLive = (() => {
     // 1) IDENTITY — the agent's own composed prompt, verbatim. It already carries persona, role, dossier and
     //    crew clause, so the spoken agent and the typed agent are the same character rather than two.
     if (agent && agent.systemPrompt) lines.push(String(agent.systemPrompt));
-    lines.push('You are ' + name + ', speaking aloud to the Commander in StarNet. You are the SAME agent they type to — same memory, same work, same voice of character. Never describe yourself as a separate voice assistant or a control layer.');
+    lines.push('You are ' + name + ', speaking aloud to the Commander in Agent OS. You are the SAME agent they type to — same memory, same work, same voice of character. Never describe yourself as a separate voice assistant or a control layer.');
     /* 2) THE PERSONALITY IS THE POINT, AND SPEAKING IT ALOUD MUST NOT SAND IT DOWN.
        This block used to say "speak naturally and briefly, a sentence or two at a time", which quietly
        overrode the persona above and produced a flat, careful assistant no matter which archetype was

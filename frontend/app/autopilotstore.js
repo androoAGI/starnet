@@ -1,4 +1,4 @@
-/* STARNET — autopilotstore.js : the thin live wiring around the pure idle self-direction engine (autopilot.js).
+/* AGENT OS — autopilotstore.js : the thin live wiring around the pure idle self-direction engine (autopilot.js).
    Slice A of the autonomy layer — the thing that makes the posture dial actually drive the floor.
 
    It is the EDGE the pure engine isn't allowed to be: it owns the live clock, the "Commander is interacting"

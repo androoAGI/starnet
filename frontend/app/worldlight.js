@@ -1,4 +1,4 @@
-/* StarNet WorldLight — spatial illumination for the station's local pixel frame.
+/* Agent OS WorldLight — spatial illumination for the station's local pixel frame.
  * All sources are supplied by the world: this module invents no activity or fixtures.
  * setGeometry() must follow each projection/bake, including edits that move the origin.
  * prepare(frame) exposes current illumination before bodies and shadows are drawn;

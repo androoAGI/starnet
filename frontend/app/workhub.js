@@ -17,7 +17,7 @@
   function mountSources(parent) {
     const detail = document.createElement('details');
     detail.className = 'wh-source-settings';
-    detail.innerHTML = '<summary>Sources StarNet can study for useful work</summary><div class="wh"><p class="wh-message" role="status"></p><div class="wh-content"></div></div>';
+    detail.innerHTML = '<summary>Sources Agent OS can study for useful work</summary><div class="wh"><p class="wh-message" role="status"></p><div class="wh-content"></div></div>';
     parent.appendChild(detail);
     const host=detail.querySelector('.wh-content'), message=detail.querySelector('.wh-message');
     let sources=null, findings=[], loading=false;
@@ -33,7 +33,7 @@
         sources=j; findings=d && Array.isArray(d.staged)?d.staged:[];
         const roots=(j.approvedRoots || []).map(r=>typeof r==='string'?r:r.root || r.path).filter(Boolean);
         const source=j.sources.find(s=>s.kind==='client-update');
-        host.innerHTML='<p>Choose an approved folder of notes. StarNet looks for client updates worth drafting and shows the evidence here. Scanning these text files stays local; starting a draft sends its task context to your configured model.</p>'
+        host.innerHTML='<p>Choose an approved folder of notes. Agent OS looks for client updates worth drafting and shows the evidence here. Scanning these text files stays local; starting a draft sends its task context to your configured model.</p>'
           +(roots.length?'<label class="wh-field">Folder<select class="key-input wh-root">'+roots.map(r=>'<option'+(source && source.root===r?' selected':'')+'>'+esc(r)+'</option>').join('')+'</select></label><button class="bb sm" data-save>USE THIS FOLDER</button>':'<p>No approved folders yet. Choose a project folder or use a pasted sample.</p>')
           +'<div class="wh-actions"><button class="bb sm" data-projects>PROJECT FOLDERS</button><button class="bb sm" data-sample>USE A SAMPLE</button></div>'
           +(source?'<p>'+esc(source.root)+' · '+(source.enabled?'discovery enabled':'discovery paused')+(source.available===false?' · folder unavailable':'')+'</p><div class="wh-actions"><button class="bb sm" data-toggle>'+(source.enabled?'PAUSE':'RESUME')+'</button><button class="bb sm" data-remove>REMOVE SOURCE</button><button class="bb sm" data-scan>SCAN NOW</button></div>':'')

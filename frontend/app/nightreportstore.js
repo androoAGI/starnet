@@ -1,4 +1,4 @@
-/* STARNET — nightreportstore.js : the thin live wiring around the pure MORNING-REPORT engine (nightreport.js), NS-4.
+/* AGENT OS — nightreportstore.js : the thin live wiring around the pure MORNING-REPORT engine (nightreport.js), NS-4.
 
    THE JOB: on the FIRST activity after a genuine absence, fetch the three night-shift truthful-telemetry surfaces
    (status + autonomy ledger + drafts) and surface ONE honest COMMS digest beat — the acts fired AND the declined

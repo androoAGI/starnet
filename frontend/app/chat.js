@@ -1,4 +1,4 @@
-/* STARNET — chat.js : the in-game COMMS panel.
+/* AGENT OS — chat.js : the in-game COMMS panel.
    Talking to your agent is a REAL streaming model call (via Harness). While a reply
    the agent walks to its workstation and types (World.setActivity('task')).
    Supports: preloaded history (resume), and an "awaiting purpose" first-message mode. */
@@ -646,7 +646,7 @@ const Chat = (() => {
     const ask = index => {
       if (!isActiveWs(ws) || index >= calls.length) return;
       const call = calls[index];
-      toolLine('before the restart, did ' + String(call.name || 'this action') + ' actually happen? StarNet will not run it again while the answer is uncertain.', true);
+      toolLine('before the restart, did ' + String(call.name || 'this action') + ' actually happen? Agent OS will not run it again while the answer is uncertain.', true);
       choices([
         { label: 'It happened', value: 'happened' },
         { label: 'It did not happen', value: 'did_not_happen' },
@@ -680,7 +680,7 @@ const Chat = (() => {
       if (review && announce && isActiveWs(ws) && !recoveryNotices.has(review.runId)) {
         recoveryNotices.add(review.runId);
         const names = (review.uncertain || []).map(x => x.name || 'action').join(', ');
-        toolLine('recovery paused — ' + (names || 'an action') + ' may already have happened. StarNet will not repeat it; verify the outcome before continuing.', true);
+        toolLine('recovery paused — ' + (names || 'an action') + ' may already have happened. Agent OS will not repeat it; verify the outcome before continuing.', true);
         offerRecoveryReview(review, ws);
       }
       return review ? 'review' : 'none';
@@ -1366,14 +1366,14 @@ const Chat = (() => {
       return;
     }
     // LARGE-PASTE CONTEXT GUARD: the 100K composer ceiling is a transport allowance, not a promise that every
-    // model has room for 100K characters plus StarNet's system/tool context. When the live catalog or an honest
+    // model has room for 100K characters plus Agent OS's system/tool context. When the live catalog or an honest
     // per-conversation projection proves the selected model is too small, keep the paste byte-for-byte in the
     // composer and explain the remedy instead of clearing it into a provider context-overflow failure.
     const contextIssue = t ? composerContextIssue(activeWs, t) : null;
     if (contextIssue) {
       const model = (typeof Harness !== 'undefined' && Harness.getModel) ? Harness.getModel() : 'this model';
       const limit = (typeof U !== 'undefined' && U.tokens) ? U.tokens(contextIssue.limit) : contextIssue.limit;
-      const note = 'Paste kept — it may exceed ' + model + '\'s ' + limit + '-token context once StarNet\'s working context is included. Choose a larger-context model or split the text; nothing was sent.';
+      const note = 'Paste kept — it may exceed ' + model + '\'s ' + limit + '-token context once Agent OS\'s working context is included. Choose a larger-context model or split the text; nothing was sent.';
       localLine(note);
       if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('paste kept — selected model context is too small', 'warn');
       return;
@@ -1611,7 +1611,7 @@ const Chat = (() => {
     const dataUrl = await readAsDataUrl(file);
     const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
     const headers = { 'Content-Type': 'application/json' };
-    if (tok) headers['X-StarNet-Token'] = tok;
+    if (tok) headers['X-Agent OS-Token'] = tok;
     const res = await fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ agent: attachAgentId(), name: file.name || 'file', dataUrl }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j || !j.ok) throw new Error((j && j.error) || ('upload HTTP ' + res.status));
@@ -1653,7 +1653,7 @@ const Chat = (() => {
     // best-effort: prune the uploaded bytes so an attach-then-remove doesn't orphan a file in the workspace
     if (entry.ref && entry.ref.path) {
       const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
-      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
+      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-Agent OS-Token'] = tok;
       fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: attachAgentId(), path: entry.ref.path }) }).catch(() => {});
     }
     pendingAtts.splice(i, 1);
@@ -2067,8 +2067,8 @@ const Chat = (() => {
     if (cronSession && !busy && !readable) next.push({
       role: 'system', sys: true, error: true, transcriptPending: true,
       content: reachable
-        ? '⚠ output has not arrived yet — StarNet will retry automatically when this session opens'
-        : '⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens'
+        ? '⚠ output has not arrived yet — Agent OS will retry automatically when this session opens'
+        : '⚠ couldn\'t load the output yet — Agent OS will retry automatically when this session opens'
     });
     if (JSON.stringify(next) === JSON.stringify(ws.history || [])) return reachable;
     ws.history = next;
@@ -2272,7 +2272,7 @@ const Chat = (() => {
     }
     return kept;
   }
-  // char/4 is StarNet's calibrated dialogue estimate, but it can undercount dense Unicode. Half the real UTF-8
+  // char/4 is Agent OS's calibrated dialogue estimate, but it can undercount dense Unicode. Half the real UTF-8
   // bytes is a deliberately cautious second lens that still lets a full 100K English paste fit a 128K model.
   function contextEstimateMessages(messages) {
     const src = Array.isArray(messages) ? messages : [];
@@ -3387,7 +3387,7 @@ const Chat = (() => {
   function workspaceDir(agentId) {
     const aid = agentId || 'agent';
     if (_wsDirCache.has(aid)) return _wsDirCache.get(aid);
-    // header auth only: the hardened window.fetch (harness.js) attaches X-StarNet-Token to every /api/ URL
+    // header auth only: the hardened window.fetch (harness.js) attaches X-Agent OS-Token to every /api/ URL
     const p = fetch('/api/workspace/dir?agent=' + encodeURIComponent(aid), { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null).then(j => (j && j.dir) ? String(j.dir) : '').catch(() => '');
     _wsDirCache.set(aid, p);
@@ -3918,7 +3918,7 @@ const Chat = (() => {
     // THE STATION BUILDER (2026-09-29): the card IS the plan — what gets built, where, who works each step. The sidecar
     // sends the plan's own summary (its dry run on a copy of the station), never the model's words.
     if (/^station[._]build$/.test(t)) { const plan = String(ev.argsSummary || '').split('\n')[0] || 'a planned change'; return 'build this on your station: ' + plan + (/\bUNDO\b/.test(plan) ? '' : ' One UNDO in Build mode takes it back.'); }
-    // MAKE A PROP (2026-10-01): the card names the object and what it costs in StarNet credits (the sidecar's own words)
+    // MAKE A PROP (2026-10-01): the card names the object and what it costs in Agent OS credits (the sidecar's own words)
     if (/^station[._]make_prop$/.test(t)) return 'make a new prop: ' + (String(ev.argsSummary || '').split('\n')[0] || 'a new prop');
     // TEST A LINE (2026-10-01): the card names the line and the job it will send (the sidecar's own words)
     if (/^station[._]test_line$/.test(t)) return 'test ' + (String(ev.argsSummary || '').split('\n')[0] || 'a workflow line');
@@ -4148,7 +4148,7 @@ const Chat = (() => {
       btns.appendChild(rest);
     }
     r.body.appendChild(btns); r.body.appendChild(hint); if (why) r.body.appendChild(why);
-    // STARNET REMOTE: a paired phone can answer this question too (the sidecar then puts permission.response on this
+    // AGENT OS REMOTE: a paired phone can answer this question too (the sidecar then puts permission.response on this
     // run's stream, as for an approval). Settle the card to what happened — it used to keep live options and "awaiting
     // your answer…" after the run had moved on, and a tap then did nothing while the card claimed it answered.
     if (typeof U !== 'undefined' && U.bus && U.bus.on && U.bus.off) {
@@ -4408,7 +4408,7 @@ const Chat = (() => {
     appendConsentDetails(r.body, p, 'plan');   // a station build's steps and drawing are read before deciding
     r.body.appendChild(btns);
     appendConsentDetails(r.body, p, 'inspect');
-    // STARNET REMOTE: a paired phone can answer this same prompt. The sidecar then puts permission.response on
+    // AGENT OS REMOTE: a paired phone can answer this same prompt. The sidecar then puts permission.response on
     // this run's own stream (harness re-emits it on U.bus). Settle the card to what actually happened, so the
     // desk never keeps live buttons on a question that was already answered elsewhere. The desk's own answer
     // also emits permission.response, but by then `decided` is set and this listener just unsubscribes. An answer from
@@ -5521,7 +5521,7 @@ const Chat = (() => {
             let j = null;
             try {
               const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
-              const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
+              const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-Agent OS-Token'] = tok;
               const rr = await fetch('/api/workshop/undo', { method: 'POST', headers, body: JSON.stringify({ agentId: agentId, runId: m.runId, destPath: destPath }) });
               j = await rr.json().catch(() => null);
               if (!rr.ok || !j || j.ok === false) j = null;
@@ -5568,7 +5568,7 @@ const Chat = (() => {
     implBtn.title = (plan && plan.action === 'apply') ? ('applies this patch to a new branch in ' + plan.root)
       : patchSaveOnly ? 'saves the .patch file only — it will NOT be applied to your project'
       : buildable ? ('has ' + who + ' BUILD what this describes — nothing is copied to a folder')
-      : ('saves the files to ' + ((plan && plan.dest) || 'your StarNet deliverables folder'));
+      : ('saves the files to ' + ((plan && plan.dest) || 'your Agent OS deliverables folder'));
     // why a build can be refused, in the Commander's words — never a raw reason code.
     const implFailCopy = (reason) => {
       const r = String(reason || '');
@@ -5625,8 +5625,8 @@ const Chat = (() => {
       const saved = res.applied
         ? ('✓ implemented — applied to branch ' + (res.branch || '?') + (res.root ? (' in ' + res.root) : ''))
         : res.savedOnly
-          ? ('⚠ patch file saved to ' + (res.destPath || 'your StarNet deliverables folder') + ' — NOT applied to your project')
-          : ('✓ implemented — files saved to ' + (res.destPath || 'your StarNet deliverables folder'));
+          ? ('⚠ patch file saved to ' + (res.destPath || 'your Agent OS deliverables folder') + ' — NOT applied to your project')
+          : ('✓ implemented — files saved to ' + (res.destPath || 'your Agent OS deliverables folder'));
       decideNote(saved); sendNote(); settle(saved, false, res.applied ? '' : (res.destPath || ''));
     };
     acts.appendChild(implBtn);
@@ -9067,7 +9067,7 @@ const Chat = (() => {
        agent.run.end fields. Name the real limit and the real ways out. */
     if (unpriced && unpriced.model) {
       const n = Number(unpriced.capTokens) > 0 ? Number(unpriced.capTokens).toLocaleString('en-US') + '-token' : 'token';
-      return 'hit the ' + n + ' safety ceiling for ' + unpriced.model + ', a model StarNet has no price for — raising the $ spending limit does not change this; pick a priced model to keep going';
+      return 'hit the ' + n + ' safety ceiling for ' + unpriced.model + ', a model Agent OS has no price for — raising the $ spending limit does not change this; pick a priced model to keep going';
     }
     // nor is the SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens): a Claude Code sign-in books $0 per turn
     if (subscription && subscription.model) {
@@ -9076,22 +9076,22 @@ const Chat = (() => {
     }
     // only show the $ figure when it renders honestly at cent precision (a sub-cent test cap would read "$0.00")
     const cap = (typeof capUsd === 'number' && isFinite(capUsd) && capUsd >= 0.01) ? '$' + capUsd.toFixed(2).replace(/\.00$/, '') + ' ' : '';
-    // atBalance (agent.run.end budgetCapIsBalance, additive): admission clamped this StarNet run's ceiling to the
+    // atBalance (agent.run.end budgetCapIsBalance, additive): admission clamped this Agent OS run's ceiling to the
     // reported balance, so the run spent the wallet, not a cap the user chose — raising PER RUN would do nothing.
-    if (scope === 'run' && atBalance === true) return (cap ? 'used the ' + cap + 'left on your StarNet balance' : 'used what was left on your StarNet balance') + ' — add credits under SETTINGS → AI & MODELS to keep going';
+    if (scope === 'run' && atBalance === true) return (cap ? 'used the ' + cap + 'left on your Agent OS balance' : 'used what was left on your Agent OS balance') + ' — add credits under SETTINGS → AI & MODELS to keep going';
     const what = scope === 'run' ? 'hit the ' + cap + 'per-run spend cap'
       : scope === 'agent' ? 'this agent hit its ' + cap + 'lifetime spend cap'
       : scope === 'day' ? 'hit the ' + cap + 'daily spend cap'
       : scope === 'global' ? 'hit the ' + cap + 'all-time spend cap'
       : 'hit a spend cap';
-    // A per-RUN stop says "raise", never "remove": a StarNet-credit run with PER RUN at 0 still stops at the
+    // A per-RUN stop says "raise", never "remove": a Agent OS-credit run with PER RUN at 0 still stops at the
     // managed default (issue #53), so "remove it" would be an instruction that does nothing there.
     // the caps live in SETTINGS › SPENDING LIMITS (MISSION CONTROL is only a room label; there is no BUDGET tab)
     return what + (scope === 'run' ? ' — raise it' : ' — raise or remove it') + ' in SETTINGS › SPENDING LIMITS';
   }
   // the budget stop's door: open SETTINGS straight on the SPENDING LIMITS section (the same openTerm(key, section)
   // mechanism friendlyerror's doors use), with retry alongside for after the user has raised the cap. A stop at the
-  // StarNet balance gets the top-up door instead — Friendly's 'store' door, the one managed_credit already opens.
+  // Agent OS balance gets the top-up door instead — Friendly's 'store' door, the one managed_credit already opens.
   function offerBudgetDoor(atBalance) {
     const topUp = (atBalance === true && typeof Friendly !== 'undefined' && Friendly.actionButton) ? Friendly.actionButton({ action: 'store' }) : null;
     choices([
@@ -9193,7 +9193,7 @@ const Chat = (() => {
      runs immediately. ↑/↓ move, Enter/Tab run, Esc closes. */
   let slashItems = [], slashSel = 0;
   let slashServerCommands = null, slashCatalogLoading = null, slashCatalogLoaded = null;
-  /* ---------- /goal AUTONOMOUS LOOP (StarNet's "Ralph loop") ----------
+  /* ---------- /goal AUTONOMOUS LOOP (Agent OS's "Ralph loop") ----------
      The loop STATE (goal / status / turnsUsed / subgoals / …) rides on the workstream record as ws.goalLoop, so a
      standing goal survives a reload/switch exactly like the thread history (workstreams.js carries the field through
      serialize()). GoalLoop (goalloop.js) owns the PURE parse + state machine; here we own the aux JUDGE model call
@@ -9255,7 +9255,7 @@ const Chat = (() => {
     Object.freeze({ name: 'reload-mcp', aliases: ['reload_mcp'], desc: 'refresh configured MCP connectors', argsHint: '[connector-id]', action: 'reload-mcp' }),
     Object.freeze({ name: 'reload-skills', aliases: ['reload_skills'], desc: 'refresh the slash skill catalog', action: 'reload-skills' }),
     Object.freeze({ name: 'debug', desc: 'show chat and slash debug state', action: 'debug' }),
-    Object.freeze({ name: 'version', aliases: ['v'], desc: 'show StarNet version information', action: 'version' })
+    Object.freeze({ name: 'version', aliases: ['v'], desc: 'show Agent OS version information', action: 'version' })
   ]);
   function isSlashOpen() { const p = el('chat-slash'); return !!(p && !p.hidden); }
   function copyLastReply() {
@@ -9390,7 +9390,7 @@ const Chat = (() => {
        entry. Say so, and hand over a real door key (never a menu path) to where lasting goal loops live. A reload does not end
        the session, so the line says the goal stays WITH this session through one (P29 polish 2: 'session only … a reload keeps it'
        read as a contradiction). */
-    const set = localLine('⊙ goal set for this session only: ' + s.goal + ' (budget ' + s.maxTurns + ' turns). It works while StarNet is open and stays with this session through a reload. Working toward it…');
+    const set = localLine('⊙ goal set for this session only: ' + s.goal + ' (budget ' + s.maxTurns + ' turns). It works while Agent OS is open and stays with this session through a reload. Working toward it…');
     if (set && typeof StationUI !== 'undefined' && StationUI.openTerm) {
       systemDoor(set, '▸ AUTOMATE › GOAL LOOPS', () => StationUI.openTerm('automation', 'loops'), { cls: 'goal-loops-door', lead: 'Lasting goal loops:', dest: 'automation:loops' });
     }
@@ -9667,7 +9667,7 @@ const Chat = (() => {
       }
       const st = localLine('Loop: every ' + cur.label + ', ' + cur.fired + '/' + LOOP_MAX_ITERS + ' runs done'
         + (cur.skipped ? ', ' + cur.skipped + ' tick' + (cur.skipped === 1 ? '' : 's') + ' skipped (a run, a question or another stream had the floor)' : '')
-        + ' — "' + String(cur.prompt).slice(0, 60) + '". It stops if you close StarNet; /routine makes it permanent.');
+        + ' — "' + String(cur.prompt).slice(0, 60) + '". It stops if you close Agent OS; /routine makes it permanent.');
       automateDoor(st, '▸ AUTOMATE › SCHEDULES › NEW', 'routines-create');   // org P19: the lasting form of a loop is a schedule (its own label: it opens the New schedule form, not the list)
       return st;
     }
@@ -9891,7 +9891,7 @@ const Chat = (() => {
     } else localLine('Could not change approval mode.');
   }
   /* ---- reasoning effort — a REAL dial, not a status readout.
-     The old handler answered "Reasoning effort is not a separate StarNet toggle yet", which was simply false:
+     The old handler answered "Reasoning effort is not a separate Agent OS toggle yet", which was simply false:
      Harness stores it per PROVIDER, persists it, the model dock sets it alongside model+provider, and every run
      payload carries it (harness.js chat()). The command just never reached any of that. */
   const REASONING_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
@@ -9936,7 +9936,7 @@ const Chat = (() => {
       + '. Takes effect on your next message.' + reasoningModelNote());
   }
   /* ---- /fast — a shortcut onto that SAME dial.
-     StarNet has no separate "fast mode", and inventing one would be a lie — the old handler admitted as much and
+     Agent OS has no separate "fast mode", and inventing one would be a lie — the old handler admitted as much and
      then did nothing at all. Minimal reasoning effort IS what makes replies come back quickly and cheaply, so
      /fast drives the real control instead of pretending to be its own switch. */
   function fastCommand() {
@@ -10139,7 +10139,7 @@ const Chat = (() => {
       const j = r.ok ? await r.json() : null;
       if (j) {
         const bits = [];
-        if (j.app) bits.push('StarNet ' + j.app);
+        if (j.app) bits.push('Agent OS ' + j.app);
         if (j.harness && j.harness !== j.app) bits.push('harness ' + j.harness);
         if (j.node) bits.push('Node ' + j.node);
         return localLine('Version: ' + (bits.length ? bits.join(', ') : 'unknown') + '.');
@@ -10604,7 +10604,7 @@ const Chat = (() => {
   async function nextStageOf(agentId, tag, lineId, dockId) {
     try {
       const h = {}, tok = (typeof window !== 'undefined' && window.__STARNET_API_TOKEN__) || '';
-      if (tok) h['X-StarNet-Token'] = String(tok);
+      if (tok) h['X-Agent OS-Token'] = String(tok);
       // `lineId` = the line this work ENTERED on (work belongs to a line, 2026-08-07). The sidecar's plan is
       // still the decider — it refuses any id that is not this dock's own line — so this only ever narrows.
       const r = await fetch('/api/routing/chain?agentId=' + encodeURIComponent(agentId) + '&tag=' + encodeURIComponent(tag || '')
@@ -11163,12 +11163,12 @@ const Chat = (() => {
           if (stoppedBy) presenceStoppedBy = stoppedBy;
           // GOAL LOOP: a stopped step is not judgeable — the loop pauses and SAYS why (judgeGoalTurn), never stalls silently
           goalStall = stopLine || ('the step stopped (' + endReason + ')');
-          // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the StarNet
+          // a budget stop's honest door is SETTINGS › SPENDING LIMITS (the top-up door when the ceiling was the Agent OS
           // balance), not a doomed retry (the same cap fires again immediately); every other stop keeps the plain retry chip.
           // The UNPRICED-model token ceiling is not a $ cap at all: its door is a different model (raising $ does nothing).
           if (isActiveWs(ws) && !(endReason === 'cancelled' && runPressedEstop)) { if (endReason === 'budget' && unpriced) offerUnpricedDoor(); else if (endReason === 'budget' && !subscription) offerBudgetDoor(budgetCapIsBalance); else offerTryAgain(); }
           if (typeof StationUI !== 'undefined') StationUI.notify(isActiveWs(ws) ? (stoppedBy ? 'stopped by you' : 'run stopped: ' + brief(stopLine || endReason))
-            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? 'used its per-run Claude subscription ceiling; say "continue" to keep going' : budgetCapIsBalance === true ? 'used the rest of your StarNet balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
+            : whoOf(ws) + ' stopped' + sessionNote(ws) + ' — ' + (endReason === 'budget' ? (unpriced ? 'hit the token ceiling for a model with no price' : subscription ? 'used its per-run Claude subscription ceiling; say "continue" to keep going' : budgetCapIsBalance === true ? 'used the rest of your Agent OS balance' : 'hit a spending limit') : endReason === 'max_iters' ? 'reached the step limit; say "continue" to keep going' : brief(stopLine || endReason)),
             'warn', undefined, isActiveWs(ws) || endReason === 'cancelled' ? undefined : { kind: 'alert', go: { ws: ws.id } });
         } else if (cutShort) {
           // distinct honest "cut short" recap: the reply is truncated/filtered, not a clean delivery.
@@ -11298,7 +11298,7 @@ const Chat = (() => {
       } else {
         // A throw that is NOT a deliberate Stop: an unexpected disconnect or a hard fetch/network error. Persist
         // whatever streamed FIRST — before the await below (ordering locked by test/comms-presence.test.js).
-        // NEVER synthesize 'cannot reach the STARNET sidecar' here again (2026-07-29): it forced the "restart the
+        // NEVER synthesize 'cannot reach the AGENT OS sidecar' here again (2026-07-29): it forced the "restart the
         // app" copy onto every abort, including a dead PROVIDER stream on a healthy install. Say only what we
         // witnessed and let Harness.pingEngine measure the rest — full rationale in harness.js + friendlyerror.js.
         persistPartial(ws, acc);

@@ -1,4 +1,4 @@
-/* Execute one tool call with the only automatic tool retry StarNet permits:
+/* Execute one tool call with the only automatic tool retry Agent OS permits:
  * a bounded repeat of a host-defined read after a clearly transient failure. Mutation and connector calls
  * always return their first result because a missing response cannot prove the effect did not happen. */
 'use strict';

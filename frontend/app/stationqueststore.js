@@ -1,4 +1,4 @@
-/* STARNET — stationqueststore.js : the live wiring around the pure StationQuests engine (G1b).
+/* AGENT OS — stationqueststore.js : the live wiring around the pure StationQuests engine (G1b).
 
    The killer generator, wired to real signals. It owns everything the pure engine can't touch:
      • the SIGNAL — subscribes to `agent.tool_call` on U.bus (harness.js re-emits every hero tool step;

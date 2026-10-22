@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/business.js : BUSINESS persona recipes — freelance and small-business work.
+/* AGENT OS — recipe-catalog/business.js : BUSINESS persona recipes — freelance and small-business work.
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light module
    pattern as its siblings: a `RecipeCatalogBusiness` global in the browser, module.exports under node.

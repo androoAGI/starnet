@@ -1,4 +1,4 @@
-/* STARNET — windows/trophies.js : the TROPHY CASE window (extracted verbatim from stationui.js).
+/* AGENT OS — windows/trophies.js : the TROPHY CASE window (extracted verbatim from stationui.js).
    Loads AFTER stationui.js (see index.html) and registers itself via StationUI.registerWindow;
    the only stationui internals it touches are the enumerated StationUI.h helper surface. */
 'use strict';

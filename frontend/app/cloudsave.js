@@ -1,4 +1,4 @@
-/* STARNET — cloudsave.js : write the agent through to the durable sidecar, and pull it back on boot.
+/* AGENT OS — cloudsave.js : write the agent through to the durable sidecar, and pull it back on boot.
 
    localStorage is a fast CACHE that a browser wipe can erase. The sidecar's <workspaces>/<id>.save.json is the
    DURABLE copy (app-data dir, survives a cache wipe / different browser). This module keeps them in sync:
@@ -46,7 +46,7 @@ const CloudSave = (() => {
   let cacheOkSeq = 0;                  // the newest push whose doc the browser cache DID hold
   let health = Core ? Core.freshHealth() : { lastPushOkAt: 0, lastPushFailAt: 0, consecutiveFailures: 0, nextRetryAt: 0 };
   let warnedStale = false;             // ONE console warn per failing↔healthy transition, never per attempt
-  // EL-11 FIX 1: the sidecar REFUSES writes when the workspace was stamped by a NEWER StarNet — as an HTTP 200
+  // EL-11 FIX 1: the sidecar REFUSES writes when the workspace was stamped by a NEWER Agent OS — as an HTTP 200
   // body { ok:false, degraded:true }. That refusal gets its OWN persistent state (the save-dot renders it and
   // stationui explains it); it is NOT a transient network failure and must never stamp health OK.
   let degraded = false;
@@ -64,7 +64,7 @@ const CloudSave = (() => {
   function isSave(d) { return !!(d && typeof d === 'object' && d.schema === 'starnet.save' && d.agent && typeof d.agent === 'object'); }
 
   // this build's readable schema ceiling. A save/remote whose version exceeds this was written by a NEWER
-  // StarNet and MUST NOT be adopted into the cache (that would clobber the local doc with fields this code
+  // Agent OS and MUST NOT be adopted into the cache (that would clobber the local doc with fields this code
   // can't read). Mirror Save.CURRENT when available; fall back to a literal only if Save hasn't loaded yet.
   function currentVersion() { return (typeof Save !== 'undefined' && Number.isFinite(Save.CURRENT)) ? Save.CURRENT : 5; }
   function isFutureSave(d) { return isSave(d) && num(d.version) > currentVersion(); }
@@ -389,7 +389,7 @@ const CloudSave = (() => {
   //
   // DESKTOP REALITY (July-22 data-loss incident): the page runs on the tauri.localhost origin and the shell
   // rewrites ONLY window.fetch to the sidecar's real loopback URL — a relative sendBeacon posts into the
-  // bundled-asset protocol and VANISHES (and sendBeacon cannot set the X-StarNet-Token header anyway). The old
+  // bundled-asset protocol and VANISHES (and sendBeacon cannot set the X-Agent OS-Token header anyway). The old
   // code then treated sendBeacon's `true` ("queued for dispatch") as a confirmed 200: it nulled `pending` and
   // stamped health OK, so the newest save silently evaporated on EVERY desktop close/minimize while the
   // save-dot claimed "backed up". Three rules now:
@@ -430,7 +430,7 @@ const CloudSave = (() => {
     const s = Core ? Core.snapshot(health, now())
       : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false };
     s.conflict = conflict;
-    s.degraded = degraded;   // EL-11 FIX 1: refused-by-newer-StarNet is its own persistent, renderable state
+    s.degraded = degraded;   // EL-11 FIX 1: refused-by-newer-Agent OS is its own persistent, renderable state
     // #121: the browser cache could not hold this page's newest save, so the station file is its only durable copy.
     // cacheFailedConfirmed is true only once the station file acknowledged exactly that save with nothing newer queued.
     s.cacheFailed = cacheFailed;

@@ -1,4 +1,4 @@
-/* STARNET — seeds.js : the PURE engine for the SELF-GROWING SEED SHELF.
+/* AGENT OS — seeds.js : the PURE engine for the SELF-GROWING SEED SHELF.
 
    The mint detector (mint.js) already notices when the Commander keeps asking for the same SHAPE of task and
    induces a parameterized template ("draft release notes for {input}"). This engine turns one of those raw

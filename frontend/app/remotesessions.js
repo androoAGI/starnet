@@ -1,6 +1,6 @@
-/* STARNET — remotesessions.js : a conversation you have from your phone is a SESSION on the desk too.
+/* AGENT OS — remotesessions.js : a conversation you have from your phone is a SESSION on the desk too.
 
-   StarNet Remote runs a phone's task on the station, detached from any page (sidecar/remote/host.js). Without
+   Agent OS Remote runs a phone's task on the station, detached from any page (sidecar/remote/host.js). Without
    this module the desk never learns about it: a conversation started on the phone has no row in the rail, and a
    phone turn sent into a desk session only shows up the next time that session happens to be reopened.
 

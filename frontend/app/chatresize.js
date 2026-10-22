@@ -1,4 +1,4 @@
-/* STARNET — chatresize.js : draggable COMMS / stage divider.
+/* AGENT OS — chatresize.js : draggable COMMS / stage divider.
    The station grid pins COMMS to a fixed width; this lets the Commander grab the seam on the
    panel's left edge and drag it LEFT to widen COMMS (the centre stage gives up the space) or
    RIGHT to shrink it. The width is a CSS var (--chat-w) the grid reads, persisted per machine.

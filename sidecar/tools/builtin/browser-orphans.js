@@ -5,7 +5,7 @@
    RESTART all end the sidecar with TerminateProcess, which no handler can see). The orphan kept its DevTools port
    and kept pointing at a network proxy that had died with its parent — so every page it loaded failed — and it
    still held the profile, so every new launch handed off to it and "exited before CDP ownership". The agent had
-   no supported way out: a shell kill was (rightly) refused, and nothing in StarNet would end it.
+   no supported way out: a shell kill was (rightly) refused, and nothing in Agent OS would end it.
 
    THE RULES THIS MODULE KEEPS:
      · Identity is the --user-data-dir on the command line, compared EXACTLY (normalized), never a prefix and never

@@ -1,7 +1,7 @@
 /* frontend/app/apiticket.js — mint SCOPED, SHORT-LIVED URL tickets so the MASTER API token never rides a URL.
    The wire format, scopes and lifetimes are defined (and verified) by sidecar/apitickets.js; read its header first.
 
-   Surfaces that cannot attach the X-StarNet-Token header — a link/tab open of a workspace file, a workshop tool
+   Surfaces that cannot attach the X-Agent OS-Token header — a link/tab open of a workspace file, a workshop tool
    opened in a tab, the SSE bridge (EventSource) and the unload save beacon — get a ticket that names exactly ONE
    resource and dies within minutes. Every fetch() keeps the header (harness.js); nothing here replaces it.
 

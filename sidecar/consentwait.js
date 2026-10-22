@@ -1,4 +1,4 @@
-/* STARNET — consentwait.js : the fail-closed, human-extendable consent waiter behind askHuman.
+/* AGENT OS — consentwait.js : the fail-closed, human-extendable consent waiter behind askHuman.
 
    EL-11 FIX 1c. The live consent channel await-pauses a run until a human answers a permission.prompt.
    The original inline timer auto-DENIED after CONSENT_TIMEOUT_MS unconditionally — correct for UNATTENDED

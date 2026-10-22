@@ -1,4 +1,4 @@
-/* STARNET — util.js : helpers + event bus */
+/* AGENT OS — util.js : helpers + event bus */
 'use strict';
 
 const U = {

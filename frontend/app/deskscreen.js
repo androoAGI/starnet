@@ -1,4 +1,4 @@
-/* STARNET — deskscreen.js : the DESK SCREEN (2026-09-29, Andrew: "click the computer, see the work from your agent").
+/* AGENT OS — deskscreen.js : the DESK SCREEN (2026-09-29, Andrew: "click the computer, see the work from your agent").
 
    Click an agent's workstation on the live floor (world.js deskAt → onDesk) and the DESK SCREEN window opens on
    THAT agent's computer: the app its current step is working in, rendered from the run transcript — the file it is

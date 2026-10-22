@@ -1,10 +1,10 @@
 /* sidecar/hooks.js — THE HOOK SPINE. The one place the station lets a Commander put their own code in the
    agent's path.
 
-   StarNet had no extension point of this kind at all. Skills add INSTRUCTIONS, MCP adds TOOLS, routines add a
+   Agent OS had no extension point of this kind at all. Skills add INSTRUCTIONS, MCP adds TOOLS, routines add a
    SCHEDULE — none of them let the Commander say "whenever the agent edits a file, run prettier" or "never let
    it run this command" or "before every model call, tell it today's on-call rota". That is what a hook is, and
-   its absence was the single largest hole in StarNet's extensibility.
+   its absence was the single largest hole in Agent OS's extensibility.
 
    ONE SPINE, TWO FRONT DOORS — copied deliberately from the reference harness, where shell hooks register on
    the same manager the in-process plugins use. A shell script and a JS plugin are the same thing to this file:

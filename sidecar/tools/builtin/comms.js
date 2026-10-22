@@ -1,13 +1,13 @@
 /* sidecar/tools/builtin/comms.js — OUTBOUND channel reach: the agent can message a connected platform.
 
-   THE GAP THIS CLOSES. StarNet drives five real messaging channels (telegram/discord/slack/matrix/signal) but
+   THE GAP THIS CLOSES. Agent OS drives five real messaging channels (telegram/discord/slack/matrix/signal) but
    every one of them was INBOUND-only: a human messages the station, the hub runs a turn, the reply goes back
    down the same chat. Nothing let an agent SPEAK FIRST. The only outbound path in the whole sidecar was
    autonotify.js — a fixed one-line "a routine ran on its own" ping, composed by the host, not by the agent. So
    "reach" was half a pillar: a routine could research all night and had no way to tell anyone, and an agent
    asked to "let me know on Telegram when the build goes green" could only answer into a chat window nobody was
    watching. The reference harness has had tools/send_message_tool.py + gateway/channel_directory.py from early
-   on; this is the same capability on StarNet's own seams.
+   on; this is the same capability on Agent OS's own seams.
 
      makeCommsTools({ listTargets, sendTo, maxLenFor?, redact?, emit? }) -> { targetsTool, sendTool, register }
 

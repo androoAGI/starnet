@@ -1,4 +1,4 @@
-/* StarNet reference-authored industrial materials, September 2026.
+/* Agent OS reference-authored industrial materials, September 2026.
  * Image-authored albedo; geometry, lighting, seats and live activity remain owned
  * by the station renderer. The industrial set is the default; ?textures=classic
  * retains the original renderer for comparison and recovery.

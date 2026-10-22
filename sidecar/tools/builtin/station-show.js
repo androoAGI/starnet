@@ -1,6 +1,6 @@
-/* sidecar/tools/builtin/station-show.js — station.show: the agent puts a StarNet window in front of the Commander.
+/* sidecar/tools/builtin/station-show.js — station.show: the agent puts a Agent OS window in front of the Commander.
 
-   WHY (Andrew 2026-10-04: agents should "basically use [StarNet] itself instead of the user having to navigate"): an agent
+   WHY (Andrew 2026-10-04: agents should "basically use [Agent OS] itself instead of the user having to navigate"): an agent
    asked "where are my deliverables?" or "open my schedules" could only recite a menu path for the Commander to click
    through. This opens it — any place in frontend/app/places.js (the one list of where things are), through the same door
    its dock button or tab uses, raised to the front, answered with what is really on screen.
@@ -22,7 +22,7 @@ function makeStationShowTool(deps) {
   const refuse = error => ({ content: 'REFUSED: ' + error + ' — do not tell the Commander it is open.', summary: 'not shown' });
   const tool = {
     name: 'station.show', capability: 'stationinfo', scope: 'read', requiresConsent: false, timeoutMs: 15000,
-    description: 'OPEN a StarNet window, tab or section on the Commander\'s screen when they ask where something is or to '
+    description: 'OPEN a Agent OS window, tab or section on the Commander\'s screen when they ask where something is or to '
       + 'see it ("show me my deliverables", "open schedules", "take me to the recruitment bay") — instead of describing '
       + 'the clicks. place: ' + Places.PLACES.map(p => p.id + ' (' + p.words + ')').join(', ')
       + '. agent (name or id) is required for agent, agent-growth, agent-record, agent-memory, agent-config, agent-desk. '
@@ -33,10 +33,10 @@ function makeStationShowTool(deps) {
     run: async (args, ctx) => {
       const asked = ['place', 'target', 'id', 'window', 'page', 'section'].map(k => args && args[k]).find(v => typeof v === 'string' && v.trim()) || '';
       const place = Places.get(asked);
-      if (!place) return refuse((asked ? 'there is no StarNet place "' + asked + '"' : 'no place was named') + ' — call it as {place: "<id>"} with an id from this tool\'s list');
+      if (!place) return refuse((asked ? 'there is no Agent OS place "' + asked + '"' : 'no place was named') + ' — call it as {place: "<id>"} with an id from this tool\'s list');
       const agent = String((args && args.agent) || '').trim();
       if (Places.needsAgent(place) && !agent) return refuse(place.id + ' needs the agent\'s name');
-      if (!station) return refuse('this run has no StarNet page attached (nobody has the station open)');
+      if (!station) return refuse('this run has no Agent OS page attached (nobody has the station open)');
       const origin = ctx && ctx.streamId && ctx.runId ? { streamId: String(ctx.streamId), runId: String(ctx.runId) } : null;
       let out;
       try { out = await station.request('station.show', { place: place.id, agent: agent || undefined, origin }); }

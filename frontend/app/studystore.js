@@ -1,4 +1,4 @@
-/* STARNET — studystore.js : the live wiring around the pure STUDY ENGINE (study.js) — the dossier's Phase B.
+/* AGENT OS — studystore.js : the live wiring around the pure STUDY ENGINE (study.js) — the dossier's Phase B.
 
    Where dossierstore.js only folds the Commander's OWN onboarding docs + panel edits (Phase A), this is the
    glue that lets the station LEARN from actual work: after a salient run the sidecar studies the transcript and

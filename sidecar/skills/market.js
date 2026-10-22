@@ -1,4 +1,4 @@
-/* sidecar/skills/market.js — the Skill Market client: browse the StarNet catalog, install a skill into the station
+/* sidecar/skills/market.js — the Skill Market client: browse the Agent OS catalog, install a skill into the station
    library, keep it honest.
 
    The catalog (skills/market-format.js) is a public index on starnetos.com, fetched when the Commander opens the

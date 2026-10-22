@@ -1,4 +1,4 @@
-/* STARNET — queryspine.js : one honest browser-side owner for shared JSON GET resources.
+/* AGENT OS — queryspine.js : one honest browser-side owner for shared JSON GET resources.
 
    A resource is keyed independently of its URL so every consumer shares the same in-flight
    request, last-good value, freshness clock, and poll timer. Failed reads reject and publish

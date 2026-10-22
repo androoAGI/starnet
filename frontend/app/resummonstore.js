@@ -1,4 +1,4 @@
-/* STARNET — resummonstore.js : P3.1 "RUN THIS AGAIN?" — the re-summon signal.
+/* AGENT OS — resummonstore.js : P3.1 "RUN THIS AGAIN?" — the re-summon signal.
 
    Retention fast-follow: right after the Commander rated the hero's work 👍 on a real interactive run, the station
    offers ONCE, lightly, to run that same shape of work again — tied to the SAME agent and the run's directive. One

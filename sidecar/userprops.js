@@ -1,5 +1,5 @@
-/* sidecar/userprops.js — player-made props: the station asks the StarNet cloud to generate a prop from a noun
-   (paid from StarNet credits), then keeps the result locally so it survives restarts and relinks.
+/* sidecar/userprops.js — player-made props: the station asks the Agent OS cloud to generate a prop from a noun
+   (paid from Agent OS credits), then keeps the result locally so it survives restarts and relinks.
 
    Contract with the cloud (starnet-cloud src/propgen.js):
      POST {cloud}/v1/props/generate {noun}         -> 202 {job}  | 402 insufficient credits | 429 busy/rate | 400 bad noun
@@ -136,18 +136,18 @@ function makeUserProps(deps) {
     if (!noun) return { ok: false, code: 'empty', message: 'Describe an object.' };
     if (noun.length > 60) return { ok: false, code: 'too_long', message: 'Keep it under 60 characters.' };
     const c = cloudCfg();
-    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
+    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses Agent OS credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
     let r;
     try { r = await request('POST', c.url + '/v1/props/preview', c.token, { noun }, START_TIMEOUT_MS); }
-    catch (e) { note('userprops.preview.start', e); return { ok: false, code: 'unreachable', message: 'StarNet could not be reached. Check your connection and try again.' }; }
+    catch (e) { note('userprops.preview.start', e); return { ok: false, code: 'unreachable', message: 'Agent OS could not be reached. Check your connection and try again.' }; }
     const cloudMsg = r.j && r.j.error && r.j.error.message ? String(r.j.error.message).slice(0, 200) : '';
-    if (r.status === 402) return { ok: false, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 AI & MODELS.' };
-    if (r.status === 401 || r.status === 403) return { ok: false, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 402) return { ok: false, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of Agent OS credits. Top up under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 401 || r.status === 403) return { ok: false, code: 'not_linked', message: 'This station\u2019s Agent OS link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
     if (r.status === 429) return { ok: false, code: 'busy', message: cloudMsg || 'Too many props right now. Try again shortly.' };
     if (r.status === 400) return { ok: false, code: (r.j && r.j.error && r.j.error.code) || 'invalid', message: cloudMsg || 'That description was not accepted.' };
-    if (r.status === 404) return { ok: false, code: 'unsupported', message: 'Your StarNet account server does not offer previews yet.' };
+    if (r.status === 404) return { ok: false, code: 'unsupported', message: 'Your Agent OS account server does not offer previews yet.' };
     const job = r.j && r.j.job;
-    if (!r.ok || !job || typeof job.id !== 'string' || !/^pj_[A-Za-z0-9]{8,64}$/.test(job.id)) return { ok: false, code: 'cloud_error', message: cloudMsg || 'StarNet could not start that preview.' };
+    if (!r.ok || !job || typeof job.id !== 'string' || !/^pj_[A-Za-z0-9]{8,64}$/.test(job.id)) return { ok: false, code: 'cloud_error', message: cloudMsg || 'Agent OS could not start that preview.' };
     if (previews.size > 40) previews.delete(previews.keys().next().value);
     previews.set(job.id, { noun, job: publicJob(job), result: null });
     return { ok: true, job: { ...publicJob(job), noun, kind: 'preview' } };
@@ -162,14 +162,14 @@ function makeUserProps(deps) {
         try {
           const r = await request('GET', c.url + '/v1/props/jobs/' + encodeURIComponent(id), c.token, null, POLL_TIMEOUT_MS);
           const job = r.j && r.j.job;
-          if (r.status === 404) pv.job = { ...pv.job, status: 'failed', error: { code: 'lost', message: 'StarNet lost track of this preview. Make a new one.' } };
+          if (r.status === 404) pv.job = { ...pv.job, status: 'failed', error: { code: 'lost', message: 'Agent OS lost track of this preview. Make a new one.' } };
           else if (r.ok && job) {
             pv.job = publicJob(job);
             const res = job.result;
             if (job.status === 'done' && res && res.size && typeof res.sketch === 'string') {
               const png = Buffer.from(res.sketch, 'base64');
               if (isPng(png) && png.length < MAX_PNG_BYTES) pv.result = { label: String(res.label || '').slice(0, 24), size: { fp: String(res.size.fp || ''), height: Number(res.size.height) || 0, like: String(res.size.like || '').slice(0, 80), symmetric: res.size.symmetric === true, profile: res.size.profile === true }, sketch: res.sketch };
-              else pv.job = { ...pv.job, status: 'failed', error: { code: 'bad_result', message: 'StarNet returned a preview this station could not use.' } };
+              else pv.job = { ...pv.job, status: 'failed', error: { code: 'bad_result', message: 'Agent OS returned a preview this station could not use.' } };
             }
           }
         } catch (e) { note('userprops.preview.poll', e); }   // offline: the page asks again
@@ -181,21 +181,21 @@ function makeUserProps(deps) {
   // refusal (nothing was started, the claim can go); otherwise the start MAY have been accepted and is retried.
   function startAnswer(r, what) {
     const cloudMsg = r.j && r.j.error && r.j.error.message ? String(r.j.error.message).slice(0, 200) : '';
-    if (r.status === 402) return { ok: false, final: true, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of StarNet credits. Top up under SETTINGS \u2192 AI & MODELS.' };
-    if (r.status === 401) return { ok: false, final: true, code: 'not_linked', message: 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
-    if (r.status === 403) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'not_linked', message: cloudMsg || 'This station\u2019s StarNet link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 402) return { ok: false, final: true, code: 'insufficient_credits', message: cloudMsg && /at least/.test(cloudMsg) ? cloudMsg + ' Top up under SETTINGS \u2192 AI & MODELS.' : 'Out of Agent OS credits. Top up under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 401) return { ok: false, final: true, code: 'not_linked', message: 'This station\u2019s Agent OS link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
+    if (r.status === 403) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'not_linked', message: cloudMsg || 'This station\u2019s Agent OS link is no longer valid. Relink it under SETTINGS \u2192 AI & MODELS.' };
     if (r.status === 429) return { ok: false, final: true, code: 'busy', message: cloudMsg || 'Too many props right now. Try again shortly.' };
     if (r.status === 400 || r.status === 413) return { ok: false, final: true, code: (r.j && r.j.error && r.j.error.code) || 'invalid', message: cloudMsg || 'That description was not accepted.' };
-    if (r.status === 404) return { ok: false, final: true, code: 'unsupported', message: 'Your StarNet account server does not offer ' + what + ' yet.' };
+    if (r.status === 404) return { ok: false, final: true, code: 'unsupported', message: 'Your Agent OS account server does not offer ' + what + ' yet.' };
     const job = r.j && r.j.job;
-    if (!r.ok || !job || typeof job.id !== 'string' || !/^pj_[A-Za-z0-9]{8,64}$/.test(job.id)) return { ok: false, final: r.status >= 400 && r.status < 500, code: 'cloud_error', message: cloudMsg || 'StarNet could not start that ' + what + '.' };
+    if (!r.ok || !job || typeof job.id !== 'string' || !/^pj_[A-Za-z0-9]{8,64}$/.test(job.id)) return { ok: false, final: r.status >= 400 && r.status < 500, code: 'cloud_error', message: cloudMsg || 'Agent OS could not start that ' + what + '.' };
     return { ok: true, job };
   }
   // Claim -> ask -> record. The claim (pending entry with a client key, no cloud id yet) is written atomically with the
   // duplicate check BEFORE the network call; the cloud dedupes on the key, so a retried POST returns the same job.
   async function paidStart(claim, endpoint, body, what, isDuplicate) {
     const c = cloudCfg();
-    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses StarNet credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
+    if (!c) return { ok: false, code: 'not_linked', message: 'Making props uses Agent OS credits. Link this station under SETTINGS \u2192 AI & MODELS first.' };
     const key = newKey();
     const entry = { ...claim, key, status: 'starting', startedAt: now(), endpoint, body };
     const claimed = await serial(() => {
@@ -211,7 +211,7 @@ function makeUserProps(deps) {
     catch (e) {
       note('userprops.start', e);   // no answer: it may have started. The poller retries with the same key (never a second charge)
       schedule(POLL_MS);   // ...starting NOW: the poller used to wait for the next sidecar boot, then drop it unasked (sweep 10-02)
-      return { ok: false, code: 'unreachable', pendingKey: key, message: 'StarNet did not answer in time. If it started, it will still arrive in MADE BY YOU \u2014 you are never charged twice.' };
+      return { ok: false, code: 'unreachable', pendingKey: key, message: 'Agent OS did not answer in time. If it started, it will still arrive in MADE BY YOU \u2014 you are never charged twice.' };
     }
     const a = startAnswer(r, what);
     if (!a.ok) {
@@ -234,7 +234,7 @@ function makeUserProps(deps) {
     if (noun.length > 60) return { ok: false, code: 'too_long', message: 'Keep it under 60 characters.' };
     const pv = previewId ? previews.get(String(previewId)) : null;
     const body = pv && pv.result && pv.noun === noun ? { noun, preview: { size: pv.result.size, sketch: pv.result.sketch } } : { noun };
-    // a start StarNet has not answered yet (same object) is still in flight: a second click must not send a NEW key
+    // a start Agent OS has not answered yet (same object) is still in flight: a second click must not send a NEW key
     // (a second charge) — the poller is still asking about the first
     return paidStart({ noun, kind: 'front' }, '/v1/props/generate', body, 'prop making', (j) => !j.id && (j.kind || 'front') === 'front' && j.noun === noun);
   }
@@ -332,7 +332,7 @@ function makeUserProps(deps) {
     for (const pj of jobs) {
       // a start the cloud never answered: ask again with the SAME key (the cloud returns the job it may already have)
       if (!pj.id) {
-        if (now() - (Number(pj.startedAt) || 0) > START_RETRY_MS) { await dropPending((j) => j.key === pj.key); remember({ id: pj.key, noun: pj.noun, kind: pj.kind, status: 'failed', error: { code: 'unanswered', message: 'StarNet never confirmed this start, so nothing arrived. If it was charged, the charge shows in your credit history.' } }); continue; }
+        if (now() - (Number(pj.startedAt) || 0) > START_RETRY_MS) { await dropPending((j) => j.key === pj.key); remember({ id: pj.key, noun: pj.noun, kind: pj.kind, status: 'failed', error: { code: 'unanswered', message: 'Agent OS never confirmed this start, so nothing arrived. If it was charged, the charge shows in your credit history.' } }); continue; }
         let rs;
         try { rs = await request('POST', c.url + pj.endpoint, c.token, { ...(pj.body || { noun: pj.noun }), clientKey: pj.key }, START_TIMEOUT_MS); }
         catch (e) { note('userprops.start.retry', e); continue; }
@@ -346,7 +346,7 @@ function makeUserProps(deps) {
       catch (e) { note('userprops.poll', e); continue; }   // offline: keep the job, try again next tick
       if (r.status === 404) {
         // the cloud has no record of it any more (it keeps finished props for two weeks and refunds interrupted jobs)
-        const lost = { ...(live.get(pj.id) || { id: pj.id, noun: pj.noun }), kind: pj.kind || 'front', status: 'failed', error: { code: 'lost', message: 'StarNet no longer has a record of this job. Check your credit history for its charge.' } };
+        const lost = { ...(live.get(pj.id) || { id: pj.id, noun: pj.noun }), kind: pj.kind || 'front', status: 'failed', error: { code: 'lost', message: 'Agent OS no longer has a record of this job. Check your credit history for its charge.' } };
         live.set(pj.id, lost);
         await dropPending((j) => j.id === pj.id);
         remember(lost);
@@ -360,19 +360,19 @@ function makeUserProps(deps) {
       // unreadable file, a write frozen during an update) keeps the paid job pending and is retried next tick.
       let keep = false;
       const landFail = (e, what) => {
-        if (e && (e.code === 'bad_image')) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'StarNet returned ' + what + ' this station could not use.' }; return; }
+        if (e && (e.code === 'bad_image')) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'Agent OS returned ' + what + ' this station could not use.' }; return; }
         if (e && e.code === 'prop_gone') { pub.status = 'failed'; pub.error = { code: 'prop_gone', message: 'The prop was deleted before its side view arrived.' }; return; }
         note('userprops.land', e);
         keep = true; pub.status = 'running'; pub.step = 'saving'; pub.error = null;
       };
       if (job.status === 'done' && pj.kind === 'side') {
-        if (!validSide(job.result)) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'StarNet returned a side view this station could not use.' }; }
+        if (!validSide(job.result)) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'Agent OS returned a side view this station could not use.' }; }
         else {
           try { await landSide(pj.propId, pj.id, job.result, job.costUsd); }
           catch (e) { landFail(e, 'a side view'); }
         }
       } else if (job.status === 'done') {
-        if (!validResult(job.result)) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'StarNet returned a prop this station could not use.' }; }
+        if (!validResult(job.result)) { pub.status = 'failed'; pub.error = { code: 'bad_result', message: 'Agent OS returned a prop this station could not use.' }; }
         else {
           try { const entry = await land(pj.id, pj.noun, job.result, job.costUsd); pub.propId = entry.id; }
           catch (e) { landFail(e, 'a prop'); }

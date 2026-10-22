@@ -1174,7 +1174,7 @@ const StationCommands = (() => {
     'station.show': async (a) => {
       requireWatching(a && a.origin);
       const place = typeof Places !== 'undefined' && Places.get ? Places.get(a && a.place) : null;
-      if (!place) throw new Error('there is no StarNet place "' + String((a && a.place) || '') + '"; places: ' + (typeof Places !== 'undefined' ? Places.ids().join(', ') : 'none loaded — reload the page'));
+      if (!place) throw new Error('there is no Agent OS place "' + String((a && a.place) || '') + '"; places: ' + (typeof Places !== 'undefined' ? Places.ids().join(', ') : 'none loaded — reload the page'));
       if (typeof StationUI === 'undefined' || !StationUI.showTerm) throw new Error('the station windows are not ready yet');
       const o = place.open;
       const ag = (o.agent || o.desk) ? resolveAgent(a && a.agent) : null;

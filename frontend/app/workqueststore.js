@@ -1,4 +1,4 @@
-/* STARNET — workqueststore.js : the live wiring around the pure WorkQuests engine (G1c).
+/* AGENT OS — workqueststore.js : the live wiring around the pure WorkQuests engine (G1c).
 
    Turns an ACCEPTED idea into a trackable multi-step build. It owns what the pure engine can't:
      • the MINT — pitchstore/suggeststore call WorkQuestStore.accept(parsed, ctx) the instant the Commander hits
@@ -106,7 +106,7 @@ const WorkQuestStore = (() => {
   // build stalled. 'cancelled' is a deliberate human stop — resolve it too, but quietly (never nag).
   const STALL_REASONS = { error: 1, budget: 1, max_iters: 1, refusal: 1 };
   // a bound build run's own error text (agent.run.error lands before its run.end), so the stalled beat can name a KNOWN
-  // cause — a refused StarNet link, an empty wallet, a model the key can't use — instead of "send it again, report it".
+  // cause — a refused Agent OS link, an empty wallet, a model the key can't use — instead of "send it again, report it".
   const runErrText = new Map();   // runId -> message; only for runs a build is bound to, read (and dropped) at that run's end
   function onRunError(p) {
     if (!ready() || !p || !p.runId || !WorkQuests.questForRun(state, p.runId)) return;

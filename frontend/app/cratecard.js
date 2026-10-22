@@ -1,4 +1,4 @@
-/* STARNET — cratecard.js : the CRATE INSPECT card (line watch, 2026-09-23).
+/* AGENT OS — cratecard.js : the CRATE INSPECT card (line watch, 2026-09-23).
 
    Click a crate riding a belt on the live floor (world.js crateAt → openCrate) and this small station card opens
    beside it: what job it carries, which line, where it came from and is going, the run working it (agent, live

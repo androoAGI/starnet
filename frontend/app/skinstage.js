@@ -1,4 +1,4 @@
-/* STARNET — skinstage.js : a shared LIVE skin preview.
+/* AGENT OS — skinstage.js : a shared LIVE skin preview.
    A 40px still of a chunky pixel sprite is unreadable, so wherever a player picks a skin
    (the create screen, the recruitment bay, the agent dossier's CONFIG › SKIN) a STAGE plays
    that skin's real south-facing walk cycle, big. Frames come straight from the sprite manifest

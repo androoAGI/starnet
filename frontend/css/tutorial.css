@@ -1,4 +1,4 @@
-/* STARNET — tutorial.css : First Command spotlight + bail-out chrome.
+/* AGENT OS — tutorial.css : First Command spotlight + bail-out chrome.
    Minimal, theme-aware (falls back to amber if the --ph token is ever absent). The spotlight is a
    single positioned div whose oversized box-shadow dims everything but the cut-out; pointer-events
    stay off it so the highlighted control underneath is still fully clickable. */

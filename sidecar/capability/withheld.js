@@ -21,7 +21,7 @@ const COMMAND_TOOLS = 'shell_exec, shell_bg_write, terminal_start, terminal_writ
 function delegatedCommandGap(lead) {
   const who = String(lead == null ? '' : lead).trim() || 'the lead agent that delegated this task';
   return {
-    why: 'you are a worker delegated by ' + who + ', and in ASK mode StarNet withholds command execution (' + COMMAND_TOOLS
+    why: 'you are a worker delegated by ' + who + ', and in ASK mode Agent OS withholds command execution (' + COMMAND_TOOLS
       + ') from delegated workers even when a WORKBENCH is placed: a command needs the Commander\'s approval in a watched '
       + 'conversation, and a delegated run is not one',
     enable: 'put the exact command(s), and the folder to run them in, in your result for ' + who + ' so they can be run in '
@@ -40,7 +40,7 @@ function routineCommandGap() {
 function unattendedCommandGap() {
   return {
     why: 'this is an unattended run (nobody is watching to approve a command)',
-    enable: 'run the command from a watched StarNet conversation, where it is approved under ASK'
+    enable: 'run the command from a watched Agent OS conversation, where it is approved under ASK'
   };
 }
 

@@ -1,6 +1,6 @@
-/* STARNET — remoteview.js : the picture of this station that a paired phone sees.
+/* AGENT OS — remoteview.js : the picture of this station that a paired phone sees.
 
-   StarNet Remote's phone app has a STATION view. The station is drawn by THIS page (the sidecar has no
+   Agent OS Remote's phone app has a STATION view. The station is drawn by THIS page (the sidecar has no
    renderer), so this page draws it: World.renderStill() runs the real scene pass — floor, walls, props, the
    crew where they really stand, light — onto an offscreen canvas framed on the whole station, and the still is
    handed to the sidecar (POST /api/remote/view), which passes it to the phone over the sealed channel.

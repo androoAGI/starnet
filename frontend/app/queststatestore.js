@@ -1,4 +1,4 @@
-/* STARNET — queststatestore.js : the live wiring around the pure queststate.js engine — the quest log's
+/* AGENT OS — queststatestore.js : the live wiring around the pure queststate.js engine — the quest log's
    durable memory + the completion celebration.
 
    Self-persists to its own localStorage key (rides the backup prefix, like curiositystore/mintstore — no

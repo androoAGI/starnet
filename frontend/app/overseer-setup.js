@@ -14,7 +14,7 @@ window.OverseerSetup = (() => {
   };
   function reflectProvider(provider) {
     const title = el('ov-connection-title');
-    if (title) title.textContent = provider === 'starnet' ? 'Your StarNet account' : (providers[provider]?.[0] || 'Provider');
+    if (title) title.textContent = provider === 'starnet' ? 'Your Agent OS account' : (providers[provider]?.[0] || 'Provider');
     const help = el('ov-connection-help');
     if (help) help.textContent = provider === 'starnet' ? 'Confirm your account in the browser, then choose a model.'
       : provider === 'ollama' ? 'Choose a model installed on this computer.'

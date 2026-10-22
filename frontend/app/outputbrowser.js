@@ -1,4 +1,4 @@
-/* STARNET — outputbrowser.js : the BROWSER window.
+/* AGENT OS — outputbrowser.js : the BROWSER window.
 
    Andrew, 2026-09-29/30: "a built in browser … when creating output" → "a browser button integrated cleanly in comms,
    so users can easily open it up to see what the agent is doing … should also allow the user to type a URL in" →
@@ -659,8 +659,8 @@
      chrome. The live line under it says what is RUNNING now, from the station — never just what was clicked. */
   const MODE_TEXT = {
     window: 'A real Chrome window on your desktop that you and your agents share. Sign in, type and paste in it like any browser; the BROWSER window follows it.',
-    builtin: 'Hidden inside StarNet: nothing opens on your desktop. The BROWSER window shows the page.',
-    chrome: 'Your own Chrome, with your logins. Agents ask before acting on each site. Needs the StarNet extension in your Chrome.'
+    builtin: 'Hidden inside Agent OS: nothing opens on your desktop. The BROWSER window shows the page.',
+    chrome: 'Your own Chrome, with your logins. Agents ask before acting on each site. Needs the Agent OS extension in your Chrome.'
   };
   function mountSettings(el, arrange) {
     el.innerHTML = '<p class="set-about" id="brw-desc">' + esc(MODE_TEXT.window) + '</p>'
@@ -668,7 +668,7 @@
       + '<div class="set-themes" id="brw-mode">'
       + '<button type="button" class="set-theme" data-mode="window" title="' + esc(MODE_TEXT.window) + '">CHROME WINDOW</button>'
       + '<button type="button" class="set-theme" data-mode="builtin" title="' + esc(MODE_TEXT.builtin) + '">BUILT-IN</button>'
-      // YOUR CHROME (your own Chrome via the StarNet extension) is not offered until that extension exists (release review)
+      // YOUR CHROME (your own Chrome via the Agent OS extension) is not offered until that extension exists (release review)
       + '</div>'
       + '<p class="set-about dim" id="brw-state" role="status"></p>';
     if (typeof arrange === 'function') { try { arrange(el); } catch (_) { /* plain layout is fine */ } }
@@ -680,7 +680,7 @@
       desc.textContent = MODE_TEXT[(s && s.mode) || 'window'];
       const lines = [];
       const fallback = s && s.effective === 'window' ? 'uses a Chrome window' : 'browses built-in';
-      if (s && s.mode === 'chrome' && !s.chromeAvailable) lines.push('The StarNet extension is not paired with your Chrome yet, so the station ' + fallback + ' until it is.');
+      if (s && s.mode === 'chrome' && !s.chromeAvailable) lines.push('The Agent OS extension is not paired with your Chrome yet, so the station ' + fallback + ' until it is.');
       if (s && s.mode === 'window' && s.effective === 'builtin') lines.push('No Chrome window can open here (no screen, or no Chrome, Edge or Chromium installed), so the station browses built-in.');
       if (s && s.running && s.running !== s.effective) lines.push('The browser that is open now keeps its old mode until an agent finishes with it; it switches after that.');
       else if (s && s.running) lines.push('Running now: ' + (s.running === 'window' ? 'a Chrome window' : 'built-in') + '.');

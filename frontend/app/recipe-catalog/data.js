@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/data.js : DATA persona recipes — spreadsheets, tables and what they say.
+/* AGENT OS — recipe-catalog/data.js : DATA persona recipes — spreadsheets, tables and what they say.
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light module
    pattern as its siblings: a `RecipeCatalogData` global in the browser, module.exports under node.

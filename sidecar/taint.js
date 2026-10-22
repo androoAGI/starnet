@@ -151,7 +151,7 @@
 
   /* SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12, Etsy-factory Publisher report). Reading one API's response
      used to revoke web_request outright: a watched run got one approval card PER CALL ("session" collapsed to once —
-     live-proven 3 calls = 3 cards) and an unattended run was refused. Every real API job is GET-then-PUT, so StarNet
+     live-proven 3 calls = 3 cards) and an unattended run was refused. Every real API job is GET-then-PUT, so Agent OS
      could not run one hands-off. The threat the latch answers is injected text steering the run's powers somewhere
      NEW: exfiltrating to another host, or spending a key on a service it was not already working on. Neither exists
      when the next call goes back to the SAME https origin with keys the run already sent there.

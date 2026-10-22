@@ -1,4 +1,4 @@
-/* STARNET — toolprops.js : PURE tool-name -> capability-prop mapper (G0.1).
+/* AGENT OS — toolprops.js : PURE tool-name -> capability-prop mapper (G0.1).
 
    The single source for "which placed prop does a firing tool light up?" — the render-side
    mirror of the sidecar's CAP_REGISTRY (sidecar/capability/registry.js), keyed the same way

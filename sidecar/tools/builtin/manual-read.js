@@ -1,4 +1,4 @@
-/* sidecar/tools/builtin/manual-read.js — manual.read: one section of the StarNet operator manual, verbatim.
+/* sidecar/tools/builtin/manual-read.js — manual.read: one section of the Agent OS operator manual, verbatim.
 
    The interactive task prompt carries the manual's orientation + behaviour rules inline and only a table of
    contents for its REFERENCE sections (navigation, props, troubleshooting — see sidecar/manual.js). This tool is
@@ -15,9 +15,9 @@ const IDS = MANUAL_SECTIONS.map(s => s.id);
 function makeManualReadTool() {
   const tool = {
     name: 'manual.read', capability: 'stationinfo', scope: 'read', requiresConsent: false,
-    description: 'Read one section of the StarNet operator manual, verbatim — how the station works, for guiding the '
+    description: 'Read one section of the Agent OS operator manual, verbatim — how the station works, for guiding the '
       + 'Commander: "navigation" (every window and control), "props" (which prop grants which power), '
-      + '"troubleshooting" (the fix for each stuck case), "concepts" (what each thing is), or "all". Call it before naming any StarNet window, '
+      + '"troubleshooting" (the fix for each stuck case), "concepts" (what each thing is), or "all". Call it before naming any Agent OS window, '
       + 'menu, button or prop. Read-only, local, consent-free.',
     schema: { type: 'object', properties: { section: { type: 'string', enum: IDS.concat(['all']) } } },
     run: (args) => {

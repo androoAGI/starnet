@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-/* sidecar/acp/serve.js — StarNet's ACP (Agent Client Protocol) agent: the stdio composition root.
+/* sidecar/acp/serve.js — Agent OS's ACP (Agent Client Protocol) agent: the stdio composition root.
 
-   This is what makes StarNet reachable FROM AN EDITOR. An ACP client (Zed, Neovim, any ACP-speaking editor)
-   spawns this process and talks JSON-RPC 2.0 over stdin/stdout; it drives real StarNet agent runs against the
+   This is what makes Agent OS reachable FROM AN EDITOR. An ACP client (Zed, Neovim, any ACP-speaking editor)
+   spawns this process and talks JSON-RPC 2.0 over stdin/stdout; it drives real Agent OS agent runs against the
    running station, streams the answer and every tool call back into the editor's UI, and hands the station's
    consent prompts to the editor as native approve/reject cards.
 
    Register it with the client, e.g.:
-     { "agent_servers": { "StarNet": { "command": "npm", "args": ["run", "-s", "acp:serve"] } } }
+     { "agent_servers": { "Agent OS": { "command": "npm", "args": ["run", "-s", "acp:serve"] } } }
    (or `node sidecar/acp/serve.js`, with --port=/--host=/--token= or STARNET_PORT/STARNET_TOKEN.)
 
    ── THE SHAPE (identical to sidecar/mcp/serve.js on purpose) ─────────────────────────────────────────────────
@@ -19,7 +19,7 @@
      - correlates the core's OUTBOUND requests (session/request_permission) with the client's responses.
 
    ONE SIDECAR OWNER PER WORKSPACE is a hard invariant, so nothing here reads or writes a store file. If the
-   station is not running, every method answers with a structured "start StarNet" error — never a fabricated one.
+   station is not running, every method answers with a structured "start Agent OS" error — never a fabricated one.
 
    ── WHY IT RIDES /api/run AND NOT /v1 ───────────────────────────────────────────────────────────────────────
    The OpenAI-compatible surface (/v1) can run an agent, but its wire only carries text: an editor integration
@@ -63,7 +63,7 @@ function log() { try { process.stderr.write('[acp] ' + Array.prototype.join.call
 
 // ---- token discovery: explicit wins; else scrape the served page once (browser-identical) ------
 // ⛔ THE STATION'S API TOKEN IS PER-LAUNCH, SO A SCRAPED ONE GOES STALE (same defect as sidecar/mcp/serve.js).
-// An editor spawns this agent once and keeps it for the whole editing session, while StarNet is a desktop app the
+// An editor spawns this agent once and keeps it for the whole editing session, while Agent OS is a desktop app the
 // Commander closes and reopens — every launch mints a NEW token. A token cached for the process lifetime meant the
 // first station restart broke every prompt until the editor itself was restarted. An EXPLICIT token (--token= /
 // env) is the operator's choice and is never invalidated.
@@ -144,20 +144,20 @@ function openRun(opts) {
   const o = opts || {};
   return new Promise((resolve, reject) => {
     discoverToken().then(async (token) => {
-      if (!token) return reject(new Error('StarNet is not running (or its API token could not be read) at ' + BASE_LABEL + ' — start StarNet and try again'));
+      if (!token) return reject(new Error('Agent OS is not running (or its API token could not be read) at ' + BASE_LABEL + ' — start Agent OS and try again'));
 
       let info = await rawRequest('GET', '/api/runtime/agent', null, true, token);
       // A rejected token means the station restarted. Re-scrape the live one and retry ONCE, rather than telling
-      // the Commander to restart their editor — closing and reopening StarNet should not cost them that.
+      // the Commander to restart their editor — closing and reopening Agent OS should not cost them that.
       if (info.ok && (info.status === 401 || info.status === 403) && invalidateToken('HTTP ' + info.status)) {
         const fresh = await discoverToken();
         if (fresh && fresh !== token) { token = fresh; info = await rawRequest('GET', '/api/runtime/agent', null, true, token); }
       }
-      if (!info.ok) return reject(new Error('StarNet is not reachable at ' + BASE_LABEL + ': ' + (info.error || 'connection failed')));
-      if (info.status === 401 || info.status === 403) return reject(new Error('StarNet rejected this bridge\'s API token — restart the editor so it re-reads the station token'));
+      if (!info.ok) return reject(new Error('Agent OS is not reachable at ' + BASE_LABEL + ': ' + (info.error || 'connection failed')));
+      if (info.status === 401 || info.status === 403) return reject(new Error('Agent OS rejected this bridge\'s API token — restart the editor so it re-reads the station token'));
       const rt = info.json || {};
       if (!rt.configured) {
-        return reject(new Error('StarNet has no runnable model configured'
+        return reject(new Error('Agent OS has no runnable model configured'
           + (rt.model ? '' : ' (no default model set)')
           + ' — open the station and set a provider key + model first'));
       }
@@ -203,7 +203,7 @@ function openRun(opts) {
           if (res.statusCode !== 200) {
             const chunks = [];
             res.on('data', d => chunks.push(d));
-            res.on('end', () => finish(reject, new Error('StarNet refused the run (HTTP ' + res.statusCode + '): ' + Buffer.concat(chunks).toString('utf8').slice(0, 300))));
+            res.on('end', () => finish(reject, new Error('Agent OS refused the run (HTTP ' + res.statusCode + '): ' + Buffer.concat(chunks).toString('utf8').slice(0, 300))));
             return;
           }
           res.setEncoding('utf8');
@@ -227,7 +227,7 @@ function openRun(opts) {
           /* A stream that ENDS WITHOUT agent.run.end did not finish. Reporting 'done' there would tell the
              editor the turn completed successfully — the exact class of lie this project forbids.
              But 'error' is equally wrong for a DELIBERATE cancel: it made the core append "the run failed
-             inside StarNet — check the station log", so pressing Esc told the user their work had crashed.
+             inside Agent OS — check the station log", so pressing Esc told the user their work had crashed.
              So the fallback splits on intent: cancelled if the user asked, error only if it really dropped. */
           const settleReason = () => (sawEnd ? reason : (cancelRequested ? 'cancelled' : 'error'));
           const done = () => { if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; } finish(resolve, { reason: settleReason() }); };
@@ -244,7 +244,7 @@ function openRun(opts) {
         // A cancel destroys the socket on purpose; that surfaces here as ECONNRESET/aborted. Treating it as a
         // transport failure is what produced "could not complete this turn: aborted" on a user-requested stop.
         if (cancelRequested) return finish(resolve, { reason: 'cancelled' });
-        finish(reject, new Error('StarNet run stream failed: ' + ((e && e.message) || e)));
+        finish(reject, new Error('Agent OS run stream failed: ' + ((e && e.message) || e)));
       });
       if (typeof o.onCancel === 'function') {
         /* GRACEFUL FIRST. POST /api/cancel is the stop the station understands: it aborts the run's controller,
@@ -357,6 +357,6 @@ process.stdin.on('data', chunk => {
 process.stdin.on('end', () => process.exit(0));
 process.stdin.on('close', () => process.exit(0));
 
-log('StarNet ACP agent ready on stdio → ' + BASE_LABEL + (cachedToken ? ' (token from env/flag)' : ' (token via page scrape)'));
+log('Agent OS ACP agent ready on stdio → ' + BASE_LABEL + (cachedToken ? ' (token from env/flag)' : ' (token via page scrape)'));
 
 module.exports = { readConfig, _internals: { discoverToken, callSidecar, openRun } };

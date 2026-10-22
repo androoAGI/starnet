@@ -1,4 +1,4 @@
-/* STARNET — windows/messaging.js : the CHANNELS (messaging platforms) window (extracted verbatim from stationui.js).
+/* AGENT OS — windows/messaging.js : the CHANNELS (messaging platforms) window (extracted verbatim from stationui.js).
    Loads AFTER stationui.js (see index.html) and registers itself via StationUI.registerWindow;
    the only stationui internals it touches are the enumerated StationUI.h helper surface
    (sfx/notify/openTerm/mountConsole and the live present view). */
@@ -26,8 +26,8 @@
         verb: 'polling',
         steps: [
           '<b>Create your bot in Telegram.</b><br>Search for <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, open the chat, and send <code>/newbot</code>. Follow its replies to choose a name and an available username ending in <code>bot</code>.',
-          '<b>Connect it to StarNet.</b><br>BotFather sends you a bot token (a long code). Copy it into <b>Bot token</b> below, then click <b>CONNECT</b>.',
-          '<b>Pair and start chatting.</b><br>StarNet shows a <code>/pair</code> message with a code. Copy the whole message and send it to <b>your new bot</b> in Telegram. Once pairing is confirmed, you can chat with your agent.'
+          '<b>Connect it to Agent OS.</b><br>BotFather sends you a bot token (a long code). Copy it into <b>Bot token</b> below, then click <b>CONNECT</b>.',
+          '<b>Pair and start chatting.</b><br>Agent OS shows a <code>/pair</code> message with a code. Copy the whole message and send it to <b>your new bot</b> in Telegram. Once pairing is confirmed, you can chat with your agent.'
         ],
         note: 'Your token is saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="tg-token">BOT TOKEN <span class="dim">— from @BotFather</span></label>' +
@@ -52,7 +52,7 @@
               '<ol class="ch-steps">' +
                 '<li><b>Create another bot.</b><br>In Telegram, message <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a> with <code>/newbot</code>. Choose a name and an available username ending in <code>bot</code>, then copy the token it sends back.</li>' +
                 '<li><b>Choose its agent.</b><br>Paste the token below, choose which agent should reply, and click <b>ADD AGENT BOT</b>.</li>' +
-                '<li><b>Pair and chat.</b><br>Send the full <code>/pair</code> message StarNet shows you to that new bot in Telegram. Once pairing is confirmed, message it whenever you want to talk to that agent.</li>' +
+                '<li><b>Pair and chat.</b><br>Send the full <code>/pair</code> message Agent OS shows you to that new bot in Telegram. Once pairing is confirmed, message it whenever you want to talk to that agent.</li>' +
               '</ol>' +
               '<label class="ch-lbl" for="tg-bot-token">BOT TOKEN <span class="dim">— from @BotFather</span></label>' +
               '<input id="tg-bot-token" type="password" class="key-input" placeholder="123456789:ABCdef..." autocomplete="off" spellcheck="false">' +
@@ -71,7 +71,7 @@
           'Open the <b>Discord Developer Portal</b> → <b>New Application</b> → <b>Bot</b> → <b>Reset Token</b> → copy the token.',
           'Invite the bot to a server you are in (OAuth2 → URL Generator → tick <code>bot</code> → open the link). Discord only lets you DM a bot you share a server with. No intents need turning on.',
           'Paste the token below and connect.',
-          '<b>Pair your account.</b> Open a <b>direct message</b> with the bot (click it in the server member list → Message) and send the <code>pair</code> message StarNet shows, exactly as shown. Messages in server channels are ignored. Until you pair, the bot refuses every message.'
+          '<b>Pair your account.</b> Open a <b>direct message</b> with the bot (click it in the server member list → Message) and send the <code>pair</code> message Agent OS shows, exactly as shown. Messages in server channels are ignored. Until you pair, the bot refuses every message.'
         ],
         note: 'Your token is saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="dc-token">BOT TOKEN <span class="dim">— from the Discord Developer Portal</span></label>' +
@@ -92,7 +92,7 @@
           'Enable <b>Socket Mode</b> (Settings → Socket Mode) and create an <b>app-level token</b> with <code>connections:write</code> (starts <code>xapp-</code>).',
           'Under <b>OAuth &amp; Permissions</b> add bot scopes <code>chat:write</code>, <code>im:history</code>, <code>channels:history</code> → <b>Install to Workspace</b> → copy the <b>bot token</b> (starts <code>xoxb-</code>).',
           'Under <b>Event Subscriptions</b> subscribe the bot to <code>message.im</code>.',
-          '<b>Pair your account.</b> StarNet shows a <code>pair</code> message with a one-time code. Send it to the bot from YOUR account, without a slash (Slack reserves <code>/</code>). Until you do, the bot refuses every message.'
+          '<b>Pair your account.</b> Agent OS shows a <code>pair</code> message with a one-time code. Send it to the bot from YOUR account, without a slash (Slack reserves <code>/</code>). Until you do, the bot refuses every message.'
         ],
         note: 'Both tokens are saved on this machine and never displayed.',
         fieldsHtml: '<label class="ch-lbl" for="sl-bot-token">BOT TOKEN <span class="dim">— xoxb-…, from OAuth &amp; Permissions</span></label>' +
@@ -115,7 +115,7 @@
           'Create a Matrix account for the agent (e.g. on <b>matrix.org</b> or your homeserver).',
           'Get an <b>access token</b> for that account (Element: Settings → Help &amp; About → Advanced → Access Token).',
           'Enter the homeserver URL + token below and connect, then invite the agent\'s account to a room from YOUR account and accept the invite once from any client.',
-          '<b>Pair your account.</b> StarNet shows a <code>pair</code> message with a one-time code. Send it in that room from YOUR account, exactly as shown. Until you do, the bot refuses every message.'
+          '<b>Pair your account.</b> Agent OS shows a <code>pair</code> message with a one-time code. Send it in that room from YOUR account, exactly as shown. Until you do, the bot refuses every message.'
         ],
         note: 'Owner-locked: only the account that sends the one-time pair code can reach the agent — anyone else in a room is ignored.',
         fieldsHtml: '<label class="ch-lbl" for="mx-endpoint">HOMESERVER URL <span class="dim">— e.g. https://matrix.org</span></label>' +
@@ -136,7 +136,7 @@
           'Start the bridge with Docker: <code>docker run -d --name signal-api -p 127.0.0.1:8080:8080 -v signal-api:/home/.local/share/signal-cli -e MODE=native bbernhard/signal-cli-rest-api</code>. Keep <code>MODE=native</code> (or <code>normal</code>); <code>json-rpc</code> mode cannot be polled.',
           'Link it to your own Signal: open <code>http://127.0.0.1:8080/v1/qrcodelink?device_name=starnet</code> and scan it from Signal → Settings → Linked devices. No second number needed. (A spare number registered on the bridge works too.)',
           'Enter the bridge URL and that number below, then connect.',
-          '<b>Pair your account.</b> StarNet shows a <code>pair</code> message with a one-time code. Linked to your own number: send it in <b>Note to Self</b>, and keep chatting there. Spare number: message that number from your Signal. Until you pair, the bot refuses every message.'
+          '<b>Pair your account.</b> Agent OS shows a <code>pair</code> message with a one-time code. Linked to your own number: send it in <b>Note to Self</b>, and keep chatting there. Spare number: message that number from your Signal. Until you pair, the bot refuses every message.'
         ],
         note: 'No token needed — the bridge runs on your machine; keep it bound to localhost.',
         fieldsHtml: '<label class="ch-lbl" for="sg-endpoint">SIGNAL-CLI REST URL <span class="dim">— e.g. http://127.0.0.1:8080</span></label>' +
@@ -188,7 +188,7 @@
         '<span class="ch-optin-t">Send completed-work updates</span>' +
         '<span class="ch-optin-d dim">When autonomous work produces a result, notify me on every connected channel.</span></span>' +
         '<input type="checkbox" id="ch-notify"></label><div id="ch-notify-msg" class="msg"></div></div>' +
-      '<p class="ch-headless"><b>Keep StarNet running.</b> You can close this window. Messages sent while the station app is fully off are not processed; you receive an "I was offline" note instead.</p>';
+      '<p class="ch-headless"><b>Keep Agent OS running.</b> You can close this window. Messages sent while the station app is fully off are not processed; you receive an "I was offline" note instead.</p>';
     function cardHtml(c) {
       return '<div class="ch-card" id="ch-card-' + c.id + '" style="--accent:' + c.accent + '">' +
           '<div class="ch-head">' +
@@ -281,7 +281,7 @@
     function noAnswerText(e, fallback) {
       const raw = String((e && e.message) || '');
       if (!raw) return fallback;
-      if (/failed to fetch|networkerror|load failed/i.test(raw)) return 'StarNet did not answer this request (the connection dropped) — try again; if it keeps happening, restart StarNet';
+      if (/failed to fetch|networkerror|load failed/i.test(raw)) return 'Agent OS did not answer this request (the connection dropped) — try again; if it keeps happening, restart Agent OS';
       return raw;
     }
 

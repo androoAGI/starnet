@@ -1,4 +1,4 @@
-/* STARNET — autosessions.js : surface an UNATTENDED cron/routine run as a readable SESSION.
+/* AGENT OS — autosessions.js : surface an UNATTENDED cron/routine run as a readable SESSION.
 
    THE BUG THIS CLOSES. A cron routine fires headless (cron-driver.js fireJob → runOnce with
    surface:'autonomous', trigger:'schedule'). Its reply text is buffered server-side and only an
@@ -189,7 +189,7 @@ const AutoSessions = (() => {
       // the same as a run that settled quietly — never claim "nothing to report" when we simply couldn't read it.
       next.push(fetchOk
         ? sysMarker('— routine ran, nothing to report —')
-        : sysMarker('⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens', true, true));
+        : sysMarker('⚠ couldn\'t load the output yet — Agent OS will retry automatically when this session opens', true, true));
     }
     ws.history = next;
     // hybrid-honest: a real run fired → todo advances to active. `endedAt` (heal/backfill paths) = the run

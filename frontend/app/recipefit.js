@@ -1,4 +1,4 @@
-/* STARNET — recipefit.js : WHAT THIS STATION IS ACTUALLY READY TO RUN.
+/* AGENT OS — recipefit.js : WHAT THIS STATION IS ACTUALLY READY TO RUN.
 
    The recipes tab was a MENU: 98 cards, identical for everybody, and it was on the Commander to work out
    which of them applied to their situation. That is backwards — the station already knows its own

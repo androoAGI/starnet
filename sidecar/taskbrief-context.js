@@ -16,7 +16,7 @@ function normalize(value) {
       .slice(0,12).map(f=>({dimension:f.dimension,text:clip(f.text,400),quote:clip(f.quote,600),sourceId:clip(f.sourceId,100)})),
     assumptions:texts(v.assumptions,12), unknowns:texts(v.unknowns,6), nextStep:clip(v.nextStep,500) };
 }
-/* QUOTE ANCHORING (2026-10-12, user report: "StarNet repeatedly blocked authorized actions with brief_update
+/* QUOTE ANCHORING (2026-10-12, user report: "Agent OS repeatedly blocked authorized actions with brief_update
    quote/source validation errors"). A fact's quote had to be a byte-exact, case-sensitive substring of ONE named
    source, and a single miss rejected the WHOLE snapshot. Models re-type quotes — a curly apostrophe, a capital, a
    collapsed line break, a dropped period, an elided middle, the right words under the wrong sourceId — so the update

@@ -8,7 +8,7 @@
    Each extra account is one folder: WORKSPACES/.secrets/accounts/<provider>/<id>/. The dotted .secrets root is out
    of every agent's file jail (agent ids never contain a dot) and /api/file refuses it. What lives inside belongs to
    the provider's own store: for Claude Code the folder IS the CLI's CLAUDE_CONFIG_DIR (the CLI writes its own
-   credential there — StarNet never reads it); for the OAuth providers it holds that account's tokens.json.
+   credential there — Agent OS never reads it); for the OAuth providers it holds that account's tokens.json.
    account.json carries only { id, seq } — no email, no token — so listing accounts never touches a credential.
 
    makeProviderAccounts({ root, fs?, path?, randomId? }) -> {

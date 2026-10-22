@@ -1,4 +1,4 @@
-/* STARNET — xp.js : the AGENT-GROWTH model — XP, Level, and a Confidence (reliability) gauge.
+/* AGENT OS — xp.js : the AGENT-GROWTH model — XP, Level, and a Confidence (reliability) gauge.
    Pure + testable (UMD: an `Xp` global in the browser, module.exports under node).
 
    Four HONEST meters — never fabricated, mirroring ctxgauge.js. The first two read off explicit user

@@ -29,7 +29,7 @@
      2026-09-17, amending the older "quotas default off" decision for this one runaway-spend case. */
   const DEFAULT_PER_DAY_USD = 25;
   const SHIPPED_DEFAULTS = Object.freeze({ perRun: 0, perAgent: 0, perDay: DEFAULT_PER_DAY_USD, global: 0 });
-  /* MANAGED PER-RUN DEFAULT (issue #53, 2026-09-30). A StarNet-credit run must reserve a FINITE amount before
+  /* MANAGED PER-RUN DEFAULT (issue #53, 2026-09-30). A Agent OS-credit run must reserve a FINITE amount before
      its first model call. With no per-run cap in force, admission used to reserve the ENTIRE wallet — and the
      reservation is the loop's per-run ceiling — so one "simple" prompt on a busy/expensive model was allowed to
      spend every dollar the user had just added (reporter: $10 top-up gone on a four-sentence question).
@@ -39,12 +39,12 @@
      backstop, not the first thing a user hits. It is a DEFAULT, not a wall: any per-run cap the user saves in
      SETTINGS › SPENDING LIMITS (higher or lower) replaces it, the stop says which cap it hit and opens SPENDING LIMITS, and
      SKYNET_BUDGET_MANAGED_PER_RUN retunes it (0 = the old wallet-is-the-ceiling behaviour). BYOK and
-     subscription runs never see it — they are not spending StarNet credit. */
+     subscription runs never see it — they are not spending Agent OS credit. */
   const DEFAULT_MANAGED_PER_RUN_USD = 2;
   function shippedDefaults() { return Object.assign({}, SHIPPED_DEFAULTS); }
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
 
-  /* The amount a MANAGED (StarNet-credit) run reserves — which is also its per-run spend ceiling.
+  /* The amount a MANAGED (Agent OS-credit) run reserves — which is also its per-run spend ceiling.
        capUsd      the cap already in force for this run: an explicit caller cap (a delegated worker's) or the
                    user's positive per-run cap. It is a CEILING, so it is clamped to the wallet: a cap above
                    the balance reserves the balance. (It used to pass through verbatim and admission refused it
@@ -64,7 +64,7 @@
   }
 
   /* Is a managed run's ceiling the WALLET rather than a cap anyone chose? -> bool. Decides whether its per-run stop says
-     "used what was left on your StarNet balance — add credits" or "hit the $X per-run spend cap — raise it".
+     "used what was left on your Agent OS balance — add credits" or "hit the $X per-run spend cap — raise it".
        chosenCapUsd  the cap in force BEFORE the wallet clamp (the user's PER RUN or a caller's cap; 0 = none chosen)
        capUsd        managedRunCapUsd's result — the ceiling the run actually got
        balanceUsd    the reported balance the clamp read
@@ -80,7 +80,7 @@
   /* The refusal a MANAGED run gets when admission cannot reserve (index.js refuseManaged) -> { message, transient }.
        exhausted    the service REPORTED a balance and it could not cover a reservation (a number, not an unknown)
        linkRefused  the service answered 401/403 for this station's link
-       held         credits.held(): { runs, usd, counted } — StarNet runs THIS station has still working and the amount
+       held         credits.held(): { runs, usd, counted } — Agent OS runs THIS station has still working and the amount
                     they reserve; `counted` = the backend itself books a reservation as a debit (proxy-off deploys).
        balanceUsd   the balance the service reported (what admission read)
      A balance reported as $0 because this station's own running runs hold it is NOT an empty wallet: those holds
@@ -97,12 +97,12 @@
     const bal = (o.balanceUsd == null || o.balanceUsd === '') ? NaN : Number(o.balanceUsd);
     if (o.exhausted && held && held.counted === true && held.runs > 0 && held.usd > 0 && isFinite(bal) && bal + held.usd > 0) {
       const n = Math.floor(held.runs);
-      return { transient: true, message: 'Managed credits are held — your StarNet balance is held by ' + n + ' running StarNet run' + (n === 1 ? '' : 's') +
+      return { transient: true, message: 'Managed credits are held — your Agent OS balance is held by ' + n + ' running Agent OS run' + (n === 1 ? '' : 's') +
         ' (each reserves up to its PER RUN limit while it works and refunds what it does not spend). Wait for ' + (n === 1 ? 'it' : 'them') +
         ' to finish, lower PER RUN in SETTINGS › SPENDING LIMITS so runs can share the balance, or top up under SETTINGS → AI & MODELS.' };
     }
     if (o.exhausted) return { transient: false, message: 'Out of managed credit — add credits in the STORE to keep running (or connect your own provider key).' };
-    if (o.linkRefused) return { transient: false, message: 'Managed credits are unavailable — your StarNet account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → STARNET MANAGED (or use your own provider key).' };
+    if (o.linkRefused) return { transient: false, message: 'Managed credits are unavailable — your Agent OS account refused this station\'s link (it was unlinked, or belongs to another account). Relink it under SETTINGS → AI & MODELS → AGENT OS MANAGED (or use your own provider key).' };
     return { transient: true, message: 'Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).' };
   }
 

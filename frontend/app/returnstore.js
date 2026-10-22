@@ -1,4 +1,4 @@
-/* STARNET — returnstore.js : the thin live wiring around the pure return-ritual engine (returns.js).
+/* AGENT OS — returnstore.js : the thin live wiring around the pure return-ritual engine (returns.js).
 
    Owns what the pure engine can't: the durable lastSeenAt HEARTBEAT (localStorage, stamped every
    30s while the app runs + on unload — so "away" means the app was genuinely CLOSED, and a run that

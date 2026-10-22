@@ -1,4 +1,4 @@
-/* STARNET — pride.js : the LIFETIME STATION RECORD engine (Game session, Phase G3a / Layer 6).
+/* AGENT OS — pride.js : the LIFETIME STATION RECORD engine (Game session, Phase G3a / Layer 6).
 
    Pure, durable fold of the station's WHOLE-LIFETIME record — the counters that grow across every
    session and don't reset at app-open the way floorstats.js does. This is the "pride" half of the meta

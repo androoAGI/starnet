@@ -60,7 +60,7 @@ function slateFinished(goal, quests) {
   const done = slate.filter(q => q.status === 'done');
   if (!done.length) return null;   // an all-dismissed slate is a rejected plan, not a finished step
   // WHO settled it, honestly: a slate completed only by quests the Commander reported (attest) is their word, not
-  // a harness proof — the journey renders that as "You confirmed", a mechanical contract as "StarNet recorded".
+  // a harness proof — the journey renders that as "You confirmed", a mechanical contract as "Agent OS recorded".
   const byCommander = done.every(q => q.contract && q.contract.type === 'attest');
   return {
     goalId: goal.id, milestoneId: step.id, milestoneText: step.text,

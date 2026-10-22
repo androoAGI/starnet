@@ -1,4 +1,4 @@
-/* STARNET — seedcredit.js : the PURE seed-callout helper (Game session, Phase G3a / Layer 6).
+/* AGENT OS — seedcredit.js : the PURE seed-callout helper (Game session, Phase G3a / Layer 6).
 
    Closes the mint→pitch narrative loop out loud: when the station reuses a recipe the Commander SAVED as a
    seed (an agent-authored, seedborn custom — seedstore.save marks it), the moment says so. Three call sites,

@@ -1,4 +1,4 @@
-/* STARNET — app.js : screen flow + wiring.
+/* AGENT OS — app.js : screen flow + wiring.
    title -> connect (create a character) -> game.  Auto-resumes a saved agent on refresh. */
 'use strict';
 
@@ -22,7 +22,7 @@ const App = (() => {
   let pickedTraits = {};        // the VOICE & MANNER fine-tune dials (warmth/humor/formality/length + emoji/blunt) — only set keys contribute prompt text
   let pickedCustomVoice = '';   // the Commander's free-text "in their own words" voice note (optional)
   let pickedApproval = 'ask';   // the APPROVAL mode — 'ask' (consent-gated) | 'full' (auto-approve). Drives the REAL consent broker (sidecar bypass), not a cosmetic toggle.
-  let pickedProvider = 'openai';   // BEGINNER-FIRST funnel: the STARNET hero is the promoted start, but it only exists once the cloud seam is proven (revealStarnetGenesis auto-picks it on a fresh create). Until then OPENAI leads — its card carries BOTH paths (ChatGPT sign-in or an API key). initConnect() still honours a returning agent's saved provider.
+  let pickedProvider = 'openai';   // BEGINNER-FIRST funnel: the AGENT OS hero is the promoted start, but it only exists once the cloud seam is proven (revealStarnetGenesis auto-picks it on a fresh create). Until then OPENAI leads — its card carries BOTH paths (ChatGPT sign-in or an API key). initConnect() still honours a returning agent's saved provider.
   // POWER-USER LOOP PL-03 — entry is a four-surface truth transaction. World opens its EventSource
   // before Chat/StationUI finish mounting, and their independent timers used to expose an impossible
   // mixture during reload: unreachable + STANDBY + ONLINE + "COMMS online". Hold every idle claim at
@@ -244,7 +244,7 @@ const App = (() => {
     // sidecar/capability/office.js + capgate F1). So the identity must NOT promise web/files unconditionally; it
     // tells the agent to use whatever it's actually been granted and to SAY when a tool is missing (that's the
     // signal that teaches the Commander what to place next), never to pretend a reach it doesn't have.
-    let s = 'You are ' + name + ', an AI agent operating from a workstation aboard the STARNET station — a room '
+    let s = 'You are ' + name + ', an AI agent operating from a workstation aboard the AGENT OS station — a room '
       + 'your Commander (the user) is building for you. Address the user as "Commander" and keep a spark of personality. '
       + 'Your workstation grants you REAL tools — exactly the ones the Commander has placed in your room (web search/read, '
       + 'file read/write, a terminal, memory, and more as the station grows; compute to think is always yours). When the '
@@ -318,23 +318,23 @@ const App = (() => {
   }
   function approvalClause(a) {
     const full = a && a.approvalMode === 'full';
-    if (full) return '\n\nAUTHORITY — FULL POWER: the Commander explicitly authorized the whole local computer. Do not pause for approval and do not claim a StarNet policy restriction: use every available tool, arbitrary host commands, host files, visible apps, and screen/input control needed to complete the request. This authority is general, not task-specific. Report only real prerequisites outside StarNet\'s control (for example a missing login, unavailable hardware, an OS elevation prompt, or a disconnected service), and keep trying viable routes before declaring one.';
+    if (full) return '\n\nAUTHORITY — FULL POWER: the Commander explicitly authorized the whole local computer. Do not pause for approval and do not claim a Agent OS policy restriction: use every available tool, arbitrary host commands, host files, visible apps, and screen/input control needed to complete the request. This authority is general, not task-specific. Report only real prerequisites outside Agent OS\'s control (for example a missing login, unavailable hardware, an OS elevation prompt, or a disconnected service), and keep trying viable routes before declaring one.';
     return '\n\nAPPROVAL — ASK FIRST: actions that write files, run commands, or reach the network need the Commander\'s approval — but you NEVER ask for it in a chat message. The approval system cannot see chat text; typed replies like "I approve" grant nothing. Instead, just make the tool call: the harness pauses it and shows the Commander a real approval prompt with Approve/Deny buttons, and the decision comes back to you automatically. Reasoning over what you already have needs no approval.';
   }
   // an always-appended SYSTEM truth: what the agent ACTUALLY runs on. Mirrors approvalClause — derived fresh each
   // compose, never stored in the editable identity.md (so it can't be edited away and never drifts stale). Fixes the
   // "I'm a <legacy-name> agent" misread: when the agent introspects (env/pwd) it may meet the project's former name
-  // "Skynet" (renamed to StarNet, but some paths/env survive as back-compat aliases) or scattered references to the
+  // "Skynet" (renamed to Agent OS, but some paths/env survive as back-compat aliases) or scattered references to the
   // earlier open-source runtimes the harness was built on. Without this grounding it guesses one of those. Truthful-
-  // telemetry law: state only what's true (StarNet harness, Commander's own model), don't guess.
+  // telemetry law: state only what's true (Agent OS harness, Commander's own model), don't guess.
   function foundationClause() {
-    return '\n\nYOUR FOUNDATION: You run on the StarNet harness — a local-first agent runtime on the Commander\'s own '
+    return '\n\nYOUR FOUNDATION: You run on the Agent OS harness — a local-first agent runtime on the Commander\'s own '
       + 'machine, not a hosted service. Your reasoning comes from whichever model the Commander has connected through '
       + 'their own API key or account. As you look around your environment you may meet names that are not you, and '
-      + 'none of them change what you are: StarNet was previously called "Skynet" — it has been renamed, but some file '
+      + 'none of them change what you are: Agent OS was previously called "Skynet" — it has been renamed, but some file '
       + 'paths, environment variables, and config keys may still carry the old "Skynet"/"SKYNET_" name as a back-compat '
       + 'alias; and because the harness was assembled from and built on earlier open-source agent runtimes, some code, '
-      + 'comments, or tool names may reference other projects. You are a StarNet agent on the StarNet harness — not a '
+      + 'comments, or tool names may reference other projects. You are a Agent OS agent on the Agent OS harness — not a '
       + 'Skynet agent, and not whatever those internal references happen to name. Do not guess at your own foundation '
       + 'from ambiguous signals in the environment; report only what you can actually verify, and say plainly when you are not sure.';
   }
@@ -367,7 +367,7 @@ const App = (() => {
     // live roster truth, so it must land before anything else colours the prompt. '' for non-orchestrators.
     p += rosterClause(a);
     // FOUNDATION sits right after identity (before personality) — a constant system truth that grounds "what you are"
-    // so the agent never mistakes StarNet's internal lineage for being some other agent. Kept out of the docs.
+    // so the agent never mistakes Agent OS's internal lineage for being some other agent. Kept out of the docs.
     p += foundationClause();
     // personality sits AFTER identity (keeps the REAL-tools clause) and BEFORE purpose, so it colours the
     // agent's tone without ever displacing capability or the mission. Personas.compose folds the chosen
@@ -717,7 +717,7 @@ const App = (() => {
   /* THE STATION DEFAULT IS THE OVERSEER'S WIRE (issue #24). Focusing an agent writes its model/provider/effort into
      the ONE global wire every COMMS run reads (Harness). A pinned agent brings its own wire; an agent with no pin
      ("Follow station default") must get the Overseer's, because nothing else resets the global. Before this, a
-     specialist summoned while the station ran on StarNet credits kept a `starnet` pin; the Commander switched the
+     specialist summoned while the station ran on Agent OS credits kept a `starnet` pin; the Commander switched the
      station to OpenRouter, focused that specialist, cleared its pin, and every run after that still went out as
      `starnet` — refused at 0s with "Out of managed credit" on a funded BYOK station. */
   function stationDefaultWire() {
@@ -728,12 +728,12 @@ const App = (() => {
   function savedStationProv(saved) { return (saved && saved.agent && saved.agent.provider) || (saved && saved.prov) || ''; }
   /* 0.12.5 REASONING MIGRATION, once per save (persist() writes `reasoningMigrated` on every save from the first
      0.12.5 persist, so an explicit 0.12.5 choice is never touched). 0.12.4's model dock could not read a reasoning
-     dial for OpenAI-API, xAI/Grok, DeepSeek or StarNet Managed models: it showed them locked at OFF and saved that,
+     dial for OpenAI-API, xAI/Grok, DeepSeek or Agent OS Managed models: it showed them locked at OFF and saved that,
      while the adapter sent no reasoning_effort at all. 0.12.5 reads their real dials and sends the saved level, which
      would silently change what an upgraded station runs:
        - OpenAI-API / xAI / Grok / DeepSeek ran at the MODEL's default reasoning. The inherited 'none' would now turn it
          off, so it is dropped and the provider default applies (the dock clamps it to a level the model accepts).
-       - StarNet Managed sent nothing. The Overseer's onboarding MEDIUM would now switch paid thinking on, so a Managed
+       - Agent OS Managed sent nothing. The Overseer's onboarding MEDIUM would now switch paid thinking on, so a Managed
          pin keeps OFF (nothing is sent) until someone picks a level. */
   const REASONING_MIGRATION = '0125';
   const LEGACY_DIAL_LOCKED = ['openai', 'xai', 'grok', 'deepseek'];
@@ -768,7 +768,7 @@ const App = (() => {
   // SETTINGS -> PROVIDERS picks the STATION's provider, and the station default IS the Overseer's pin
   // (stationDefaultWire). The card used to move only the global wire, so the Overseer kept the provider the station
   // had just left: unpinned agents, their roster rows and a restore all followed it (the #24 "Out of managed credit"
-  // symptom through a Settings switch from StarNet credits to a BYOK key). An invalid model under the new provider is
+  // symptom through a Settings switch from Agent OS credits to a BYOK key). An invalid model under the new provider is
   // reconciled by the dock the next time the Overseer is focused, exactly as a dock provider pick is.
   function setStationProvider(p) {
     const hero = agents.get('agent');
@@ -841,7 +841,7 @@ const App = (() => {
       fireworks: 'FIREWORKS',
       perplexity: 'PERPLEXITY',
       cerebras: 'CEREBRAS',
-      starnet: 'STARNET MANAGED',
+      starnet: 'AGENT OS MANAGED',
       ollama: 'OLLAMA',
       'claude-cli': 'CLAUDE CODE',
       custom: 'CUSTOM'
@@ -1657,7 +1657,7 @@ const App = (() => {
     ollama: ['qwen3:8b', 'llama3.1', 'qwen2.5-coder', 'mistral'],
     'claude-cli': ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001'],   // [0] = the default pick; the live catalog adds the rest
     openrouter: ['gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro'],
-    // #93: STARNET MANAGED's catalog is the routed vendor/model lineup — a bare 'gpt-5.5' (the openrouter row it used
+    // #93: AGENT OS MANAGED's catalog is the routed vendor/model lineup — a bare 'gpt-5.5' (the openrouter row it used
     // to borrow) is "not in the catalog" there and the dock cleared it. Its own list saves a catalog-shaped id.
     starnet: ['openai/gpt-5.5', 'anthropic/claude-sonnet-4.6', 'anthropic/claude-opus-4.8', 'openai/gpt-5', 'google/gemini-2.5-pro']
   });
@@ -1675,9 +1675,9 @@ const App = (() => {
      turns the check off; for another account it would re-run the same failing check, so it is never offered. */
   function refusedPageLine() {
     if (Harness.tokenWithheld && Harness.tokenWithheld()) {
-      return 'this browser was not verified as running under your own user account, so StarNet won’t take commands from it — '
+      return 'this browser was not verified as running under your own user account, so Agent OS won’t take commands from it — '
         + (Harness.tokenWithheldRetryable && Harness.tokenWithheldRetryable() ? 'reload this page to run the check again; if it keeps failing and it is yours, ' : 'if it is yours, ')
-        + 'restart StarNet with STARNET_TRUST_LOCAL_PEERS=1';
+        + 'restart Agent OS with STARNET_TRUST_LOCAL_PEERS=1';
     }
     if (Harness.sessionStale && Harness.sessionStale()) return 'the station restarted; reload this page';
     return '';
@@ -1742,7 +1742,7 @@ const App = (() => {
      curated FALLBACK list loadModels() already ships, so nothing new is fabricated. Codex hides them —
      its menu is discovered live per-account (loadCodexModels), so a static list there could mislead. */
   const MODEL_PICKS = Object.freeze({
-    // #93: managed ids are vendor/model, like OpenRouter's; [0] is the default a fresh STARNET setup saves.
+    // #93: managed ids are vendor/model, like OpenRouter's; [0] is the default a fresh AGENT OS setup saves.
     starnet: [
       { label: 'GPT-5.5', id: 'openai/gpt-5.5', tag: '' },
       { label: 'Sonnet 4.6', id: 'anthropic/claude-sonnet-4.6', tag: 'balanced' },
@@ -2095,7 +2095,7 @@ const App = (() => {
     // sign-in block shows there alongside the key box; grok/kimi keep it as their only path.
     const isOpenAI = pickedProvider === 'openai';
     el('codex-block').classList.toggle('hidden', !(isOAuth || isOpenAI));
-    // STARNET MANAGED wears its own link block (the codex-block twin) — visible only while picked.
+    // AGENT OS MANAGED wears its own link block (the codex-block twin) — visible only while picked.
     const isStarnet = pickedProvider === 'starnet';
     { const sb = el('starnet-block'); if (sb) sb.classList.toggle('hidden', !isStarnet); }
     // OLLAMA (the free local path) wears its own honest block — visible only while picked; its status line is
@@ -2374,7 +2374,7 @@ const App = (() => {
   }
 
   /* ---------- CLAUDE CLI on the genesis screen ----------
-     SIGN IN WITH CLAUDE, as smooth as the ChatGPT/Grok doors without StarNet ever holding the credential: the
+     SIGN IN WITH CLAUDE, as smooth as the ChatGPT/Grok doors without Agent OS ever holding the credential: the
      sidecar runs the user's own `claude auth login` (it opens the browser and keeps the token) and this tile only
      paints /api/auth/claude-cli/* truth. States:
        checking · missing (install command + guide; re-checks itself, so installing flips the tile on its own)
@@ -2523,7 +2523,7 @@ const App = (() => {
     if (ci) ci.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitClaudeCode(); } };
   }
 
-  /* ---------- STARNET MANAGED on the genesis screen ----------
+  /* ---------- AGENT OS MANAGED on the genesis screen ----------
      The subscription path for people who never want to see an API key: buy on starnetos.com, then the
      connect screen links this station to that account with ONE confirmed code — the same sidecar engine
      the STORE uses (/api/credits/link/*), painted into #starnet-block. The chip itself stays HIDDEN
@@ -2598,7 +2598,7 @@ const App = (() => {
     if (pickedProvider !== 'starnet') { stopStarnetBalancePoll(); return result(); }   // pick moved on — don't repaint another provider's block
     if (starnetLinked && starnetLinkStatus === 'unavailable') {
       stopStarnetBalancePoll();
-      statusEl.textContent = 'link saved on this station, but StarNet could not verify it right now — check your connection and try again.';
+      statusEl.textContent = 'link saved on this station, but Agent OS could not verify it right now — check your connection and try again.';
       statusEl.className = 'codex-status bad';
       if (linkBtn) linkBtn.classList.add('hidden');
       if (creditsBtn) creditsBtn.classList.add('hidden');
@@ -2606,7 +2606,7 @@ const App = (() => {
     } else if (starnetLinked && starnetOutOfCredit()) {
       // linked, wallet empty: the one state WAKE can never fix. Say it, offer the store, and keep polling the
       // balance so the moment the purchase lands this line flips green without a restart.
-      statusEl.innerHTML = '<span class="conn-dot"></span>linked to your StarNet account — <b>no credits yet</b>. Waking your agent uses credits right away, so add some first.';
+      statusEl.innerHTML = '<span class="conn-dot"></span>linked to your Agent OS account — <b>no credits yet</b>. Waking your agent uses credits right away, so add some first.';
       statusEl.className = 'codex-status bad';
       if (linkBtn) linkBtn.classList.add('hidden');
       if (switchBtn) switchBtn.classList.remove('hidden');
@@ -2615,7 +2615,7 @@ const App = (() => {
     } else if (starnetLinked) {
       stopStarnetBalancePoll();
       const bal = (starnetBalanceUsd == null) ? '' : ' · $' + starnetBalanceUsd.toFixed(2) + ' available';
-      statusEl.innerHTML = '<span class="conn-dot"></span>linked to your StarNet account' + esc(bal) + ' — your agents run on your subscription';
+      statusEl.innerHTML = '<span class="conn-dot"></span>linked to your Agent OS account' + esc(bal) + ' — your agents run on your subscription';
       statusEl.className = 'codex-status ok';
       if (linkBtn) linkBtn.classList.add('hidden');
       if (creditsBtn) creditsBtn.classList.add('hidden');
@@ -2632,7 +2632,7 @@ const App = (() => {
     }
     return result();
   }
-  // A station can be linked to a DIFFERENT StarNet login than the browser account that owns the purchase.
+  // A station can be linked to a DIFFERENT Agent OS login than the browser account that owns the purchase.
   // Genesis used to auto-recognize that old device and offer only ADD CREDITS, trapping a paid beginner on
   // the wrong account. Switching clears both credential halves, re-reads provider truth, and starts the normal
   // pairing flow immediately — no Terminal, logs, reinstall, or trip through Settings required.
@@ -2667,13 +2667,13 @@ const App = (() => {
     const generation = _starnetLinkGeneration;
     const statusEl = el('starnet-status'), codeEl = el('starnet-code'), openBtn = el('btn-starnet-open');
     const progress = el('connect-msg');
-    if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your StarNet account…'; }
+    if (progress) { progress.className = 'msg'; progress.textContent = 'Opening your Agent OS account…'; }
     const fail = t => { statusEl.textContent = t; statusEl.className = 'codex-status bad'; codeEl.classList.add('hidden'); openBtn.classList.add('hidden'); if (progress) { progress.className = 'msg bad'; progress.textContent = t; } };
     statusEl.textContent = 'requesting a link code…'; statusEl.className = 'codex-status';
     // A failure keeps WHAT failed (Friendly.linkStartFailure words it): the station's own POST never answering is a
     // local-engine fault, not "the link service"; a sidecar reply carries its classification of the cloud failure.
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
-    Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
+    Harness.api.post('/api/credits/link/start', { deviceName: 'Agent OS Station' })
       .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => {
@@ -2696,7 +2696,7 @@ const App = (() => {
               if (generation !== _starnetLinkGeneration) return;
               if (p && p.linked) {
                 stopStarnetLinkPoll(); SFX.open();
-                if (progress) progress.textContent = 'StarNet connected.';
+                if (progress) progress.textContent = 'Agent OS connected.';
                 codeEl.classList.add('hidden'); openBtn.classList.add('hidden');
                 // desktop: move the fresh token file → OS keychain NOW (Rust reads + moves; the token
                 // never passes through here), then teach Harness the credential exists so
@@ -2909,7 +2909,7 @@ const App = (() => {
       if (b.dataset.prov !== pickedProvider) el('in-model').value = '';
       selectProviderUI(b.dataset.prov);
       window.OverseerSetup?.beginConnection();
-      // The explicit StarNet card click starts account connection; automatic selection never opens a window.
+      // The explicit Agent OS card click starts account connection; automatic selection never opens a window.
       if (b.dataset.prov === 'starnet' && !starnetLinked) startStarnetLink();
 
     }; });
@@ -2926,7 +2926,7 @@ const App = (() => {
     el('btn-codex-signin').onclick = () => (codexHere() ? startCodexSignIn() : startOAuthSignIn(pickedProvider));
     wireClaudeCliTile();
     el('btn-codex-logout').onclick = () => (codexHere() ? codexLogout() : oauthGenesisLogout(pickedProvider));
-    // STARNET MANAGED: reveal the hero only when this station actually has a cloud seam, and wire its link
+    // AGENT OS MANAGED: reveal the hero only when this station actually has a cloud seam, and wire its link
     // flow. On a fresh create the revealed hero also becomes the default pick (the promoted easiest start);
     // a resume keeps the agent's saved provider.
     userPickedProvider = false;
@@ -3009,7 +3009,7 @@ const App = (() => {
     SFX.click(); stopCodexPoll();
     const saved = resumableSave().doc;   // #121: the in-memory save when the browser cache could not hold it
     if (saved && saved.agent) {
-      // RETRY must re-ask, not re-read. A StarNet station's "configured" flag is read ONCE at boot; when the
+      // RETRY must re-ask, not re-read. A Agent OS station's "configured" flag is read ONCE at boot; when the
       // account service was down then (issue #76), retry kept consulting that stale false and bounced straight
       // back to this screen even after the link was healthy again. Re-read the sidecar's live answer first.
       if (savedStationProv(saved) === 'starnet' && Harness.refreshCreditsConfigured) {
@@ -3105,7 +3105,7 @@ const App = (() => {
   async function onWakeAttempt() {
     SFX.boot(); SFX.open();
     stopCodexPoll();   // leaving the connect screen — drop any in-flight sign-in poll
-    stopStarnetLinkPoll();   // …and any in-flight StarNet pairing poll (same screen-exit rule)
+    stopStarnetLinkPoll();   // …and any in-flight Agent OS pairing poll (same screen-exit rule)
     stopStarnetBalancePoll();   // …and the empty-wallet balance poll
     // single funnel for agent.name → honor the 18-char design cap (covers the roster-pick path too).
     // A blank/sentinel name mints a station codename (never the bland 'AGENT'), matching the awakening
@@ -3144,15 +3144,15 @@ const App = (() => {
       // relink; using that cached $0 here stranded a funded customer even though /v1/balance already held the
       // credits. GET /api/credits performs an awaited authoritative refresh for the ACTIVE linked account.
       // Only a successful finite zero may deny WAKE. A failed/unknown read is unavailable, never "$0".
-      msg.textContent = 'checking your StarNet credits…';
+      msg.textContent = 'checking your Agent OS credits…';
       const creditState = await refreshStarnetGenesisStatus();
       if (!creditState || !creditState.answered || (creditState.linked && creditState.balanceUsd == null)) {
         msg.className = 'msg bad';
-        msg.textContent = 'StarNet couldn’t confirm your credit balance right now. Your credits are safe — try WAKE again in a moment.';
+        msg.textContent = 'Agent OS couldn’t confirm your credit balance right now. Your credits are safe — try WAKE again in a moment.';
         return false;
       }
-      if (!creditState.linked) { msg.textContent = 'link your StarNet account first — press CONNECT STARNET ACCOUNT above.'; return false; }
-      if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
+      if (!creditState.linked) { msg.textContent = 'link your Agent OS account first — press CONNECT AGENT OS ACCOUNT above.'; return false; }
+      if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your Agent OS account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
       const cst = (claudeCliState && claudeCliState.loggedIn) ? claudeCliState : await refreshClaudeCliStatus();
@@ -3226,22 +3226,22 @@ const App = (() => {
         // the account REFUSED this station's link: retrying can't fix it and the wallet isn't empty — relink is the
         // door (friendlyerror's managed_credit_link; `.?` because a quote in a regex mis-slices the fnBody test helper)
         if (/refused this station.?s link|relink/i.test(wire.why)) {
-          msg.textContent = 'your StarNet account no longer accepts this station’s link (it was unlinked, or belongs to another account) — your credits are safe. '
-            + (pickedProvider === 'starnet' ? 'Press CONNECT STARNET ACCOUNT above, then WAKE again.' : 'Relink this station to your StarNet account, or use your own provider key.');
+          msg.textContent = 'your Agent OS account no longer accepts this station’s link (it was unlinked, or belongs to another account) — your credits are safe. '
+            + (pickedProvider === 'starnet' ? 'Press CONNECT AGENT OS ACCOUNT above, then WAKE again.' : 'Relink this station to your Agent OS account, or use your own provider key.');
           refreshStarnetGenesisStatus();
           return false;
         }
-        // the balance is HELD by this station's own running StarNet runs (friendlyerror's managed_credit_held, audit
+        // the balance is HELD by this station's own running Agent OS runs (friendlyerror's managed_credit_held, audit
         // B11): it reads $0 but it was read, so it is neither "no credits" nor "couldn't read" — waiting frees it
         if (/Managed credits are held|balance is held by/i.test(wire.why)) {
-          msg.textContent = 'your StarNet balance is held by runs still working on this station — each refunds what it doesn’t spend. Wait for them to finish, then WAKE again'
+          msg.textContent = 'your Agent OS balance is held by runs still working on this station — each refunds what it doesn’t spend. Wait for them to finish, then WAKE again'
             + (pickedProvider === 'starnet' ? ' (or press ＄ ADD CREDITS above).' : ', or use your own provider key.');
           refreshStarnetGenesisStatus();
           return false;
         }
         msg.textContent = /Out of managed credit/i.test(wire.why)
-          ? 'your StarNet account has no credits — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'
-          : 'StarNet couldn’t read your credit balance right now — try WAKE again in a moment, or use your own provider key.';
+          ? 'your Agent OS account has no credits — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'
+          : 'Agent OS couldn’t read your credit balance right now — try WAKE again in a moment, or use your own provider key.';
         refreshStarnetGenesisStatus();
         return false;
       }
@@ -5278,7 +5278,7 @@ const App = (() => {
             }
             discovered.innerHTML = rows.map(x => '<button type="button" class="proj-discover-pick" data-path="' + U.esc(x.root) + '"><b>' + U.esc(x.name || x.root) + '</b><span>' + U.esc(x.root) + '</span><em>' + U.esc(x.kind || 'project') + '</em></button>').join('');
             discovered.hidden = false;
-            discovered.querySelectorAll('.proj-discover-pick').forEach(b => { b.onclick = () => { input.value = b.dataset.path || ''; showHint('Candidate selected. ADD grants this folder to StarNet.', false); input.focus(); }; });
+            discovered.querySelectorAll('.proj-discover-pick').forEach(b => { b.onclick = () => { input.value = b.dataset.path || ''; showHint('Candidate selected. ADD grants this folder to Agent OS.', false); input.focus(); }; });
             showHint('Found ' + rows.length + ' candidate' + (rows.length === 1 ? '' : 's') + '. Select one, then ADD to grant access.' + (j.truncated ? ' Search stopped at its safety limit.' : ''), false);
           })
           .catch(() => showHint('could not reach the station', true))
@@ -5380,7 +5380,7 @@ const App = (() => {
   }
 
   // FORWARD-VERSION GATE (P0.3). Raised when the save on this machine (or an adopted durable remote) was written
-  // by a NEWER StarNet than this build can read. This is a HARD STOP: it shows the blocking gate screen and
+  // by a NEWER Agent OS than this build can read. This is a HARD STOP: it shows the blocking gate screen and
   // returns; NOTHING here calls persist()/Save.write(), so the newer save is never re-stamped or clobbered. The
   // only action re-checks/opens the desktop Update Center when the native updater is present; otherwise it states
   // how to update. gateActive latches so a stray timer/beacon can't route back into a resume/persist path.
@@ -5397,7 +5397,7 @@ const App = (() => {
     const hasUpdater = (typeof Updates !== 'undefined') && (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core);
     // #91: Updates.install() PAUSES by RETURNING its snapshot (a failed pre-update recovery point, an unverified save,
     // an agent still working) instead of throwing, and the Update Center is unreachable from this gate. Name the pause
-    // here; when the in-app path failed, offer the full installer beside UPDATE STARNET (reinstalling keeps the station).
+    // here; when the in-app path failed, offer the full installer beside UPDATE AGENT OS (reinstalling keeps the station).
     const offerInstaller = () => {
       let dl = el('btn-future-download');
       if (!dl && btn && btn.parentNode) {
@@ -5414,7 +5414,7 @@ const App = (() => {
         msg.textContent = 'the update could not install' + (snap && snap.error ? ' — ' + snap.error : '') + '. Download the full installer instead: reinstalling over the top keeps your station.';
         offerInstaller();
       } else if (runs > 0) msg.textContent = (runs === 1 ? '1 agent is' : runs + ' agents are') + ' still working — installing now would kill ' + (runs === 1 ? 'its run' : 'their runs') + '. Try again when ' + (runs === 1 ? 'it finishes.' : 'they finish.');
-      else if (snap && /^(downloading|installing|restarting)$/.test(String(snap.phase || ''))) msg.textContent = 'installing the update — StarNet restarts on its own when it is done.';
+      else if (snap && /^(downloading|installing|restarting)$/.test(String(snap.phase || ''))) msg.textContent = 'installing the update — Agent OS restarts on its own when it is done.';
       else msg.textContent = 'the update did not start — try again in a moment.';
     };
     if (btn) {
@@ -5435,10 +5435,10 @@ const App = (() => {
             else if (phase === 'current') { if (msg) msg.textContent = 'no newer build is published yet — check back shortly.'; }
             else if (phase === 'error') { if (msg) msg.textContent = 'the update check failed' + (snap && snap.error ? ' — ' + snap.error : '') + '. Check your connection and try again.'; }
             else if (phase === 'checking' || phase === 'downloading' || phase === 'installing' || phase === 'restarting') { if (msg) msg.textContent = 'an update check is already running — one moment…'; }
-            else if (msg) msg.textContent = 'this build cannot check for updates — download the latest StarNet from starnetos.com, then reopen.';
+            else if (msg) msg.textContent = 'this build cannot check for updates — download the latest Agent OS from starnetos.com, then reopen.';
           } catch (_) { if (msg) msg.textContent = 'update check failed — try again in a moment.'; }
         } else if (msg) {
-          msg.textContent = 'Update StarNet to the latest version (in the desktop app: Update Center), then reopen.';
+          msg.textContent = 'Update Agent OS to the latest version (in the desktop app: Update Center), then reopen.';
         }
       };
     }
@@ -5453,7 +5453,7 @@ const App = (() => {
     gateActive = true;
     try { if (World && World.stop) World.stop(); } catch (_) {}
     const p = el('recovery-quarantine-path');
-    if (p) p.textContent = (rec && rec.quarantinedTo) ? String(rec.quarantinedTo) : 'the StarNet workspaces folder (look for *.save.json.corrupt-*)';
+    if (p) p.textContent = (rec && rec.quarantinedTo) ? String(rec.quarantinedTo) : 'the Agent OS workspaces folder (look for *.save.json.corrupt-*)';
     const btn = el('btn-recovery-continue');
     if (btn) {
       btn.onclick = async () => {
@@ -5579,7 +5579,7 @@ const App = (() => {
       let up = false;
       try { up = await Harness.restartEngine(); } catch (_) { up = false; }   // the same single-flight door the LINK DOWN chip uses
       if (up) { setStatus('station service restarted — reconnecting…'); attempt(); }
-      else setStatus('the station service could not be restarted — quit StarNet fully (Cmd+Q / tray → Quit) and open it again. Your save is untouched.');
+      else setStatus('the station service could not be restarted — quit Agent OS fully (Cmd+Q / tray → Quit) and open it again. Your save is untouched.');
       restarting = false;
       if (restartBtn) restartBtn.disabled = false;
     };
@@ -5590,7 +5590,7 @@ const App = (() => {
     // START COMPLETELY FRESH — unlike the sidecar-backed lineage action, this must work when NO HTTP
     // route answers. The native shell first moves the entire workspace generation to quarantine, seals
     // the new generation against legacy re-migration, and respawns with the same keychain credentials.
-    // Only after that durable move succeeds does FreshStart clear browser-owned StarNet state. Two clicks.
+    // Only after that durable move succeeds does FreshStart clear browser-owned Agent OS state. Two clicks.
     const freshBtn = el('btn-unreachable-fresh');
     if (freshBtn) {
       let armed = false;
@@ -5603,7 +5603,7 @@ const App = (() => {
           if (!retryingBrowserClear && !armed) {
             armed = true;
             freshBtn.textContent = '✦ CONFIRM — START COMPLETELY FRESH';
-            setStatus('your old local station will be moved to a quarantine folder. Your StarNet account link and purchased credits are not removed. Press again to confirm.');
+            setStatus('your old local station will be moved to a quarantine folder. Your Agent OS account link and purchased credits are not removed. Press again to confirm.');
             setTimeout(() => {
               if (armed && !resetting) { armed = false; freshBtn.textContent = '✦ START COMPLETELY FRESH'; }
             }, 12000);
@@ -5640,7 +5640,7 @@ const App = (() => {
               setStatus('clean station ready — reopening now. Your account link and purchased credits were kept.' + where);
               try { location.reload(); } catch (_) {}
             } else {
-              setStatus('clean station prepared, but the station service is still blocked. Fully quit StarNet and reopen it. Your account link and purchased credits were kept.' + where);
+              setStatus('clean station prepared, but the station service is still blocked. Fully quit Agent OS and reopen it. Your account link and purchased credits were kept.' + where);
             }
           } catch (error) {
             resetting = false;
@@ -5654,7 +5654,7 @@ const App = (() => {
       } else if (!core && typeof FreshStart !== 'undefined' && FreshStart.clearBrowserState) {
         // BROWSER MODE exit — START FRESH scoped to what this window actually owns. This gate only opens when the
         // local cache is ALREADY empty (Save.load() null) and the durable side could not be read, so the only
-        // StarNet state left in this browser is stale bookkeeping (prefs, a dead session token, a dev fault flag);
+        // Agent OS state left in this browser is stale bookkeeping (prefs, a dead session token, a dev fault flag);
         // clearing it cannot lose a save. The sidecar's own files are never touched from here — the copy says so.
         // Two clicks, same arm/confirm shape as the desktop path. Honest label: it is NOT the desktop quarantine.
         const LABEL = '✦ START FRESH (CLEAR BROWSER STATE)';
@@ -5666,7 +5666,7 @@ const App = (() => {
           if (!armed) {
             armed = true;
             freshBtn.textContent = '✦ CONFIRM — CLEAR BROWSER STATE';
-            setStatus('this clears only this browser\'s StarNet state (cached settings, any stale session) and reloads. The station service\'s own save files are not touched. Press again to confirm.');
+            setStatus('this clears only this browser\'s Agent OS state (cached settings, any stale session) and reloads. The station service\'s own save files are not touched. Press again to confirm.');
             setTimeout(() => { if (armed && !resetting) { armed = false; freshBtn.textContent = LABEL; } }, 12000);
             return;
           }
@@ -5715,17 +5715,17 @@ const App = (() => {
     if (box) {
       const evidenceHtml = rows.slice(0, 8).map(row => {
         const kind = String(row && row.kind || 'prior-state').replace(/-/g, ' ').toUpperCase();
-        const root = String(row && row.root || 'local StarNet storage');
+        const root = String(row && row.root || 'local Agent OS storage');
         const examples = Array.isArray(row && row.examples) && row.examples.length ? ' · ' + row.examples.slice(0, 4).join(', ') : '';
         return '<div><b>' + U.esc(kind) + '</b> — <code>' + U.esc(root) + '</code>' + U.esc(examples) + '</div>';
-      }).join('') || '<div><b>PRIOR STATE MARKER</b> — local StarNet storage</div>';
+      }).join('') || '<div><b>PRIOR STATE MARKER</b> — local Agent OS storage</div>';
       const candidateHtml = candidates.map(row => {
         const when = row && row.updatedAt ? new Date(row.updatedAt).toLocaleString() : 'time unavailable';
         const size = row && row.bytes ? Math.max(1, Math.ceil(row.bytes / 1024)) + ' KB' : 'size unavailable';
         const on = !!(row && row.id === selected);
         return '<button class="lineage-candidate' + (on ? ' on' : '') + '" data-candidate-id="' + U.esc(row && row.id || '') + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (row && row.recoverable ? '' : ' disabled') + '>' +
           '<b>' + U.esc(row && row.stationName || 'Prior station') + '</b>' +
-          '<span>' + U.esc(row && row.displayRoot || 'local StarNet storage') + '</span>' +
+          '<span>' + U.esc(row && row.displayRoot || 'local Agent OS storage') + '</span>' +
           '<small>' + U.esc(row && row.recoverable ? when + ' · ' + size : row && row.reason || 'unreadable save') + '</small></button>';
       }).join('');
       box.innerHTML = evidenceHtml + (candidateHtml ? '<div class="lineage-candidates" aria-label="Recoverable stations">' + candidateHtml + '</div>' : '');

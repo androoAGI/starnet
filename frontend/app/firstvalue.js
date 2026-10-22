@@ -1,4 +1,4 @@
-/* StarNet — a first useful result, through the existing recipe → workstream → real run path.
+/* Agent OS — a first useful result, through the existing recipe → workstream → real run path.
    Pure task composition is exported under Node; browser forms never mint grants or completion state. */
 'use strict';
 (function (root, factory) {

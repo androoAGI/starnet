@@ -129,7 +129,7 @@
           const onAbort = () => {
             if (!pending.has(id)) return;
             settle(id, p => p.reject(Object.assign(new Error('mcp request cancelled: ' + method), { cancelled: true, sent: true, effectUnknown: true })));
-            notify('notifications/cancelled', { requestId: id, reason: 'cancelled by the StarNet host (run stopped)' })
+            notify('notifications/cancelled', { requestId: id, reason: 'cancelled by the Agent OS host (run stopped)' })
               .catch(err => { failNote('mcp.client.cancelNotify', err); onError(err); });
           };
           signal.addEventListener('abort', onAbort, { once: true });
@@ -192,7 +192,7 @@
     }
 
     /* RESOURCES AND PROMPTS (2026-07-27). This client spoke `tools/list` and `tools/call` and nothing else,
-       which meant StarNet saw only a THIRD of what a connected MCP server actually offers. A server whose
+       which meant Agent OS saw only a THIRD of what a connected MCP server actually offers. A server whose
        whole point is exposing documents (resources) or reusable prompt templates (prompts) connected fine,
        reported zero tools, and looked broken. These are not extras — they are two of the protocol's three
        primitives, and the reference harness has spoken all three for a long time.

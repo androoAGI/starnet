@@ -1,4 +1,4 @@
-/* STARNET — autopilot.js : the PURE engine for the IDLE SELF-DIRECTION DRIVER (autonomy layer, Slice A).
+/* AGENT OS — autopilot.js : the PURE engine for the IDLE SELF-DIRECTION DRIVER (autonomy layer, Slice A).
 
    This is the missing CONSUMER of the autonomy posture. Slices 1–2 shipped the dial (autonomy.js) and cron
    self-initiation (autojobs.js), but nothing read the posture to actually drive idle behaviour — so the dial had

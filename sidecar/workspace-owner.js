@@ -1,6 +1,6 @@
 /* sidecar/workspace-owner.js — fail-closed, process-wide ownership for one WORKSPACES root.
 
-   StarNet's durable stores are intentionally single-writer. Atomic individual-file writes prevent torn
+   Agent OS's durable stores are intentionally single-writer. Atomic individual-file writes prevent torn
    files, but they cannot prevent two sidecars from loading the same snapshot and then overwriting each
    other's later changes. This owner claim makes the existing "one sidecar per WORKSPACES" invariant real.
 

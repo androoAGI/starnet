@@ -20,7 +20,7 @@
 /* A crew-written DRAFT: gold plate, so an unapproved preview can never be mistaken for an installed plugin. */
 .term.plugin-win .plugin-plate.draft { color: var(--gold); border-color: rgba(var(--gold-rgb), .45); }
 
-/* APPS — the bar under an app window (StarNet's chrome, not the app's): describe a change · refresh · honest status */
+/* APPS — the bar under an app window (Agent OS's chrome, not the app's): describe a change · refresh · honest status */
 .term.plugin-app-win .app-bar {
   flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px;
   border-top: 1px solid var(--gd-edge, rgba(var(--ph-rgb), .24));

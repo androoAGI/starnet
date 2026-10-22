@@ -1,4 +1,4 @@
-/* STARNET — pitchstore.js : the browser wiring around the pure First Pitch engine (pitch.js).
+/* AGENT OS — pitchstore.js : the browser wiring around the pure First Pitch engine (pitch.js).
 
    The wiring half of "the agent that points you." It listens (read-only) for the agent finishing its first
    real task, then — once the station knows enough about the Commander — has the agent REASON OUT one tailored,

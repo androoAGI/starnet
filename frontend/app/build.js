@@ -1,4 +1,4 @@
-/* STARNET — build.js : the diegetic full-screen BUILD MODE (build) mode.
+/* AGENT OS — build.js : the diegetic full-screen BUILD MODE (build) mode.
 
    Toggled from the dock. Dims the live sim and drops the Commander into an in-fiction
    station-editor over the SAME procedural art: pan/zoom camera, phosphor build grid,
@@ -641,8 +641,8 @@ const Build = (() => {
     if (f) f.focus();
   }
 
-  /* MAKE A PROP (player-made props, userprops.js): type any object, StarNet draws it in the station's style on
-     StarNet credits, and it joins the catalog under MADE BY YOU as decoration. The status line reads ONLY the job
+  /* MAKE A PROP (player-made props, userprops.js): type any object, Agent OS draws it in the station's style on
+     Agent OS credits, and it joins the catalog under MADE BY YOU as decoration. The status line reads ONLY the job
      state the station reports (step, try n of 3, the cost the cloud actually billed); the job keeps running in
      the station if BUILD MODE closes, and this panel picks it back up on reopen. */
   let makeJob = null, makeMsg = null, makeWatching = '';
@@ -654,8 +654,8 @@ const Build = (() => {
     if (makeMsg) return makeMsg;
     if (!makeJob) {
       const bal = makeCredits && makeCredits.linked ? makeCredits.balanceUsd : null;
-      if (bal != null && bal > 0 && bal < MAKE_PRICE) return { text: 'StarNet credits \u00b7 $' + bal.toFixed(2) + ' left \u00b7 not enough to make a prop (about $0.35)', tone: 'bad', door: true };
-      return { text: (bal != null && bal > 0 ? 'StarNet credits \u00b7 $' + bal.toFixed(2) + ' left' : 'StarNet credits') + ' \u00b7 preview first (about 5\u00a2), then make it (about $0.35; a side view about $0.30)', tone: '' };
+      if (bal != null && bal > 0 && bal < MAKE_PRICE) return { text: 'Agent OS credits \u00b7 $' + bal.toFixed(2) + ' left \u00b7 not enough to make a prop (about $0.35)', tone: 'bad', door: true };
+      return { text: (bal != null && bal > 0 ? 'Agent OS credits \u00b7 $' + bal.toFixed(2) + ' left' : 'Agent OS credits') + ' \u00b7 preview first (about 5\u00a2), then make it (about $0.35; a side view about $0.30)', tone: '' };
     }
     const j = makeJob, spent = j.costUsd > 0 ? ' \u00b7 $' + j.costUsd.toFixed(2) + ' so far' : '';
     if (j.status === 'done' && j.kind === 'side') return { text: 'Side view made \u00b7 cost $' + (Number(j.costUsd) || 0).toFixed(2) + (j.costPending ? ' (final cost settling)' : '') + ' \u00b7 press R to turn it', tone: 'ok' };
@@ -685,8 +685,8 @@ const Build = (() => {
     if (cta) {
       cta.hidden = !need;
       if (need) {
-        cta.querySelector('span').textContent = need === 'link' ? 'Props are made with StarNet credits: about 5\u00a2 to preview, 35\u00a2 to make.' : 'You\u2019re out of StarNet credits. A prop is about 35\u00a2.';
-        cta.querySelector('button').textContent = need === 'link' ? 'GET STARNET CREDITS' : 'TOP UP CREDITS';
+        cta.querySelector('span').textContent = need === 'link' ? 'Props are made with Agent OS credits: about 5\u00a2 to preview, 35\u00a2 to make.' : 'You\u2019re out of Agent OS credits. A prop is about 35\u00a2.';
+        cta.querySelector('button').textContent = need === 'link' ? 'GET AGENT OS CREDITS' : 'TOP UP CREDITS';
       }
     }
     if (door) door.hidden = !!need || !((makeMsg && makeMsg.door) || (!makeMsg && st.door));   // the card above already carries the door
@@ -848,7 +848,7 @@ const Build = (() => {
     const door = typeof Friendly !== 'undefined' && Friendly.actionButton && Friendly.actionButton({ action: 'store' });
     if (!door || !door.run) return;
     door.run();
-    // land ON the StarNet card (PROVIDERS opens at the top of a long list); it renders after its own credits read
+    // land ON the Agent OS card (PROVIDERS opens at the top of a long list); it renders after its own credits read
     let tries = 0;
     const seek = () => {
       const card = document.querySelector('.prov-card[data-provider="starnet"]');
@@ -928,13 +928,13 @@ const Build = (() => {
   }
   function makePropPanel() {
     const box = document.createElement('section'); box.className = 'refit-makeprop'; box.setAttribute('aria-label', 'Make a prop');
-    box.innerHTML = '<div class="refit-makeprop-head"><b>MAKE A PROP</b><small>Type any object. StarNet draws it in the station\u2019s style.</small></div>' +
+    box.innerHTML = '<div class="refit-makeprop-head"><b>MAKE A PROP</b><small>Type any object. Agent OS draws it in the station\u2019s style.</small></div>' +
       '<div class="refit-makeprop-cta" id="refit-makeprop-cta" hidden><span></span><button type="button" class="bb sm" id="refit-makeprop-cta-go"></button></div>' +
       '<div class="refit-makeprop-row"><input type="text" class="refit-input refit-searchfield" id="refit-makeprop-input" maxlength="60" spellcheck="false" autocomplete="off" aria-label="Object to make" placeholder="e.g. a grandfather clock">' +
       '<button type="button" class="bb sm" id="refit-makeprop-go">PREVIEW</button></div>' +
       '<div class="refit-makeprop-preview" id="refit-makeprop-preview" hidden></div>' +
       '<div class="refit-makeprop-foot"><span class="refit-makeprop-status" id="refit-makeprop-status" role="status" aria-live="polite"></span>' +
-      '<button type="button" class="bb sm" id="refit-makeprop-door" hidden>\u25b8 STARNET CREDITS</button></div>' +
+      '<button type="button" class="bb sm" id="refit-makeprop-door" hidden>\u25b8 AGENT OS CREDITS</button></div>' +
       '<div class="refit-makeprop-size" id="refit-makeprop-size" hidden><span class="refit-makeprop-sizelbl">SIZE</span><button type="button" class="bb sm" data-size="-1" aria-label="Smaller">\u2212</button><b class="refit-makeprop-sizeval">100%</b><button type="button" class="bb sm" data-size="1" aria-label="Bigger">+</button></div>' +
       '<div class="refit-makeprop-actions"><button type="button" class="bb sm refit-makeprop-sidebtn" id="refit-makeprop-side" hidden>\u21bb MAKE SIDE VIEW</button>' +
       '<button type="button" class="bb sm" id="refit-makeprop-del" hidden>\u2715 DELETE</button></div>';
@@ -1209,7 +1209,7 @@ const Build = (() => {
     if (head) {
       head.setAttribute('role', 'button'); head.tabIndex = 0;
       head.setAttribute('aria-expanded', String(open));
-      head.dataset.tip = open ? 'Close MAKE A PROP' : 'Make your own prop: type any object, StarNet draws it in the station\u2019s style (StarNet credits)';
+      head.dataset.tip = open ? 'Close MAKE A PROP' : 'Make your own prop: type any object, Agent OS draws it in the station\u2019s style (Agent OS credits)';
       const toggle = () => {
         if (busy) return;   // a running job, a preview or a message keeps it open
         makeOpen = !box.classList.contains('is-compact') ? false : true;
@@ -1347,7 +1347,7 @@ const Build = (() => {
       if (propSection === 'decoration' && typeof UserProps !== 'undefined') browser.append(makePropMount());
       else if (typeof UserProps !== 'undefined') {   // the door to MAKE A PROP from the other shelves: one click to FURNITURE with the field focused
         const door = document.createElement('button'); door.type = 'button'; door.className = 'bb sm refit-makeprop-door';
-        door.innerHTML = '<b>MAKE A PROP</b><small>Type any object. StarNet draws it in the station\u2019s style.</small>';
+        door.innerHTML = '<b>MAKE A PROP</b><small>Type any object. Agent OS draws it in the station\u2019s style.</small>';
         door.onclick = () => { makeOpen = true; chooseLibrarySection('decoration'); setTimeout(() => { const f = root && root.querySelector('#refit-makeprop-input'); if (f) f.focus(); }, 0); sfx('click'); };
         browser.append(door);
       }

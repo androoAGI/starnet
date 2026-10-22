@@ -193,7 +193,7 @@ function adaptationText(m, outcome) {
     : m.tier === 'practiced' ? 'prefer relevant repeated patterns while stating uncertainty'
       : 'consider the early pattern but verify it before relying on it';
   return 'Because ' + m.agentId + ' completed ' + m.count + ' verified ' + m.domain + ' outcome' + (m.count === 1 ? '' : 's')
-    + ' (latest: ' + title + '), StarNet will ' + posture + ' for this agent and surface uncertainty outside that track.';
+    + ' (latest: ' + title + '), Agent OS will ' + posture + ' for this agent and surface uncertainty outside that track.';
 }
 
 // Mutates a normalized record inside the durable store update. sourceId is the idempotency authority.

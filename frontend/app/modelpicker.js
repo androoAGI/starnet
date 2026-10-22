@@ -1,4 +1,4 @@
-/* STARNET shared model picker — a per-TARGET model/effort chooser for the recruitment bay (a NEW agent's
+/* AGENT OS shared model picker — a per-TARGET model/effort chooser for the recruitment bay (a NEW agent's
    model) and the agent dossier (an EXISTING agent's model). Unlike the COMMS ModelDock (a global singleton
    bound to the FOCUSED agent's live transport), this writes nothing on its own: it renders a grouped native
    <select>, fills it from ModelDock.catalog() (same fallbacks/gating), and hands the picked {model,provider,

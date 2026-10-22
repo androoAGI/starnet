@@ -1,4 +1,4 @@
-/* STARNET — curiositystore.js : the thin wiring around the pure just-in-time curiosity engine (curiosity.js).
+/* AGENT OS — curiositystore.js : the thin wiring around the pure just-in-time curiosity engine (curiosity.js).
 
    Holds the state the pure engine can't: the per-SESSION nudge count (in memory, resets each run of the app —
    keeps "one gentle ask per session"), the persisted set of dimensions the Commander has waved off (so a

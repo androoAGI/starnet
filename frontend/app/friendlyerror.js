@@ -1,4 +1,4 @@
-/* STARNET — friendlyerror.js : turn a raw failure into something a beginner can act on.
+/* AGENT OS — friendlyerror.js : turn a raw failure into something a beginner can act on.
    Pure + testable (UMD: a `Friendly` global in the browser, module.exports under node).
 
    The COMMS panel used to surface raw plumbing on a failed turn — "sidecar HTTP 500", an OpenRouter
@@ -30,7 +30,7 @@
    to classifyApiError() to derive the reason, then translate that reason into a beginner-facing message —
    so the truth table stays single-sourced. In the browser the sidecar module isn't loaded, so we fall back
    to a lightweight pattern-match over the SAME kind vocabulary on the UI-level error strings Harness throws
-   ('sidecar HTTP <status>', 'cannot reach the STARNET sidecar…', a forwarded 'no <cap> — …'). */
+   ('sidecar HTTP <status>', 'cannot reach the AGENT OS sidecar…', a forwarded 'no <cap> — …'). */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -74,19 +74,19 @@
   const KINDS = {
     // ONLY for a fault PROVEN local: the raw carries "sidecar http 5xx" (our own service answered 500). A
     // provider's 5xx/overloaded must never land here — a message naming a component owes proof it is at fault,
-    // and blaming the local service for an Anthropic/OpenRouter overload had users reporting "StarNet's servers
+    // and blaming the local service for an Anthropic/OpenRouter overload had users reporting "Agent OS's servers
     // are down" during every industry load spike (2026-07-30, the report wave behind this split).
-    server_error:  { retryable: true,  action: null,       msg: 'The local StarNet service hit an error — give it a moment and try again.' },
+    server_error:  { retryable: true,  action: null,       msg: 'The local Agent OS service hit an error — give it a moment and try again.' },
     // The PROVIDER's servers answered with an error/overload (5xx, "overloaded", "temporarily unavailable").
-    // StarNet is healthy and says so; retry is the primary door because provider load spikes pass.
-    provider_server_error: { retryable: true, action: null, msg: "The AI provider's servers are having trouble right now (overloaded or erroring) — StarNet itself is fine. Wait a moment and try again; if it keeps failing, switch model or provider in COMMS." },
-    network:       { retryable: true,  action: null,       msg: "Can't reach StarNet's local service — if the app closed, restart it; if it restarted, reload this window, then try again." },
+    // Agent OS is healthy and says so; retry is the primary door because provider load spikes pass.
+    provider_server_error: { retryable: true, action: null, msg: "The AI provider's servers are having trouble right now (overloaded or erroring) — Agent OS itself is fine. Wait a moment and try again; if it keeps failing, switch model or provider in COMMS." },
+    network:       { retryable: true,  action: null,       msg: "Can't reach Agent OS's local service — if the app closed, restart it; if it restarted, reload this window, then try again." },
     rate_limit:    { retryable: true,  action: null,       msg: 'The model provider is busy (too many requests) — wait a few seconds and try again.' },
     // The sidecar is fine; its call OUT to the model provider failed (see isUpstreamFetchFailure). Say that, and
-    // say StarNet is healthy — the failure mode this replaces had users restarting and reinstalling for days over
+    // say Agent OS is healthy — the failure mode this replaces had users restarting and reinstalling for days over
     // a message that named the wrong component. `action: null` on purpose: a provider blip is usually transient,
     // so RETRY must stay the primary chip rather than a SETTINGS door that fixes nothing.
-    provider_unreachable: { retryable: true, action: null, msg: "StarNet is running fine, but it couldn't reach the AI provider — that's usually your internet connection, a VPN or proxy, or the provider having a moment. Try again; if it keeps failing, switch provider or model in SETTINGS." },
+    provider_unreachable: { retryable: true, action: null, msg: "Agent OS is running fine, but it couldn't reach the AI provider — that's usually your internet connection, a VPN or proxy, or the provider having a moment. Try again; if it keeps failing, switch provider or model in SETTINGS." },
     /* A SPENT ALLOWANCE is not a busy moment. A ChatGPT-subscription weekly quota resets in DAYS, so offering
        "wait a few seconds and try again" made every retry doomed and told the user nothing they could act on.
        The copy names the meter that was actually spent — the ChatGPT subscription, NOT API billing — and the
@@ -103,21 +103,21 @@
     // point the user at the xAI (API KEY) provider instead of a doomed reconnect. Door is the PROVIDERS key field.
     grok_oauth_unavailable: { retryable: false, action: 'settings', msg: "Grok sign-in isn't available on this account yet — xAI hasn't opened the Grok sign-in for it. Add an xAI provider key instead (paste it under SETTINGS → AI & MODELS and pick the XAI provider)." },
     billing:       { retryable: false, action: 'settings', msg: "Your provider account is out of credit — top it up, then try again." },
-    // managed StarNet credits ran out (only reachable when a managed-credit backend is wired). Point at the STORE
+    // managed Agent OS credits ran out (only reachable when a managed-credit backend is wired). Point at the STORE
     // to top up; a BYOK station never hits this kind (it gets `billing`/`auth` instead).
     // copy names the SAME door the button opens (PROVIDERS) — "the STORE" was a surface that doesn't exist as a button.
-    managed_credit:{ retryable: false, action: 'store',    msg: "You're out of StarNet credits — top up under SETTINGS → AI & MODELS, or connect your own provider key." },
+    managed_credit:{ retryable: false, action: 'store',    msg: "You're out of Agent OS credits — top up under SETTINGS → AI & MODELS, or connect your own provider key." },
     // The balance check FAILED (the account service was slow, erroring or unreachable) — the balance is unknown, NOT
     // $0. Reading this as managed_credit told a customer holding $79.24 to top up (2026-10-06). Retry is the door.
-    managed_credit_unavailable: { retryable: true, action: null, msg: "StarNet couldn't check your credit balance just now — your credits are safe and nothing was charged. Try again in a moment." },
-    // The service reported $0 because THIS station's running StarNet runs hold the balance (each reserves up to its PER
+    managed_credit_unavailable: { retryable: true, action: null, msg: "Agent OS couldn't check your credit balance just now — your credits are safe and nothing was charged. Try again in a moment." },
+    // The service reported $0 because THIS station's running Agent OS runs hold the balance (each reserves up to its PER
     // RUN limit and refunds what it doesn't spend; budgetcaps.managedRefusalMessage). Waiting is the first fix (retry),
     // then lowering PER RUN so runs can share the balance (the SPENDING LIMITS door); topping up stays the last
     // door — a small wallet's hold may come back as cents. Audit B11.
-    managed_credit_held: { retryable: true, action: 'budget', msg: "Your StarNet balance is held by StarNet runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, lower PER RUN in SETTINGS › SPENDING LIMITS, or top up under SETTINGS → AI & MODELS." },
+    managed_credit_held: { retryable: true, action: 'budget', msg: "Your Agent OS balance is held by Agent OS runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, lower PER RUN in SETTINGS › SPENDING LIMITS, or top up under SETTINGS → AI & MODELS." },
     // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
-    // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
-    managed_credit_link: { retryable: false, action: 'store', msg: "Your StarNet account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → STARNET MANAGED." },
+    // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the AGENT OS card.
+    managed_credit_link: { retryable: false, action: 'store', msg: "Your Agent OS account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → AGENT OS MANAGED." },
     // capdenied copy is REBUILT per-error in friendlyError() to name the exact power + gear; this is the fallback
     // when the capability can't be parsed. The door is BUILD MODE (place the gear), NOT the SKILLS list.
     capdenied:     { retryable: false, action: 'refit',    msg: "This task needed a tool this agent doesn't have on station yet — open BUILD MODE to place the gear it's missing." },
@@ -136,34 +136,34 @@
     // the user got "Something went wrong" in a loop while the real answer was one sentence away).
     agent_busy:    { retryable: true,  action: null,       msg: 'That agent is still busy with a previous run — wait for it to finish, or open its conversation and stop the active run.' },
     // the SIDECAR's own token gate said no (a 403 with "forbidden token/origin/host"): after a sidecar
-    // crash+respawn the page still holds the OLD X-StarNet-Token, so EVERY action 403s. Retrying is doomed and
+    // crash+respawn the page still holds the OLD X-Agent OS-Token, so EVERY action 403s. Retrying is doomed and
     // "add a key" is the wrong door — the page needs the fresh boot token, which only a reload fetches.
     stale_session: { retryable: false, action: 'reload',   msg: 'The station restarted — reload this page to reconnect.' },
     // (a page the station KEPT its key from gets the same 403 but is no restart — see withheldNotice() below)
-    /* StarNet's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
+    /* Agent OS's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
        spend_history_unavailable): a limit the Commander chose can't be checked, so the run was stopped. NOT a provider
        out of credit (never `billing`), and never the generic "Something went wrong — try again": a retry hits the same
        refusal until the cause is fixed. The copy is REBUILT per cause in friendlyError() (spendUnknownMessage); this is
        the fallback. The door is SETTINGS › SPENDING LIMITS, where the cause and its fix are listed. */
-    spend_unknown: { retryable: false, action: 'budget',   msg: "Your spending limits can't be checked because StarNet's spend history is unknown, so this run was stopped — open SETTINGS › SPENDING LIMITS to fix it." },
+    spend_unknown: { retryable: false, action: 'budget',   msg: "Your spending limits can't be checked because Agent OS's spend history is unknown, so this run was stopped — open SETTINGS › SPENDING LIMITS to fix it." },
     /* HARNESS STOPS (2026-10-11 — "they start a task and then stop repeatedly with no explanation"). The loop's own
        stop messages (loop guard, loop breaker, unkept promises, output-limit cuts, hooks, checkpoints) fell through to
        `unknown` and led with "Something went wrong on that turn". Each now leads with what happened + what to do;
        the per-message copy is built by explainStop() below — these msgs are the fallback/metadata only. */
-    loop_stuck:         { retryable: true,  action: null, msg: 'The agent got stuck repeating one step, so StarNet stopped the run. Say what to try differently, then ask again.' },
-    unknown_tools:      { retryable: true,  action: null, msg: 'The model kept calling tools that don’t exist, so StarNet stopped the run. Try again, or switch to a stronger model.' },
-    tool_keeps_failing: { retryable: true,  action: null, msg: 'A tool kept failing, so StarNet stopped this unattended run. Check its error, fix the cause, then run it again.' },
-    no_progress:        { retryable: true,  action: null, msg: 'A tool kept returning the same result, so StarNet stopped this unattended run as stuck.' },
+    loop_stuck:         { retryable: true,  action: null, msg: 'The agent got stuck repeating one step, so Agent OS stopped the run. Say what to try differently, then ask again.' },
+    unknown_tools:      { retryable: true,  action: null, msg: 'The model kept calling tools that don’t exist, so Agent OS stopped the run. Try again, or switch to a stronger model.' },
+    tool_keeps_failing: { retryable: true,  action: null, msg: 'A tool kept failing, so Agent OS stopped this unattended run. Check its error, fix the cause, then run it again.' },
+    no_progress:        { retryable: true,  action: null, msg: 'A tool kept returning the same result, so Agent OS stopped this unattended run as stuck.' },
     incomplete_work:    { retryable: true,  action: null, msg: 'The agent stopped before finishing: it kept saying what it would do next without doing it. Say "continue" to push it on.' },
     memory_unverified:  { retryable: true,  action: null, msg: 'The agent said it saved something to memory, but nothing was written — ask it again to save it.' },
     output_limit:       { retryable: false, action: null, msg: 'The reply hit the model’s output limit while writing a large tool call, so nothing from it was saved. Ask for it in smaller parts.' },
-    checkpoint_failed:  { retryable: true,  action: null, msg: 'StarNet couldn’t save this run’s progress to disk, so it stopped. Check free disk space, then try again.' },
+    checkpoint_failed:  { retryable: true,  action: null, msg: 'Agent OS couldn’t save this run’s progress to disk, so it stopped. Check free disk space, then try again.' },
     hook_blocked:       { retryable: false, action: null, msg: 'One of your hooks blocked this run. Change or turn off that hook to let it run.' },
     /* GH#111: the OLLAMA card points at a server that is not Ollama (LM Studio answers Ollama's chat with a 200 "no such
        route"). A resend reaches the same server, so no retry; the door is the CUSTOM card that speaks to it. The headline is
        the adapter's own sentence (it names the server); this msg is only the fallback. */
     endpoint_mismatch:  { retryable: false, action: 'settings', msg: 'The OLLAMA card points at a server that is not Ollama. Add that server under SETTINGS → AI & MODELS → CUSTOM with its /v1 URL instead.' },
-    local_model_memory: { retryable: false, action: 'settings', msg: 'The local model ran out of memory. Close other local models or memory-heavy apps, or choose a smaller model from the model picker in COMMS before trying again. If the station is still blank or disconnected, restart StarNet after freeing memory.' },
+    local_model_memory: { retryable: false, action: 'settings', msg: 'The local model ran out of memory. Close other local models or memory-heavy apps, or choose a smaller model from the model picker in COMMS before trying again. If the station is still blank or disconnected, restart Agent OS after freeing memory.' },
     unknown:      { retryable: true,  action: null,       msg: 'Something went wrong on that turn — try again.' }
   };
 
@@ -185,11 +185,11 @@
      and the copy stays provider-neutral. Ids are the AI & MODELS card ids (.prov-card[data-provider]). */
   const PROVIDER_IDS = ['starnet', 'openrouter', 'codex', 'grok', 'kimi', 'openai', 'anthropic', 'gemini', 'xai', 'groq',
     'mistral', 'deepseek', 'together', 'fireworks', 'perplexity', 'cerebras', 'ollama', 'custom'];
-  const PROVIDER_WORDS = { codex: 'CHATGPT', grok: 'GROK', kimi: 'KIMI', starnet: 'STARNET' };
+  const PROVIDER_WORDS = { codex: 'CHATGPT', grok: 'GROK', kimi: 'KIMI', starnet: 'AGENT OS' };
   function providerWord(id) { return PROVIDER_WORDS[id] || String(id || '').toUpperCase(); }
   // a provider's name inside a SENTENCE (org P03): the brand's own case, like the sibling rows' 'No ChatGPT sign-in yet'.
   // Key labels keep providerWord's capitals; an id with no prose name keeps the provider-neutral copy.
-  const PROVIDER_PROSE = { openrouter: 'OpenRouter', codex: 'ChatGPT', grok: 'Grok', kimi: 'Kimi', starnet: 'StarNet', openai: 'OpenAI',
+  const PROVIDER_PROSE = { openrouter: 'OpenRouter', codex: 'ChatGPT', grok: 'Grok', kimi: 'Kimi', starnet: 'Agent OS', openai: 'OpenAI',
     anthropic: 'Anthropic', gemini: 'Gemini', xai: 'xAI', groq: 'Groq', mistral: 'Mistral', deepseek: 'DeepSeek', together: 'Together AI',
     fireworks: 'Fireworks', perplexity: 'Perplexity', cerebras: 'Cerebras' };
   /* A SIGN-IN SUBSCRIPTION HAS NO WALLET (org P03, final round). The keyless sign-ins — ChatGPT (codex), Grok on SuperGrok /
@@ -222,16 +222,16 @@
 
   /* MIRROR of sidecar/stop-reason.js STOP_EXPLAINERS — the browser never loads sidecar modules, so the harness's own
      stop messages are explained here in the SAME words (test/stop-reason.test.js locks the two copies together).
-     Matched BEFORE any provider classification: these are StarNet's own decisions, not API failures. */
+     Matched BEFORE any provider classification: these are Agent OS's own decisions, not API failures. */
   const STOP_EXPLAINERS = [
     { kind: 'loop_stuck', re: /loop guard: (.+?) failed (\d+) times with identical arguments/i,
-      text: m => 'The agent got stuck repeating one step: ' + m[1] + ' failed ' + m[2] + ' times in a row with the same input, so StarNet stopped the run. Say what to try differently, or fix what that step needs, then ask again.' },
+      text: m => 'The agent got stuck repeating one step: ' + m[1] + ' failed ' + m[2] + ' times in a row with the same input, so Agent OS stopped the run. Say what to try differently, or fix what that step needs, then ask again.' },
     { kind: 'unknown_tools', re: /loop breaker: the model called tools that do not exist \(([^)]*)\)/i,
-      text: m => 'The model kept calling tools that don’t exist (' + m[1] + '), so StarNet stopped the run. Try again, or switch to a stronger model.' },
+      text: m => 'The model kept calling tools that don’t exist (' + m[1] + '), so Agent OS stopped the run. Try again, or switch to a stronger model.' },
     { kind: 'tool_keeps_failing', re: /loop breaker: (.+?) failed (\d+) times in a row/i,
-      text: m => m[1] + ' kept failing (' + m[2] + ' times in a row, with different inputs), so StarNet stopped this unattended run. Check its error, fix the cause, then run it again.' },
+      text: m => m[1] + ' kept failing (' + m[2] + ' times in a row, with different inputs), so Agent OS stopped this unattended run. Check its error, fix the cause, then run it again.' },
     { kind: 'no_progress', re: /loop breaker: (.+?) returned the identical result (\d+) turns in a row/i,
-      text: m => m[1] + ' kept returning the same result (' + m[2] + ' turns in a row), so StarNet stopped this unattended run as stuck. Check what it was waiting for, then run it again.' },
+      text: m => m[1] + ' kept returning the same result (' + m[2] + ' turns in a row), so Agent OS stopped this unattended run as stuck. Check what it was waiting for, then run it again.' },
     { kind: 'incomplete_work', re: /Work is incomplete: the model kept announcing/i,
       text: () => 'The agent stopped before finishing: it kept saying what it would do next without actually doing it. Say "continue" to push it on, or switch to a stronger model.' },
     { kind: 'memory_unverified', re: /memory update is unverified|promise to remember above is unverified/i,
@@ -239,11 +239,11 @@
     { kind: 'output_limit', re: /hit the model's output limit while writing a large (\S+) call/i,
       text: m => 'The reply hit the model’s output limit while writing a large ' + m[1] + ' call, so it never ran and nothing from it was saved. Ask for it in smaller parts (for example "write it section by section"), or switch to a model with a larger output limit.' },
     { kind: 'checkpoint_failed', re: /run checkpoint failed/i,
-      text: () => 'StarNet couldn’t save this run’s progress to disk, so it stopped rather than risk losing work. Check free disk space, then try again.' },
+      text: () => 'Agent OS couldn’t save this run’s progress to disk, so it stopped rather than risk losing work. Check free disk space, then try again.' },
     { kind: 'hook_blocked', re: /blocked by your hook(?: `([^`]*)`)?: ?(.*)$/i,
       text: m => 'Your hook' + (m[1] ? ' `' + m[1] + '`' : '') + ' blocked this run' + (m[2] ? ': ' + m[2].replace(/\.\s*$/, '') : '') + '. Change or turn off that hook to let it run.' },
     { kind: 'context_overflow', re: /context still too large after compacting/i,
-      text: () => 'This conversation got too long for the model, even after StarNet compacted it. Start a fresh conversation, or switch to a model with a larger context window.' }
+      text: () => 'This conversation got too long for the model, even after Agent OS compacted it. Start a fresh conversation, or switch to a model with a larger context window.' }
   ];
   function explainStop(message) {
     const s = String(message == null ? '' : message);
@@ -272,8 +272,8 @@
     }
     if (r === 'refusal') return 'the model declined that request — try rephrasing it';
     if (r === 'cancelled') {
-      if (o.cancelSource === 'estop_by_run') return 'stopped — this run paused all automation (what Pause Automation in the StarNet tray menu does); RESUME AUTOMATION (top bar) is yours alone';
-      return 'stopped from outside this chat — a STOP elsewhere (desk screen, HUD, phone, or Pause Automation in the StarNet tray menu) ended it before it finished';
+      if (o.cancelSource === 'estop_by_run') return 'stopped — this run paused all automation (what Pause Automation in the Agent OS tray menu does); RESUME AUTOMATION (top bar) is yours alone';
+      return 'stopped from outside this chat — a STOP elsewhere (desk screen, HUD, phone, or Pause Automation in the Agent OS tray menu) ended it before it finished';
     }
     if (r === 'error') return 'it stopped on an error before it finished — try again';
     if (!r || r === 'done' || r === 'clarifying') return '';
@@ -287,7 +287,7 @@
      Harness's own withheld notice and offer NO door: the notice itself says whether a reload can help (it re-runs the
      check, so only for a transient reason) and names the owner's hatch. The kind stays stale_session (its
      post-mortem already reads "the message is the fix"). '' = this page holds its key (or no Harness: node/tests). */
-  const TOKEN_WITHHELD_MSG = 'StarNet could not confirm this browser runs as your own user account, so it won’t take commands from this page. Open StarNet from the desktop app, or if this is your own browser, restart StarNet with STARNET_TRUST_LOCAL_PEERS=1.';
+  const TOKEN_WITHHELD_MSG = 'Agent OS could not confirm this browser runs as your own user account, so it won’t take commands from this page. Open Agent OS from the desktop app, or if this is your own browser, restart Agent OS with STARNET_TRUST_LOCAL_PEERS=1.';
   function withheldNotice() {
     if (typeof Harness === 'undefined' || !Harness || typeof Harness.tokenWithheld !== 'function' || !Harness.tokenWithheld()) return '';
     return (typeof Harness.tokenWithheldNotice === 'function' && Harness.tokenWithheldNotice()) || TOKEN_WITHHELD_MSG;
@@ -303,7 +303,7 @@
   // or ECONNRESET. They all mean ONE thing: the response stream died before it finished.
   //
   // ⚠ WHAT THEY DO **NOT** TELL YOU IS *WHERE* IT DIED (2026-07-29). This predicate used to be documented as
-  // "COMMS lost its local sidecar transport" and the copy asserted "Can't reach StarNet's local service —
+  // "COMMS lost its local sidecar transport" and the copy asserted "Can't reach Agent OS's local service —
   // restart the app". That is an UNPROVEN claim, and it is wrong in at least two common cases:
   //   • the MODEL PROVIDER's stream drops mid-answer (undici surfaces exactly `terminated` /
   //     `other side closed` / `premature close` / ECONNRESET) — the sidecar is perfectly healthy;
@@ -334,7 +334,7 @@
 
      This existed as a real user report: diagnostics showed a healthy local engine (uptime, workspace present, the
      report itself was served by it) with five `fetch failed` entries — the sidecar could not reach chatgpt.com /
-     api.openai.com — and the app told them "Can't reach StarNet's local service, restart it". They lost a day.
+     api.openai.com — and the app told them "Can't reach Agent OS's local service, restart it". They lost a day.
 
      WHY THE BUG SURVIVED: sidecar/providers/errorClass.js:168 ALREADY classifies undici transport codes
      correctly, but friendlyerror only `require`s it in node/tests — in the browser classifyApiError is null, so
@@ -350,12 +350,12 @@
   // up. `engineAlive` comes from a token-free GET /api/health probe (Harness.pingEngine) — true/false are
   // measured; null/undefined means nobody probed, so we must not name a culprit at all.
   //   false → the engine really is unreachable: today's copy, now EARNED.
-  //   true  → the engine answered, so "restart StarNet" is actively bad advice; name the stream instead.
+  //   true  → the engine answered, so "restart Agent OS" is actively bad advice; name the stream instead.
   //   null  → unproven. Say only what happened, prescribe the cheap step, and do NOT blame a component.
   function transportMessage(engineAlive) {
     if (engineAlive === false) return KINDS.network.msg;
     if (engineAlive === true) {
-      return "The reply stream stopped before it finished — StarNet's local service answered a health check, so "
+      return "The reply stream stopped before it finished — Agent OS's local service answered a health check, so "
         + 'the app itself is running; this was the connection carrying the reply. Try again.';
     }
     return 'The connection dropped before the reply finished — try again. If it keeps happening, use "copy '
@@ -419,7 +419,7 @@
      names grok MODELS too, and sending that user to "add an xAI key" is a door onto the room they are already in. */
   const GROK_OAUTH_VOICE_RE = /grok \(xai\) http|grok[ _-]?oauth|grok sign-?in|xai[ _]oauth/;
   const GROK_ALLOWLIST_RE = /allowlist|not allowed|not enabled|not available|unavailable|access forbidden|\bforbidden\b|\b403\b/;
-  /* StarNet's OWN spend-ledger refusal (sidecar/loop.js stopForSpend → failureCode spend_history_unavailable; every
+  /* Agent OS's OWN spend-ledger refusal (sidecar/loop.js stopForSpend → failureCode spend_history_unavailable; every
      cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
      "spend history is unavailable" wording. Local by construction — never a provider's billing. */
   const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
@@ -427,13 +427,13 @@
   function spendUnknownMessage(raw) {
     const low = String(raw || '').toLowerCase();
     if (/interrupted before its spend was recorded/.test(low)) {
-      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+      return "Your spending limits can't be checked — an earlier run stopped before Agent OS recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
     }
     if (/line of the spend record is damaged/.test(low)) {
-      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
+      return "Your spending limits can't be checked — a line of Agent OS's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
     }
     if (/could not be saved to disk/.test(low)) {
-      return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";
+      return "Your spending limits can't be checked — Agent OS couldn't save its spend history to disk, so this run was stopped. Restart Agent OS to recover it; SETTINGS › SPENDING LIMITS shows the details.";
     }
     return KINDS.spend_unknown.msg;
   }
@@ -455,14 +455,14 @@
     // MUST precede isTransportLoss: that predicate also matches `fetch failed`, and whichever runs first owns the
     // verdict. Upstream is the more specific (and provable) reading, so it wins.
     if (isUpstreamFetchFailure(low)) return 'provider_unreachable';
-    // the sidecar is unreachable (fetch threw — Harness throws "cannot reach the STARNET sidecar…")
+    // the sidecar is unreachable (fetch threw — Harness throws "cannot reach the AGENT OS sidecar…")
     if (isTransportLoss(low)) return 'network';
     // content / policy beats a status
     if (/content[ _]?policy|moderation|flagged|safety|content_filter/.test(low)) return 'content_policy_blocked';
     // HTTP status from "sidecar HTTP <status>" or an explicit status arg
     const s = status || (low.match(/\b(?:http|status)\s+(\d{3})\b/) ? Number(RegExp.$1) : null);
     if (s) {
-      // OUR OWN sidecar's token gate (crash+respawn → stale X-StarNet-Token): a "sidecar HTTP 403" throw or a
+      // OUR OWN sidecar's token gate (crash+respawn → stale X-Agent OS-Token): a "sidecar HTTP 403" throw or a
       // "forbidden token/origin/host" body means reload for the fresh boot token — never the provider-key door.
       if (s === 403 && (/sidecar http/.test(low) || /\bforbidden\b/.test(low))) return 'stale_session';
       if (s === 401 || s === 403) return NO_CREDIT_RE.test(low) ? 'billing' : 'auth';
@@ -532,7 +532,7 @@
       const k = KINDS.endpoint_mismatch;
       return { userMessage: raw.replace(/\s*\[[\s\S]*$/, '') || k.msg, kind: 'endpoint_mismatch', retryable: k.retryable, action: k.action, provider: 'custom', raw };
     }
-    // a StarNet-authored stop (loop guard, unkept promise, output-limit cut, hook…) leads with what happened and what
+    // a Agent OS-authored stop (loop guard, unkept promise, output-limit cut, hook…) leads with what happened and what
     // to do — before the user-abort test, whose /abort/ would otherwise claim a hook reason that mentions the word
     const harnessStop = (err && err.name === 'AbortError') ? null : explainStop(raw);
     if (harnessStop) {
@@ -600,12 +600,12 @@
       // the per-agent run mutex — UI-level, and the sidecar message already names the holder + doors.
       kind = 'agent_busy';
     } else if (/sidecar http 403\b/.test(raw.toLowerCase()) || (status === 403 && /\bforbidden\b/.test(raw.toLowerCase()))) {
-      // OUR OWN sidecar's token gate said no (stale X-StarNet-Token after a crash+respawn) — UI-level, caught
+      // OUR OWN sidecar's token gate said no (stale X-Agent OS-Token after a crash+respawn) — UI-level, caught
       // BEFORE delegating: the sidecar API classifier would read a bare 403 as provider `auth` and the error row
       // would offer "🔑 Add a key", the wrong door (EL-11 FIX 2). The only fix is the fresh boot token → reload.
       kind = 'stale_session';
     } else if (SPEND_UNKNOWN_RE.test(raw.toLowerCase())) {
-      // StarNet's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
+      // Agent OS's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
       // offer a doomed RETRY) — caught before delegating so both paths open SPENDING LIMITS.
       kind = 'spend_unknown';
     } else if (classifyApiError) {
@@ -686,7 +686,7 @@
       const named = raw.match(/connect an? (.+?) api key\b/i);   // the sidecar guard: providerCredentialError()
       let userMessage = k.msg;
       if (/link this station to a starnet account/.test(low)) {
-        userMessage = "This station isn't linked to StarNet credits yet — link it under SETTINGS → AI & MODELS → STARNET MANAGED, or connect your own provider key.";
+        userMessage = "This station isn't linked to Agent OS credits yet — link it under SETTINGS → AI & MODELS → AGENT OS MANAGED, or connect your own provider key.";
       } else if (named) {
         userMessage = 'No ' + named[1].trim().replace(/\s+api$/i, '') + ' API key is connected yet — add it under SETTINGS → AI & MODELS, or pick a model from a provider you have already connected.';
       } else if (/configure the (.+?) base url/i.test(raw)) {
@@ -726,22 +726,22 @@
     return { userMessage: k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
   }
 
-  /* ---- Why a STARNET account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
+  /* ---- Why a AGENT OS account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
      "could not reach the link service", which blamed the cloud for a dead LOCAL engine and gave support nothing.
      `info` is what the caller saw: { local:true } when the station's own POST never answered (refused, non-JSON, or
      Harness.api's deadline), else { status, j } from the sidecar — j.reason is its stable classification of the
      cloud failure (sidecar/index.js linkStartFailure). Lower-case lead, no trailing period (callers add their own). */
   function linkStartFailure(info) {
     const i = info || {}, j = i.j || {};
-    if (i.local) return 'StarNet\'s engine on this computer isn\'t answering, so the link could not start — restart StarNet, then try again';
-    if (i.status === 503 && j.degraded) return 'StarNet\'s engine on this computer stopped after an error, so the link could not start — restart StarNet, then try again';
-    if (i.status === 404 && j.error === 'linking_unavailable') return 'account linking isn\'t available in this build of StarNet';
+    if (i.local) return 'Agent OS\'s engine on this computer isn\'t answering, so the link could not start — restart Agent OS, then try again';
+    if (i.status === 503 && j.degraded) return 'Agent OS\'s engine on this computer stopped after an error, so the link could not start — restart Agent OS, then try again';
+    if (i.status === 404 && j.error === 'linking_unavailable') return 'account linking isn\'t available in this build of Agent OS';
     const detail = j.detail ? ' (' + String(j.detail) + ')' : '';
-    if (j.reason === 'tls') return 'security software on this computer (an antivirus HTTPS scan or a proxy) is blocking StarNet\'s secure connection to the StarNet account service' + detail + ' — allow StarNet, then try again';
-    if (j.reason === 'timeout') return 'the StarNet account service did not answer in time — check a VPN or firewall, then try again';
-    if (j.reason === 'dns' || j.reason === 'unreachable') return 'StarNet could not reach the StarNet account service from this computer' + detail + ' — check a VPN or firewall, then try again';
-    if (j.reason === 'cloud_5xx') return 'the StarNet account service is having trouble right now — try again in a minute';
-    if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the StarNet account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
+    if (j.reason === 'tls') return 'security software on this computer (an antivirus HTTPS scan or a proxy) is blocking Agent OS\'s secure connection to the Agent OS account service' + detail + ' — allow Agent OS, then try again';
+    if (j.reason === 'timeout') return 'the Agent OS account service did not answer in time — check a VPN or firewall, then try again';
+    if (j.reason === 'dns' || j.reason === 'unreachable') return 'Agent OS could not reach the Agent OS account service from this computer' + detail + ' — check a VPN or firewall, then try again';
+    if (j.reason === 'cloud_5xx') return 'the Agent OS account service is having trouble right now — try again in a minute';
+    if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the Agent OS account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
     return 'could not reach the link service — try again';
   }
 
@@ -882,7 +882,7 @@
         return { label: '↻ RELOAD & RECONNECT', run: () => { try { if (typeof location !== 'undefined' && location.reload) location.reload(); } catch (_) {} } };
       case 'store':
         // this door opens the PROVIDERS section (there is no "store") — name it truthfully with a CRT glyph.
-        // managed credits: the STARNET MANAGED card (balance, LINK STATION) is the lever
+        // managed credits: the AGENT OS MANAGED card (balance, LINK STATION) is the lever
         return { label: '▸ OPEN AI & MODELS', run: () => openSettings('providers', 'starnet') };
       case 'budget':
         // spend_unknown: SETTINGS › SPENDING LIMITS lists the interrupted runs to settle (or says restart) — the

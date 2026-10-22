@@ -1,7 +1,7 @@
 /* sidecar/providers/kimi-region.js — Kimi for Coding account REGIONS (issue #70).
 
    Kimi runs two separate deployments and an account belongs to exactly one of them:
-     · cn     — mainland China, kimi.com : auth.kimi.com  + api.kimi.com/coding/v1   (StarNet's original, only, wire)
+     · cn     — mainland China, kimi.com : auth.kimi.com  + api.kimi.com/coding/v1   (Agent OS's original, only, wire)
      · global — international,  kimi.ai  : auth.kimi.ai   + api.kimi.ai/coding/v1
    A global account cannot sign in at auth.kimi.com, and a token minted by one region is refused by the other
    region's API — so the sign-in AND every request after it must use the SAME region.

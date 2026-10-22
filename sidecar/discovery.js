@@ -1,6 +1,6 @@
-/* STARNET — discovery.js : THE ENVIRONMENT DISCOVERY ENGINE (pure reducers; the ambient half lives in index.js).
+/* AGENT OS — discovery.js : THE ENVIRONMENT DISCOVERY ENGINE (pure reducers; the ambient half lives in index.js).
 
-   THE PRODUCT GAP THIS CLOSES (rec-system audit, 2026-08-28). StarNet's whole promise is that it finds the work —
+   THE PRODUCT GAP THIS CLOSES (rec-system audit, 2026-08-28). Agent OS's whole promise is that it finds the work —
    yet every proactive surface studied only what the Commander TYPED (transcripts, run titles, interview answers).
    The station never once looked at the projects the Commander had explicitly blessed it into. This module is the
    missing organ: it turns a bounded projectscan snapshot of a BLESSED root into candidate work items the existing

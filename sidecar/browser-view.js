@@ -47,8 +47,8 @@ const SEARCH_URL = 'https://duckduckgo.com/?q=';
                what Hermes does: its agent drives a real browser window on its own profile, and people sign in, type
                and paste there natively). The BROWSER window follows it. Where no window can open (no screen, no
                Chromium-family browser installed, or a headless pin) the station browses built-in and says so;
-     builtin — hidden inside StarNet: the BROWSER window is the browser; nothing opens on the desktop;
-     chrome  — YOUR own Chrome with your logins, through the StarNet extension, asking per site. Not available
+     builtin — hidden inside Agent OS: the BROWSER window is the browser; nothing opens on the desktop;
+     chrome  — YOUR own Chrome with your logins, through the Agent OS extension, asking per site. Not available
                until the extension is paired; until then the station says so and browses built-in. */
 const BROWSER_MODES = ['builtin', 'window', 'chrome'];
 function normalizeMode(m) { return BROWSER_MODES.indexOf(String(m || '')) >= 0 ? String(m) : 'window'; }
@@ -457,8 +457,8 @@ function makeBrowserViews(deps) {
     const d = st && st.driver ? { agentId: st.driver.agentId, runId: st.driver.runId, signIn: !!st.signIn } : null;
     return { agents, settings: settings(), station: { available: !!makeSession, open: !!s, mode: st ? st.mode : effectiveMode(), visible: !!(s && s.visible), driver: d, handoff: !!(d && handoffLive(d.runId)), remembered: !!(s && s.remembered), profileNote: (s && s.profileNote) || '', setup: setupState() } };
   }
-  /* RESET STATION BROWSER (#61, Settings > BROWSER): close the station browser, then end any ORPHANED StarNet browser
-     on the durable profile (one an earlier StarNet process started and left behind, its proxy dead) and clear the
+  /* RESET STATION BROWSER (#61, Settings > BROWSER): close the station browser, then end any ORPHANED Agent OS browser
+     on the durable profile (one an earlier Agent OS process started and left behind, its proxy dead) and clear the
      profile's stale locks (deps.sweepStationProfile -> tools/builtin/browser-orphans.js). Refused while an agent is
      driving: STOP that run first. The receipt is what happened, never what was hoped. */
   async function reset() {

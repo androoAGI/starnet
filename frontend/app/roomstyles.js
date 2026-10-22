@@ -1,7 +1,7 @@
 /* frontend/app/roomstyles.js — THE ZONE STYLES the station builder furnishes with (vibe design, 2026-09-29).
 
    Pure, zero-dep, UMD (node tests + the browser). When the Commander says "the left side cozy, the right side a line", the
-   lead names a STYLE for each part of the room and StarNet furnishes it from here: never a piece the model chose or placed.
+   lead names a STYLE for each part of the room and Agent OS furnishes it from here: never a piece the model chose or placed.
    A style is a few hand-arranged SETS of furniture, largest first, in the same pieces the station presets are made of; the
    builder takes the largest set that fits the zone and seats it against the room's outer walls. Each set is
    [type, x, y, facing?] in its own tiles (y grows toward the front of the room). A chair left of a table faces 3, right of

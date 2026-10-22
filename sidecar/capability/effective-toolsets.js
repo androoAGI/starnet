@@ -15,7 +15,7 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
     authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source,
       context: lead ? 'interactive lead' : 'capability grants',
       profile: profile.id, profileLabel: profile.label, filesystemLabel: unrestricted ? 'Whole local computer' : profile.filesystemLabel,
-      approvalLabel: unrestricted ? 'FULL ACCESS — no StarNet approval prompts' : 'ASK — standing grants apply',
+      approvalLabel: unrestricted ? 'FULL ACCESS — no Agent OS approval prompts' : 'ASK — standing grants apply',
       revoke: source === 'environment' ? 'Clear SKYNET_FULL_ACCESS in the launch environment and restart.' : source === 'station' ? 'Turn off the station master bypass in Settings → Permissions; individual Full Access agents stay unrestricted.' : source === 'agent' ? 'Set this agent to ASK in its dossier.' : 'Revoke standing grants in Settings → Permissions.' },
     toolsets: toolsetRows(registry).map(r => {
       const enabled = disabled[r.id] !== false;
@@ -42,7 +42,7 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
 const AVAILABILITY_SIGNALS = [
   { id: 'media-route', fact: 'mediaRoute', tools: ['image_generate'], label: 'image_generate', announce: true,
     why: 'no image-generation connection is configured for this station',
-    enable: 'the Commander signs in to ChatGPT, or connects an OpenAI or OpenRouter key or a StarNet account in SETTINGS' },
+    enable: 'the Commander signs in to ChatGPT, or connects an OpenAI or OpenRouter key or a Agent OS account in SETTINGS' },
   { id: 'voice-route', fact: 'voiceRoute', tools: ['voice_generate'], label: 'voice_generate', announce: true,
     why: 'no voice route exists: no OpenRouter, Gemini or OpenAI key is connected and the free Edge voice is switched off',
     enable: 'the Commander connects one of those keys in SETTINGS, or removes STARNET_EDGE_TTS=0 from the launch environment' },
@@ -52,12 +52,12 @@ const AVAILABILITY_SIGNALS = [
     enable: 'the Commander connects Spotify in ABILITIES > TOOLSETS' },
   // Only the four that need a LIVE pty: status/read/stop still answer for recorded sessions, so they stay.
   { id: 'pty', fact: 'ptyRuntime', tools: ['terminal.start', 'terminal.write', 'terminal.resize', 'terminal.interrupt'], label: 'terminal_start/write/resize/interrupt', announce: true,
-    why: 'the interactive terminal runtime (node-pty) is not installed or could not load in this StarNet install',
+    why: 'the interactive terminal runtime (node-pty) is not installed or could not load in this Agent OS install',
     enable: 'use shell_exec (background:true for long-running processes) instead; interactive terminals need node-pty in the install' },
   // Found by search, never announced: every interactive run would otherwise carry a sentence about routines.
   { id: 'routine-run', fact: 'routineRun', tools: ['routine.notepad'], label: 'routine_notepad', announce: false,
     why: 'it works only inside a scheduled routine run, and this run is not one',
-    enable: 'nothing to enable here: it activates by itself when this agent runs as a StarNet routine' }
+    enable: 'nothing to enable here: it activates by itself when this agent runs as a Agent OS routine' }
 ];
 // unavailableTools(facts, granted) -> { byTool: { name: { signal, why, enable } }, bySignal: { signalId: [name] } }
 // `granted` (Set or array) limits the answer to tools this run actually holds; absent = every signal tool.

@@ -1,4 +1,4 @@
-/* STARNET — understanding.js : the PURE "how well the station understands its Commander" engine.
+/* AGENT OS — understanding.js : the PURE "how well the station understands its Commander" engine.
 
    The unifying CONFIDENCE layer over the Commander Dossier (dossier.js). Where dossier.summary()
    reports BREADTH (fraction of dimensions with any belief — dossier.js:166) and profile.summary()

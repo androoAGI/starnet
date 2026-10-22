@@ -1,4 +1,4 @@
-/* StarNet personalities: one resolved behavioral profile for chat, work and speech.
+/* Agent OS personalities: one resolved behavioral profile for chat, work and speech.
    Presets set defaults; explicit trait values replace those defaults before prompt assembly.
    Legacy value 1 remains "use preset" so existing saved tuning keeps its meaning.
    Audible voice selection is independent of personality. */

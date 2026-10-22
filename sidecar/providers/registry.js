@@ -149,8 +149,8 @@
     {
       id: 'starnet',
       aliases: ['starnet-cloud', 'managed'],
-      name: 'StarNet Managed',
-      label: 'STARNET',
+      name: 'Agent OS Managed',
+      label: 'AGENT OS',
       endpoint: 'managed inference (credits)',
       blurb: 'run on credits, no API key — link a station',
       live: true,
@@ -217,9 +217,9 @@
       reasoningModels: [
         { match: '^gpt-6(?:[.-]|$)', efforts: ['low', 'medium', 'high', 'xhigh'] },
         // Chat Completions cannot combine gpt-5.6 reasoning with function tools ("set reasoning_effort to 'none'"),
-        // and every StarNet agent run sends tools — so on this wire the model only runs with reasoning off.
+        // and every Agent OS agent run sends tools — so on this wire the model only runs with reasoning off.
         { match: '^gpt-5\\.6(?:[.-]|$)', efforts: ['none'], supportsReasoning: false,
-          note: "OpenAI's Chat Completions API can't combine this model's reasoning with tools, so StarNet runs it with reasoning off." },
+          note: "OpenAI's Chat Completions API can't combine this model's reasoning with tools, so Agent OS runs it with reasoning off." },
         { match: '^gpt-5\\.5(?:-\\d{4}-\\d{2}-\\d{2})?$', efforts: ['none', 'low', 'medium', 'high', 'xhigh'], default: 'medium' },
         { match: '^gpt-5\\.4(?:-mini|-nano)?(?:-\\d{4}-\\d{2}-\\d{2})?$', efforts: ['none', 'low', 'medium', 'high', 'xhigh'] },
         { match: '^gpt-5\\.2(?:-\\d{4}-\\d{2}-\\d{2})?$', efforts: ['none', 'low', 'medium', 'high'] },
@@ -519,7 +519,7 @@
     {
       // CLAUDE CLI — the locally installed Claude Code CLI (`claude`) as the brain, signed in with the user's own
       // Claude account or key. No key is stored here: providers/claude-cli.js spawns `claude -p` per turn with
-      // every CLI tool disabled, so StarNet's own capability gate still owns tool use. NOT unmetered: a
+      // every CLI tool disabled, so Agent OS's own capability gate still owns tool use. NOT unmetered: a
       // subscription login books $0 per turn, an API-key login books the CLI's own reported cost.
       id: 'claude-cli',
       aliases: ['claude-code', 'claude-code-cli'],

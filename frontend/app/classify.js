@@ -1,4 +1,4 @@
-/* STARNET — classify.js : is the Commander assigning a TASK (go act, with real tools) or just TALKING?
+/* AGENT OS — classify.js : is the Commander assigning a TASK (go act, with real tools) or just TALKING?
    Pure + testable (UMD: a `Classify` global in the browser, module.exports under node).
 
    isTaskDirective gates ONE thing now: TOOL AVAILABILITY (the sidecar wires tools only when isTask). It no

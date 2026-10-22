@@ -674,10 +674,10 @@
     const host = String((r && r.host) || 'the site');
     const priv = /resolves to private address (\S+)/.exec(reason);
     if (priv) {
-      return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: this computer\'s DNS answered ' + priv[1] + ' for ' + host +
+      return { code: 'NETWORK_REFUSED', text: 'Agent OS\'s browser safety check refused it: this computer\'s DNS answered ' + priv[1] + ' for ' + host +
         ', a private or blocked address. That answer usually comes from a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), ' +
         'a VPN, a security app or the hosts file on this computer. A browser using its own secure DNS can still open the site, so it may work there. ' +
-        'StarNet\'s browser uses no outside proxy, VPN or gateway: it connects from this computer. Fix or allow ' + host + ' in that DNS filter.' };
+        'Agent OS\'s browser uses no outside proxy, VPN or gateway: it connects from this computer. Fix or allow ' + host + ' in that DNS filter.' };
     }
     if (/ENOTFOUND|EAI_AGAIN|ESERVFAIL|ETIMEOUT|ECONNREFUSED.*53|getaddrinfo|no verified DNS address/i.test(reason)) {
       return { code: 'NAVIGATION_FAILED', text: 'this computer could not look up ' + host + ' (' + reason + '). Its DNS did not answer for that name; ' +
@@ -685,9 +685,9 @@
     }
     if (r && r.code === 'DIAL_FAILED') {
       return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: the address was found but did not answer. A firewall, VPN or security app ' +
-        'may be blocking StarNet\'s connection to ' + host + '.' };
+        'may be blocking Agent OS\'s connection to ' + host + '.' };
     }
-    return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: ' + reason };
+    return { code: 'NETWORK_REFUSED', text: 'Agent OS\'s browser safety check refused it: ' + reason };
   }
   // Separate from assertSafeUrl: public browsing retains its SSRF boundary. Only the workbench-
   // scoped browser.test_navigate tool may use this validator, and only for an agent's local dev UI.
@@ -705,7 +705,7 @@
   // different browser surface (no plugins/window.chrome and HeadlessChrome Client Hints) even when
   // its legacy UA is overridden. A shell remains a compatibility fallback when no full build exists.
   // Returns { path, headless } where headless=true means a visible window is impossible.
-  /* The Chromium StarNet downloaded itself (sidecar/browser-install.js) for a computer with no Chrome, Edge or
+  /* The Chromium Agent OS downloaded itself (sidecar/browser-install.js) for a computer with no Chrome, Edge or
      Chromium installed. The composition root registers the finder; it is used only when nothing installed exists. */
   let extraChrome = () => null;
   function setExtraChrome(fn) { extraChrome = typeof fn === 'function' ? fn : () => null; }
@@ -1285,7 +1285,7 @@
     }
     /* HELD PROFILE (customer report 2026-10-08, Windows 10, v0.13.1: the station browser never started — "spawned
        Chromium exited before CDP ownership was established", six launch retries, lockfile never free). Some process
-       StarNet cannot see by command line (a chrome.exe started as administrator, an antivirus lock) holds the durable
+       Agent OS cannot see by command line (a chrome.exe started as administrator, an antivirus lock) holds the durable
        profile, so every Chromium we start hands off to it and exits; the orphan sweep finds nothing to end. Bounded:
        ONCE per driver, when the launch on the PERSISTENT profile failed by hand-off AND the profile is still held,
        start on a fresh temporary profile (signed out — usingPersistentProfile() turns false and profileFallback() says
@@ -1300,8 +1300,8 @@
     }
     function profileHeldError(cause) {
       const err = new Error('The station browser could not start: another process is holding the station browser\'s profile — '
-        + 'open SETTINGS › BROWSER › RESET STATION BROWSER, or end any chrome.exe that StarNet started (one started as '
-        + 'administrator can\'t be closed by StarNet), then try again');
+        + 'open SETTINGS › BROWSER › RESET STATION BROWSER, or end any chrome.exe that Agent OS started (one started as '
+        + 'administrator can\'t be closed by Agent OS), then try again');
       err.code = 'BROWSER_PROFILE_HELD';
       err.cause = cause;
       return err;
@@ -1384,7 +1384,7 @@
         // tab beside its startup one, and the driver could bind to the tab that then went away — its first command hung
         // for a full CDP timeout (measured: 2 of 3 relaunches stalled 15 s). Only a crash bubble is disabled on top.
         args.push('--hide-crash-restore-bubble');
-        /* A COVERED WINDOW MUST KEEP DRAWING. Measured 2026-09-30 in the desktop app: StarNet's own window sits on top of
+        /* A COVERED WINDOW MUST KEEP DRAWING. Measured 2026-09-30 in the desktop app: Agent OS's own window sits on top of
            the station's Chrome window, Chrome's native occlusion tracking decides nobody can see it and stops painting,
            and the in-app BROWSER view froze on the old page (0 frames/s) while the agent kept browsing. The BROWSER
            window IS somebody watching, so a covered station window keeps rendering. Only the two flags that fix that:
@@ -1858,7 +1858,7 @@
         /* A TUNNEL FAILURE IS A REFUSAL, NOT A DEAD PROXY (the Etsy reports, 2026-10-08). Measured with real Chromium:
            ERR_TUNNEL_CONNECTION_FAILED is our LIVE proxy answering the CONNECT with a refusal (its DNS answer was
            private, the lookup failed, the address did not answer). Restarting the browser changes none of that, and
-           "not answering" sent users hunting for a VPN or a remote gateway StarNet does not have. Name the reason. */
+           "not answering" sent users hunting for a VPN or a remote gateway Agent OS does not have. Name the reason. */
         const refusal = (attachPort === null && networkProxy && typeof networkProxy.refusalsSince === 'function' &&
           /ERR_TUNNEL_CONNECTION_FAILED/i.test(navError)) ? pickRefusal(networkProxy.refusalsSince(refusalMark), url) : null;
         if (refusal) {
@@ -1872,7 +1872,7 @@
         const viaProxy = /ERR_PROXY|ERR_TUNNEL_CONNECTION_FAILED|ERR_MANDATORY_PROXY/i.test(navError);
         if (viaProxy && attachPort === null) proxyFailed = true;   // alive() turns false: the session starts a fresh browser + proxy
         const err = new Error('could not load ' + host + ': ' + navError + (viaProxy
-          ? ' - the station browser network proxy is not answering' + (attachPort === null ? '; StarNet is restarting the browser' : ' (this browser was started by an earlier StarNet session: run browser.reset)')
+          ? ' - the station browser network proxy is not answering' + (attachPort === null ? '; Agent OS is restarting the browser' : ' (this browser was started by an earlier Agent OS session: run browser.reset)')
           : ''));
         err.code = viaProxy ? 'STATION_PROXY_DOWN' : 'NAVIGATION_FAILED';
         err.navigationError = navError;
@@ -3332,14 +3332,14 @@
         }
         return { ok: true, browser: String(v.Browser || 'Chrome'), port: port };
       } catch (e) {
-        return { ok: false, error: 'browser.attach: nothing is listening on 127.0.0.1:' + port + '. Use browser.login for a saved StarNet session. Advanced attachment requires Chrome launched with --remote-debugging-port=' + port + ' and a separate --user-data-dir; current Chrome does not expose its default profile this way.' };
+        return { ok: false, error: 'browser.attach: nothing is listening on 127.0.0.1:' + port + '. Use browser.login for a saved Agent OS session. Advanced attachment requires Chrome launched with --remote-debugging-port=' + port + ' and a separate --user-data-dir; current Chrome does not expose its default profile this way.' };
       }
     }
     /* RESET (#61): the supported way out of a wedged station browser - what an agent used to try with a shell kill
        (refused, rightly) and had no other path for. Ends THIS session's own browser (and its network proxy), then
-       ends any ORPHANED Chromium on the durable station profile (one a previous StarNet process started and left
+       ends any ORPHANED Chromium on the durable station profile (one a previous Agent OS process started and left
        behind) and clears that profile's stale locks. Never touches the Commander's own Chrome (exact profile match)
-       nor a live browser this StarNet started (ancestry check). The next browser call starts a fresh browser and
+       nor a live browser this Agent OS started (ancestry check). The next browser call starts a fresh browser and
        proxy. Saved sign-ins live in the profile's files and are kept. Returns a truthful receipt. */
     async function reset() {
       const out = { closedOwn: false, closeError: null, sweep: null, attached: attachedToUserBrowser };
@@ -3766,7 +3766,7 @@
          this file drives a browser the station owns; this one drives the Commander's, where every account
          they have is already signed in. The consent card is the only place a human sees that difference
          before it happens, so `false` is never passed for the consent flag here. */
-      exec('browser.attach', 'Attach to an explicitly prepared Chrome debugging session. Prefer browser.login for guided sign-in with a reusable StarNet profile. Advanced attachment requires --remote-debugging-port=<port> and a separate --user-data-dir; current Chrome refuses debugging its default profile. Only accounts signed into that separate profile are available. Use this when a task needs a real logged-in session that browser.login cannot supply. browser.eval stays refused while attached. browser.detach lets go without closing their browser.',
+      exec('browser.attach', 'Attach to an explicitly prepared Chrome debugging session. Prefer browser.login for guided sign-in with a reusable Agent OS profile. Advanced attachment requires --remote-debugging-port=<port> and a separate --user-data-dir; current Chrome refuses debugging its default profile. Only accounts signed into that separate profile are available. Use this when a task needs a real logged-in session that browser.login cannot supply. browser.eval stays refused while attached. browser.detach lets go without closing their browser.',
         { type: 'object', required: ['port'], properties: { port: { type: 'number' } } },
         async a => {
           const r = await session.attach(a.port);
@@ -3780,15 +3780,15 @@
         async () => ({ content: await session.detach(), summary: 'detached' }), false),
       // #61: the supported recovery when the browser is wedged (navigations fail with proxy/connection errors, a new
       // browser "exited before CDP ownership", the profile is locked). An agent never needs a shell kill for this.
-      exec('browser.reset', 'Recover a stuck station browser: closes the browser this run started (and its network proxy), ends any ORPHANED StarNet browser left running on the station profile by an earlier StarNet process, and clears that profile\'s stale locks. Use it when pages fail with proxy or connection errors, or a new browser exits before it can be controlled. Never touches the Commander\'s own Chrome. Saved sign-ins are kept. The next browser call starts fresh.', { type: 'object', properties: {} },
+      exec('browser.reset', 'Recover a stuck station browser: closes the browser this run started (and its network proxy), ends any ORPHANED Agent OS browser left running on the station profile by an earlier Agent OS process, and clears that profile\'s stale locks. Use it when pages fail with proxy or connection errors, or a new browser exits before it can be controlled. Never touches the Commander\'s own Chrome. Saved sign-ins are kept. The next browser call starts fresh.', { type: 'object', properties: {} },
         async () => {
           if (typeof session.reset !== 'function') return { content: 'browser.reset is not available for this browser.', summary: 'reset unavailable' };
           const r = await session.reset();
-          if (r.attached) return { content: 'This run is attached to the Commander\'s own Chrome, which StarNet never closes. Use browser.detach to let go of it.', summary: 'attached: not reset' };
+          if (r.attached) return { content: 'This run is attached to the Commander\'s own Chrome, which Agent OS never closes. Use browser.detach to let go of it.', summary: 'attached: not reset' };
           const parts = [r.closedOwn ? 'Closed this run\'s browser and its network proxy.' : (r.closeError ? 'Could not close this run\'s browser: ' + r.closeError + '.' : 'This run had no browser open.')];
           parts.push(r.sweep ? 'Station profile: ' + Orphans.describeSweep(r.sweep) + '.' : 'No station profile sweep was available here.');
           const clean = !r.closeError && (!r.sweep || r.sweep.ok);
-          parts.push(clean ? 'The next browser call starts a fresh browser.' : 'The browser may still be stuck: the Commander can use Settings > BROWSER > RESET STATION BROWSER, or restart StarNet.');
+          parts.push(clean ? 'The next browser call starts a fresh browser.' : 'The browser may still be stuck: the Commander can use Settings > BROWSER > RESET STATION BROWSER, or restart Agent OS.');
           return { content: parts.join(' '), summary: clean ? 'browser reset' : 'browser reset incomplete' };
         }, false),
       read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer this over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements, while this scans up to 200 and returns only what matches. It does not scan below the fold or inside closed menus; scroll or open the menu and try again. Refs from earlier snapshots expire, same as after any snapshot.',

@@ -2,7 +2,7 @@
 
    HARD INVARIANT — ONE sidecar process per WORKSPACES dir. The concurrency safety below is an IN-PROCESS
    async mutex (makeKeyedMutex): it serializes writers that share a key WITHIN this Node process only. That is
-   SUFFICIENT precisely because StarNet's product reality is a single sidecar owning a given save dir (`npm start`
+   SUFFICIENT precisely because Agent OS's product reality is a single sidecar owning a given save dir (`npm start`
    → one :8787; the desktop shell spawns exactly one sidecar per install). There is deliberately NO cross-process
    file lock here. If two sidecars ever pointed at the SAME WORKSPACES dir, their in-process mutexes would not see
    each other and a last-write-wins clobber could lose an update — so DON'T run two. (The cron scheduler, which

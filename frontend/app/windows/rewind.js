@@ -1,4 +1,4 @@
-/* STARNET — windows/rewind.js : the RESTORE lane of the AGENT DOSSIER (was the RESTORE POINTS window).
+/* AGENT OS — windows/rewind.js : the RESTORE lane of the AGENT DOSSIER (was the RESTORE POINTS window).
    NAV CONDENSE 2 (2026-08-04): restore points are agent-scoped, so they live in the dossier — this
    file registers a DossierLane ((body)=>({sections,wire})) that stationui's buildAgents mounts as a
    RESTORE section. The dossier roster rail drives agent switching (the lane reads H.present/H.sel

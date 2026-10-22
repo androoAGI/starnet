@@ -51,7 +51,7 @@ function makeTerminalTools(deps) {
     name: 'terminal.start', capability: 'workbench', impact: 'workspace-process', scope: 'execute', requiresConsent: true,
     description: 'Start a named interactive terminal session in your workspace using a real PTY/ConPTY. Use this '
       + 'for REPLs, interactive CLIs, and long-running commands that need terminal behavior. The session survives '
-      + 'agent turns while this StarNet process lives; use terminal.read/write/resize/interrupt/stop to control it.',
+      + 'agent turns while this Agent OS process lives; use terminal.read/write/resize/interrupt/stop to control it.',
     schema: {
       type: 'object', required: ['name', 'command'],
       properties: {

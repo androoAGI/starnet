@@ -2,7 +2,7 @@
 
    WHY THIS EXISTS, and why it is NOT more MCP catalog rows: most platforms people want to connect ship no
    remote MCP server at all. Probed 2026-07-24 — printify, printful, etsy, woocommerce, shopify(catalog/dev)
-   all 404 or do not resolve, and the only Printify MCP that exists is a LOCAL `npx` server StarNet
+   all 404 or do not resolve, and the only Printify MCP that exists is a LOCAL `npx` server Agent OS
    deliberately refuses to spawn. Seeding them as connectors would be a lie the moment a user clicked.
 
    What DOES work for every one of them is the generic path: paste the platform's API key in KEYS, place a
@@ -85,8 +85,8 @@
       docsUrl: 'https://developers.etsy.com/documentation/', apiBase: 'https://openapi.etsy.com/v3',
       blurb: 'Public/manual API work only — persistent shop automation is not connected.',
       unattendedSupported: false,
-      unattendedReason: 'StarNet does not yet manage Etsy OAuth consent or refresh its one-hour access tokens.',
-      note: 'MANUAL OAUTH ONLY: Etsy private/write endpoints need OAuth 2.0; access tokens expire after one hour. StarNet does not refresh them yet, so this key cannot be enabled for scheduled, messaged, or Night Shift runs.' },
+      unattendedReason: 'Agent OS does not yet manage Etsy OAuth consent or refresh its one-hour access tokens.',
+      note: 'MANUAL OAUTH ONLY: Etsy private/write endpoints need OAuth 2.0; access tokens expire after one hour. Agent OS does not refresh them yet, so this key cannot be enabled for scheduled, messaged, or Night Shift runs.' },
 
     /* ── WAVE 2 (2026-08-30): the "whole business on one key" directory. Every apiBase below answered a
        live probe with an auth-shaped error (or a real response) on 2026-08-30 — the row is a live API,
@@ -221,7 +221,7 @@
     { id: 'jina', name: 'Jina', category: 'Developer Tools', envVar: 'JINA_API_KEY',
       docsUrl: 'https://jina.ai/reader/', apiBase: 'https://r.jina.ai',
       blurb: 'Cleaner page-text extraction for web_fetch — pages come back as readable text instead of raw HTML.',
-      note: 'Optional. StarNet uses this automatically for web_fetch when connected; without it pages still load, just with cruder text extraction. Jina\'s keyless tier no longer works.' },
+      note: 'Optional. Agent OS uses this automatically for web_fetch when connected; without it pages still load, just with cruder text extraction. Jina\'s keyless tier no longer works.' },
 
     { id: 'github', name: 'GitHub', category: 'Developer Tools', envVar: 'GITHUB_API_KEY',
       docsUrl: 'https://docs.github.com/rest', apiBase: 'https://api.github.com',

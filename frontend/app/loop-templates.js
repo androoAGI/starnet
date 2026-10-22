@@ -1,4 +1,4 @@
-/* STARNET — loop-templates.js : the LOOP SHAPES a beginner picks instead of writing a loop from scratch.
+/* AGENT OS — loop-templates.js : the LOOP SHAPES a beginner picks instead of writing a loop from scratch.
 
    THE PROBLEM THIS SOLVES. A blank "what should it keep doing?" box is the reason loops are confusing: it
    asks someone who has never run one to invent the cycle, the stopping condition, and the guard rails all at

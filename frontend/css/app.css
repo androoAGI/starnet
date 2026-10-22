@@ -1,4 +1,4 @@
-/* STARNET — app.css : screens for the REAL harness (title · connect · game).
+/* AGENT OS — app.css : screens for the REAL harness (title · connect · game).
    Reuses the v7 phosphor/CRT design language from style.css (vars + body::before/after).
    No "web app" softness — 2px hard lines, inverted-block headers, heavy bloom. */
 
@@ -1760,7 +1760,7 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
     0 0 22px var(--ph-glow2);
   transform-origin: left bottom; animation: lv-pop .2s var(--ease-out);
 }
-/* curved glass over the whole module — it is a screen, like every other StarNet surface */
+/* curved glass over the whole module — it is a screen, like every other Agent OS surface */
 .live-voice-panel::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit;
   pointer-events: none; z-index: 6; background: var(--glass);
@@ -4182,7 +4182,7 @@ body.crew-rail-off #screen-game.active {
 /* the one paid step reads as the primary action: the selected-tile look, still matte */
 .refit-overlay .refit-makeprop #refit-makeprop-makeit { border-color: rgba(var(--ph-rgb),.55); background: rgba(var(--ph-rgb),.13); color: var(--ph-bright); }
 .refit-makeprop-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-/* the credits card: shown up front when the station has no StarNet credits (the .refit-presets-entry recipe) */
+/* the credits card: shown up front when the station has no Agent OS credits (the .refit-presets-entry recipe) */
 .refit-makeprop-cta {
   display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 9px 10px; border: 1px solid rgba(var(--ph-rgb),.34); border-radius: 8px;
   background: rgba(var(--ph-rgb),.06); box-shadow: inset 0 1px rgba(var(--ph-bright-rgb),.1); font-family: 'VT323', monospace;

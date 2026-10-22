@@ -54,7 +54,7 @@ function makeRemoteHost(d) {
       const r = busy.get(a.agentId);
       return Object.assign(a, r ? { state: 'working', runId: r.runId, since: r.startedAt, source: r.source || null } : { state: 'idle' });
     });
-    return { station: d.stationName ? d.stationName() : 'StarNet', at: now(), agents, runs: live.map(r => ({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source || null })) };
+    return { station: d.stationName ? d.stationName() : 'Agent OS', at: now(), agents, runs: live.map(r => ({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source || null })) };
   }
 
   /* SESSIONS. The desk keeps its sessions (title, agent, history) in the station save; the transcript store holds

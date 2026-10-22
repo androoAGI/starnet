@@ -132,7 +132,7 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     for (const key of machinePaths) reauthentication.push({ kind: 'project-path', id: key.slice(5), reason: 'Machine-specific path authority is not transferable; restore or relocate the project, then re-authorize it.', fields: ['permissions.allow'] });
   } else if (p === 'connectors/state.json') {
     if (typeof doc.format === 'string' && doc.format.startsWith('starnet.connector-vault.')) {
-      if (typeof options.readConnectorState !== 'function') throw new Error('Encrypted connector export requires the running StarNet app and its unlocked OS credential store.');
+      if (typeof options.readConnectorState !== 'function') throw new Error('Encrypted connector export requires the running Agent OS app and its unlocked OS credential store.');
       doc = options.readConnectorState();
       if (!doc || doc.version !== 2 || !Array.isArray(doc.configs) || !isObj(doc.oauth)) throw new Error('Encrypted connector export could not verify the original settings.');
     }
@@ -356,8 +356,8 @@ function capture(opts) {
 
 function validate(bundle) {
   const errors = [];
-  if (!bundle || bundle.schema !== SCHEMA) errors.push('not a StarNet station recovery bundle');
-  if (bundle && Number(bundle.version) > VERSION) errors.push('bundle was created by a newer StarNet recovery format');
+  if (!bundle || bundle.schema !== SCHEMA) errors.push('not a Agent OS station recovery bundle');
+  if (bundle && Number(bundle.version) > VERSION) errors.push('bundle was created by a newer Agent OS recovery format');
   const files = bundle && Array.isArray(bundle.files) ? bundle.files : [];
   const browser = bundle && Array.isArray(bundle.browser) ? bundle.browser : [];
   const seen = new Set();

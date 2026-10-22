@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/dev.js : DEVELOPER persona recipes (R4 catalog content).
+/* AGENT OS — recipe-catalog/dev.js : DEVELOPER persona recipes (R4 catalog content).
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light
    module pattern as recipes.js: a `RecipeCatalogDev` global in the browser, module.exports under

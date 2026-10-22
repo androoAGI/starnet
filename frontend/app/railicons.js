@@ -1,4 +1,4 @@
-/* STARNET — railicons.js : ONE line-icon set for every window side menu (Andrew 10-02).
+/* AGENT OS — railicons.js : ONE line-icon set for every window side menu (Andrew 10-02).
    The rails used symbol characters (▤ ◎ ◷ ▦ ⌁ …) that VT323 does not contain, so each fell back to a different
    system font: off-grid, mismatched weights. This draws them as 16×16 stroke SVGs in currentColor instead, chosen
    by the section's own label/id (the same words the menu prints). No match = null, and the caller keeps the old

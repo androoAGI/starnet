@@ -1,4 +1,4 @@
-/* STARNET — queststore.js : the thin, STATELESS read-join behind the QUEST LOG panel.
+/* AGENT OS — queststore.js : the thin, STATELESS read-join behind the QUEST LOG panel.
 
    No state, no persistence, no bus subscription — it just gathers the live, honest progress the station
    already tracks and hands it to the pure Quests engine:

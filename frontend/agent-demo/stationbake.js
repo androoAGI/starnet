@@ -1,4 +1,4 @@
-/* STARNET — stationbake.js : the GENERALIZED station bake.
+/* AGENT OS — stationbake.js : the GENERALIZED station bake.
 
    v7's world.js / render.js bake the gorgeous procedural station art (floors, tilted
    walls, rounded-corner hull arcs, lit pools, hull extrusion, lightmap) — but each was

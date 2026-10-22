@@ -34,8 +34,8 @@ const TOOLS = {
     tool('list_files', 'Search Drive with a Drive query; follows pageToken for pagination.', { query: STR, pageToken: STR, pageSize: { type: 'integer', minimum: 1, maximum: 100 } }, [], true),
     tool('get_file', 'Get Drive file metadata.', { fileId: STR }, ['fileId'], true),
     tool('export_file', 'Export a Google Workspace file as text/plain, text/csv, or text/html. Binary exports are not supported by this tool.', { fileId: STR, mimeType: { type: 'string', enum: ['text/plain', 'text/csv', 'text/html'] } }, ['fileId', 'mimeType'], true),
-    tool('create_file', 'Create Drive file metadata, including folders. File access follows the permissions granted to StarNet.', { metadata: { type: 'object' } }, ['metadata']),
-    tool('update_file', 'Update metadata for a Drive file accessible to StarNet, including name or description.', { fileId: STR, metadata: { type: 'object' } }, ['fileId', 'metadata'])
+    tool('create_file', 'Create Drive file metadata, including folders. File access follows the permissions granted to Agent OS.', { metadata: { type: 'object' } }, ['metadata']),
+    tool('update_file', 'Update metadata for a Drive file accessible to Agent OS, including name or description.', { fileId: STR, metadata: { type: 'object' } }, ['fileId', 'metadata'])
   ],
   'google-calendar': [
     tool('list_calendars', 'List the signed-in account’s calendars.', { pageToken: STR }, [], true),
@@ -59,7 +59,7 @@ const TOOLS = {
 // One per-file grant serves Drive metadata, Docs and Sheets; duplicate method
 // names are qualified so tool routing cannot silently select the wrong API.
 TOOLS['google-files'] = [
-  ...TOOLS['google-drive'].filter(t => ['list_files', 'get_file', 'export_file'].includes(t.name)).map(t => ({ ...t, description: t.description + ' Only files granted to StarNet are accessible.' })),
+  ...TOOLS['google-drive'].filter(t => ['list_files', 'get_file', 'export_file'].includes(t.name)).map(t => ({ ...t, description: t.description + ' Only files granted to Agent OS are accessible.' })),
   ...TOOLS['google-docs'].map(t => ({ ...t, name: 'docs_' + t.name })),
   ...TOOLS['google-sheets'].map(t => ({ ...t, name: 'sheets_' + t.name }))
 ];
@@ -187,7 +187,7 @@ function makeGoogleTransport({ url, token, fetchImpl = fetch, timeoutMs = 30000 
         let r;
         try { r = await fetchImpl(target.href, { method: spec.method || 'GET', headers: { Authorization: 'Bearer ' + token, Accept: spec.text ? 'text/plain' : 'application/json', 'Content-Type': 'application/json' }, body, redirect: 'error', signal: ctrl.signal }); }
         catch (_) { throw new Error('Google request failed or was cancelled'); }
-        if (!r.ok) { try { await r.body?.cancel(); } catch (_) { ctrl.abort(); } throw new Error('connector HTTP ' + r.status + (r.status === 403 ? ' — Google denied access; check the permissions granted to StarNet' : '')); }
+        if (!r.ok) { try { await r.body?.cancel(); } catch (_) { ctrl.abort(); } throw new Error('connector HTTP ' + r.status + (r.status === 403 ? ' — Google denied access; check the permissions granted to Agent OS' : '')); }
         const reader = r.body?.getReader(); let text = '';
         if (reader) {
           const chunks = []; let size = 0;
@@ -212,7 +212,7 @@ function makeGoogleTransport({ url, token, fetchImpl = fetch, timeoutMs = 30000 
           : product === 'gmail' ? { url: url + '/profile' } : product === 'google-calendar' ? { url: url + '/users/me/calendarList', query: { maxResults: 1 } }
           : { url: ENDPOINTS['google-drive'] + '/files', query: { pageSize: 1, fields: 'files(id)' } };
         await request(probe);
-        result = { protocolVersion: msg.params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'StarNet Google API connector', version: '1' } };
+        result = { protocolVersion: msg.params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'Agent OS Google API connector', version: '1' } };
       } else if (msg.method === 'tools/list') result = { tools: TOOLS[product] };
       else if (msg.method === 'tools/call') {
         const def = TOOLS[product].find(t => t.name === msg.params?.name);

@@ -102,7 +102,7 @@
     card: a => onOff(a.on) ? 'turn on station-wide FULL POWER: every agent acts on this computer without asking.' : 'turn station-wide FULL POWER off.',
     run: async (a, env) => {
       const r = await env.route('POST', '/api/permissions/bypass', { on: onOff(a.on) });
-      if (!onOff(a.on) && r && r.status < 400 && r.json && r.json.envFullAccess) return refusal('the Full Power switch is off, but Full Power STAYS ON: StarNet was started with SKYNET_FULL_ACCESS set, and only restarting it without that ends it');
+      if (!onOff(a.on) && r && r.status < 400 && r.json && r.json.envFullAccess) return refusal('the Full Power switch is off, but Full Power STAYS ON: Agent OS was started with SKYNET_FULL_ACCESS set, and only restarting it without that ends it');
       return r;
     } });
   def('permission.grant', { takes: '{key: "cabinet:write"}', power: () => true, card: a => 'grant a standing approval for ' + clip(a.key, 40) + ' (no more asking for it).',
@@ -252,7 +252,7 @@
       if (ch === 'discord' && onOff(a.forget)) return refusal('Discord can only be disconnected from here, not forgotten — the Commander uses FORGET in CONNECT › CHANNELS');
       return env.route('POST', '/api/channels/' + ch + '/disconnect', { purge: onOff(a.forget) });
     } });
-  def('browser.mode', { takes: '{mode: builtin|window|chrome}', card: a => 'run the station browser ' + ({ builtin: 'inside StarNet', window: 'as its own Chrome window', chrome: 'in your own Chrome' }[String(a.mode || '').toLowerCase()] || clip(a.mode, 20)) + '.',
+  def('browser.mode', { takes: '{mode: builtin|window|chrome}', card: a => 'run the station browser ' + ({ builtin: 'inside Agent OS', window: 'as its own Chrome window', chrome: 'in your own Chrome' }[String(a.mode || '').toLowerCase()] || clip(a.mode, 20)) + '.',
     run: (a, env) => env.route('POST', '/api/browser/settings', { mode: String(a.mode || '').trim().toLowerCase() }) });
 
   // ---- group chats (COMMS) ----
@@ -459,7 +459,7 @@
     const refuse = (error, summary) => ({ content: 'REFUSED: ' + error + ' — do not report this change as done.', summary: summary || 'refused' });
 
     async function page(verb, args) {
-      if (!station) return { status: 503, json: { error: 'this run has no station page attached — open StarNet to change this' } };
+      if (!station) return { status: 503, json: { error: 'this run has no station page attached — open Agent OS to change this' } };
       let out; try { out = await station.request(verb, args || {}); } catch (e) { out = { ok: false, error: String((e && e.message) || e) }; }
       return out && out.ok ? { status: 200, json: out.result } : { status: 409, json: { error: String((out && out.error) || 'the station did not answer') } };
     }

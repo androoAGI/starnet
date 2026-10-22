@@ -199,7 +199,7 @@ function makeTerminalSessions(deps) {
     r.exitCode = Number.isFinite(Number(event.exitCode)) ? Number(event.exitCode) : null;
     r.exitSignal = Number.isFinite(Number(event.signal)) ? Number(event.signal) : null;
     r.state = r.stopRequested ? 'stopped' : 'exited';
-    r.reason = r.stopRequested ? 'stop requested by StarNet' : '';
+    r.reason = r.stopRequested ? 'stop requested by Agent OS' : '';
     try { if (ledger && r.pid) ledger.release(r.pid); } catch (_) {}
     r.pid = null;
     const persisted = persist();

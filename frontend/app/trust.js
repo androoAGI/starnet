@@ -1,4 +1,4 @@
-/* STARNET — trust.js : the PURE engine for EARNED AUTONOMY (Growth Tier 3 — track record → trust).
+/* AGENT OS — trust.js : the PURE engine for EARNED AUTONOMY (Growth Tier 3 — track record → trust).
 
    THE MISSING LOOP. Level + confidence were explicitly cosmetic (xp.js:12 — "these DESCRIBE the agent's growth,
    they never GATE it"); the Initiative/Reach dial was user-set only (autonomy.js) with no path from performance

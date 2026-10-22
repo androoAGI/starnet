@@ -1,4 +1,4 @@
-/* STARNET hudmode.css — HUD MODE (app/hudmode.js): StarNet folded down to a small always-on-top panel.
+/* AGENT OS hudmode.css — HUD MODE (app/hudmode.js): Agent OS folded down to a small always-on-top panel.
    body.hud-mode hides every station region except the real COMMS panel, which fills the (desktop:
    small, always-on-top) window. body.hud-view-activity (where the HUD opens) swaps the conversation for
    ACTIVITY: the project activity feed (project-home.css) for the whole station, one .ph-card per piece

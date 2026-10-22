@@ -1,4 +1,4 @@
-/* STARNET — nightnudge.js : the LIVE-SESSION unseen-drafts nudge (Night Shift visibility, 2026-07-13).
+/* AGENT OS — nightnudge.js : the LIVE-SESSION unseen-drafts nudge (Night Shift visibility, 2026-07-13).
 
    THE GAP IT CLOSES: the MORNING REPORT (nightreportstore.js) only fires on app-CLOSURE absence (its localStorage
    heartbeat). But the night-shift driver's away detection is SERVER-side (lastUserActivityAt) — so an app left OPEN

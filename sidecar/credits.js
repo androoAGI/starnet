@@ -358,7 +358,7 @@
       accountId() { return accountId; },
       purchaseUrl() { return purchaseUrl; },
       beginRun, finishRun, refresh, history,
-      // StarNet runs this station has in flight and what they reserve (only runs still working: an ended run's hold is
+      // Agent OS runs this station has in flight and what they reserve (only runs still working: an ended run's hold is
       // not counted, settled or not). `counted`: the backend books those reservations against the balance (see
       // holdsCounted), so a $0 it reports can be a hold.
       held() {

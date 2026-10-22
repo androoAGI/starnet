@@ -1,4 +1,4 @@
-/* STARNET — maintquests.js : the PURE maintenance-quest generator (G1c) — wasted spend, turned into direction.
+/* AGENT OS — maintquests.js : the PURE maintenance-quest generator (G1c) — wasted spend, turned into direction.
 
    SlagLog (slaglog.js) already diagnoses every unproductive run into a plain-English { reason, title, cause,
    fix } post-mortem and keeps a small ring of the recent ones. Those diagnoses go nowhere today. This engine

@@ -1,4 +1,4 @@
-/* STARNET — outcomes.js : THE TRACK RECORD (pure fold; run outcomes finally teach the user model).
+/* AGENT OS — outcomes.js : THE TRACK RECORD (pure fold; run outcomes finally teach the user model).
 
    THE GAP THIS CLOSES (rec-system audit, 2026-08-28). The harness records, for every run, whether it finished
    and why it failed — and routed NONE of it back into what the station proposes. The insights fold was consumed

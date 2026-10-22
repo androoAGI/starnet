@@ -8,9 +8,9 @@
    station never animates a brain that is not running.
 
    CAPABILITY BOUNDARY. The CLI is an agent with its own tools (Bash, Edit, MCP connectors…). Letting it use them
-   would bypass StarNet's capability gate and consent broker, so the child is started with NO tools at all:
+   would bypass Agent OS's capability gate and consent broker, so the child is started with NO tools at all:
    `--tools ""`, an empty `--strict-mcp-config`, no skills/slash commands, no setting sources, no session file.
-   StarNet's own tools are described in the system prompt, and the model requests them with
+   Agent OS's own tools are described in the system prompt, and the model requests them with
    <tool_call>{"name":…,"arguments":{…}}</tool_call> blocks. This adapter turns those blocks into the ordinary
    tool_start/tool_args/tool_done events, so loop.js executes them through the same gate as every other provider.
 
@@ -140,7 +140,7 @@
        file as-is, with none of the JSON escaping that broke big writes. <tool_call> blocks are still understood. */
     return [
       '# Tools',
-      'You cannot execute anything yourself; StarNet runs tools for you. To call tools, end your reply with a block exactly like:',
+      'You cannot execute anything yourself; Agent OS runs tools for you. To call tools, end your reply with a block exactly like:',
       '<function_calls>',
       '<invoke name="TOOL_NAME">',
       '<parameter name="PARAM_NAME">value</parameter>',
@@ -183,7 +183,7 @@
   // prompt cache (see PROMPT CACHE).
   const TRANSCRIPT_NOTE = '# Conversation\nThe user message holds the conversation so far, oldest first, as <user>, <assistant>, <tool_result> and <system_note> blocks. Continue as the assistant: write only your next reply.';
   // The same for a persistent child (PERSISTENT CHILD): its first user message holds the conversation so far, and each
-  // later one only what StarNet added after the child's own reply.
+  // later one only what Agent OS added after the child's own reply.
   const PERSIST_TRANSCRIPT_NOTE = '# Conversation\nThe first user message holds the conversation so far, oldest first, as <user>, <assistant>, <tool_result> and <system_note> blocks. Each later user message holds, in the same blocks, what happened after your previous reply. Continue as the assistant: write only your next reply.';
 
   /* Leading system messages become the CLI system prompt; everything after goes on stdin as ONE stream-json user
@@ -646,7 +646,7 @@
       return e;
     }
     /* The CLI gets the station-free env (child-env.js: no STARNET_/SKYNET_ secrets, no station-held key values),
-       and its own memory stays out of the turn: auto-memory would inject the CLI user's notes into a StarNet agent. */
+       and its own memory stays out of the turn: auto-memory would inject the CLI user's notes into a Agent OS agent. */
     function childEnv() {
       const out = childEnvLib.stationChildEnv(env);
       delete out.CLAUDECODE;               // a sidecar started from inside a Claude Code session is not a nested session
@@ -811,7 +811,7 @@
         raw: '',       // every text delta exactly as the CLI streamed it: what a persistent child keeps as this reply
         rest: '',      // what the model wrote past its call block inside the delta that ended it
         shown: '', calls: [],   // what this turn handed the loop (its text, its calls): the reply the loop records
-        compacted: false        // the CLI folded its own history: a persistent child no longer holds StarNet's
+        compacted: false        // the CLI folded its own history: a persistent child no longer holds Agent OS's
       };
       function emitSplit(part, out) {
         for (const it of part.items) {
@@ -1045,8 +1045,8 @@
     /* PERSISTENT CHILD (2026-10-12). One-shot children pay the CLI's start-up and session setup on every model turn
        (8.8-12.2 s a turn against Claude Code's 3.9-6.2 s on the same Opus model, gauntlet n=1). Now an agent-loop turn
        (one that carries tools) keeps ONE child per run, with the same isolation flags and stream-json input: it starts
-       with StarNet's whole transcript (the PROMPT CACHE blocks, one per entry), holds the conversation itself, and each
-       later turn sends only the entries StarNet added since its reply (the tool results, notes, steering) as its next
+       with Agent OS's whole transcript (the PROMPT CACHE blocks, one per entry), holds the conversation itself, and each
+       later turn sends only the entries Agent OS added since its reply (the tool results, notes, steering) as its next
        user message, in the same blocks. Its system prompt reads PERSIST_TRANSCRIPT_NOTE instead of TRANSCRIPT_NOTE.
        PROVEN on the installed CLI (2.1.284, scratchpad cli-persist/exp-*.log): one child answers successive user lines
        (each turn ends at its own `result` line; result.usage is per turn, total_cost_usd is the RUNNING total); a model
@@ -1054,13 +1054,13 @@
        then holds exactly the text that streamed; an interrupt keeps the streamed text AND adds a
        "[Request interrupted by user]" turn, so it is never used — a reply that runs on past its block is the one case
        that would diverge, and it closes the child instead.
-       IN SYNC OR START FRESH. The child is reused only while what it holds is provably StarNet's history: the same
+       IN SYNC OR START FRESH. The child is reused only while what it holds is provably Agent OS's history: the same
        system prompt (persona, rules, brief), the same tools or more (a tool_search reveal is announced in that turn's
        message: TOOL REVEALS), model, effort, run and Stop signal; every earlier message unchanged (a fingerprint
        each); the reply it wrote recorded by the loop unedited (same text, same calls); nothing but new
        user/tool/system messages after it. Anything else (compaction, an aged-out screenshot, a dropped or repaired
        call, a retry after a failed turn, a model switch, a withdrawn or changed tool, the CLI compacting itself)
-       closes the child and the turn starts a fresh one from StarNet's whole history, exactly like a one-shot turn.
+       closes the child and the turn starts a fresh one from Agent OS's whole history, exactly like a one-shot turn.
        STARNET_CLAUDE_CLI_PERSIST_LOG=1 prints one line per decision (reuse, fresh + why, closed + why) and one per
        turn's usage (cache read vs written), on either path.
        LIFECYCLE. The child ends at the run's end (release(), called by the loop), on Stop (the run signal, even
@@ -1313,8 +1313,8 @@
         if (T.blockDone) {
           /* The calls are complete. A model that ends its reply right there leaves the child holding exactly the text
              that streamed, and the child is kept. One that writes on (a guess at results) or goes quiet without
-             ending has put something StarNet will never record into the child's history: close it, and the next turn
-             starts a fresh child from StarNet's own transcript. */
+             ending has put something Agent OS will never record into the child's history: close it, and the next turn
+             starts a fresh child from Agent OS's own transcript. */
           let tail = T.rest, ended = null;
           /* KNOWN GAP (review 2026-10-13, kept on purpose): usage and done wait for the result line (30-70 ms, at most the
              grace), and a Stop that lands in that window ends the turn with no usage booked — the same abort-without-usage

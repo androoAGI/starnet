@@ -1,4 +1,4 @@
-/* STARNET logoclip.js — the brand mark yields to windows.
+/* AGENT OS logoclip.js — the brand mark yields to windows.
 
    #logo is hoisted to <body>, which parks it above every floating window: #terms lives INSIDE
    #screen-game, a z-index:10 stacking context, so a .term can never out-stack a <body> child no

@@ -1,4 +1,4 @@
-/* STARNET — backup.js : export/import the whole local agent as one portable JSON file.
+/* AGENT OS — backup.js : export/import the whole local agent as one portable JSON file.
 
    Browser localStorage is the FRAGILE store. A cache wipe, a different browser, or a different
    machine loses the agent the user built up — identity, XP/level/confidence, personalization
@@ -6,7 +6,7 @@
    localStorage under the `starnet.*` keys. This module is the safety net: one click bundles the
    nonsecret starnet.* records plus a read-only snapshot of the agent's backend memory (notebook) into a
    downloadable file, and import restores the local half on any browser. Back-compat: a backup
-   exported BEFORE the Skynet→StarNet rename holds `skynet.*` keys + a `skynet.backup` schema; both
+   exported BEFORE the Skynet→Agent OS rename holds `skynet.*` keys + a `skynet.backup` schema; both
    import fine and are mapped forward to `starnet.*` on restore.
 
    v1 restores the browser-side state (which is what a wipe destroys). The notebook lives on the
@@ -17,7 +17,7 @@
 
 const Backup = (() => {
   const SCHEMA = 'starnet.backup';
-  const LEGACY_SCHEMA = 'skynet.backup';   // backups exported before the Skynet→StarNet rename
+  const LEGACY_SCHEMA = 'skynet.backup';   // backups exported before the Skynet→Agent OS rename
   const VERSION = 1;
 
   // every key we own lives under this prefix (starnet.save, starnet.specialties.v1, starnet.refit.seen,
@@ -37,7 +37,7 @@ const Backup = (() => {
   ]);
   const SECRET_NAMESPACE_RE = /^starnet\.(?:channels?|oauth|auth|credentials?|secrets?)(?:[._:-]|$)/i;
   const SECRET_SEGMENT_RE = /(?:^|[._:-])(?:api[-_]?key|apikey|key|keys|token|tokens|secret|secrets|credential|credentials|password|passwd|pwd|authorization|bearer)(?:$|[._:-])/i;
-  // map any captured key forward to its StarNet name (old backups hold skynet.* keys; new ones already starnet.*).
+  // map any captured key forward to its Agent OS name (old backups hold skynet.* keys; new ones already starnet.*).
   function toCurrentKey(k) { return (k.indexOf(LEGACY_PREFIX) === 0) ? (PREFIX + k.slice(LEGACY_PREFIX.length)) : k; }
 
   function isCredentialKey(rawKey) {
@@ -135,11 +135,11 @@ const Backup = (() => {
   // validate a parsed bundle WITHOUT mutating anything — callers decide whether to apply.
   function validate(doc) {
     if (!doc || typeof doc !== 'object') return 'not a JSON object';
-    if (doc.schema !== SCHEMA && doc.schema !== LEGACY_SCHEMA) return 'not a StarNet backup file';
+    if (doc.schema !== SCHEMA && doc.schema !== LEGACY_SCHEMA) return 'not a Agent OS backup file';
     // FORWARD-VERSION GUARD (P0.3): a backup file whose envelope version is NEWER than this build understands
-    // was exported by a later StarNet. Its store may carry key shapes/save schemas this code can't restore
+    // was exported by a later Agent OS. Its store may carry key shapes/save schemas this code can't restore
     // faithfully, so refuse rather than importing a half-understood bundle. The import UI surfaces this string.
-    if (Number(doc.version || 0) > VERSION) return 'backup was made by a newer StarNet (v' + Number(doc.version) + ') — update the app to import it';
+    if (Number(doc.version || 0) > VERSION) return 'backup was made by a newer Agent OS (v' + Number(doc.version) + ') — update the app to import it';
     if (!doc.store || typeof doc.store !== 'object') return 'backup has no data';
     if (typeof doc.store[SAVE_KEY] !== 'string' && typeof doc.store['skynet.save'] !== 'string') return 'backup has no agent';
     return null;   // ok

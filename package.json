@@ -1,8 +1,8 @@
 {
-  "name": "starnet-harness",
+  "name": "agent-os-harness",
   "version": "0.13.5",
   "private": true,
-  "description": "A local-first, gamified desktop harness for building and running real AI-agent teams.",
+  "description": "Agent OS — a local-first, gamified desktop harness for building and running real AI-agent teams, with a station-wide second brain.",
   "license": "MIT",
   "author": "Andrew Sims",
   "repository": {

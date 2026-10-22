@@ -1,7 +1,7 @@
 /* sidecar/execution-settings.js — normalized owner policy for execution backends.
 
    This file stores no credentials. SSH authentication stays with the operating system's
-   OpenSSH agent/config; StarNet persists only the destination and remote workspace. */
+   OpenSSH agent/config; Agent OS persists only the destination and remote workspace. */
 'use strict';
 
 const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;

@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/creator.js : CREATOR recipes — audience, publishing, and the archive.
+/* AGENT OS — recipe-catalog/creator.js : CREATOR recipes — audience, publishing, and the archive.
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light module
    pattern as recipes.js: a `RecipeCatalogCreator` global in the browser, module.exports under node.

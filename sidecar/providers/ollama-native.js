@@ -4,7 +4,7 @@
    Ollama's OpenAI-compatible /v1/chat/completions runs every model at the SERVER's default context window —
    4096 tokens on any GPU under 24 GB of VRAM — and IGNORES every request-side way of asking for more
    (`options.num_ctx`, a top-level `num_ctx`; a model preloaded natively at 32k is reloaded back to 4k). It then
-   TRUNCATES SILENTLY. A StarNet task request is ~21k tokens (86 tool schemas + the operator manual), so the model
+   TRUNCATES SILENTLY. A Agent OS task request is ~21k tokens (86 tool schemas + the operator manual), so the model
    saw ~2k of it: the tail of the tool list. qwen3:8b answered "I cannot create files … the available tools only
    support scheduling routines" and the run ended 'done' with no tool call — the exact customer report.
    The native wire takes `options.num_ctx`, and `truncate: false` turns the silent cut into an exact refusal
@@ -31,10 +31,10 @@
   const CTX_LADDER = [8192, 16384, 32768, 65536, 131072];
   // Default ceiling. The KV cache grows with the window (qwen3:8b: ~0.15 MB/token -> 64k ≈ 9.4 GB on top of the
   // weights); past what the GPU holds, Ollama spills layers to the CPU and every token slows. 64k fits an 8B model
-  // on a 16 GB card and still leaves a StarNet task (~21k prompt) three times its base size. SKYNET_OLLAMA_NUM_CTX
+  // on a 16 GB card and still leaves a Agent OS task (~21k prompt) three times its base size. SKYNET_OLLAMA_NUM_CTX
   // pins an exact window; SKYNET_OLLAMA_MAX_CTX raises or lowers this ceiling.
   const DEFAULT_MAX_CTX = 65536;
-  // Characters per token for the pre-send estimate. The captured StarNet task body measured 4.7 chars/token on
+  // Characters per token for the pre-send estimate. The captured Agent OS task body measured 4.7 chars/token on
   // qwen3's tokenizer (JSON schemas tokenize densely); 4 errs large. An under-estimate is still safe: truncate:false
   // makes Ollama refuse with the exact count and the adapter resizes once (see exceedFrom).
   const CHARS_PER_TOKEN = 4;
@@ -274,7 +274,7 @@
       : 'fully on the GPU';
     return server + ' had ' + id + ' loaded ' + where + (ctx ? ' at a ' + Math.round(ctx / 1024) + 'k window' : '')
       + ' but sent no response to' + prompt + '. '
-      + (!vram || (size && vram < size) ? 'A model running on the CPU reads StarNet task prompts slowly; a smaller model, or one that fits the GPU, answers sooner.' : '');
+      + (!vram || (size && vram < size) ? 'A model running on the CPU reads Agent OS task prompts slowly; a smaller model, or one that fits the GPU, answers sooner.' : '');
   }
 
   // The window a model is CURRENTLY loaded at according to /api/ps, or 0 (not loaded / unreadable).

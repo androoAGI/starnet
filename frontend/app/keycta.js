@@ -1,4 +1,4 @@
-/* STARNET — keycta.js : the honest "your agent is awake but has no working brain" call-to-action.
+/* AGENT OS — keycta.js : the honest "your agent is awake but has no working brain" call-to-action.
 
    THE ASYMMETRY THIS CLOSES: a Commander can complete the ENTIRE awakening with no key configured — the
    ceremony degrades to its scripted spine (no live model), the agent ends up "ready" on screen, yet the
@@ -39,9 +39,9 @@ const KeyCTA = (() => {
   }
   // Setup gaps only: a missing credential/link or an empty model selection. A null result does not prove
   // endpoint reachability, catalog availability, account balance or a successful inference call.
-  // Answers WHAT is missing, not just whether: { kind: 'unlinked' } for the STARNET managed provider on a
+  // Answers WHAT is missing, not just whether: { kind: 'unlinked' } for the AGENT OS managed provider on a
   // station with no linked account (its bearer is the device token, never a key the user can paste — issue #6:
-  // an unlinked station kept asking for a "STARNET key" that does not exist), or { kind: 'nokey', provider }
+  // an unlinked station kept asking for a "AGENT OS key" that does not exist), or { kind: 'nokey', provider }
   // for a keyed provider with nothing stored; 'nomodel' means the selection is empty.
   function gapOf() {
     // only once the awakening has actually landed (a fully onboarded hero on the floor)
@@ -67,7 +67,7 @@ const KeyCTA = (() => {
   }
   function missingKey() { return !!gapOf(); }
 
-  // every door out of this banner lands on SETTINGS ▸ PROVIDERS — the one surface that owns keys, the STARNET
+  // every door out of this banner lands on SETTINGS ▸ PROVIDERS — the one surface that owns keys, the AGENT OS
   // link, the provider switch and the Ollama endpoint. openTerm's section arg is the console-rail deep link.
   function openSettings() {
     if (typeof StationUI !== 'undefined' && StationUI.openTerm) { StationUI.openTerm('settings', 'providers'); return; }
@@ -158,7 +158,7 @@ const KeyCTA = (() => {
     if (gap.kind === 'nomodel') {
       spokenLine = Chat.localLine(who + 'no model is selected for ' + label + '. choose a model to send a message.');
     } else if (gap.kind === 'unlinked') {
-      spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: this station isn’t linked to a STARNET account, so i can’t actually run anything yet. link one, wire a different provider, or run me free on a local model.');
+      spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: this station isn’t linked to a AGENT OS account, so i can’t actually run anything yet. link one, wire a different provider, or run me free on a local model.');
     } else {
       spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: there’s no ' + label + ' key on the station, so i can’t actually run anything yet. add one, wire a different provider, or run me free on a local model.');
     }
@@ -174,12 +174,12 @@ const KeyCTA = (() => {
   // ONE label per anchor: the primary door names exactly the thing that is missing.
   function primaryLabel(gap) {
     if (gap && gap.kind === 'nomodel') return '◇ CHOOSE MODEL';
-    if (gap && gap.kind === 'unlinked') return '🔗 LINK STARNET';
+    if (gap && gap.kind === 'unlinked') return '🔗 LINK AGENT OS';
     return '⚙ ADD ' + ((gap && gap.provider) || activeProvider()).toUpperCase() + ' KEY';
   }
   function bannerText(gap) {
     if (gap.kind === 'nomodel') return 'no model selected for ' + gap.provider.toUpperCase() + ' — choose a model to send a message.';
-    if (gap.kind === 'unlinked') return 'your agent is awake — but this station isn’t linked to a STARNET account, so it can’t run a task yet.';
+    if (gap.kind === 'unlinked') return 'your agent is awake — but this station isn’t linked to a AGENT OS account, so it can’t run a task yet.';
     return 'your agent is awake — but it has no ' + gap.provider.toUpperCase() + ' key, so it can’t run a task yet.';
   }
 
@@ -197,7 +197,7 @@ const KeyCTA = (() => {
       '<span class="key-cta-glyph" aria-hidden="true">⚠</span>' +
       '<span class="key-cta-txt"></span>' +
       // THREE DOORS, not one: name the missing thing (key / link), offer any other provider, offer the free
-      // local path. Issue #6: a single "ADD IN SETTINGS" left an unlinked STARNET pick with no way out.
+      // local path. Issue #6: a single "ADD IN SETTINGS" left an unlinked AGENT OS pick with no way out.
       '<span class="key-cta-acts">' +
         '<button type="button" class="key-cta-act">⚙ ADD IN SETTINGS</button>' +
         '<button type="button" class="key-cta-alt">⇄ USE A DIFFERENT PROVIDER</button>' +

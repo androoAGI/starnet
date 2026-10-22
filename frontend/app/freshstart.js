@@ -1,13 +1,13 @@
-/* STARNET — freshstart.js
+/* AGENT OS — freshstart.js
    Desktop-only last-resort reset used when the sidecar is too sick to serve its own recovery route.
    The native command quarantines durable station data first; only after that succeeds do we clear
-   browser-owned StarNet state. OS-keychain credentials (including the linked credit account) are
+   browser-owned Agent OS state. OS-keychain credentials (including the linked credit account) are
    deliberately outside both operations. */
 'use strict';
 
 const FreshStart = (() => {
   // Dot namespaces hold station state. The underscore namespace is the original arcade store and
-  // is still StarNet-owned; leaving it behind contradicts "completely fresh".
+  // is still Agent OS-owned; leaving it behind contradicts "completely fresh".
   const PREFIXES = ['starnet.', 'skynet.', 'starnet_', 'skynet_'];
 
   function ownedKey(key) {
@@ -29,7 +29,7 @@ const FreshStart = (() => {
         const key = store.key(i);
         if (ownedKey(key)) remaining.push(key);
       }
-      if (remaining.length) throw new Error('StarNet browser state remained after clearing');
+      if (remaining.length) throw new Error('Agent OS browser state remained after clearing');
       return keys.length;
     } catch (error) {
       throw new Error('browser state could not be cleared: ' + String(error && error.message || error));
@@ -37,7 +37,7 @@ const FreshStart = (() => {
   }
 
   function retryBrowserClear(result, storage) {
-    if (!result || result.ok !== true) throw new Error('StarNet could not preserve the prior station');
+    if (!result || result.ok !== true) throw new Error('Agent OS could not preserve the prior station');
     let cleared = 0, fallbackError = '';
     try { cleared = clearBrowserState(storage); }
     catch (error) { fallbackError = String(error && error.message || error); }

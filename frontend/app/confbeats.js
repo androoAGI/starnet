@@ -1,4 +1,4 @@
-/* STARNET — confbeats.js : the CONFIDENCE NARRATIVE beats (Game session, Phase G3a / Layer 3+6).
+/* AGENT OS — confbeats.js : the CONFIDENCE NARRATIVE beats (Game session, Phase G3a / Layer 3+6).
 
    Two one-shot spoken moments in the hero's reliability arc — the meter (xp.js EWMA confidence) already
    moves honestly; these give its two threshold crossings a VOICE, once each, ever:

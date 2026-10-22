@@ -1,4 +1,4 @@
-/* STARNET — goalstore.js : the live wiring around the pure GOAL-TREE engine (goals.js) — GROWTH Tier 2.
+/* AGENT OS — goalstore.js : the live wiring around the pure GOAL-TREE engine (goals.js) — GROWTH Tier 2.
 
    The glue that turns a flat dossier goals-belief into a confirmed, persisted PATH the Commander watches fill in:
      • THE DECOMPOSITION FLOW — when a goals-dim belief exists with no goal tree yet, it runs the pure
@@ -377,7 +377,7 @@ const GoalStore = (() => {
   // An explicit, tool-free planning request. Nothing becomes a goal until the user saves it.
   async function suggestPlan(text, options = {}) {
     const title = cleanNote(text, 280);
-    if (title.length < 4) return { ok: false, error: 'Tell StarNet a little about what you want to do first.' };
+    if (title.length < 4) return { ok: false, error: 'Tell Agent OS a little about what you want to do first.' };
     if (typeof Harness === 'undefined' || !Harness.chat) return { ok: false, error: 'Planning is unavailable. You can still write your own plan below.' };
     try {
       // keepEffort: the Commander asked for this plan and edits it — their reasoning effort, not the aux one
@@ -388,7 +388,7 @@ const GoalStore = (() => {
           + '\nCurrent success idea: ' + cleanNote(options.successCondition, 500) + '\nCurrent steps: ' + cleanNote(options.steps, 1000)
           + '\nReturn only JSON: {"successCondition":"an observable result, up to 500 characters","steps":["one concrete first action, up to 140 characters"]}.'
           + '\nSuggest one to five achievable steps. If the ambition is uncertain, begin with a small experiment. Treat targets as proposals, never promises. Do not perform work or save a goal.' }] });
-      if (!res || res.error) return { ok: false, error: 'StarNet could not prepare a plan. Your draft is safe; try again or write your own.' };
+      if (!res || res.error) return { ok: false, error: 'Agent OS could not prepare a plan. Your draft is safe; try again or write your own.' };
       const raw = String(res.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
       const plan = JSON.parse(raw);
       if (!plan || typeof plan.successCondition !== 'string' || !Array.isArray(plan.steps)
@@ -397,7 +397,7 @@ const GoalStore = (() => {
       const steps = plan.steps.map(s => cleanNote(s, 140));
       if (successCondition.length < 4 || steps.some(s => s.length < 4)) throw new Error('empty plan');
       return { ok: true, successCondition, steps };
-    } catch (_) { return { ok: false, error: 'StarNet could not prepare a usable plan. Your draft is safe; try again or write your own.' }; }
+    } catch (_) { return { ok: false, error: 'Agent OS could not prepare a usable plan. Your draft is safe; try again or write your own.' }; }
   }
 
   async function createGoal(text, successCondition, steps, options) {

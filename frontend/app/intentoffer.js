@@ -1,4 +1,4 @@
-/* STARNET — intentoffer.js : the INTENT OFFER matcher.
+/* AGENT OS — intentoffer.js : the INTENT OFFER matcher.
 
    The Recruitment Bay and the recipe library hold 38 preconfigured classes and 50 ready-made jobs, and
    both live two clicks deep inside a bottom-bar popover. A Commander who never opens those doors never

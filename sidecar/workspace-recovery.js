@@ -379,7 +379,7 @@ function applyPendingRecovery(opts) {
   if (!attempt.ran) {
     return {
       ok: false, applied: false, lockUnavailable: true, code: 'RECOVERY_LOCK_UNAVAILABLE',
-      error: 'another StarNet process holds the workspace recovery lock'
+      error: 'another Agent OS process holds the workspace recovery lock'
     };
   }
   return attempt.result;

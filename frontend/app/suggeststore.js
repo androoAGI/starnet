@@ -1,4 +1,4 @@
-/* STARNET — suggeststore.js : the browser wiring for ONGOING SUGGESTIONS (the recurring counterpart to the
+/* AGENT OS — suggeststore.js : the browser wiring for ONGOING SUGGESTIONS (the recurring counterpart to the
    one-time First Pitch). Slice 3 of "the agent that points you."
 
    Where pitchstore.js fires ONCE (the graduation beat), this keeps the reverse value-flow alive: as the station

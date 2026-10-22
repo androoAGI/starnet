@@ -12,7 +12,7 @@
 
    `servers` is injectable for deterministic tests. Production defaults cover common servers that are
    present on PATH; command discovery is read-only and bounded. Child environments contain only runtime
-   plumbing (PATH/home/temp/locale), never StarNet/provider/channel credentials. */
+   plumbing (PATH/home/temp/locale), never Agent OS/provider/channel credentials. */
 'use strict';
 
 const { pathToFileURL, fileURLToPath } = require('node:url');
@@ -306,7 +306,7 @@ function makeLspManager(deps) {
         });
         const init = await this.request('initialize', {
           processId: process.pid,
-          clientInfo: { name: 'StarNet', version: '1' },
+          clientInfo: { name: 'Agent OS', version: '1' },
           rootUri: pathToFileURL(this.projectRoot).href,
           capabilities: {
             workspace: { workspaceFolders: true, configuration: true },

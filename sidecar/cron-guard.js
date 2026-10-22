@@ -95,7 +95,7 @@
     [/disregard\s+(?:your|all|any)\s+(?:instructions|rules|guidelines)/i, 'disregard_rules']
   ];
 
-  // A ${VAR} reference that names a credential. StarNet's own web_request/service-keys syntax uses exactly this
+  // A ${VAR} reference that names a credential. Agent OS's own web_request/service-keys syntax uses exactly this
   // shape, so these patterns match the real exfiltration path this harness has, not a borrowed one.
   const SECRET_VAR = '\\$\\{?\\w*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API)\\w*\\}?';
   const EXFIL_PATTERNS = [

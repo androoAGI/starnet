@@ -130,7 +130,7 @@
 
     /* GROUP DISCIPLINE (2026-07-29). We used to answer EVERY message in a whitelisted group, and never checked
        whether the sender was a bot. In a room with any traffic that is a model call per message — the member
-       pays for a conversation they are not in — and two StarNet bots in one group would answer each other
+       pays for a conversation they are not in — and two Agent OS bots in one group would answer each other
        forever. Three gates, each independently disableable, all no-ops for a DM:
 
          ignoreBots     (default ON)  — a message from another bot never runs. This one is not a preference:
@@ -164,7 +164,7 @@
     const ignoreBots = o.ignoreBots !== false;
     const allowedUsers = normalizeAllowed(o.allowedUsers);
 
-    /* WAKE WORDS. `@thebot` is how you address a bot; "StarNet, check the logs" is how you address a person, and
+    /* WAKE WORDS. `@thebot` is how you address a bot; "Agent OS, check the logs" is how you address a person, and
        it is what people actually type. Without this the most natural way to call the agent by the name the member
        gave it does nothing at all.
 

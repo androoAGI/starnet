@@ -1,4 +1,4 @@
-/* STARNET — asciifx.css : styling for the ASCII-MOTION KIT (asciifx.js).
+/* AGENT OS — asciifx.css : styling for the ASCII-MOTION KIT (asciifx.js).
 
    Loads AFTER motion.css so it builds on the premium-motion token layer (--t-*, --ease-*) and the
    phosphor vars. Every rule here is phosphor/VT323-native (no hardcoded colour) and touches only

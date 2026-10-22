@@ -1,4 +1,4 @@
-/* STARNET — windows/automation.js : the AUTOMATION window (ROUTINES + LOOPS, one console).
+/* AGENT OS — windows/automation.js : the AUTOMATION window (ROUTINES + LOOPS, one console).
 
    NAV CONDENSE (2026-08-04): the WORK dock sold three flavours of "job" — TASKS, ROUTINES, LOOPS —
    and the subtitles were already apologising for it. ROUTINES answer WHEN, LOOPS answer UNTIL; both

@@ -1,4 +1,4 @@
-/* STARNET titlebar.css — custom window chrome (Windows desktop shell only).
+/* AGENT OS titlebar.css — custom window chrome (Windows desktop shell only).
    Rendered by app/titlebar.js when the Rust shell removes the native Windows
    titlebar (decorations(false)) and stamps __STARNET_CUSTOM_CHROME__. Everything
    rides the body.theme-* phosphor vars so MIN/MAX/CLOSE re-tint with the

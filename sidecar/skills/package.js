@@ -1,6 +1,6 @@
 /* sidecar/skills/package.js - filesystem-backed runtime skill packages.
 
-   StarNet's append-only JSONL skill log remains the durable event stream.
+   Agent OS's append-only JSONL skill log remains the durable event stream.
    This module mirrors the latest skill state into inspectable package dirs:
 
      <root>/<agentId>/<skillId>/SKILL.md

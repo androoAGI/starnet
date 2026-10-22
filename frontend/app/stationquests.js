@@ -1,4 +1,4 @@
-/* STARNET — stationquests.js : the PURE station-quest generator (G1b).
+/* AGENT OS — stationquests.js : the PURE station-quest generator (G1b).
 
    The killer generator: a REAL capability failure becomes playable direction. When an agent reaches
    for a tool its room can't grant (a `capdenied`, or — the richer signal — a `agent.tool_call` whose

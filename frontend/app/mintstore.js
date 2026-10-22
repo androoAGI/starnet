@@ -1,4 +1,4 @@
-/* STARNET — mintstore.js : the browser wiring for the AUTO-MINT engine (mint.js).
+/* AGENT OS — mintstore.js : the browser wiring for the AUTO-MINT engine (mint.js).
 
    The read/observe surface the app talks to. It folds each TASK DIRECTIVE the Commander sends into mint.js's
    recurrence map and surfaces the resulting proposals to the Recruitment Bay's RECIPES tab. Mirrors the

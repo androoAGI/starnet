@@ -497,7 +497,7 @@
   }
 
   /* CHAT WIRE KEYS (2026-10-07, user report: Mistral 422 "extra_forbidden" on messages[1].user.streamId).
-     The transcript a run replays is COMMS's own rows — they carry StarNet bookkeeping (ts, streamId, agentId,
+     The transcript a run replays is COMMS's own rows — they carry Agent OS bookkeeping (ts, streamId, agentId,
      sourceRunId, error, stopped, attachments, the loop's `reasoning` parking field). Lenient endpoints (OpenAI)
      ignore unknown message keys; strict ones (Mistral's pydantic schema) reject the WHOLE request, so every run
      failed — even the first message of a new chat. Project each message onto the Chat Completions message keys

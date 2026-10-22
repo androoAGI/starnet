@@ -1,4 +1,4 @@
-/* STARNET — dockglow.js : the deferred BUILD-dock glow-target (G1c, feature 4b).
+/* AGENT OS — dockglow.js : the deferred BUILD-dock glow-target (G1c, feature 4b).
 
    The kit-out tour glows the path into REFIT while it's teaching the first floor. This is the SAME idea, but
    standing on its own AFTER the tour: while a STATION quest is open (an agent reached for a tool its room can't

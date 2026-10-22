@@ -2,7 +2,7 @@
 
    Injected at the top of every plugin page by the sidecar (/plugin-ui/ route). Everything here is copied from the
    station's own GLASS recipes (frontend/css/glass-demo.css + style.css tokens) — a plugin built from these classes
-   looks like it shipped with StarNet, and repaints with the station when the Commander changes the phosphor.
+   looks like it shipped with Agent OS, and repaints with the station when the Commander changes the phosphor.
 
    · Tokens: the defaults below are the amber reference build. starnet-kit.js overwrites them on :root with the
      station's LIVE computed values the moment the window opens and on every theme change.

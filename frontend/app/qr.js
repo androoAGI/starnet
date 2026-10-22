@@ -1,6 +1,6 @@
 /* frontend/app/qr.js — a small QR code encoder (byte mode, error correction M, versions 1–15).
 
-   Used to show the StarNet Remote pairing link as a code a phone camera can open. Follows ISO/IEC 18004 and the
+   Used to show the Agent OS Remote pairing link as a code a phone camera can open. Follows ISO/IEC 18004 and the
    structure of Project Nayuki's reference generator: Reed–Solomon over GF(256) (0x11D), block interleaving,
    function patterns, format/version BCH codes, the eight masks with the standard penalty rules.
 

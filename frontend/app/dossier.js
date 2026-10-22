@@ -1,4 +1,4 @@
-/* STARNET — dossier.js : the PURE Commander Dossier engine — what the STATION knows about its Commander.
+/* AGENT OS — dossier.js : the PURE Commander Dossier engine — what the STATION knows about its Commander.
 
    Phase A of the Commander Dossier (docs/COMMANDER_DOSSIER_PLAN.md): one station-wide, dimensioned,
    local-first model of the human, unifying signals that today are thin + scattered. This is the durable

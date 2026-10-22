@@ -1,4 +1,4 @@
-/* STARNET — workquests.js : the PURE work-quest generator (G1c) — an accepted idea becomes a trackable build.
+/* AGENT OS — workquests.js : the PURE work-quest generator (G1c) — an accepted idea becomes a trackable build.
 
    When the Commander says "build it" to a First Pitch or an ongoing idea (pitchstore/suggeststore doBuild),
    that acceptance is a real commitment worth tracking. This engine turns it into a multi-step WORK quest whose

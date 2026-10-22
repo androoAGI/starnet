@@ -1,4 +1,4 @@
-/* STARNET — warroom.js : the LIVING WAR-ROOM visible layer.
+/* AGENT OS — warroom.js : the LIVING WAR-ROOM visible layer.
 
    Implements the war-room concept ON the real app, on top of the per-agent Channels gate:
      · CREW instrument-cluster dots that pulse with real per-agent activity (and glow AWAIT on a pending consent),

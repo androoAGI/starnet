@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/research.js : RESEARCH persona recipes (R4 catalog content).
+/* AGENT OS — recipe-catalog/research.js : RESEARCH persona recipes (R4 catalog content).
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light
    module pattern as recipes.js: a `RecipeCatalogResearch` global in the browser, module.exports

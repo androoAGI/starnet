@@ -1,4 +1,4 @@
-/* STARNET — marketplace.js : THE RECRUITMENT BAY — a premium "personnel registry" of agent classes.
+/* AGENT OS — marketplace.js : THE RECRUITMENT BAY — a premium "personnel registry" of agent classes.
 
    Renders the Specialties catalog (built-ins + the Commander's saved customs) as a roster of engraved
    class SEALS (a challenge-coin per class, drawn by classicons.js — NEVER a character skin; the skin is
@@ -823,7 +823,7 @@ const Marketplace = (() => {
   // second copy of the console. Hidden the moment it's acked; the panel below remains the place to pause or wipe.
   function consentStripHTML() {
     const ps = profileApi(); if (!ps || !ps.summary || !ps.summary()) return '';
-    return '<div class="mkt-consent-strip">◉ STARNET keeps a local preference profile. When Scout drafts a new option, a bounded summary is sent only to your configured model. ' +
+    return '<div class="mkt-consent-strip">◉ AGENT OS keeps a local preference profile. When Scout drafts a new option, a bounded summary is sent only to your configured model. ' +
       'Pause or wipe it anytime in STATION FAMILIARITY below. <button class="bb sm mkt-fam-ack">GOT IT</button></div>';
   }
 
@@ -1311,7 +1311,7 @@ const Marketplace = (() => {
         '<span class="mkt-fam-v">' + v + '%</span></div>';
     }).join('');
     const consent = !acked()
-      ? '<div class="mkt-fam-consent">STARNET learns what you work on to tailor these picks. The profile is stored locally; bounded summaries are sent to your configured model only when it drafts a recommendation. ' +
+      ? '<div class="mkt-fam-consent">AGENT OS learns what you work on to tailor these picks. The profile is stored locally; bounded summaries are sent to your configured model only when it drafts a recommendation. ' +
         'Pause or wipe it anytime, right here. <button class="bb sm mkt-fam-ack">GOT IT</button></div>' : '';
     const acts = '<div class="mkt-fam-acts">' +
         '<span class="mkt-fam-priv">◇ local-first · pause stops browser and sidecar personalization</span>' +
@@ -2568,14 +2568,14 @@ const Marketplace = (() => {
 
   /* ---------- IMPORT AGENT — the Hermes / OpenClaw migration flow ----------
      A one-click path for a Commander arriving from OpenClaw or hermes-agent: detect installs (or pick a folder),
-     preview exactly what the scan found, then RECRUIT mints a StarNet agent with the persona/orders/memory
+     preview exactly what the scan found, then RECRUIT mints a Agent OS agent with the persona/orders/memory
      pre-filled. Every field shown comes straight from /api/harness/scan — nothing is invented (truthful telemetry).
      Keys are NEVER read or transferred; the preview says so and ABILITIES › SAVED API CONNECTIONS is where the Commander re-enters them.
      Backend routes (built in parallel this session): POST /api/harness/detect, POST /api/harness/scan. The folder
      fallback reuses the existing POST /api/projects/pickfolder. If a route is missing the flow degrades to an honest
      empty/error state — it never fakes a detection or a scan. */
   const up = s => String(s == null ? '' : s).toUpperCase();
-  // Is this scan's provider a StarNet provider id we can actually pin to? ModelDock.labels.normProvider maps every
+  // Is this scan's provider a Agent OS provider id we can actually pin to? ModelDock.labels.normProvider maps every
   // known alias to its canonical id and buckets anything unknown into 'openrouter' — so 'openrouter' only counts
   // when the raw string literally names it, otherwise an unknown provider would be silently mis-pinned. Returns the
   // canonical id or null (→ no pin; the station's default model runs instead). No ModelDock → null (honest: can't verify).
@@ -3341,7 +3341,7 @@ const Marketplace = (() => {
     const rows = editParams.map(paramRowHTML).join('');
     return '<div class="mkt-r-params" id="mkt-r-params">' + rows + '</div>' +
       '<button type="button" class="bb xs mkt-r-padd">＋ ADD FILL-IN</button>' +
-      '<span class="mkt-hint mkt-r-phint"> — or leave empty and STARNET derives them from the {tokens} in your directive.</span>';
+      '<span class="mkt-hint mkt-r-phint"> — or leave empty and AGENT OS derives them from the {tokens} in your directive.</span>';
   }
   // SOP acceptance rows: one typed check per row. The TYPE picks which second box applies (path / command) and
   // whether a third (text / sha256) exists — the same swap-a-box discipline the fill-in grid uses for 'pick one'.

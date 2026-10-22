@@ -1,4 +1,4 @@
-/* STARNET deliverable library: safe preview helpers + backend-backed Workshop/artifact browser. */
+/* AGENT OS deliverable library: safe preview helpers + backend-backed Workshop/artifact browser. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -322,7 +322,7 @@
     const revoke = () => revokePreview(openState);
     // self-driving lane 5: no second DELIVERABLES heading under the MY WORK tab that already says it, and one short line where
     // a four-line paragraph sat (TO REVIEW still lands right after this p.muted — stationui's deliverables builder)
-    body.innerHTML = '<div class="cfg dlv"><p class="muted dlv-lead" title="Previews open safely inside StarNet in a browser; desktop OPEN uses your file app.">Everything your crew made, filed by project — open one for the ask, the answer and every file.</p>' +
+    body.innerHTML = '<div class="cfg dlv"><p class="muted dlv-lead" title="Previews open safely inside Agent OS in a browser; desktop OPEN uses your file app.">Everything your crew made, filed by project — open one for the ask, the answer and every file.</p>' +
       '<div id="dl-head" class="dlv-head-strip"></div><div id="dl-run-scope" class="cfg-block" hidden></div>' +
       '<div class="deliverables-toolbar"><input id="dl-query" aria-label="Search deliverables" placeholder="search title, agent, project"><select id="dl-status" aria-label="Filter deliverables"><option value="">ALL</option><option value="pending">NEEDS A DECISION</option><option value="produced">DONE</option><option value="kept">KEPT</option><option value="implemented">IMPLEMENTED</option><option value="failed">FAILED</option><option value="discarded">DISCARDED</option></select><button class="bb sm" id="dl-clear-shown" data-tip="Takes these cards out of the library (not TO REVIEW&rsquo;s rating list) — the files stay on disk, and UNDO brings them back." hidden>CLEAR ALL</button>' +
         // the two upkeep keys fold behind ONE quiet MORE key (org pass 10-14, P13): search, the status filter, the KIND chips and

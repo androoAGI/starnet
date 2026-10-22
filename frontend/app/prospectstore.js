@@ -1,4 +1,4 @@
-/* STARNET — prospectstore.js : the SCOUT CLIENT (was: the client-side prospect minter).
+/* AGENT OS — prospectstore.js : the SCOUT CLIENT (was: the client-side prospect minter).
 
    HISTORY — this store used to OWN the prospect mint: localStorage state, one silent attempt per browser
    session, right after a qualifying run. In practice that funnel almost never fired and every rejection was

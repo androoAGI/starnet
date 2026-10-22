@@ -22,7 +22,7 @@
 'use strict';
 const { note: failNote } = require('./failopen.js');
 
-const LIST_FILE = 'StarNet-signins.json';
+const LIST_FILE = 'Agent OS-signins.json';
 const MAX_SITES = 60;
 const MAX_EVENTS = 64;
 
@@ -128,7 +128,7 @@ function makeHandoffRoutes(deps) {
 function nudgeLine(view, agentName) {
   const who = String(agentName || view.agentId || 'An agent').toUpperCase();
   const why = { login: 'sign in', '2fa': 'enter a sign-in code', captcha: 'get past a human check', payment: 'confirm a payment', other: 'help with a page' }[view.reason] || 'help with a page';
-  return who + ' is waiting for you to ' + why + (view.where ? ' at ' + view.where : '') + '. Open StarNet > STEP-IN to take its browser.' + (view.note ? ' (' + String(view.note).slice(0, 160) + ')' : '');
+  return who + ' is waiting for you to ' + why + (view.where ? ' at ' + view.where : '') + '. Open Agent OS > STEP-IN to take its browser.' + (view.note ? ' (' + String(view.note).slice(0, 160) + ')' : '');
 }
 
 module.exports = { makeHandoffRoutes, makeSigninStore, nudgeLine, LIST_FILE };

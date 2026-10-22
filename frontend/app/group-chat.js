@@ -161,7 +161,7 @@ const GroupChat = (() => {
   async function api(body, query = '') {
     const r = await fetch('/api/groups' + query, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
     if (r.status === 401 || r.status === 403) throw new Error('Reconnect to this station by refreshing the page. Your conversation is saved.');
-    if (r.status === 404 && !body && !query) throw new Error('Group chat is unavailable on this server. Run the current StarNet backend, then try again.');
+    if (r.status === 404 && !body && !query) throw new Error('Group chat is unavailable on this server. Run the current Agent OS backend, then try again.');
     let out;
     try { out = await r.json(); } catch (_) { throw new Error('The server could not load group chat. Try again.'); }
     if (!r.ok || !out?.ok) throw new Error(out?.error || 'Group request failed'); return out.result;

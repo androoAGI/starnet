@@ -1,4 +1,4 @@
-/* STARNET — assets.js : PixelLab sprite loading + per-agent recoloring */
+/* AGENT OS — assets.js : PixelLab sprite loading + per-agent recoloring */
 'use strict';
 
 const SPRITES = (() => {

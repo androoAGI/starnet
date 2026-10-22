@@ -1,4 +1,4 @@
-/* STARNET — arcade.js : "BREACH PROTOCOL" — the playable arcade cabinet.
+/* AGENT OS — arcade.js : "BREACH PROTOCOL" — the playable arcade cabinet.
    Clicking an arcade cabinet in the quarters opens a real game: a phosphor
    Space-Invaders descendant where rogue scraper-bots besiege the station and
    the Commander mans the point-defense turret. Renders into a low-res canvas

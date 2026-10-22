@@ -1,4 +1,4 @@
-/* STARNET — queststate.js : the PURE durable-quest-memory engine behind the quest log.
+/* AGENT OS — queststate.js : the PURE durable-quest-memory engine behind the quest log.
 
    quests.js projects the CURRENT truth (open/done) and is deliberately stateless; this engine gives that
    projection a PAST. It folds successive projections into a small durable record:

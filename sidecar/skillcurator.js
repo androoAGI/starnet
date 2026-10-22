@@ -42,7 +42,7 @@
     ).join('\n') : '(none)';
     const clusterLines = cls.length ? cls.map(c => '- ' + c.key + ': ' + c.skills.map(s => s.name).join(', ')).join('\n') : '(none)';
     return [
-      'You are StarNet skill curator. This is an umbrella-building consolidation pass.',
+      'You are Agent OS skill curator. This is an umbrella-building consolidation pass.',
       '',
       'Goal: maintain a library of class-level skills, not one-session micro-skills.',
       'Hard rules:',

@@ -2,7 +2,7 @@
    Boot: fetch the station's made props (GET /api/userprops), fetch each PNG with the API token (a blob URL, so
    the master token never rides in a URL), and register it: PropSprites.registerUserProp (catalog row) +
    PropRemaster.registerRuntime (raster art). Placed made props draw as a dim placeholder until their art is in.
-   Make: POST /api/userprops/generate {noun} starts a StarNet-credits job; watch() polls the station (which polls
+   Make: POST /api/userprops/generate {noun} starts a Agent OS-credits job; watch() polls the station (which polls
    the cloud and keeps the job on disk) until it settles, then loads the new prop. Every number shown to the
    player (cost, tries) is the job state the station reports, never a guess.
    Fires window 'starnet:userprops-changed' whenever the made-prop catalog changes (build.js re-renders). */

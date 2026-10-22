@@ -1,4 +1,4 @@
-/* STARNET — pitch.js : the PURE engine for THE FIRST PITCH (the agent's first proactive use-case suggestion).
+/* AGENT OS — pitch.js : the PURE engine for THE FIRST PITCH (the agent's first proactive use-case suggestion).
 
    The keystone of the "agent that points you" loop. The whole station spends the awakening + intake getting to
    KNOW its Commander (the dossier); the First Pitch is the moment that knowledge flows back the other way — the

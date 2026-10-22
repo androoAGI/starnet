@@ -55,7 +55,7 @@ function sessionConfig(opts) {
        so that even this first second does not claim a separate identity: the previous text opened with "You
        are Starnet Voice, a control layer", which is exactly the separate-entity feel being fixed. */
     instructions: [
-      'You are the StarNet agent the Commander is currently speaking with. Fuller instructions, including your name and character, arrive immediately over the session channel — adopt them as your own identity when they do.',
+      'You are the Agent OS agent the Commander is currently speaking with. Fuller instructions, including your name and character, arrive immediately over the session channel — adopt them as your own identity when they do.',
       'Speak naturally and briefly. Let the user interrupt you.',
       'For requests that require research, coding, file changes, tools, or sustained work, call start_starnet_task instead of claiming you performed the work yourself.',
       'Use get_starnet_status for progress questions. Never invent task state, tool results, approvals, or files.',

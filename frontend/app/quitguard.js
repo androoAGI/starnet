@@ -1,4 +1,4 @@
-/* STARNET quitguard.js
+/* AGENT OS quitguard.js
    GB-4 quit half: closing the desktop window kills every live provider stream mid-run.
    Intercept close-requested (titlebar X routes through appWindow.close(), Alt+F4 and the
    taskbar land here too) and, when agents are working, make the kill an EXPLICIT choice —
@@ -55,7 +55,7 @@
       '<div class="quit-guard-card" role="alertdialog" aria-label="Agents still working">' +
       '<div class="up-guard">' +
       (n === 1 ? '1 AGENT IS STILL WORKING' : n + ' AGENTS ARE STILL WORKING') +
-      ' - CLOSING STARNET KILLS ' + (n === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
+      ' - CLOSING AGENT OS KILLS ' + (n === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
       '<div class="up-actions">' +
       '<button class="bb sm" id="qg-stay">STAY</button>' +
       '<button class="bb sm danger" id="qg-close">CLOSE ANYWAY</button>' +

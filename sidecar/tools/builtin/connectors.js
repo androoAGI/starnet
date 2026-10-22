@@ -213,7 +213,7 @@
       description: 'List the station\'s INTEGRATIONS: MCP connectors already connected, platform API keys already '
         + 'connected, and — the part you cannot otherwise know — the vetted connectors and platform keys the '
         + 'Commander could add but has not (GitHub, Notion, Stripe, Google Workspace, Printify, Etsy and more). '
-        + 'Check this BEFORE telling the Commander that StarNet cannot reach a service: it usually can, and the '
+        + 'Check this BEFORE telling the Commander that Agent OS cannot reach a service: it usually can, and the '
         + 'honest answer is "that service has a setup path in ABILITIES › DISCOVER › CATALOG — I can walk you through '
         + 'it?". Read-only: you cannot install or authenticate anything, and you never see a key\'s value. '
         + 'Optional `query` filters by service or category; `scope` narrows to connected or available. '

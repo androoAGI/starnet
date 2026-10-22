@@ -1,4 +1,4 @@
-/* STARNET — pridestore.js : the thin live wiring around the pure lifetime-record engine (pride.js).
+/* AGENT OS — pridestore.js : the thin live wiring around the pure lifetime-record engine (pride.js).
 
    Owns what the pure engine can't: the durable localStorage key (its OWN 'starnet.pride.*' key, riding the
    backup prefix like returnstore/mintstore — no save.js change), the U.bus subscriptions that feed real

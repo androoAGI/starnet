@@ -1,4 +1,4 @@
-/* STARNET — windows/loops.js : the LOOPS lane of the AUTOMATION window (standing objectives).
+/* AGENT OS — windows/loops.js : the LOOPS lane of the AUTOMATION window (standing objectives).
 
    Loads AFTER stationui.js and windows/automation.js (see index.html) and registers itself as an
    AutomationWindow LANE — its two sections (ACTIVE LOOPS · START A LOOP) mount inside the shared
@@ -779,7 +779,7 @@
   async function watch() {
     let j;
     try {
-      const r = await fetch('/api/loops', { headers: { 'X-StarNet-Token': window.__STARNET_API_TOKEN__ || '' } });
+      const r = await fetch('/api/loops', { headers: { 'X-Agent OS-Token': window.__STARNET_API_TOKEN__ || '' } });
       if (!r.ok) return;                        // an errored read must not clear the waiting badge
       j = await r.json();
     }

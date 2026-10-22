@@ -1,4 +1,4 @@
-/* STARNET — beatcard.js : dependency-free lifecycle for COMMS post-run cards.
+/* AGENT OS — beatcard.js : dependency-free lifecycle for COMMS post-run cards.
 
    The renderer supplies nodes, copy, actions, and persistence hooks. This module owns the
    cross-feature mechanics that used to be cloned in chat.js: one visible slot, run dedupe,

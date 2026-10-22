@@ -1,4 +1,4 @@
-/* STARNET — threadstore.js : the live wiring around the NS-6 THREAD turn-in (the frontend hop that makes the
+/* AGENT OS — threadstore.js : the live wiring around the NS-6 THREAD turn-in (the frontend hop that makes the
    thread ledger real).
 
    The sidecar MINES a finished task run for "threads" — ideas the Commander floated but never acted on, each

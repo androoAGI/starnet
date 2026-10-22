@@ -1,4 +1,4 @@
-/* STARNET — asciifx.js : the ASCII-MOTION KIT.
+/* AGENT OS — asciifx.js : the ASCII-MOTION KIT.
 
    A small, reusable vocabulary of terminal-flavored motion primitives — the "decode / materialize
    from static" language the CRT station has always begged for but never had. Additive over

@@ -1,4 +1,4 @@
-/* STARNET — specialties.js : preset SPECIALTY types for agents — the "what it's FOR" axis.
+/* AGENT OS — specialties.js : preset SPECIALTY types for agents — the "what it's FOR" axis.
 
    Parallel to personas.js (the "how it TALKS" axis). The two compose: a "Witty Researcher"
    is a Researcher specialty wearing the witty persona. A specialty bundles a ready-made

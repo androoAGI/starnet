@@ -50,7 +50,7 @@ function makeLoopTools(deps) {
 
   const listTool = {
     name: 'loop.list', capability: 'orchestrator', scope: 'read', requiresConsent: false,
-    description: 'List durable StarNet LOOPS and their proven state. A LOOP keeps iterating toward an objective; for “every weekday”, cron, reminders, or clock schedules use routine.list/create/manage instead.',
+    description: 'List durable Agent OS LOOPS and their proven state. A LOOP keeps iterating toward an objective; for “every weekday”, cron, reminders, or clock schedules use routine.list/create/manage instead.',
     schema: { type: 'object', properties: {} },
     run: async () => {
       const state = listState() || {};
@@ -63,7 +63,7 @@ function makeLoopTools(deps) {
 
   const createTool = {
     name: 'loop.create', capability: 'orchestrator', scope: 'write', requiresConsent: true, timeoutMs: 15000, taintLocked: true,
-    description: 'Create one durable StarNet LOOP when the Commander asks to keep working, iterate, or continue until an objective/convergence/check passes. Do not use for clock schedules such as “every weekday” (use routine.create). The review gate is fixed: generated changes wait for the Commander. A check command is never model-authored; for exitOn=check-green the host may derive a check only from an already-approved project folder. Repeating the same objective returns the existing loop.',
+    description: 'Create one durable Agent OS LOOP when the Commander asks to keep working, iterate, or continue until an objective/convergence/check passes. Do not use for clock schedules such as “every weekday” (use routine.create). The review gate is fixed: generated changes wait for the Commander. A check command is never model-authored; for exitOn=check-green the host may derive a check only from an already-approved project folder. Repeating the same objective returns the existing loop.',
     schema: {
       type: 'object', required: ['objective'], properties: {
         name: { type: 'string' }, objective: { type: 'string' }, agentId: { type: 'string' },

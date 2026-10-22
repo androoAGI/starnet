@@ -1,4 +1,4 @@
-/* STARNET — autonomy.js : the PURE engine for the AUTONOMY POSTURE — the tunable "alive between sessions" dial.
+/* AGENT OS — autonomy.js : the PURE engine for the AUTONOMY POSTURE — the tunable "alive between sessions" dial.
 
    THE DIAL IS THE PRODUCT. The station can do real work while the Commander is away and feel alive — honestly — and
    the Commander tunes exactly HOW MUCH, per agent, along TWO independent axes (separating them is the whole insight:

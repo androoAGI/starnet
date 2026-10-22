@@ -117,7 +117,7 @@ function validateInput(body, opts) {
   const f = {};
   if (!partial || b.kind !== undefined) {
     const kind = str(b.kind, 16);
-    if (kind === 'email') return { ok: false, error: 'email triggers are not available: StarNet has no mail connector yet' };
+    if (kind === 'email') return { ok: false, error: 'email triggers are not available: Agent OS has no mail connector yet' };
     if (KINDS.indexOf(kind) < 0) return { ok: false, error: 'kind must be "folder" or "webhook"' };
     f.kind = kind;
   }

@@ -1,4 +1,4 @@
-/* STARNET — windows/logbook.js : the LOGBOOK lane of the AGENT DOSSIER (extracted from stationui.js).
+/* AGENT OS — windows/logbook.js : the LOGBOOK lane of the AGENT DOSSIER (extracted from stationui.js).
    NAV CONDENSE 2 (2026-08-04): the LOGBOOK is agent-scoped, so it lives where the agent lives — a
    section of the dossier instead of a SYSTEM-dock window. This file registers a DossierLane
    ((body)=>({sections,wire})); stationui's buildAgents mounts the section and runs wire() after its

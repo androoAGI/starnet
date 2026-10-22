@@ -1,4 +1,4 @@
-/* STARNET — recommend.js : THE RECOMMENDATION SPINE (pure, node-testable, zero DOM / zero fetch).
+/* AGENT OS — recommend.js : THE RECOMMENDATION SPINE (pure, node-testable, zero DOM / zero fetch).
 
    The station used to talk to its Commander through ~9 independent proactive channels (study, arc, trust,
    thread, rate, suggestion, seed, routine, recruitment, curiosity), each with its own timer. Whoever armed

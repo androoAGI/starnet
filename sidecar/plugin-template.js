@@ -30,7 +30,7 @@ function htmlText(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp
 function templateFiles(spec) {
   const id = String(spec.id);
   const name = String(spec.name || id);
-  const description = String(spec.description || 'A StarNet plugin.');
+  const description = String(spec.description || 'A Agent OS plugin.');
   const title = name.replace(/[&<>"'`\u0000-\u001f\u007f]/g, '').toUpperCase().slice(0, 40) || 'PLUGIN';
   const t = templates();
 

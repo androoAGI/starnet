@@ -410,7 +410,7 @@
     } else if (reason === 'tls_certificate') {
       text = 'TLS certificate verification failed' + (transportDetail(err) ? ' (' + transportDetail(err) + ')' : '')
         + ' — this machine does not trust the provider\'s certificate. Behind a corporate proxy or an antivirus HTTPS scanner, '
-        + 'point NODE_EXTRA_CA_CERTS at its root certificate and restart StarNet; for a self-hosted endpoint, give it a valid certificate. ['
+        + 'point NODE_EXTRA_CA_CERTS at its root certificate and restart Agent OS; for a self-hosted endpoint, give it a valid certificate. ['
         + message + ']';
     }
     return {

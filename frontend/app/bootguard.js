@@ -1,4 +1,4 @@
-/* STARNET — bootguard.js : the FIRST app script. Makes a broken boot LOUD instead of silent.
+/* AGENT OS — bootguard.js : the FIRST app script. Makes a broken boot LOUD instead of silent.
 
    The audit finding this answers ("first run fails silently by construction"): nothing in frontend/ listened for
    window `error` / `unhandledrejection`, and app.js guards every module with `typeof X !== 'undefined'` — so a
@@ -78,7 +78,7 @@
   function isStationScript(s) {
     // Every authored station module lives below one of these three roots. Public hosts may append their own
     // analytics/challenge scripts (for example Cloudflare's /beacon.min.js); a blocked optional host script is
-    // not evidence that StarNet failed to boot. Keep the allowlist structural so real app/shared 404s remain loud.
+    // not evidence that Agent OS failed to boot. Keep the allowlist structural so real app/shared 404s remain loud.
     return /^(?:app|js|shared)\//.test(shortPath(s));
   }
   // Catalog retry retained for browser/dev service startup; failure does not prove engine health.
@@ -212,7 +212,7 @@
   }
   function report() {
     const L = [];
-    L.push('STARNET BOOT GUARD (page-side — measured by the app window itself)');
+    L.push('AGENT OS BOOT GUARD (page-side — measured by the app window itself)');
     L.push('when:           ' + new Date().toISOString());
     L.push('page:           ' + String((root.location && root.location.pathname) || '/'));
     L.push('boot check:     ' + (!state.checked ? 'not run yet' : (state.missing.length || state.scriptFailures) ? 'FAILED' : 'passed'));
@@ -253,12 +253,12 @@
     const head = doc.createElement('div'); head.className = 'bgf-head';
     const old = webviewTooOld();
     const mac = isMacUA();
-    head.textContent = old ? (mac ? '▮ STARNET NEEDS A NEWER macOS' : '▮ STARNET NEEDS A NEWER WEB ENGINE') : '▮ STATION FAILED TO BOOT';
+    head.textContent = old ? (mac ? '▮ AGENT OS NEEDS A NEWER macOS' : '▮ AGENT OS NEEDS A NEWER WEB ENGINE') : '▮ STATION FAILED TO BOOT';
     const lead = doc.createElement('div'); lead.className = 'bgf-lead';
     lead.textContent = old
       ? (mac
-        ? 'this Mac’s built-in web engine is too old to run StarNet. StarNet needs macOS 11 Big Sur or later with Safari 16.4 or newer — macOS 13.3 Ventura or later works out of the box. nothing is broken and your station is untouched: update macOS (or Safari) in System Settings, then reopen StarNet.'
-        : 'this computer’s web engine is too old to run StarNet (it has no regular-expression lookbehind). nothing is broken and your station is untouched: update the system web engine (WebKitGTK on Linux, WebView2 on Windows), then reopen StarNet.')
+        ? 'this Mac’s built-in web engine is too old to run Agent OS. Agent OS needs macOS 11 Big Sur or later with Safari 16.4 or newer — macOS 13.3 Ventura or later works out of the box. nothing is broken and your station is untouched: update macOS (or Safari) in System Settings, then reopen Agent OS.'
+        : 'this computer’s web engine is too old to run Agent OS (it has no regular-expression lookbehind). nothing is broken and your station is untouched: update the system web engine (WebKitGTK on Linux, WebView2 on Windows), then reopen Agent OS.')
       : 'the app window loaded, but a required module did not. this is a broken or blocked file, not your station — your saved station has not been changed by this screen.';
     const list = doc.createElement('ul'); list.className = 'bgf-list';
     why.forEach(w => { const li = doc.createElement('li'); li.textContent = w; list.appendChild(li); });

@@ -48,7 +48,7 @@
   // What the user can actually do about each fatal close, in their words (the panel shows this detail verbatim).
   const FATAL_DETAIL = {
     4004: 'Discord rejected the bot token (4004). In the Developer Portal open your app, Bot, Reset Token, and paste the new token.',
-    4013: 'Discord refused the requested intents as invalid (4013). This is a StarNet bug; please report it.',
+    4013: 'Discord refused the requested intents as invalid (4013). This is a Agent OS bug; please report it.',
     4014: 'Discord refused a privileged intent (4014). Turn it on under Bot, Privileged Gateway Intents in the Developer Portal.'
   };
 

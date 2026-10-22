@@ -1,4 +1,4 @@
-/* STARNET — remote-devices.js : SETTINGS › REMOTE, the desk side of StarNet Remote.
+/* AGENT OS — remote-devices.js : SETTINGS › REMOTE, the desk side of Agent OS Remote.
 
    Switch Remote on, pair a phone with a QR code, see which phones are paired and connected, remove one.
    Everything shown is read from GET /api/remote (the sidecar's real state): the relay line says ONLINE only
@@ -25,7 +25,7 @@
     el.innerHTML =
       '<h4 class="ms-h">REMOTE <span class="dim">— your station, from your phone</span></h4>' +
       '<p class="set-about">Pair a phone and it can see your crew, send tasks, answer approvals and open what your agents made, from anywhere. ' +
-      'Everything between the phone and this computer is encrypted end to end: the StarNet relay in the middle passes sealed messages it cannot read. ' +
+      'Everything between the phone and this computer is encrypted end to end: the Agent OS relay in the middle passes sealed messages it cannot read. ' +
       'A phone works with the same permissions as this desk: an agent on full access acts without asking from your phone too, so you can work on the go. Tick ALWAYS ASK on a phone to have it ask before every step that needs an OK. Standing grants and full access are only ever set here, at the desk.</p>' +
       '<label class="set-row"><input type="checkbox" id="rmt-on"> REMOTE ON <span class="dim" id="rmt-on-note">— checking…</span></label>' +
       '<p class="set-about" id="rmt-link"></p>' +
@@ -117,7 +117,7 @@
         '<div class="rmt-pair">' +
           (qr ? '<div class="rmt-qr" role="img" aria-label="Pairing code for your phone">' + qr + '</div>' : '') +
           '<div class="rmt-pair-text">' +
-            '<p class="set-about">Scan this with your phone’s camera. It opens StarNet Remote and pairs this one phone. On an iPhone it first shows you how to put StarNet on your Home Screen, so it works like an app.</p>' +
+            '<p class="set-about">Scan this with your phone’s camera. It opens Agent OS Remote and pairs this one phone. On an iPhone it first shows you how to put Agent OS on your Home Screen, so it works like an app.</p>' +
             '<p class="set-about">Station code: <b>' + esc(p.fingerprint) + '</b> — your phone will show the same.</p>' +
             '<p class="set-about dim" id="rmt-exp"></p>' +
             '<div class="set-save"><button class="bb xs" type="button" id="rmt-copy">COPY LINK</button><button class="bb xs" type="button" id="rmt-cancel">CANCEL</button></div>' +

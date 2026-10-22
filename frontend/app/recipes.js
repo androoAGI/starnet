@@ -1,4 +1,4 @@
-/* STARNET — recipes.js : THE RECIPE / MISSION LIBRARY — ready-made, parameterized job templates.
+/* AGENT OS — recipes.js : THE RECIPE / MISSION LIBRARY — ready-made, parameterized job templates.
 
    The sibling of specialties.js. A SPECIALTY answers "who should my agent BE" (its purpose + standing
    orders); a RECIPE answers "what should my agent DO right now" — a one-tap mission like "morning research
@@ -54,7 +54,7 @@
   // 'general' is the catch-all fallback. Additive only — no bucket is ever renamed or removed.
   //
   // STANDING-AUTOMATION BUCKETS (2026-08-04): the catalog is a use-case dictionary for someone who cannot yet
-  // name their own use case, so the buckets are the areas a StarNet user actually works in. A bucket only
+  // name their own use case, so the buckets are the areas a Agent OS user actually works in. A bucket only
   // exists if a real shelf of recipes stands behind it — an empty or one-item bucket reads as broken next to
   // a full one, so a bucket is added WITH its module and removed when its module goes.
   const CATEGORIES = ['developer', 'research', 'creator', 'writing', 'ops', 'business', 'money',

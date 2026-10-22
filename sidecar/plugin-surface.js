@@ -1,6 +1,6 @@
 /* sidecar/plugin-surface.js — what a plugin's WINDOW touches on the sidecar (plugin extensions phase 1, 2026-09-29).
 
-   A plugin screen is the plugin's own HTML, opened inside a real StarNet window (frontend/app/pluginhost.js). This
+   A plugin screen is the plugin's own HTML, opened inside a real Agent OS window (frontend/app/pluginhost.js). This
    module serves those files and the plugin's private key/value store. It is deliberately the SAME shape as
    /workshop-run/ (the one other place the station runs pages it did not write):
 

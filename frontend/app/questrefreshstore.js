@@ -1,4 +1,4 @@
-/* STARNET — questrefreshstore.js : the QUEST V3 standing-refresh engine's frontend citizen.
+/* AGENT OS — questrefreshstore.js : the QUEST V3 standing-refresh engine's frontend citizen.
 
    The sidecar owns a standing quest-refresh engine (sidecar/questrefresh.js + the ambient half in
    sidecar/index.js): every 24h (and on the caught-up fast path) it re-derives the Commander's NORTH STAR

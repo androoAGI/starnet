@@ -1253,3 +1253,4 @@ test/comms-render-seams.test.js
 test/markdown-everywhere.test.js
 test/walk-consistency-1014.test.js
 test/delegated-ledger-first-read.test.js
+test/secondbrain.test.js

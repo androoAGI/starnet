@@ -1,4 +1,4 @@
-/* STARNET — trophies.js : the PURE trophy-surface projection (Game session, Phase G3b / Layer 6).
+/* AGENT OS — trophies.js : the PURE trophy-surface projection (Game session, Phase G3b / Layer 6).
 
    The TROPHY CASE prop opens a surface that makes the station's REAL achievements permanent and visible.
    This engine folds the honest signals the station already tracks into a render-agnostic shape:

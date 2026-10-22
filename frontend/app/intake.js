@@ -1,4 +1,4 @@
-/* STARNET — intake.js : THE INTAKE INTERVIEW flow (Commander Dossier, Phase B slice 1).
+/* AGENT OS — intake.js : THE INTAKE INTERVIEW flow (Commander Dossier, Phase B slice 1).
 
    The COMMS half of the active "get to know the Commander" move — a thin controller that mirrors
    onboarding.js's answer loop, but lighter and mid-game: it runs the questions interview.js planned, in

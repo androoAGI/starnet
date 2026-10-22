@@ -1,11 +1,11 @@
 'use strict';
 /* sidecar/mcp/transport.gmail-imap.js — Gmail through a Google APP PASSWORD (IMAP + SMTP), no OAuth.
 
-   Why it exists: StarNet's Google OAuth app is not verified yet, and Google hard-blocks the RESTRICTED Gmail
+   Why it exists: Agent OS's Google OAuth app is not verified yet, and Google hard-blocks the RESTRICTED Gmail
    scopes (read/compose) for unverified apps ("This app is blocked"). A Google app password is the account
    owner's own credential for mail clients: it needs 2-Step Verification on the account and nothing from Google
-   on StarNet's side. StarNet then talks to imap.gmail.com:993 and smtp.gmail.com:465 (both implicit TLS) directly
-   from this computer — no StarNet server in between.
+   on Agent OS's side. Agent OS then talks to imap.gmail.com:993 and smtp.gmail.com:465 (both implicit TLS) directly
+   from this computer — no Agent OS server in between.
 
    Shape: a local MCP adapter exactly like transport.google.js (initialize / tools/list / tools/call), so the
    existing connector manager owns permissions, approval, status and tool projection. Each tool call opens its own
@@ -16,7 +16,7 @@
    the redactor scrubs it anywhere it might surface.
 
    Privacy: mailbox read access — google-relay-guard.js treats this endpoint like restricted Gmail, so mail
-   content never reaches StarNet Managed. */
+   content never reaches Agent OS Managed. */
 
 const { note: failNote } = require('../failopen.js');
 const crypto = require('node:crypto');
@@ -279,7 +279,7 @@ function makeGmailImapTransport(opts) {
         // Prove the credential works (IMAP LOGIN + mailbox list) before the connector reports connected.
         await withImap(null, s => mailboxes(s));
         result = { protocolVersion: (msg.params && msg.params.protocolVersion) || '2025-06-18', capabilities: { tools: {} },
-          serverInfo: { name: 'StarNet Gmail app-password connector (IMAP/SMTP)', version: '1' } };
+          serverInfo: { name: 'Agent OS Gmail app-password connector (IMAP/SMTP)', version: '1' } };
       } else if (msg.method === 'tools/list') result = { tools: TOOLS };
       else if (msg.method === 'tools/call') result = await callTool(msg.id, msg.params && msg.params.name, (msg.params && msg.params.arguments) || {});
       else if (msg.method === 'ping') result = {};

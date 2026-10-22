@@ -1,4 +1,4 @@
-/* STARNET — voice.js : two-way voice for the COMMS panel.
+/* AGENT OS — voice.js : two-way voice for the COMMS panel.
 
    INPUT  (click-to-talk): click the mic once to start recording and again to finish; the completed take feeds the text
           straight through Chat.send — identical to typing — so all of chat.js's
@@ -815,7 +815,7 @@ const Voice = (() => {
     const desktop = !!(window.__TAURI__ || window.__TAURI_INTERNALS__);
     const mac = /Mac/i.test(navigator.platform || navigator.userAgent || '');
     return desktop && mac
-      ? 'Microphone blocked — enable StarNet in System Settings → Privacy & Security → Microphone, then quit and reopen StarNet. If it is missing or still blocked, install the latest StarNet build.'
+      ? 'Microphone blocked — enable Agent OS in System Settings → Privacy & Security → Microphone, then quit and reopen Agent OS. If it is missing or still blocked, install the latest Agent OS build.'
       : desktop ? 'Microphone blocked — allow microphone access for desktop apps in your system privacy settings, then try again.'
         : 'Microphone blocked — allow microphone access for this page in your browser, then try again.';
   }
@@ -1463,7 +1463,7 @@ const Voice = (() => {
       /* CHECK r.ok. `fetch` RESOLVES on 4xx/5xx, and the route's honest 200-degrade envelope is not the only
          thing that can come back: rejectBadApiToken answers 403 with the plain text 'forbidden token' BEFORE
          the route table is reached — the documented state after a sidecar respawn, where the page still holds
-         the old X-StarNet-Token — and any 5xx/HTML/empty error body behaves the same. r.json() then rejects,
+         the old X-Agent OS-Token — and any 5xx/HTML/empty error body behaves the same. r.json() then rejects,
          the catch yields {}, and an UNREACHABLE endpoint was laundered into a CONFIRMED-EMPTY transcript:
          the user's spoken sentence disappeared with no error and no diagnostic, byte-identical to having said
          nothing into a dead room. An unknown is not an empty. */

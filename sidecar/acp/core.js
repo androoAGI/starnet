@@ -1,10 +1,10 @@
-/* sidecar/acp/core.js — the PURE core of StarNet's ACP (Agent Client Protocol) agent.
+/* sidecar/acp/core.js — the PURE core of Agent OS's ACP (Agent Client Protocol) agent.
 
-   THE GAP THIS CLOSES. StarNet had no editor integration of any kind — zero. You could reach an agent from the
+   THE GAP THIS CLOSES. Agent OS had no editor integration of any kind — zero. You could reach an agent from the
    station window, from five messaging channels, from a routine, and from an OpenAI-compatible HTTP surface, but
    not from the place a developer actually works. The reference harness ships a full ACP agent (acp_adapter/,
    ~5.3k lines) and that is what makes it reachable from Zed, Neovim, and every other ACP client. This is the
-   same protocol on StarNet's own seams.
+   same protocol on Agent OS's own seams.
 
    ACP is JSON-RPC 2.0 over stdio, spoken BOTH ways: the editor calls the agent (initialize, session/new,
    session/prompt), and the agent calls back into the editor (session/update notifications for streaming, and
@@ -18,7 +18,7 @@
    workspace is a hard invariant, so this core never touches a store file: every action is an HTTP call to the
    running sidecar, exactly like sidecar/mcp/serve.js. A prompt is POST /api/run (which streams NDJSON events),
    a permission answer is POST /api/consent, a cancel is POST /api/cancel. Nothing here duplicates harness logic
-   — if the station is down, every method answers with an honest "start StarNet" error instead of pretending.
+   — if the station is down, every method answers with an honest "start Agent OS" error instead of pretending.
 
    ── PURE ───────────────────────────────────────────────────────────────────────────────────────────────────
    No fs, no fetch, no clock, no rng: `callSidecar` / `openRun` / `notify` / `request` / `newId` are all injected,
@@ -26,7 +26,7 @@
    lives only in serve.js.
 
    ── WHAT IS DELIBERATELY NOT HERE (v1 honesty) ──────────────────────────────────────────────────────────────
-   · agent_thought_chunk: StarNet's event contract carries `agent.reasoning {on}` — a FLAG that reasoning is
+   · agent_thought_chunk: Agent OS's event contract carries `agent.reasoning {on}` — a FLAG that reasoning is
      happening — and no reasoning-text deltas (by design: a thinking delta must never be emitted as a text
      event). So there is no thought stream to forward, and we advertise none rather than faking one.
    · fs/read_text_file & fs/write_text_file: an ACP client can offer its OWN filesystem so the agent sees
@@ -35,7 +35,7 @@
      agent reads what is on disk — correct, just less clever than it could be.
    · diff content on an edit tool call: ACP can render a real before/after diff, but agent.tool_result carries a
      SUMMARY, not the old and new text. We send the summary as text rather than inventing a diff.
-   · session modes: ACP modes would map to StarNet's approvalMode, but a bridge that could switch itself to
+   · session modes: ACP modes would map to Agent OS's approvalMode, but a bridge that could switch itself to
      'full' is a bridge that can self-grant. Not offered. */
 'use strict';
 (function (root, factory) {
@@ -108,7 +108,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // StarNet tool -> ACP tool-call shape
+  // Agent OS tool -> ACP tool-call shape
   // ---------------------------------------------------------------------------
 
   /* toolKind(name) -> one of ACP's tool kinds. The kind is what an editor uses to pick an icon and to decide
@@ -192,7 +192,7 @@
     /* path.trust is not a tool the model calls — it is the station's FOLDER-TRUST ask, and because an ACP
        session sends its cwd as the project root it is very often the FIRST card a user ever sees here. Titling
        it "path.trust" made the most important first impression unreadable. */
-    if (n === 'path.trust' && path) return 'Allow StarNet to work in ' + short(path);
+    if (n === 'path.trust' && path) return 'Allow Agent OS to work in ' + short(path);
     if (n === 'shell.exec' && args && args.cmd) return 'Run ' + short(args.cmd);
     if (n === 'shell.exec' && args && args.command) return 'Run ' + short(args.command);
     if (n === 'verify.run' && args && args.cmd) return 'Verify ' + short(args.cmd);
@@ -215,7 +215,7 @@
   // run end reason -> ACP stopReason
   // ---------------------------------------------------------------------------
 
-  /* Every StarNet terminal reason maps onto one of ACP's five stop reasons. The ones that are NOT a plain
+  /* Every Agent OS terminal reason maps onto one of ACP's five stop reasons. The ones that are NOT a plain
      end_turn matter: an editor renders 'cancelled' and 'refusal' differently, and 'max_turn_requests' is the
      signal that says "ask me to continue" rather than "I finished".
      'budget' has no ACP equivalent — it ends the turn, and the caller appends a plain sentence saying WHY so
@@ -236,12 +236,12 @@
      Returned as a plain sentence appended as a final agent message chunk. */
   function endNote(reason, atBalance) {
     const r = str(reason);
-    // a StarNet run whose ceiling admission clamped to the balance (agent.run.end budgetCapIsBalance): raising a cap
+    // a Agent OS run whose ceiling admission clamped to the balance (agent.run.end budgetCapIsBalance): raising a cap
     // does nothing — the wallet ran out
-    if (r === 'budget' && atBalance === true) return '\n\n(stopped: this run used what was left on your StarNet balance — add credits in StarNet under SETTINGS → AI & MODELS.)';
-    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in StarNet under SETTINGS › SPENDING LIMITS.)';
+    if (r === 'budget' && atBalance === true) return '\n\n(stopped: this run used what was left on your Agent OS balance — add credits in Agent OS under SETTINGS → AI & MODELS.)';
+    if (r === 'budget') return '\n\n(stopped: this run hit a spend cap — raise or clear it in Agent OS under SETTINGS › SPENDING LIMITS.)';
     if (r === 'max_iters') return '\n\n(stopped: reached the step limit for one turn — send "continue" to keep going.)';
-    if (r === 'error') return '\n\n(stopped: the run failed inside StarNet — check the station log for the error.)';
+    if (r === 'error') return '\n\n(stopped: the run failed inside Agent OS — check the station log for the error.)';
     return '';
   }
 
@@ -249,7 +249,7 @@
   // permission options
   // ---------------------------------------------------------------------------
 
-  /* The three answers StarNet's consent broker actually understands, in ACP's option vocabulary. `optionId` is
+  /* The three answers Agent OS's consent broker actually understands, in ACP's option vocabulary. `optionId` is
      the exact string POST /api/consent wants, so nothing has to be translated on the way back — and an
      UNRECOGNISED answer is coerced to 'deny' by the sidecar, which is the fail-closed direction. */
   function permissionOptions() {
@@ -303,7 +303,7 @@
       log('initialize from ' + clientName + ' (protocol v' + str(p.protocolVersion) + ')');
       return {
         protocolVersion: PROTOCOL_VERSION,
-        agentInfo: { name: AGENT_NAME, title: 'StarNet', version: version() },
+        agentInfo: { name: AGENT_NAME, title: 'Agent OS', version: version() },
         agentCapabilities: {
           // loadSession: this process can replay a session it is still holding (see session/load — it is
           // honest about a sessionId from a PREVIOUS bridge process, which it cannot know about).
@@ -311,7 +311,7 @@
           /* image: FALSE — and this must stay false until images actually reach the model.
              It was true in the first cut, which is a capability lie of the exact kind this project forbids: a
              client reads `image: true` as "this agent can see pictures", so it happily lets the user attach a
-             screenshot, and the agent then answers about text it was never shown. Attachments enter StarNet
+             screenshot, and the agent then answers about text it was never shown. Attachments enter Agent OS
              through the station's own attachment seam (a workspace file + provider image blocks) and this
              bridge has no path to it. Declaring false makes a client either disable image attachment or warn,
              which is the truthful outcome; blocksToTurn still degrades gracefully and STATES the count if a
@@ -332,11 +332,11 @@
       const sessionId = 'starnet-' + newId();
       sessions.set(sessionId, { cwd: cwd, messages: [], run: null });
       log('new session ' + sessionId + ' (cwd=' + cwd + ')');
-      // mcpServers: an ACP client may pass its own MCP servers for this session. StarNet's connectors are
+      // mcpServers: an ACP client may pass its own MCP servers for this session. Agent OS's connectors are
       // account-level and configured in the station, so we do not silently adopt them — and we say so once
       // rather than letting the user wonder why their editor's MCP tools are absent.
       if (Array.isArray(p.mcpServers) && p.mcpServers.length) {
-        log('ignoring ' + p.mcpServers.length + ' client-supplied MCP server(s): StarNet connectors are configured in the station');
+        log('ignoring ' + p.mcpServers.length + ' client-supplied MCP server(s): Agent OS connectors are configured in the station');
       }
       return { sessionId: sessionId };
     }
@@ -385,7 +385,7 @@
       let text = turn.text;
       if (turn.images) {
         text += (text ? '\n\n' : '') + '[' + turn.images + ' image(s) were attached in the editor but could not be '
-          + 'forwarded: StarNet\'s ACP bridge does not carry image attachments yet. Say so if the answer depends on them.]';
+          + 'forwarded: Agent OS\'s ACP bridge does not carry image attachments yet. Say so if the answer depends on them.]';
       }
       if (turn.unsupported.length) log('prompt contained unsupported block type(s): ' + turn.unsupported.join(', '));
 
@@ -395,7 +395,7 @@
       let runId = '';
       let answer = '';
       let leadRunId = '';
-      let stopAtBalance = false;   // this run's own budget stop was the StarNet balance (agent.run.end budgetCapIsBalance)
+      let stopAtBalance = false;   // this run's own budget stop was the Agent OS balance (agent.run.end budgetCapIsBalance)
       const seen = new Map();   // callId -> { name, args }
 
       const onEvent = (name, payload) => {
@@ -448,7 +448,7 @@
 
         if (name === 'agent.run.error') {
           const msg = str(q.message);
-          if (msg) messageChunk(sessionId, '\n\n(StarNet run error: ' + msg + ')');
+          if (msg) messageChunk(sessionId, '\n\n(Agent OS run error: ' + msg + ')');
           return;
         }
       };
@@ -508,7 +508,7 @@
         // A transport failure is not a protocol failure: the turn ends, and the user is told plainly.
         const msg = (e && e.message) || String(e);
         log('run failed: ' + msg);
-        messageChunk(sessionId, (answer ? '\n\n' : '') + '(StarNet could not complete this turn: ' + msg + ')');
+        messageChunk(sessionId, (answer ? '\n\n' : '') + '(Agent OS could not complete this turn: ' + msg + ')');
         reason = 'error';
       } finally {
         s.run = null;

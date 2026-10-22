@@ -1,11 +1,11 @@
-/* STARNET — goalloop.js : the PURE GOAL-LOOP state machine (StarNet's "Ralph loop").
+/* AGENT OS — goalloop.js : the PURE GOAL-LOOP state machine (Agent OS's "Ralph loop").
 
    The autonomous engine behind /goal: the Commander sets a standing goal on a workstream; after each turn
    lands, an auxiliary JUDGE model is asked "is this goal satisfied by the agent's last response?" and returns
    a one-line JSON verdict {done, reason}. If not done, a CONTINUATION prompt (goal + subgoals + judge reason)
    is auto-queued as the next turn. The loop ends when the judge says done, the continuation budget is spent,
    a real user message preempts it, or the Commander pauses/clears it. Mirrors the reference CLI's goal loop, minus
-   the wait-barrier (StarNet's /goal has no async-process registry to park on).
+   the wait-barrier (Agent OS's /goal has no async-process registry to park on).
 
    PURE + node-testable (a `GoalLoop` global in the browser, module.exports under node), mirroring goals.js /
    dossier.js: NO Date.now / Math.random — the clock is ALWAYS injected. This file owns ONLY the deterministic

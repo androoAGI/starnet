@@ -1,4 +1,4 @@
-/* STARNET — systems.js : STATION SYSTEMS ONLINE — the dock grows with the station.
+/* AGENT OS — systems.js : STATION SYSTEMS ONLINE — the dock grows with the station.
 
    A fresh station opens with the dock buttons a newcomer needs on day one. Every other dock button is a
    station SYSTEM that comes online the first time it matters (a finished job, a second crew member, an agent

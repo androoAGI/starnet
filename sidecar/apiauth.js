@@ -80,7 +80,9 @@ function requiresApiToken(req) {
 
 function headerToken(req) {
   const h = (req && req.headers) || {};
-  return String(h['x-starnet-token'] || h['x-skynet-token'] || '');   // dual-accept the legacy header name
+  // Agent OS accepts its own header name first, then the two this fork inherited. Additive: an existing client
+  // (or a saved script) still authenticates with x-starnet-token, so the rebrand breaks nobody.
+  return String(h['x-agent-os-token'] || h['x-starnet-token'] || h['x-skynet-token'] || '');
 }
 // constant-time compare; false on any length mismatch / empty (never throws).
 function constTimeEq(a, b) {

@@ -1,4 +1,4 @@
-/* STARNET — schedpicker.js : the WHEN builder. A calendar-shaped way to say when a routine runs.
+/* AGENT OS — schedpicker.js : the WHEN builder. A calendar-shaped way to say when a routine runs.
 
    THE PROBLEM IT REPLACES. CREATE ROUTINE asked for the schedule as one free-text field whose
    placeholder read "every 30m · 0 9 * * * · in 2h". Everything the backend can do was already there —

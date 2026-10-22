@@ -1,4 +1,4 @@
-/* STARNET — world.js : the LIVE station the agent lives inside.
+/* AGENT OS — world.js : the LIVE station the agent lives inside.
 
    Renders the player-built WorldModel station (multi-room) with the generalized
    procedural bake (stationbake.js), under a pan/zoom camera. The agent has a
@@ -1494,7 +1494,7 @@ const World = (() => {
     // element), so without this guard each new agent stacked another full set of listeners and SSE streams.
     if (listenersBound) return;
     listenersBound = true;
-    // THE STARNET FONT, ON CANVAS. `font-display: block` (style.css) governs the DOM only —
+    // THE AGENT OS FONT, ON CANVAS. `font-display: block` (style.css) governs the DOM only —
     // canvas has no equivalent: `ctx.font` resolves against whatever is loaded AT DRAW TIME and
     // silently falls through to the next family in the stack when VT323 has not landed yet.
     // The live frame redraws continuously so it heals itself, but StationBake paints its layers
@@ -1728,7 +1728,7 @@ const World = (() => {
      times a second. 0 = no caller cap (the station's own RENDER PACING below then decides). */
   let frameCapMs = 0, lastDrawnAt = 0;
   function setFrameCap(ms) { frameCapMs = ms > 0 ? +ms : 0; paceWake(); }
-  /* RENDER PACING (#69, 2026-10-06): StarNet stays open all day so routines run, and an uncapped rAF loop drew the
+  /* RENDER PACING (#69, 2026-10-06): Agent OS stays open all day so routines run, and an uncapped rAF loop drew the
      whole station at the monitor's refresh rate the entire time — 240 draws/s on a 240 Hz panel, a visible-but-
      unfocused window included (rAF only pauses when the page is HIDDEN). Measured on the seeded station: the GPU
      process alone burned ~1.1 cores, the renderer another ~0.7. Only the DRAWING is paced; every event handler and
@@ -1737,7 +1737,7 @@ const World = (() => {
        visible, focused or not → at most 60 draws/s (PACE_VISIBLE_MS), rounded to the nearest vsync
        YOU moving the camera (drag, wheel) → up to 144 draws/s (PACE_MOTION_MS) for PACE_MOTION_HOLD_MS after the hand
        hidden/minimized → the browser stops rAF outright (the desktop shell sets the webview not-visible on minimize/tray)
-     (Andrew, 2026-10-13, on 0.13.5: "when you're not clicked into StarNet it goes at less than 5 FPS … if it's open on
+     (Andrew, 2026-10-13, on 0.13.5: "when you're not clicked into Agent OS it goes at less than 5 FPS … if it's open on
      screen this should not happen", and the 30 fps cap made every camera move judder on his 239 Hz panel next to
      0.13.1's ~200 draws/s. The 5 fps unfocused tier is gone and the visible pace is 60: still ~4x under the uncapped
      240 Hz loop #69 measured, and the FRAME BUDGET below keeps a slow machine's UI alive either way.) A caller cap
@@ -7078,7 +7078,7 @@ const World = (() => {
     // NOTE: the next rAF is scheduled by the frame() crash-guard wrapper, BEFORE this body runs — never here.
   }
 
-  /* A STILL OF THE WHOLE STATION, for a surface that is not this window (StarNet Remote's phone view).
+  /* A STILL OF THE WHOLE STATION, for a surface that is not this window (Agent OS Remote's phone view).
      It is the same scene pass the stage gets — floor, walls, props, crew where they really stand, light — aimed
      at an offscreen canvas framed on the full station. It never reads the live stage canvas. Returns
      { canvas, width, height, bodies:[{ agentId, name, x, y, working }] } with bodies in still pixels, or null

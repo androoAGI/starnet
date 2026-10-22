@@ -1,4 +1,4 @@
-/* STARNET — recledger.js : THE SPINE'S HALF OF THE ONE RECOMMENDATION MEMORY.
+/* AGENT OS — recledger.js : THE SPINE'S HALF OF THE ONE RECOMMENDATION MEMORY.
 
    THE PROBLEM THIS CLOSES (audit, 2026-08-05). The station kept TWO recommendation memories that never spoke:
 

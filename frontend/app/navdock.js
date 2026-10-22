@@ -1,4 +1,4 @@
-/* STARNET — navdock.js : the grouped bottom-bar navigation.
+/* AGENT OS — navdock.js : the grouped bottom-bar navigation.
    The 13 station panels were a flat, undifferentiated row of cryptic glyphs. They're now
    regrouped (in index.html) into 4 labelled docks — CREW / WORK / BUILD / SYSTEM — each a
    .bb-grp trigger that opens a .bb-menu popover of its items. The item buttons keep their
@@ -36,7 +36,7 @@
     const edge = 8;
     let zoom = 1;
     try { zoom = (typeof U === 'object' && U && typeof U.elZoom === 'function') ? Number(U.elZoom(menu)) || 1 : 1; } catch (_) {}
-    // vw is resolved before StarNet's uiZoom transform; cap the menu in the visual frame too.
+    // vw is resolved before Agent OS's uiZoom transform; cap the menu in the visual frame too.
     const cssWidth = Math.max(0, window.innerWidth - edge * 2) / zoom;
     menu.style.width = cssWidth + 'px';
     menu.style.maxWidth = cssWidth + 'px';
@@ -237,7 +237,7 @@
       if (sysBadge) {
         if (sysBadge.textContent !== n) sysBadge.textContent = n;
         if (sysBadge.hidden === !!n) sysBadge.hidden = !n;
-        const label = notifs ? 'unread notifications' : (update ? 'a StarNet update is ready' : 'unread notifications');
+        const label = notifs ? 'unread notifications' : (update ? 'a Agent OS update is ready' : 'unread notifications');
         if (sysBadge.getAttribute('aria-label') !== label) sysBadge.setAttribute('aria-label', label);
       }
     }

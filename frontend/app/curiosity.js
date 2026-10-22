@@ -1,4 +1,4 @@
-/* STARNET — curiosity.js : the PURE engine for JUST-IN-TIME CURIOSITY (Commander Dossier, Phase B slice 2).
+/* AGENT OS — curiosity.js : the PURE engine for JUST-IN-TIME CURIOSITY (Commander Dossier, Phase B slice 2).
 
    The gentle counterpart to the full intake interview: when the station notices it still doesn't know
    something about its Commander that shapes how it works, it asks about ONE thing — once, never naggy. This

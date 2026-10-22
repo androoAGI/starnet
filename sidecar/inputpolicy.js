@@ -86,7 +86,7 @@ function makeRunAuthority(opts) {
   const surface = opts.surface === 'interactive' ? 'interactive' : 'autonomous';
   const isTask = !!opts.isTask;
   // `ownerTrusted` is minted only by an authenticated owner DM at the channel ingress. It grants that
-  // Commander the same tool authority as a watched StarNet session without changing the ordinary autonomous
+  // Commander the same tool authority as a watched Agent OS session without changing the ordinary autonomous
   // policy used by cron, delegated workers, other channels, or group messages.
   const ownerTrusted = !!opts.ownerTrusted;
   /* MASTER BYPASS (2026-08-05) — the Commander's explicit, persisted "FULL BYPASS" switch. When on, this run

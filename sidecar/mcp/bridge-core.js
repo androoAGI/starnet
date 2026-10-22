@@ -1,8 +1,8 @@
-/* sidecar/mcp/bridge-core.js — the PURE core of the StarNet MCP messaging-bridge server.
+/* sidecar/mcp/bridge-core.js — the PURE core of the Agent OS MCP messaging-bridge server.
 
-   This is a thin OBSERVE/MESSAGE shim over a RUNNING StarNet sidecar — an independent implementation
+   This is a thin OBSERVE/MESSAGE shim over a RUNNING Agent OS sidecar — an independent implementation
    that is wire-compatible with the reference harness's MCP bridge surface. It exposes the same 11-tool
-   compat surface so any MCP client (Claude Code, Cursor, …) can watch and message a StarNet station. It does
+   compat surface so any MCP client (Claude Code, Cursor, …) can watch and message a Agent OS station. It does
    NOT run agent turns — that is a separate OpenAI-compat surface.
 
    HARD INVARIANT (one sidecar owner per workspace): this core NEVER reads or writes store files.
@@ -30,15 +30,15 @@ const QUEUE_CAP = 1000;                               // the reference harness p
 const PROTO_RE = /^\d{4}-\d{2}-\d{2}$/;               // a well-formed MCP protocol revision string
 
 const INSTRUCTIONS =
-  'StarNet station messaging bridge. These tools OBSERVE and MESSAGE a running StarNet station over ' +
+  'Agent OS station messaging bridge. These tools OBSERVE and MESSAGE a running Agent OS station over ' +
   'its local loopback API — they do not run agent turns. conversations_list / conversation_get / ' +
   'messages_read read the station\'s run history and per-stream transcripts; channels_list shows the ' +
   'connected messaging channels; events_poll / events_wait deliver live station telemetry (runs, ' +
   'deliveries, permission prompts) with monotonic cursors; permissions_list_open / permissions_respond ' +
   'surface and answer live consent prompts. messages_send drives the station over its local DEV channel ' +
-  '(target "dev:<chat>", only when StarNet runs with DEV mode enabled); real platform channels ' +
+  '(target "dev:<chat>", only when Agent OS runs with DEV mode enabled); real platform channels ' +
   '(telegram/discord/…) are not injectable over the API and return a structured not-supported result. ' +
-  'If the sidecar is not running every tool returns a structured error telling you to start StarNet.';
+  'If the sidecar is not running every tool returns a structured error telling you to start Agent OS.';
 
 // ---------------------------------------------------------------------------
 // small pure helpers
@@ -90,7 +90,7 @@ const TOOLS = [
   },
   {
     name: 'attachments_fetch',
-    description: 'List non-text attachments for a message. StarNet transcripts are text-only, so this reports zero attachments truthfully.',
+    description: 'List non-text attachments for a message. Agent OS transcripts are text-only, so this reports zero attachments truthfully.',
     inputSchema: { type: 'object', required: ['session_key', 'message_id'], properties: { session_key: { type: 'string' }, message_id: { type: 'string' } } }
   },
   {
@@ -119,7 +119,7 @@ const TOOLS = [
   },
   {
     name: 'messages_send',
-    description: 'Deliver a message INTO the station over its local DEV channel (target "dev:<chat>"), as if from the operator; the station\'s agent processes it and its replies are returned. Requires StarNet running with DEV mode. Real platform channels (telegram/discord/…) are not injectable over the API and return a structured not-supported result.',
+    description: 'Deliver a message INTO the station over its local DEV channel (target "dev:<chat>"), as if from the operator; the station\'s agent processes it and its replies are returned. Requires Agent OS running with DEV mode. Real platform channels (telegram/discord/…) are not injectable over the API and return a structured not-supported result.',
     inputSchema: { type: 'object', required: ['target', 'message'], properties: { target: { type: 'string', description: 'Target in "platform:chat_id" form, e.g. "dev:devchat".' }, message: { type: 'string' } } }
   },
   {
@@ -225,7 +225,7 @@ function sidecarDown(ctx, r) {
   return {
     ok: false,
     sidecarReachable: false,
-    error: 'Cannot reach the StarNet sidecar at ' + (ctx.baseLabel || 'the loopback port') + ' — is StarNet running? Start it with `npm start`.',
+    error: 'Cannot reach the Agent OS sidecar at ' + (ctx.baseLabel || 'the loopback port') + ' — is Agent OS running? Start it with `npm start`.',
     detail: (r && r.error) ? str(r.error) : ''
   };
 }
@@ -307,14 +307,14 @@ const IMPLS = {
   },
 
   async attachments_fetch(args, ctx) {
-    // Truthful telemetry: StarNet's durable transcript is text-only and exposes no per-message attachment store
+    // Truthful telemetry: Agent OS's durable transcript is text-only and exposes no per-message attachment store
     // over the API. Rather than fabricate, report zero with an explanation. (ctx unused; kept for signature parity.)
     void ctx;
     return {
       message_id: str(args.message_id),
       count: 0,
       attachments: [],
-      note: 'StarNet stores conversation transcripts as text; no per-message attachment store is exposed over the API.'
+      note: 'Agent OS stores conversation transcripts as text; no per-message attachment store is exposed over the API.'
     };
   },
 
@@ -337,12 +337,12 @@ const IMPLS = {
     if (platform !== 'dev') {
       return {
         ok: false, supported: false, target: target,
-        error: 'StarNet exposes no outbound-send route for platform channel "' + platform + '". Channel replies are produced only as agent turns inside runs. Use messages_send target "dev:<chat>" to drive the station over its local DEV channel (requires StarNet running with DEV mode).'
+        error: 'Agent OS exposes no outbound-send route for platform channel "' + platform + '". Channel replies are produced only as agent turns inside runs. Use messages_send target "dev:<chat>" to drive the station over its local DEV channel (requires Agent OS running with DEV mode).'
       };
     }
     const r = await ctx.callSidecar('POST', '/api/dev/inbound', { text: message, chatId: chatId || 'devchat' });
     if (!r.ok) return sidecarDown(ctx, r);
-    if (r.status === 404) return { ok: false, supported: false, target: target, error: 'The DEV channel is only available when StarNet runs with DEV mode enabled (launch with SKYNET_DEV=1). No message was delivered.' };
+    if (r.status === 404) return { ok: false, supported: false, target: target, error: 'The DEV channel is only available when Agent OS runs with DEV mode enabled (launch with SKYNET_DEV=1). No message was delivered.' };
     if (r.status !== 200) return badStatus('/api/dev/inbound', r);
     const j = r.json || {};
     return { ok: true, target: target, delivered: true, agentId: j.agentId || null, isTask: !!j.isTask, replies: Array.isArray(j.replies) ? j.replies : [] };

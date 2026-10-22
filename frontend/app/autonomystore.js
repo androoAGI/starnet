@@ -1,4 +1,4 @@
-/* StarNet autonomy posture: the sidecar owns the setting. Browser storage is a
+/* Agent OS autonomy posture: the sidecar owns the setting. Browser storage is a
    last-confirmed cache, never permission to overwrite the server on page load. */
 'use strict';
 const AutonomyStore = (() => {

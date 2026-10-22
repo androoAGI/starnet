@@ -115,7 +115,7 @@ function makeTriggerRunner(deps) {
 
   /* ---- preflight: can THIS line take work right now? (no side effects) ---- */
   function preflight(t) {
-    if (halted()) return faulted() ? 'the station hit an internal fault and stopped its background work — restart StarNet and this trigger fires again' : 'automation is stopped (E-STOP) — resume it and this trigger fires again';
+    if (halted()) return faulted() ? 'the station hit an internal fault and stopped its background work — restart Agent OS and this trigger fires again' : 'automation is stopped (E-STOP) — resume it and this trigger fires again';
     const plan = planOf();
     if (!plan) return 'no work line is armed — the floor has no complete line to run';
     if (!(Array.isArray(plan.lines) ? plan.lines : []).some(l => l && String(l.lineId) === t.lineId)) return 'its line is no longer on the floor (the line changed or was removed) — delete this trigger or re-create it on the line';

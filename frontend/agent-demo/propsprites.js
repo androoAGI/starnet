@@ -1,4 +1,4 @@
-/* STARNET — propsprites.js : the canonical PROP (furniture) art + catalog.
+/* AGENT OS — propsprites.js : the canonical PROP (furniture) art + catalog.
 
    v7's sprites.js drew ~85 furniture pieces as detailed PROCEDURAL pixel art — outlined
    casings, 2–3 tone shading, contact shadows, and animated emissive bits (a TV cycling

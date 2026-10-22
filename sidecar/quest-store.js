@@ -1,6 +1,6 @@
 /* sidecar/quest-store.js — the station-wide, harness-owned, agent-aware QUEST LEDGER (QUEST V2, plan §A).
 
-   Quests are StarNet's retention spine: the game's progression must stay in sync with the Commander's REAL
+   Quests are Agent OS's retention spine: the game's progression must stay in sync with the Commander's REAL
    progression (goals, aspirations, work to automate). The v1 system was a frontend-only read projection with
    two fatal holes: completions celebrated unreliably, and any quest that wasn't mechanically observable was
    architecturally UNCOMPLETABLE (the agent couldn't even see it). V2 moves the ledger into the sidecar and

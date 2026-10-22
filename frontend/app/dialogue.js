@@ -1,4 +1,4 @@
-/* StarNet — dialogue.js : THE FOCUSED DIALOGUE MODE (Fallout-style first-run conversation).
+/* Agent OS — dialogue.js : THE FOCUSED DIALOGUE MODE (Fallout-style first-run conversation).
 
    The first three minutes (the awakening's questions + the first-command tutorial) used to live as
    tappable chips in the COMMS scroll. That invited TYPING — and typed answers fell through or looped,

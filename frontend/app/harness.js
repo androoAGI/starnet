@@ -1,4 +1,4 @@
-/* STARNET — harness.js : the REAL agent harness (BYOK).
+/* AGENT OS — harness.js : the REAL agent harness (BYOK).
    Owns the model connection + streaming + token/cost accounting.
 
    For this prototype the call goes browser -> OpenRouter directly (CORS-friendly,
@@ -177,7 +177,7 @@ const Harness = (() => {
      (withheldRetryDue) and the page adopts its key in place when the check passes. '' = the page has its key. */
   let tokenWithheld = (typeof window !== 'undefined' && !window.__STARNET_API_TOKEN__ && window.__STARNET_TOKEN_WITHHELD__) ? String(window.__STARNET_TOKEN_WITHHELD__) : '';
 
-  // TRUE only for our OWN sidecar API — a same-origin request under /api/. The X-StarNet-Token this gates is a
+  // TRUE only for our OWN sidecar API — a same-origin request under /api/. The X-Agent OS-Token this gates is a
   // PRIVATE local credential; a naive substring match on '/api/' would attach it to third-party URLs that merely
   // contain '/api/' (e.g. the OpenRouter fallback catalog https://openrouter.ai/api/v1/models), leaking the token
   // cross-origin AND forcing a CORS preflight OpenRouter rejects (so the fallback fails exactly when it's needed).
@@ -215,7 +215,7 @@ const Harness = (() => {
   function withApiToken(init, token) {
     init = Object.assign({}, init || {});
     const headers = new Headers(init.headers || {});
-    if (token) headers.set('X-StarNet-Token', token);
+    if (token) headers.set('X-Agent OS-Token', token);
     init.headers = headers;
     return init;
   }
@@ -334,9 +334,9 @@ const Harness = (() => {
       : r === 'other-user' ? 'the connection belongs to another account'
       : r === 'unsupported-platform' ? 'this system can’t run the ownership check'
       : 'the ownership check did not pass';
-    return 'StarNet could not confirm this browser runs as your own user account (' + why + '), so it won’t take commands from this page. '
+    return 'Agent OS could not confirm this browser runs as your own user account (' + why + '), so it won’t take commands from this page. '
       + (withheldRetryable(r) ? 'Reload this page to run the check again. If it keeps failing, open' : 'Open')
-      + ' StarNet from the desktop app, or if this is your own browser, restart StarNet with STARNET_TRUST_LOCAL_PEERS=1.';
+      + ' Agent OS from the desktop app, or if this is your own browser, restart Agent OS with STARNET_TRUST_LOCAL_PEERS=1.';
   }
   // Shown ONCE per page life — at boot (init) or on the first refused call, whichever comes first — and kept in
   // NOTIFICATIONS as one alert (key folds a repeat after a reload), because it outlives a toast's few seconds. A page
@@ -463,7 +463,7 @@ const Harness = (() => {
   // who linked an account and never pasted a key has neither — so every boot would bounce them to the
   // connect screen demanding an API key they deliberately do not have.
   //
-  // Called again after a link/unlink so selecting STARNET does not wait for a page reload.
+  // Called again after a link/unlink so selecting AGENT OS does not wait for a page reload.
   // creditsEpoch: every call is "the account may have changed" — SETTINGS' shared credits read (stationui.js
   // creditsRead) never serves an answer from an older epoch, whichever screen did the linking (review 10-14).
   let creditsEpoch = 0;
@@ -538,7 +538,7 @@ const Harness = (() => {
     const p = normalizeProviderId(provider);
     if (p === 'ollama' || p === 'claude-cli') return true;
     if (p === 'custom' && getBaseUrl(p)) return true;
-    // STARNET MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
+    // AGENT OS MANAGED is configured IFF the sidecar reports live credits — in BOTH modes. It must not fall
     // through to the keyless branch below, which would answer "configured" for every station simply because
     // there is no key to look for, and claim a station can run on credits it has never been linked to.
     if (p === 'starnet') return !!_configuredByProvider.starnet;
@@ -561,7 +561,7 @@ const Harness = (() => {
     // probe + app.js's status refresh) is the only local truth; in the browser the active-provider pick stands in.
     if (p === 'grok' || p === 'kimi') return DESKTOP ? !!_configuredByProvider[p] : (getProv() === p);
     if (p === 'ollama') return false;                      // an endpoint is configuration, never a credential
-    if (p === 'claude-cli') return false;                  // the local CLI's own sign-in is not a StarNet credential
+    if (p === 'claude-cli') return false;                  // the local CLI's own sign-in is not a Agent OS credential
     // a keyless custom endpoint must not manufacture a key row. On desktop getKey is '' by design, so the keychain
     // map below is the custom key's only truth (GitHub #111: a saved desktop CUSTOM key read as keyless).
     if (p === 'custom' && !DESKTOP && !getKey(p)) return false;
@@ -719,8 +719,8 @@ const Harness = (() => {
     // a page the station KEPT its key from refuses every key save with 'forbidden token' too — that is not a restart
     // (review threads-backend-05). The typeof guard keeps this pure when a test lifts it on its own.
     const withheld = typeof tokenWithheld === 'string' && tokenWithheld;
-    const hint = /forbidden origin/.test(t) ? ' — this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
-      : /forbidden host/.test(t) ? ' — StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
+    const hint = /forbidden origin/.test(t) ? ' — this page’s address doesn’t match the station; open Agent OS at the exact address you forward to it'
+      : /forbidden host/.test(t) ? ' — Agent OS answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
       : /forbidden token/.test(t) && withheld ? ' — this browser was not verified as running under your own user account, so the station kept its key from this page (see the notice)'
       : /forbidden token/.test(t) ? ' — the station restarted since this page loaded; reload the page'
       : '';
@@ -1106,7 +1106,7 @@ const Harness = (() => {
       });
     } catch (e) {
       // a Stop while connecting keeps today's message, but only a real refused/failed fetch is a transport loss
-      const refused = new Error('cannot reach the STARNET sidecar — start it with `npm start` (node sidecar/index.js)');
+      const refused = new Error('cannot reach the AGENT OS sidecar — start it with `npm start` (node sidecar/index.js)');
       throw isAbortError(e) ? refused : transportLoss(refused, 'fetch');
     }
     // A pre-stream failure's TRUE reason lives in the response body — runRouteFailure's {"error":"sidecar
@@ -1124,7 +1124,7 @@ const Harness = (() => {
     const dec = new TextDecoder();
     let buf = '', full = '', lastUsage = null, runId = null, errMsg = null, endReason = null, finishReason = null, completionVerdict = 'not_assessed', effectVerdict = 'no_observed_effects';
     let budgetScope = null, budgetCapUsd = null;   // additive: WHICH spend cap ended a 'budget' run (+ its $ cap)
-    let budgetCapIsBalance = false;   // additive: that per-run ceiling was the StarNet balance (sidecar admission clamp)
+    let budgetCapIsBalance = false;   // additive: that per-run ceiling was the Agent OS balance (sidecar admission clamp)
     // additive: a 'budget' stop at the per-run TOKEN ceiling for a model with no known price (loop.js maxUnpricedTokens).
     // The $ cap never governed it, so COMMS must name the real limit instead of "raise your spend cap".
     let unpricedModel = null, unpricedCapTokens = 0;
@@ -1577,14 +1577,14 @@ const Harness = (() => {
     try { U.bus.on('agent.run.error', endContextRun); } catch (_) {}
   }
 
-  /* IS THE LOCAL ENGINE ACTUALLY UP? (2026-07-29 — the "Can't reach StarNet's local service" misdiagnosis.)
+  /* IS THE LOCAL ENGINE ACTUALLY UP? (2026-07-29 — the "Can't reach Agent OS's local service" misdiagnosis.)
      A dead response stream and a dead sidecar are INDISTINGUISHABLE from the thrown fetch error alone (see the
      long note on isTransportLoss in friendlyerror.js), and the app used to assert the sidecar was gone and tell
      people to restart — sending users chasing a phantom for days when the real drop was the model's stream.
      This is the measurement that turns that guess into proof.
 
      GET /api/health is the right probe and the only one that works here: it is in apiauth's TOKEN_EXEMPT set, so
-     it needs no X-StarNet-Token (a stale-token 403 would otherwise read as "dead" — a second lie), and its
+     it needs no X-Agent OS-Token (a stale-token 403 would otherwise read as "dead" — a second lie), and its
      handler is a bare writeHead(200)/end('ok') that touches no store, so it cannot itself fail for load reasons.
      Bounded by an AbortController, because a socket the sidecar accepted and never answered (the exact
      hung-request bug this fix exists for) would otherwise hang the error row forever. On timeout we return
@@ -1596,7 +1596,7 @@ const Harness = (() => {
      (Chromium appears to retry a dead keep-alive socket with a ~2s backoff before surfacing "Failed to fetch").
      Samples: 249,250,251,251,268,1754,1771,1773,1794,2015 + 251,1778,2030. A 2000ms budget therefore lands
      exactly ON the slow mode and half of all genuinely-dead engines time out into `null` — which is the ONE case
-     where "restart StarNet" is the correct advice, so it must not be lost to an impatient probe. 4000ms clears
+     where "restart Agent OS" is the correct advice, so it must not be lost to an impatient probe. 4000ms clears
      the observed tail ~2x. Cost is bounded and rare: the common in-band failure path proves liveness by receipt
      and never calls this at all, and a healthy engine answers /api/health in ~1ms.
      Resolves true | false | null. Never throws, never rejects. */

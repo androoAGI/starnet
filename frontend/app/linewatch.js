@@ -1,4 +1,4 @@
-/* STARNET — linewatch.js : "watch your factory work" (line watch, owner-approved 2026-09-23). PURE + testable.
+/* AGENT OS — linewatch.js : "watch your factory work" (line watch, owner-approved 2026-09-23). PURE + testable.
 
    Three read-outs for the LIVE floor, each a fold of real harness state — never a guess:
 

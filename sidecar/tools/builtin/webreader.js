@@ -4,7 +4,7 @@
    WHY (2026-07-31, field data + the Hermes reach audit): the dominant real-world web failures are bot
    walls (403) and throttled keyless engines — problems a REAL browser fingerprint doesn't have. Hermes
    solves reach architecturally (vendor reader APIs + real browsers, model-driven escalation, no
-   automatic fallback); StarNet is local-first with no vendor keys, but it SHIPS a CDP Chrome. This
+   automatic fallback); Agent OS is local-first with no vendor keys, but it SHIPS a CDP Chrome. This
    module turns that asset into automatic reach: when the cheap path fails in a way a browser can fix,
    the tool quietly reads the page through Chrome instead of reporting weather.
 

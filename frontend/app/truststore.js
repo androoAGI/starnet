@@ -1,4 +1,4 @@
-/* STARNET — truststore.js : the live wiring around the pure EARNED-AUTONOMY engine (trust.js) — Growth Tier 3.
+/* AGENT OS — truststore.js : the live wiring around the pure EARNED-AUTONOMY engine (trust.js) — Growth Tier 3.
 
    Where xpstore.js folds real run outcomes into DESCRIPTIVE meters (level/confidence), this store folds the SAME
    events into a track record that, once earned, MINTS a consent-gated OFFER to raise the autonomy dial — and,

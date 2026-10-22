@@ -45,7 +45,7 @@ function makePluginToolDefs(o) {
     const desc = untrustedText(t.description, DESC_MAX) || ('A tool from the ' + label + ' plugin.');
     out.push({
       name: pluginToolName(pluginId, t.name),
-      description: '[' + label + ' plugin tool; written by that plugin, not by StarNet] ' + desc,
+      description: '[' + label + ' plugin tool; written by that plugin, not by Agent OS] ' + desc,
       schema: translateSchema(t.parameters),
       scope: readOnly ? 'read' : 'execute',
       readOnly,

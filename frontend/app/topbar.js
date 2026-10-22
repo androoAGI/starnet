@@ -1,4 +1,4 @@
-/* STARNET — topbar.js : the TOPBAR INSTRUMENT-CLUSTER logic (read-only wiring).
+/* AGENT OS — topbar.js : the TOPBAR INSTRUMENT-CLUSTER logic (read-only wiring).
 
    The topbar holds one cockpit gauge group: COMMANDER (level + achievement progress)
    and the moved-up session-status instruments (UPLINK / ONLINE / save).
@@ -72,7 +72,7 @@ const Topbar = (() => {
      port, same per-launch token), so there is no reload. A browser has nothing to restart: the tip names the step. */
   const DOWN_ESCALATE_MS = 15000, PROBE_EVERY_MS = 10000;
   let downSince = 0, lastProbeAt = 0, probing = false, engine = null, restarting = false, recoverable = false;
-  const DOWN_TIP = 'lost the connection to StarNet’s background service — live numbers pause until it’s back (is the app still running?)';
+  const DOWN_TIP = 'lost the connection to Agent OS’s background service — live numbers pause until it’s back (is the app still running?)';
   const BROWSER_STEP = ' — if you launched with `npm start`, check that terminal; otherwise open the desktop app';
   function canRestart() { try { return typeof Harness !== 'undefined' && !!Harness.canRestartEngine && Harness.canRestartEngine(); } catch (_) { return false; } }
   function probeEngine() {
@@ -83,8 +83,8 @@ const Topbar = (() => {
   }
   function downTip(desktop) {
     if (!engine) return DOWN_TIP;
-    if (engine.state === 'ok') return 'lost the live link to StarNet’s background service — the service itself is answering, so this window is reconnecting on its own';
-    const what = engine.reason || (engine.state === 'silent' ? 'StarNet’s background service isn’t answering (it may be stuck)' : 'StarNet’s background service isn’t running');
+    if (engine.state === 'ok') return 'lost the live link to Agent OS’s background service — the service itself is answering, so this window is reconnecting on its own';
+    const what = engine.reason || (engine.state === 'silent' ? 'Agent OS’s background service isn’t answering (it may be stuck)' : 'Agent OS’s background service isn’t running');
     return what + (desktop ? ' — click to restart the station service' : BROWSER_STEP);
   }
   function connectionBox(el) { return (el && el.closest && el.closest('.tb-connection')) || el; }
@@ -105,7 +105,7 @@ const Topbar = (() => {
     notifyUser('restarting the station service…', 'warn');
     let ok = false;
     try { ok = await Harness.restartEngine(); } catch (_) { ok = false; }
-    if (!ok) notifyUser('the station service could not be restarted — quit StarNet fully (tray → Quit) and open it again. Your save is untouched.', 'warn');
+    if (!ok) notifyUser('the station service could not be restarted — quit Agent OS fully (tray → Quit) and open it again. Your save is untouched.', 'warn');
     else {
       // A respawn that comes straight back degraded (a workspace owned by another process, a crash at boot) is not
       // healed: say what the service now says instead of claiming success.
@@ -131,7 +131,7 @@ const Topbar = (() => {
       el.classList.add('standby');
       el.childNodes[0].nodeValue = 'STANDBY ';
       bars.textContent = SIG_STANDBY;   // dim even bars — NOT full signal
-      el.title = ls && ls.paused ? 'connection to the background service is paused (disconnected)' : 'connection to StarNet’s background service — standby (not connected yet)';
+      el.title = ls && ls.paused ? 'connection to the background service is paused (disconnected)' : 'connection to Agent OS’s background service — standby (not connected yet)';
       return;
     }
     if (ls.down) {
@@ -150,7 +150,7 @@ const Topbar = (() => {
       el.classList.remove('down', 'standby');
       el.childNodes[0].nodeValue = 'UPLINK ';
       bars.textContent = SIG_UP;
-      el.title = 'connected to StarNet’s background service — everything on screen is live';
+      el.title = 'connected to Agent OS’s background service — everything on screen is live';
     }
   }
 

@@ -1,4 +1,4 @@
-/* STARNET — armconfirm.js : the ONE reusable "click to arm, click again to confirm" helper.
+/* AGENT OS — armconfirm.js : the ONE reusable "click to arm, click again to confirm" helper.
 
    The 2-step arm/confirm ritual (no native dialogs inside the phosphor terminal) is copy-pasted in at
    least three shapes today — the stored-key remove (stationui.js ~1990, dataset.armed + label swap +

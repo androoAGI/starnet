@@ -1,4 +1,4 @@
-/* STARNET — autojobs.js : the PURE engine for SELF-INITIATION (Slice 2 of the autonomy layer).
+/* AGENT OS — autojobs.js : the PURE engine for SELF-INITIATION (Slice 2 of the autonomy layer).
 
    The agent stops only ever waiting for orders: once it knows the Commander and they've turned autonomy on, it
    PROPOSES a few recurring STANDING JOBS grounded in what it knows — the Commander approves the ones they want, and

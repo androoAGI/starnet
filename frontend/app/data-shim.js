@@ -1,4 +1,4 @@
-/* STARNET — data-shim.js
+/* AGENT OS — data-shim.js
    The reused v7 sprite engine (js/assets.js) recolors a body by looking up
    DATA.AGENT[id].color. v7 shipped a giant 17-agent roster (data.js); the real
    harness has no fixed roster — each user-created agent registers itself here.

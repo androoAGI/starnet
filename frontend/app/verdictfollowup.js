@@ -1,4 +1,4 @@
-/* STARNET — verdictfollowup.js : the PURE engine for the VERDICT FOLLOW-UP (momentum loop, 2026-08-21).
+/* AGENT OS — verdictfollowup.js : the PURE engine for the VERDICT FOLLOW-UP (momentum loop, 2026-08-21).
 
    The rate-the-work beat used to end `◆ close` and `▼ missed` with the word "noted" — a dead question: the
    Commander told the station its work fell short and nothing changed. A miss is the highest-information

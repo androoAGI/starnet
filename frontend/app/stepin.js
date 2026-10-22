@@ -1,4 +1,4 @@
-/* STARNET — stepin.js : STEP-IN, the Commander takes an agent's browser (2026-09-29).
+/* AGENT OS — stepin.js : STEP-IN, the Commander takes an agent's browser (2026-09-29).
 
    An agent browsing on its own hits a login, a 2FA code or a CAPTCHA and calls browser.need_human. Its run parks
    on the sidecar's handoff host (own id, own 30-minute wait) and a `browser.handoff` event arrives here over the

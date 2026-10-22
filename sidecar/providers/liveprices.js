@@ -3,7 +3,7 @@
    WHY (2026-07-31, Hermes-parity pass): prices.js is a hand-maintained snapshot of published rates.
    It goes stale on every model release, and its family fallbacks then price a new model at the old
    family rate — the seatbelt still works, but the estimate drifts. Hermes aggregates models.dev
-   (agent/models_dev.py); this is the StarNet-shaped equivalent: a small disk-cached fetcher the host
+   (agent/models_dev.py); this is the Agent OS-shaped equivalent: a small disk-cached fetcher the host
    wires into prices.setLiveLookup() at boot.
 
    SHAPE OF THE SOURCE (probed live 2026-07-31): https://models.dev/api.json →

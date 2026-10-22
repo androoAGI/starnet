@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/core.js : THE CORE RECIPE CATALOG — the 10 foundational use cases.
+/* AGENT OS — recipe-catalog/core.js : THE CORE RECIPE CATALOG — the 10 foundational use cases.
 
    This is DATA, not logic. recipes.js consumes the aggregate (recipe-catalog/index.js) and owns all the
    normalization / freezing / launch primitives. Splitting the catalog out of recipes.js means content scales
@@ -25,7 +25,7 @@
                          recipe ships only if it is EITHER something the Commander would never have thought
                          to ask an agent for and immediately wants once they see it ("scan my sent messages
                          for promises I made and never closed"), OR something of real value to essentially
-                         every StarNet user ("tell me what changed in the terms of the services I pay for").
+                         every Agent OS user ("tell me what changed in the terms of the services I pay for").
                          A recipe that is merely a competent version of an obvious request fails this — the
                          obvious request is what the chat box is for. THE CATALOG'S JOB IS TO SHOW SOMEONE A
                          USE CASE THEY COULD NOT HAVE NAMED THEMSELVES.

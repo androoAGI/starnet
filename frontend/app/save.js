@@ -1,4 +1,4 @@
-/* STARNET — save.js : local persistence for the agent + session.
+/* AGENT OS — save.js : local persistence for the agent + session.
    A VERSIONED envelope so saves survive future changes. localStorage for now;
    the same shape + migration ladder moves to the SQLite sidecar later. */
 'use strict';
@@ -6,7 +6,7 @@
 const Save = (() => {
   const KEY = 'starnet.save';
   const PRE_MIGRATE_BACKUP_KEY = 'starnet.save.pre-migrate.backup';
-  const LEGACY_SCHEMA = 'skynet.save';   // Skynet→StarNet rename: saves written before the rename carry this schema tag (the
+  const LEGACY_SCHEMA = 'skynet.save';   // Skynet→Agent OS rename: saves written before the rename carry this schema tag (the
   const SCHEMA = 'starnet.save';         // legacymigrate boot pass copies the OLD `skynet.save` localStorage KEY forward; load() still accepts the old TAG inside the value).
   // v6 belongs to the 0.9 line. v0.8.5 shipped save v5 and its Workstreams normalizer does not know the
   // candidate's persisted `titleStrong` provenance bit. Reusing v5 let a manual rollback accept the newer save,
@@ -81,7 +81,7 @@ const Save = (() => {
 
   // FORWARD-VERSION GUARD (P0.3). loadStatus() is the honest verdict channel the boot path reads BEFORE
   // it decides resume-vs-onboard. A save whose version is GREATER than this build's CURRENT was written by
-  // a NEWER StarNet: this code cannot read the fields that version added, so migrating it (which would
+  // a NEWER Agent OS: this code cannot read the fields that version added, so migrating it (which would
   // re-stamp version = CURRENT and drop those fields) is silent contamination. We refuse: leave the stored
   // doc byte-for-byte UNTOUCHED and report { status:'future', version } so the boot path can raise an
   // honest "update the app" gate instead of either mangling the save or (worse) treating it as no-save and

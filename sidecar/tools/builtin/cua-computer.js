@@ -38,7 +38,7 @@ function makeCuaComputerTools(deps) {
       properties: {
         action: { type: 'string', enum: ['describe', ...contract.tools.map(t => t.name)] },
         operation: { type: 'string', description: 'For describe: the action whose input schema and guidance you need.' },
-        parameters: { type: 'object', description: 'Native action arguments. Example get_window_state: {pid:123,window_id:456}; click: {pid:123,window_id:456,element_token:"observed token"}; type_text also takes text. Call describe for exact schemas. StarNet owns the session.' }
+        parameters: { type: 'object', description: 'Native action arguments. Example get_window_state: {pid:123,window_id:456}; click: {pid:123,window_id:456,element_token:"observed token"}; type_text also takes text. Call describe for exact schemas. Agent OS owns the session.' }
       }
     },
     run(args, ctx) {
@@ -54,13 +54,13 @@ function makeCuaComputerTools(deps) {
         if (!contract.tools.some(t => t.name === args.action)) throw new Error('Unsupported computer operation');
         const parameters = args.parameters || {};
         if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) throw new Error('parameters must be an object');
-        if ('session' in parameters) throw new Error('StarNet owns the computer session; omit session');
-        // STARNET IS NEVER DRIVEN THROUGH THE SCREEN (computer.js guardSelfTarget): an action aimed at the desktop shell's own
+        if ('session' in parameters) throw new Error('Agent OS owns the computer session; omit session');
+        // AGENT OS IS NEVER DRIVEN THROUGH THE SCREEN (computer.js guardSelfTarget): an action aimed at the desktop shell's own
         // pid is refused before it reaches CUA; reads (list_windows, get_window_state) stay open. A paired remote owner keeps it.
         const op = contract.tools.find(t => t.name === args.action);
         const selfPids = (typeof deps.selfPids === 'function' ? deps.selfPids() : deps.selfPids) || [];
         if (!op.read_only && !(ctx?.remoteDesktopAuthorized === true && ctx?.ownerTrusted === true) && selfPids.indexOf(Number(parameters.pid) || 0) >= 0) {
-          throw new Error('refused: pid ' + parameters.pid + ' is StarNet itself, so nothing was sent — ' + policy.SELF_DRIVE_HELP);
+          throw new Error('refused: pid ' + parameters.pid + ' is Agent OS itself, so nothing was sent — ' + policy.SELF_DRIVE_HELP);
         }
         const conn = await getConnection(ctx?.signal);
         const cancelled = () => { void reset(); };
@@ -76,7 +76,7 @@ function makeCuaComputerTools(deps) {
           // would be discarded by its success normalization.
           if (result.isError || state.effect === 'refused' || state.refusal) {
             const error = new Error(JSON.stringify({ backend: 'cua', operation: args.action, ...state,
-              ...(expired ? { hostRecovery: 'StarNet discarded the expired session. Call get_window_state again to obtain fresh tokens before acting. No action was replayed.' } : {}) }));
+              ...(expired ? { hostRecovery: 'Agent OS discarded the expired session. Call get_window_state again to obtain fresh tokens before acting. No action was replayed.' } : {}) }));
             error.cuaRefusal = true;
             throw error;
           }

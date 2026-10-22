@@ -1,4 +1,4 @@
-/* STARNET — cronhuman.js : the pure schedule TRANSLATOR every routine surface speaks through.
+/* AGENT OS — cronhuman.js : the pure schedule TRANSLATOR every routine surface speaks through.
 
    WHY THIS EXISTS. sidecar/cron.js is the authority on WHEN a routine fires, and it is deliberately
    terse about SAYING it: a cron schedule's own display string is literally `cron 0 9 * * 2`. That is

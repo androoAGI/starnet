@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/index.js : THE CATALOG AGGREGATE — every built-in recipe, from every module.
+/* AGENT OS — recipe-catalog/index.js : THE CATALOG AGGREGATE — every built-in recipe, from every module.
 
    recipes.js consumes THIS (never the individual modules) as the raw built-in array, then normalizes + freezes.
    Structure is deliberately trivial so adding a persona catalog (R4: dev.js / research.js / creator.js / ops.js)

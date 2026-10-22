@@ -44,7 +44,7 @@
   const idOk = (s) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(String(s || ''));
 
   /* SCREENS — a plugin's own windows (2026-09-29, plugin extensions phase 1). Each one is an HTML entry inside the
-     plugin folder that the station opens in a real StarNet window: a sandboxed frame under the station's own glass
+     plugin folder that the station opens in a real Agent OS window: a sandboxed frame under the station's own glass
      chrome (sidecar /plugin-ui/ route + frontend/app/pluginhost.js). The manifest only NAMES them; nothing here
      runs them. Validated hard because every field ends up in the page: the id keys a window, the title is
      rendered, the entry becomes a URL path.
@@ -239,13 +239,13 @@
       const id = String((spec && spec.id) || '').trim();
       if (!idOk(id)) return { ok: false, error: 'use letters, numbers, dot, dash or underscore (max 64)' };
       const name = String((spec && spec.name) || '').trim() || id;
-      const description = String((spec && spec.description) || '').trim() || 'A StarNet plugin.';
+      const description = String((spec && spec.description) || '').trim() || 'A Agent OS plugin.';
       const base = P.join(dir, id);
       try { await fsp.stat(base); return { ok: false, error: 'a plugin folder named "' + id + '" already exists' }; }
       catch (_) { /* good — it does not exist yet */ }
 
       const source = [
-        '/* ' + name + ' — a StarNet plugin.',
+        '/* ' + name + ' — a Agent OS plugin.',
         ' *',
         ' * register(api) runs once at station boot. api.on(event, handler) is the whole surface:',
         ' *   pre_tool_call    before a tool runs — return {decision:"block", reason:"…"} to stop it',

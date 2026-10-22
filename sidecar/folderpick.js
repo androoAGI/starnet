@@ -32,7 +32,7 @@
   'use strict';
 
   // The Windows dialog runs in a spawned PowerShell STA process (WinForms needs a single-threaded
-  // apartment). The owner form is TopMost so the dialog surfaces above the StarNet window instead of
+  // apartment). The owner form is TopMost so the dialog surfaces above the Agent OS window instead of
   // being born behind it. Output contract: the chosen path on stdout, nothing on cancel, exit 0 both ways.
   const PS_SCRIPT = [
     "Add-Type -AssemblyName System.Windows.Forms | Out-Null;",
@@ -41,7 +41,7 @@
     "$owner.TopMost = $true; $owner.ShowInTaskbar = $false;",
     "$owner.StartPosition = 'CenterScreen'; $owner.Size = New-Object System.Drawing.Size(0,0);",
     "$dlg = New-Object System.Windows.Forms.FolderBrowserDialog;",
-    "$dlg.Description = 'Choose a project folder for StarNet';",
+    "$dlg.Description = 'Choose a project folder for Agent OS';",
     "$dlg.ShowNewFolderButton = $true;",
     "if ($dlg.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dlg.SelectedPath) }"
   ].join(' ');
@@ -57,7 +57,7 @@
     "$owner.TopMost = $true; $owner.ShowInTaskbar = $false;",
     "$owner.StartPosition = 'CenterScreen'; $owner.Size = New-Object System.Drawing.Size(0,0);",
     "$dlg = New-Object System.Windows.Forms.OpenFileDialog;",
-    "$dlg.Title = 'Choose a file for StarNet';",
+    "$dlg.Title = 'Choose a file for Agent OS';",
     "$dlg.Multiselect = $false; $dlg.CheckFileExists = $true;",
     "if ($dlg.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dlg.FileName) }"
   ].join(' ');
@@ -72,14 +72,14 @@
     if (platform === 'darwin') {
       // `choose folder` / `choose file` return the POSIX path on stdout; user cancel exits non-zero with -128 on stderr.
       return { cmd: 'osascript', args: ['-e', file
-        ? 'POSIX path of (choose file with prompt "Choose a file for StarNet")'
-        : 'POSIX path of (choose folder with prompt "Choose a project folder for StarNet")'] };
+        ? 'POSIX path of (choose file with prompt "Choose a file for Agent OS")'
+        : 'POSIX path of (choose folder with prompt "Choose a project folder for Agent OS")'] };
     }
     if (platform === 'linux') {
       // zenity is the least-bad common denominator; cancel exits 1 with empty stdout.
       return file
-        ? { cmd: 'zenity', args: ['--file-selection', '--title=Choose a file for StarNet'] }
-        : { cmd: 'zenity', args: ['--file-selection', '--directory', '--title=Choose a project folder for StarNet'] };
+        ? { cmd: 'zenity', args: ['--file-selection', '--title=Choose a file for Agent OS'] }
+        : { cmd: 'zenity', args: ['--file-selection', '--directory', '--title=Choose a project folder for Agent OS'] };
     }
     return null;
   }

@@ -39,7 +39,7 @@ function row(kind, id, label, result, startedAt, endedAt) {
 
 function receiptText(report) {
   const lines = [
-    'STARNET LIVE DOCTOR',
+    'AGENT OS LIVE DOCTOR',
     'when: ' + report.startedAt + ' -> ' + report.endedAt,
     'agent: ' + (report.agentId || '(none)'),
     'result: ' + report.summary.roundTrip + ' round-trip proven; ' + report.summary.authenticated

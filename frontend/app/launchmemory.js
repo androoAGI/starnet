@@ -1,4 +1,4 @@
-/* STARNET — launchmemory.js : LAST-USED RECIPE INPUTS — kill the retype tax on every launch.
+/* AGENT OS — launchmemory.js : LAST-USED RECIPE INPUTS — kill the retype tax on every launch.
 
    The smallest possible practicality store (lane C of the recipe-system upgrade): every successful recipe
    launch (RUN NOW / RUN NOW INSTEAD / SCHEDULE IT) saves the param values the Commander actually filled, and

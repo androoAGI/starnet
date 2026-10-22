@@ -1,6 +1,6 @@
 /* sidecar/skills/catalog.js — the BUNDLED skill library: pre-installed, capability-gated recipe documents.
 
-   Distinct from sidecar/skillstore.js (the agent's OWN runtime-saved procedures). These ship WITH StarNet as
+   Distinct from sidecar/skillstore.js (the agent's OWN runtime-saved procedures). These ship WITH Agent OS as
    curated markdown recipes (ported pure-prompt skills). Each declares `requires` = the capability OBJECTS it
    needs (cabinet / dish / workbench / studio / ...) so a recipe is AVAILABLE only to an agent whose workstation
    actually has those objects placed -- the object=capability moat extended from raw tools to know-how. Enabled

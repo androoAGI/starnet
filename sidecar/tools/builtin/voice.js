@@ -2,7 +2,7 @@
 
    The station could already SPEAK (POST /api/tts — the keyed neural ladder, with Edge read-aloud as the free
    keyless floor). What no agent could do was PRODUCE audio: a voiceover for a video, a narrated summary, an
-   audio message. Asked what StarNet lacked, agents answered "voice generation" — and they were right about
+   audio message. Asked what Agent OS lacked, agents answered "voice generation" — and they were right about
    the tool while the whole synthesis stack sat one seam away, wired only to the station's own mouth.
 
    This is the STUDIO's third skill, and it is deliberately the same shape as image_generate:

@@ -12,9 +12,9 @@
 'use strict';
 
 const GUIDE = [
-  'HOW A STARNET APP WORKS (keep to this):',
-  '- A StarNet app lives INSIDE StarNet. If the Commander asked for something to host, ship or run elsewhere (a website for Netlify, a React project, a script, an extension), this was the wrong tool: build real files instead, and tell the Commander this empty app can be removed from APPS.',
-  '- The app is ONE page: index.html (put CSS/JS inline or in style.css / app.js beside it). It opens in a StarNet window.',
+  'HOW A AGENT OS APP WORKS (keep to this):',
+  '- A Agent OS app lives INSIDE Agent OS. If the Commander asked for something to host, ship or run elsewhere (a website for Netlify, a React project, a script, an extension), this was the wrong tool: build real files instead, and tell the Commander this empty app can be removed from APPS.',
+  '- The app is ONE page: index.html (put CSS/JS inline or in style.css / app.js beside it). It opens in a Agent OS window.',
   '- IT IS THE COMMANDER\'S APP — it can be ANYTHING: a dashboard, a tracker, a calculator, a timer, a game, a canvas toy. If they describe a look, layout, colours, fonts, animation or behaviour, build EXACTLY that with your own CSS/JS/canvas/SVG — their wish beats the station style. Only when they did not say how it should look, make it native:',
   '- DEFAULT LOOK (no look asked for): the station kit is injected automatically — build with its classes so the app looks native: sn-stack · sn-row-flex · sn-grid · sn-panel · sn-card · sn-sect (▮ header strip) + sn-list/sn-item rows · sn-stats/sn-stat (<b>value</b><span>LABEL</span>) · sn-table · sn-badge · dot ok|warn|bad · sn-title · sn-label · sn-hint · sn-muted · sn-btn (.primary .xs) · sn-input · sn-select · sn-tabs/sn-tab.on · sn-empty · sn-loading · sn-error. Colours via var(--ph), rgba(var(--ph-rgb),.2), var(--ok) --bad --warn; the page background stays transparent (the window glass shows through).',
   '- INTERACTIVE apps keep the Commander\'s own input with starnet.store.set(key, value) / starnet.store.get(key) / starnet.store.delete(key) / starnet.store.keys() (JSON, saved on the station, survives reloads) — a tracker, a to-do, settings, a high score. Never localStorage (the sandbox has none).',
@@ -41,11 +41,11 @@ function makeAppTools(deps) {
   const defs = [
     {
       name: 'app.create',
-      description: 'Create a new StarNet app: a dashboard or tool that lives INSIDE StarNet, in its own StarNet window, from a name and a one-line description. Returns its id and how to build it. '
+      description: 'Create a new Agent OS app: a dashboard or tool that lives INSIDE Agent OS, in its own Agent OS window, from a name and a one-line description. Returns its id and how to build it. '
         // the exclusions name no search words (tool_search matches description substrings, and the hit line shows only the
         // first sentence): listed as "a website, a React project, a browser extension…", they made tool_search REVEAL
         // app.create as the top hit for exactly those asks (sweep 2026-10-02). Same meaning, no trigger words.
-        + 'NOT for anything meant to run, be published or be shipped outside StarNet (something to put online, a framework codebase, a standalone program, an add-on for the Commander\'s own web browser, a phone or computer program): build those as real files with the file tools.',
+        + 'NOT for anything meant to run, be published or be shipped outside Agent OS (something to put online, a framework codebase, a standalone program, an add-on for the Commander\'s own web browser, a phone or computer program): build those as real files with the file tools.',
       schema: { type: 'object', required: ['name'], properties: { name: { type: 'string' }, description: { type: 'string', description: 'what it should do, in the Commander\'s words' } } },
       scope: 'write',
       run: async (a) => {
@@ -55,7 +55,7 @@ function makeAppTools(deps) {
     },
     {
       name: 'app.read',
-      description: 'See what a StarNet app is made of: with only `app`, its description, files, data keys and schedule (plus the build guide); with `path`, one file; with `key`, one published data value.',
+      description: 'See what a Agent OS app is made of: with only `app`, its description, files, data keys and schedule (plus the build guide); with `path`, one file; with `key`, one published data value.',
       schema: { type: 'object', required: ['app'], properties: { app: { type: 'string' }, path: { type: 'string' }, key: { type: 'string' } } },
       scope: 'read', readOnly: true,
       run: async (a) => {
@@ -78,7 +78,7 @@ function makeAppTools(deps) {
     },
     {
       name: 'app.write',
-      description: 'Write one file of a StarNet app (the whole file). index.html is the app. The open window reloads onto the new version immediately.',
+      description: 'Write one file of a Agent OS app (the whole file). index.html is the app. The open window reloads onto the new version immediately.',
       schema: { type: 'object', required: ['app', 'path', 'content'], properties: { app: { type: 'string' }, path: { type: 'string', description: 'e.g. index.html' }, content: { type: 'string', description: 'the COMPLETE file' } } },
       scope: 'write',
       run: async (a) => {
@@ -89,7 +89,7 @@ function makeAppTools(deps) {
     },
     {
       name: 'app.check',
-      description: 'Check a StarNet app without running it: every script compiles, and a look check against the station style (warnings).',
+      description: 'Check a Agent OS app without running it: every script compiles, and a look check against the station style (warnings).',
       schema: { type: 'object', required: ['app'], properties: { app: { type: 'string' } } },
       scope: 'read', readOnly: true,
       run: async (a) => {
@@ -109,7 +109,7 @@ function makeAppTools(deps) {
           }
           if (/\.html?$/i.test(f.path)) {
             if (/background(?:-color)?\s*:\s*(?:#fff\b|#ffffff\b|white\b)/i.test(text)) warnings.push(f.path + ': a white background — fine if the Commander asked for that look; otherwise leave the page transparent');
-            if (!/class="[^"]*\bsn-/.test(text)) warnings.push(f.path + ': no kit classes (sn-*) — fine for a custom look the Commander asked for; otherwise it will not look like StarNet');
+            if (!/class="[^"]*\bsn-/.test(text)) warnings.push(f.path + ': no kit classes (sn-*) — fine for a custom look the Commander asked for; otherwise it will not look like Agent OS');
             if (/<(?:script|link|img|iframe)\b[^>]*\b(?:src|href)=["']https?:/i.test(text) || /@import\s+(?:url\()?["']?https?:/i.test(text) || /\blocalStorage\b|\bsessionStorage\b/.test(text)) warnings.push(f.path + ': loads something from the web or uses localStorage — neither works in an app (no network, no browser storage); inline it, and keep data with starnet.store');
             if (/\bfetch\s*\(|XMLHttpRequest|new WebSocket/.test(text)) warnings.push(f.path + ': the page tries to use the network — it has none; publish data with app.publish instead');
             if (/onclick\s*=\s*"[^"]*\$\{\s*JSON\.stringify/i.test(text)) warnings.push(f.path + ': JSON.stringify inside an onclick="…" attribute — its quotes end the attribute and the handler never runs; use a plain <a href> (the station opens links) or addEventListener');
@@ -120,7 +120,7 @@ function makeAppTools(deps) {
     },
     {
       name: 'app.publish',
-      description: 'Put data into a StarNet app — what its page shows (any JSON under a key the page reads). The open window updates immediately. Scheduled refreshes end with this.',
+      description: 'Put data into a Agent OS app — what its page shows (any JSON under a key the page reads). The open window updates immediately. Scheduled refreshes end with this.',
       schema: { type: 'object', required: ['app', 'key', 'value'], properties: { app: { type: 'string' }, key: { type: 'string', description: 'the key the page reads, e.g. "items"' }, value: { description: 'any JSON value' } } },
       scope: 'write',
       run: async (a) => {
@@ -134,7 +134,7 @@ function makeAppTools(deps) {
       // it PERSISTS the task every later refresh obeys: a run that has read the web may not rewrite it unasked
       // (the same laundering team.configure is locked against). Schedule BEFORE researching and nothing asks.
       taintLocked: true,
-      description: 'Make a StarNet app refresh itself: `every` ("every 24h", "every 6h", "0 8 * * *" for 8:00 daily) and the `task` each refresh performs (it must end by publishing with app.publish). every "off" stops it.',
+      description: 'Make a Agent OS app refresh itself: `every` ("every 24h", "every 6h", "0 8 * * *" for 8:00 daily) and the `task` each refresh performs (it must end by publishing with app.publish). every "off" stops it.',
       schema: { type: 'object', required: ['app', 'every'], properties: { app: { type: 'string' }, every: { type: 'string' }, task: { type: 'string' } } },
       scope: 'write',
       run: async (a) => {

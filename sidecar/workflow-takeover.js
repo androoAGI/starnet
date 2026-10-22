@@ -111,7 +111,7 @@ function similar(a, b) {
 }
 
 /* CADENCE — a SUGGESTION only, read off when the Commander actually asked (sidecar local time is the
-   Commander's machine time: StarNet is local-first). The review form pre-selects it; the Commander still
+   Commander's machine time: Agent OS is local-first). The review form pre-selects it; the Commander still
    picks and confirms. Returns null when the occasions show no honest rhythm. */
 const DAYNAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function hourLabel(h) { return (h % 12 || 12) + ' ' + (h < 12 ? 'AM' : 'PM'); }

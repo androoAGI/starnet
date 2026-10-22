@@ -1,7 +1,7 @@
 /* sidecar/apitickets.js — SCOPED, SHORT-LIVED URL CAPABILITIES ("tickets") that replace the master API token in
    every URL the app builds (2026-09-25 security lane, audit 09-23 open item "master token in URLs").
 
-   WHY: a few browser surfaces cannot attach the X-StarNet-Token header — a link/tab navigation (/api/file,
+   WHY: a few browser surfaces cannot attach the X-Agent OS-Token header — a link/tab navigation (/api/file,
    /workshop-run/), EventSource (/api/channels/events) and the unload beacon (POST /api/save). They used to carry
    the MASTER per-launch token as ?token=…, and URLs leak: OS-browser history (desktop hands file/tool links to the
    default browser), Referer, copied links, screenshots, request logs. A leaked master token drives the whole API.

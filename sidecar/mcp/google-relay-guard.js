@@ -1,13 +1,13 @@
 'use strict';
-/* sidecar/mcp/google-relay-guard.js — RESTRICTED-tier Google data never reaches a StarNet-operated server.
+/* sidecar/mcp/google-relay-guard.js — RESTRICTED-tier Google data never reaches a Agent OS-operated server.
 
    Google's security assessment (CASA) applies when restricted-scope data (Gmail read/compose, whole-Drive read)
-   is stored on or transmitted through the DEVELOPER's servers. StarNet is local-first: the one StarNet-operated
-   path model traffic can take is the StarNet Managed provider ('starnet', the credits relay). This guard keeps
+   is stored on or transmitted through the DEVELOPER's servers. Agent OS is local-first: the one Agent OS-operated
+   path model traffic can take is the Agent OS Managed provider ('starnet', the credits relay). This guard keeps
    restricted Google content off that path in both directions it could travel:
 
-     • LIVE  — a run on StarNet Managed is not offered restricted Google connector tools (projectable()).
-     • REPLAY — every request streamed to StarNet Managed (primary, fallback, auxiliary pass) has the results of
+     • LIVE  — a run on Agent OS Managed is not offered restricted Google connector tools (projectable()).
+     • REPLAY — every request streamed to Agent OS Managed (primary, fallback, auxiliary pass) has the results of
                 earlier restricted Google tool calls replaced by a notice (guardProvider()). The agent's LOCAL
                 transcript is untouched; only the outgoing copy is filtered.
 
@@ -23,7 +23,7 @@
    Not covered (derived content, see docs/GOOGLE_REVIEW_BUILD.md): an assistant's own prose that restates a
    message, memory notes or files the agent wrote from Google content. */
 const { note: failNote } = require('../failopen.js');
-const WITHHELD = '[Withheld: this Gmail / Google Drive result stays on this computer and is never sent to StarNet Managed. '
+const WITHHELD = '[Withheld: this Gmail / Google Drive result stays on this computer and is never sent to Agent OS Managed. '
   + 'Switch this agent to your own model provider to work with it.]';
 
 function makeGoogleRelayGuard({ googleClient, tools, mcpToolName, configs, extraRestricted }) {

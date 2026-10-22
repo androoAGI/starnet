@@ -372,7 +372,7 @@
           tail = '\n\nSimilar notes you already hold:\n' + similar.map(n => '[' + n.id + '] ' + String(n.title || '') + ': ' +
             String(n.content != null ? n.content : (n.body != null ? n.body : ''))).join('\n') +
             '\n\nIf ' + note.id + ' REPLACES one of them, retire the old one now: call notebook.write with replaceId set to its id, ' +
-            'previousBody set to its exact text above, and this same title/body — StarNet folds ' + note.id + ' into it, so only ' +
+            'previousBody set to its exact text above, and this same title/body — Agent OS folds ' + note.id + ' into it, so only ' +
             'the corrected belief stays active. If they are separate facts, leave both.';
         }
         return Object.assign({ content: (args.replaceId ? 'Updated' : 'Saved') + ' note "' + note.title + '" (' + note.id + ').' + (args.replaceId ? ' The previous text is archived and is no longer active recall.' : '') + where + proof + tail, summary: (args.replaceId ? 'updated ' : 'wrote ') + note.id }, echoTaint(similar));

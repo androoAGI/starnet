@@ -1,4 +1,4 @@
-/* STARNET — diagnostics.js : one-click "COPY DIAGNOSTICS" for a paste-ready bug report (T3.9).
+/* AGENT OS — diagnostics.js : one-click "COPY DIAGNOSTICS" for a paste-ready bug report (T3.9).
 
    A public user who hits a wall needs to email a useful report without leaking anything. The SIDECAR assembles
    the report server-side from real state (GET /api/diagnostics -> { report, text }); this thin browser module
@@ -219,7 +219,7 @@
     context = context || {};
     return Promise.all([buildLine(), engineVerdict(context)]).then(([build, alive]) => {
       const lines = [];
-      lines.push('STARNET DIAGNOSTICS (page-side fallback — the local engine did not answer, so this report was');
+      lines.push('AGENT OS DIAGNOSTICS (page-side fallback — the local engine did not answer, so this report was');
       lines.push('assembled by the app window itself and is SHORTER than a normal report.)');
       lines.push('');
       lines.push('when:          ' + new Date().toISOString());

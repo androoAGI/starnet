@@ -1,6 +1,6 @@
 /* sidecar/providers/toolschema.js — make a tool's JSON Schema safe for a strict provider wire.
 
-   WHY THIS EXISTS: built-in StarNet tools hand-write small, tame schemas, but an MCP connector's
+   WHY THIS EXISTS: built-in Agent OS tools hand-write small, tame schemas, but an MCP connector's
    `inputSchema` is authored by a third-party server. The official MCP TypeScript SDK builds schemas
    with zod-to-json-schema, so a real connector routinely ships `$schema`, `additionalProperties`,
    `$ref`/`$defs`, `anyOf` null-unions and `default` — all of which flow through mcp/translate.js and

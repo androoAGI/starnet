@@ -1,4 +1,4 @@
-/* STARNET — ctxgauge.js : the CONTEXT-WINDOW gauge model. Pure + testable
+/* AGENT OS — ctxgauge.js : the CONTEXT-WINDOW gauge model. Pure + testable
    (UMD: a `CtxGauge` global in the browser, module.exports under node).
 
    Turns real numbers into a render-agnostic gauge state:

@@ -1,4 +1,4 @@
-/* STARNET — propsearch.js : PURE prop-palette search matcher.
+/* AGENT OS — propsearch.js : PURE prop-palette search matcher.
 
    The REFIT palette browses 120+ props through two TIERS and ~11 category tabs. That taxonomy is
    fine when you know which drawer a thing lives in and useless when you don't — "where is the

@@ -135,7 +135,7 @@
       // is known, so the error names the actual remedy instead of a generic construction failure.
       if (!(opts.baseUrl || profile.baseUrl)) {
         throw new Error(id === 'starnet'
-          ? 'STARNET is not linked on this station — link it in SETTINGS to run on credits (relink if you recently unlinked or reinstalled)'
+          ? 'AGENT OS is not linked on this station — link it in SETTINGS to run on credits (relink if you recently unlinked or reinstalled)'
           : 'provider ' + id + ' has no endpoint configured (base URL missing)');
       }
       /* An Ollama server added as a CUSTOM OpenAI-compatible endpoint (http://…:11434/v1) got none of the Ollama
@@ -183,7 +183,7 @@
         // ceiling wins over the profile's, the same way the output ceilings above resolve.
         nativeOllama: wire.nativeOllama === true,
         // ...and whether that native wire was only BORROWED on the URL's look (a CUSTOM card): a server that then proves
-        // it is not Ollama is StarNet's wrong guess, so the turn moves to /v1 instead of blaming the user's card.
+        // it is not Ollama is Agent OS's wrong guess, so the turn moves to /v1 instead of blaming the user's card.
         nativeOllamaBorrowed: wire !== profile && wire.nativeOllama === true,
         numCtx: resolveMaxOutputTokens(wire, 'numCtx'),
         maxCtx: resolveMaxOutputTokens(wire, 'maxCtx'),

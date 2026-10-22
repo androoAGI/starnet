@@ -165,7 +165,7 @@
 
       const raw = String(absPath == null ? '' : absPath);
       const norm = P.resolve(raw);
-      // NUL and UNC are not local filesystem targets StarNet can pass to Node safely. Full Power removes
+      // NUL and UNC are not local filesystem targets Agent OS can pass to Node safely. Full Power removes
       // policy restrictions, not path syntax validity or the distinction between this computer and a share.
       if (raw.indexOf('\0') >= 0) throw new Error('illegal path (NUL): ' + raw);
       if (/^[\\/]{2}/.test(raw)) throw new Error('network paths (UNC) are not local computer paths: ' + raw);

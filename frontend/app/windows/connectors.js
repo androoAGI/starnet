@@ -1,4 +1,4 @@
-/* STARNET — windows/connectors.js : the TOOLSETS & CONNECTORS window (extracted verbatim from stationui.js).
+/* AGENT OS — windows/connectors.js : the TOOLSETS & CONNECTORS window (extracted verbatim from stationui.js).
    Loads AFTER stationui.js (see index.html) and registers itself via StationUI.registerWindow;
    the only stationui internals it touches are the enumerated StationUI.h helper surface
    (esc/sfx/notify/fmtRel, mountConsole, and openSignIn for catalog OAuth flows). */
@@ -34,11 +34,11 @@
      today; a lock with no START FRESH and no fix of its own leaves the sidecar's message to speak. */
   function storageNextStep(storage) {
     const s = storage || {};
-    if (s.reason === 'busy') return s.canStartFresh ? '' : ' Restart StarNet to try again.';
-    if (s.reason === 'key-unavailable') return s.canStartFresh ? ' Use START FRESH only if you cannot unlock or repair the credential store.' : ' Unlock the credential store and restart StarNet.';
+    if (s.reason === 'busy') return s.canStartFresh ? '' : ' Restart Agent OS to try again.';
+    if (s.reason === 'key-unavailable') return s.canStartFresh ? ' Use START FRESH only if you cannot unlock or repair the credential store.' : ' Unlock the credential store and restart Agent OS.';
     return s.canStartFresh ? ' START FRESH sets the unreadable files aside and lets you sign in to each service again.' : '';
   }
-  /* An open store's storage notes. `notice` is a store StarNet does not count as encrypted (fallback, or a seal not yet
+  /* An open store's storage notes. `notice` is a store Agent OS does not count as encrypted (fallback, or a seal not yet
      checked), so it is headed that way. `migrationNotice` is an older sign-in file left beside a SEALED store: a plain
      heading, never 'not encrypted'. */
   function storageNoticeHtml(storage) {
@@ -244,7 +244,7 @@
         <div class="ext-choices" aria-label="Add an extension">
           <button class="ext-choice" data-ext-editor="hook" aria-controls="hk-form" aria-expanded="false">
             <span class="ext-choice-icon" aria-hidden="true">⌁</span>
-            <span><b>Run a command automatically</b><small>Choose when StarNet runs your script.</small></span><span aria-hidden="true">＋</span>
+            <span><b>Run a command automatically</b><small>Choose when Agent OS runs your script.</small></span><span aria-hidden="true">＋</span>
           </button>
           <button class="ext-choice" data-ext-editor="plugin" aria-controls="pl-form" aria-expanded="false">
             <span class="ext-choice-icon" aria-hidden="true">⌘</span>
@@ -361,7 +361,7 @@
       { id: 'mcp', label: 'CONNECTED SERVICES', glyph: '⧉', desc: 'Manage service access, check connection status, and reconnect when needed.', build: frag(secMcp) },
       // (ONE DOOR EACH, 2026-10-01: the CREATE / ADVANCED router pane repeated the rail — custom MCP server → CONNECTED
       // SERVICES, custom API key → SAVED API CONNECTIONS, skill package → SKILL EXCHANGE, hooks/plugins → EXTENSIONS)
-      { id: 'extensions', label: 'EXTENSIONS', glyph: '⌥', desc: 'Automate a step or extend StarNet with your own code.', build: frag(secExt) }
+      { id: 'extensions', label: 'EXTENSIONS', glyph: '⌥', desc: 'Automate a step or extend Agent OS with your own code.', build: frag(secExt) }
     ].concat(lanes.reduce((acc, l) => acc.concat(l.sections), [])), {
       search: true,
       groups: [
@@ -1013,7 +1013,7 @@
         '<details class="mc-inspect"><summary>' + (detail ? 'Error &amp; connection details' : 'Connection details') + (c.tools && c.tools.length ? ' · ' + c.tools.length + ' tools' : '') + '</summary>' +
           '<div class="mc-hint">Service ID: <code>' + esc(c.id) + '</code></div>' +
           '<div class="mc-url dim">' + where + timeout + '</div>' +
-          '<div class="mc-hint">' + (c.account && c.account.email ? '' : 'Account identity: not verified by StarNet. ') + 'Browser logins are separate from this connection.</div>' +
+          '<div class="mc-hint">' + (c.account && c.account.email ? '' : 'Account identity: not verified by Agent OS. ') + 'Browser logins are separate from this connection.</div>' +
           detail + tools +
         '</details>' +
         '<div class="mc-acts">' +
@@ -1283,7 +1283,7 @@
         ? ['', 'manual setup', 'var(--gold)']
         : e.appPassword ? ['', 'app password', 'var(--gold)']
         : (e.signInAvailable === false ? ['', e.releaseDeferred ? 'deferred' : 'sign-in unavailable', 'var(--gold)'] : (CC_CHIP[e.authType] || CC_CHIP.none));
-      const origin = e.googleApi ? '<span class="cc-badge cc-official" title="StarNet connector using Google’s APIs">STARNET · GOOGLE API</span>' : e.platformApi
+      const origin = e.googleApi ? '<span class="cc-badge cc-official" title="Agent OS connector using Google’s APIs">AGENT OS · GOOGLE API</span>' : e.platformApi
         ? (e.apiVia ? '<span class="cc-badge cc-community" title="this vendor publishes no API of its own">via ' + esc(e.apiVia) + '</span>'
                     : '<span class="cc-badge cc-official" title="first-party REST API documented by the vendor">✓ official API</span>')
         : (e.official ? '<span class="cc-badge cc-official" title="first-party server, run by the vendor">✓ official</span>'
@@ -1308,18 +1308,18 @@
         : '<code>Authorization: Bearer &hellip;</code>';
       const keyField = e.appPassword
         ? '<div class="cc-key cc-apppw" style="display:none"><div class="mc-hint">1. Turn on 2-Step Verification for your Google account. <a href="https://myaccount.google.com/signinoptions/two-step-verification" target="_blank" rel="noopener">2-Step Verification ↗</a>' +
-            '<br>2. Create an app password (any name, for example StarNet). <a href="' + esc(e.homepage || 'https://myaccount.google.com/apppasswords') + '" target="_blank" rel="noopener">Create app password ↗</a>' +
+            '<br>2. Create an app password (any name, for example Agent OS). <a href="' + esc(e.homepage || 'https://myaccount.google.com/apppasswords') + '" target="_blank" rel="noopener">Create app password ↗</a>' +
             '<br>3. Enter your Gmail address and the 16-letter app password, then choose CONNECT.</div>' +
             '<input type="text" inputmode="email" class="key-input" data-cc-addr="' + esc(cardId) + '" aria-label="Gmail address" placeholder="you@gmail.com" autocomplete="off" spellcheck="false">' +
             '<input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" aria-label="Google app password" placeholder="16-letter app password" autocomplete="off" spellcheck="false">' +
-            '<div class="mc-hint">This uses an app password, not Google sign-in. StarNet talks to Gmail directly from this computer (IMAP and SMTP); the password is saved with your other connector credentials on this computer and never shown again.' +
-            ' Mail read through this connection is never sent to StarNet Managed. On a work or school account, an administrator can turn app passwords off. Remove the connection or revoke the app password in your Google account at any time.</div></div>'
+            '<div class="mc-hint">This uses an app password, not Google sign-in. Agent OS talks to Gmail directly from this computer (IMAP and SMTP); the password is saved with your other connector credentials on this computer and never shown again.' +
+            ' Mail read through this connection is never sent to Agent OS Managed. On a work or school account, an administrator can turn app passwords off. Remove the connection or revoke the app password in your Google account at any time.</div></div>'
         : (e.authType === 'apikey' || e.deviceFlow) && !e.platformApi
         ? '<div class="cc-key" style="display:none"><div class="mc-hint">1. Open your ' + esc(e.name) + ' account and create an API key or token. ' + (e.homepage ? '<a href="' + esc(e.homepage) + '" target="_blank" rel="noopener">Open ' + esc(e.name) + ' ↗</a>' : '') + '<br>2. Paste it below, then choose CONNECT.</div><input type="password" class="key-input" data-cc-key="' + esc(cardId) + '" aria-label="' + esc(e.name) + ' API key or token" placeholder="' + esc(e.name) + ' API key / token" autocomplete="off" spellcheck="false">' +
             '<div class="mc-hint">Stored locally by the sidecar, sent as ' + keyDelivery + ', never displayed again.</div></div>'
         : '';
       const clientField = e.googleApi && e.signInAvailable === false
-        ? '<div class="mc-hint">' + esc(e.signInMessage || 'Google sign-in is not available in this build. StarNet needs to finish enabling it. No account setup is required from you.') + '</div>' : '';
+        ? '<div class="mc-hint">' + esc(e.signInMessage || 'Google sign-in is not available in this build. Agent OS needs to finish enabling it. No account setup is required from you.') + '</div>' : '';
       const home = e.homepage ? ' <a class="cc-home dim" href="' + esc(e.homepage) + '" target="_blank" rel="noopener">site ↗</a>' : '';
       // data-search: the console search box (stationui.js doFilter) matches textContent + this attribute, so a
       // Commander typing "google drive" reaches the Google Workspace card even though those words are only in
@@ -1520,7 +1520,7 @@
         notice.setAttribute('aria-label', 'Google connection and data use');
         notice.innerHTML = '<strong>CONNECT ' + esc(label.toUpperCase()) + '</strong>' +
           '<p>' + esc((e && e.blurb) || 'Connect the selected Google service using the permissions you approve in Google.') + '</p>' +
-          '<p>When an agent uses this connection, content from the Google service can be sent to your selected AI model provider. With StarNet Credits, those requests also pass through the StarNet credits gateway.</p>' +
+          '<p>When an agent uses this connection, content from the Google service can be sent to your selected AI model provider. With Agent OS Credits, those requests also pass through the Agent OS credits gateway.</p>' +
           '<p>Sign-in credentials are saved on this device. Conversations, files and memories may retain content from your requests. Removing the connection clears its saved credentials; it does not erase previous work or revoke access in your Google account.</p>' +
           '<p><a class="bb sm" href="https://starnetos.com/legal/privacy#google-workspace" target="_blank" rel="noopener">Google data use and removal details ↗</a></p>' +
           '<div class="mc-acts"><button class="bb sm" data-google-continue>CONTINUE TO GOOGLE</button><button class="bb sm" data-google-cancel>CANCEL</button></div>';
@@ -1599,8 +1599,8 @@
       notice.setAttribute('aria-label', 'Sign in with GitHub');
       notice.style.cssText = 'position:fixed;inset:0;margin:auto;width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;padding:24px;background:#17140e;color:var(--ph,#ddbd83);border:1px solid var(--gold,#ac853e);z-index:10000;box-shadow:0 0 0 100vmax #0009';
       notice.innerHTML = '<strong>CONNECT GITHUB</strong><p>1. Copy this code: <code style="font-size:20px;user-select:all">' + esc(device.userCode) + '</code> <button class="bb sm" data-device-copy>COPY CODE</button></p>' +
-        '<p>2. Open GitHub, enter the code, and approve StarNet’s repository and organization access.</p>' +
-        '<p>3. Return here. StarNet will check and save your connection on this device.</p>' +
+        '<p>2. Open GitHub, enter the code, and approve Agent OS’s repository and organization access.</p>' +
+        '<p>3. Return here. Agent OS will check and save your connection on this device.</p>' +
         '<div class="mc-acts"><button class="bb sm" data-device-open>OPEN GITHUB</button><button class="bb sm" data-device-cancel>CANCEL</button></div><p data-device-status role="status"></p>';
       document.body.appendChild(notice); notice.showModal();
       notice.addEventListener('cancel', ev => { ev.preventDefault(); ccCancelSignIn(id); });
@@ -1613,7 +1613,7 @@
       const open = async () => {
         const result = await openSignIn(device.url);
         if (!result.opened) progress('Could not open GitHub. Allow pop-ups and choose OPEN GITHUB.');
-        else { ccPendingWin.set(id, result.win || null); progress('Waiting for you to enter the code and approve StarNet in GitHub…'); }
+        else { ccPendingWin.set(id, result.win || null); progress('Waiting for you to enter the code and approve Agent OS in GitHub…'); }
       };
       notice.querySelector('[data-device-open]').addEventListener('click', open);
       notice.querySelector('[data-device-cancel]').addEventListener('click', () => ccCancelSignIn(id));

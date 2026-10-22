@@ -36,7 +36,7 @@
   const TIMEOUT = { 'backend.call': 45000 };
 
   function call(method, args) {
-    if (!parentWin || parentWin === window) return Promise.reject(new Error('this page is not open in a StarNet window'));
+    if (!parentWin || parentWin === window) return Promise.reject(new Error('this page is not open in a Agent OS window'));
     const id = ++seq;
     return new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject });
@@ -73,7 +73,7 @@
     }
   });
 
-  // ---- auto height: the window hugs the page (like every native StarNet window) until the page opts out ----
+  // ---- auto height: the window hugs the page (like every native Agent OS window) until the page opts out ----
   // A page sized FROM the viewport (min-height:100vh plus a margin) would grow every time the frame grows: after a
   // run of back-to-back growth the kit stops following and leaves the height where it is.
   let auto = true, lastH = 0, raf = 0, growRun = 0, growAt = 0;

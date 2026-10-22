@@ -1,4 +1,4 @@
-/* STARNET — autojobstore.js : the browser wiring around the pure self-initiation engine (autojobs.js). Slice 2 of
+/* AGENT OS — autojobstore.js : the browser wiring around the pure self-initiation engine (autojobs.js). Slice 2 of
    the autonomy layer.
 
    It does two things, both routed through the same flow (reason-only model call → parse → approval beat → schedule):

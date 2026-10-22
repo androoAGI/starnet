@@ -1,4 +1,4 @@
-/* STARNET — discoverystore.js : the browser's read of ENVIRONMENT DISCOVERY (sidecar/discovery.js's shelf).
+/* AGENT OS — discoverystore.js : the browser's read of ENVIRONMENT DISCOVERY (sidecar/discovery.js's shelf).
 
    The station's first organ that finds work the Commander never typed: the sidecar scans the BLESSED project
    roots on a slow tick and stages findings whose citations are the repo's own lines. This store is the thin

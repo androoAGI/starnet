@@ -50,4 +50,4 @@ Never fix a bug without first writing a failing test that reproduces it. The tes
 ## Done means
 Every new function has a test, you watched each one fail for the right reason, you wrote minimal code to pass, the full suite is green, and the output is pristine (no stray warnings). Can't check all of those? You skipped TDD — start over.
 
-*Uses StarNet's `verify.run` / `shell.exec` (the WORKBENCH capability) to run tests.*
+*Uses Agent OS's `verify.run` / `shell.exec` (the WORKBENCH capability) to run tests.*

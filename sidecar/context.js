@@ -157,7 +157,7 @@
     [/\bntn_[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                    // Notion integration token
     [/\blin_api_[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                // Linear API key
     [/\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g, '[redacted-key]'], // SendGrid
-    [/\bwhk_[A-Za-z0-9_-]{20,}/g, '[redacted-secret]'],                 // StarNet line-trigger webhook secret (routing/triggers.js)
+    [/\bwhk_[A-Za-z0-9_-]{20,}/g, '[redacted-secret]'],                 // Agent OS line-trigger webhook secret (routing/triggers.js)
     [/\bhf_[A-Za-z0-9]{30,}\b/g, '[redacted-key]'],                     // HuggingFace
     [/\bxai-[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                    // xAI
     [/\bAC[a-f0-9]{32}\b/g, '[redacted-key]'],                          // Twilio account SID

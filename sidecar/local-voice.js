@@ -6,15 +6,15 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 
-// Per-user model cache, alongside the rest of the app's data root (%LOCALAPPDATA%\StarNet on Windows,
-// ~/Library/Application Support/StarNet on macOS — the two platforms we ship). Never inside the repo:
+// Per-user model cache, alongside the rest of the app's data root (%LOCALAPPDATA%\Agent OS on Windows,
+// ~/Library/Application Support/Agent OS on macOS — the two platforms we ship). Never inside the repo:
 // these are ~150 MB of downloaded weights, and PRIVACY.md documents this path for manual removal.
 function defaultCacheRoot() {
   if (process.platform === 'win32') {
-    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'StarNet', 'models');
+    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Agent OS', 'models');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'StarNet', 'models');
+    return path.join(os.homedir(), 'Library', 'Application Support', 'Agent OS', 'models');
   }
   return path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'starnet', 'models');
 }
@@ -135,7 +135,7 @@ let ttsBusy = 0;
 let lastTtsMs = null;
 const monotonicMs = () => Number(process.hrtime.bigint() / 1000000n);
 
-// Transformers eagerly loads Sharp even though StarNet's offline voice paths are audio/text only. Sharp
+// Transformers eagerly loads Sharp even though Agent OS's offline voice paths are audio/text only. Sharp
 // <0.35 inherits vulnerable libvips loaders; upstream's documented compatible workaround is to disable
 // GIF, TIFF, and VIPS decoding. Apply it before either Transformers copy is imported so future call sites
 // cannot accidentally turn an unused image surface into an untrusted-input decoder.

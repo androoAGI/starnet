@@ -1,4 +1,4 @@
-/* sidecar/apps.js — APPS: describe what you want, get a real app inside StarNet (2026-09-29).
+/* sidecar/apps.js — APPS: describe what you want, get a real app inside Agent OS (2026-09-29).
 
    "I want a habit tracker" / "a dashboard of my crew's week" / "a pomodoro timer that looks like an arcade cabinet" →
    a window in the station that the crew builds from those words. No manifests, approvals, terminals or folders to
@@ -239,7 +239,7 @@ function makeApps(deps) {
     // keeps its grants and the Commander's words stay theirs (review 2026-10-02 — the label alone used to read as a new prompt)
     const crewRewrite = !!(spec && spec.byAgent) && !(meta.schedule && meta.schedule.task === task);
     const keptJob = (old && meta.schedule && meta.schedule.task === task) ? cron.get(old) : null;
-    const prompt = (spec && spec.byAgent && keptJob && typeof keptJob.prompt === 'string') ? keptJob.prompt : 'Refresh the StarNet app "' + meta.name + '" (app id: ' + id + ').\n\n' +
+    const prompt = (spec && spec.byAgent && keptJob && typeof keptJob.prompt === 'string') ? keptJob.prompt : 'Refresh the Agent OS app "' + meta.name + '" (app id: ' + id + ').\n\n' +
       'Today\'s real date is in your [RUNTIME] block — your own sense of the date is out of date; the task is about today.\n\n' +
       (crewRewrite ? 'TASK (what each update should do, as the crew set it up): ' : 'TASK (the Commander\'s own words for every update): ') + task + '\n\n' +
       'Do what the task says. New or current INFORMATION goes in with app.publish (find it with tool.search "app publish"): app "' + id + '", ' +

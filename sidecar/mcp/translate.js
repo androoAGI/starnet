@@ -1,4 +1,4 @@
-/* sidecar/mcp/translate.js — turn a discovered MCP tool into a StarNet registry tool def.
+/* sidecar/mcp/translate.js — turn a discovered MCP tool into a Agent OS registry tool def.
    Pure. The bridge between an MCP server's `tools/list` entries and sidecar/tools/registry.js,
    so an MCP connector's tools flow through the SAME host-side dispatch boundary as every
    built-in tool: capability gate -> schema-validate -> consent gate -> per-tool timeout -> run.

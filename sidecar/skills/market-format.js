@@ -1,4 +1,4 @@
-/* sidecar/skills/market-format.js — the StarNet Skill Market catalog format, shared by the build script
+/* sidecar/skills/market-format.js — the Agent OS Skill Market catalog format, shared by the build script
    (scripts/build-skill-catalog.mjs, which writes the catalog into website/) and the app (skills/market.js, which
    reads it). One definition so the two can never disagree about slugs, versions, digests or the file manifest.
 
@@ -22,7 +22,7 @@ const catalog = require('./catalog.js');
 
 const FORMAT = 'starnet-skill-registry/v1';
 const REVOKED_FORMAT = 'starnet-skill-revocations/v1';
-const MARKET_NAME = 'StarNet Skill Market';
+const MARKET_NAME = 'Agent OS Skill Market';
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 const SHELVES = ['originals', 'community'];
@@ -76,14 +76,14 @@ function revokedMatch(revoked, slug, digest) {
   return (revoked || []).find(r => r.slug === slug && (!r.digest || r.digest === digest)) || null;
 }
 
-/* libraryToSkillMd — a bundled StarNet recipe (sidecar/skills/library/<slug>.md, parsed by catalog.parse) as a
+/* libraryToSkillMd — a bundled Agent OS recipe (sidecar/skills/library/<slug>.md, parsed by catalog.parse) as a
    standard Agent Skills SKILL.md: spec name = the slug, the display title under metadata.title. The body is the
    recipe body byte for byte, so the market copy and the bundled copy say the same thing at the same version. */
 function libraryToSkillMd(recipe, opts) {
   opts = opts || {};
   const lines = ['---', 'name: ' + recipe.slug, 'description: ' + q(str(recipe.description).replace(/\s+/g, ' ').trim()),
     'license: ' + q(recipe.license || 'MIT'), 'metadata:', '  title: ' + q(recipe.name), '  category: ' + q(recipe.category || 'General'),
-    '  author: ' + q(opts.author || 'StarNet')];
+    '  author: ' + q(opts.author || 'Agent OS')];
   if (opts.version) lines.push('  version: ' + q(opts.version));
   lines.push('---', '');
   return lines.join('\n') + '\n' + str(recipe.body).trim() + '\n';
@@ -138,7 +138,7 @@ function buildEntry(src) {
   const pkg = packageFormat.canonicalize(files, { maxFileBytes: 256000 });
   const entry = {
     slug, name: doc.title, description: doc.description.slice(0, 280), version: str(src.version),
-    author: list(src.authors).join(', ') || doc.author || 'StarNet', license: str(src.license || doc.license),
+    author: list(src.authors).join(', ') || doc.author || 'Agent OS', license: str(src.license || doc.license),
     shelf: src.shelf, category: str(src.category || doc.category || 'General'), tags: list(src.tags).slice(0, 8), requires,
     librarySlug: src.librarySlug ? str(src.librarySlug) : '',
     sourceUrl: '/skills/' + slug + '/' + src.version + '/SKILL.md',
@@ -146,7 +146,7 @@ function buildEntry(src) {
     files: pkg.files.map(f => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
   };
   if (src.upstream) entry.upstream = { url: str(src.upstream.url), commit: str(src.upstream.commit), license: str(src.upstream.license || entry.license) };
-  // shared by a StarNet user through the upload page (read and approved before it was published); additive, older apps ignore it
+  // shared by a Agent OS user through the upload page (read and approved before it was published); additive, older apps ignore it
   if (src.shelf === 'community' && src.submission && !src.upstream) entry.uploaded = true;
   return { entry, pkg };
 }

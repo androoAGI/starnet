@@ -1,4 +1,4 @@
-/* STARNET — recqualitystore.js : THE OUTCOME LOOP (the live half of the recommendation quality loop).
+/* AGENT OS — recqualitystore.js : THE OUTCOME LOOP (the live half of the recommendation quality loop).
 
    The spine picks the best-grounded offer it can cite. This store answers the question nobody was asking before
    it existed: DID THAT OFFER ACTUALLY HELP? A channel whose accepted offers produce work the Commander rates 👎

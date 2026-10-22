@@ -5,7 +5,7 @@ const { writeFileDurable } = require('./durable-write.js');
 
 const FORMAT = 'starnet.connector-vault.v1';
 const AAD = Buffer.from(FORMAT);
-const UNAVAILABLE = 'Connector credentials are locked. Restart StarNet with the original OS account and an unlocked credential store.';
+const UNAVAILABLE = 'Connector credentials are locked. Restart Agent OS with the original OS account and an unlocked credential store.';
 // Why the saved sign-ins could not be opened. Each one names what the user can actually do about it:
 // a restart only helps when the OS store was unreachable or the file was busy; the others need START FRESH.
 // 'reset-interrupted': an earlier START FRESH stopped part-way (crash, power loss); pressing it again finishes it.
@@ -22,19 +22,19 @@ function lockMessage(reason, keyError = '', detail = {}) {
   const why = String(keyError || '').trim().slice(0, 240);
   const movedTo = detail && typeof detail.movedTo === 'string' ? detail.movedTo.slice(0, 400) : '';
   const readCode = detail && typeof detail.readCode === 'string' ? detail.readCode.replace(/[^A-Z]/g, '').slice(0, 12) : '';
-  if (reason === 'busy') return 'Saved connector sign-ins are locked: StarNet could not read the saved file' + (readCode ? ' (' + readCode + ')' : '') +
-    '. Another program such as antivirus, backup or sync may have been holding it, or this account may not be allowed to read it. They are safe and unchanged. Restart StarNet to try again.' +
+  if (reason === 'busy') return 'Saved connector sign-ins are locked: Agent OS could not read the saved file' + (readCode ? ' (' + readCode + ')' : '') +
+    '. Another program such as antivirus, backup or sync may have been holding it, or this account may not be allowed to read it. They are safe and unchanged. Restart Agent OS to try again.' +
     ' If it is still locked after a restart, START FRESH moves the old files aside (nothing is deleted) so you can sign in again.';
-  if (reason === 'key-unavailable') return 'Saved connector sign-ins are locked: StarNet could not open this computer\'s credential store.' +
-    (why ? ' Reason: ' + why + '.' : '') + ' They are safe and unchanged. Unlock or repair the credential store and restart StarNet, or START FRESH to sign in again.';
+  if (reason === 'key-unavailable') return 'Saved connector sign-ins are locked: Agent OS could not open this computer\'s credential store.' +
+    (why ? ' Reason: ' + why + '.' : '') + ' They are safe and unchanged. Unlock or repair the credential store and restart Agent OS, or START FRESH to sign in again.';
   if (reason === 'key-mismatch') return 'Saved connector sign-ins are locked: they were sealed with a key this OS account no longer has (its credential-store entry was reset, or this is a different account). START FRESH to sign in again. The old files are kept, not deleted.';
   const unfinishable = detail && typeof detail.unfinishable === 'string' ? detail.unfinishable.slice(0, 240) : '';
   if (reason === 'reset-interrupted' && unfinishable) return 'Saved connector sign-ins are locked: an earlier START FRESH was interrupted and cannot be finished automatically, because ' +
     unfinishable + '. Your files were left as they are. To recover by hand, copy the files from ' + (movedTo || 'the unreadable-* folder') +
-    ' back into the connectors folder, delete the .reset-pending file there, and restart StarNet.';
+    ' back into the connectors folder, delete the .reset-pending file there, and restart Agent OS.';
   if (reason === 'reset-interrupted') return 'Saved connector sign-ins are locked: an earlier START FRESH was interrupted before it finished. Your old files were not deleted' +
     (movedTo ? ' (copies are in ' + movedTo + ')' : '') + '. Press START FRESH to finish it.';
-  return 'Saved connector sign-ins are locked: the saved file is damaged or from a newer StarNet. START FRESH to sign in again. The old files are kept, not deleted.';
+  return 'Saved connector sign-ins are locked: the saved file is damaged or from a newer Agent OS. START FRESH to sign in again. The old files are kept, not deleted.';
 }
 function lockError(reason) { return Object.assign(new Error(UNAVAILABLE), { lockReason: LOCK_REASONS.includes(reason) ? reason : 'unreadable' }); }
 function validState(value) {
@@ -218,7 +218,7 @@ function makeConnectorVault({ fs, path, keyHex = '', required = false, writeDura
     const pending = readMarker(marker);
     const refuse = (why, movedTo) => new Error('START FRESH cannot finish the earlier interrupted attempt: ' + why +
       '. Your files were left as they are. To recover by hand, copy the files from ' + (movedTo || 'the unreadable-* folder') +
-      ' back into ' + path.dirname(file) + ', delete ' + marker + ', and restart StarNet.');
+      ' back into ' + path.dirname(file) + ', delete ' + marker + ', and restart Agent OS.');
     if (pending.bad) throw refuse('its record ' + marker + ' ' + pending.bad, pending.movedTo);
     const resuming = !pending.absent;
     if (resuming) {

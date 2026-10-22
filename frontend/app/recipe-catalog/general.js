@@ -1,4 +1,4 @@
-/* STARNET — recipe-catalog/general.js : the UNIVERSAL STANDING WATCHES.
+/* AGENT OS — recipe-catalog/general.js : the UNIVERSAL STANDING WATCHES.
 
    Registered in index.js by the aggregator — this file only EXPORTS the array. Same UMD-light module
    pattern as its siblings: a `RecipeCatalogGeneral` global in the browser, module.exports under node.

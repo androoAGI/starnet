@@ -58,7 +58,7 @@ const PROFILES = Object.freeze({
     capabilityObjects: Object.freeze(['computer', 'cabinet', 'workbench']),
     connectors: true,
     physicalDesktop: 'full-power-or-lease',
-    description: 'Runs locally with terminal, files, and connected services. Full Power removes StarNet host-path, command, screen, and input restrictions.'
+    description: 'Runs locally with terminal, files, and connected services. Full Power removes Agent OS host-path, command, screen, and input restrictions.'
   })
 });
 

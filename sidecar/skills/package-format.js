@@ -57,7 +57,7 @@ function canonicalize(files, opts) {
   if (!seen.has('SKILL.md')) throw new Error('package is missing SKILL.md');
   if (total > maxPackageBytes) throw new Error('package is larger than ' + maxPackageBytes + ' bytes');
   const h = crypto.createHash('sha256');
-  h.update(Buffer.from('StarNet skill package\0v1\0'));
+  h.update(Buffer.from('Agent OS skill package\0v1\0'));
   for (const file of normalized) {
     const pathBytes = Buffer.from(file.path, 'utf8');
     const lengths = Buffer.alloc(12);

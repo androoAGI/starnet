@@ -1,4 +1,4 @@
-/* STARNET — conveyor.js : directional belts + the boxes that ride them.
+/* AGENT OS — conveyor.js : directional belts + the boxes that ride them.
 
    The WorldModel owns belt TOPOLOGY (a keyed "x,y"->dir graph, walkable floor machinery). This
    module owns everything ALIVE: the transport simulation (boxes flowing tile-to-tile, spawned at

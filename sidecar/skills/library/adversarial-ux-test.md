@@ -27,4 +27,4 @@ Write the feedback AS the persona — their voice, their frustration. Not a bug 
 ## Step 4 — the pragmatism filter (the point)
 Now step out of character and triage each complaint: **real problem** (a genuine person would hit this) vs. **noise** ("I just hate computers"). Keep only the real ones. For each, write an actionable ticket: the friction, where, who it blocks, and a concrete fix. Don't add a "print this page" button just because the persona fears PDFs.
 
-*Uses StarNet's browser tools — needs the DISH object.*
+*Uses Agent OS's browser tools — needs the DISH object.*

@@ -1,4 +1,4 @@
-/* STARNET — classicons.js : the CLASS SEAL system for the Recruitment Bay.
+/* AGENT OS — classicons.js : the CLASS SEAL system for the Recruitment Bay.
 
    A class is identified by an engraved emblem (a "challenge-coin" seal), NEVER by a character
    skin — the skin is the Commander's own choice at summon. This module is the single source for:

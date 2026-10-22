@@ -822,7 +822,7 @@ const { note: failNote } = require('../../failopen');
 
     /* CATASTROPHIC-BACKTRACKING FLOOR (measured 2026-07-26).
        `fs.search { regex: true }` compiles the MODEL's string and runs it synchronously over every line of
-       every candidate file. StarNet is ONE process — UI, API, SSE bus and every agent run — and a
+       every candidate file. Agent OS is ONE process — UI, API, SSE bus and every agent run — and a
        backtracking blow-up pegs the event loop, so a single call froze the entire station indefinitely:
        `(a|a)+$` against a 41-character line never returned, and the tool's own timeoutMs could not help
        (registry withTimeout REJECTS the promise; it cannot stop synchronous work). Only killing the process

@@ -1324,7 +1324,7 @@
       try { onRecovery(Object.assign({ sequence: ++recoveryAttemptSequence }, row || {})); } catch (e) { failNote('loop.onRecovery', e); }
     }
     // mid-stream retry backoff schedule (same shape as the adapters' pre-stream RETRY_DELAYS).
-    // Widened 2026-08-11 after the installed Hermes parity run: ~16.6s still lost all three StarNet
+    // Widened 2026-08-11 after the installed Hermes parity run: ~16.6s still lost all three Agent OS
     // attempts inside one real Codex overload window while valid Hermes turns took up to ~102s. The
     // final 30s/60s rungs give the same model turn ~106s of bounded patience. This never re-dispatches
     // completed tools: the retry loop sits wholly inside the current model call, after prior tool
@@ -1774,7 +1774,7 @@
             : b.cause === 'damaged'
               ? 'A line of the spend record is damaged, so what it recorded is unknown and the spending limits you set can’t be checked. Settle it in SETTINGS › SPENDING LIMITS.'
             : b.cause === 'write'
-              ? 'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart StarNet to recover it.'
+              ? 'Spend history could not be saved to disk, so the spending limits you set can’t be checked. Restart Agent OS to recover it.'
               : 'Spend history could not be read, so the spending limits you set can’t be checked. See SETTINGS › SPENDING LIMITS.';
           emit('agent.run.error', { agentId, runId, message, transient: false });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });

@@ -1,4 +1,4 @@
-/* STARNET — leftrail.js : the CREW rail's own layout. Four things, in this order:
+/* AGENT OS — leftrail.js : the CREW rail's own layout. Four things, in this order:
    (1) the ROSTER WINDOW — how many crew rows the rail shows whole before it scrolls;
    (2) the ROSTER SEAM — the horizontal handle between the WORKING/IDLE strip and SESSIONS, which
        lets the Commander choose that row count by dragging (up = a shorter roster, a taller

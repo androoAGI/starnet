@@ -1,4 +1,4 @@
-/* STARNET — comms.css : the PREMIUM COMMS layer (the right-hand chat panel).
+/* AGENT OS — comms.css : the PREMIUM COMMS layer (the right-hand chat panel).
    Loads AFTER app.css (index.html), so every rule here overrides the base chat styling by cascade
    order — this is the ONE place COMMS polish lives (chat.js owns the markup; app.css/style.css/motion.css
    are owned by other lanes and untouched).

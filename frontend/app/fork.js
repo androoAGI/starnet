@@ -1,4 +1,4 @@
-/* STARNET — fork.js : the PURE engine for MID-TASK PREFERENCE FORKS (R1 — questions that ARE work).
+/* AGENT OS — fork.js : the PURE engine for MID-TASK PREFERENCE FORKS (R1 — questions that ARE work).
 
    When an agent hits a genuine fork whose answer is a DURABLE preference (format, tone, ask-first vs
    run-with-it — never a one-off task detail), it may ask ONCE instead of guessing: the question rides its

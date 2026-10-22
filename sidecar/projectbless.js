@@ -130,7 +130,7 @@
     if (!r || blessed) return '';
     return '\n\nPROJECT FOLDER NOT TRUSTED: this session is anchored to ' + r.slice(0, 1024) + ', but that folder is not a ' +
       'trusted project right now, so a RELATIVE file path writes to your private workspace, not that folder (the shell ' +
-      'will not find it there). To work in the folder, use absolute paths inside it (StarNet may ask the Commander to ' +
+      'will not find it there). To work in the folder, use absolute paths inside it (Agent OS may ask the Commander to ' +
       'approve it), or ask the Commander to add it again under PROJECTS. Never report a file as saved in that folder ' +
       'unless its receipt names a location inside it.';
   }
@@ -150,7 +150,7 @@
 
      projectScopeLine above tells the agent WHERE it is working. It never told it HOW that project wants to be
      worked in. Every serious codebase carries its conventions in a file at the root — AGENTS.md, CLAUDE.md,
-     .cursorrules — and until now StarNet read none of them at run time: `harness-import.js` parses AGENTS.md,
+     .cursorrules — and until now Agent OS read none of them at run time: `harness-import.js` parses AGENTS.md,
      but that is the one-time MIGRATION importer for adopting another harness's home, not live project context.
      So an agent anchored to the Commander's repo re-derived its conventions from scratch on every run, and
      violated the ones it could not guess.

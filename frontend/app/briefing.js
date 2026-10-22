@@ -1,4 +1,4 @@
-/* STARNET — briefing.js : THE ONE RETURN REPORT, delivered as ONE session.
+/* AGENT OS — briefing.js : THE ONE RETURN REPORT, delivered as ONE session.
 
    THE PROBLEM (2026-10-04 audit): coming back meant a new rail row per routine fire, a new row per away build,
    a COMMS digest that skipped every cron/workshop/night-shift run, a morning report that only knew the night

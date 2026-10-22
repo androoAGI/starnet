@@ -40,12 +40,12 @@ function stopSentence(reason, extra) {
       const cap = Number(x.unpricedCapTokens) > 0 ? Number(x.unpricedCapTokens).toLocaleString('en-US') + '-token' : 'token';
       // NOT the $ cap: a model with no known price is bounded in TOKENS (loop.js maxUnpricedTokens), and the $ setting
       // never reads it — so "raise your spend cap" was a door onto a room without the lever. Name the real knobs.
-      return 'it reached the ' + cap + ' safety ceiling StarNet puts on ' + x.unpricedModel + ', a model it has no price for — raising the $ spending limit does not change this. Switch to a priced model, or raise the ceiling with the STARNET_MAX_UNPRICED_TOKENS environment variable, or give the model a price with SKYNET_MODEL_PRICES';
+      return 'it reached the ' + cap + ' safety ceiling Agent OS puts on ' + x.unpricedModel + ', a model it has no price for — raising the $ spending limit does not change this. Switch to a priced model, or raise the ceiling with the STARNET_MAX_UNPRICED_TOKENS environment variable, or give the model a price with SKYNET_MODEL_PRICES';
     }
     if (x.subscriptionModel) {
       const cap = Number(x.subscriptionCapTokens) > 0 ? Number(x.subscriptionCapTokens).toLocaleString('en-US') + '-token' : 'token';
       // a Claude Code sign-in books $0 per turn: its run is bounded in TOKENS (loop.js maxSubscriptionTokens), not by the $ limits
-      return 'it used the ' + cap + ' per-run ceiling StarNet puts on your Claude subscription (' + x.subscriptionModel + ') — ' + (x.unattended ? 'run it again' : 'say "continue" to keep going') + ', or change the ceiling in SETTINGS › APP & BACKUP › Runtime limits, or with STARNET_MAX_SUBSCRIPTION_TOKENS';
+      return 'it used the ' + cap + ' per-run ceiling Agent OS puts on your Claude subscription (' + x.subscriptionModel + ') — ' + (x.unattended ? 'run it again' : 'say "continue" to keep going') + ', or change the ceiling in SETTINGS › APP & BACKUP › Runtime limits, or with STARNET_MAX_SUBSCRIPTION_TOKENS';
     }
     return 'it hit a spending limit (SETTINGS › SPENDING LIMITS)';
   }
@@ -63,13 +63,13 @@ function stopSentence(reason, extra) {
    browser never loads sidecar modules; test/stop-reason.test.js locks the two copies to the same words. */
 const STOP_EXPLAINERS = [
   { kind: 'loop_stuck', re: /loop guard: (.+?) failed (\d+) times with identical arguments/i,
-    text: m => 'The agent got stuck repeating one step: ' + m[1] + ' failed ' + m[2] + ' times in a row with the same input, so StarNet stopped the run. Say what to try differently, or fix what that step needs, then ask again.' },
+    text: m => 'The agent got stuck repeating one step: ' + m[1] + ' failed ' + m[2] + ' times in a row with the same input, so Agent OS stopped the run. Say what to try differently, or fix what that step needs, then ask again.' },
   { kind: 'unknown_tools', re: /loop breaker: the model called tools that do not exist \(([^)]*)\)/i,
-    text: m => 'The model kept calling tools that don’t exist (' + m[1] + '), so StarNet stopped the run. Try again, or switch to a stronger model.' },
+    text: m => 'The model kept calling tools that don’t exist (' + m[1] + '), so Agent OS stopped the run. Try again, or switch to a stronger model.' },
   { kind: 'tool_keeps_failing', re: /loop breaker: (.+?) failed (\d+) times in a row/i,
-    text: m => m[1] + ' kept failing (' + m[2] + ' times in a row, with different inputs), so StarNet stopped this unattended run. Check its error, fix the cause, then run it again.' },
+    text: m => m[1] + ' kept failing (' + m[2] + ' times in a row, with different inputs), so Agent OS stopped this unattended run. Check its error, fix the cause, then run it again.' },
   { kind: 'no_progress', re: /loop breaker: (.+?) returned the identical result (\d+) turns in a row/i,
-    text: m => m[1] + ' kept returning the same result (' + m[2] + ' turns in a row), so StarNet stopped this unattended run as stuck. Check what it was waiting for, then run it again.' },
+    text: m => m[1] + ' kept returning the same result (' + m[2] + ' turns in a row), so Agent OS stopped this unattended run as stuck. Check what it was waiting for, then run it again.' },
   { kind: 'incomplete_work', re: /Work is incomplete: the model kept announcing/i,
     text: () => 'The agent stopped before finishing: it kept saying what it would do next without actually doing it. Say "continue" to push it on, or switch to a stronger model.' },
   { kind: 'memory_unverified', re: /memory update is unverified|promise to remember above is unverified/i,
@@ -77,11 +77,11 @@ const STOP_EXPLAINERS = [
   { kind: 'output_limit', re: /hit the model's output limit while writing a large (\S+) call/i,
     text: m => 'The reply hit the model’s output limit while writing a large ' + m[1] + ' call, so it never ran and nothing from it was saved. Ask for it in smaller parts (for example "write it section by section"), or switch to a model with a larger output limit.' },
   { kind: 'checkpoint_failed', re: /run checkpoint failed/i,
-    text: () => 'StarNet couldn’t save this run’s progress to disk, so it stopped rather than risk losing work. Check free disk space, then try again.' },
+    text: () => 'Agent OS couldn’t save this run’s progress to disk, so it stopped rather than risk losing work. Check free disk space, then try again.' },
   { kind: 'hook_blocked', re: /blocked by your hook(?: `([^`]*)`)?: ?(.*)$/i,
     text: m => 'Your hook' + (m[1] ? ' `' + m[1] + '`' : '') + ' blocked this run' + (m[2] ? ': ' + m[2].replace(/\.\s*$/, '') : '') + '. Change or turn off that hook to let it run.' },
   { kind: 'context_overflow', re: /context still too large after compacting/i,
-    text: () => 'This conversation got too long for the model, even after StarNet compacted it. Start a fresh conversation, or switch to a model with a larger context window.' }
+    text: () => 'This conversation got too long for the model, even after Agent OS compacted it. Start a fresh conversation, or switch to a model with a larger context window.' }
 ];
 function explainStop(message) {
   const s = String(message == null ? '' : message);

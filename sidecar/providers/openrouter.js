@@ -259,7 +259,7 @@
       const allowed = reasoningEffortsForModel(req.model, meta, learnedFor(req.model));
       const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta, learnedFor(req.model));
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
-      // Strict upstreams behind OpenRouter must never see StarNet's own bookkeeping keys on a message (ts, streamId,
+      // Strict upstreams behind OpenRouter must never see Agent OS's own bookkeeping keys on a message (ts, streamId,
       // agentId, sourceRunId, error, stopped, attachments) — only Chat Completions message keys leave, projected
       // BEFORE applyCacheControl so its cache_control anchors are stamped inside the content parts of clean copies.
       const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(req.messages, 'chat'), req.model)), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
@@ -424,7 +424,7 @@
         try {
           res = await doFetch(baseUrl + '/chat/completions', {
             method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + (key || ''), 'Content-Type': 'application/json', 'HTTP-Referer': referer, 'X-Title': 'STARNET' },
+            headers: { 'Authorization': 'Bearer ' + (key || ''), 'Content-Type': 'application/json', 'HTTP-Referer': referer, 'X-Title': 'AGENT OS' },
             body: JSON.stringify(body),
             signal: guard.signal   // caller-cancel + a disarmable connect-timeout ceiling on the POST itself
           });

@@ -10,7 +10,7 @@ function makeStationInspectTool(deps) {
   const inspect = typeof deps.inspect === 'function' ? deps.inspect : null;
   const tool = {
     name: 'station.inspect', capability: 'stationinfo', scope: 'read', requiresConsent: false, timeoutMs: 3000,
-    description: 'Inspect StarNet itself before answering questions about the live harness: exact app/harness build, '
+    description: 'Inspect Agent OS itself before answering questions about the live harness: exact app/harness build, '
       + 'this run identity, scheduler health and routine count, connected MCP connectors, and recorded diagnostic '
       + 'errors. This is the authoritative current snapshot; call it instead of guessing, inventing a CLI command, '
       + 'or asking for FILES/TERMINAL. Read-only, local, consent-free, and secret-free.',

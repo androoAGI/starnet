@@ -1,4 +1,4 @@
-/* STARNET — seedreusestore.js : the thin live wiring around the pure seed-reuse AGGREGATE engine (seedreuse.js).
+/* AGENT OS — seedreusestore.js : the thin live wiring around the pure seed-reuse AGGREGATE engine (seedreuse.js).
 
    Owns what the pure engine can't: the durable localStorage key (its OWN 'starnet.seedreuse.*' key, riding the
    backup prefix like pridestore/returnstore — no save.js change), the fire-once-per-window callout through the
