@@ -308,8 +308,9 @@ const SecondBrain = (() => {
       if (!n) {
         detailHead.textContent = 'belief';
         const s = (state.graph && state.graph.stats) || {};
+        const cross = num(s.crossAgentLinks);
         detailBox.innerHTML = '<div class="sb-note">Click any node to inspect it. ' +
-          '<b>' + num(s.memories) + '</b> beliefs · <b>' + num(s.crossAgentLinks) + '</b> links actually cross agents.<br><br>' +
+          '<b>' + num(s.memories) + '</b> beliefs · <b>' + cross + '</b> ' + (cross === 1 ? 'link actually crosses' : 'links actually cross') + ' agents.<br><br>' +
           'Pinned beliefs, high-trust beliefs and never-recalled beliefs are all in here — the export writes each as an Obsidian note with its provenance.</div>';
         return;
       }
@@ -571,7 +572,8 @@ const SecondBrain = (() => {
           state.pulses.push({ from: from, to: n, at: Date.now(), age: -0.06 * i++ });
         }
         // negative age staggers the sparks so a multi-hit probe reads as a wave, not one blur
-        state.feed.unshift({ at: Date.now(), label: 'PROBE', cls: 'sb-p', who: 'recall', what: '"' + text.slice(0, 40) + '" → ' + (out.hits || []).length + ' beliefs' });
+        const nh = (out.hits || []).length;
+        state.feed.unshift({ at: Date.now(), label: 'PROBE', cls: 'sb-p', who: 'recall', what: '"' + text.slice(0, 40) + '" → ' + nh + (nh === 1 ? ' belief' : ' beliefs') });
         paintFeed();
       } catch (e) {
         state.feed.unshift({ at: Date.now(), label: 'PROBE', cls: 'sb-f', who: 'recall', what: 'failed — ' + ((e && e.message) || e) });
