@@ -134,19 +134,33 @@ const Save = (() => {
      it — so persist() can hand it to CloudSave instead of CloudSave re-serializing the same multi-MB save to clone it.
      takeWriteRaw() hands it over once and forgets it; it is the same bytes the cache was given. */
   let lastRaw = null;
+  // The browser cache's share of the per-site cap (~5 MiB counted as UTF-16 code units, ~2.6M chars for the WHOLE origin,
+  // which also holds the small UI state: dashboard pins, layout, settings). A save past this budget is never offered to
+  // the cache: the station file is its store of record (#121), and the attempt could only fail and re-raise the "browser
+  // storage full" notice on every persist and every boot. A station under the budget is cached exactly as before.
+  // ponytail: a fixed budget, not a measured free-space probe; measure the origin's real headroom if the cap ever varies.
+  const CACHE_MAX_CHARS = 1500000;
+  const CACHE_SKIPPED = 'CacheSkipped: this station is larger than the browser cache holds; the station file keeps it';
+  function fitsCache(raw) { return typeof raw === 'string' && raw.length <= CACHE_MAX_CHARS; }
   function write(state) {
     const doc = envelope(state);
     lastRaw = null;
-    try { lastRaw = JSON.stringify(doc); localStorage.setItem(KEY, lastRaw); lastWriteError = null; return doc; }
+    try {
+      lastRaw = JSON.stringify(doc);   // kept for a skipped save too: CloudSave still clones it from this one string
+      if (!fitsCache(lastRaw)) { lastWriteError = CACHE_SKIPPED; return null; }
+      localStorage.setItem(KEY, lastRaw); lastWriteError = null; return doc;
+    }
     catch (e) { lastWriteError = String((e && (e.name || e.code)) || 'error') + (e && e.message ? ': ' + e.message : ''); console.warn('[save] write failed:', e); return null; }
   }
   function takeWriteRaw() { const raw = lastRaw; lastRaw = null; return raw; }
   function writeError() { return lastWriteError; }
   function writeQuotaFull() { return /quota/i.test(String(lastWriteError || '')); }
+  // true when the last write did not fail but was never attempted: the save is over the cache budget (expected, not an error)
+  function writeSkipped() { return lastWriteError === CACHE_SKIPPED; }
 
   function clear() { try { localStorage.removeItem(KEY); } catch (e) {} }
   function has() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
 
-  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, envelope, fromDoc, clear, has, CURRENT, PRE_MIGRATE_BACKUP_KEY };
+  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, writeSkipped, fitsCache, envelope, fromDoc, clear, has, CURRENT, PRE_MIGRATE_BACKUP_KEY, CACHE_MAX_CHARS, CACHE_SKIPPED };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Save;
