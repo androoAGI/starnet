@@ -401,8 +401,12 @@ const CloudSave = (() => {
       let adopted = false, adoptError = null;
       try {
         const raw = JSON.stringify(remote);
-        localStorage.setItem('starnet.save', raw);
-        adopted = localStorage.getItem('starnet.save') === raw;
+        // a station over the cache budget is never offered to the cache (it could only fail): resume it in memory below
+        if (typeof Save !== 'undefined' && Save.fitsCache && !Save.fitsCache(raw)) adoptError = Save.CACHE_SKIPPED;
+        else {
+          localStorage.setItem('starnet.save', raw);
+          adopted = localStorage.getItem('starnet.save') === raw;
+        }
       } catch (e) { adoptError = String((e && (e.name || e.code)) || 'error') + (e && e.message ? ': ' + e.message : ''); }
       try {
         // re-validate through Save.load(): it re-checks the forward-version guard on the just-adopted doc and

@@ -1648,9 +1648,13 @@ const App = (() => {
     if (!doc) {
       // #121: the cache refused this save (the browser's per-site cap). It was queued for the station file above; the save
       // light tracks the station file's confirmation. Freeing disk space never helps, so the notice no longer asks for it.
-      const why = (!Save.writeQuotaFull || Save.writeQuotaFull()) ? 'Browser storage for this window is full (a browser limit — freeing disk space will not help).' : 'Browser storage refused this window’s save.';
-      if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify(why + ' Station changes now go to the station file only; the ● save light in the top bar says whether your latest change is confirmed there.', 'warn', undefined, { kind: 'alert', key: 'save-failed' });
-      saveFailureNotified = true;
+      // A station over the cache budget was never offered to the cache (Save.writeSkipped): that is the expected home for
+      // a large station, not a failure, so it raises no notice; only a real refusal by the browser does.
+      if (!(Save.writeSkipped && Save.writeSkipped())) {
+        const why = (!Save.writeQuotaFull || Save.writeQuotaFull()) ? 'Browser storage for this window is full (a browser limit — freeing disk space will not help).' : 'Browser storage refused this window’s save.';
+        if (!saveFailureNotified && typeof StationUI !== 'undefined') StationUI.notify(why + ' Station changes now go to the station file only; the ● save light in the top bar says whether your latest change is confirmed there.', 'warn', undefined, { kind: 'alert', key: 'save-failed' });
+        saveFailureNotified = true;
+      }
       // repaint the light NOW (no green flash: nothing reached the cache) — waiting for its 1 s tick left "autosave" or
       // "confirmed in the station file" showing for a change the station file has not confirmed yet (live proof 10-15)
       if (typeof StationUI !== 'undefined' && StationUI.refreshSave) StationUI.refreshSave();

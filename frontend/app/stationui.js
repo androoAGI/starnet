@@ -10171,8 +10171,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // follow the station file's confirmation of the NEWEST save, never the cache: amber while it is confirmed or on
       // its way, red once a write to the station file has failed and the latest change is held only in this window.
       // "full" only when the browser reported its quota; any other refusal is named as a refusal
-      const cache = /quota/i.test(String(h.cacheFailedReason || '')) ? 'browser cache full' : 'browser cache refused the save';
-      if (h.cacheFailedConfirmed) {
+      // A station over the cache budget is never offered to the cache (Save.writeSkipped): the station file is its normal
+      // home, so a confirmed save there is the healthy state, not a warning. Unconfirmed and failed saves keep the words below.
+      const skipped = typeof Save !== 'undefined' && h.cacheFailedReason === Save.CACHE_SKIPPED;
+      const cache = skipped ? 'this station is too large for the browser cache' : /quota/i.test(String(h.cacheFailedReason || '')) ? 'browser cache full' : 'browser cache refused the save';
+      if (h.cacheFailedConfirmed && skipped) {
+        d.title = 'saved — your latest change is confirmed in the station file (this station is too large for the browser cache, so the station file holds it)';
+      } else if (h.cacheFailedConfirmed) {
         d.classList.add('stale');
         d.title = cache + ' — saving to the station file only. Your latest change is confirmed in the station file.';
       } else if ((h.consecutiveFailures || 0) > 0) {
