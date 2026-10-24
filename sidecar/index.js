@@ -2863,7 +2863,18 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
   // the operator's env URL and over the profile default, the same order the key follows.
   const page = pageCopyRidesWith(id, runKey);
   if (page && page.key && page.baseUrl) return page.baseUrl;
-  return envFirst(profile && profile.baseUrlEnv) || String((page && page.baseUrl) || '') || (profile && profile.baseUrl) || '';
+  const envUrl = envFirst(profile && profile.baseUrlEnv);
+  if (envUrl) return envUrl;
+  // #137: providers whose destination IS the configuration (requiresBaseUrl — Custom) save key+endpoint as one page
+  // record. pageCopyRidesWith correctly refuses to share KEY POOLS across mismatched keys, but discarding the endpoint
+  // when an operator env key (or any other non-page key) is in use left the provider with baseUrl '' and a lying
+  // "no CUSTOM base URL is saved" block — the URL was on disk. Use the keyed page endpoint when the operator did not
+  // set a competing env URL. A keyless page URL under an env key stays refused (nothing was paired with that key).
+  if (providerRequiresBaseUrl(id)) {
+    const saved = engineKeys.get(id);
+    if (saved && saved.key && saved.baseUrl) return saved.baseUrl;
+  }
+  return String((page && page.baseUrl) || '') || (profile && profile.baseUrl) || '';
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
@@ -3046,7 +3057,8 @@ function cronKeyFor(provider) {
   return providerRuntimeKey(provider, '');
 }
 function cronHasCredential(provider, key) {
-  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, ''));
+  // pass the key this check is about so the endpoint resolves for THAT credential (same as the /api/run seam)
+  return providerHasCredential(provider, key, providerRuntimeBaseUrl(provider, '', key));
 }
 function cronCredentialError(provider, what) {
   // `what` names the job the credential is for — it surfaces verbatim in user-facing panels

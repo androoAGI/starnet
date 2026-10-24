@@ -183,8 +183,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   const fn = name => { const i = raw.indexOf('\nfunction ' + name + '('); A.ok(i >= 0, 'index.js has ' + name); return i < 0 ? '' : raw.slice(i, raw.indexOf('\n}\n', i) + 3); };
   const code = ['providerRuntimeKey', 'providerOperatorKey', 'providerRuntimeKeyPool', 'providerFallbackKeyPool', 'pageCopyRidesWith', 'providerRuntimeBaseUrl'].map(fn).join('\n');
   const PROFILES = {
-    custom: { keyEnv: ['CUSTOM_OPENAI_API_KEY'], baseUrlEnv: ['CUSTOM_OPENAI_BASE_URL'], baseUrl: '' },
-    openrouter: { keyEnv: ['OPENROUTER_API_KEY'], baseUrlEnv: [], baseUrl: 'https://openrouter.ai/api/v1' }
+    custom: { keyEnv: ['CUSTOM_OPENAI_API_KEY'], baseUrlEnv: ['CUSTOM_OPENAI_BASE_URL'], baseUrl: '', requiresBaseUrl: true },
+    openrouter: { keyEnv: ['OPENROUTER_API_KEY'], baseUrlEnv: [], baseUrl: 'https://openrouter.ai/api/v1', requiresBaseUrl: false }
   };
   function resolvers(o) {
     const env = o.env || {};
@@ -194,6 +194,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
       engineKeys: EC.makeEngineKeys({ load: () => ({ version: 1, providers: o.page || {} }) }),
       normalizeProvider: p => String(p || 'openrouter'), registryProviderUsesCodex: () => false, resolveCreditsConfig: () => ({}),
       getProviderProfile: id => PROFILES[id] || null,
+      providerRequiresBaseUrl: id => !!(PROFILES[id] && PROFILES[id].requiresBaseUrl),
       envFirst: names => { for (const n of (names || [])) if (env[n]) return env[n]; return ''; },
       ENV: () => ''
     };
@@ -209,16 +210,16 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.eq(r.providerRuntimeKeyPool('custom'), ['spare-1'], 'with its own backups');
     // an interactive run from ANOTHER page (its own per-run key, no backups of its own, no endpoint in the body)
     A.eq(r.providerRuntimeKeyPool('custom', undefined, KX), [], 'another page\'s key never rotates onto this page copy\'s backup keys');
-    A.eq(r.providerRuntimeBaseUrl('custom', '', KX), UE, 'nor is it sent to this page copy\'s endpoint');
+    A.eq(r.providerRuntimeBaseUrl('custom', '', KX), UE, 'an operator env URL still wins over the page endpoint when keys differ');
     A.eq(r.providerRuntimeKeyPool('custom', undefined, KP), ['spare-1'], 'a run on the page key itself keeps its backups');
     A.eq(r.providerRuntimeBaseUrl('custom', '', KP), UP, 'and its endpoint');
     A.eq(r.providerRuntimeBaseUrl('custom', 'https://explicit.example/v1', KX), 'https://explicit.example/v1', 'an explicit per-run endpoint still wins');
   }
-  // the operator's env KEY outranks the page copy — and never rides the page copy's endpoint or backups
+  // the operator's env KEY outranks the page copy — backups stay gated; the keyed page ENDPOINT still rides (#137)
   {
     const r = resolvers({ page: { custom: { key: KP, keyPool: ['spare-1'], baseUrl: UP, rev: 'a1' } }, env: { CUSTOM_OPENAI_API_KEY: KE } });
     A.eq(r.providerRuntimeKey('custom', ''), KE, 'the env key wins');
-    A.eq(r.providerRuntimeBaseUrl('custom', ''), '', 'the env key is never sent to the page copy\'s endpoint (no env URL = none)');
+    A.eq(r.providerRuntimeBaseUrl('custom', ''), UP, '#137: Custom still uses the keyed page endpoint when no env URL competes');
     A.eq(r.providerRuntimeKeyPool('custom'), [], 'nor rotated onto the page copy\'s backups');
   }
   // a keyless page endpoint (a local server): under the operator's URL, over the profile default — never for an env key
@@ -252,6 +253,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   A.ok(/verify: \(envelope\) => \{[\s\S]{0,200}\[ENGINE_KEYS_FILE, ENGINE_KEYS_FILE \+ '\.bak'\]\.every/.test(src), 'an unchanged push re-checks both copies on disk');
   A.ok(/credentialError: \(provider\) => engineCredentialError\(provider, 'this scheduled routine'\)/.test(src), 'the scheduled fire says the shared sentence');
   A.ok(/return engineCredentialError\(provider, what \|\| 'this routine'\);/.test(body('cronCredentialError')), 'Run Now / quest refresh say the shared sentence');
+  A.ok(/providerRequiresBaseUrl\(id\)[\s\S]{0,120}saved\.key && saved\.baseUrl/.test(body('providerRuntimeBaseUrl')), '#137: a keyed Custom page endpoint still rides when the run key differs and no env URL competes');
+  A.ok(/providerRuntimeBaseUrl\(provider, '', key\)/.test(body('cronHasCredential')), 'cronHasCredential resolves the endpoint for the key it checks');
 }
 
 /* ---------- pre-update backups never carry the copy ---------- */
