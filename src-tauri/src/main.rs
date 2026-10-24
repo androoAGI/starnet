@@ -393,10 +393,71 @@ impl KeepAwakeState {
     }
 }
 
-#[cfg(not(windows))]
+/// Take a logind "sleep" block lock, the same lock `systemd-inhibit --what=sleep` holds. Like the
+/// Windows system-required request it stops idle suspend (GNOME and KDE route auto-suspend through
+/// logind, which refuses it while the lock is held) without keeping the display on. logind releases
+/// the lock when the returned descriptor closes, so the bus connection does not need to stay open.
+#[cfg(target_os = "linux")]
+fn logind_sleep_inhibitor() -> Result<zbus::zvariant::OwnedFd, String> {
+    // The keep-awake commands are synchronous, so bound the round trip instead of hanging the UI
+    // on a wedged bus.
+    let conn = zbus::blocking::connection::Builder::system()
+        .and_then(|b| b.method_timeout(std::time::Duration::from_secs(5)).build())
+        .map_err(|e| format!("could not reach the system D-Bus for systemd-logind: {e}"))?;
+    let reply = conn
+        .call_method(
+            Some("org.freedesktop.login1"),
+            "/org/freedesktop/login1",
+            Some("org.freedesktop.login1.Manager"),
+            "Inhibit",
+            &(
+                "sleep",
+                "StarNet",
+                "StarNet scheduled tasks are allowed to run while the app is open",
+                "block",
+            ),
+        )
+        .map_err(|e| format!("systemd-logind refused the sleep inhibitor: {e}"))?;
+    reply
+        .body()
+        .deserialize::<zbus::zvariant::OwnedFd>()
+        .map_err(|e| format!("systemd-logind returned no inhibitor lock: {e}"))
+}
+
+#[cfg(target_os = "linux")]
+struct KeepAwakeState {
+    inhibitor: Option<zbus::zvariant::OwnedFd>,
+}
+
+#[cfg(target_os = "linux")]
+impl KeepAwakeState {
+    fn new() -> Self {
+        Self { inhibitor: None }
+    }
+
+    fn status(&self) -> KeepAwakeStatus {
+        KeepAwakeStatus {
+            desktop: true,
+            supported: true,
+            enabled: self.inhibitor.is_some(),
+            message: None,
+        }
+    }
+
+    fn set_enabled(&mut self, enabled: bool) -> Result<KeepAwakeStatus, String> {
+        if enabled && self.inhibitor.is_none() {
+            self.inhibitor = Some(logind_sleep_inhibitor()?);
+        } else if !enabled {
+            self.inhibitor = None;
+        }
+        Ok(self.status())
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 struct KeepAwakeState;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 impl KeepAwakeState {
     fn new() -> Self {
         Self
@@ -408,7 +469,8 @@ impl KeepAwakeState {
             supported: false,
             enabled: false,
             message: Some(
-                "Keep Computer Awake is currently supported on Windows desktop builds.".to_string(),
+                "Keep Computer Awake is currently supported on Windows and Linux desktop builds."
+                    .to_string(),
             ),
         }
     }
@@ -2225,7 +2287,8 @@ fn spawn_sidecar_with_retry(app: &AppHandle, state: &AppState) -> bool {
 // reconnect. `shutting_down` gates the respawn: it is flipped true at intentional quit BEFORE
 // `kill_sidecar` runs, so killing the child during exit never races into a respawn.
 //
-// NOTE: system sleep is held off separately via the keep_awake command path (PowerCreateRequest);
+// NOTE: system sleep is held off separately via the keep_awake command path (PowerCreateRequest on
+// Windows, a logind sleep inhibitor on Linux);
 // the watchdog does not touch power state.
 fn spawn_guardian(app: AppHandle) {
     std::thread::spawn(move || {

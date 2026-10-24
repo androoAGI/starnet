@@ -27,6 +27,11 @@ serde_json = "1"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Keep Computer Awake on Linux takes a systemd-logind sleep inhibitor over the system D-Bus. zbus is
+# already in the Linux tree through tauri-plugin-single-instance, so this adds no new crates.
+zbus = "5"
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Power", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }
 # WebView2 crash recovery (webview_recovery.rs) hooks ICoreWebView2::add_ProcessFailed. Must stay on
