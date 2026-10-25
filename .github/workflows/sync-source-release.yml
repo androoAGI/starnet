@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   sync:
+    # Forks inherit the schedule but have no releases to mirror, so every run fails there.
+    if: github.repository == 'androoAGI/starnet'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
