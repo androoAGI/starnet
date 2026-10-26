@@ -703,6 +703,13 @@ jobs:
           fi
           echo "::notice::[$TARGET] $nested nested native dependencies: Developer ID + timestamp verified ✓"
 
+          # (5) the DMG's OWN signature. Tauri signs the image with the same Developer ID
+          # identity after bundle_dmg.sh, but only the app inside was ever verified, and a
+          # v0.13.5 user's Mac reported the aarch64 DMG's signature invalid. Prove it here,
+          # before Apple sees the bytes; the finalizer re-proves it after stapling.
+          app_team=$(sed -n 's/^TeamIdentifier=//p' "$T/cs.txt" | head -1)
+          bash scripts/verify-macos-dmg.sh signed "$dmg" "$app_team"
+
           echo "::notice::[$TARGET] local Developer ID checks passed; ready for asynchronous Apple submission ✓"
 
       # Tauri names the mac updater bundle "<App>.app.tar.gz" with NO arch marker — identical

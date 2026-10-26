@@ -14,6 +14,8 @@ const finalizeScript = fs.readFileSync(path.join(root, 'scripts', 'notarize-maco
 const installedScript = fs.readFileSync(path.join(root, 'scripts', 'verify-macos-intel-installed.sh'), 'utf8');
 const hydrateScript = fs.readFileSync(path.join(root, 'scripts', 'hydrate-sharp-macos-x64.sh'), 'utf8');
 const nativeScript = fs.readFileSync(path.join(root, 'scripts', 'sign-macos-native-deps.sh'), 'utf8');
+const dmgScriptPath = path.join(root, 'scripts', 'verify-macos-dmg.sh');
+const dmgScript = fs.readFileSync(dmgScriptPath, 'utf8');
 
 A.ok(/os: macos-15-intel[\s\S]{0,120}target: darwin-x64/.test(yml),
   'public Intel release runs on an actual x86_64 hosted runner');
@@ -100,6 +102,8 @@ A.ok(/nested native dependency is not Developer ID signed/.test(trust),
   'trust proof rejects unsigned or ad-hoc nested native dependencies');
 A.ok(/nested native dependency has no secure timestamp/.test(trust),
   'trust proof rejects nested native dependencies without secure timestamps');
+A.ok(/app_team=\$\(sed -n 's\/\^TeamIdentifier=\/\/p' "\$T\/cs\.txt"[\s\S]{0,80}bash scripts\/verify-macos-dmg\.sh signed "\$dmg" "\$app_team"/.test(trust),
+  'trust proof verifies the DMG\'s own signature, from the app\'s team, before Apple submission');
 A.ok(/notarization-input-\$\{\{ matrix\.target \}\}/.test(yml),
   'exact submitted DMG and submission id are preserved as a retryable artifact');
 A.ok(/notarize-macos:[\s\S]*?needs: build[\s\S]*?timeout-minutes: 350/.test(yml),
@@ -125,6 +129,77 @@ A.ok(/source=Notarized Developer ID[\s\S]*?exit 1/.test(finalizeScript),
   'a non-notarized Gatekeeper source is a hard failure');
 A.ok(!/no Apple cert[\s\S]*?exit 0/.test(finalizeScript),
   'shipping trust proof has no unsigned-success escape hatch');
+A.ok(/exit 75[\s\S]*?verify-macos-dmg\.sh" notarized "\$dmg" "\$APPLE_TEAM_ID"[\s\S]*?hdiutil attach/.test(finalizeScript),
+  'finalizer proves the stapled DMG\'s own signature and verdict before mounting it');
+A.ok(/hdiutil detach "\$mount_point"[\s\S]*?shasum -a 256 "\$dmg"[\s\S]*?!= "\$dmg_sha"[\s\S]*?exit 1/.test(finalizeScript),
+  'finalizer refuses to hand on DMG bytes that changed after their signature was verified');
+
+A.ok(/codesign --verify --strict --verbose=2 "\$dmg"/.test(dmgScript), 'DMG proof runs a strict codesign verify');
+A.ok(/\^Authority=Developer ID Application/.test(dmgScript) && /TeamIdentifier/.test(dmgScript),
+  'DMG proof requires the release team\'s Developer ID authority');
+A.ok(/xcrun stapler validate "\$dmg"/.test(dmgScript), 'DMG proof validates the stapled ticket');
+A.ok(/spctl -a -t open --context context:primary-signature -vv "\$dmg"/.test(dmgScript)
+  && /source=Notarized Developer ID/.test(dmgScript),
+  'DMG proof asks Gatekeeper for the notarized disk-image verdict');
+
+// Run the real DMG proof against stub macOS tools: every failure mode must exit non-zero.
+function findBash() {
+  if (process.platform !== 'win32') return 'bash';
+  const git = ['ProgramFiles', 'ProgramW6432', 'LOCALAPPDATA']
+    .map((v) => process.env[v] && path.join(process.env[v], v === 'LOCALAPPDATA' ? 'Programs/Git' : 'Git', 'bin', 'bash.exe'))
+    .find((p) => p && fs.existsSync(p));
+  return git || null; // never C:\Windows\System32\bash.exe (WSL): it cannot see these Windows paths
+}
+const os = require('os');
+const { spawnSync } = require('child_process');
+const bash = findBash();
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dmg-proof-test-'));
+const posix = (p) => p.replace(/\\/g, '/');
+const stubs = {
+  codesign: `case "$1" in
+  --verify) [ "\${STUB_VERIFY:-ok}" = ok ] && { echo "$4: valid on disk"; exit 0; }
+            echo "$4: invalid signature (code or signature have been modified)"; exit 1 ;;
+  -dvvv) printf 'Executable=%s\\nAuthority=%s\\nTeamIdentifier=%s\\nTimestamp=Oct 26, 2026\\n' "$2" \\
+           "\${STUB_AUTHORITY:-Developer ID Application: Test (TEAM123456)}" "\${STUB_TEAM:-TEAM123456}" >&2 ;;
+esac`,
+  xcrun: `[ "\${STUB_STAPLED:-ok}" = ok ] && { echo "The validate action worked!"; exit 0; }
+echo "$3 does not have a ticket stapled to it."; exit 65`,
+  spctl: `printf '%s: %s\\nsource=%s\\n' "$7" "\${STUB_SPCTL_VERDICT:-accepted}" "\${STUB_SPCTL_SOURCE:-Notarized Developer ID}"
+exit "\${STUB_SPCTL_EXIT:-0}"`,
+  shasum: `echo "0000000000000000000000000000000000000000000000000000000000000000  $3"`
+};
+for (const [name, body] of Object.entries(stubs)) {
+  fs.writeFileSync(path.join(tmp, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
+}
+const dmg = path.join(tmp, 'StarNet_0.0.0_aarch64.dmg');
+fs.writeFileSync(dmg, 'fixture image bytes');
+const prove = (mode, env, team = 'TEAM123456') => spawnSync(bash, [posix(dmgScriptPath), mode, posix(dmg), team], {
+  encoding: 'utf8',
+  env: { ...process.env, ...env, RUNNER_TEMP: posix(tmp), PATH: tmp + path.delimiter + process.env.PATH }
+});
+const probe = bash && prove('notarized', {});
+if (!bash || probe.error || probe.status !== 0 || !/DMG notarized proof passed/.test(probe.stdout)) {
+  console.log(`SKIP: no usable POSIX bash for the stubbed DMG proof${probe ? ` (${probe.error ? probe.error.message : `exit ${probe.status}: ${(probe.stderr || probe.stdout).trim().slice(0, 200)}`})` : ''}; static assertions still run.`);
+} else {
+  A.ok(/team TEAM123456/.test(probe.stdout), 'a valid stapled Developer ID DMG passes the notarized proof');
+  A.eq(prove('signed', { STUB_STAPLED: 'missing', STUB_SPCTL_EXIT: '3' }).status, 0,
+    'the pre-submission proof needs only the signature (no ticket exists yet)');
+  for (const [label, env, team] of [
+    ['a modified DMG signature', { STUB_VERIFY: 'modified' }],
+    ['an ad-hoc DMG signature', { STUB_AUTHORITY: 'adhoc' }],
+    ['another team\'s DMG signature', { STUB_TEAM: 'OTHER00000' }],
+    ['a DMG with no stapled ticket', { STUB_STAPLED: 'missing' }],
+    ['a Gatekeeper rejection', { STUB_SPCTL_VERDICT: 'rejected', STUB_SPCTL_EXIT: '3' }],
+    ['an accepted but un-notarized source', { STUB_SPCTL_SOURCE: 'Developer ID' }],
+    ['a non-zero spctl exit', { STUB_SPCTL_EXIT: '1' }]
+  ]) {
+    const r = prove('notarized', env, team);
+    A.ok(r.status === 1 && /::error::/.test(r.stdout), `${label} fails the notarized DMG proof`);
+  }
+  A.eq(prove('signed', {}, ' TEAM123456\n').status, 0, 'whitespace around the expected team id is ignored');
+  A.eq(prove('released', {}).status, 1, 'an unknown proof mode fails closed');
+}
+fs.rmSync(tmp, { recursive: true, force: true });
 A.ok(/spctl -a -t exec -vv "\$installed"/.test(installedScript)
   && /source=Notarized Developer ID/.test(installedScript),
   'installed verifier rechecks Gatekeeper on the app copied out of the DMG');
