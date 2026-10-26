@@ -25,13 +25,12 @@ A.ok(read('frontend/app/app.js').includes('DossierStore.composeBlock()') && read
    rendered only with 2+ agents and shown only while the row is pointed at (test/agent-threads-rail, test/crew-card-fit).
    What stays is the manual's truth: a crew-row click never focuses an agent, and it says what the click does at each size. */
 const ICSS = read('frontend/css/interface.css');
-const keyRule = (ICSS.match(/#crew \.crew-dossier \{[^}]*\}/) || [''])[0];
-A.ok(/opacity:\s*0/.test(keyRule) && /#crew \.crew-row:is\(:hover,:focus-within,\.filtering\) \.crew-dossier \{ opacity: 1; \}/.test(ICSS), 'P20 struck: the DOSSIER key shows only while its row is pointed at, as the candidate had it');
+A.ok(!/\.crew-dossier/.test(ICSS), 'the hover DOSSIER key is gone too (Andrew 10-26: "unaligned, looks terrible"): right-click / Shift+F10 on the row open the dossier');
 const MAN = require('../sidecar/manual.js').starnetManual();
 A.ok(!/focuses it/.test(MAN) && !/click the row to focus/.test(MAN) && !/intended agent is focused/.test(MAN), 'the manual never says a crew-row click focuses an agent');
 A.ok(/None of these changes who COMMS talks to/.test(MAN) && /agent ON THE LINE/.test(MAN), 'the manual says messages go to the agent ON THE LINE and a row click does not change that');
-A.ok(/With one agent a crew-manifest row click opens its dossier; with 2\+ it shows that agent's sessions, and the DOSSIER key on the pointed-at row opens the dossier\./.test(MAN) && !/its DOSSIER key opens its file/.test(MAN),
-  'the manual names the row click at each crew size and never promises a DOSSIER key on every row');
+A.ok(/With one agent a crew-manifest row click opens its dossier; with 2\+ it shows that agent's sessions\. A right-click on the row or its sprite opens the dossier/.test(MAN) && !/DOSSIER key/.test(MAN),
+  'the manual names the row click at each crew size and never promises a DOSSIER key');
 
 /* ---------- P21: the dossier says where each per-agent setting lives ---------- */
 const CONN = read('frontend/app/windows/connectors.js');

@@ -1710,10 +1710,7 @@ body.glass-demo:not(.hud-mode) #screen-game #chat-panel .deliverable-folder .fb-
    RAIL LEFTOVERS (10-19 sweep: every box in the rail rounder than the 2px terminal box, in every rail state — filtered by an
    agent, crew search open, PROJECTS): two were left, both now the rail's keys
    ============================================================ */
-/* the DOSSIER key on a crew card and the bar that names whose sessions show: the rail's 2px terminal keys (they were 6px / 8px) */
-body.glass-demo:not(.hud-mode) #screen-game #crew .crew-dossier {
-  border-radius: 2px; border-color: rgba(var(--ph-rgb), .4); background: rgba(0, 0, 0, .55); color: var(--ph-bright); letter-spacing: 1.2px; text-transform: uppercase;
-}
+/* the bar that names whose sessions show: the rail's 2px terminal key (it was 8px) */
 body.glass-demo:not(.hud-mode) #screen-game #left .ws-agent-filter { border-radius: 2px; border-color: rgba(var(--ph-rgb), .4); background: rgba(var(--ph-rgb), .1); }
 body.glass-demo:not(.hud-mode) #screen-game #left .ws-agent-filter:hover { border-color: rgba(var(--ph-rgb), .75); background: rgba(var(--ph-rgb), .16); }
 /* ============================================================
@@ -2061,7 +2058,7 @@ body.glass-demo:not(.hud-mode) { --sn-r-card: 10px; --sn-r-key: 8px; --sn-r-row:
 
 /* -- the rail -- */
 body.glass-demo:not(.hud-mode) #screen-game #crew .crew-row { border-radius: var(--sn-r-card); }
-body.glass-demo:not(.hud-mode) #screen-game #crew :is(.crew-portrait, .crew-dossier) { border-radius: var(--sn-r-row); }
+body.glass-demo:not(.hud-mode) #screen-game #crew .crew-portrait { border-radius: var(--sn-r-row); }
 body.glass-demo:not(.hud-mode) #screen-game #left > h3 .crew-hide,
 body.glass-demo:not(.hud-mode) #screen-game #left :is(#crew-search, #crew-search-close, #ws-search, .ws-agent-filter) { border-radius: var(--sn-r-key); }
 /* the tabs and + NEW stand on the strip's rule: only their top corners round */
