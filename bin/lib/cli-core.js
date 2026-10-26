@@ -66,6 +66,8 @@ const USAGE = [
   'Dashboard mouse: click an agent to open its chat, a tab for its page, a card\'s key to answer · right-click an agent',
   '  for its menu · ctrl+click opens a link or a file an agent wrote · STARNET_MOUSE=0 keeps the terminal\'s own selection',
   'Dashboard commands: /model [name] · /new · /resume · /stop · /retry · /status · /flow · /flow run <name> <text> · /help',
+  '  /connect [provider] adds a provider from the app\'s AI & MODELS list: sign in (ChatGPT, Grok, Kimi, Claude Code),',
+  '  link StarNet credits, use Ollama, or paste an API key (typed hidden, checked first, kept where the app keeps keys)',
   '  and the station\'s own: /usage · /tools · /routine · /away · your own commands · each skill as /<skill> <task> (/skills)',
   'Dashboard look: the StarNet logo as an image where the terminal draws Sixel (Windows Terminal, WezTerm, iTerm2), braille',
   '  dots elsewhere · STARNET_LOGO=dots|ascii|plain picks one · NO_COLOR=1 drops color · needs at least 46×16',
@@ -98,7 +100,7 @@ const USAGE = [
   '',
   'Credentials are never taken on the command line. A spawned station reads them from the environment',
   '(STARNET_OPENROUTER_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, …) or from a ChatGPT/Codex sign-in already',
-  'stored in the workspace; an attached station uses whatever it already has.'
+  'stored in the workspace; an attached station uses whatever it already has, plus what /connect adds.'
 ].join('\n');
 
 const STATION_COMMANDS = ['dash', 'ls', 'approve', 'deny', 'watch', 'flow'];

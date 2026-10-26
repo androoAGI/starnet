@@ -644,7 +644,8 @@ function makeAwakening(deps) {
     return { ok: true, agent: ctx.agent, firstMove: grabbed };
   }
 
-  return { run, _ctx: () => ctx };
+  // signIn: the sign-ins of CONNECT A BRAIN, for the dashboard's /connect (bin/lib/connect.js) to run on their own
+  return { run, signIn, _ctx: () => ctx };
 }
 
 module.exports = { makeAwakening, BRAINS, POSTURE_STEP, fallbackPurposeStep };
