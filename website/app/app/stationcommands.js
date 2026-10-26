@@ -1147,6 +1147,31 @@ const StationCommands = (() => {
       };
       return out;
     },
+    /* A PROVIDER KEY FROM THE TERMINAL (`starnet` /connect, POST /api/providers/connect): saved the way the AI & MODELS
+       card's ＋ ADD KEY saves it — proven with a live call first, then kept where this app keeps keys (the OS keychain in
+       the desktop window, this browser + the station's copy otherwise). The command names only a one-time slot; the key
+       is collected from the station once. Not a station.control action: no agent tool can reach it. A page that cannot
+       keep it (a browser tab of a desktop station) or finds the slot already taken (another page has it) stays quiet, so
+       the page that saves it is the one that answers. */
+    'provider.key': async (a) => {
+      const h = typeof Harness === 'object' && Harness ? Harness : null;
+      const quiet = () => Object.assign(new Error('not this page'), { quiet: true });
+      if (!h || !h.validateAndSetKey) throw quiet();
+      if (a.desktop && !(h.isDesktop && h.isDesktop())) throw quiet();
+      const r = await fetch('/api/providers/connect/take', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot: String(a.slot || '') }) });
+      if (!r.ok) throw quiet();
+      const got = await r.json();
+      const provider = String(got.provider || '');
+      if (provider === 'custom' && got.baseUrl) {
+        if (!h.setBaseUrl) throw new Error('this page cannot save a custom endpoint');
+        await Promise.resolve(h.setBaseUrl(String(got.baseUrl), 'custom'));
+      }
+      const res = got.key ? await h.validateAndSetKey(String(got.key), provider) : null;
+      try { if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect(); } catch (_) {}
+      try { if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh(); } catch (_) {}
+      try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('settings'); } catch (_) {}
+      return { provider, store: h.isDesktop && h.isDesktop() ? 'keychain' : 'browser', verified: !!(res && res.credentialVerified), endpointOnly: !got.key };
+    },
     'station.control': async (a) => {
       const act = String((a && a.action) || '');
       if (/^agent\./.test(act)) return agentControl(act, a);
@@ -1363,6 +1388,7 @@ const StationCommands = (() => {
       if (!fn) throw new Error('unknown station verb: ' + verb);
       out = { id, ok: true, result: await fn(args || {}) };
     } catch (error) {
+      if (error && error.quiet) return;   // not this page's to answer (provider.key): the page that is answers
       out = { id, ok: false, error: String((error && error.message) || error) };
     }
     /* TWO STATION PAGES (the app and a browser tab): every open page gets the command and the FIRST answer wins. A page
