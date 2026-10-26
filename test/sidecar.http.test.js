@@ -1364,7 +1364,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     // +stable/+roll offsets below are unambiguous. (windows are on (unix+11644473600) seconds boundaries)
     const gecT = (1784000000 - ((1784000000 + 11644473600) % 300)) * 1000;
     const gec = edge.secMsGec(gecT);
-    A.ok(/^[0-9A-F]{64}$/.test(gec), 'secMsGec(nowMs) returns 64 uppercase hex chars');
+    A.ok(/^[0-9A-F]{16}-[0-9A-F]{64}$/.test(gec), 'secMsGec(nowMs) returns the v2 shape: 16 hex CS64, a dash, 64 hex digest');
     A.eq(edge.secMsGec(gecT + 299000), gec, 'secMsGec is stable within the same 300s window');
     A.ok(edge.secMsGec(gecT + 300000) !== gec, 'secMsGec rolls to a new token in the next 300s window');
     {
