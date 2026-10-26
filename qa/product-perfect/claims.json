@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "f827adcd731f0f109caaac6f4b93fcaf31bc2276",
+    "sourceCommit": "4a79b3f42fa46ecda195af71b0dcb930a539be4b",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 968695,
-        "sha256": "d60b40c67f4dc78256944c1694c1a36aeccb231b012cd96822e5b26445d753e6"
+        "bytes": 968181,
+        "sha256": "1bf9386906408f1c4cf6889822876d9766b9e2738350bd0ae679375212dc3ed9"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1593,8 +1593,8 @@
       },
       {
         "path": "frontend/css/crew-glass.css",
-        "bytes": 12745,
-        "sha256": "303ac25e07660240274ac1c6c0ff0c4f3c53313642d1a1f4c5ee3583e2160788"
+        "bytes": 12296,
+        "sha256": "693f265ef2447f18d894c0e33dbe96528c2209f66cfd77f70f2b0872717fe58e"
       },
       {
         "path": "frontend/css/deliverables-glass.css",
@@ -1623,8 +1623,8 @@
       },
       {
         "path": "frontend/css/interface.css",
-        "bytes": 35259,
-        "sha256": "b548160ae97ed48f089c233861fc3d2586e87ba0b8746f9151c5f4670cc92f82"
+        "bytes": 34752,
+        "sha256": "8535374f8465a1097029a39eddeec72b26f6788692a8102c80d29eade96aebb8"
       },
       {
         "path": "frontend/css/linewatch.css",
@@ -1668,8 +1668,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 198915,
-        "sha256": "ded03ce9ad4fdca11f80387f3d26490f798c17fb73467c6f7e5076380dd0e441"
+        "bytes": 198614,
+        "sha256": "a26c09761766f99acfd3b69020e0312eaf199fbce8bd06f8d71678c64e7c557f"
       },
       {
         "path": "frontend/css/plugins.css",
