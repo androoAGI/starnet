@@ -125,6 +125,34 @@ function failingFs(code, armed) {
       A.ok(!/disk/i.test(light.title), 'd: …and never blames the disk');
       A.ok(/16 MiB/.test(light.title), 'd: …naming the cap');
     }
+    {
+      // review 10-27: a station over 16 MiB is over the browser cache's cap too — then the change is ONLY in this window's
+      // memory, and the light must say closing the window loses it (the cacheFailed warning), never "local play continues" alone
+      const root = K.workspace();
+      const host = K.sidecar(root, { realBody: true });
+      const cache = new Map(); const cs = K.page(host, cache);
+      await cs.reconcile(null);
+      cs.push(big(), { cacheFailed: true, cacheError: 'QuotaExceededError' });
+      A.eq(await cs.flush({ force: true }), false, 'd: the >16 MiB save the browser cache could not hold is refused too');
+      const t = K.stationUi(cs).light().title;
+      A.ok(/too large/i.test(t) && /only in this window/i.test(t) && /closing this window loses it/i.test(t) && !/local play continues/i.test(t), 'd: too large AND not in the browser cache: the light says it is only in this window — got: ' + t);
+    }
+    {
+      // review 10-27: a window another window saved past merges its saves and keeps its own view — the light says so, never a
+      // bare "autosave" that implies this window shows the station as it is
+      const root = K.workspace();
+      const host = K.sidecar(root);
+      host.saveStore.save('agent', doc(), { compareRevision: true });
+      const ca = new Map(), cb = new Map();
+      const a = K.page(host, ca), b = K.page(host, cb);
+      await a.reconcile(null); await b.reconcile(null);
+      persist(a, ca, doc({ updatedAt: Date.now() + 1, agent: { id: 'agent', name: 'A-NAME', createdAt: 5000 } })); A.eq(await a.flush({ force: true }), true, 'd: window A saves');
+      persist(b, cb, doc({ updatedAt: Date.now() + 2 })); A.eq(await b.flush({ force: true }), true, 'd: window B, behind, is merged');
+      A.eq(b.health().merging, true, 'd: …and merges from now on');
+      const t = K.stationUi(b).light().title;
+      A.ok(/merged into the station file with another window/.test(t) && /reload this window to see them/.test(t), 'd: the light says this window\'s saves are merged and how to see the other window\'s — got: ' + t);
+      A.eq(K.stationUi(a).light().title, 'autosave', 'd: the window that is not behind reads plain autosave');
+    }
     for (const [code, re, label] of [['ENOSPC', /disk .*full/i, 'the full disk'], ['EPERM', /folder refused/i, 'the folder'], ['EBUSY', /could not be written/i, 'a failed write']]) {
       const root = K.workspace();
       const armed = { on: true };

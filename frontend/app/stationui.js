@@ -10270,7 +10270,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // a save over the station file's 16 MiB cap (a named 413): retrying cannot land it, so it says so on the FIRST refusal,
       // never "check disk space"
       d.classList.add('degraded');
-      d.title = 'too large to save — this station is larger than the 16 MiB the station file takes, so your latest change is NOT saved. Local play continues; retrying will not land it.';
+      // a station over 16 MiB is over the browser cache's cap too: then the latest change is held ONLY in this window's memory,
+      // and closing it loses it (the cacheFailed warning, review 10-27) — never "local play continues" alone
+      d.title = 'too large to save — this station is larger than the 16 MiB the station file takes, so your latest change is NOT saved.'
+        + (h.cacheFailed ? ' The browser cache could not hold it either: it is only in this window, and closing this window loses it.' : ' Local play continues; retrying will not land it.');
     } else if (h && h.cacheFailed) {
       // #121: the browser cache is full (its per-site cap), so every change rides on the station file alone. The words
       // follow the station file's confirmation of the NEWEST save, never the cache: amber while it is confirmed or on
@@ -10296,6 +10299,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // POST /api/save errors. Same amber vocabulary as stale; the words name the cause the station gave (saveCauseWords).
       d.classList.add('stale');
       d.title = 'saves are failing — ' + saveCauseWords(h) + ' (' + (h.consecutiveFailures || 0) + ' failed attempts in a row). Local play continues; the durable backup is not confirming writes.';
+    } else if (h && h.merging) {
+      // another window saved past this one: this window's saves are merged into the station file (cloudsave `merging`), and its
+      // view does not show the other window's changes until it is reloaded — said, never implied by a plain "autosave"
+      d.title = 'autosave — merged into the station file with another window’s changes; reload this window to see them';
     } else {
       d.title = 'autosave';
     }
