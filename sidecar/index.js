@@ -24058,9 +24058,11 @@ async function runOnceCore(o) {
   // stay in the working set (the micro tier keeps elided copies, a refused fold keeps the whole slice), and those
   // must still reach the provider-resumable checkpoint.
   const initialPromptSet = new WeakSet(msgs.filter(m => m && typeof m === 'object'));
-  // the directive every transcript writer puts first (same rule as the run-end title write; captured before the loop
-  // can append its own user-role messages, e.g. a screen-capture turn). A continuation's is its SOURCE's directive.
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs));
+  // the directive every transcript writer puts first, captured before the loop can append its own user-role messages
+  // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
+  // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
+  const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
+  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(runDirective);
   if (!internal) {
     try {
       runJournal.begin({
@@ -24452,7 +24454,7 @@ async function runOnceCore(o) {
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept
-      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : latestUserText(msgs), liveServiceKeys());
+      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys());
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -24580,7 +24582,7 @@ async function runOnceCore(o) {
      said "Do not include a sources list…"»; REFLECTION saves what it reads there as "the user prefers …", silently. The Commander's
      words in a hand-off are only the original request — the line's first run already carried those — so a hand-off run is not
      reflected on, studied or thread-mined (and spends none of the agent's cooldowns). */
-  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(latestUserText(msgs)));
+  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(runDirective));
   // Quoted material the Commander typed (o.quotedOwnerInput, host-minted by handleRun), or that this run replayed from an
   // earlier turn (replayedQuoted), withholds learning exactly like untrusted content, without the execution lock: the
   // transcript is not evidence of their preferences, but their own run keeps its tools, standing grants and workers.
