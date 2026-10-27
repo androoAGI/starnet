@@ -9,10 +9,14 @@
    pass and not another for reasons nobody chose.
 
    runOutcome(facts) classifies the run ONCE — kind done | failed | denied | cancelled | unfinished, plus the modifiers
-   tainted (outside content), quoted (owner-pasted material), lineHop (a work line's hand-off frame) — and
+   denied (an approval was refused), tainted (outside content), quoted (owner-pasted material), lineHop (a work line's
+   hand-off frame) — and
    learningEligible(outcome, pass) is the one predicate every gate reads:
      · transcript passes (reflection, study, threadmine on DONE; failure-review on FAILED): never on a denied, cancelled
-       or unfinished run, never on a tainted, quoted or line-hop transcript. A refused action is not a lesson.
+       or unfinished run, never on a tainted, quoted or line-hop transcript. A finished run whose approval was refused is
+       DENIED (its work is not what was asked for: no lesson). A FAILED run stays failed with the denied modifier: the
+       failure review learns why it failed, as before this lane, and failreview.js refuses any lesson that routes around an
+       approval (GATE_SKIP), so a refusal never becomes "skip the approval".
      · trusted-capture reads only the directive the host captured, so outside content or quoted material in the
        transcript does not withhold it, and the Commander's explicit statement still counts when they refused an
        approval or the run failed. A line hand-off is never the Commander speaking; a stopped run teaches nothing.
@@ -24,7 +28,7 @@
 const Failreview = require('./failreview.js');
 
 const KINDS = ['done', 'failed', 'denied', 'cancelled', 'unfinished'];
-const MODIFIERS = ['tainted', 'quoted', 'lineHop'];
+const MODIFIERS = ['denied', 'tainted', 'quoted', 'lineHop'];
 // what each pass reads, and which outcome it learns from
 const PASSES = {
   reflection: { reads: 'transcript', on: ['done'] },
@@ -34,7 +38,7 @@ const PASSES = {
   'trusted-capture': { reads: 'directive', on: ['done', 'failed', 'denied'] }
 };
 
-/* runOutcome(facts) -> { kind, tainted, quoted, lineHop, base, why }
+/* runOutcome(facts) -> { kind, denied, tainted, quoted, lineHop, base, why }
    facts: { reason, aborted, recovery, truncated, clarifying, denied, tainted, quoted, lineHop, reflect, task, internal } */
 function runOutcome(facts) {
   const f = facts || {};
@@ -44,11 +48,12 @@ function runOutcome(facts) {
   else if (reason === 'done' && !f.truncated && !f.clarifying) kind = 'done';
   else if (Failreview.reviewableReason(reason)) kind = 'failed';                     // error · max_iters · budget · refusal
   else kind = 'unfinished';                                                          // truncated, a clarifying question, empty
-  // a refused approval (reflect.refusedAction: a Deny, an unanswered card, an unattended default-deny) makes a finished
-  // or failed run DENIED: its work is not what was asked for
-  if (f.denied && (kind === 'done' || kind === 'failed')) kind = 'denied';
+  // a refused approval (reflect.refusedAction: a Deny, an unanswered card, an unattended default-deny) makes a FINISHED
+  // run DENIED: its work is not what was asked for. A failed run stays FAILED (denied rides as a modifier), so its failure
+  // review and the "failed run" mark on what it raised are kept
+  if (f.denied && kind === 'done') kind = 'denied';
   const why = !f.reflect ? 'not_a_learning_run' : !f.task ? 'not_a_task' : f.internal ? 'internal' : f.recovery ? 'recovery' : '';
-  return { kind, tainted: !!f.tainted, quoted: !!f.quoted, lineHop: !!f.lineHop, base: !why, why: why || null };
+  return { kind, denied: !!f.denied, tainted: !!f.tainted, quoted: !!f.quoted, lineHop: !!f.lineHop, base: !why, why: why || null };
 }
 
 /* learningEligible(outcome, pass) -> { ok, reason } — the ONE predicate. reason names the first rule that refused. */

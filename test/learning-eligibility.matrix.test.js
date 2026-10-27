@@ -50,8 +50,18 @@ for (const kind of Object.keys(KIND_FACTS)) {
 {
   const denied = LE.passes(LE.runOutcome(Object.assign({}, base, { reason: 'done', denied: true })));
   A.ok(!denied.study && !denied.threadmine && !denied.reflection, 'QW19: a run whose approval was refused is studied and thread-mined no more than it is reflected on');
-  const deniedFail = LE.passes(LE.runOutcome(Object.assign({}, base, { reason: 'max_iters', denied: true })));
-  A.ok(!deniedFail['failure-review'] && deniedFail['trusted-capture'], 'a refused approval that then failed teaches no lesson, while the Commander\'s own words still count');
+  /* a refused approval that then FAILED stays a failed run (review 10-27: the lane must not remove the failure review the
+     pre-lane gate gave it). It is failure-reviewed, the Commander's own words still count, what it raised is marked
+     "failed run", and no pass that reads a DONE run's transcript reads it. The review's own floor refuses a lesson that
+     routes around the approval, so a refusal never becomes "skip the approval". */
+  const deniedFailOutcome = LE.runOutcome(Object.assign({}, base, { reason: 'max_iters', denied: true }));
+  const deniedFail = LE.passes(deniedFailOutcome);
+  A.ok(deniedFailOutcome.kind === 'failed' && deniedFailOutcome.denied === true, 'a refused approval that then failed is kind failed, denied as a modifier: ' + JSON.stringify(deniedFailOutcome));
+  A.ok(deniedFail['failure-review'] && deniedFail['trusted-capture'] && !deniedFail.reflection && !deniedFail.study && !deniedFail.threadmine, 'it is failure-reviewed (as before this lane), and the Commander\'s own words still count');
+  A.eq(deniedFail.kind, 'failed', 'the kind its proposals carry is failed, so MEMORY > Awaiting your decision marks them');
+  const FR = require('../sidecar/failreview.js');
+  A.ok(FR.lowValue('Skip the approval step and write the report directly next time') && !FR.lowValue('Never skip the approval step when writing report files'), 'the failure review never banks a lesson that routes around an approval');
+  A.ok(LE.runOutcome(Object.assign({}, base, { reason: 'done', denied: true })).kind === 'denied', 'a FINISHED run with a refused approval is denied (no lesson from work that is not what was asked)');
   const hop = LE.passes(LE.runOutcome(Object.assign({}, base, { reason: 'error', lineHop: true })));
   A.eq(hop['failure-review'], false, 'QW19: a failed line hand-off is not failure-reviewed (its USER turn is the line\'s frame)');
   A.eq(LE.learningEligible(LE.runOutcome(Object.assign({}, base, { reason: 'error', lineHop: true })), 'failure-review').reason, 'line_hop', 'and the verdict names why');

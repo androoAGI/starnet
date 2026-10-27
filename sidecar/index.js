@@ -24579,9 +24579,10 @@ async function runOnceCore(o) {
   const learningTaint = execution.taintedBy() || (quotedLearning ? 'quoted user material' : null);
   const learningEvidence = TrustedLearning.evidence({ runId, trigger: o.trigger, tainted: execution.taintedBy(), trustedOnly: quotedLearning, trustedInput: trustedLearningInput, completion: finalCompletionEvidence, loadedSkills });
   /* ONE LEARNING ELIGIBILITY RULE (memory-truth-1027; releases#7, quick win 19). The run is classified once —
-     done · failed · denied · cancelled · unfinished, plus tainted / quoted / line hop — and every learning pass below
-     reads its verdict from the same predicate (learning-eligibility.js) instead of its own copy of the guards: a run
-     whose approval was refused (reflect.js refusedAction) teaches no pass that reads its transcript, a line hand-off
+     done · failed · denied · cancelled · unfinished, plus denied / tainted / quoted / line hop — and every learning pass
+     below reads its verdict from the same predicate (learning-eligibility.js) instead of its own copy of the guards: a
+     FINISHED run whose approval was refused (reflect.js refusedAction) teaches reflection, study and thread mining nothing
+     (a failed one is still failure-reviewed, as before; failreview.js never banks routing around an approval), a line hand-off
      reaches no pass at all, outside or quoted material withholds every transcript pass, and trusted capture (the
      Commander's captured directive) still counts on a failed or refused run. _learn.kind rides the proposals a pass
      raises, so MEMORY > Awaiting your decision can say "from a failed run". */
