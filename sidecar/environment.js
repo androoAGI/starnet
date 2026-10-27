@@ -369,7 +369,8 @@
         opts = opts || {};
         const aid = safeAgentId(opts.agentId || 'agent');
         return runProcess({
-          spawn: spawn,
+          // opts.breakaway: a command that opens the person's own window runs outside the station's job (sidecar/breakaway.js)
+          spawn: opts.breakaway ? require('./breakaway.js').makeBreakaway({ platform: isWin ? 'win32' : 'posix' }).spawnVia(spawn) : spawn,
           file: String(opts.cmd || ''),
           args: null,
           spawnOptions: { cwd: opts.cwd || getCwd(aid), shell: true, windowsHide: true, env: spawnEnv(opts.surface) },
