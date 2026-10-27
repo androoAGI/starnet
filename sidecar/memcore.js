@@ -165,6 +165,15 @@
     if (r.confirmation) out.confirmation = String(r.confirmation);
     if (r.statedBy && typeof r.statedBy.quote === 'string') out.statedQuote = r.statedBy.quote;
     if (Number(r.distrust) > 0) out.distrust = clamp01(Number(r.distrust));
+    // memory-truth-1027 (additive): the texts this belief REPLACED, newest first (a supersession or a correction moved
+    // them out of active recall), so the panel shows what was retired instead of letting it vanish — and which retired
+    // text was restored as its own belief. Bounded: the five most recent.
+    if (Array.isArray(r.history) && r.history.length) {
+      out.history = r.history.slice(-5).reverse().filter(h => h && typeof h === 'object').map(h => Object.assign(
+        { body: String(h.body == null ? '' : h.body), replacedAt: Number(h.replacedAt) || 0, superseded: !!h.supersession },
+        h.restoredAs ? { restoredAs: String(h.restoredAs) } : {}));
+    }
+    if (r.restoredFrom && r.restoredFrom.id) out.restoredFrom = String(r.restoredFrom.id);
     return out;
   }
 

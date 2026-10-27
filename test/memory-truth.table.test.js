@@ -274,6 +274,22 @@ const NOTE_TABLE = [
     A.ok(rec.content === 'The user prefers a light theme' && rec.history[0].body === 'User prefers dark mode', 'reflect → Keep: one active record, the old text in its history');
   }
 
+  /* ---------- 6. visibly: the Memory Core view that already exists shows what a belief replaced ---------- */
+  {
+    const memcore = require('../sidecar/memcore.js');
+    const nb = notebook();
+    await nb.write({ title: 'Theme', body: 'User prefers dark mode' });
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' });
+    const view = memcore.projectRecord(nb.notes()[0], Date.now());
+    A.ok(Array.isArray(view.history) && view.history[0].body === 'User prefers dark mode' && view.history[0].superseded === true && view.history[0].replacedAt > 0,
+      '/api/memory/records projects the retired text, marked as superseded: ' + JSON.stringify(view.history));
+    A.eq(memcore.projectRecord({ id: 'x', body: 'y' }).history, undefined, 'a record with no history projects none (the old shape is unchanged)');
+    const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
+    const at = ui.indexOf('function memCard(rec, a)');
+    const card = ui.slice(at, ui.indexOf('\n  }\n', at));
+    A.ok(at > 0 && /rec\.history/.test(card) && /'replaced: “' \+ h\.body/.test(card), 'the Memory Core card shows "replaced: …" under the belief (no new window, button or panel)');
+  }
+
   // the pure helpers the host's own writer reuses
   {
     const list = [{ id: 'note_1', body: 'User prefers dark mode', createdAt: 1 }, { id: 'note_2', body: 'User prefers tabs', createdAt: 2 }];
