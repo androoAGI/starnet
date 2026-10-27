@@ -102,9 +102,17 @@ Fonts. VT323 is provided under the **SIL Open Font License, Version 1.1**.
 - **Copyright:** © 2011 The VT323 Project Authors (peter.hull@oikoi.com)
 - **License:** SIL Open Font License 1.1 — <https://openfontlicense.org>
 
-The OFL permits bundling and redistribution of the font (including in an application) provided
-the copyright and license notice above are preserved and the font itself is not sold on its
-own. The full license text is available at the URL above; its permission notice reads, in
+The left rail's session and project lists are set in **Geist Mono**, shipped the same way
+(`frontend/assets/fonts/geist-mono.woff2`, the Latin subset of the variable face), also under
+the **SIL Open Font License, Version 1.1**.
+
+- **Font:** Geist Mono (version 1.401)
+- **Copyright:** © 2024 The Geist Project Authors (<https://github.com/vercel/geist-font>)
+- **License:** SIL Open Font License 1.1 — <https://openfontlicense.org>
+
+The OFL permits bundling and redistribution of these fonts (including in an application)
+provided the copyright and license notices above are preserved and the fonts themselves are not
+sold on their own. The full license text is available at the URL above; its permission notice reads, in
 part:
 
 ```

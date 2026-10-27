@@ -4219,15 +4219,15 @@ const App = (() => {
     // A settled failure uses the crossed lamp; only a live approval/question earns the action row.
     if (w.lastRunOk === false) return { dot: 'ws-dot failed', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'last run failed — open to inspect' };
     // a DELIVERY session ('workshop-<runId>' — idle-built work) that hasn't been reviewed is a decision the
-    // Commander owes, not just an unread chat: say REVIEW on the row itself (2026-07-15 UX audit — the ⚒ prefix
-    // alone didn't distinguish "your agent made you something" from ordinary unread activity).
+    // Commander owes: its lamp is unseen like any new reply, and its hover/label says what is waiting. The row
+    // itself keeps the time — a "⚒ REVIEW" tag there read as clutter (Andrew 10-27).
     if (String(w.id).indexOf('workshop-') === 0 && Workstreams.unread(w)) {
-      return { dot: 'ws-dot unseen', meta: '⚒ REVIEW', busy: false, attn: false, status: 'a build is waiting for your review' };
+      return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'a build is waiting for your review' };
     }
     // UNSEEN vs SEEN is the whole idle axis now. `unread` is two real stored timestamps
     // (lastActiveAt > lastReadAt) and is never true for the stream you have open, so the dot goes
     // faded the instant you actually look at it — which is what makes a glance down the rail mean
-    // something. The ⚒ REVIEW branch above keeps its own wording: a BUILD waiting is a different
+    // something. The build branch above keeps its own status wording: a BUILD waiting is a different
     // errand from a reply waiting, even though both are "unseen".
     if (Workstreams.unread(w)) return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'unread activity' };
     return { dot: 'ws-dot seen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'read' };

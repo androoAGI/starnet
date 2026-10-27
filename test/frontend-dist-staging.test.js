@@ -45,7 +45,7 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
   // ---- 1. the rule: everything ships except industrial subfolders the runtime never loads from ----
   A.eq(KEEP_INDUSTRIAL.slice().sort(), ['approved-sheet', 'calibration', 'complete-sheet', 'projection-correction', 'remaster'], 'the kept industrial folders are exactly the runtime roots');
-  for (const p of ['index.html', 'app/chat.js', 'css/app.css', 'assets/sprites/manifest.json', 'assets/brand/starnet-logo.png', 'assets/fonts/vt323.woff2', 'assets/sfx/click.wav', 'prop-catalog-review.html']) {
+  for (const p of ['index.html', 'app/chat.js', 'css/app.css', 'assets/sprites/manifest.json', 'assets/brand/starnet-logo.png', 'assets/fonts/vt323.woff2', 'assets/fonts/geist-mono.woff2', 'assets/sfx/click.wav', 'prop-catalog-review.html']) {
     A.ok(shouldStage(p), 'ships verbatim: ' + p);
   }
   for (const p of ['assets/industrial/shell.png', 'assets/industrial/wall-acoustic.png', 'assets/industrial/floor-lunar.png', 'assets/industrial/SHELL-MATERIALS.md']) {

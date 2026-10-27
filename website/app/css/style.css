@@ -36,6 +36,16 @@
   /* path is relative to this file (css/style.css) → up one to frontend/ */
   src: url('../assets/fonts/vt323.woff2') format('woff2');
 }
+/* Geist Mono — the left rail's list face (SESSIONS + PROJECTS rows, Andrew 10-27; pipglass.css "THE LIST FACE").
+   Same rules as VT323: one local woff2 (SIL OFL, see NOTICE.md; one variable face, weights 100-900), zero network,
+   `block`. Every stack that names it ends in VT323, so a glyph it lacks is drawn in the house face. */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url('../assets/fonts/geist-mono.woff2') format('woff2');
+}
 
 :root {
   /* NV pip-boy amber (reference build) — dark interiors, the glow lives on borders */

@@ -87,6 +87,14 @@ Workstreams.appendRun('a', 'run-new', 4000);
 Channels.begin('a', 4000);
 A.eq(row(savedA).dot, 'ws-dot connecting', 'a new attempt clears the stale failure signal');
 Channels.reset();
+// a delivery session (idle-built work) waiting for review: the unseen lamp and the time, like any new reply — no "⚒ REVIEW"
+// tag on the row (Andrew 10-27); what is waiting is still said to assistive technology and in the tooltip
+Workstreams.adopt({ id: 'workshop-r1', title: '⚒ Pricing page v2', lastActiveAt: 5000, lastReadAt: 0 });
+const shop = Workstreams.get('workshop-r1');
+A.eq([row(shop).dot, row(shop).meta], ['ws-dot unseen', '1m'], 'a build waiting for review lights the unseen lamp and keeps the time');
+A.ok(context.railRowLabel(shop, row(shop)).includes('a build is waiting for your review'), 'what is waiting is named for assistive technology');
+A.ok(context.railRowTip(shop, row(shop)).startsWith('Pricing page v2 · a build is waiting for your review'), 'the tooltip names it by its title alone (no old ⚒ mark) and says what waits');
+A.ok(!/REVIEW'/.test(A.fnBody(app, 'function railRowState(w)')), 'no row state prints a REVIEW tag');
 const css = fs.readFileSync(path.join(__dirname, '../frontend/css/glass-demo.css'), 'utf8');
 A.ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ws-dot::before \{ animation: none; \}/.test(css), 'reduced motion disables both lamp and scan animation');
 A.ok(/\.ws-dot\.failed \{[^}]*animation: gd-session-failure/.test(css), 'failure X has its own flashing animation');
