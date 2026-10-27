@@ -216,6 +216,7 @@ test/cli.e2e.test.js
 test/observer.e2e.test.js
 test/cli-agent-routes.e2e.test.js
 test/cli-connect-routes.e2e.test.js
+test/cli-usage-routes.e2e.test.js
 test/cli-station.e2e.test.js
 test/cli-app-launch.e2e.test.js
 test/interrupted-run-in-history.test.js

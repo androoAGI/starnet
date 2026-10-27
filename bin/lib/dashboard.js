@@ -472,6 +472,20 @@ function runDashboard(station, opts) {
       ollama: ok(ol) && Array.isArray(ol.json.models) && ol.json.models.length > 0
     };
   }
+  // /usage: every connected provider and what is left of it (usage.js) — each sign-in's own accounts list, the usage
+  // windows the providers last reported, the API keys' rate buckets, and the ledger's spend
+  async function showUsage() {
+    const ok = r => !!(r && r.ok && r.status === 200 && r.json);
+    const [facts, u, b] = await Promise.all([connectFacts(), get('/api/usage/providers', 10000), get('/api/budget/status', 10000)]);
+    const accounts = {};
+    await Promise.all(['claude-cli', 'codex', 'grok', 'kimi'].filter(id => connect.status(connect.find(id), facts)[1] === 'ok').map(async id => {
+      const r = await get('/api/auth/' + id + '/accounts', 20000);
+      if (ok(r) && Array.isArray(r.json.accounts)) accounts[id] = r.json.accounts;
+    }));
+    const lines = require('./usage.js').usageLines({ facts, usage: ok(u) ? u.json : null, accounts, budget: ok(b) ? b.json : null, now: now() });
+    if (!ok(u)) lines.push('(this station is older than /usage — it does not report its providers’ limits yet)');
+    sayHere('/usage', lines, true, 'USAGE');
+  }
   async function openConnectPicker(arg) {
     const want = String(arg || '').trim();
     if (want) {
@@ -523,6 +537,23 @@ function runDashboard(station, opts) {
   }
   async function connectSignIn(p) {
     const aw = require('./awaken.js').makeAwakening({ st: connectIO(), io: wakeIO, mods: {}, env });
+    // a subscription already signed in: another account of it stacks on it (the next one takes the runs when one hits its
+    // limit) — the app's SETTINGS › AI & MODELS "add account", here
+    const flow = connect.flowOf(p.id);
+    if (flow === 'device' || flow === 'claude') {
+      const r = await get('/api/auth/' + p.id + '/accounts', 20000);
+      const accts = r && r.ok && r.status === 200 && r.json && Array.isArray(r.json.accounts) ? r.json.accounts : null;
+      const live = accts ? accts.filter(a => a.connected === true || a.loggedIn === true) : [];
+      if (live.length) {
+        const max = Number(r.json.max) || 8, room = accts.length < max;
+        const say = t => wakeIO.say([{ text: t, cps: 70 }], { who: 'STARNET' });
+        await say(p.name + ' is signed in' + (live.length > 1 ? ' — ' + live.length + ' accounts' : '') + '. another account of the same subscription stacks on it: when one hits its limit, the runs carry on with the next.' + (room ? '' : ' it holds ' + max + ' at most — that is all of them.'));
+        const a = await wakeIO.ask({ options: (room ? [{ label: 'Add another account', value: 'add' }] : []).concat([{ label: 'Keep it as is', value: 'keep', skip: true }]) });
+        if (a.value !== 'add') return { ok: true, msg: p.name + ' stays as it is — ' + live.length + ' sign-in' + (live.length === 1 ? '' : 's') + '.' };
+        const added = await aw.signIn(connect.brainOf(p.id), { add: true });
+        return added ? { ok: true, msg: 'another ' + p.name + ' account is connected — ' + (live.length + 1) + ' sign-ins now; when one hits its limit the runs carry on with the next. /usage shows what is left on each.' } : { ok: false, retry: true };
+      }
+    }
     const ok = await aw.signIn(connect.brainOf(p.id));
     return ok ? { ok: true, msg: p.name + ' is connected.' } : { ok: false, retry: true };
   }
@@ -595,11 +626,12 @@ function runDashboard(station, opts) {
     { name: 'work', desc: 'the WORK page: workflows, routines, the away shift' },
     { name: 'floor', desc: 'the FLOOR: the whole crew in one room, handoffs flying desk to desk' },
     { name: 'comms', desc: 'back to the conversation' },
+    { name: 'usage', desc: 'how much is left on each connected provider — each sign-in’s limits, as the provider last said them' },
     { name: 'connect', aliases: ['providers'], desc: 'add a provider — the app’s AI & MODELS list: sign in, link, or paste a key', argsHint: '[provider]' },
     { name: 'theme', aliases: ['themes'], desc: 'the terminal colors: ' + theme.NAMES.join(' · '), argsHint: '[' + theme.NAMES.join('|') + ']' },
     { name: 'quit', aliases: ['exit'], desc: 'quit starnet' }
   ].map(c => Object.assign({ source: 'terminal', aliases: [], argsHint: '', here: true }, c));
-  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
+  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'usage', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
     'agents', 'insights', 'memory', 'bundles', 'blueprint', 'reload-mcp', 'reload-skills', 'steer', 'copy', 'compress', 'reasoning', 'fast', 'debug', 'queue', 'background', 'loop', 'save', 'goal', 'subgoal', 'yolo', 'personality'];
   async function loadCatalog() {
     const id = ui.focus || 'agent';
@@ -838,6 +870,7 @@ function runDashboard(station, opts) {
     if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms' || cmd === '/floor') return openPage(cmd.slice(1));
     if (cmd === '/theme' || cmd === '/themes') return themeCommand(parts[1] || '');
     if (cmd === '/connect' || cmd === '/providers') return openConnectPicker(parts.slice(1).join(' '));
+    if (cmd === '/usage') return showUsage();
     // the app's own commands, done here (above: what each does and which station route it uses)
     const rest = text.slice(parts[0].length).trim();
     if (cmd === '/agents' || cmd === '/tasks') return openPage('crew');

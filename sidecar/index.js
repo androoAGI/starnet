@@ -149,6 +149,7 @@ const {
   providerRequiresKey,
   providerRequiresBaseUrl,
   attachRateLimits,
+  attachSubUsage,
   attachCatalogCache
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
@@ -2116,6 +2117,10 @@ const credPool = makeCredPool({ clock: { now: () => Date.now() } });
 // sign-in cache holds only the last PROVEN verdict per account ('<provider>:<id|primary>' -> { loggedIn, email?,
 // subscription? }) from a real status probe — a run skips an account proven signed out, never one merely unknown.
 const providerAccounts = require('./provider-accounts.js').makeProviderAccounts({ root: path.join(WORKSPACES, '.secrets', 'accounts') });
+// SUBSCRIPTION USAGE (sub-usage.js): each sign-in's usage windows as its provider last said them (numbers and times,
+// no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
+const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
+attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
@@ -12266,6 +12271,7 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/line-jobs', h: handleLineJobsList },
   { m: ['GET', 'POST'], rx: LINE_JOB_RX, h: handleLineJobId },
   { m: 'GET', exact: '/api/budget/status', h: handleBudgetStatus },
+  { m: 'GET', exact: '/api/usage/providers', h: handleUsageProviders },
   { m: 'GET', qsplit: '/api/credits', h: handleCredits },   // 404s (no surface) unless managed credits are configured
   { m: 'GET', qsplit: '/api/credits/linkable', h: handleCreditsLinkable },   // {available} — is device linking offered (STARNET_CLOUD_URL set + not already configured)?
   { m: 'POST', exact: '/api/credits/link/start', h: handleCreditsLinkStart },   // begin a pairing: returns a STAR-XXXX code + verifyUrl
@@ -12939,6 +12945,7 @@ function gracefulShutdown(signal) {
   const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(0); }, 3000);
   if (deadline.unref) deadline.unref();
   try { flushVerdictPackets(); } catch (e) { failNote('verdict.packets.shutdown', e); }   // a rating after the restart must still find its packet
+  try { subUsage.flush(); } catch (e) { failNote('sub-usage.shutdown', e); }   // the last run's usage windows, not the one before it
   // SEND TO hand-offs still WAITING in a line's queue live only in memory: each goes through the refusal path NOW, before the runs
   // are aborted, so the target line gets its "not sent on" record and every sending job reads NOT sent on, with why (wave 2 review,
   // conveyor-backend-03 — they used to vanish on a restart or an update). lineJobsSet saves synchronously, so the records are on disk
@@ -14122,6 +14129,18 @@ async function handleStepTestId(req, res, gm) {
 
 /* ---- GET /api/budget/status — the live spend pools (day + global) vs their caps, plus session resume headroom.
    Read-only; safe to poll for the budget HUD. The ledger + in-flight tallies back it, so it survives restarts. ---- */
+/* GET /api/usage/providers — what each provider last SAID of how much is left, nothing estimated:
+     subscriptions: { <providerId>: { <account ('primary' = account 1)>: { windows: [{ id, label, usedPct|null, resetsAt|null,
+                      status }], credits?, overage?, seenAt } } }   (sub-usage.js: Claude Code's stream, ChatGPT's headers)
+     rate:          the API providers' rate-limit buckets from their last response (providers/ratelimits.js)
+   A provider or sign-in no call has run on says nothing here — the reader shows "unknown", never "plenty left". */
+function handleUsageProviders(req, res) {
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  let subscriptions = {}, rate = [];
+  try { subscriptions = subUsage.snapshot(); } catch (_) { subscriptions = {}; }
+  try { rate = rateLimits.snapshot(); } catch (_) { rate = []; }
+  res.end(JSON.stringify({ subscriptions, rate, now: Date.now() }));
+}
 function handleBudgetStatus(req, res) {
   const accounting = ledger.health();
   const known = accounting.complete && accounting.durable;
@@ -22660,7 +22679,7 @@ async function runOnceCore(o) {
     const chain = accountChain(providerId);
     const byKey = new Map(chain.map(a => [a.credKey, a]));
     const ordered = credPool.order(chain.map(a => a.credKey));
-    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort }) : selectProvider({ provider: providerId, reasoningEffort });
+    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort, usageAccount: a.id }) : selectProvider({ provider: providerId, reasoningEffort });
     const first = byKey.get(ordered[0]);
     activePrimaryKey = first.credKey;
     if (first.id) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
@@ -27401,7 +27420,7 @@ function oauthAccountProvider(providerId, acct, baseUrl, reasoningEffort) {
   const e = oauthAccountEntry(providerId, acct.id);
   return selectProvider({ provider: providerId, fetch: globalThis.fetch, tokenProvider: () => ensureAccountAccessToken(e),
     renewToken: codex ? (stale) => ensureAccountAccessToken(e, true, stale) : undefined,
-    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort,
+    headersProvider: providerId === 'kimi' ? () => kimiMshHeaders(e.deviceId) : undefined, baseUrl, reasoningEffort, usageAccount: acct.id,
     kimiRegion: providerId === 'kimi' ? e.region : undefined });   // an extra Kimi account runs on ITS region's API (#70)
 }
 async function handleClaudeCliAuth(req, res, verb) {

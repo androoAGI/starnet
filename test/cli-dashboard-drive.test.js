@@ -52,6 +52,7 @@ function fakeStation(opts) {
       const p = u.pathname;
       let b = null; try { b = body ? JSON.parse(body) : null; } catch (_) {}
       hits.push({ method: req.method, path: p + u.search, body: b });
+      if (o.routes && o.routes[p]) { const r = o.routes[p](b) || {}; return json(res, r.status || 200, r.body || {}); }   // a case's own answers
       if (p === '/api/runtime/agent') return json(res, 200, Object.assign({ configured: true, version: 'dev' }, roster));
       if (p === '/api/state/snapshot') return json(res, 200, { runs: [...live.values()].filter(r => !r.body.internal).map(r => ({ runId: r.runId, agentId: r.body.agentId, streamId: r.body.streamId, startedAt: r.at })), prompts: [] });
       if (p === '/api/runs') return json(res, 200, { runs: ended });
@@ -548,6 +549,55 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     await sleep(700);
     said = d.since(at).replace(/\s+/g, ' ');
     A.ok(/SCOUT → ULTRON done/.test(said), 'floor: its result comes back in the LOG');
+    await d.done();
+  }
+
+  /* 17. /usage: each connected provider and what is left of it, as the station says (a Claude Code sign-in's window, a
+     ChatGPT sign-in no run has used yet, a key with no call yet, the ledger's spend); /connect on a subscription already
+     signed in offers ANOTHER account of it, signs it in through the station's /add route (polled with that account), and
+     says so; going back from one leaves nothing behind (its empty account is removed) */
+  {
+    const added = [];
+    let next = 0;
+    const d = await boot({ providers: ['openrouter', 'codex'], claude: { installed: true, loggedIn: true }, routes: {
+      '/api/usage/providers': () => ({ body: { subscriptions: { 'claude-cli': { primary: { windows: [{ id: 'five_hour', label: '5-hour', usedPct: 12, resetsAt: Date.now() + 3 * 3600e3, status: 'allowed' }], seenAt: Date.now() - 5 * 60000 } } }, rate: [] } }),
+      '/api/budget/status': () => ({ body: { spentToday: 0.42, lifetime: 31.1 } }),
+      '/api/auth/claude-cli/accounts': () => ({ body: { accounts: [{ account: '', label: 'account 1', primary: true, installed: true, loggedIn: true, coolingUntil: 0 }].concat(added.map((a, i) => ({ account: a, label: 'account ' + (i + 2), installed: true, loggedIn: true, coolingUntil: 0 }))), max: 8 } }),
+      '/api/auth/codex/accounts': () => ({ body: { accounts: [{ account: '', label: 'account 1', primary: true, connected: true, coolingUntil: 0 }], max: 8 } }),
+      '/api/auth/claude-cli/add': () => ({ body: { account: ['ab12cd34ef', 'cd56ef78ab'][next++], status: 'pending', login_id: 'L' + next, url: 'https://claude.ai/oauth/authorize?x=1' } }),
+      '/api/auth/claude-cli/poll': b => { if (b.login_id === 'L1') { added.push(b.account); return { body: { status: 'connected' } }; } return { body: { status: 'pending' } }; },
+      '/api/auth/claude-cli/cancel': () => ({ body: { ok: true } }),
+      '/api/auth/claude-cli/remove': () => ({ body: { ok: true } })
+    } });
+    let at = d.mark();
+    await d.keys('/usage\r', 1200);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/USAGE/.test(said) && /CLAUDE CODE · 1 sign-in/.test(said) && /account 1 5-hour 88% left · resets/.test(said) && /\(as of 5 min ago\)/.test(said), 'usage: a Claude Code sign-in, what is left of its window and when that was said: ' + (said.match(/CLAUDE CODE.{0,160}/) || [''])[0]);
+    A.ok(/CHATGPT \(CODEX\) · 1 sign-in[│ ]+account 1 unknown — no run on it yet/.test(said), 'usage: a ChatGPT sign-in no run has used: unknown: ' + (said.match(/CHATGPT.{0,160}/) || [''])[0]);
+    A.ok(/OPENROUTER · key saved — unknown until a call says/.test(said) && /Spent today \$0\.42 · all time \$31\.10/.test(said), 'usage: a key with no call yet is unknown; the ledger\'s spend last');
+    A.ok(d.st.hits.some(h => h.path === '/api/auth/claude-cli/accounts') && d.st.hits.some(h => h.path === '/api/auth/codex/accounts'), 'usage: each subscription\'s own sign-ins are read');
+
+    at = d.mark();
+    await d.keys('/connect claude\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CLAUDE CODE is signed in\. another account of the same subscription stacks on it/.test(said) && /Add another account/.test(said) && /Keep it as is/.test(said), 'connect: a subscription already signed in offers another account: ' + said.slice(-300));
+    await d.keys('1', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/sign(?:ing)? in with the OTHER Claude account at https:\/\/claude\.ai\/oauth\/authorize/.test(said), 'connect: the new account\'s sign-in link, saying to use the OTHER account');
+    await sleep(3800);
+    said = d.since(at).replace(/\s+/g, ' ');
+    const poll = d.st.hits.find(h => h.path === '/api/auth/claude-cli/poll');
+    A.eq(poll && poll.body, { account: 'ab12cd34ef', login_id: 'L1' }, 'connect: it polls the NEW account\'s sign-in, by its account');
+    A.ok(/another CLAUDE CODE account is connected — 2 sign-ins now; when one hits its limit the runs carry on with the next/.test(said), 'connect: it says the second sign-in landed: ' + said.slice(-260));
+
+    at = d.mark();
+    await d.keys('/connect claude\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CLAUDE CODE is signed in — 2 accounts/.test(said), 'connect: now it counts two');
+    await d.keys('1', 900);
+    await d.keys('2', 900);   // Go back
+    const removed = d.st.hits.filter(h => h.path === '/api/auth/claude-cli/remove');
+    A.ok(removed.length === 1 && removed[0].body.account === 'cd56ef78ab' && d.st.hits.some(h => h.path === '/api/auth/claude-cli/cancel'), 'connect: going back cancels that sign-in and removes its empty account — nothing left behind');
     await d.done();
   }
 
