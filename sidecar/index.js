@@ -2101,7 +2101,7 @@ const credPool = makeCredPool({ clock: { now: () => Date.now() } });
 const providerAccounts = require('./provider-accounts.js').makeProviderAccounts({ root: path.join(WORKSPACES, '.secrets', 'accounts') });
 // SUBSCRIPTION USAGE (sub-usage.js): each sign-in's usage windows as its provider last said them (numbers and times,
 // no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
-const subUsage = require('./sub-usage.js').makeSubUsage({ file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
+const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
 
