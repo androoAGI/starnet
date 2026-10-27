@@ -5993,11 +5993,11 @@ const Chat = (() => {
       const text = document.createElement('span'); text.className = 'turnin-text';
       text.textContent = prop.replaceId ? 'Update remembered preference: “' + prop.previousBody + '” → “' + prop.content + '”' : prop.content;
       const btns = document.createElement('span'); btns.className = 'consent-btns';
-      item.appendChild(kind);
-      // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome) — the same
-      // "⚠ failed run" mark MEMORY > Awaiting your decision wears
-      if (prop.outcome === 'failed') { const f = document.createElement('span'); f.className = 'turnin-kind'; f.textContent = '⚠ failed run'; f.title = 'raised by a run that failed'; item.appendChild(f); }
-      item.appendChild(text); item.appendChild(btns);
+      item.appendChild(kind); item.appendChild(text);
+      // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome). The deck's own
+      // evidence line (a full grid row under the belief), never a third pill in the kind/text grid: that crushes the text column
+      if (prop.outcome === 'failed') { const f = document.createElement('div'); f.className = 'turnin-evidence'; f.textContent = '↳ ⚠ from a failed run'; item.appendChild(f); }
+      item.appendChild(btns);
       slot.appendChild(item);
 
       let decided = false;
