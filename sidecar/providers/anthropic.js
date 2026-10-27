@@ -561,7 +561,9 @@
       // ONE pre-send normalization (provider.js prepareWireMessages): every tool_use gets its tool_result in the
       // next turn (a run that died at the tool boundary left one mid-history), and ids minted by another provider
       // (Kimi's functions.read_file:0) are rewritten into this wire's ^[a-zA-Z0-9_-]+$ grammar, call and result alike.
-      const converted = messagesToAnthropic(provider.prepareWireMessages(req.messages || [], 'anthropic'), { skipReasoning: wire && wire.skipReasoning });
+      // Then the ONE role projection (provider.js projectRoles 'native'): the loop's later system messages are user
+      // turns, which messagesToAnthropic merges with their neighbours exactly as it merged them before.
+      const converted = messagesToAnthropic(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'anthropic'), 'native'), { skipReasoning: wire && wire.skipReasoning });
       const body = {
         model: req.model,
         max_tokens: resolveMaxTokens(req),

@@ -338,7 +338,8 @@
       // ONE pre-send normalization (provider.js prepareWireMessages): a functionCall left unanswered mid-history (a
       // run that died at the tool boundary) gets its functionResponse before the next turn, instead of being
       // followed straight by user text. Gemini's wire carries no call ids (it pairs by position), so no id rewrite.
-      const converted = messagesToGemini(provider.prepareWireMessages(req.messages || [], 'gemini'));
+      // Then the ONE role projection (provider.js projectRoles 'native'): later system messages are user turns.
+      const converted = messagesToGemini(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'gemini'), 'native'));
       const body = { contents: converted.contents };
       if (converted.systemInstruction) body.systemInstruction = converted.systemInstruction;
       const tools = toGeminiTools(req.tools);

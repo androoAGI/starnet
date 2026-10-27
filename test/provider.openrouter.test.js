@@ -158,20 +158,23 @@ async function collect(provider, req) { const out = []; for await (const e of pr
       { role: 'user', content: 'hi' },
       { role: 'tool', tool_call_id: 'orphan_1', content: 'result body' }
     ] });
-    A.eq(posted[0][1], {
-      role: 'user',
-      content: '[recovered tool result orphan_1 — its originating call is not in this transcript]\nresult body'
-    }, 'orphan result is preserved as labeled user text instead of a 400-invalid tool message');
+    // the labelled text joins the user turn before it (provider.js projectRoles 'chat': roles alternate on a chat wire)
+    A.eq(posted[0].map(m => m.role), ['user'], 'no tool message without its call reaches the wire');
+    A.eq(posted[0][0].content, 'hi\n\n[recovered tool result orphan_1 — its originating call is not in this transcript]\nresult body',
+      'orphan result is preserved as labeled user text instead of a 400-invalid tool message');
 
     await collect(p, { model: 'm', messages: [
       { role: 'assistant', content: '', tool_calls: [{ id: 'call_lost', type: 'function', function: { name: 'fs_read', arguments: '{}' } }] },
       { role: 'user', content: 'continue' }
     ] });
-    A.eq(posted[1][1], {
+    // a request that opens on an assistant turn gets a short fenced user boundary first (projectRoles 'chat')
+    const at = posted[1].findIndex(m => m.role === 'assistant');
+    A.eq(posted[1][0].role, 'user', 'the request opens on a user turn');
+    A.eq(posted[1][at + 1], {
       role: 'tool', tool_call_id: 'call_lost',
       content: '[interrupted — this call produced no recorded result. Reissue it if it is still needed.]'
     }, 'unanswered call receives a synthetic result before the next conversational message');
-    A.eq(posted[1][2], { role: 'user', content: 'continue' }, 'the following user message keeps its place after the repaired pair');
+    A.eq(posted[1][at + 2], { role: 'user', content: 'continue' }, 'the following user message keeps its place after the repaired pair');
   }
 
   // H3. Healthy parallel pairs are byte-identical; duplicate results are downgraded without losing content.
@@ -398,7 +401,11 @@ async function collect(provider, req) { const out = []; for await (const e of pr
       };
       await collect(makeOpenRouterProvider({ fetch, key: 'k' }), { model, messages });
       const claude = model.startsWith('anthropic/');
-      A.eq(body.messages.map(m => m.role), ['system', 'system', 'user', 'assistant', claude ? 'user' : 'system'], model + ': leading policy preserved and continuation remains a conversation turn');
+      // Claude keeps its structural placement; every other model the strict 'chat' shape: ONE leading system message (the
+      // two leading policies joined, in order) and the continuation as the user turn after the answer — never a system
+      // message after index 0 (#102), and never ending on the assistant answer (no prefill)
+      A.eq(body.messages.map(m => m.role), claude ? ['system', 'system', 'user', 'assistant', 'user'] : ['system', 'user', 'assistant', 'user'], model + ': leading policy preserved and continuation remains a conversation turn');
+      if (!claude) A.eq(body.messages[0].content, 'Primary policy\n\nTool policy', model + ': the leading policies are one system message, in order');
       const tail = body.messages.at(-1).content;
       A.eq(typeof tail === 'string' ? tail : tail[0].text, messages.at(-1).content, model + ': continuation bytes preserved');
     }

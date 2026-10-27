@@ -15,7 +15,7 @@ const { bootToken } = require('./_httpToken.js');
 const { allocatePort } = require('./helpers/sidecar-fixture.js');
 // host notes (the <run_context> note, recall) ride the newest user turn on this non-Claude wire: read them, and the
 // Commander's own words, through the helper rather than one placement (provider.js userSideHostNotes)
-const { runContextOf, userWords, lastUserWords, hostText } = require('./helpers/host-notes.js');
+const { runContextOf, userWords, lastUserWords, hostText, loopNotes } = require('./helpers/host-notes.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -162,8 +162,8 @@ function startMockOpenRouter() {
             return;
           }
           // Only a real host steering note can produce this reply; the initial turn and acknowledgement cannot.
-          const appliedFollowup = msgs.some(m => m && m.role === 'system' && /<steering_note>/.test(String(m.content || ''))
-            && String(m.content || '').includes('TELEGRAM_FOLLOWUP_APPLIED'));
+          // a steering note is a fenced host message, user-side on a chat wire (provider.js projectRoles)
+          const appliedFollowup = loopNotes(msgs, 'steering_note').some(n => n.includes('TELEGRAM_FOLLOWUP_APPLIED'));
           const answer = appliedFollowup ? 'Follow-up applied: TELEGRAM_FOLLOWUP_APPLIED'
             : parityWorker ? 'WORKER_PARITY_OK' : parityTask ? 'DELEGATION_PARITY_DONE' : 'Telegram answer';
           res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: answer } }] }) + '\n\n');
@@ -790,8 +790,7 @@ async function waitUntil(fn, ms, label) {
       'the acknowledgement is not mistaken for a completed answer');
 
     llm.gate.release();
-    const appliedRequest = () => llm.requests.find(r => (r.messages || []).some(m => m && m.role === 'system'
-      && /<steering_note>/.test(String(m.content || '')) && String(m.content || '').includes(followup5555)));
+    const appliedRequest = () => llm.requests.find(r => loopNotes(r.messages, 'steering_note').some(n => n.includes(followup5555)));
     await waitUntil(() => !!appliedRequest(), 8000, 'the follow-up reaches the production provider as a steering note');
     A.ok(appliedRequest().messages.some(m => m && m.role === 'user' && userWords(m) === original5555),
       'the provider receives the follow-up with the original task still in context');

@@ -89,4 +89,19 @@ function hostText(messages) {
   return sys.concat(userSide).join('\n\n');
 }
 
-module.exports = { TAGS, text, hostNotes, runContextOf, recallOf, userWords, withoutHostNotes, lastUserWords, firstUserWords, hostText };
+// the loop's own fenced host messages (<steering_note>, <acceptance_before_done>, <continue_after_tools>, …) wherever the
+// wire put them: as their own system message, or — on every Chat Completions route and Claude route since 2026-10-27
+// (provider.js projectRoles) — as fenced user-side text after the turn they follow. Returns each fenced block.
+function loopNotes(messages, tag) {
+  const out = [];
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (!m || (m.role !== 'system' && m.role !== 'user')) continue;
+    const re = new RegExp('<' + tag + '>[\\s\\S]*?</' + tag + '>', 'g');
+    const t = text(m.content);
+    let hit;
+    while ((hit = re.exec(t))) out.push(hit[0]);
+  }
+  return out;
+}
+
+module.exports = { TAGS, text, hostNotes, runContextOf, recallOf, userWords, withoutHostNotes, lastUserWords, firstUserWords, hostText, loopNotes };

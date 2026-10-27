@@ -195,8 +195,9 @@
 
   const repairToolPairs = provider.repairToolPairs;
 
-  // A Claude model keeps its continuation placement; every other upstream gets the host notes user-side (provider.js
-  // chatRoleProjection — strict upstream chat templates refuse a system message after index 0).
+  // A Claude model keeps its continuation placement; every other upstream gets the strict 'chat' shape: one leading
+  // system message, host notes and the loop's mid-run host messages user-side, ending on a user or tool turn (provider.js
+  // projectRoles via chatRoleProjection — strict upstream chat templates refuse a system message after index 0).
   const chatRoleProjection = provider.chatRoleProjection;
 
   function normalizeReasoningEffort(value) {

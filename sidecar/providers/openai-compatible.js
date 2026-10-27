@@ -694,14 +694,13 @@
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages || [], req.model) : (req.messages || []);
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
       const prepared = provider.prepareWireMessages(sent, 'chat');
-      // Keep the profile's SYSTEM projection even after nativeWire falls back to /v1. Do not
-      // infer this policy from a model name or change generic/hosted Chat Completions requests.
-      // Every other route: ONE role projection (provider.chatRoleProjection) — a Claude model keeps its continuation
-      // placement; any other model gets the host notes (<run_context>, recall, the earlier-conversation summary) as the
-      // fenced leading text of the newest user message, never as a system message after index 0 (#102-class refusals).
-      const messages = opts.nativeOllama === true && ollamaNative
-        ? ollamaNative.leadingSystemMessages(prepared)
-        : provider.chatRoleProjection(prepared, req.model);
+      // ONE role projection (provider.projectRoles): the Ollama profile (native wire and its /v1 fallback alike) and every
+      // non-Claude model get the strict 'chat' shape — one leading system message, the host notes and the loop's mid-run
+      // host messages as fenced user-side text, alternating turns ending on a user or tool turn (#102-class refusals); a
+      // Claude model keeps its continuation placement ('native'). A template this endpoint + model proved has no system
+      // role gets 'chat-nosystem' once that is wired.
+      const policy = opts.nativeOllama === true ? 'chat' : provider.chatRolePolicy(req.model);
+      const messages = provider.projectRoles(prepared, policy);
       const body = { model: req.model, messages, stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
       const explicitMax = Math.floor(Number(req.max_tokens || req.maxTokens || 0)) || 0;

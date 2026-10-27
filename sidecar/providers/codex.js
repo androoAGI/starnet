@@ -245,8 +245,9 @@
 
     function buildBody(req) {
       // ONE pre-send normalization (provider.js prepareWireMessages) ahead of this wire's own pairing pass below
-      // (messagesToInput): a well-formed transcript is untouched; a malformed one arrives already paired.
-      const { instructions, rest } = extractInstructions(provider.prepareWireMessages(req.messages || [], 'codex'));
+      // (messagesToInput): a well-formed transcript is untouched; a malformed one arrives already paired. Then the ONE
+      // role projection (provider.js projectRoles 'native'): later system messages are user turns.
+      const { instructions, rest } = extractInstructions(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'codex'), 'native'));
       const effort = normalizeCodexReasoningEffort(req.reasoningEffort || reasoningEffort);
       const body = {
         model: req.model || DEFAULT_MODEL,
