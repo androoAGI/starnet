@@ -8,10 +8,10 @@
    replay-safe. Auto-proposals are CANDIDATES ONLY — they never auto-write (§5.6, D-mem.1). */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).reflect = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
   'use strict';
 
   // Accepted kinds match the advertised FACT/PREFERENCE contract. NOTE was dropped: it was a loose
@@ -114,22 +114,11 @@
 
   const textOf = r => (r && (r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || '')))) || '';
 
-  // near-duplicate guard (parity with the reference harness' Jaccard; mirrors memcore.tokenJaccard, inlined so reflect stays standalone):
+  // near-duplicate guard (parity with the reference harness' Jaccard — the ONE similarity, frontend/app/memtruth.js):
   // exact-text dedup misses PARAPHRASES ("prefers npm start" vs "the user prefers running npm start"), which would
   // re-surface a belief the user already kept and clutter the turn-in beat. Drop a candidate >= SIM_THRESHOLD-similar.
-  const SIM_THRESHOLD = 0.6;
-  const SIM_STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-  function simTokens(s) {
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !SIM_STOP.has(t)) set.add(t);
-    return set;
-  }
-  function jaccard(a, b) {
-    const A = simTokens(a), B = simTokens(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0; for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  }
+  const SIM_THRESHOLD = MemTruth.SIM_THRESHOLD;
+  const jaccard = (a, b) => MemTruth.similarity(a, b);
 
   // the VALUE FLOOR: a deterministic backstop against the low-value memories the prompt alone failed to suppress.
   // Reject content that is too short to be a durable belief, carries too few significant words, or is run-specific
@@ -137,11 +126,7 @@
   // to keep cluttering the turn-in beat with trivia (the user's "remembers things that don't matter" complaint).
   // significant-word count for the FLOOR only: like simTokens but admits 2-char tech names (Go, AI, ML, Vi) so a
   // terse-but-real belief ("prefers Go", "expert in AI") isn't swallowed. Dedup still uses the stricter >=3 simTokens.
-  function floorTokens(s) {
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 2 && !SIM_STOP.has(t)) set.add(t);
-    return set.size;
-  }
+  function floorTokens(s) { return MemTruth.simTokens(s, { minLen: 2 }).size; }
   function lowValue(content) {
     const c = String(content == null ? '' : content).trim();
     if (c.length < MIN_CONTENT) return true;

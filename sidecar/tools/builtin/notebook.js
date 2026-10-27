@@ -9,10 +9,11 @@
    At call time, ctx supplies agentId / room / emit (the validated emitter) / consent. */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('../../context.js') : (root.SK && root.SK.context));
+  const node = typeof require === 'function';
+  const api = factory(node ? require('../../context.js') : (root.SK && root.SK.context), node ? require('../../../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).notebook = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval, MemTruth) {
   'use strict';
 
   // Compare against the version the caller actually read. A later edit must never be
@@ -140,23 +141,11 @@
     // and let it decide: a restatement stops there; a genuinely distinct fact is re-sent with distinct:true and
     // saved. Nothing is ever silently lost, and the common case costs one refused call instead of a permanent
     // duplicate. Threshold matches reflection's — one definition of "near-dupe" across the whole memory system.
-    const DUPE_THRESHOLD = 0.6;
-    // inline Jaccard fallback (mirrors memcore.tokenJaccard) so this UMD tool stays dependency-free in the browser
-    // build + standalone tests. Kept in sync with memcore — that is the canonical copy.
-    const jaccard = typeof deps.similarity === 'function' ? deps.similarity : (a, b) => {
-      const STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-      const toks = s => { const set = new Set(); for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !STOP.has(t)) set.add(t); return set; };
-      const A = toks(a), B = toks(b);
-      if (!A.size || !B.size) return 0;
-      let inter = 0; for (const t of A) if (B.has(t)) inter++;
-      return inter / (A.size + B.size - inter);
-    };
+    const DUPE_THRESHOLD = MemTruth.SIM_THRESHOLD;
+    // the ONE similarity every memory writer shares (frontend/app/memtruth.js); a host may still inject its own
+    const jaccard = typeof deps.similarity === 'function' ? deps.similarity : MemTruth.similarity;
     const textOf = r => (r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || '')));
-    const findSimilar = typeof deps.findSimilar === 'function' ? deps.findSimilar : (records, text, o) => {
-      const threshold = (o && typeof o.threshold === 'number') ? o.threshold : 0.6;
-      for (const r of (Array.isArray(records) ? records : [])) if (r && jaccard(textOf(r), text) >= threshold) return r;
-      return null;
-    };
+    const findSimilar = typeof deps.findSimilar === 'function' ? deps.findSimilar : MemTruth.findSimilar;
     /* SAME SUBJECT, DIFFERENT CLAIM (memory-truth lane, 2026-10-11). "User prefers tabs" vs "User prefers spaces"
        overlap 0.5 — under the near-dupe bar — so the new note was saved beside the old one and BOTH stayed active
        forever: a contradiction recall served side by side. A write that overlaps an existing note in [0.3, 0.6) is

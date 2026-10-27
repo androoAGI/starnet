@@ -6,10 +6,10 @@
    root, may read the wall clock and pass it in). */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).memcore = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
   'use strict';
 
   const TRUST_STEP = 0.15;   // each signed memory.feedback delta nudges trust by delta*step, clamped to [0,1]
@@ -40,31 +40,13 @@
     return clamp01(t * Math.pow(0.5, (n - ref) / hl));
   }
 
-  // ---- near-duplicate detection (parity with the reference harness: Jaccard token overlap, dependency-free) ----
+  // ---- near-duplicate detection (parity with the reference harness: Jaccard token overlap) ----
   // catches PARAPHRASE dupes that exact-text equality misses ("the user prefers npm start" vs "prefers npm start
-  // over serve"), so reflection doesn't clutter the turn-in beat and the panel can flag redundant beliefs.
-  const SIM_STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-  function simTokens(s) {   // mirrors context.tokenize (3+ char alnum, stopword-stripped) — kept inline so memcore stays standalone
-    const set = new Set();
-    for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !SIM_STOP.has(t)) set.add(t);
-    return set;
-  }
-  function tokenJaccard(a, b) {
-    const A = simTokens(a), B = simTokens(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0; for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  }
+  // over serve"), so reflection doesn't clutter the turn-in beat and the panel can flag redundant beliefs. The math
+  // lives in ONE place, frontend/app/memtruth.js (memory-truth-1027): these names stay for their callers.
+  const tokenJaccard = (a, b) => MemTruth.similarity(a, b);
   // first existing record whose text is >= threshold-similar to `text` (the near-dupe it would shadow), or null.
-  function findSimilar(records, text, opts) {
-    const threshold = (opts && typeof opts.threshold === 'number') ? opts.threshold : 0.6;
-    for (const r of (Array.isArray(records) ? records : [])) {
-      if (!r) continue;
-      const rt = r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || ''));
-      if (tokenJaccard(rt, text) >= threshold) return r;
-    }
-    return null;
-  }
+  const findSimilar = (records, text, opts) => MemTruth.findSimilar(records, text, opts);
 
   // ---- ORIGIN: which surface a memory was formed on ----
   // Memory used to form ONLY on the watched browser run, so every record was self-evidently the Commander's own
