@@ -96,6 +96,56 @@ function rig(opts) {
     t.PitchStore.init(t.deps);
     A.eq(t.PitchStore.handoffPending(), false, 'completion survives a reload (no boot re-show)');
   }
+  /* ---------- 9. "Help me choose" is cancellable: its model call is aborted by a step-aside, by its own cap, by a reset ---------- */
+  {
+    const slow = () => { const m = { calls: [] }; m.configured = () => true;
+      m.chat = args => { m.calls.push(args); return new Promise((resolve, reject) => { if (args.signal) args.signal.addEventListener('abort', () => { const e = new Error('aborted'); e.name = 'AbortError'; reject(e); }, { once: true }); }); };
+      return m; };
+    const askHelp = async t => {
+      const p = t.PitchStore.offerHandoff();
+      await settle();
+      const help = t.s.find('fnv-opt').find(b => /Help me choose/.test(b.textContent));
+      A.ok(!!help, 'the hand-off shows its "Help me choose a first task" key');
+      if (help) help.click();
+      await settle();
+      return { p };   // wrapped: an async function returning a promise would adopt it and wait for the hand-off to end
+    };
+    // (a) the Commander picks another conversation while the suggestion is being thought up
+    {
+      const model = slow();
+      const t = rig({ harness: model });
+      const { p } = await askHelp(t);
+      A.eq(model.calls.length, 1, 'Help me choose asks the model once');
+      const sig = model.calls[0] && model.calls[0].signal;
+      A.ok(sig && sig.aborted === false, 'the suggestion call carries its own abort signal');
+      t.s.D.stepAside('session');
+      const res = await Promise.race([p, settle().then(() => 'still waiting')]);
+      A.eq(res && res.action, 'aside', 'the hand-off steps aside mid-suggestion');
+      A.ok(sig && sig.aborted, 'and the suggestion call is ABORTED, not left running after the hand-off moved on');
+    }
+    // (b) its own cap: a slow model is stopped, not merely stopped waiting for
+    {
+      const model = slow();
+      const t = rig({ harness: model });
+      t.deps.helpCapMs = 40; t.PitchStore.init(t.deps);
+      const { p } = await askHelp(t);
+      const sig = model.calls[0] && model.calls[0].signal;
+      await new Promise(r => setTimeout(r, 90)); await settle();
+      A.ok(sig && sig.aborted, 'when the cap passes the call is aborted');
+      A.ok(t.s.D.isOpen(), 'and the hand-off is still there for the Commander to type their own task');
+      t.s.D.stepAside('session'); await Promise.race([p, settle()]);
+    }
+    // (c) a new hero (reset) ends a stale suggestion call
+    {
+      const model = slow();
+      const t = rig({ harness: model });
+      const { p } = await askHelp(t);
+      const sig = model.calls[0] && model.calls[0].signal;
+      t.PitchStore.reset();
+      A.ok(sig && sig.aborted, 'reset() aborts the previous hero’s suggestion call');
+      t.s.D.close(); void p;
+    }
+  }
   {
     // a task sent with nothing pending never invents a hand-off state; an empty send completes nothing
     const t = rig();

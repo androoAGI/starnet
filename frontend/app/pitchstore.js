@@ -290,6 +290,8 @@ const PitchStore = (() => {
      the draft goes into the message box's ↑ recall at once, and the hand-off is offered again at the next boot. A task the
      Commander sends from COMMS completes it (noteCommsTask). */
   const handoffAside = why => ({ action: 'aside', why: String(why || '') });
+  const HELP_CAP_MS = 12000;   // "Help me choose": a late suggestion is a weird one — cap the model call (deps.helpCapMs in tests)
+  let helpCtl = null;          // the in-flight "Help me choose" call's AbortController (reset() ends it too)
   function stepHandoffAside(res) {
     try { if (Dialogue.isOpen && Dialogue.isOpen()) Dialogue.close(); } catch (_) {}
     const draft = String((state && state.handoffDraft) || '').trim();
@@ -337,17 +339,23 @@ const PitchStore = (() => {
         if (pick.help) {
           note = 'tell me something you’re curious about, something you’re making, or something you’d like help with. a rough idea is enough.';
           if (typeof Harness !== 'undefined' && Harness.chat && Harness.configured && Harness.configured()) {
-            let timer;
+            // HELP ME CHOOSE IS CANCELLABLE (comms-owner arbiter). The suggestion is a reason-only model call capped at 12 s; the cap
+            // only stopped the WAIT, so a slow model kept running (and spending) after the hand-off had moved on. Its own
+            // AbortController now ends the call when the cap passes, when the hand-off steps aside, or when a new hero resets it.
+            let timer, ctl = null;
+            try { ctl = typeof AbortController === 'function' ? new AbortController() : null; } catch (_) { ctl = null; }
+            helpCtl = ctl;
+            const stop = () => { try { if (ctl) ctl.abort(); } catch (_) {} };
             try {
               const result = await until(Promise.race([
-                Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true }),
-                new Promise(resolve => { timer = setTimeout(() => resolve(null), 12000); })
+                Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true, signal: ctl ? ctl.signal : undefined }),
+                new Promise(resolve => { timer = setTimeout(() => { stop(); resolve(null); }, Number.isFinite(deps.helpCapMs) ? deps.helpCapMs : HELP_CAP_MS); })
               ]));
-              if (state !== session) return null;
-              if (result && result.action === 'aside') return stepHandoffAside(result);
+              if (state !== session) { stop(); return null; }
+              if (result && result.action === 'aside') { stop(); return stepHandoffAside(result); }
               const proposed = result && !result.error && Pitch.parseStarter(result.text);
               if (proposed) { state.handoffDraft = proposed.move; save(); note = (proposed.why || 'one possible starting point.') + ' edit the task below to make it yours.'; }
-            } catch (_) {} finally { clearTimeout(timer); }
+            } catch (_) {} finally { clearTimeout(timer); if (helpCtl === ctl) helpCtl = null; }
           }
         }
       }
@@ -381,7 +389,7 @@ const PitchStore = (() => {
 
   // S2: a brand-new hero re-earns its First Pitch. Drop the self-persisted flag (Save.clear() only wipes the
   // main save envelope; this store owns its own key, like curiositystore).
-  function reset() { state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { if (helpCtl) { try { helpCtl.abort(); } catch (_) {} helpCtl = null; } state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
 
   // has the one-time First Pitch already fired? (read by the ongoing-suggestion engine — graduation gates it).
   function done() { return !!(state && state.pitched); }
