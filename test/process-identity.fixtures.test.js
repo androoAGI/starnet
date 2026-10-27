@@ -49,6 +49,14 @@ A.ok(/pub const BOOT_SLACK_MS: u64 = 60_000;/.test(rust), 'the Rust boot rule ho
 // the shell judges a claim in the sidecar's order: the boot rule first (workspace-owner.js holderDead)
 const held = rust.slice(rust.indexOf('pub fn claim_is_held_with('), rust.indexOf('#[cfg(test)]'));
 A.ok(held.indexOf('predates_boot(') >= 0 && held.indexOf('predates_boot(') < held.indexOf('probe(claim.pid)'), 'the Rust claim check applies the boot rule before probing the PID');
+// …and a GATE runs that Rust half: the fast gate's rust-policy job tests the shell's own file, by path, and requires the
+// two parity tests to have passed (a text check here cannot prove the Rust rule right — only running it can)
+const crate = fs.readFileSync(path.join(ROOT, 'test', 'native-process-ownership', 'src', 'lib.rs'), 'utf8');
+A.ok(/#\[path = "\.\.\/\.\.\/\.\.\/src-tauri\/src\/process_identity\.rs"\]\s*pub mod process_identity;/.test(crate), 'the rules crate compiles the shell\'s own process_identity.rs');
+const gate = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'fast-gate.yml'), 'utf8');
+const policy = gate.slice(gate.indexOf('  rust-policy:'));
+A.ok(/cargo test --locked --manifest-path test\/native-process-ownership\/Cargo\.toml/.test(policy), 'the fast gate runs it on every PR');
+A.ok(/for t in shared_fixtures_match_the_js_rule the_shared_boot_rule_matches_the_js_rule; do/.test(policy), 'and fails unless both parity tests passed');
 // the workspace owner judges with THIS rule, not a copy of it
 const wo = fs.readFileSync(path.join(ROOT, 'sidecar', 'workspace-owner.js'), 'utf8');
 A.ok(/predatesBoot: predatesBootAt \} = require\('\.\/process-identity\.js'\)/.test(wo) && /return predatesBootAt\(ms, bootedAt\(\)\);/.test(wo), 'workspace-owner.js judges with the shared predatesBoot');
