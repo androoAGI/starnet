@@ -22,9 +22,9 @@ const ROOT = path.join(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'canary', 'voice-floor.mjs');
 const MP3 = Buffer.concat([Buffer.from([0xFF, 0xF3, 0x44, 0xC4]), Buffer.alloc(2400, 0x55)]);
 
-function run(args) {
+function run(args, env) {
   return new Promise(resolve => {
-    const child = spawn(process.execPath, [SCRIPT].concat(args), { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [SCRIPT].concat(args), { stdio: ['ignore', 'pipe', 'pipe'], env: env || process.env });
     let out = '';
     child.stdout.on('data', d => { out += d; });
     child.stderr.on('data', d => { out += d; });
@@ -97,6 +97,52 @@ function run(args) {
     srv.close();
   }
 
+  // ---- --sidecar: the mode CI and the release train run. The canary SPAWNS the entry keyless and hermetic, waits for
+  // /api/health, judges it, then kills it and removes the profile. A stub entry stands in for the sidecar (offline): it
+  // reports back, through /api/tts/status, the environment it was booted with. ----
+  {
+    const os = require('node:os');
+    const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-canary-stub-'));
+    const stub = path.join(stubDir, 'stub-sidecar.js');
+    fs.writeFileSync(stub, [
+      "'use strict';",
+      "const http = require('http');",
+      "const MP3 = Buffer.concat([Buffer.from([0xFF, 0xF3, 0x44, 0xC4]), Buffer.alloc(2400, 0x55)]);",
+      "const port = Number(process.env.STARNET_PORT);",
+      "const seen = { secrets: Object.keys(process.env).filter(k => /KEY|TOKEN|SECRET/i.test(k)), appdata: process.env.APPDATA || '',",
+      "  localappdata: process.env.LOCALAPPDATA || '', workspaces: process.env.STARNET_WORKSPACES || '', probe: process.env.SKYNET_EDGE_TTS_PROBE || '', pid: process.pid };",
+      "http.createServer((req, res) => {",
+      "  if (req.url === '/api/health') { res.writeHead(200); return res.end('ok'); }",
+      "  if (req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html' }); return res.end('<script>window.__STARNET_API_TOKEN__=\"stub-tok\";</script>'); }",
+      "  if (req.url === '/api/tts' && req.headers['x-starnet-token'] === 'stub-tok') { res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'X-Voice-Provider': 'edge:en-US-ChristopherNeural', 'X-Voice-Cache': 'miss' }); return res.end(MP3); }",
+      "  if (req.url === '/api/tts/status') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ legs: { edge: Object.assign({ ok: true, code: 'ok' }, { seen }) } })); }",
+      "  res.writeHead(404); res.end();",
+      "}).listen(port, '127.0.0.1');"
+    ].join('\n'));
+    const dead = path.join(stubDir, 'dead-sidecar.js');
+    fs.writeFileSync(dead, "console.error('stub: refusing to boot'); process.exit(3);\n");
+    const freePort = await new Promise(r => { const s = http.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+    // the canary's OWN environment carries secrets: none may reach the sidecar it boots
+    const leaky = Object.assign({}, process.env, { OPENROUTER_API_KEY: 'sk-or-v1-LEAK', GITHUB_TOKEN: 'ghp_LEAK', SKYNET_OPENAI_KEY: 'sk-LEAK', STARNET_WORKSPACES: 'C:/real/workspaces' });
+    const booted = await run(['--sidecar', stub, '--port', String(freePort)], leaky);
+    A.eq(booted.code, 0, '--sidecar: a keyless entry that answers Edge audio is green (' + booted.out.trim().slice(0, 400) + ')');
+    const seen = booted.verdict && booted.verdict.last && booted.verdict.last.status_edge && booted.verdict.last.status_edge.seen;
+    A.ok(seen, '--sidecar: the stub reported the environment it was booted with');
+    A.eq(seen && seen.secrets, [], '--sidecar: no key, token or secret variable reached the booted sidecar');
+    A.ok(seen && /starnet-voice-canary-/.test(seen.appdata) && seen.appdata === seen.localappdata, '--sidecar: a fresh hermetic profile for APPDATA/LOCALAPPDATA: ' + (seen && seen.appdata));
+    A.ok(seen && seen.workspaces.indexOf(seen.appdata) === 0, '--sidecar: and a workspace inside it, never the caller\'s STARNET_WORKSPACES: ' + (seen && seen.workspaces));
+    A.eq(seen && seen.probe, '0', '--sidecar: the booted sidecar runs no boot probe of its own');
+    A.ok(seen && !fs.existsSync(seen.appdata), '--sidecar: the profile is removed afterwards');
+    const portFree = await new Promise(r => { const s = http.createServer(); s.once('error', () => r(false)); s.listen(freePort, '127.0.0.1', () => s.close(() => r(true))); });
+    A.ok(portFree, '--sidecar: the booted sidecar is killed (its port is free again)');
+    const t0 = Date.now();
+    const deadRun = await run(['--sidecar', dead, '--port', String(freePort)]);
+    A.eq(deadRun.code, 1, '--sidecar: an entry that never comes up is RED (exit 1)');
+    A.ok(deadRun.verdict && /did not come up/.test(deadRun.verdict.last.why) && /refusing to boot/.test(deadRun.verdict.last.tail || ''), '--sidecar: and the verdict says so, with the entry\'s own output');
+    A.ok(Date.now() - t0 < 20000, '--sidecar: at once when the entry exits, not after the 90 s health wait (' + (Date.now() - t0) + ' ms)');
+    fs.rmSync(stubDir, { recursive: true, force: true });
+  }
+
   // ---- CI runs it: report-only on the schedule, blocking with one retry at release ----
   const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'floor-canaries.yml'), 'utf8');
   const voiceJob = wf.slice(wf.indexOf('\n  voice:'));
@@ -105,6 +151,12 @@ function run(args) {
   A.ok(/BLOCKING: \$\{\{ github\.event_name != 'schedule'/.test(voiceJob), 'floor-canaries: the schedule is never blocking');
   A.ok(/voice-floor\.mjs --sidecar "\$SIDECAR_ENTRY" --port 9703 --retry 1/.test(voiceJob), 'floor-canaries: a blocking run retries once');
   A.ok(/voice-floor\.mjs --sidecar "\$SIDECAR_ENTRY" --port 9703 --report-only/.test(voiceJob), 'floor-canaries: a scheduled run is report-only');
+  // a recovery dispatch for a tag cut BEFORE the canary existed: the script comes from the workflow's own commit, the
+  // tag supplies only the sidecar under test (an old tag has no scripts/canary, and stage-draft needs this job)
+  A.ok(/ref: \$\{\{ github\.workflow_sha \|\| github\.sha \}\}\n\s+path: \.canary-tool/.test(voiceJob), 'floor-canaries: the canary script is checked out from the workflow\'s own commit');
+  const runs = voiceJob.match(/node \S*voice-floor\.mjs/g) || [];
+  A.ok(runs.length === 2 && runs.every(r => r === 'node .canary-tool/scripts/canary/voice-floor.mjs'), 'floor-canaries: every run uses that copy, never the tag\'s (' + runs.join(' | ') + ')');
+  A.ok(/ref: \$\{\{ inputs\.ref \|\| github\.ref \}\}/.test(voiceJob), 'floor-canaries: the sidecar under test is still the ref asked for');
   const train = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-train.yml'), 'utf8');
   const canaryJob = train.slice(train.indexOf('\n  voice-floor-canary:'), train.indexOf('\n  stage-draft:'));
   A.ok(/uses: \.\/\.github\/workflows\/floor-canaries\.yml/.test(canaryJob) && /blocking: true/.test(canaryJob), 'release-train: calls the voice canary, blocking');

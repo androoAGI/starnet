@@ -63,9 +63,19 @@ jobs:
       BLOCKING: ${{ github.event_name != 'schedule' && inputs.blocking != false }}
       SIDECAR_ENTRY: ${{ inputs.sidecar_entry || 'sidecar/index.js' }}
     steps:
+      # the ref UNDER TEST (a release tag on a recovery dispatch): its sidecar is what the canary boots
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      # the canary SCRIPT comes from the commit this workflow runs from, never from the ref under test: a recovery
+      # dispatch of the release train for a tag cut before the canary existed still checks that tag's sidecar,
+      # instead of failing on a missing script and leaving stage-draft unreachable
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha || github.sha }}
+          path: .canary-tool
+          sparse-checkout: scripts/canary
 
       - uses: actions/setup-node@v4
         with:
@@ -79,9 +89,9 @@ jobs:
           set -euo pipefail
           mkdir -p canary
           if [ "$BLOCKING" = "true" ]; then
-            node scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --retry 1 --json canary/voice-floor.json
+            node .canary-tool/scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --retry 1 --json canary/voice-floor.json
           else
-            node scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --report-only --json canary/voice-floor.json
+            node .canary-tool/scripts/canary/voice-floor.mjs --sidecar "$SIDECAR_ENTRY" --port 9703 --report-only --json canary/voice-floor.json
           fi
 
       - name: Keep the verdict
