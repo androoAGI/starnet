@@ -100,8 +100,11 @@
       onCallback: (deps.adapter && deps.adapter.onCallback) || hub.onCallback,
       onStatus: (deps.adapter && deps.adapter.onStatus) || hub.onStatus,
       // OUR OWN membership changed (blocked / kicked): the hub marks the chat unreachable and drops its backlog. Only
-      // the bespoke station-Telegram wiring passed this, so every registry-wired hub kept retrying a chat that had
-      // removed the bot (quick win 21). onDelivery is the caller's per-send outcome hook (delivery health).
+      // the bespoke station-Telegram wiring passed this (quick win 21). PLUMBING ONLY today: the platforms wired here
+      // (Discord, Slack, Matrix, Signal) pass onMembership through, but none of their normalizers emits a `membership`
+      // update yet (telegram.js is the only one), so in production it fires for no chat until one does. What stops a
+      // registry hub retrying a chat that removed the bot today is deliver()'s undeliverable rule (quick win 22).
+      // onDelivery is the caller's per-send outcome hook (delivery health).
       onMembership: (deps.adapter && deps.adapter.onMembership) || (typeof hub.onMembership === 'function' ? hub.onMembership : undefined),
       onDelivery: (deps.adapter && deps.adapter.onDelivery) || undefined,
       // the groups the paired owner admitted with /allow, read live off the hub's chat records (a caller's own
