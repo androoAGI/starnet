@@ -195,6 +195,10 @@ const catalog = require('./catalog.js');
         return dir;
       }
       const s = Object.assign({}, skill, { files: projectedFiles(skill) });
+      // Rebuild the support directories from the accepted record, including removals. Otherwise
+      // hydrate() reads deleted files back into the next generation. Leave root-level files alone.
+      if (!insideRoot(dir)) throw new Error('skill package path escapes the package root: ' + dir);
+      for (const sd of SUPPORT_DIRS) fs.rmSync(path.join(dir, sd), { recursive: true, force: true });
       writeText(path.join(dir, 'SKILL.md'), renderSkillMd(s));
       for (const f of s.files) writeText(path.join(dir, f.path), f.content);
       return dir;
