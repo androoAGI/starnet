@@ -92,5 +92,21 @@ A.ok(/sidecar_reap::kept_reason\(/.test(reapWin), 'Windows: every process the re
 A.ok(/skipped orphan pid=\{pid\} — could not open it/.test(reapWin) && /skipped pid=\{pid\} — it no longer runs the bundled node/.test(reapWin), 'Windows: an orphan the reap could not end is logged');
 const reapMac = rustFn(main, 'reap_orphan_sidecars', main.indexOf('#[cfg(target_os = "macos")]\nfn reap_orphan_sidecars'));
 A.ok(/sidecar_reap::kept_reason\(/.test(reapMac) && /skipped orphan pid=\{pid\}/.test(reapMac), 'macOS: the same');
+// …and a candidate the LISTING could not inspect (open refused, image unreadable) is logged too, never dropped silently
+const reapLib = read('src-tauri/src/sidecar_reap.rs');
+const listing = rustFn(reapLib, 'windows_bundled_node_processes');
+A.ok(/uninspected\.push\(\(pid, format!\("could not open it/.test(listing) && /None => uninspected\.push\(\(pid, "its image path could not be read"/.test(listing),
+  'Windows listing: a node-named process it could not open or read is handed back with why');
+A.ok(/for \(pid, why\) in &uninspected \{[\s\S]*?sidecar-reap: skipped pid=\{pid\} \(\{node_file_name\}\) — \{why\}/.test(reapWin), 'Windows: each of those is logged');
+A.ok(/None => \{\s*uninspected \+= 1;/.test(reapMac) && /sidecar-reap: skipped \{uninspected\} process\(es\) whose image path could not be read/.test(reapMac),
+  'macOS: processes whose image path cannot be read are counted and logged');
+
+// ---- a stop spares an app's whole tree, never the station's own window ----
+const owned = rustFn(startup, 'end_leftovers');
+A.ok(/job\.end_leftovers\(root\)/.test(owned) && /self\.root\(\)/.test(owned), 'the slot hands the sidecar (the tree\'s root) to the sweep');
+const sweep = rustFn(job, 'sweep');
+A.ok(/spared_members\(&members, &table, root, shows_window\)/.test(sweep) && /system_processes\(\)/.test(sweep), 'each pass decides from the parent links of the whole process list');
+const ends = rustFn(job, 'end_leftovers_with');
+A.ok(/set_limit_flags\([^)]*BREAKAWAY_OK\)[\s\S]*self\.sweep\(/.test(ends.slice(ends.indexOf('if !out.spared.is_empty()'))), 'after releasing kill-on-close it sweeps once more');
 
 A.report('desktop-station-stop');

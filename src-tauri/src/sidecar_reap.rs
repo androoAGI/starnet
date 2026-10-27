@@ -93,10 +93,13 @@ pub fn parse_ps_ppid(out: &str) -> Option<u32> {
 
 /// Every process whose image is exactly the bundled node (`is_node` decides on the full image path), with its parent
 /// and whether that parent is alive. Err when the process list itself could not be read (the reap then does nothing).
+/// A process with the node's file name that could not be inspected (not opened, image unreadable) is never a
+/// candidate; it is pushed to `uninspected` with why, so the caller logs that skip too.
 #[cfg(windows)]
 pub fn windows_bundled_node_processes(
     node_file_name: &str,
     is_node: &dyn Fn(&std::path::Path) -> bool,
+    uninspected: &mut Vec<(u32, String)>,
 ) -> Result<Vec<NodeProc>, ()> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -118,15 +121,21 @@ pub fn windows_bundled_node_processes(
         if exe_name == node_file_name {
             let pid = entry.th32ProcessID;
             let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-            if !handle.is_null() {
+            if handle.is_null() {
+                uninspected.push((pid, format!("could not open it ({})", std::io::Error::last_os_error())));
+            } else {
                 // the full image path is the ONLY thing that nominates a process (another node install never is)
-                if windows_image(handle).is_some_and(|full| is_node(&full)) {
-                    let created = windows_created(handle);
-                    out.push(NodeProc {
-                        pid,
-                        parent: entry.th32ParentProcessID,
-                        parent_state: windows_parent(entry.th32ParentProcessID, created),
-                    });
+                match windows_image(handle) {
+                    Some(full) if is_node(&full) => {
+                        let created = windows_created(handle);
+                        out.push(NodeProc {
+                            pid,
+                            parent: entry.th32ParentProcessID,
+                            parent_state: windows_parent(entry.th32ParentProcessID, created),
+                        });
+                    }
+                    Some(_) => {}
+                    None => uninspected.push((pid, "its image path could not be read".to_string())),
                 }
                 unsafe { CloseHandle(handle) };
             }
@@ -265,7 +274,7 @@ mod tests {
         std::thread::sleep(Duration::from_millis(500));
 
         let is_node = |full: &std::path::Path| full.to_string_lossy().eq_ignore_ascii_case(&bundled.to_string_lossy());
-        let procs = super::windows_bundled_node_processes("node.exe", &is_node).expect("process list");
+        let procs = super::windows_bundled_node_processes("node.exe", &is_node, &mut Vec::new()).expect("process list");
         let seen = |pid: u32| procs.iter().find(|q| q.pid == pid).copied();
         assert!(seen(orphan).is_some_and(|q| q.parent_state == Parent::Gone), "the orphan is listed with a dead parent: {:?}", seen(orphan));
         assert!(seen(kept_orphan).is_some_and(|q| q.parent_state == Parent::Gone), "so is the second one");

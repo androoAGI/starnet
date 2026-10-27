@@ -1677,8 +1677,9 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
         .file_name()
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
+    let mut uninspected = Vec::new();
     let Ok(procs) =
-        sidecar_reap::windows_bundled_node_processes(&node_file_name, &|full| same_path(full, node))
+        sidecar_reap::windows_bundled_node_processes(&node_file_name, &|full| same_path(full, node), &mut uninspected)
     else {
         log_startup(
             startup_log,
@@ -1686,6 +1687,12 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
         );
         return 0;
     };
+    for (pid, why) in &uninspected {
+        log_startup(
+            startup_log,
+            format!("sidecar-reap: skipped pid={pid} ({node_file_name}) — {why}; not proven to run the bundled node, never touched"),
+        );
+    }
     let reap = sidecar_reap::orphans_to_reap(&procs, keep, std::process::id());
     for p in procs.iter().filter(|p| !reap.contains(&p.pid)) {
         log_startup(
@@ -1824,10 +1831,18 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
     }
     pids.truncate((count as usize).min(pids.len()));
 
+    // a process whose image path cannot be read (another user's, a protected one) is never a candidate: counted, logged
+    let mut uninspected = 0usize;
     let procs: Vec<sidecar_reap::NodeProc> = pids
         .into_iter()
         .filter(|&pid| pid > 0 && pid != std::process::id() as i32)
-        .filter(|&pid| mac_process_image_path(pid).is_some_and(|path| same_path(&path, node)))
+        .filter(|&pid| match mac_process_image_path(pid) {
+            Some(path) => same_path(&path, node),
+            None => {
+                uninspected += 1;
+                false
+            }
+        })
         .map(|pid| {
             let parent = Command::new("/bin/ps")
                 .args(["-o", "ppid=", "-p", &pid.to_string()])
@@ -1847,6 +1862,14 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
             }
         })
         .collect();
+    if uninspected > 0 {
+        log_startup(
+            startup_log,
+            format!(
+                "sidecar-reap: skipped {uninspected} process(es) whose image path could not be read (another user's or a protected process) — not proven to run the bundled node, never touched"
+            ),
+        );
+    }
     let reap = sidecar_reap::orphans_to_reap(&procs, keep, std::process::id());
     for p in procs.iter().filter(|p| !reap.contains(&p.pid)) {
         log_startup(
