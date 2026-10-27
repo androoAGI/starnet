@@ -760,7 +760,7 @@
     // and a failed probe is never cached — the factory builds a fresh adapter per request anyway.
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;
     // the CLI's own word on this sign-in's usage windows (a rate_limit_event line, every run): handed to the host as is
-    const rateLimitSeen = info => { if (typeof opts.onRateLimit === 'function' && info) { try { opts.onRateLimit(info); } catch (_) { /* a reader never breaks a run */ } } };
+    const rateLimitSeen = info => { if (typeof opts.onRateLimit === 'function' && info) { try { opts.onRateLimit(info); } catch (e) { failNote('claudecli.ratelimit.reader', e); }   // a reader never breaks a run } };
     let status = null, statusAt = 0, statusPromise = null;
     let seq = 0;
     // tool-call ids are unique per ADAPTER, not just per turn: the factory builds a fresh adapter per request (and per

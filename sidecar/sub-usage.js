@@ -31,6 +31,7 @@
 'use strict';
 
 const { readJsonResilient, writeJsonResilient } = require('./durable-store.js');
+const { note: failNote } = require('./failopen.js');
 
 const LABELS = { five_hour: '5-hour', seven_day: 'week', seven_day_opus: 'week · Opus', seven_day_sonnet: 'week · Sonnet' };
 const acctKey = a => (!a || a === 'primary') ? 'primary' : String(a);
@@ -47,7 +48,7 @@ function header(h, name) {
   try {
     if (typeof h.get === 'function') return h.get(name);
     for (const k of Object.keys(h)) if (k.toLowerCase() === name) return h[k];
-  } catch (_) { /* a headers object that throws says nothing */ }
+  } catch (e) { failNote('subusage.header', e); }   // a headers object that throws says nothing
   return null;
 }
 
@@ -63,14 +64,14 @@ function makeSubUsage(opts) {
       const r = readJsonResilient(deps, o.file);
       const v = r && r.value && r.value.providers;
       if (v && typeof v === 'object') for (const pid of Object.keys(v)) for (const acct of Object.keys(v[pid] || {})) put(pid, acct, v[pid][acct], true);
-    } catch (_) { /* an unreadable file: start empty — it is a cache of what providers said, never the only copy of anything */ }
+    } catch (e) { failNote('subusage.load', e); }   // an unreadable file: start empty — a cache of what providers said, never the only copy of anything
   }
   let timer = null, dirty = false;
   function persist() {
     timer = null;
     if (!dirty || !deps) return;
     dirty = false;
-    try { deps.fs.mkdirSync(deps.path.dirname(o.file), { recursive: true }); writeJsonResilient(deps, o.file, { v: 1, providers: snapshot() }); } catch (_) { dirty = true; }
+    try { deps.fs.mkdirSync(deps.path.dirname(o.file), { recursive: true }); writeJsonResilient(deps, o.file, { v: 1, providers: snapshot() }); } catch (e) { dirty = true; failNote('subusage.save', e); }
   }
   function put(pid, acct, entry, loading) {
     if (!entry || !Array.isArray(entry.windows)) return;
@@ -121,7 +122,7 @@ function makeSubUsage(opts) {
     if (typeof fetchImpl !== 'function') return fetchImpl;
     return async function (...args) {
       const res = await fetchImpl(...args);
-      try { if (res && res.headers) observeHeaders(providerId, account, res.headers); } catch (_) { /* reading headers never fails a call */ }
+      try { if (res && res.headers) observeHeaders(providerId, account, res.headers); } catch (e) { failNote('subusage.headers', e); }   // reading headers never fails a call
       return res;
     };
   }
