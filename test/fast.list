@@ -559,6 +559,7 @@ test/first-task-handoff-yields.test.js
 test/comms-owner-rules.test.js
 test/dialogue-offer-required.ratchet.test.js
 test/offers-step-aside.test.js
+test/bay-intent.test.js
 test/suggeststore.test.js
 test/beat-coordination.test.js
 test/beatcard.test.js
