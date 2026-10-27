@@ -249,7 +249,7 @@ const root = path.resolve(__dirname, '..');
   A.ok(/SKYNET_TELEGRAM_TOKEN|TELEGRAM_TOKEN/.test(src) && /DISCORD_TOKEN/.test(src), 'index.js seeds tokens from env');
   A.ok(/DESKTOP_SHELL\s*\?\s*channelSecretsMod\.stripTokens\(obj,\s*isChannelTokenDurable\)/.test(src), 'saveChannelSecrets strips secrets DURABILITY-AWARE under the desktop shell (never the last copy)');
   A.ok(/migratePlaintext/.test(src), 'index.js runs the boot migration');
-  A.ok(/'\/api\/channels\/token'/.test(src) && /handleSetChannelToken/.test(src), 'index.js wires the token-push route');
+  A.ok(/exact: '\/api\/channels\/token', h: handleSetChannelToken \}/.test(src), 'index.js wires the token-push route');
   // DURABILITY LEDGER (Andrew's invariant): a ledger exists, spawn-env seeds it durable, and a body-token stays non-durable.
   A.ok(/channelTokenDurable/.test(src), 'index.js tracks per-channel token durability');
   A.ok(/function isChannelTokenDurable/.test(src), 'index.js exposes isChannelTokenDurable(id)');

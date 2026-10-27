@@ -439,7 +439,8 @@ A.ok(/ALREADY ON THE BOARD/.test(tKnown.prompt) && tKnown.prompt.indexOf('- Buil
 A.eq(tKnown.conversation, tPlain.conversation,
   '…and the quote-veto haystack is UNCHANGED — the block must never become minable "conversation"');
 A.ok(threadmine.buildPrompt(MSGS, 6000, new Array(80).fill('a thread')).prompt.split('- a thread').length - 1 <= 20, '…bounded');
-A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc) && /t\.state !== 'declined'/.test(sidecarSrc),
+A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc)
+  && /knownTitles = \(threadsStore\.read\(\)\.threads \|\| \[\]\)\.filter\(t => t && t\.state !== 'declined'\)/.test(sidecarSrc),
   'the sidecar passes the LIVE thread titles (the declined half has no title to show — post-hoc only)');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════

@@ -621,7 +621,8 @@ A.eq(Policy.canMutate({ status: 'executing' }, { scope: 'execute' }).ok, true, '
   A.ok(/const ready = recommendationsReady\(\)/.test(mktSrc) && /STARTING POINTS/.test(mktSrc), 'the marketplace uses shared readiness and labels its cold shelf honestly');
   A.ok((mktSrc.match(/const gt = ready \? goalText\(\) : ''/g) || []).length >= 2, 'cold marketplace shelves cannot smuggle dossier goals past readiness');
   A.ok(/values\.__intake = intake/.test(mktSrc) && /mkt-intake-opt/.test(mktSrc), 'the launch form collects one-tap intake decisions');
-  A.ok(/recipeIntake/.test(indexSrc) && /Recipes\.get\(String\(o\.recipeId\)\)/.test(indexSrc), 'a recipe-launched run injects its declared intake');
+  A.ok(/Recipes\.get\(String\(o\.recipeId\)\)[^\n]*recipeIntake = rr\.intake/.test(indexSrc) && /taskContextInputs = \{[^}]*\brecipeIntake\b/.test(indexSrc),
+    'a recipe-launched run injects its declared intake (read from the recipe, handed to the evidence composer)');
 
   A.report('taskintent.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -155,7 +155,7 @@ ok(notifier.length > 200 && notifier.length < 20000, 'the notifier wiring block 
 ok(/require\('\.\/autonotify\.js'\)/.test(idx), 'index.js requires the autonotify engine');
 ok(/makeAutoNotifier\(/.test(notifier), 'index.js instantiates the notifier');
 ok(/emit:\s*cronEmitNotify/.test(idx), 'the cron driver emit is wrapped (cronEmitNotify) to feed the notifier');
-ok(/'\/api\/channels\/notify'/.test(idx) && /function handleChannelNotify/.test(idx), '/api/channels/notify route + handler wired');
+ok(/exact: '\/api\/channels\/notify', h: handleChannelNotify \}/.test(idx) && /function handleChannelNotify/.test(idx), '/api/channels/notify route + handler wired');
 ok(/notifyAutonomous/.test(notifier), 'index.js persists/reads the global opt-in flag');
 ok(/redact\(text\)/.test(notifier), 'the outbound notification text is redacted before send (no secret egress)');
 const hub = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');
