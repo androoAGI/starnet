@@ -350,7 +350,9 @@ function mkHub(store, sendImpl, events) {
     });
     await hub._internals.flushOutbox();
     const stored = store.loadOutbox('telegram')[0];
-    A.eq(stored.text, parts.raw.slice(1).join(''), 'the remainder is the RAW tail of the original text — no synthetic fences baked in');
+    // chunk 1 begins INSIDE the code block: the remainder is the RAW tail under ONE real opener (remainderOf), never the decorated tail
+    A.eq(stored.text, '```\n' + parts.raw.slice(1).join(''), 'the remainder is the RAW tail of the original text under its real opening fence — no synthetic close/reopen pairs baked in');
+    A.eq((stored.text.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'the stored remainder has balanced fences — its code renders as code, its closing fence closes');
     A.eq(stored.tries, 0, 'a pass that delivered a real chunk is progress, never a counted failure');
     while (store.loadOutbox('telegram').length && calls < 40) await hub._internals.flushOutbox();
     A.eq(store.loadOutbox('telegram'), [], 'the item completes across retries');
@@ -383,7 +385,11 @@ function mkHub(store, sendImpl, events) {
     A.eq(r.ok, false, 'fixture: the second chunk failed');
     const queued = store.loadOutbox('telegram')[0];
     A.ok(!!queued, 'the undelivered remainder is queued');
-    A.eq(queued.text.replace(/^⌛[^\n]*\n/, ''), parts.raw.slice(1).join(''), 'the queued remainder is the RAW tail — no synthetic fences baked in');
+    const queuedBody = queued.text.replace(/^⌛[^\n]*\n/, '');
+    A.eq(queuedBody, '```\n' + parts.raw.slice(1).join(''), 'the queued remainder is the RAW tail under its real opening fence — no synthetic fences baked in');
+    A.eq((queuedBody.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'the queued remainder has balanced fences: the redelivered code is code, not prose with a dangling fence');
+    // and redelivered whole it splits into chunks that each render: an even fence count in every one
+    for (const c of chunkTextParts(queued.text, 24).send) A.eq((c.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'a redelivered chunk is balanced: ' + JSON.stringify(c));
     hub.close();
     // (b) heldText (the outbox refused the remainder) is the RAW tail as well
     const full = mkStore(memFs());
@@ -392,7 +398,7 @@ function mkHub(store, sendImpl, events) {
     const hub2 = mk(full, async () => { calls2++; return calls2 === 1 ? { ok: true, messageId: 'm1' } : { ok: false, error: 'blip', retryable: true }; });
     let held = null;
     try { await hub2._internals.deliver('h3b', fencedText, 'r-h3b', 'done', ''); } catch (e) { held = e && e.heldText; }
-    A.eq(held, parts.raw.slice(1).join(''), 'heldText is the RAW tail the replay will send verbatim');
+    A.eq(held, '```\n' + parts.raw.slice(1).join(''), 'heldText is the RAW tail under its real opening fence — the replay sends it verbatim');
     hub2.close();
   }
 
