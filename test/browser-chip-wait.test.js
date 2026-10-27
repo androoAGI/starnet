@@ -33,6 +33,7 @@ function fakeChip() {
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; },
     pendingChips: new Map(), autoscroll() {},
     ensureToolRail: () => ({ appendChild() {} }),
+    syncRail() {},   // the rail's folded summary (chat.js syncRail) is not under test here
     chipNode: () => fakeChip()
   });
   vm.runInContext(src.slice(from, to) + '\nthis.toolChip = toolChip;', ctx);

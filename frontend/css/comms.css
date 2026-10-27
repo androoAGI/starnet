@@ -280,6 +280,29 @@ body.glass-demo :is(#chat-log, #gc-log) .cmsg.user  + .cmsg.user  > .cmsg-head {
 .tool-chip .tc-d-res  { color: var(--text); padding-top: 4px; }
 .tool-chip .tc-d-res.err { color: var(--bad); }
 @keyframes comms-blink { 50% { opacity: .25; } }
+/* ONE LINE PER BURST OF WORK (Andrew 10-26): a rail of two or more calls folds behind ONE summary row in the step's own
+   frame (chat.js syncRail) — the call it is on while it runs, what it used once done — and lists every chip on a click. */
+.tool-rail.tr-multi:not(.open) > .tool-chip { display: none; }
+.tool-rail > .tr-sum {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; min-width: 0; box-sizing: border-box;
+  font: inherit; font-size: 12.5px; letter-spacing: .3px; line-height: 1.35; text-align: left;
+  color: var(--ph-dim); background: rgba(var(--ph-rgb),.03); border: 1px solid var(--ph-faint); border-radius: var(--r-sm);
+  padding: 3px 8px; cursor: pointer;
+}
+.tool-rail > .tr-sum[hidden] { display: none; }
+.tool-rail > .tr-sum:hover { border-color: var(--ph-dim); background: rgba(var(--ph-rgb),.055); }
+.tr-sum .tr-glyph { flex: 0 0 auto; color: var(--ph); }
+.tr-sum.ok .tr-glyph { color: var(--ok); }
+.tr-sum.err :is(.tr-glyph, .tr-stat) { color: var(--bad); }
+.tr-sum.mixed .tr-glyph { color: var(--ph-dim); }
+.tr-sum.mixed .tr-stat { color: var(--bad); }
+.tr-sum .tr-count { flex: 0 0 auto; color: var(--ph); letter-spacing: .4px; }
+.tr-sum .tr-names { flex: 1 1 auto; min-width: 0; color: var(--ph-dim); opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-sum .tr-stat { flex: 0 0 auto; margin-left: auto; color: var(--ph-dim); font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
+.tr-sum .tr-stat:empty { display: none; }
+.tr-sum .tr-exp { flex: 0 0 auto; width: 6px; height: 6px; margin: 0 3px 2px 2px; border-right: 2px solid rgba(var(--ph-rgb), .5); border-bottom: 2px solid rgba(var(--ph-rgb), .5); transform: rotate(-45deg); transition: transform var(--t-fast) var(--ease-soft); }
+.tool-rail.open > .tr-sum .tr-exp { transform: translateY(-2px) rotate(45deg); border-color: var(--ph-bright); }
+.tool-rail.open > .tr-sum { border-color: var(--ph-dim); }
 
 /* Session starter layout; buttons retain their original .choice skin. */
 .cmsg-empty { padding: 22px 12px; opacity: 1; text-align: left; max-width: 460px; margin: 0 auto; }

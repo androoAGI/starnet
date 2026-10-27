@@ -54,9 +54,11 @@ A.ok(/const requeue = [^\n]*\.unshift\(text\)/.test(body) && /const back = [\s\S
 A.ok(/status === 409/.test(body) && /status === 429/.test(body), 'refusal lines name 409 (run ended) and 429 (buffer full)');
 A.ok(/\.catch\(\(\) => back\(/.test(body), 'a network failure re-queues too');
 
-// success line promises the next step only — the [steering] transcript row is the proof it landed
+// success claims only what a 200 proves — the [steering] transcript row is the proof it landed. No SYSTEM line any more
+// (Andrew 10-26): the strip shows the line SENT, with no key, until the run reads it (run for real below).
 A.ok(/j && j\.ok/.test(body), 'success is read from the sidecar body, not just the HTTP status');
-A.ok(/before its next step/.test(body), 'success line promises only the next step');
+A.ok(/note\.accepted = true;\s*\n\s*if \(Channels\.runIdOf\(id\) === rid\) return renderQueued\(\);/.test(body), 'an accepted line repaints the strip; it prints no line');
+A.ok(/className = 'queued-pill sent'/.test(rb) && /before its next step/.test(rb) && /'read at its next step'/.test(rb), 'the SENT row promises only the next step');
 
 // Enter while busy still QUEUES (Andrew's call: send now is opt-in per pill)
 const soq = /function\s+sendOrQueue\s*\(text\)\s*\{([\s\S]*?)\n  \}/.exec(src);
@@ -234,7 +236,34 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     r.ctx.__sendNow('ws1', 0, 'use the blue folder');
     r.answer(ok200); await tick(); await tick();
     A.eq([r.posts.length, (r.ctx.sentNow.get('ws1') || []).length], [1, 1], 'blocked storage never stops the steer');
-    A.ok(r.lines.some(l => /Sent into the live run/.test(l)), 'and the line says what the 200 proves');
+    A.ok(r.ctx.sentNow.get('ws1')[0].accepted === true && !r.lines.length, 'the run holds it (the strip shows it SENT) and no SYSTEM line says so');
+  }
+  {
+    /* THE STRIP, RUN FOR REAL (Andrew 10-26): a queued line is a NEXT row with a SEND NOW key; once the run holds it, a SENT
+       row with no key; once the run's echo shows it read, no row (the transcript shows it as the Commander's MID-RUN line). */
+    const rq = A.fnBody(src, 'function renderQueued');
+    A.ok(rq.length > 200 && rq.length < 6000, 'renderQueued located');
+    const mk = tag => ({ tag, className: '', children: [], attrs: {}, text: '', appendChild(n) { this.children.push(n); return n; },
+      setAttribute(k, v) { this.attrs[k] = v; }, set textContent(v) { this.text = v; }, get textContent() { return this.text; } });
+    const strip = Object.assign(mk('div'), { innerHTML: '', offsetHeight: 0 });
+    Object.defineProperty(strip, 'innerHTML', { set() { strip.children = []; }, get() { return ''; } });
+    const sentNow = new Map();
+    const ctx = vm.createContext({ document: { createElement: mk, createTextNode: t => ({ text: t }) }, el: id => id === 'chat-queued' ? strip : null,
+      log: { scrollTop: 0, contains: () => false }, heldCard: null, activeWs: { id: 'ws1' }, queued: new Map([['ws1', ['use the blue folder']]]), sentNow,
+      nearBottom: () => false, topInLog: () => 0, sendQueuedNow: () => {} });
+    vm.runInContext(rq + '\n;this.__rq = renderQueued;', ctx);
+    const rows = () => strip.children.map(p => [p.className, p.children.map(c => c.className + ':' + c.text).join(' ')]);
+    ctx.__rq();
+    A.eq(rows(), [['queued-pill', 'queued-tag:next queued-text:use the blue folder queued-now:send now queued-x:✕']], 'a queued line: NEXT, its words, a SEND NOW key, a cancel key');
+    ctx.queued.delete('ws1'); sentNow.set('ws1', [{ id: 'sn1', text: 'use the blue folder', accepted: true, landed: false }]);
+    ctx.__rq();
+    A.eq(rows(), [['queued-pill sent', 'queued-tag:sent queued-text:use the blue folder queued-when:read at its next step']], 'held by the run: SENT, no key — it says only what the 200 proves');
+    sentNow.get('ws1')[0].landed = true;
+    ctx.__rq();
+    A.eq(rows(), [], 'read: the row leaves (the transcript shows it now)');
+    sentNow.set('ws1', [{ id: 'sn2', text: 'x', accepted: false, landed: false }]);
+    ctx.__rq();
+    A.eq(rows(), [], 'still in flight (not accepted yet): no SENT claim');
   }
 })().then(() => {
   // with the speaker on, the voice never reads the Commander's own steering note as the agent's words

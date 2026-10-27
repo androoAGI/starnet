@@ -1660,6 +1660,19 @@ body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-chip .tc-d-args { 
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-chip .tc-d-res { color: var(--text); padding-top: 4px; }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-chip .tc-d-res.err { color: var(--bad); }
 body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-chip .tc-d-res.held { color: var(--ph-dim); }
+/* a folded rail's ONE summary row wears the step's own glass, so a burst of work reads as one step (chat.js syncRail) */
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum {
+  align-items: center; gap: 6px; padding: 3px 8px; font-size: 14px; line-height: 1.35; letter-spacing: .3px; color: var(--ph-dim);
+  border: 1px solid rgba(var(--ph-rgb), .2); border-radius: var(--sn-r-row, 6px);
+  background: color-mix(in srgb, var(--panel2) 65%, transparent); box-shadow: inset 0 1px 0 var(--gd-light);
+}
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum:hover,
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail.open > .tr-sum { border-color: rgba(var(--ph-rgb), .45); background: rgba(var(--ph-rgb), .06); }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum .tr-glyph { width: 1.1em; text-align: center; text-shadow: none; animation: none; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum.pending .tr-glyph { color: var(--ph-bright); }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum .tr-count { color: var(--ph); letter-spacing: .4px; text-transform: none; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail > .tr-sum .tr-stat { font-size: 13px; }
+body.glass-demo:not(.hud-mode) #screen-game #chat-panel .tool-rail.open { gap: 3px; }
 
 /* RUN COMPLETE: the reply's quiet footer (Andrew 10-03) — 0.13.5's 14px at half strength again (10-25), bright on hover
    or open; its fold key the same drawn caret */
