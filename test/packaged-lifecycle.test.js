@@ -11,7 +11,13 @@
        second launch that reveals nothing (the 0.10.x windowless-resident escape)
      - updater verdict pins exe version, tag feed, and public feed
      - the orchestrator, driven by a scripted fake world, passes a correct shell and FAILS the
-       zombie shell whose idle close leaves the process alive. */
+       zombie shell whose idle close leaves the process alive.
+     - kill-relaunch (#31): a hard-killed shell must take its sidecar with it BEFORE any relaunch, and a relaunch
+       must run exactly one shell and one sidecar; a world whose sidecar survives its shell FAILS.
+     - cli-app-closed: the installed `starnet` with the app closed starts it in the background, one station runs,
+       no window shows, the app quits after; a CLI that refuses, a second station, a window, or a StarNet left
+       running after the terminal is gone each FAIL.
+     - macOS runs only the process-level cases, with the mac process names. */
 'use strict';
 const A = require('./_assert.js');
 
@@ -152,15 +158,40 @@ const A = require('./_assert.js');
     A.eq([to.ok, to.value, to.elapsedMs], [false, 'last', 2000], 'pollUntil times out with the last value');
   }
 
+  // ---- judgeKillRelaunch / judgeCliAppClosed / stationSidecars
+  {
+    const ok = M.judgeKillRelaunch({ killedPid: 100, afterKill: snap(), relaunch: snap({ shell: [shell(200)], sidecar: [side(201)], health: true }) });
+    A.eq(ok.pass, true, 'kill-relaunch passes: nothing left after the kill, one shell + one sidecar after relaunch — ' + ok.reasons.join('|'));
+    const orphan = M.judgeKillRelaunch({ killedPid: 100, afterKill: snap({ sidecar: [side(101)] }), relaunch: snap({ shell: [shell(200)], sidecar: [side(201)], health: true }) });
+    A.ok(!orphan.pass && orphan.reasons.some((r) => /orphan sidecar node after the shell was hard-killed: pids 101/.test(r)), 'a sidecar outliving its hard-killed shell FAILS (#31)');
+    const two = M.judgeKillRelaunch({ killedPid: 100, afterKill: snap(), relaunch: snap({ shell: [shell(200)], sidecar: [side(101), side(201)], health: true }) });
+    A.ok(!two.pass && two.reasons.some((r) => /exactly 1 sidecar after relaunch, saw 2/.test(r)), 'two sidecars after a relaunch FAIL');
+    const station = M.stationSidecars({ shell: [{ pid: 100 }], sidecar: [{ pid: 101, ppid: 100 }, { pid: 300, ppid: 77 }] });
+    A.eq(station.map((p) => p.pid), [101], 'a station sidecar is one a running shell started (the installed CLI runs on the same node)');
+    const cliOk = { appRan: true, cli: { code: 1, stdout: '', stderr: '· StarNet isn\'t running — starting it in the background\nno model configured' }, started: true, maxShells: 1, maxStations: 1, windowSeen: false, after: snap() };
+    A.eq(M.judgeCliAppClosed(cliOk).pass, true, 'the notice that starnet is STARTING the app is not a refusal — ' + M.judgeCliAppClosed(cliOk).reasons.join('|'));
+    const cliGood = Object.assign({}, cliOk, { cli: { code: 1, stdout: '', stderr: '· starting StarNet\nno model configured' } });
+    A.eq(M.judgeCliAppClosed(cliGood).pass, true, 'cli-app-closed passes: started in the background, one station, no window, quit after — ' + M.judgeCliAppClosed(cliGood).reasons.join('|'));
+    const refused = M.judgeCliAppClosed(Object.assign({}, cliGood, { cli: { code: 3, stdout: '', stderr: 'starnet: StarNet isn\'t running — open the StarNet app first (it holds your keys)' }, started: false, maxShells: 0, maxStations: 0 }));
+    A.ok(!refused.pass && refused.reasons.some((r) => /refused with the app closed/.test(r)) && refused.reasons.some((r) => /did not start it/.test(r)), 'the 0.14.0 refusal FAILS');
+    const lingering = M.judgeCliAppClosed(Object.assign({}, cliGood, { after: snap({ shell: [shell(200)], sidecar: [side(201)] }) }));
+    A.ok(!lingering.pass && lingering.reasons.some((r) => /did not quit once its last terminal session ended/.test(r)), 'a StarNet left running after the terminal is gone FAILS');
+    const windowed = M.judgeCliAppClosed(Object.assign({}, cliGood, { windowSeen: true }));
+    A.ok(!windowed.pass && windowed.reasons.some((r) => /must stay parked/.test(r)), 'a window shown for a terminal launch FAILS');
+    A.eq(M.judgeCliAppClosed(Object.assign({}, cliGood, { windowSeen: null })).pass, true, 'a platform that cannot see windows does not fail on them');
+    const neverRan = M.judgeCliAppClosed(Object.assign({}, cliGood, { appRan: false }));
+    A.ok(!neverRan.pass && neverRan.reasons.some((r) => /never run here/.test(r)), 'the case refuses to call a fresh profile proof of the app-closed path');
+  }
+
   // ---- the orchestrator against a scripted fake world
   // `world` models the installed app: launch spawns a shell (+ sidecar after a delay, + a window),
   // WM_CLOSE runs the shell's decision with the configured prefs. `zombie` reproduces the 0.10.x
   // escape: the idle close hides the window but never exits.
-  function fakeWorld({ zombie = false, windowlessResident = false } = {}) {
-    let t = 0; let nextPid = 100; let log = 'startup\n';
+  function fakeWorld({ zombie = false, windowlessResident = false, leakyKill = false, cliRefuses = false, cliLingers = false, freshProfile = false } = {}) {
+    let t = 0; let nextPid = 100; let log = freshProfile ? '' : 'startup\n';
     const procs = []; const windows = []; const prefs = { closeToTray: false };
-    const killed = []; const launches = [];
-    const spawnApp = () => {
+    const killed = []; const launches = []; const tickers = [];
+    const spawnApp = (background, terminalPid) => {
       const existing = procs.find((p) => p.name === 'skynet-desktop.exe');
       if (existing) { // single-instance: signal the resident, then bail
         launches.push('second');
@@ -168,10 +199,11 @@ const A = require('./_assert.js');
         if (w && !windowlessResident) w.visible = true;
         return nextPid++;
       }
-      launches.push('first');
+      launches.push(background ? 'background' : 'first');
       const pid = nextPid++;
       procs.push({ pid, name: 'skynet-desktop.exe', path: EXE, ppid: 1 });
-      windows.push({ hwnd: pid * 10, pid, visible: true, title: 'StarNet' });
+      if (background) log += `startup: started by starnet (--background, terminal pid ${terminalPid})\n`;
+      windows.push({ hwnd: pid * 10, pid, visible: !background, title: 'StarNet' });
       windows.push({ hwnd: pid * 10 + 1, pid, visible: true, title: 'ai.skynet.harness-siw' });
       const sp = nextPid++;
       procs.push({ pid: sp, name: 'node.exe', path: NODE, ppid: pid });
@@ -180,10 +212,10 @@ const A = require('./_assert.js');
     };
     const drivers = {
       now: () => t,
-      sleep: async (ms) => { t += ms; },
+      sleep: async (ms) => { t += ms; tickers.slice().forEach((f) => f()); },
       listProcesses: async () => procs.map((p) => Object.assign({}, p)),
       listWindows: async () => windows.map((w) => Object.assign({}, w)),
-      launch: async () => spawnApp(),
+      launch: async () => spawnApp(false),
       health: async (port) => procs.some((p) => p.name === 'node.exe' && 40000 + p.ppid === port),
       readStartupLog: async () => log,
       writePrefs: async (o) => { prefs.closeToTray = !!o.closeToTray; },
@@ -197,6 +229,42 @@ const A = require('./_assert.js');
         for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === shellPid || procs[i].ppid === shellPid) procs.splice(i, 1);
         for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === shellPid) windows.splice(i, 1);
       },
+      // the shell ALONE: a correct shell's job takes its sidecar with it; a leaky one leaves the sidecar orphaned
+      hardKill: async (pid) => {
+        killed.push(pid);
+        for (let i = procs.length - 1; i >= 0; i--) {
+          if (procs[i].pid === pid) procs.splice(i, 1);
+          else if (procs[i].ppid === pid && !leakyKill) procs.splice(i, 1);
+        }
+        for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === pid) windows.splice(i, 1);
+      },
+      // the installed CLI: starts the app in the background (or refuses, as 0.14.0 did), runs ~3 s, exits; the app then
+      // quits on its own (or lingers)
+      startCli: () => {
+        const cliPid = nextPid++;
+        procs.push({ pid: cliPid, name: 'node.exe', path: NODE, ppid: 1 });
+        const startedAt = t;
+        let resolve; const done = new Promise((r) => { resolve = r; });
+        if (cliRefuses) {
+          for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === cliPid) procs.splice(i, 1);
+          resolve({ code: 3, stdout: '', stderr: 'starnet: StarNet isn\'t running — open the StarNet app first (it holds your keys)' });
+          return { done };
+        }
+        const appPid = spawnApp(true, cliPid);
+        let ended = false;
+        tickers.push(() => {
+          if (ended || t - startedAt < 3000) return;
+          ended = true;
+          for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === cliPid) procs.splice(i, 1);
+          if (!cliLingers) {
+            for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === appPid || procs[i].ppid === appPid) procs.splice(i, 1);
+            for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === appPid) windows.splice(i, 1);
+          }
+          resolve({ code: 1, stdout: '', stderr: '· starting StarNet in the background\nno model configured' });
+        });
+        return { done };
+      },
+      stopCli: async () => {},
       exeVersion: async () => '0.10.7',
       fetchJson: async (url) => ({ version: '0.10.7', platforms: { 'windows-x86_64': { url, signature: 's' } } }),
       kill: async (pids) => {
@@ -215,12 +283,47 @@ const A = require('./_assert.js');
     const { drivers, state } = fakeWorld();
     const receipt = await M.runMatrix(drivers, ctx());
     A.eq(receipt.verdict, 'PASS', 'correct shell passes the full matrix — ' + JSON.stringify(receipt.cases.map((c) => [c.name, c.result, c.reasons])));
-    A.eq(receipt.cases.map((c) => c.name), ['idle-close', 'close-to-tray', 'updater-smoke'], 'all three cases ran in order');
+    A.eq(receipt.cases.map((c) => c.name), ['idle-close', 'close-to-tray', 'updater-smoke', 'kill-relaunch', 'cli-app-closed'], 'all five cases ran in order');
     A.eq(receipt.cases[0].branch, 'idle-quit', 'idle case proved the idle branch');
     A.eq(receipt.cases[1].branch, 'tray-preference', 'tray case proved the tray branch');
     A.eq(state.procs.length, 0, 'matrix leaves nothing running');
-    A.eq(state.launches, ['first', 'first', 'first', 'second'], 'launch sequence: boot, relaunch, tray boot, single-instance signal');
+    A.eq(state.launches, ['first', 'first', 'first', 'second', 'first', 'first', 'background'], 'launch sequence: boot, relaunch, tray boot, single-instance signal, kill boot, relaunch, the CLI\'s background start');
+    A.eq(receipt.cases[3].stationBefore.length, 1, 'kill-relaunch saw the one station before the kill');
     A.ok(typeof receipt.cases[0].timings.goneMs === 'number', 'timings recorded');
+  }
+  {
+    const { drivers } = fakeWorld({ leakyKill: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['kill-relaunch'] }));
+    A.eq(receipt.verdict, 'FAIL', 'a sidecar that outlives its hard-killed shell FAILS kill-relaunch (#31)');
+    A.ok(receipt.cases[0].reasons.some((r) => /orphan sidecar node after the shell was hard-killed/.test(r)), 'orphan reason: ' + receipt.cases[0].reasons.join('|'));
+  }
+  {
+    const { drivers } = fakeWorld({ cliRefuses: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['idle-close', 'cli-app-closed'] }));
+    A.eq(receipt.cases[1].result, 'FAIL', 'the 0.14.0 CLI that refuses with the app closed FAILS cli-app-closed');
+    A.ok(receipt.cases[1].reasons.some((r) => /refused with the app closed/.test(r)), 'refusal reason: ' + receipt.cases[1].reasons.join('|'));
+  }
+  {
+    const { drivers } = fakeWorld({ cliLingers: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['idle-close', 'cli-app-closed'] }));
+    A.eq(receipt.cases[1].result, 'FAIL', 'a StarNet that keeps running after its terminal left FAILS cli-app-closed');
+  }
+  {
+    const { drivers } = fakeWorld({ freshProfile: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['cli-app-closed'] }));
+    A.ok(receipt.cases[0].reasons.some((r) => /never run here/.test(r)), 'cli-app-closed on a profile where the app never ran is not proof (the 10-24 lesson)');
+  }
+  {
+    A.eq(M.MAC_CASES.slice(), ['kill-relaunch', 'cli-app-closed'], 'macOS runs the process-level cases only');
+    const mac = M.makeMacDrivers({ appDataDir: '/Users/r/Library/Application Support/ai.skynet.harness', installDir: '/Applications/StarNet.app/Contents/MacOS', exeName: 'StarNet' });
+    A.eq(mac.names, { shell: ['starnet'], sidecar: ['node'] }, 'the mac process names (no .exe)');
+    A.eq(mac.canSeeWindows, false, 'and it says it cannot see windows');
+    const c = M.classifyProcesses([
+      { pid: 1, name: 'StarNet', path: '/Applications/StarNet.app/Contents/MacOS/StarNet', ppid: 1 },
+      { pid: 2, name: 'node', path: '/Applications/StarNet.app/Contents/MacOS/node', ppid: 1 },
+      { pid: 3, name: 'node', path: '/usr/local/bin/node', ppid: 1 },
+    ], '/Applications/StarNet.app/Contents/MacOS', mac.names);
+    A.eq([c.shell.map((p) => p.pid), c.sidecar.map((p) => p.pid), c.foreign.map((p) => p.pid)], [[1], [2], [3]], 'mac classification by the bundle path');
   }
   {
     const { drivers } = fakeWorld({ zombie: true });
@@ -255,6 +358,11 @@ const A = require('./_assert.js');
     A.ok(/^name: g1-packaged-lifecycle$/m.test(yml), 'workflow is named g1-packaged-lifecycle');
     A.ok(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*tag:/.test(yml), 'workflow_dispatch exposes a `tag` input');
     A.ok(/runs-on: windows-latest/.test(yml), 'runs on a hosted Windows VM (fresh machine per run)');
+    A.ok(/runs-on: macos-latest/.test(yml), 'and a hosted macOS VM');
+    const macJob = yml.slice(yml.indexOf('lifecycle-macos:'));
+    A.ok(/gh release download[^\n]*--pattern '\*\.dmg'/.test(macJob) && /hdiutil attach/.test(macJob), 'the mac job installs the tag\'s own .dmg');
+    A.ok(/scripts\/qa\/packaged-lifecycle\.mjs/.test(macJob) && /--cases=kill-relaunch,cli-app-closed/.test(macJob), 'the mac job runs the process-level cases through the same runner');
+    A.ok(/kill-relaunch/.test(yml.slice(0, yml.indexOf('lifecycle-macos:'))), 'the Windows job runs kill-relaunch too');
     A.ok(/androoAGI\/starnet-releases/.test(yml), 'pulls the installer from the releases repo');
     A.ok(/gh release download \$env:TAG .*--pattern '\*-setup\.exe'/.test(yml), 'downloads the tag installer');
     A.ok(/-ArgumentList '\/S'/.test(yml), 'silent install');
