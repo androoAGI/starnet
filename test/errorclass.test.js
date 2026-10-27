@@ -410,4 +410,24 @@ const F = (err, status, opts) => friendlyError(err, status, opts);
   A.eq(R({ status: 429, code: 'insufficient_quota', message: 'x' }).reason, 'billing', 'the code form too');
 }
 
+/* A MODEL THIS ChatGPT ACCOUNT MAY NOT RUN (2026-10-27 report: four gpt-6-astra runs in four minutes, each read as
+   format_error -> "Something went wrong — try again"). The Codex backend refuses the model for the account; a resend is
+   refused the same way, so it is model_not_found: no retry, a configured fallback may answer. */
+{
+  const refusal = "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.";
+  // the codex.js adapter's exact shape: its own sentence, the parsed body kept for its code
+  const adapter = R(Object.assign(new Error('codex http 400 — ' + refusal), { status: 400, ownMessage: true, body: { error: { message: refusal } } }), { model: 'gpt-6-astra' });
+  A.eq(adapter.reason, 'model_not_found', 'a ChatGPT account refusing the model is model_not_found, not format_error');
+  A.eq(adapter.retryable, false, 'and never resent: the same request is refused again');
+  A.eq(adapter.shouldFallback, true, 'a configured fallback may still answer');
+  A.eq(adapter.unsupportedPart, false, 'the whole model is refused, not a part of the request');
+  A.eq(R(new Error(refusal)).reason, 'model_not_found', 'the same words with no status read the same');
+  // the status still wins where it proves something else
+  A.eq(R(Object.assign(new Error('codex http 401 — ' + refusal), { status: 401 })).reason, 'auth', 'a 401 stays the sign-in');
+  A.eq(R(Object.assign(new Error('codex http 503 — ' + refusal), { status: 503 })).reason, 'overloaded', 'a 503 stays transient');
+  // control: another 400 that says "not supported" keeps its verdict
+  A.eq(R(Object.assign(new Error("codex http 400 — Unsupported parameter: 'temperature' is not supported with this model."), { status: 400 })).reason, 'format_error',
+    'an unsupported PARAMETER is not the account refusing the model');
+}
+
 A.report('errorclass.test');

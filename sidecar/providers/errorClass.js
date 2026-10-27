@@ -270,6 +270,14 @@
   const NO_CREDIT_RE = /(?:doesn'?t|does not) have any credits|purchase (?:more )?credits|used all (?:of )?(?:its |your )?available credits|(?:reached|exceeded|hit) (?:its |your |the |their )?(?:monthly )?spending limit|insufficient[_ ]?(?:credit|funds|balance)|out of credits?|credit balance is too low|key limit exceeded/;
 
   const REGION_REFUSAL_RE = /unsupported_country_region_territory|country,? region,? or territory not supported|not available in your (?:country|region)/;
+  /* A MODEL THIS ChatGPT ACCOUNT MAY NOT RUN (2026-10-27 report: four gpt-6-astra runs on a ChatGPT sign-in). The Codex
+     backend answers 400 "The '<model>' model is not supported when using Codex with a ChatGPT account." when the signed-in
+     account has no access to that model, and its own /models list can name a model the account cannot run (openai/codex
+     access_programs.rs: "Discovery metadata does not grant access; inference still enforces authorization"). As
+     format_error it reached the user as "Something went wrong — try again" with a RETRY chip, and every retry was refused
+     the same way. The model is unavailable to this account: no resend, the model dock is the fix, and a configured
+     fallback may answer (model_not_found). Mirrored in frontend/app/friendlyerror.js — keep the two in step. */
+  const ACCOUNT_MODEL_REFUSED_RE = /model is not supported when using codex with a chatgpt account/;
   /* A MODEL THAT CANNOT SEE IMAGES was sent one (2026-10-23, StarNet Cloud logs: OpenRouter 404 "No endpoints found
      that support image input", 14 managed completions in two bursts). Resending the same request repeats the refusal,
      so it is never retryable; another model may see images, so a configured fallback is still worth taking
@@ -375,6 +383,8 @@
     //     the same request is refused again — never a malformed request to fold or a key to rotate
     //     (a 401 is always our credential: it stays auth whatever its text says)
     if (!transportStatus && status !== 401 && IMAGE_INPUT_REFUSED_RE.test(low)) return 'model_not_found';
+    // 1a'. a ChatGPT account the Codex backend will not serve this model to: the same request is refused again
+    if (!transportStatus && status !== 401 && ACCOUNT_MODEL_REFUSED_RE.test(low)) return 'model_not_found';
     // 1b. OUTPUT cap — BEFORE the overflow patterns, whose `maximum.*tokens` matches this refusal's wording and
     //     used to fold history for nothing, retry the identical max_tokens, and kill the run.
     if ((!status || status === 400 || status === 422) && parseOutputCap(low) > 0) return 'output_cap';

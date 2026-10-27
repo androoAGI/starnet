@@ -431,6 +431,14 @@
      "image_url is only supported by certain models" (400). */
   const IMAGE_INPUT_RE = /no endpoints found that support image input|(?:does not|doesn'?t|cannot|can'?t) (?:support|accept|take|handle) (?:image|vision)|image input (?:is )?(?:not supported|unsupported)|(?:images?|vision) (?:input )?(?:is |are )?not supported (?:by|for|on) (?:this|the) model|unknown variant `image_url`|image_url is only supported by certain models/;
   const IMAGE_INPUT_MSG = "This model can't see images — pick a vision model from the model dock in COMMS, then send again.";
+  /* mirrored from errorClass.js (ACCOUNT_MODEL_REFUSED_RE) — keep the two in step: the ChatGPT Codex backend refuses a model
+     this account may not run ("The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.", 2026-10-27),
+     and every retry is refused the same way. It read "Something went wrong — try again"; another model is the fix. */
+  const ACCOUNT_MODEL_RE = /model is not supported when using codex with a chatgpt account/;
+  function accountModelMessage(raw) {
+    const m = /the (['"])([a-z0-9][a-z0-9._/-]{0,119})\1 model is not supported when using codex/i.exec(String(raw || ''));
+    return "ChatGPT won't run " + (m ? m[2] : 'this model') + ' on your account — pick a different model from the model dock in COMMS.';
+  }
   /* mirrored from errorClass.js (namesUpstream): a 403 that names the UPSTREAM provider ("[…; provider xAI]" from the
      openai-compatible adapter, or OpenRouter's "Provider returned error") is that provider refusing this request — the
      router accepted our key (a rejected key is a 401 naming nobody). xai-403-1023. */
@@ -495,6 +503,8 @@
     const s = status || (low.match(/\b(?:http|status)\s+(\d{3})\b/) ? Number(RegExp.$1) : null);
     // an image refused by a model that cannot see it, whatever status carried it (errorClass.js reads it the same way)
     if (IMAGE_INPUT_RE.test(low) && s !== 401 && !(s === 429 || s === 408 || (s >= 500 && s < 600))) return 'model_not_found';
+    // a model this ChatGPT account may not run (errorClass.js ACCOUNT_MODEL_REFUSED_RE): a resend is refused again
+    if (ACCOUNT_MODEL_RE.test(low) && s !== 401 && !(s === 429 || s === 408 || (s >= 500 && s < 600))) return 'model_not_found';
     if (s) {
       // OUR OWN sidecar's token gate (crash+respawn → stale X-StarNet-Token): a "sidecar HTTP 403" throw or a
       // "forbidden token/origin/host" body means reload for the fresh boot token — never the provider-key door.
@@ -784,6 +794,10 @@
     // the model refused an IMAGE, not the request: say so, and the same model-dock door picks a vision model
     if (kind === 'model_not_found' && IMAGE_INPUT_RE.test(raw.toLowerCase())) {
       return { userMessage: IMAGE_INPUT_MSG, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
+    }
+    // ChatGPT refused the model for this account: name it, so the dock pick is obvious
+    if (kind === 'model_not_found' && ACCOUNT_MODEL_RE.test(raw.toLowerCase())) {
+      return { userMessage: accountModelMessage(raw), kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     return { userMessage: k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
   }
