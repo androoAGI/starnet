@@ -151,15 +151,21 @@ FunctionEnd
   Pop $0
   Sleep 400
 
-  ; 3. Anything else still running FROM the install directory: a bundled helper an orphaned older station left behind
-  ;    (node-pty's OpenConsole.exe, a renamed runtime) holds its own file open and stalls NSIS on "error opening file for
+  ; 3. Anything else still running from StarNet's OWN bundled folders: a helper an orphaned older station left behind
+  ;    (node-pty's OpenConsole.exe under node_modules) holds its own file open and stalls NSIS on "error opening file for
   ;    writing". A current shell's job already ended its station's tree with step 1; this is for what an older one left.
-  ;    Confined to images under $INSTDIR\ (never a prefix sibling); the folder arrives through the ENVIRONMENT, never pasted
-  ;    into the command (an apostrophe in the profile path broke a quoted literal — see the PATH hook below).
+  ;    ONLY the folders the app ships that can hold a program (tauri.conf.json bundle.resources: node_modules, sidecar,
+  ;    bin, shared), never the rest of $INSTDIR: the default install dir also holds the default WORKSPACES (agent-built
+  ;    programs, venvs), an install typed into a shared folder (D:\Apps) holds other apps, and the uninstaller itself runs
+  ;    IN PLACE as $INSTDIR\uninstall.exe when Tauri's "uninstall before installing" page runs it with _?= (killing it
+  ;    aborts that install with "unable to uninstall"). For the same reason this PowerShell's own ancestors (the installer
+  ;    or uninstaller running it) are never stopped, wherever they sit. A prefix sibling never matches (the trailing \).
+  ;    Each stop is printed to the install log. The folder arrives through the ENVIRONMENT, never pasted into the command
+  ;    (an apostrophe in the profile path broke a quoted literal — see the PATH hook below).
   ;    test/installer-stop-leftovers.test.js runs this exact line against planted processes.
   System::Call 'Kernel32::SetEnvironmentVariable(t "STARNET_INSTALL_DIR", t "$INSTDIR")'
   ; STARNET_STOP_LEFTOVERS
-  nsExec::ExecToLog '"$R9" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$d=$$env:STARNET_INSTALL_DIR; if (-not $$d) { exit }; $$d=$$d.TrimEnd($\'\$\') + $\'\$\'; Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"'
+  nsExec::ExecToLog '"$R9" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$d=$$env:STARNET_INSTALL_DIR; if (-not $$d) { exit }; $$d=$$d.TrimEnd($\'\$\')+$\'\$\'; $$own=$\'node_modules$\',$\'sidecar$\',$\'bin$\',$\'shared$\' | ForEach-Object { $$d+$$_+$\'\$\' }; $$all=@(Get-CimInstance Win32_Process); $$by=@{}; $$all | ForEach-Object { $$by[[int]$$_.ProcessId]=$$_ }; $$keep=@{}; $$i=[int]$$PID; while ($$i -and -not $$keep[$$i]) { $$keep[$$i]=1; $$i=[int]$$by[$$i].ParentProcessId }; $$all | Where-Object { $$x=[string]$$_.ExecutablePath; $$x -and -not $$keep[[int]$$_.ProcessId] -and ($$own | Where-Object { $$x.StartsWith($$_, [StringComparison]::OrdinalIgnoreCase) }) } | ForEach-Object { $\'StarNet: stopping $\' + $$_.ExecutablePath; Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"'
   Pop $0
   Sleep 300
 
