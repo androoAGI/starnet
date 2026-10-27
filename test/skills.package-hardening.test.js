@@ -117,6 +117,31 @@ const envelope = (files, meta) => packageFormat.toEnvelope(packageFormat.canonic
     A.eq(after.guardAction, 'ask', 'E: the support-file finding survives the edit (scanned decoded, not as base64)');
     A.eq(r.view('a', 'pdf-tools').summary, 'withheld', 'E: so the support file is still not delivered unapproved');
   }
+  // Imported support files retain their bytes after editing the installed skill.
+  {
+    const r = rig();
+    const ex = makeSkillExchange({ skillStore: r.store, packageStore: r.pk, guard, hash, now: () => 5000 });
+    const text = 'Read these notes: café, 中文.\n';
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0x00]);
+    const pv = await ex.inspectEnvelope({ envelope: envelope([
+      { path: 'SKILL.md', content: '---\nname: encoded-notes\ndescription: Notes.\n---\n1. read the notes' },
+      { path: 'references/notes.md', content: text },
+      { path: 'assets/sample.bin', content: binary.toString('base64'), encoding: 'base64' }
+    ]) });
+    const inst = ex.install({ agentId: 'a', inspectionId: pv.inspectionId });
+    const before = r.view('a', 'encoded-notes');
+    A.eq(before.summary, 'loaded encoded-notes', 'an imported benign skill loads');
+    A.ok(before.content.includes(text), 'skill.view decodes imported UTF-8 support text');
+    A.ok(before.content.includes('assets/sample.bin [base64]'), 'binary support content is labeled');
+    A.ok(before.content.includes(binary.toString('base64')), 'binary content remains lossless');
+    A.ok(r.store.manage({ agentId: 'a', action: 'patch', target: inst.skill.id, find: 'read the notes', replace: 'read all notes', createdBy: 'user' }).ok, 'editing the body succeeds');
+    const dir = r.pk.packageDir(inst.skill);
+    A.eq(fs.readFileSync(path.join(dir, 'references/notes.md'), 'utf8'), text, 'editing preserves UTF-8 bytes on disk');
+    A.ok(fs.readFileSync(path.join(dir, 'assets/sample.bin')).equals(binary), 'editing preserves binary bytes on disk');
+    const after = r.view('a', 'encoded-notes');
+    A.ok(after.content.includes(text), 'hydration after editing still delivers decoded text');
+    A.ok(after.content.includes(binary.toString('base64')), 'hydration after editing still delivers lossless binary content');
+  }
   // ---- F. rollback respects pinned ----
   {
     const r = rig();

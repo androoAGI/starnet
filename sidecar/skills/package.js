@@ -174,7 +174,7 @@ const catalog = require('./catalog.js');
     }
     function projectedFiles(skill) {
       const files = Array.isArray(skill.files) ? skill.files : [];
-      return files.map(f => ({ path: supportPath(f.path), content: str(f.content), updatedAt: f.updatedAt || 0 })).filter(f => f.path);
+      return files.map(f => ({ path: supportPath(f.path), content: str(f.content), encoding: f.encoding, updatedAt: f.updatedAt || 0 })).filter(f => f.path);
     }
     function writePackage(skill) {
       ensureDir(root);   // so insideRoot() can realpath the root itself — a root that does not exist yet would otherwise compare an unresolved path against resolved ones (fail-closed on any symlinked save dir)
@@ -196,7 +196,7 @@ const catalog = require('./catalog.js');
       }
       const s = Object.assign({}, skill, { files: projectedFiles(skill) });
       writeText(path.join(dir, 'SKILL.md'), renderSkillMd(s));
-      for (const f of s.files) writeText(path.join(dir, f.path), f.content);
+      for (const f of s.files) writeBytes(path.join(dir, f.path), Buffer.from(f.content, f.encoding === 'base64' ? 'base64' : 'utf8'));
       return dir;
     }
     /* Disk limits mirror what the store itself can hold (64 support files; 1 MiB per file and 4 MiB in all cover the
