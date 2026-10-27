@@ -920,7 +920,10 @@
     // reads, and Telegram would otherwise render one set of buttons per chunk of a long reply. Returns the final
     // chunk's messageId too, which is what a keyboard needs in order to be edited/stripped once it is tapped.
     async function deliver(chatId, text, runId, reason, agentId, sendOpts, seedId) {
-      const chunks = chunkText(text, maxMessageLength);
+      // `send` is what goes on the wire; `raw` rebuilds any undelivered REMAINDER (see chunkTextParts — joining the
+      // fence-doctored chunks bakes synthetic ``` markers into the stored text, re-fenced on every redelivery).
+      const parts = chunkTextParts(text, maxMessageLength);
+      const chunks = parts.send;
       let ok = true, failedAt = -1, messageId = '';
       // A message the stream already put in the chat. Chunk 0 REPLACES it rather than being sent again — that
       // replacement is the whole difference between "streamed" and "streamed, then repeated".
@@ -981,7 +984,7 @@
       let failurePersistError = null;
       if (mustPersistFailure) {
         try {
-          const remainder = '⌛ delayed reply — the channel was unreachable when this was first sent:\n' + chunks.slice(failedAt).join('');
+          const remainder = '⌛ delayed reply — the channel was unreachable when this was first sent:\n' + parts.raw.slice(failedAt).join('');
           store.pushOutbox({ channel: channel, chatId: String(chatId), text: remainder, runId: runId || '', agentId: agentId ? String(agentId) : '', reason: reason || '' });
           failurePersisted = true;
           scheduleOutboxRetry();
@@ -997,7 +1000,7 @@
       // replay sends this finished answer instead of running the message a second time.
       if (mustPersistFailure && !failurePersisted) {
         const err = new Error('failed reply could not be persisted: ' + ((failurePersistError && failurePersistError.message) || 'outbox unavailable'));
-        err.heldText = chunks.slice(failedAt).join('');
+        err.heldText = parts.raw.slice(failedAt).join('');
         throw err;
       }
       // `text` is the FINAL chunk's text — the one a keyboard was attached to, and therefore the exact string a

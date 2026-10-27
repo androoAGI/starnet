@@ -360,6 +360,42 @@ function mkHub(store, sendImpl, events) {
     hub.close();
   }
 
+  // ---- H3. deliver()'s OWN remainder (the outbox text and heldText) is rebuilt from RAW splits too ----
+  // H2 fixed the flush pass; deliver() itself still joined the fence-doctored send chunks, so the FIRST queueing of a
+  // long code reply baked reopenFences's synthetic ``` markers into the stored text (and into heldText, which the
+  // inbox replay sends verbatim) — the redelivery then re-fenced them (qw-channels-lines quick win 20).
+  {
+    const { chunkTextParts } = require('../sidecar/channels/hub.js');
+    const fencedText = 'intro line\n```\ncode a\ncode b\ncode c\ncode d\n```\nclosing prose';
+    const parts = chunkTextParts(fencedText, 24);
+    A.ok(parts.send.slice(1).join('') !== parts.raw.slice(1).join(''), 'fixture: the decorated tail differs from the raw tail');
+    const mk = (store, sendImpl) => makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store, send: sendImpl,
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: (() => { let n = 0; return () => 'h3run-' + (++n); })(),
+      sleep: () => Promise.resolve(), outboxRetryMs: 1e9, maxMessageLength: 24
+    });
+    // (a) the outbox item queued by deliver() carries the RAW tail under the delayed-reply header
+    const store = mkStore(memFs());
+    let calls = 0;
+    const hub = mk(store, async () => { calls++; return calls === 1 ? { ok: true, messageId: 'm1' } : { ok: false, error: 'blip', retryable: true }; });
+    const r = await hub._internals.deliver('h3', fencedText, 'r-h3', 'done', '');
+    A.eq(r.ok, false, 'fixture: the second chunk failed');
+    const queued = store.loadOutbox('telegram')[0];
+    A.ok(!!queued, 'the undelivered remainder is queued');
+    A.eq(queued.text.replace(/^⌛[^\n]*\n/, ''), parts.raw.slice(1).join(''), 'the queued remainder is the RAW tail — no synthetic fences baked in');
+    hub.close();
+    // (b) heldText (the outbox refused the remainder) is the RAW tail as well
+    const full = mkStore(memFs());
+    full.pushOutbox = () => { throw new Error('channel outbox is full'); };
+    let calls2 = 0;
+    const hub2 = mk(full, async () => { calls2++; return calls2 === 1 ? { ok: true, messageId: 'm1' } : { ok: false, error: 'blip', retryable: true }; });
+    let held = null;
+    try { await hub2._internals.deliver('h3b', fencedText, 'r-h3b', 'done', ''); } catch (e) { held = e && e.heldText; }
+    A.eq(held, parts.raw.slice(1).join(''), 'heldText is the RAW tail the replay will send verbatim');
+    hub2.close();
+  }
+
   // ---- I. a STALE recovery snapshot never replays a message that completed while recovery waited ----
   // Live-caught 2026-10-20 (sweep/channels): a follow-up typed while a task was running was steered into it AND
   // run again as its own task afterwards. The follow-up's ack delivery drained the outbox, whose "capacity is back"
