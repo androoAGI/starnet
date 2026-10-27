@@ -1538,7 +1538,11 @@ const App = (() => {
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;
       // a legacy stamp-less push still writes as before (backward compatible). Date.now() is monotonic-enough for
       // this last-write anti-clobber (mirrors save.js's own updatedAt stamp).
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents: list, updatedAt: Date.now() }) })
+      // saveRevision/saveClient (save-latch-kill): the station revision this crew view is built on and the window it writes as,
+      // so the station refuses a roster from a window behind it (another window or a merge wrote since) instead of letting
+      // the newest page clock win (sidecar handleRoster's revision check)
+      const base = (typeof CloudSave !== 'undefined' && CloudSave.revision && CloudSave.writerId) ? { saveRevision: CloudSave.revision(), saveClient: CloudSave.writerId() } : {};
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base)) })
         .then(async r => {
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);
           // EL-11 FIX 1: the sidecar answers REFUSALS as HTTP 200 { ok:false, ... } (degraded workspace /

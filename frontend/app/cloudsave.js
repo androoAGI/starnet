@@ -333,6 +333,9 @@ const CloudSave = (() => {
             if (!pending && docCacheFailed && doc === memoryDoc) cacheFailedConfirmed = true;
           }
           staleCatchUp = (body.ok === false && body.growthStale === true) ? requestRatingCatchUp() : null;
+          // the station FOLDED ratings this save lacked into it (sidecar/growth-fold.js): the save landed; this page's own view
+          // of growth catches up in the background (a failed catch-up retries on its own; the next save is folded again)
+          if (body.ok === true && body.growthFolded != null) { try { requestRatingCatchUp(); } catch (_) {} }
           if (body.ok === false) { cause = causeOf(r && r.status, body); throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown'))); }
         }
         if (!body || body.ok !== true) { cause = 'refused'; throw new Error('save acknowledgement missing'); }

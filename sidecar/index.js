@@ -106,7 +106,9 @@ const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUK
 const { makeSpotifyStore } = require('./spotify/store.js');               // Spotify OAuth (PKCE) token store + auto-refresh
 const spotifyPkce = require('./spotify/pkce.js');                          // pure PKCE helpers (verifier/challenge/urls)
 const { makeSaveStore } = require('./savestore.js');
-const SaveWire = require('./save-wire.js');   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
+const SaveWire = require('./save-wire.js');
+const GrowthFold = require('./growth-fold.js');   // a save that trails the rating ledger is folded forward, never refused (when the read is complete)
+const XpEngine = require('../frontend/app/xp.js');   // the pure growth engine the page folds ratings with — the same one, server-side   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
 const { mergeNotes } = require('./notebookrestore.js');
 const { makeRunStore } = require('./runstore.js');
 const { makeGrowthRatings, deriveRating: deriveGrowthRating } = require('./growthratings.js');
@@ -1613,7 +1615,13 @@ const runStore = makeRunStore({ io: runsIo, clock: { now: () => Date.now() }, co
 const GROWTH_RATINGS_FILE = path.join(WORKSPACES, 'growth-ratings.jsonl');
 const growthRatingsIo = {
   // This ledger decides first-wins XP authority. An unreadable file is unknown history, never empty history.
-  readAll() { return readBoundedJsonl(GROWTH_RATINGS_FILE); },
+  readAll() {
+    const rows = readBoundedJsonl(GROWTH_RATINGS_FILE);
+    // the bounded boot read keeps only the newest LOG_MAX_BYTES: say when it cut older lines, so the growth fold never claims
+    // ratings this store does not hold (growthratings.js gapTs; save-latch-kill)
+    try { loadBounded({ fs: fs, strict: true }, GROWTH_RATINGS_FILE, LOG_MAX_BYTES); } catch (e) { if (e && /truncated/.test(String(e.message))) rows.cutBefore = true; }
+    return rows;
+  },
   append(entry) {
     let fd = null;
     try {
@@ -2154,6 +2162,9 @@ const agentRosterRaw = new Map();
 // read by handleRoster's anti-clobber gate (mirrors savestore's updatedAt regression refusal). 0 until first
 // push/load — a legacy on-disk { version:1, agents } (no updatedAt) loads as 0, so any first write is accepted.
 let agentRosterUpdatedAt = 0;
+// save-latch-kill: the newest station revision a page's roster push was built on (POST /api/roster saveRevision), in the
+// envelope too, so a restart still refuses a push built on an older station view (handleRoster's revision check)
+let agentRosterSaveRevision = 0;
 const AGENT_ROSTER_FILE = path.join(WORKSPACES, 'agent.roster.json');
 // CREW = every roster agent other than the one running — the same rows the [ORCHESTRATION] "YOUR TEAM" list renders.
 function crewCountFor(agentId) { let n = 0; for (const aid of agentRoster.keys()) if (aid !== agentId) n++; return n; }
@@ -2196,6 +2207,7 @@ function loadAgentRoster() {
       // P1.1: adopt the stored envelope's updatedAt as the anti-clobber baseline. A LEGACY { version:1, agents }
       // file has no updatedAt → 0, so the first live push (whatever its stamp) is accepted (backward compatible).
       agentRosterUpdatedAt = Number(raw && raw.updatedAt) || 0;
+      agentRosterSaveRevision = Number.isInteger(raw && raw.saveRevision) && raw.saveRevision > 0 ? raw.saveRevision : 0;
     }
   } catch (_) {}
 }
@@ -2228,7 +2240,7 @@ function saveAgentRoster(updatedAt) {
     // clock so the envelope only ever moves forward. Legacy readers ignore the extra key harmlessly.
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
-    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, agents });   // fsync-durable + .bak last-known-good
+    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
@@ -18970,16 +18982,32 @@ async function handleRoster(req, res) {
   // P2.1: DEGRADED — this workspace was stamped by a NEWER StarNet. Refuse a destructive roster overwrite (the
   // route replaces the whole store) rather than corrupt data this code doesn't understand. Reads/runs are untouched.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  /* THE ROSTER'S REVISION CHECK (save-latch-kill; the roster was a second copy of the crew, last-write-wins on page clocks):
+     a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()) and the window it
+     writes as (saveClient). A push built on an OLDER station revision than the station file holds — another window or a
+     merge wrote since — is refused (behind), unless the station file's head is provably this window's own later save (its
+     ACK not heard yet: savestore head()); and never one older than a roster already taken from a newer station revision.
+     A push without saveRevision (the terminal's awaken, an older page) keeps only the stamp check above. */
+  const baseRevision = Number(body.saveRevision);
+  const hasBase = Number.isInteger(baseRevision) && baseRevision >= 0;
+  if (hasBase) {
+    let head = null;
+    try { head = saveStore.head('agent'); } catch (_) { head = null; }
+    const own = !!(head && head.client && typeof body.saveClient === 'string' && body.saveClient === head.client);
+    if ((head && !head.absent && baseRevision < head.revision && !own) || baseRevision < agentRosterSaveRevision)
+      return json(200, { ok: false, stale: true, behind: true, revision: head && !head.absent ? head.revision : agentRosterSaveRevision });
+  }
   const previousRoster = new Map(agentRoster);
   const previousRaw = new Map(agentRosterRaw);
-  const previousUpdatedAt = agentRosterUpdatedAt;
+  const previousUpdatedAt = agentRosterUpdatedAt, previousSaveRevision = agentRosterSaveRevision;
   replaceAgentRoster(body.agents);
+  if (hasBase) agentRosterSaveRevision = Math.max(agentRosterSaveRevision, baseRevision);
   if (!saveAgentRoster(hasStamp ? incomingUpdatedAt : undefined)) {
     // POST /api/roster replaces the whole live roster, so a rejected durable replace must also roll RAM back.
     // Otherwise the route lies with a session-only roster that disappears on restart.
     agentRoster.clear(); for (const [id, agent] of previousRoster) agentRoster.set(id, agent);
     agentRosterRaw.clear(); for (const [id, raw] of previousRaw) agentRosterRaw.set(id, raw);
-    agentRosterUpdatedAt = previousUpdatedAt;
+    agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
   json(200, { ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt });
@@ -27957,13 +27985,22 @@ async function handleSaveWrite(req, res) {
   // envelope shape through older code risks silent field loss). Reads (GET /api/save) still serve; runs continue.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
   // Once a rating is acknowledged, a stale tab without that ledger watermark may not replace the durable
-  // projection and temporarily erase XP. It can reload/replay the ledger, then save normally.
+  // projection and temporarily erase XP. The station FOLDS the ratings it lacks into it instead (below).
   const ratingSyncAt = Math.max(0, Number(body.stationStats && body.stationStats.ratingSyncAt) || 0);
   const growthEpoch = Math.max(1, Math.floor(Number(body.agent && body.agent.createdAt) || 1));
   let latestRatingAt;
   try { latestRatingAt = growthRatings.latestTs(growthEpoch); }
   catch (_) { return json(503, { ok: false, error: 'rating history unavailable', growthUnavailable: true }); }
-  if (latestRatingAt > ratingSyncAt) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
+  let growthFolded = null;
+  if (latestRatingAt > ratingSyncAt) {
+    // FOLDED, never refused, when the ledger can prove every rating since the save's watermark (growth-fold.js; starnet-
+    // releases#4 Blocker 2: one failed page catch-up used to freeze every save and block the update). Not provable: refused.
+    let folded = null;
+    try { if (typeof growthRatings.since === 'function') folded = GrowthFold.foldSave(body, growthRatings.since({ since: ratingSyncAt, through: latestRatingAt, epoch: growthEpoch }), XpEngine, latestRatingAt); }
+    catch (e) { folded = null; }
+    if (!folded) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
+    body = folded.doc; growthFolded = folded.applied;
+  }
   try {
     const result = saveStore.save(agentId, body, { compareRevision: true });
     // a memo seed is a cache refresh: it may never turn a landed save into an error reply
@@ -27971,7 +28008,8 @@ async function handleSaveWrite(req, res) {
     // the station save carries the page's deleted-session lists: the sidecar forgets a session the Commander deleted the
     // moment the save that deletes it lands (qa/bugs/3e926b6a). Never turns a landed save into an error reply.
     if (result && result.ok === true && agentId === 'agent') observeDeletedSessions(body);
-    json(200, result);
+    // growthFolded: the station applied that many ratings the save lacked (the page catches its own view up)
+    json(200, growthFolded != null ? Object.assign({}, result, { growthFolded, ratingSyncAt: latestRatingAt }) : result);
   } catch (e) {
     // a failed station-file write carries its errno: the page names the disk only for ENOSPC / EPERM / EACCES (save-wire.js)
     const failed = SaveWire.writeFailureReply(e);
