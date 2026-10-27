@@ -39,7 +39,8 @@ impl OwnedSidecar {
         self.job.as_ref().map(ProcessJob::end_leftovers).unwrap_or_default()
     }
 
-    /// Whether the station's tree is held by a job (what startup.log says about a spawn).
+    /// Whether the station's tree is held by a job.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn in_job(&self) -> bool {
         self.job.is_some()
     }

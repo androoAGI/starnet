@@ -31,6 +31,7 @@ use windows_sys::Win32::Foundation::HANDLE;
 
 /// One process the station's job still held when it was swept.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub struct Member {
     pub pid: u32,
     pub image: String,
@@ -48,6 +49,7 @@ pub struct Leftovers {
 }
 
 impl Leftovers {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_empty(&self) -> bool {
         self.ended.is_empty() && self.spared.is_empty() && self.failed.is_empty()
     }
@@ -72,7 +74,8 @@ impl Leftovers {
 }
 
 /// The station's Job Object. Dropping it closes the handle: with kill-on-close still set (no window was spared), the OS
-/// ends every member — exactly what a hard kill of the shell does.
+/// ends every member — exactly what a hard kill of the shell does. (Off Windows it is never created.)
+#[cfg_attr(not(windows), allow(dead_code))]
 pub struct ProcessJob {
     #[cfg(windows)]
     handle: HANDLE,
@@ -340,13 +343,22 @@ pub fn parse_breakaway_spec(hex: &str) -> Option<BreakawaySpec> {
 
 /// When this process was started as the breakaway launcher, run it and return the exit code to exit with.
 pub fn breakaway_main() -> Option<i32> {
-    let mut args = std::env::args_os().skip(1);
+    breakaway_main_from(std::env::args_os(), &run_breakaway)
+}
+
+/// The dispatch, on any argv: None unless the FIRST argument is exactly the flag — every other launch (a person
+/// opening StarNet, `--background`, an updater relaunch) goes on to start the app as always.
+pub fn breakaway_main_from(
+    argv: impl IntoIterator<Item = std::ffi::OsString>,
+    run: &dyn Fn(&BreakawaySpec) -> i32,
+) -> Option<i32> {
+    let mut args = argv.into_iter().skip(1);
     if args.next()?.to_str()? != BREAKAWAY_FLAG {
         return None;
     }
     let spec = args.next().and_then(|a| a.into_string().ok()).and_then(|hex| parse_breakaway_spec(&hex));
     Some(match spec {
-        Some(spec) => run_breakaway(&spec),
+        Some(spec) => run(&spec),
         None => {
             eprintln!("starnet-breakaway: unreadable launch spec");
             2
@@ -442,6 +454,25 @@ mod tests {
         assert!(parse_breakaway_spec(&hex(r#"{"file":"x","args":[1]}"#)).is_none(), "args are strings");
         assert!(parse_breakaway_spec(&hex("[]")).is_none());
         assert_eq!(decode_hex("4142"), Some(b"AB".to_vec()));
+    }
+
+    #[test]
+    fn only_the_exact_flag_first_makes_this_process_the_launcher() {
+        let os = |v: &[&str]| v.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
+        let ran = std::cell::Cell::new(0);
+        let run = |spec: &BreakawaySpec| {
+            ran.set(ran.get() + 1);
+            if spec.file == "resolve.exe" { 7 } else { 1 }
+        };
+        let spec = hex(r#"{"file":"resolve.exe"}"#);
+        assert_eq!(breakaway_main_from(os(&["skynet-desktop.exe", BREAKAWAY_FLAG, &spec]), &run), Some(7), "the launcher runs the spec and exits with its code");
+        assert_eq!(breakaway_main_from(os(&["skynet-desktop.exe", BREAKAWAY_FLAG, "zz"]), &run), Some(2), "an unreadable spec exits 2, never starts the app");
+        assert_eq!(breakaway_main_from(os(&["skynet-desktop.exe", BREAKAWAY_FLAG]), &run), Some(2), "no spec exits 2 too");
+        assert_eq!(ran.get(), 1, "only the readable spec ran anything");
+        for argv in [&["skynet-desktop.exe"][..], &["skynet-desktop.exe", "--background", "--terminal-pid", "42"], &["skynet-desktop.exe", "x", BREAKAWAY_FLAG, &spec], &["skynet-desktop.exe", "--starnet-breakaway2", &spec]] {
+            assert_eq!(breakaway_main_from(os(argv), &run), None, "{argv:?} starts the app as always");
+        }
+        assert_eq!(ran.get(), 1);
     }
 
     #[test]
