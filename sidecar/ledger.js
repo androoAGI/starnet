@@ -94,12 +94,21 @@
       pending.delete(id);
       return true;
     }
+    // An aux row (a housekeeping call's spend) is booked BESIDE a run, often under that run's id while it is still live
+    // (recall embeds land mid-run): it is never the run's own booking, so it never settles or fails the run's receipt.
+    // The host still hears of it (io.finishRun) to drop the row's own settlement journal.
     function finishRun(entry) {
-      pending.delete(entry.runId);
-      failedBookings.delete(entry.runId);
-      unsettled.delete(entry.runId);   // called only after a durable append: that row settles the run, as the next boot would read it
+      if (!entry.aux) {
+        pending.delete(entry.runId);
+        failedBookings.delete(entry.runId);
+        unsettled.delete(entry.runId);   // called only after a durable append: that row settles the run, as the next boot would read it
+      }
       if (typeof io.finishRun !== 'function') return;
       try { io.finishRun(entry); } catch (_) { /* durable ledger row proves settlement on next boot */ }
+    }
+    function bookingFailed(entry, e) {
+      if (!entry.aux) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); }
+      writeError = String((e && e.code) || 'ledger_write_failed');
     }
 
     function makeEntry(e) {
@@ -132,14 +141,14 @@
     function record(e) {
       const entry = makeEntry(e);
       rows.push(entry);
-      try { io.append(entry); finishRun(entry); } catch (e) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); writeError = String((e && e.code) || 'ledger_write_failed'); }
+      try { io.append(entry); finishRun(entry); } catch (e) { bookingFailed(entry, e); }
       return entry;
     }
 
     function recordStrict(e) {
       const entry = makeEntry(e);
       try { io.append(entry); }
-      catch (e) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); writeError = String((e && e.code) || 'ledger_write_failed'); throw e; }
+      catch (e) { bookingFailed(entry, e); throw e; }
       rows.push(entry);
       finishRun(entry);
       return entry;

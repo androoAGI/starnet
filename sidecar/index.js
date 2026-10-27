@@ -1312,7 +1312,9 @@ const ledgerIo = {
     let files;
     try { files = fs.readdirSync(SPEND_PENDING_DIR); }
     catch (e) { if (e.code === 'ENOENT') { listDamaged(); return rows; } throw e; }
-    const settled = new Set(rows.map(row => row.runId));
+    // Only a run's OWN row settles it. An aux row (housekeeping spend) can carry a live run's id — recall embeds book
+    // mid-run — so a crash after one must still leave that run's spend unknown, never read as fully booked.
+    const settled = new Set(rows.filter(row => !row.aux).map(row => row.runId));
     const receipts = files.filter(name => name.endsWith('.json')).map(file => ({ file, receipt: JSON.parse(fs.readFileSync(path.join(SPEND_PENDING_DIR, file), 'utf8')) }));
     // Settle completed entries before checking dispatch markers, independent of filesystem order.
     receipts.sort((a, b) => Number(!!(b.receipt && b.receipt.entry)) - Number(!!(a.receipt && a.receipt.entry)));
@@ -1323,7 +1325,10 @@ const ledgerIo = {
           typeof receipt.entry.usd === 'number' && Number.isFinite(receipt.entry.usd) && receipt.entry.usd >= 0) {
         const prior = rows.find(row => receipt.entry.entryId ? row.entryId === receipt.entry.entryId : JSON.stringify(row) === JSON.stringify(receipt.entry));
         if (prior && JSON.stringify(prior) !== JSON.stringify(receipt.entry)) throw Object.assign(new Error('Spend settlement receipt conflicts with ledger'), { code: 'SPEND_RECEIPT_CONFLICT' });
-        if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); settled.add(receipt.runId); }
+        if (!prior) { appendJsonlDurable({ fs, note: failNote }, LEDGER_FILE, receipt.entry); rows.push(receipt.entry); if (!receipt.entry.aux) settled.add(receipt.runId); }
+        // an aux row's journal is done once its row is in the ledger, whatever its run's own state: the run's
+        // dispatch receipt (if any) is reconciled on its own below
+        if (receipt.entry.aux) { fs.unlinkSync(path.join(SPEND_PENDING_DIR, file)); continue; }
       }
       // Damage, not an interrupted run: a receipt naming no run, or a settlement journal that could not be replayed.
       // Still fail the read (spend unknown) — there is no run for the Commander to settle.
@@ -1347,6 +1352,7 @@ const ledgerIo = {
   },
   finishRun(entry) {
     try { fs.unlinkSync(spendPendingPath('settlement:' + entry.entryId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (entry.aux) return;   // housekeeping spend booked beside a run (ledger.js finishRun): the run's dispatch receipt stays
     try { fs.unlinkSync(spendPendingPath(entry.runId)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
   },
   append(entry) {
