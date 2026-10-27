@@ -265,6 +265,7 @@ const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bo
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const StopReason = require('./stop-reason.js');   // plain-English stop sentences shared by channels/routines/loops
 const { makeChannelRegistry, wireChannel, unwireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { perFireStore } = require('./channels/fire-store.js');   // a one-job hub's turn history belongs to that job (quick win 27)
 const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
@@ -13264,7 +13265,9 @@ function getSampleHub() {
   sampleHub = makeChannelHub({
     channel: 'sample', maxMessageLength: 4000, agentPrefix: 'smp_', textBatchWaitMs: 0,
     ownerSurface: true,   // the Commander's own sample-crate route behind the launch token
-    runOnce: runOnce, store: channelStore,
+    // PER-JOB TURN HISTORY (quick win 27): chat 'sample' + the line + the dock is the same hop key on every test job, so over
+    // the real store each job's hops replayed every earlier job's hand-offs. The job's own map (sampleInFlight.turns) holds them.
+    runOnce: runOnce, store: perFireStore(channelStore, (agentId) => { const f = sampleInFlight; if (!f || !f.turns) return []; const k = String(agentId || ''); return f.turns[k] || (f.turns[k] = []); }),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     /* THE SAMPLE IS UNADDRESSED, EVERY TIME. This route's whole claim is "a REAL run on the REAL UNADDRESSED
        dispatch path" — the FILTER/SPLITTER must sort it. The hub's ordinary chat→agent bookkeeping saved a
@@ -13311,7 +13314,7 @@ async function runSampleJob(readArgs) {
     const age = Math.max(0, Math.round((Date.now() - sampleInFlight.startedAt) / 1000));
     return json(409, { ok: false, error: 'a sample job is already riding the line (started ' + age + 's ago) — wait for it to deliver.' });
   }
-  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now() };
+  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now(), turns: {} };   // turns: this job's hop history (perFireStore)
   try {
     let body = {};
     try { body = (await readArgs()) || {}; }
@@ -13600,9 +13603,7 @@ function makeTriggerHub(hooks) {
     runOnce: runOnce,
     // the channel store for chat/outbox bookkeeping, but per-agent TURN HISTORY is this fire's own (hooks.turns): a
     // trigger fire is one standalone job, so a later fire's hops never inherit an earlier fire's handoffs
-    store: new Proxy(channelStore, { get: (t, k) => k === 'loadHistory' ? (agentId) => hooks.turns(agentId).slice(-40)
-      : k === 'appendTurn' ? (agentId, role, content) => { hooks.turns(agentId).push({ role: role, content: content }); }
-      : k === 'clearHistory' ? () => {} : (typeof t[k] === 'function' ? t[k].bind(t) : t[k]) }),
+    store: perFireStore(channelStore, hooks.turns),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     bindChats: false,   // every fire is UNADDRESSED: the line's own doors decide the dock, never a remembered chat binding
     send: (chatId, text) => { hooks.send(text); return Promise.resolve({ ok: true }); },
