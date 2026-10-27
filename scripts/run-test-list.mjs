@@ -95,6 +95,11 @@ export function buildStepEnv(parentEnv, profile, platform) {
   env.LOCALAPPDATA = profile;
   env.XDG_DATA_HOME = profile;
   if (plat !== 'win32') env.HOME = profile;
+  // QUIET FLOOR: a booted sidecar checks the free Edge voice against Microsoft 15 s after it listens (media-service
+  // startFloorProbe). Most gate tests spawn sidecar/index.js directly, not through test/helpers/sidecar-fixture.js
+  // (which sets the same switch), so without this every one alive past 15 s made a live request — or logged a
+  // warning offline or in CI. A test that wants the probe sets it back in its own spawn env.
+  env.SKYNET_EDGE_TTS_PROBE = '0';
   return env;
 }
 
