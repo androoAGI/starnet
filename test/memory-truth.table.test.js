@@ -474,6 +474,12 @@ const NOTE_TABLE = [
     const at = ui.indexOf('function memCard(rec, a)');
     const card = ui.slice(at, ui.indexOf('\n  }\n', at));
     A.ok(at > 0 && /rec\.history/.test(card) && /'replaced: “' \+ h\.body/.test(card), 'the Memory Core card shows "replaced: …" under the belief (no new window, button or panel)');
+    // the run's COMMS receipt names what a supersession retired, on the existing "updated:" line (review 10-27)
+    const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
+    const rAt = chat.indexOf('function renderReceipts(batch)');
+    const receipts = chat.slice(rAt, chat.indexOf('\n  function ', rAt + 10));
+    const revised = receipts.slice(receipts.indexOf('if (prop.revised)'), receipts.indexOf('continue;', receipts.indexOf('if (prop.revised)')));
+    A.ok(rAt > 0 && /prop\.superseded/.test(revised) && /\(replaced '/.test(revised) && /s\.previous/.test(revised), 'the COMMS "updated:" receipt reads prop.superseded and names the retired text: ' + revised.slice(0, 160));
   }
 
   // the pure helpers the host's own writer reuses

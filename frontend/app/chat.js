@@ -5993,7 +5993,11 @@ const Chat = (() => {
       const text = document.createElement('span'); text.className = 'turnin-text';
       text.textContent = prop.replaceId ? 'Update remembered preference: “' + prop.previousBody + '” → “' + prop.content + '”' : prop.content;
       const btns = document.createElement('span'); btns.className = 'consent-btns';
-      item.appendChild(kind); item.appendChild(text); item.appendChild(btns);
+      item.appendChild(kind);
+      // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome) — the same
+      // "⚠ failed run" mark MEMORY > Awaiting your decision wears
+      if (prop.outcome === 'failed') { const f = document.createElement('span'); f.className = 'turnin-kind'; f.textContent = '⚠ failed run'; f.title = 'raised by a run that failed'; item.appendChild(f); }
+      item.appendChild(text); item.appendChild(btns);
       slot.appendChild(item);
 
       let decided = false;
@@ -6141,7 +6145,12 @@ const Chat = (() => {
       const text = document.createElement('span'); text.className = 'receipt-text'; text.textContent = prop.content;
       // an UPDATE replaced an existing memory's text (its old text is archived): say so, and offer no ✕ — forgetting
       // would delete the whole memory, not undo the update (Memory Core edits it)
-      if (prop.revised) { text.textContent = 'updated: ' + prop.content; item.appendChild(kind); item.appendChild(text); list.appendChild(item); continue; }
+      // a SUPERSESSION names what it retired (memory-truth-1027): the older belief left active recall, so the receipt says which
+      if (prop.revised) {
+        const was = (Array.isArray(prop.superseded) ? prop.superseded : []).map(s => '“' + String((s && s.previous) || '').replace(/\s+/g, ' ').slice(0, 120) + '”').filter(t => t.length > 2);
+        text.textContent = 'updated: ' + prop.content + (was.length ? ' (replaced ' + was.join(', ') + ')' : '');
+        item.appendChild(kind); item.appendChild(text); list.appendChild(item); continue;
+      }
       const veto = document.createElement('button'); veto.className = 'receipt-veto'; veto.type = 'button';
       veto.textContent = '✕'; veto.title = 'forget this — undo the save';
       veto.setAttribute('aria-label', 'forget this memory');

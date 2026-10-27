@@ -152,6 +152,12 @@ for (const kind of Object.keys(KIND_FACTS)) {
     const at = ui.indexOf('function pendingCard(p, a)');
     const card = ui.slice(at, ui.indexOf('\n  }\n', at));
     A.ok(at > 0 && /p\.outcome === 'failed' && p\.origin !== 'failure-review'/.test(card) && /ORIGIN_LABEL\['failure-review'\]/.test(card), 'the pending card marks a failed run\'s proposal with the "⚠ failed run" chip the failure review already wears');
+    // …and so does the COMMS Keep/Edit/Discard deck the run end raises (spec: "the deck can say from a failed run")
+    const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
+    const dAt = chat.indexOf('function renderTurninBatch(batch)');
+    const deck = chat.slice(dAt, chat.indexOf('\n  function ', dAt + 10));
+    const cur = deck.slice(deck.indexOf('function renderCurrent()'), deck.indexOf('slot.appendChild(item)', deck.indexOf('function renderCurrent()')));
+    A.ok(dAt > 0 && /prop\.outcome === 'failed'/.test(cur) && /'⚠ failed run'/.test(cur) && cur.indexOf("'⚠ failed run'") < cur.indexOf('item.appendChild(text)'), 'the COMMS deck card marks a proposal a failed run raised, beside its kind tag');
   }
   A.report('learning-eligibility.matrix');
 })().catch(e => { console.log('FAIL: threw ' + (e && e.stack || e)); process.exit(1); });
