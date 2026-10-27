@@ -13034,7 +13034,7 @@ if (require.main === module) {
      terminal) runs none of its stop code; the station notices on its own and shuts down cleanly, never orphaned. */
   try {
     const watch = require('./parent-watch.js').makeParentWatch({
-      onGone: (why) => { try { console.warn('  · ' + why + ' — shutting this station down'); } catch (_) {} gracefulShutdown('parent-gone'); }
+      onGone: (why) => { try { console.warn('  · ' + why + ' — shutting this station down'); } finally { gracefulShutdown('parent-gone'); } }
     }).start();
     if (watch.ignored) console.warn('  · parent watch: ' + watch.ignored);
   } catch (e) { failNote('shutdown.parent-watch', e); }

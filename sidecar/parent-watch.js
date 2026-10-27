@@ -23,6 +23,8 @@
      -> { start() -> { watching: [...], ignored?: reason }, check() -> reason | null, stop() } */
 'use strict';
 
+const { note: failNote } = require('./failopen.js');
+
 const DEFAULT_INTERVAL_MS = 2000;
 
 function envParentPid(env) {
@@ -46,7 +48,7 @@ function makeParentWatch(deps) {
     if (fired) return;
     fired = true;
     stop();
-    try { onGone(reason); } catch (_) {}
+    try { onGone(reason); } catch (e) { failNote('parent-watch.on-gone', e); }
   }
 
   // the owner named by STARNET_PARENT_PID: gone only on proof
@@ -87,8 +89,8 @@ function makeParentWatch(deps) {
   }
 
   function stop() {
-    if (timer) { try { clearIntervalFn(timer); } catch (_) {} timer = null; }
-    if (onDisconnect && typeof proc.removeListener === 'function') { try { proc.removeListener('disconnect', onDisconnect); } catch (_) {} }
+    if (timer) { try { clearIntervalFn(timer); } catch (e) { failNote('parent-watch.stop', e); } timer = null; }
+    if (onDisconnect && typeof proc.removeListener === 'function') { try { proc.removeListener('disconnect', onDisconnect); } catch (e) { failNote('parent-watch.stop', e); } }
     onDisconnect = null;
   }
 
