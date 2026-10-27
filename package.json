@@ -26,7 +26,6 @@
     "starnet": "bin/starnet.js"
   },
   "scripts": {
-    "validate:raw": "node test/validate_map.js",
     "test:http": "node scripts/timeout.mjs --label test:http --timeout=3600000 -- npm run test:http:raw",
     "test:http:raw": "node scripts/run-test-list.mjs test/http.list",
     "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=3000000 -- npm run test:fast:raw",
