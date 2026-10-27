@@ -10199,6 +10199,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const later = document.createElement('button'); later.className = 'bb'; later.textContent = 'Not now'; later.onclick = () => { dismissPreserved(offer); banner.remove(); };
     banner.append(label, restore, later); document.body.append(banner);
   }
+  /* WHY the newest save is not in the station file, from the cause CloudSave recorded for the last failed attempt
+     (CloudSaveCore.causeOf: what the station answered, or that it did not answer). The disk is named ONLY when the station
+     said ENOSPC (diskFull) or EPERM/EACCES (diskDenied) — every failure streak used to read "check disk space / folder
+     permissions" on machines with plenty of disk (10-26 audit, gh#121). */
+  function saveCauseWords(h) {
+    // one table (CloudSaveCore.describeCause), shared with the update drain's words
+    return (typeof CloudSaveCore !== 'undefined' && CloudSaveCore.describeCause) ? CloudSaveCore.describeCause(h && h.cause) : 'the station file has not confirmed it';
+  }
   function refreshSaveDurability(d) {
     d = d || $('#save-dot'); if (!d) return;
     let h = null;
@@ -10258,6 +10266,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         degradedNotified = true;
         try { notify('This station’s data was written by a newer StarNet — update the app. Until you do, your changes are NOT being backed up.', 'bad'); } catch (_) {}
       }
+    } else if (h && h.cause === 'tooLarge' && (h.consecutiveFailures || 0) > 0) {
+      // a save over the station file's 16 MiB cap (a named 413): retrying cannot land it, so it says so on the FIRST refusal,
+      // never "check disk space"
+      d.classList.add('degraded');
+      d.title = 'too large to save — this station is larger than the 16 MiB the station file takes, so your latest change is NOT saved. Local play continues; retrying will not land it.';
     } else if (h && h.cacheFailed) {
       // #121: the browser cache is full (its per-site cap), so every change rides on the station file alone. The words
       // follow the station file's confirmation of the NEWEST save, never the cache: amber while it is confirmed or on
@@ -10269,7 +10282,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         d.title = cache + ' — saving to the station file only. Your latest change is confirmed in the station file.';
       } else if ((h.consecutiveFailures || 0) > 0) {
         d.classList.add('degraded');
-        d.title = cache + ' and the station file has not confirmed your latest change — it is NOT saved. Keep StarNet open; it keeps retrying.';
+        d.title = cache + ' and the station file has not confirmed your latest change (' + saveCauseWords(h) + ') — it is NOT saved. Keep StarNet open; it keeps retrying.';
       } else {
         d.classList.add('stale');
         d.title = cache + ' — your latest change is NOT saved yet; it is on its way to the station file.';
@@ -10277,12 +10290,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     } else if (h && h.stale) {
       d.classList.add('stale');
       const since = h.lastPushOkAt ? new Date(h.lastPushOkAt).toLocaleString() : 'never';
-      d.title = 'world is saved locally; the durable backup copy hasn’t synced since ' + since;
+      d.title = 'world is saved locally; the durable backup copy hasn’t synced since ' + since + ' (' + saveCauseWords(h) + ')';
     } else if (h && h.warn) {
       // EL-11 FIX 4: a live streak of failed pushes (3+) warns IMMEDIATELY — no 60-minute blind window while
-      // POST /api/save errors (disk full / EPERM / refused). Same amber vocabulary as stale, advising title.
+      // POST /api/save errors. Same amber vocabulary as stale; the words name the cause the station gave (saveCauseWords).
       d.classList.add('stale');
-      d.title = 'saves are failing — check disk space / folder permissions (' + (h.consecutiveFailures || 0) + ' failed attempts in a row). Local play continues; the durable backup is not confirming writes.';
+      d.title = 'saves are failing — ' + saveCauseWords(h) + ' (' + (h.consecutiveFailures || 0) + ' failed attempts in a row). Local play continues; the durable backup is not confirming writes.';
     } else {
       d.title = 'autosave';
     }

@@ -1538,7 +1538,11 @@ const App = (() => {
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;
       // a legacy stamp-less push still writes as before (backward compatible). Date.now() is monotonic-enough for
       // this last-write anti-clobber (mirrors save.js's own updatedAt stamp).
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents: list, updatedAt: Date.now() }) })
+      // saveRevision/saveClient (save-latch-kill): the station revision this crew view is built on and the window it writes as,
+      // so the station refuses a roster from a window behind it (another window or a merge wrote since) instead of letting
+      // the newest page clock win (sidecar handleRoster's revision check)
+      const base = (typeof CloudSave !== 'undefined' && CloudSave.revision && CloudSave.writerId) ? { saveRevision: CloudSave.revision(), saveClient: CloudSave.writerId() } : {};
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base)) })
         .then(async r => {
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);
           // EL-11 FIX 1: the sidecar answers REFUSALS as HTTP 200 { ok:false, ... } (degraded workspace /
@@ -5978,6 +5982,9 @@ const App = (() => {
     // call site can adopt/re-save it), which would otherwise look like "no save" here and fall through to a fresh
     // create that clobbers the newer save on first persist(). Check the honest status BEFORE reconcile and stop:
     // the gate returns without ever touching the stored doc.
+    // THIS WINDOW'S CRASH JOURNAL first (cloudsave openJournal, save-latch-kill): the local save read below is this window's
+    // own — a dead window's it continues, never another live tab's — and every other dead window's unsent work is merged in
+    try { if (typeof CloudSave !== 'undefined' && CloudSave.openJournal) await CloudSave.openJournal(); } catch (_) {}
     const localStatus = Save.loadStatus ? Save.loadStatus() : { status: (Save.load() ? 'ok' : 'none'), version: 0 };
     if (localStatus.status === 'future') { showFutureSaveGate(localStatus.version); return; }
 
@@ -6021,7 +6028,11 @@ const App = (() => {
     const merge = (typeof CloudSave !== 'undefined' && CloudSave.mergeNotice) ? CloudSave.mergeNotice() : null;
     if (merge) {
       const n = merge.added + merge.extended + merge.copied, s = k => k === 1 ? '' : 's';
-      const line = merge.late
+      // inSession (save-latch-kill): another window saved first while this one was open; this window's refused save was merged
+      // in-session and the window reopened on the merge (cloudsave mergeInSession) — never a banner that will not clear
+      const line = merge.inSession
+        ? 'Another window saved station changes while this one was open, so this window’s changes were merged into the station file' + (n ? ' (' + n + ' session' + s(n) + ' from this window added)' : '') + ' and this window reopened on the merge.' + (merge.kept ? ' This window’s whole save from before is kept beside it as ' + merge.kept + '.' : '')
+        : merge.late
         ? 'Your unsent changes from last time were merged into the station file before this window opened. The station file from before is kept beside it.'
         : merge.base === 'window'
         ? 'Your newest changes from last time had not reached the station file; they are in it now' + (n ? ', with ' + n + ' session' + s(n) + ' only the station file held' : '') + '. The station file from before is kept as ' + (merge.backup || 'a backup beside it') + '.'
