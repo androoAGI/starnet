@@ -2,3 +2,18 @@
 # other step gets. A step here must also be on a gate list (test-list-completeness checks it).
 # Keep it honest: add a step with its measured time from a full run (`--timings=<file>` writes them), and say why
 # it is slow. A step that hangs is a bug to fix, not a step to list here.
+#
+# Measured on the full fast gate of 2026-10-27 (1425 steps in 25m33s on the Windows dev box, other sessions running).
+# Every step at or over 40 s is listed, so a 2-3x slowdown under load cannot turn a healthy step red.
+# qa-product-perfect-claims: clones the repo and inspects the claims authority — hit 120 s in the gate, 161 s standalone.
+test/qa-product-perfect-claims.test.js
+# stationbake.chunk: station bake chunking — 114.5 s.
+test/stationbake.chunk.test.js
+# cli-dashboard-drive: the real CLI dashboard driven by typed keys against a fake station — 87.7 s.
+test/cli-dashboard-drive.test.js
+# website-app-sync: runs scripts/sync-website-app.mjs --check over the whole frontend copy — 69.2 s.
+test/website-app-sync.test.js
+# ledger-reconcile: ends with a smoke of the real io shell against a throwaway git repo — 50.2 s.
+test/ledger-reconcile.test.js
+# browser: the browser automation contract suite — 42.6 s.
+test/browser.test.js
