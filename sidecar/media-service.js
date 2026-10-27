@@ -16,6 +16,14 @@ const STT_MAX_BYTES = 10 * 1024 * 1024;
 const STT_PROMPT = 'Transcribe this audio verbatim. Output ONLY the transcribed words, nothing else. If there is no speech, output nothing.';
 const STT_GROQ_MODEL = 'whisper-large-v3-turbo';
 const STT_OPENAI_MODEL = 'whisper-1';
+/* VERSIONED voice-cache keys (bug 81812888). Before 0efc04afe an Edge stream cut before turn.end was cached as a
+   whole clip under the full sentence's key and replayed cut in half for good. The fix stopped new truncations but
+   left every poisoned clip on disk, so each key now starts with a version segment: a clip written under an older
+   key is never read again, the sentence is synthesized whole, and the old file ages out of the LRU sweep. Bump a
+   segment whenever a leg could have cached audio the current code would not produce. local-kokoro/v2 is its own. */
+const VOICE_CACHE_EDGE = 'edge/v2';
+const VOICE_CACHE_KEYED = 'keyed/v2';
+const VOICE_CACHE_ELEVENLABS = 'elevenlabs/v2';
 
 let oggOpusDecoderModulePromise = null;
 
@@ -407,7 +415,7 @@ function makeMediaService(options) {
     if (!/^[A-Za-z0-9]{8,48}$/.test(voiceId)) return fallback('bad voiceId');
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(modelId)) return fallback('bad modelId');
     if (!key) return fallback('no elevenlabs key');
-    const cacheKey = crypto.createHash('sha1').update('elevenlabs/' + modelId + '|' + voiceId + '||' + text).digest('hex');
+    const cacheKey = crypto.createHash('sha1').update(VOICE_CACHE_ELEVENLABS + '|' + modelId + '|' + voiceId + '||' + text).digest('hex');
     try {
       const buf = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.mp3'));
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Cache': 'hit' });
@@ -455,7 +463,7 @@ function makeMediaService(options) {
 
     const serveEdge = async (edgeVoice, reasonPrefix) => {
       if (!edgetts.enabled()) return fallback(reasonPrefix ? reasonPrefix + '; edge floor disabled' : 'no key');
-      const cacheKey = crypto.createHash('sha1').update('edge|' + edgeVoice + '|' + text).digest('hex');
+      const cacheKey = crypto.createHash('sha1').update(VOICE_CACHE_EDGE + '|' + edgeVoice + '|' + text).digest('hex');
       try {
         const cached = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.mp3'));
         res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Provider': 'edge:' + edgeVoice, 'X-Voice-Cache': 'hit' });
@@ -523,8 +531,8 @@ function makeMediaService(options) {
     let keyedReason = '';
     if (ttsKey) {
       const cacheKey = ttsProvider === 'openai'
-        ? crypto.createHash('sha1').update('openai/' + OPENAI_TTS_MODEL + '|' + OPENAI_TTS_VOICE + '|' + style + '|' + text).digest('hex')
-        : crypto.createHash('sha1').update(model + '|' + voice + '|' + style + '|' + text).digest('hex');
+        ? crypto.createHash('sha1').update(VOICE_CACHE_KEYED + '|openai/' + OPENAI_TTS_MODEL + '|' + OPENAI_TTS_VOICE + '|' + style + '|' + text).digest('hex')
+        : crypto.createHash('sha1').update(VOICE_CACHE_KEYED + '|' + model + '|' + voice + '|' + style + '|' + text).digest('hex');
       for (const ext of ['wav', 'mp3']) {
         try {
           const cached = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.' + ext));
