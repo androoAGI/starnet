@@ -76,7 +76,10 @@ if (M.titleFor) {
   const app = read('frontend/app/app.js');
   const recruitDoor = A.fnBody(app, '  function openSummonBayWith(classSeed) {');
   A.ok(/intent: 'recruit'/.test(recruitDoor), 'the CREW › RECRUIT door (openSummonBay → openSummonBayWith) opens the bay with intent: recruit');
-  A.ok(/bbRecruit\.onclick = openSummonBay;/.test(app), 'and #bb-recruit is that door');
+  // sliced from the function that wires it (enterGame), never a match anywhere in app.js (review 10-27)
+  const wiring = A.fnBody(app, '  function enterGame(opts) {');
+  A.ok(wiring.length > 1000 && wiring.length < app.length / 2, 'app.js enterGame (the floor wiring) sliced');
+  A.ok(/bbRecruit\.onclick = openSummonBay;/.test(wiring), 'and #bb-recruit is that door (wired as the floor comes up)');
 }
 
 A.report('bay-intent');
