@@ -21,7 +21,7 @@ async function campaign(root, seed) {
     renderHistory:()=>paints++, replayChannel(){}, syncStatus(){}, maybeEmptyState(){}, pinLoadedHistoryAfterLayout(){},
     log:{innerHTML:''}, activeWs:w, historyPinSeq:5, historyPinPending:0, revealKey:'',
   });
-  const merge = A.fnBody(src,'function mergeCanonicalHistory(local, turns)');
+  const merge = A.fnBody(src,'function mergeCanonicalHistory(local, turns)')+'\n'+A.fnBody(src,'function placeSteerNotes(rows)');   // the read-back places mid-run notes after merging (comms-flow 10-26)
   const seam = src.slice(src.indexOf('  const historyLoads = new WeakMap();'), src.indexOf('\n  // swap the rendered conversation',src.indexOf('  const historyLoads = new WeakMap();')));
   assert.ok(seam.length>1000 && seam.length<12000, 'bounded production seam');
   vm.runInContext(merge+'\n'+seam+'\nthis.api={loadServerHistory,ensureHistoryReady,continuityDiagnostics};',context);
