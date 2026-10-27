@@ -1216,6 +1216,7 @@ test/overseer-ui.test.js
 test/overseer-pollgate.test.js
 test/workspace-owner-election.test.js
 test/process-identity.fixtures.test.js
+test/parent-watch.test.js
 test/project-home-ui.test.js
 test/cli.test.js
 test/cli.stop-child.test.js
