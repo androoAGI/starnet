@@ -11,14 +11,20 @@
 //! THE RULES, per process the station tree can hold:
 //!   - the sidecar, the station browser, MCP / LSP servers, agent shells and their background jobs, PTY terminals, CLI
 //!     provider processes (claude / codex), plugin workers: the STATION's. They are in the job, so they end with the shell
-//!     (KILL_ON_JOB_CLOSE) and with every stop of the sidecar (`end_leftovers`).
+//!     (KILL_ON_JOB_CLOSE) and with every stop of the sidecar (`end_leftovers`). The station's own windows — a window
+//!     shown by a DIRECT child of the sidecar, i.e. the station browser (browser.js spawns it) — are the station's too.
 //!   - an app the station opened ON PURPOSE for the person (desktop.open, a Resolve launch, a full-power shell command that
 //!     opens a window: sidecar/breakaway.js routes them through `--starnet-breakaway`): created with
 //!     CREATE_BREAKAWAY_FROM_JOB, so it is never in the job and survives everything, as an app the person opened would.
+//!   - a station program that opens something FOR the person (`claude auth login` starts the person's browser when it
+//!     is not running): launched TETHERED — outside the job, yet ended with its launcher (a cancel, a stop, a hard
+//!     kill); what it opened is in no job at all and lives on.
 //!   - anything else in the job that shows a window on the person's screen when the sidecar is stopped (an app opened some
-//!     other way, e.g. from a StarNet terminal): SPARED by `end_leftovers`, and the job's kill-on-close is released so it
-//!     survives the job's close. A crash of the shell itself cannot make that judgement: those die with it (stated, not
-//!     fixed — only a breakaway launch survives a crash).
+//!     other way, e.g. `code .` in a StarNet terminal): SPARED by `end_leftovers` WITH ITS WHOLE PROCESS TREE (a
+//!     multi-process app's renderers, GPU and extension hosts own no window of their own), and the job's kill-on-close is
+//!     released so that tree survives the job's close. "Shows a window" means a visible, uncloaked, non-tool top-level
+//!     window bigger than a helper's (or minimized). A crash of the shell itself cannot make that judgement: those die
+//!     with it (stated, not fixed — only a breakaway launch survives a crash).
 //!   - the update installer, folder / link openers and every other process the SHELL starts: never in the job (only the
 //!     sidecar is assigned), so a quit or an update never touches them.
 //!   - the `starnet` terminal: never the station's child, never in the job.
@@ -42,8 +48,9 @@ pub struct Member {
 pub struct Leftovers {
     /// windowless processes the stopped station left behind, ended
     pub ended: Vec<Member>,
-    /// processes showing a window on the person's screen, left running and released from the job
-    pub spared: Vec<Member>,
+    /// processes left running and released from the job, each with the PID whose window on the person's screen spared
+    /// it (itself, or the app it belongs to)
+    pub spared: Vec<(Member, u32)>,
     /// processes that could not be ended (already gone, access denied), with why
     pub failed: Vec<(Member, String)>,
 }
@@ -60,11 +67,18 @@ impl Leftovers {
         for m in &self.ended {
             out.push(format!("{what}: ended pid={} ({}) — left behind by the stopped station", m.pid, m.image));
         }
-        for m in &self.spared {
-            out.push(format!(
-                "{what}: spared pid={} ({}) — it shows a window on the user's screen; released from the station",
-                m.pid, m.image
-            ));
+        for (m, window) in &self.spared {
+            out.push(if *window == m.pid {
+                format!(
+                    "{what}: spared pid={} ({}) — it shows a window on the user's screen; released from the station",
+                    m.pid, m.image
+                )
+            } else {
+                format!(
+                    "{what}: spared pid={} ({}) — part of pid {window}'s app, which shows a window on the user's screen; released from the station",
+                    m.pid, m.image
+                )
+            });
         }
         for (m, why) in &self.failed {
             out.push(format!("{what}: could not end pid={} ({}) — {why}", m.pid, m.image));
@@ -191,29 +205,58 @@ impl ProcessJob {
         ok != 0 && inside != 0
     }
 
-    /// The station has stopped: end every member it left behind, except one showing a window on the person's screen,
-    /// which is spared — and then the job no longer kills on close, so dropping it leaves that window alone.
-    pub fn end_leftovers(&self) -> Leftovers {
+    /// The station has stopped: end every member it left behind, except an app showing a window on the person's
+    /// screen, which is spared with its whole process tree — and then the job no longer kills on close, so dropping it
+    /// leaves that app alone. `root` is the stopped sidecar: a window shown by its DIRECT child is the station's own (the
+    /// station browser) and spares nothing.
+    pub fn end_leftovers(&self, root: Option<StationRoot>) -> Leftovers {
         let windows = visible_window_pids();
-        self.end_leftovers_with(&|pid| windows.contains(&pid))
+        self.end_leftovers_with(root, &|pid| windows.contains(&pid))
     }
 
-    pub fn end_leftovers_with(&self, shows_window: &dyn Fn(u32) -> bool) -> Leftovers {
+    pub fn end_leftovers_with(&self, root: Option<StationRoot>, shows_window: &dyn Fn(u32) -> bool) -> Leftovers {
+        let mut out = Leftovers::default();
+        self.sweep(root, shows_window, &mut out);
+        if !out.spared.is_empty() {
+            // keep breakaway allowed, drop kill-on-close: the spared apps outlive this job's handle. Then sweep once
+            // more, so nothing the first pass could not see yet (started by a member it was ending) rides on that release.
+            let _ = self.set_limit_flags(windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_BREAKAWAY_OK);
+            self.sweep(root, shows_window, &mut out);
+        }
+        out
+    }
+
+    /// One pass: decide every current member (`spared_members`), end the rest. Records each PID once.
+    fn sweep(&self, root: Option<StationRoot>, shows_window: &dyn Fn(u32) -> bool, out: &mut Leftovers) {
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::JobObjects::IsProcessInJob;
         use windows_sys::Win32::System::Threading::{
             OpenProcess, TerminateProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
         };
-        let mut out = Leftovers::default();
         let own = std::process::id();
-        for pid in self.members() {
-            if pid == own {
-                continue;
-            }
+        let members: Vec<u32> = self.members().into_iter().filter(|pid| *pid != own).collect();
+        if members.is_empty() {
+            return;
+        }
+        // parent links and creation times for the whole list (no handle needed); none = only windows themselves count
+        let table: std::collections::HashMap<u32, (u32, u64)> = crate::process_identity::system_processes()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| (p.pid, (p.parent, p.created)))
+            .collect();
+        let spared = spared_members(&members, &table, root, shows_window);
+        let recorded = |out: &Leftovers, pid: u32| {
+            out.ended.iter().any(|m| m.pid == pid)
+                || out.spared.iter().any(|(m, _)| m.pid == pid)
+                || out.failed.iter().any(|(m, _)| m.pid == pid)
+        };
+        for pid in members {
             let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, pid) };
             if process.is_null() {
                 let error = std::io::Error::last_os_error();
-                out.failed.push((Member { pid, image: String::new() }, format!("could not open it ({error})")));
+                if !recorded(out, pid) {
+                    out.failed.push((Member { pid, image: String::new() }, format!("could not open it ({error})")));
+                }
                 continue;
             }
             let image = crate::process_identity::windows_image(process)
@@ -227,22 +270,71 @@ impl ProcessJob {
                 unsafe { CloseHandle(process) };
                 continue;
             }
-            if shows_window(pid) {
-                out.spared.push(member);
+            if let Some(window) = spared.get(&pid) {
+                if !recorded(out, pid) {
+                    out.spared.push((member, *window));
+                }
             } else if unsafe { TerminateProcess(process, 1) } != 0 {
-                out.ended.push(member);
+                if !recorded(out, pid) {
+                    out.ended.push(member);
+                }
             } else {
                 let error = std::io::Error::last_os_error();
-                out.failed.push((member, format!("TerminateProcess failed ({error})")));
+                if !recorded(out, pid) {
+                    out.failed.push((member, format!("TerminateProcess failed ({error})")));
+                }
             }
             unsafe { CloseHandle(process) };
         }
-        if !out.spared.is_empty() {
-            // keep breakaway allowed, drop kill-on-close: the spared windows outlive this job's handle
-            let _ = self.set_limit_flags(windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_BREAKAWAY_OK);
-        }
-        out
     }
+}
+
+/// The process the station's tree grew from — the sidecar — with its creation time (FILETIME ticks): a member is its
+/// direct child only when the member's recorded parent is that PID AND it was created after it (PIDs are reused).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StationRoot {
+    pub pid: u32,
+    pub created: u64,
+}
+
+/// Which members a stop spares, each with the PID whose window spares it. An ANCHOR is a member that shows a window on
+/// the person's screen, unless it is a direct child of the station root (the station's own window: its browser). Every
+/// member whose chain of parents reaches an anchor is spared with it — a multi-process app (a browser, VS Code, any
+/// Electron app) keeps its renderer, GPU and extension-host processes, which own no window themselves. A parent link
+/// counts only between two members, and only when the parent was created no later than the child (a PID reused by a
+/// newer process is not anyone's parent). `table` maps pid → (parent pid, creation time); a member missing from it has
+/// no known parent.
+#[cfg_attr(not(any(test, windows)), allow(dead_code))]
+pub fn spared_members(
+    members: &[u32],
+    table: &std::collections::HashMap<u32, (u32, u64)>,
+    root: Option<StationRoot>,
+    shows_window: &dyn Fn(u32) -> bool,
+) -> std::collections::HashMap<u32, u32> {
+    let member: std::collections::HashSet<u32> = members.iter().copied().collect();
+    let station_child = |pid: u32| {
+        root.zip(table.get(&pid)).is_some_and(|(r, (parent, created))| *parent == r.pid && *created >= r.created)
+    };
+    let anchor = |pid: u32| shows_window(pid) && !station_child(pid);
+    let mut out = std::collections::HashMap::new();
+    for &pid in members {
+        let mut at = pid;
+        for _ in 0..64 {
+            if anchor(at) {
+                out.insert(pid, at);
+                break;
+            }
+            let Some(&(parent, created)) = table.get(&at) else { break };
+            if parent == at || !member.contains(&parent) {
+                break;
+            }
+            match table.get(&parent) {
+                Some(&(_, parent_created)) if parent_created <= created => at = parent,
+                _ => break,
+            }
+        }
+    }
+    out
 }
 
 #[cfg(windows)]
@@ -261,20 +353,78 @@ impl ProcessJob {
     pub fn assign(&self, _child: &std::process::Child) -> std::io::Result<()> {
         Ok(())
     }
-    pub fn end_leftovers(&self) -> Leftovers {
+    pub fn end_leftovers(&self, _root: Option<StationRoot>) -> Leftovers {
         Leftovers::default()
     }
 }
 
-/// Every process that owns a visible top-level window right now.
+/// One top-level window, as far as "is it on the person's screen" goes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WindowFacts {
+    pub visible: bool,
+    /// DWM keeps it off screen (another virtual desktop, a suspended UWP frame)
+    pub cloaked: bool,
+    /// WS_EX_TOOLWINDOW: a helper's frame that never reaches the taskbar or Alt+Tab
+    pub tool: bool,
+    /// a layered window whose constant alpha is 0
+    pub transparent: bool,
+    pub minimized: bool,
+    pub width: i32,
+    pub height: i32,
+}
+
+/// The smallest window that counts as one the person works in — larger than a 16×16 or 32×32 helper frame (the
+/// 2026-10-25 desktop survey found the only visible-flagged windows of windowless helpers were 16×16 tool/transparent
+/// frames: an IsWindowVisible-only test spares them).
+pub const MIN_WINDOW_SIDE: i32 = 48;
+
+/// Does this window put its process on the person's screen? Visible, not cloaked, not a tool frame, not fully
+/// transparent, and either minimized (a minimized editor still holds unsaved work) or bigger than a helper's frame.
+pub fn counts_as_on_screen(w: &WindowFacts) -> bool {
+    w.visible
+        && !w.cloaked
+        && !w.tool
+        && !w.transparent
+        && (w.minimized || (w.width >= MIN_WINDOW_SIDE && w.height >= MIN_WINDOW_SIDE))
+}
+
+/// Every process that owns a top-level window on the person's screen right now (`counts_as_on_screen`).
 #[cfg(windows)]
 pub fn visible_window_pids() -> std::collections::HashSet<u32> {
     use windows_sys::core::BOOL;
-    use windows_sys::Win32::Foundation::{HWND, LPARAM};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId, IsWindowVisible};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
+    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetLayeredWindowAttributes, GetWindowLongW, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+        IsWindowVisible, GWL_EXSTYLE, LWA_ALPHA, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    };
     unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let set = unsafe { &mut *(lparam as *mut std::collections::HashSet<u32>) };
-        if unsafe { IsWindowVisible(hwnd) } != 0 {
+        if unsafe { IsWindowVisible(hwnd) } == 0 {
+            return 1;
+        }
+        let ex = unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) } as u32;
+        let mut cloaked = 0u32;
+        let cloak_read = unsafe {
+            DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED as u32, (&mut cloaked as *mut u32).cast(), std::mem::size_of::<u32>() as u32)
+        } >= 0;
+        let transparent = ex & WS_EX_LAYERED != 0 && {
+            let (mut key, mut alpha, mut flags) = (0u32, 255u8, 0u32);
+            let read = unsafe { GetLayeredWindowAttributes(hwnd, &mut key, &mut alpha, &mut flags) } != 0;
+            read && flags & LWA_ALPHA != 0 && alpha == 0
+        };
+        let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+        unsafe { GetWindowRect(hwnd, &mut rect) };
+        let facts = WindowFacts {
+            visible: true,
+            cloaked: cloak_read && cloaked != 0,
+            tool: ex & WS_EX_TOOLWINDOW != 0,
+            transparent,
+            minimized: unsafe { IsIconic(hwnd) } != 0,
+            width: rect.right - rect.left,
+            height: rect.bottom - rect.top,
+        };
+        if counts_as_on_screen(&facts) {
             let mut pid = 0u32;
             unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
             if pid != 0 {
@@ -298,6 +448,12 @@ pub fn visible_window_pids() -> std::collections::HashSet<u32> {
 // with the program's exit code, so the caller sees what it would have seen running the program directly. A job that
 // refuses breakaway (an outer job without BREAKAWAY_OK) still gets the program run, inside the job. Hex keeps the spec
 // clear of every quoting rule.
+//
+// TETHERED (`tether: true`): a program that is the station's own short-lived work but OPENS something for the person —
+// `claude auth login` starts the person's browser when it is not already running. Outside the station's job (so the
+// browser it opens is never the station's), yet tied to this launcher: it is placed in a job of its own that kills on
+// close and lets its children break away SILENTLY. Ending the launcher (a cancelled sign-in's taskkill, the station's
+// job closing on a hard kill) ends the program; what the program opened is in no job at all and lives on.
 
 pub const BREAKAWAY_FLAG: &str = "--starnet-breakaway";
 
@@ -307,6 +463,7 @@ pub struct BreakawaySpec {
     pub args: Vec<String>,
     pub verbatim: bool,
     pub hide: bool,
+    pub tether: bool,
 }
 
 pub fn decode_hex(hex: &str) -> Option<Vec<u8>> {
@@ -338,6 +495,7 @@ pub fn parse_breakaway_spec(hex: &str) -> Option<BreakawaySpec> {
         args,
         verbatim: value.get("verbatim").and_then(|v| v.as_bool()).unwrap_or(false),
         hide: value.get("hide").and_then(|v| v.as_bool()).unwrap_or(false),
+        tether: value.get("tether").and_then(|v| v.as_bool()).unwrap_or(false),
     })
 }
 
@@ -390,21 +548,39 @@ fn breakaway_command(spec: &BreakawaySpec, breakaway: bool) -> std::process::Com
     cmd
 }
 
+/// A job of the program's own: it dies when this launcher's handle closes, and whatever it starts silently breaks away.
+#[cfg(windows)]
+fn tether(child: &std::process::Child, file: &str) -> Option<ProcessJob> {
+    use windows_sys::Win32::System::JobObjects::{JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK};
+    let job = ProcessJob::with_limits(JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK);
+    match job.and_then(|job| job.assign(child).map(|()| job)) {
+        Ok(job) => Some(job),
+        Err(error) => {
+            eprintln!("starnet-breakaway: {file} runs untethered ({error})");
+            None
+        }
+    }
+}
+
 #[cfg(windows)]
 pub fn run_breakaway(spec: &BreakawaySpec) -> i32 {
     // ERROR_ACCESS_DENIED: a job above ours does not allow breakaway — run it anyway, inside
-    let child = match breakaway_command(spec, true).spawn() {
-        Err(error) if error.raw_os_error() == Some(5) => breakaway_command(spec, false).spawn(),
-        other => other,
+    let (child, broke_away) = match breakaway_command(spec, true).spawn() {
+        Err(error) if error.raw_os_error() == Some(5) => (breakaway_command(spec, false).spawn(), false),
+        other => (other, true),
     };
     match child {
-        Ok(mut child) => match child.wait() {
-            Ok(status) => status.code().unwrap_or(1),
-            Err(error) => {
-                eprintln!("starnet-breakaway: {error}");
-                1
+        Ok(mut child) => {
+            // held until the program exits: dropping it (this launcher ending, however) ends a tethered program
+            let _tether = if spec.tether && broke_away { tether(&child, &spec.file) } else { None };
+            match child.wait() {
+                Ok(status) => status.code().unwrap_or(1),
+                Err(error) => {
+                    eprintln!("starnet-breakaway: {error}");
+                    1
+                }
             }
-        },
+        }
         Err(error) => {
             eprintln!("starnet-breakaway: could not start {}: {error}", spec.file);
             // the code Node reports for a program that could not be found
@@ -447,7 +623,8 @@ mod tests {
         assert_eq!(spec.args, vec!["/d", "/s", "/c", "\"start \"\" notepad\""]);
         assert!(spec.verbatim && spec.hide);
         let bare = parse_breakaway_spec(&hex(r#"{"file":"resolve.exe"}"#)).unwrap();
-        assert!(bare.args.is_empty() && !bare.verbatim && !bare.hide);
+        assert!(bare.args.is_empty() && !bare.verbatim && !bare.hide && !bare.tether);
+        assert!(parse_breakaway_spec(&hex(r#"{"file":"claude.exe","tether":true}"#)).unwrap().tether);
         assert!(parse_breakaway_spec("zz").is_none(), "not hex");
         assert!(parse_breakaway_spec("abc").is_none(), "odd length");
         assert!(parse_breakaway_spec(&hex(r#"{"file":""}"#)).is_none(), "no program");
@@ -479,15 +656,95 @@ mod tests {
     fn leftover_lines_name_every_process() {
         let report = Leftovers {
             ended: vec![Member { pid: 10, image: "C:\\x\\node.exe".into() }],
-            spared: vec![Member { pid: 11, image: "C:\\Apps\\Resolve.exe".into() }],
+            spared: vec![
+                (Member { pid: 11, image: "C:\\Apps\\Code.exe".into() }, 11),
+                (Member { pid: 13, image: "C:\\Apps\\Code.exe".into() }, 11),
+            ],
             failed: vec![(Member { pid: 12, image: String::new() }, "could not open it".into())],
         };
         let lines = report.log_lines("station-stop");
-        assert_eq!(lines.len(), 3);
+        assert_eq!(lines.len(), 4);
         assert!(lines[0].contains("ended pid=10") && lines[0].contains("left behind"));
-        assert!(lines[1].contains("spared pid=11") && lines[1].contains("window"));
-        assert!(lines[2].contains("could not end pid=12"));
+        assert!(lines[1].contains("spared pid=11") && lines[1].contains("shows a window"));
+        assert!(lines[2].contains("spared pid=13") && lines[2].contains("part of pid 11's app"), "{}", lines[2]);
+        assert!(lines[3].contains("could not end pid=12"));
         assert!(Leftovers::default().is_empty());
+    }
+
+    /// The decision alone. Tree: station root 100 (created at 10) → 200 cmd (20) → 300 an editor's main process (30,
+    /// window) → 301 / 302 its helpers (31, 32) → 303 a helper's helper (33); root → 400 the station browser (40, window,
+    /// a DIRECT child) → 401 its renderer (41); root → 500 an MCP server (50); 700 (created at 25) names 300 as its
+    /// parent although 300 is NEWER (a reused PID: no link).
+    #[test]
+    fn a_window_spares_its_whole_tree_and_the_station_browser_spares_nothing() {
+        let table: std::collections::HashMap<u32, (u32, u64)> = [
+            (200, (100, 20)),
+            (300, (200, 30)),
+            (301, (300, 31)),
+            (302, (300, 32)),
+            (303, (301, 33)),
+            (400, (100, 40)),
+            (401, (400, 41)),
+            (500, (100, 50)),
+            (700, (300, 25)),
+        ]
+        .into_iter()
+        .collect();
+        let members = [200, 300, 301, 302, 303, 400, 401, 500, 700];
+        let root = Some(StationRoot { pid: 100, created: 10 });
+        let windows = |pid: u32| pid == 300 || pid == 400;
+        let mut got: Vec<(u32, u32)> = spared_members(&members, &table, root, &windows).into_iter().collect();
+        got.sort();
+        assert_eq!(got, vec![(300, 300), (301, 300), (302, 300), (303, 300)], "the editor and every helper under it, nothing else");
+        // without a station root the browser is just another window
+        let unrooted = spared_members(&members, &table, None, &windows);
+        assert!(unrooted.contains_key(&400) && unrooted.get(&401) == Some(&400), "{unrooted:?}");
+        // a root created AFTER the browser is not its parent (a reused root PID)
+        let late_root = spared_members(&members, &table, Some(StationRoot { pid: 100, created: 45 }), &windows);
+        assert!(late_root.contains_key(&400));
+        // a parent that is not a member links nothing
+        assert!(spared_members(&[301], &table, root, &windows).is_empty());
+        // a cycle in the table cannot spin
+        let cyclic: std::collections::HashMap<u32, (u32, u64)> = [(1, (2, 5)), (2, (1, 5))].into_iter().collect();
+        assert!(spared_members(&[1, 2], &cyclic, None, &|_| false).is_empty());
+    }
+
+    #[test]
+    fn only_a_real_window_puts_a_process_on_the_screen() {
+        let base = WindowFacts { visible: true, cloaked: false, tool: false, transparent: false, minimized: false, width: 800, height: 600 };
+        assert!(counts_as_on_screen(&base));
+        assert!(!counts_as_on_screen(&WindowFacts { visible: false, ..base }));
+        assert!(!counts_as_on_screen(&WindowFacts { cloaked: true, ..base }), "another virtual desktop's frame is DWM-cloaked");
+        assert!(!counts_as_on_screen(&WindowFacts { tool: true, ..base }), "a tool frame");
+        assert!(!counts_as_on_screen(&WindowFacts { transparent: true, ..base }), "fully transparent");
+        assert!(!counts_as_on_screen(&WindowFacts { width: 16, height: 16, ..base }), "the 16x16 helper frame of the desktop survey");
+        assert!(!counts_as_on_screen(&WindowFacts { width: 32, height: 32, ..base }));
+        assert!(counts_as_on_screen(&WindowFacts { minimized: true, width: 160, height: 28, ..base }), "a minimized editor still holds work");
+        assert!(!counts_as_on_screen(&WindowFacts { minimized: true, tool: true, ..base }));
+    }
+
+    /// The real window list: a 16x16 tool frame (a windowless helper's) does not put this process on the screen; an
+    /// ordinary 300x200 window does (created off screen, so no one sees it flash).
+    #[cfg(windows)]
+    #[test]
+    fn a_helper_frame_is_not_a_window_on_the_screen() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WS_EX_TOOLWINDOW, WS_POPUP, WS_VISIBLE};
+        let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+        let me = std::process::id();
+        let make = |ex: u32, x: i32, w: i32, h: i32| unsafe {
+            CreateWindowExW(ex, class.as_ptr(), std::ptr::null(), WS_POPUP | WS_VISIBLE, x, -20000, w, h, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null())
+        };
+        let helper = make(WS_EX_TOOLWINDOW, -20000, 16, 16);
+        assert!(!helper.is_null(), "a tool window");
+        assert!(!visible_window_pids().contains(&me), "a 16x16 tool frame does not count");
+        let real = make(0, -20000, 300, 200);
+        assert!(!real.is_null(), "a window");
+        let listed = visible_window_pids().contains(&me);
+        unsafe {
+            DestroyWindow(real);
+            DestroyWindow(helper);
+        }
+        assert!(listed, "an ordinary window does");
     }
 
     #[cfg(windows)]
@@ -528,6 +785,18 @@ mod tests {
         {
             Ok(_) => true,
             Err(error) => error.raw_os_error() != Some(5),
+        }
+    }
+
+    /// Ends the listed processes (and their trees) when dropped — also when an assertion fails first.
+    #[cfg(windows)]
+    struct KillOnDrop(Vec<u32>);
+    #[cfg(windows)]
+    impl Drop for KillOnDrop {
+        fn drop(&mut self) {
+            for p in &self.0 {
+                let _ = std::process::Command::new("taskkill").args(["/PID", &p.to_string(), "/T", "/F"]).output();
+            }
         }
     }
 
@@ -600,9 +869,9 @@ mod tests {
         job.assign(&windowless).unwrap();
         job.assign(&windowed).unwrap();
         let spared_pid = windowed.id();
-        let report = job.end_leftovers_with(&|pid| pid == spared_pid);
+        let report = job.end_leftovers_with(None, &|pid| pid == spared_pid);
         assert_eq!(report.ended.iter().map(|m| m.pid).collect::<Vec<_>>(), vec![windowless.id()], "{report:?}");
-        assert_eq!(report.spared.iter().map(|m| m.pid).collect::<Vec<_>>(), vec![spared_pid], "{report:?}");
+        assert_eq!(report.spared.iter().map(|(m, _)| m.pid).collect::<Vec<_>>(), vec![spared_pid], "{report:?}");
         assert!(report.ended[0].image.to_lowercase().ends_with("node.exe"), "the image is named: {report:?}");
         let _ = windowless.wait();
         drop(job);
@@ -617,8 +886,136 @@ mod tests {
     #[test]
     fn end_leftovers_of_an_empty_job_is_empty() {
         let job = ProcessJob::for_station().expect("job");
-        assert!(job.end_leftovers().is_empty());
+        assert!(job.end_leftovers(None).is_empty());
         assert!(job.members().is_empty());
+    }
+
+    /// Real processes, the shapes a stop meets. The "sidecar" (in the job) starts, each detached from Node's own job so
+    /// only this sweep decides them: an app behind cmd.exe (`code .` in a terminal) whose main process shows a window and
+    /// has a windowless helper of its own; a DIRECT child that shows a window (the station browser) with its own helper;
+    /// a windowless server. The sidecar is then terminated, as stop_station does. The app AND its helper are spared and
+    /// outlive the job's close; the browser, its helper, the server and cmd.exe are ended.
+    #[cfg(windows)]
+    #[test]
+    fn a_spared_app_keeps_its_helpers_and_the_station_browser_is_ended() {
+        use std::io::BufRead;
+        use std::os::windows::io::AsRawHandle;
+        let Some(node) = node_on_path() else {
+            eprintln!("node.exe not on PATH — nothing to prove here, skipping");
+            return;
+        };
+        let dir = std::env::temp_dir().join(format!("starnet-tree-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // app.js <out>: one windowless helper child, then writes {pid, helper} and idles
+        std::fs::write(
+            dir.join("app.js"),
+            r#"const c=require('child_process').spawn(process.execPath,['-e','setInterval(function(){},1000)'],{stdio:'ignore',windowsHide:true});
+require('fs').writeFileSync(process.argv[2], JSON.stringify({pid:process.pid, helper:c.pid}));
+setInterval(function(){},1000);"#,
+        )
+        .unwrap();
+        // sidecar.js <app.js> <a.json> <b.json>
+        std::fs::write(
+            dir.join("sidecar.js"),
+            r#"const cp=require('child_process');const [app,a,b]=process.argv.slice(2);
+const o={stdio:'ignore',windowsHide:true,detached:true};
+const cmd=cp.spawn('cmd.exe',['/d','/s','/c','""'+process.execPath+'" "'+app+'" "'+a+'""'],Object.assign({windowsVerbatimArguments:true},o));
+cp.spawn(process.execPath,[app,b],o);
+const sv=cp.spawn(process.execPath,['-e','setInterval(function(){},1000)'],o);
+console.log(JSON.stringify({cmd:cmd.pid,server:sv.pid}));setInterval(function(){},1000);"#,
+        )
+        .unwrap();
+        let (a, b) = (dir.join("a.json"), dir.join("b.json"));
+        let job = ProcessJob::for_station().expect("job");
+        let mut sidecar = std::process::Command::new(&node)
+            .arg(dir.join("sidecar.js"))
+            .arg(dir.join("app.js"))
+            .arg(&a)
+            .arg(&b)
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn");
+        job.assign(&sidecar).expect("assign");
+        let mut line = String::new();
+        std::io::BufReader::new(sidecar.stdout.take().unwrap()).read_line(&mut line).expect("pids");
+        let started: serde_json::Value = serde_json::from_str(line.trim()).expect("pid json");
+        let read = |p: &std::path::Path| std::fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+        assert!(wait_until(|| read(&a).is_some() && read(&b).is_some(), 15_000), "the app and the browser stand-in started");
+        let (app, browser) = (read(&a).unwrap(), read(&b).unwrap());
+        let pid = |v: &serde_json::Value, k: &str| v[k].as_u64().unwrap() as u32;
+        let (app_pid, app_helper, browser_pid, browser_helper) = (pid(&app, "pid"), pid(&app, "helper"), pid(&browser, "pid"), pid(&browser, "helper"));
+        let (cmd, server) = (pid(&started, "cmd"), pid(&started, "server"));
+        // a failed assertion must not leave the spared app behind (its image may be a file the next build replaces)
+        let _cleanup = KillOnDrop(vec![app_pid, app_helper, browser_pid, browser_helper, cmd, server]);
+        for p in [app_pid, app_helper, browser_pid, browser_helper, cmd, server] {
+            assert!(job.contains(p), "pid {p} is in the station job");
+        }
+        let root = StationRoot {
+            pid: sidecar.id(),
+            created: crate::process_identity::windows_created(sidecar.as_raw_handle() as HANDLE).expect("root created"),
+        };
+        let _ = sidecar.kill();
+        let _ = sidecar.wait();
+        let report = job.end_leftovers_with(Some(root), &|p| p == app_pid || p == browser_pid);
+        let spared: std::collections::HashMap<u32, u32> = report.spared.iter().map(|(m, w)| (m.pid, *w)).collect();
+        assert_eq!(spared.get(&app_pid), Some(&app_pid), "the app is spared for its own window: {report:?}");
+        assert_eq!(spared.get(&app_helper), Some(&app_pid), "its windowless helper is spared with it: {report:?}");
+        // anything else spared is part of the app's tree too (a console host Windows attached to it)
+        assert!(spared.values().all(|w| *w == app_pid), "nothing is spared for the station browser's window: {report:?}");
+        let ended = [browser_pid, browser_helper, cmd, server];
+        assert!(ended.iter().all(|p| !spared.contains_key(p)), "the browser, its helper, cmd and the server are not spared: {report:?}");
+        assert!(wait_until(|| ended.iter().all(|p| !alive(*p)), 5000), "the browser, its helper, cmd and the server are gone: {report:?}");
+        drop(job);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert!(alive(app_pid) && alive(app_helper), "the spared app keeps its helper past the job's close");
+        drop(_cleanup);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A TETHERED program (`claude auth login`'s shape): outside the station job, ended with its launcher, while what it
+    /// opens (a detached child: the person's browser) is in no job and lives on. Needs breakaway, which `cargo test`'s own
+    /// job forbids: run the test binary directly to prove it.
+    #[cfg(windows)]
+    #[test]
+    fn a_tethered_program_ends_with_its_launcher_and_what_it_opens_lives_on() {
+        let Some(node) = node_on_path() else {
+            eprintln!("node.exe not on PATH — nothing to prove here, skipping");
+            return;
+        };
+        if !breakaway_possible_here() {
+            eprintln!("this test process sits in a job that forbids breakaway (cargo test does that): run the test binary directly to prove the tether");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("starnet-tether-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (prog_out, opened_out) = (dir.join("prog.pid"), dir.join("opened.pid"));
+        let script = format!(
+            "const cp=require('child_process'),fs=require('fs');const o=cp.spawn(process.execPath,['-e','setInterval(function(){{}},1000)'],{{detached:true,stdio:'ignore',windowsHide:true}});o.unref();fs.writeFileSync({:?},String(o.pid));fs.writeFileSync({:?},String(process.pid));setInterval(function(){{}},1000);",
+            opened_out.to_string_lossy(),
+            prog_out.to_string_lossy()
+        );
+        let spec = serde_json::json!({ "file": node.to_string_lossy(), "args": ["-e", script], "hide": true, "tether": true }).to_string();
+        let job = ProcessJob::for_station().unwrap();
+        let mut launcher = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "process_job::tests::breakaway_launcher_child", "--nocapture", "--test-threads=1"])
+            .env("STARNET_TEST_BREAKAWAY_SPEC", hex(&spec))
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        job.assign(&launcher).unwrap();
+        let read = |p: &std::path::Path| std::fs::read_to_string(p).ok().and_then(|s| s.trim().parse::<u32>().ok());
+        assert!(wait_until(|| read(&prog_out).is_some() && read(&opened_out).is_some(), 15_000), "the program ran and opened");
+        let (prog, opened) = (read(&prog_out).unwrap(), read(&opened_out).unwrap());
+        let _cleanup = KillOnDrop(vec![prog, opened]);
+        assert!(!job.contains(prog) && !job.contains(opened), "neither is in the station job");
+        let _ = launcher.kill();
+        let _ = launcher.wait();
+        assert!(wait_until(|| !alive(prog), 5000), "the tethered program ended with its launcher");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(alive(opened), "what it opened lives on");
+        drop(_cleanup);
+        drop(job);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// The launcher itself, run by `breakaway_runs_a_program_outside_the_station_job` below as a child process (this

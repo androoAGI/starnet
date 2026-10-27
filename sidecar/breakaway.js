@@ -12,13 +12,18 @@
 
    THE ALLOWLIST (who calls this, and nobody else): desktop.open (an URL or app on the person's screen), the Resolve
    launch, and a full-power shell command that opens a window (shell.js opensVisibleWindow: `start`, `explorer`,
-   rundll32 url.dll, a headed browser). Everything else stays the station's.
+   rundll32 url.dll, a headed browser). TETHERED (`{ tether: true }`): a station program that opens something for the
+   person — `claude auth login` (providers/claude-cli-login.js) starts the person's browser when it is not running.
+   It runs outside the job too, but in a kill-on-close job of its own held by the launcher, whose children break away
+   silently: ending the launcher (a cancel's taskkill, the station's job on a hard kill) ends the program, and what it
+   opened (the browser) is in no job at all. Everything else stays the station's.
 
    makeBreakaway({ env?, platform? }) -> {
      available: bool,
-     wrap(file, args, options) -> { file, args, options, brokered }   the spawn call to make instead (spawn semantics,
-                                    including `shell: true` the way Node itself translates it for cmd.exe)
-     spawnVia(spawn) -> spawn-like                                    the same, as a drop-in for spawn(file, args?, options)
+     wrap(file, args, options, how?) -> { file, args, options, brokered }   the spawn call to make instead (spawn
+                                    semantics, including `shell: true` the way Node itself translates it for cmd.exe);
+                                    how = { tether: true } for the tethered form
+     spawnVia(spawn, how?) -> spawn-like                              the same, as a drop-in for spawn(file, args?, options)
    } */
 'use strict';
 
@@ -35,7 +40,7 @@ function makeBreakaway(deps) {
   const platform = String(d.platform || process.platform);
   const exe = platform === 'win32' ? launcherExe(env) : '';
 
-  function wrap(file, args, options) {
+  function wrap(file, args, options, how) {
     const opts = Object.assign({}, options || {});
     const list = Array.isArray(args) ? args.map(String) : [];
     if (!exe) return { file, args: Array.isArray(args) ? args : undefined, options: options, brokered: false };
@@ -49,16 +54,17 @@ function makeBreakaway(deps) {
       else argv = ['-c', command];
     }
     const spec = { file: program, args: argv, verbatim, hide: !!opts.windowsHide };
+    if (how && how.tether) spec.tether = true;
     delete opts.shell;
     opts.windowsVerbatimArguments = false;
     return { file: exe, args: [FLAG, Buffer.from(JSON.stringify(spec), 'utf8').toString('hex')], options: opts, brokered: true };
   }
 
-  function spawnVia(spawn) {
+  function spawnVia(spawn, how) {
     if (!exe) return spawn;
     return function brokeredSpawn(file, args, options) {
       if (!Array.isArray(args)) { options = args; args = []; }
-      const w = wrap(file, args, options);
+      const w = wrap(file, args, options, how);
       return spawn(w.file, w.args, w.options);
     };
   }
@@ -66,7 +72,7 @@ function makeBreakaway(deps) {
   return { available: !!exe, exe, wrap, spawnVia };
 }
 
-/* The spec back out of a launcher call (tests, logs): { file, args, verbatim, hide } | null */
+/* The spec back out of a launcher call (tests, logs): { file, args, verbatim, hide, tether? } | null */
 function decodeSpec(args) {
   const a = Array.isArray(args) ? args : [];
   if (a[0] !== FLAG || typeof a[1] !== 'string') return null;

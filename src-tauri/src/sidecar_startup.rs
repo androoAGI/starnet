@@ -10,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 use std::process::{Child, ChildStderr, ChildStdout, Command};
 use std::sync::Mutex;
 
-use crate::process_job::{Leftovers, ProcessJob};
+use crate::process_job::{Leftovers, ProcessJob, StationRoot};
 
 /// The sidecar process and the job holding everything it starts (None off Windows, or when assignment failed).
 #[derive(Debug)]
@@ -33,10 +33,27 @@ impl DerefMut for OwnedSidecar {
 }
 
 impl OwnedSidecar {
-    /// The sidecar has stopped: end every process it left in its job, sparing one that shows a window on the user's
-    /// screen (process_job.rs end_leftovers). Safe to call again; a later call finds only what it spared.
+    /// The sidecar has stopped: end every process it left in its job, sparing an app that shows a window on the user's
+    /// screen, with its whole tree (process_job.rs end_leftovers). The sidecar is the tree's root: a window its DIRECT
+    /// child shows is the station's own (its browser). Safe to call again; a later call finds only what it spared.
     pub(crate) fn end_leftovers(&self) -> Leftovers {
-        self.job.as_ref().map(ProcessJob::end_leftovers).unwrap_or_default()
+        let root = self.root();
+        self.job.as_ref().map(|job| job.end_leftovers(root)).unwrap_or_default()
+    }
+
+    /// The sidecar's PID with its creation time (read through the handle this slot still holds, so it answers even
+    /// after the sidecar exited).
+    fn root(&self) -> Option<StationRoot> {
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::AsRawHandle;
+            crate::process_identity::windows_created(self.child.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE)
+                .map(|created| StationRoot { pid: self.child.id(), created })
+        }
+        #[cfg(not(windows))]
+        {
+            None
+        }
     }
 
     /// Whether the station's tree is held by a job.

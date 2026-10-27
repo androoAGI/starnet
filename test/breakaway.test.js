@@ -10,7 +10,10 @@
         `shell: true` translated the way Node translates it for cmd.exe, windowsHide carried as `hide`.
      2. the ALLOWLIST is wired and nothing else is: desktop.open's opener runs through it; a full-power shell command
         that opens a window (`start`, `explorer`, …) runs through it; an ordinary command does not; a restricted run
-        never gets that far (refused). The Resolve launch uses it too (source lock, sliced to the launch). */
+        never gets that far (refused). The Resolve launch uses it too (source lock, sliced to the launch).
+     3. (2d) Sign in with Claude: `claude auth login` starts the person's browser when none is running, so it runs
+        TETHERED — outside the job, ended with its launcher (the Rust test proves the tether with real processes), the
+        browser in no job. No launcher named: spawned directly, as before. */
 const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
@@ -119,6 +122,49 @@ function fakeChild(out, code) {
     const resolve = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'resolve.js'), 'utf8');
     const launch = resolve.slice(resolve.indexOf("if (action === 'launch') {"), resolve.indexOf("if (action === 'import_media') {"));
     A.ok(/breakawaySpawn\(app, \[\]/.test(launch) && !/[^y]spawn\(app/.test(launch), 'the Resolve launch runs through the launcher, never a plain spawn');
+  }
+
+  // ---- 2d. `claude auth login` (Sign in with Claude) runs TETHERED: the browser it opens is never the station's ----
+  {
+    const tethered = makeBreakaway({ env: winEnv, platform: 'win32' }).wrap('claude.exe', ['auth', 'login'], { windowsHide: true }, { tether: true });
+    A.eq(decodeSpec(tethered.args), { file: 'claude.exe', args: ['auth', 'login'], verbatim: false, hide: true, tether: true }, 'the tethered form carries tether in its spec');
+    A.ok(!('tether' in decodeSpec(makeBreakaway({ env: winEnv, platform: 'win32' }).wrap('x.exe', [], {}).args)), 'the plain form never does');
+
+    const { makeClaudeCliLogin } = require('../sidecar/providers/claude-cli-login.js');
+    const os = require('os');
+    const loginWith = env => {
+      const spawned = [];
+      const host = {
+        env, platform: 'win32', os,
+        command: () => ({ file: 'C:\\Users\\x\\.local\\bin\\claude.exe', pre: [] }),
+        childEnv: () => ({ PATH: 'x' }),
+        notInstalled: () => new Error('not installed'),
+        authStatus: async () => ({ installed: true, loggedIn: false }),
+        killTree: () => {},
+        spawn: (file, args, opts) => {
+          spawned.push({ file, args, opts });
+          const c = new EventEmitter();
+          c.pid = 99; c.stdin = new EventEmitter(); c.stdin.write = () => true;
+          c.stdout = new EventEmitter(); c.stderr = new EventEmitter();
+          c.stdout.setEncoding = () => {}; c.stderr.setEncoding = () => {};
+          setImmediate(() => c.stdout.emit('data', 'open https://claude.ai/oauth/authorize?code=x\n'));
+          return c;
+        }
+      };
+      return { login: makeClaudeCliLogin({ host, urlWaitMs: 2000, ttlMs: 60000 }), spawned };
+    };
+    const shellRun = loginWith(winEnv);
+    const started = await shellRun.login.start();
+    A.eq(started.status, 'pending', 'the sign-in starts as before: ' + JSON.stringify(started));
+    const s0 = shellRun.spawned[0] || {};
+    A.eq(s0.file, LAUNCHER, 'under the desktop shell the login CLI starts through the launcher');
+    A.eq(decodeSpec(s0.args || []), { file: 'C:\\Users\\x\\.local\\bin\\claude.exe', args: ['auth', 'login', '--claudeai'], verbatim: false, hide: true, tether: true },
+      'TETHERED: outside the station job, still ended with its launcher');
+    A.eq(s0.opts && s0.opts.stdio, ['pipe', 'pipe', 'pipe'], 'its pipes stay (the URL is read, the code is written)');
+    await shellRun.login.cancel(started.login_id);
+    const plain = loginWith({});
+    await plain.login.start();
+    A.eq(plain.spawned[0] && plain.spawned[0].file, 'C:\\Users\\x\\.local\\bin\\claude.exe', 'no launcher named (macOS, Linux, npm start): the CLI is spawned directly, exactly as before');
   }
 
   A.report('breakaway.test');
