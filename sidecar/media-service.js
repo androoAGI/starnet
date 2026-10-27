@@ -36,6 +36,9 @@ const KEYED_LEG_CAP_MS = 60000;
 const EDGE_LEG_CAP_MS = 15000;
 // A paid keyed call every waiting request abandoned is aborted after this grace: long enough for the desk's spaced
 // retry (0.4 s / 1.2 s) to JOIN the running call instead of paying for the sentence twice (bug df610df1).
+// The sentence DEADLINE never aborts it: a request whose deadline passes is answered with a typed timeout while the
+// call runs on to KEYED_LEG_CAP_MS and caches its clip, so a provider slower than the deadline is paid for once and
+// the next request for that clip joins the call or hits the cache.
 const KEYED_ABANDON_GRACE_MS = 2500;
 function speechDeadlineMs(req, body) {
   const raw = (body && body.deadlineMs != null) ? body.deadlineMs : (req && req.headers && req.headers['x-speech-deadline-ms']);
@@ -527,6 +530,8 @@ function makeMediaService(options) {
     };
     let body;
     try { body = JSON.parse(await readBody(req, 1 << 16)); } catch (_) { return refuse('bad_input', 'bad json'); }
+    // a desk that left while its body was still arriving is waiting for nothing: no leg is started for it
+    if (gone()) return;
     const text = String((body && body.text) || '').replace(/\s+/g, ' ').trim();
     // Over the cap is REFUSED, never truncated: speaking only the first ~1200 characters and answering 200 audio
     // told the caller the whole script was said (voice_generate refuses the same way; the desk splits at 1000).
@@ -638,15 +643,22 @@ function makeMediaService(options) {
           return answerAudio(cached, { 'Content-Type': ext === 'mp3' ? 'audio/mpeg' : 'audio/wav', 'X-Voice-Cache': 'hit' });
         } catch (_) {}
       }
-      // ONE paid synthesis per clip (bug df610df1): a request whose clip is already in flight JOINS that call. The call
-      // is capped by the first request's deadline, and aborted only once EVERY waiting request has gone away and a
-      // short grace has passed (a desk's spaced retry joins it instead of paying for the sentence again).
+      /* ONE paid synthesis per clip (bug df610df1): a request whose clip is already in flight JOINS that call. The call
+         runs to its OWN cap (KEYED_LEG_CAP_MS), never a request's sentence deadline: a request whose deadline passes
+         is answered with a typed timeout and the call runs on, so a provider slower than the deadline is paid for
+         once, its clip lands in the cache, and the next request for it joins the call or hits the cache (an abort at
+         the deadline paid for the clip and threw it away, every time the sentence came back). It is aborted only once
+         EVERY waiting request has gone away (a closed page, a barge-in) and a short grace has passed, and never once
+         a request timed out on it (that clip is still wanted). */
+      const waitMs = legCap(KEYED_LEG_CAP_MS);
+      if (waitMs <= 0) return deadlineSpent(ttsProvider);
+      // the desk went away before the call started (or before it could join one): never start a paid call for nobody.
+      // Nothing below awaits before the abort listener is attached, so a later close always reaches leave().
+      if (gone()) return;
       let entry = keyedInFlight.get(cacheKey);
       if (!entry) {
-        const capMs = legCap(KEYED_LEG_CAP_MS);
-        if (capMs <= 0) return deadlineSpent(ttsProvider);
-        const fresh = { waiters: 0, ac: new AbortController(), timer: null, promise: null };
-        fresh.promise = ttsSynthKeyed(ttsProvider, { model, voice, input, text, style, key: ttsKey, timeoutMs: capMs, signal: fresh.ac.signal })
+        const fresh = { waiters: 0, wanted: false, ac: new AbortController(), timer: null, promise: null };
+        fresh.promise = ttsSynthKeyed(ttsProvider, { model, voice, input, text, style, key: ttsKey, signal: fresh.ac.signal })
           .catch(error => ({ ok: false, reason: (error && error.message) || String(error), leg: SO.errorLeg(ttsProvider, error) }))
           .then(async result => {
             if (result.ok) {
@@ -667,10 +679,13 @@ function makeMediaService(options) {
       const joined = entry;
       joined.waiters++;
       if (joined.timer) { clearTimeout(joined.timer); joined.timer = null; }
+      let departed = false;
       const leave = () => {
+        departed = true;
         joined.waiters--;
-        if (joined.waiters > 0 || joined.timer) return;
+        if (joined.waiters > 0 || joined.timer || joined.wanted) return;
         joined.timer = setTimeout(() => {
+          if (joined.waiters > 0 || joined.wanted) { joined.timer = null; return; }
           // a request for this clip that arrives after the abort starts its own call, never joins a dying one
           if (keyedInFlight.get(cacheKey) === joined) keyedInFlight.delete(cacheKey);
           joined.ac.abort();
@@ -678,8 +693,26 @@ function makeMediaService(options) {
         if (joined.timer && typeof joined.timer.unref === 'function') joined.timer.unref();
       };
       ac.signal.addEventListener('abort', leave, { once: true });
-      const keyed = await joined.promise;
+      // this request waits at most what is left of ITS sentence's deadline (no deadline: the call's own cap)
+      let deadlineTimer = null;
+      const keyed = !deadlineMs ? await joined.promise : await Promise.race([
+        joined.promise,
+        new Promise(resolve => { deadlineTimer = setTimeout(() => resolve(null), waitMs); })
+      ]);
+      if (deadlineTimer) clearTimeout(deadlineTimer);
       ac.signal.removeEventListener('abort', leave);
+      if (keyed === null) {
+        if (departed) return;   // the desk left first: it was counted out by leave(), the abandonment path owns the call
+        // the deadline passed with the call still running: it runs on and caches its clip (paid for once), and this
+        // request answers with a typed timeout the desk can act on before its own ceiling
+        joined.wanted = true;
+        joined.waiters--;
+        if (joined.timer) { clearTimeout(joined.timer); joined.timer = null; }
+        if (gone()) return;
+        lad.fail(SO.leg(ttsProvider, 'timeout', { detail: 'no audio within the sentence deadline (the call runs on; a clip it returns is cached)' }),
+          ttsProvider + ': no audio within the sentence deadline');
+        return serveEdge(edgetts.resolveVoice());
+      }
       if (gone()) return;   // this desk went away while the call ran (another request may still be waiting on it)
       if (keyed.ok) {
         speechStatus.record(SO.success(ttsProvider), 'tts');

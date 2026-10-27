@@ -92,7 +92,7 @@ async function sidecar(o) {
     },
     localVoice: { status: () => ({ available: false }), defaultVoice: () => 'af_heart', edgeVoiceFor: () => 'en-US-ChristopherNeural' },
     nativeStt: { status: () => ({ available: false }) },
-    readBody: async req => req.__body,
+    readBody: o.readBody || (async req => req.__body),
     readBodyBuffer: async () => Buffer.alloc(0),
     providerRuntimeKey: p => keys[p] || '',
     providerRuntimeBaseUrl: () => '',
@@ -298,7 +298,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       }
     }
 
-    // ---- SEAM: one deadline per sentence caps a keyed leg that would otherwise run 60 s ----
+    // ---- SEAM: one deadline per sentence: the desk is ANSWERED within it, even by a keyed leg that would run 60 s ----
     {
       let aborted = false;
       const svc = await sidecar({ keys: OR, edge: false, fetch: (url, init) => new Promise((resolve, reject) => {
@@ -307,11 +307,55 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       }) });
       const r = await tts(svc, { deadlineMs: 800 });
       A.ok(r.ms < 3000, 'deadline: a hung keyed provider answers within the sentence deadline (' + r.ms + ' ms of an 800 ms budget), not at its 60 s cap');
-      A.ok(aborted, 'deadline: the provider call itself was aborted');
       A.eq(r.json && r.json.outcome && r.json.outcome.code, 'timeout', 'deadline: the outcome is a typed timeout');
+      A.eq(r.json && r.json.outcome && r.json.outcome.engine, 'openrouter', 'deadline: naming the keyed leg that ran out of time');
       A.eq(r.json && r.json.outcome && r.json.outcome.terminal, false, 'deadline: which a later sentence may retry');
+      A.ok(/^openrouter: no audio within the sentence deadline; edge floor disabled$/.test(String(r.json && r.json.reason)), 'deadline: the legacy reason names it: ' + (r.json && r.json.reason));
+      A.eq(aborted, false, 'deadline: the PAID call is not aborted by the deadline (it runs to its own cap and caches what it returns)');
       const viaHeader = await tts(svc, {}, { headers: { 'x-speech-deadline-ms': '700' } });
       A.ok(viaHeader.ms < 3000 && viaHeader.json.outcome.code === 'timeout', 'deadline: X-Speech-Deadline-Ms carries the same budget (' + viaHeader.ms + ' ms)');
+    }
+    // ---- SEAM (df610df1): a keyed provider SLOWER than the sentence deadline is paid for ONCE and still heard ----
+    // The 32 s provider against the desk's 30 s deadline, scaled down: it answers at 1.5 s, the deadline is 1 s.
+    {
+      let calls = 0, aborted = 0;
+      const svc = await sidecar({ keys: OR, edge: false, fetch: (url, init) => new Promise((resolve, reject) => {
+        calls++;
+        const t = setTimeout(() => resolve({ ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => Buffer.from('SLOW-PAID-CLIP') }), 1500);
+        const s = init && init.signal;
+        if (s) s.addEventListener('abort', () => { aborted++; clearTimeout(t); const e = new Error('The operation was aborted'); e.name = 'AbortError'; reject(e); });
+      }) });
+      const said = { text: 'One sentence from a slow keyed provider.' };
+      const first = await tts(svc, Object.assign({ deadlineMs: 1000 }, said));
+      A.ok(first.ms < 1400, 'slow keyed: the desk is answered at its deadline (' + first.ms + ' ms of a 1000 ms budget)');
+      A.eq(first.json && first.json.outcome && [first.json.outcome.code, first.json.outcome.engine, first.json.outcome.terminal], ['timeout', 'openrouter', false], 'slow keyed: with a typed, transient timeout naming the keyed leg');
+      const second = await tts(svc, Object.assign({ deadlineMs: 1000 }, said));   // the retry / the next request for that clip
+      A.eq(String(second.headers['Content-Type'] || ''), 'audio/mpeg', 'slow keyed: the next request for the clip JOINS the running call and is answered with its audio');
+      A.eq(second.body.toString(), 'SLOW-PAID-CLIP', 'slow keyed: the very clip the provider returned');
+      const third = await tts(svc, Object.assign({ deadlineMs: 1000 }, said));
+      A.eq([String(third.headers['X-Voice-Cache'] || ''), third.body.toString()], ['hit', 'SLOW-PAID-CLIP'], 'slow keyed: and it was cached, so the sentence is never synthesized again');
+      A.eq([calls, aborted], [1, 0], 'slow keyed: ONE paid call for the sentence, never aborted by a deadline');
+      // nobody asks again: the call still runs to completion and fills the cache (paid for, so never thrown away)
+      calls = 0; aborted = 0;
+      const lone = await tts(svc, { text: 'A slow sentence nobody asks for twice.', deadlineMs: 1000 });
+      A.eq(lone.json && lone.json.outcome && lone.json.outcome.code, 'timeout', 'slow keyed: a lone request times out at its deadline');
+      await tick(3400);   // past the provider's 1.5 s and the 2.5 s abandon grace
+      A.eq([calls, aborted], [1, 0], 'slow keyed: a request that timed out on the call is not an abandonment: the call is never aborted');
+      const later = await tts(svc, { text: 'A slow sentence nobody asks for twice.', deadlineMs: 1000 });
+      A.eq([String(later.headers['X-Voice-Cache'] || ''), later.body.toString(), calls], ['hit', 'SLOW-PAID-CLIP', 1], 'slow keyed: when that sentence is spoken again it plays from the cache, paid for once');
+    }
+    // ---- SEAM: a desk that leaves while its body is still arriving starts no paid call for nobody ----
+    {
+      let calls = 0;
+      const svc = await sidecar({ keys: OR, edge: false,
+        readBody: req => new Promise(r => setTimeout(() => r(req.__body), 120)),
+        fetch: () => { calls++; return new Promise(() => {}); } });
+      // (bounded: before the fix the handler waited on a call nobody could ever abort)
+      const r = await Promise.race([tts(svc, { text: 'Nobody is waiting for this one.' }, { closeAfterMs: 20 }), tick(3000).then(() => ({ wrote: false, hung: true }))]);
+      await tick(50);
+      A.eq(calls, 0, 'early close: a desk that left before its body was read starts no paid keyed call');
+      A.ok(!r.hung, 'early close: and the handler returns at once instead of waiting on a call nobody can abort');
+      A.eq(r.wrote, false, 'early close: and nothing is written to it');
     }
     // ---- SEAM: a desk that goes away cancels the Edge leg it was waiting on, and nothing is written ----
     {
