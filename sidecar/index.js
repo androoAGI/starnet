@@ -16319,9 +16319,10 @@ function handleStateSnapshot(req, res) {
       // body.internal the run history later records) — so a live view never shows self-talk as the Commander's work.
       if (meta && meta.streamId) row.streamId = String(meta.streamId);
       if (meta && meta.internal) row.internal = true;
-      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach only runs in `runs`; a card offers
-      // STOP / a direction only where this is true, so it never reports a stop that did not happen.
-      row.stoppable = runs.has(runId);
+      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one holding a runOnce
+      // stop handle (runOnceTracked); a card offers STOP / a direction only where this is true, so it never reports a stop
+      // that did not happen — and never withholds one that would.
+      row.stoppable = runs.has(runId) || runStopHandles.has(runId);
       out.runs.push(row);
     }
   } catch (_) {}
@@ -16330,7 +16331,7 @@ function handleStateSnapshot(req, res) {
     for (const [runId, meta] of hostLiveRuns) {
       if (seenRunIds.has(runId)) continue;
       seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) });
+      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) || runStopHandles.has(runId) });
     }
   } catch (e) { failNote('snapshot.hostRuns', e); }
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
