@@ -19,9 +19,12 @@
      'distinct'  a confidently DIFFERENT subject or topic     -> both are kept, no challenge
      'unknown'   no confident parse of either side            -> the caller keeps today's similarity paths
    Deliberately conservative: a key exists only when the subject AND the dimension being claimed are explicit (a
-   "for/in X" qualifier, an "X over Y" comparison, a value from a short list of mutually exclusive alternatives such
-   as dark/light or tabs/spaces, or a single-valued location/attribute). Anything else is 'unknown' and falls back to
-   the challenge path, because a wrong 'supersede' would retire a genuinely separate fact (the callers keep every
+   preference's "for/in X" qualifier, an "X over Y" comparison, a value from a short list of mutually exclusive
+   alternatives such as dark/light or tabs/spaces, a PLACE — a proper name or a region/city/country noun — for a location,
+   or a NAME — capitalised, numbered, or "called X" — for a thing's single-valued attribute). A state ("is protected",
+   "is slow"), a membership ("is in the design team") or a dwelling ("lives in a flat") has no key, and neither do two
+   different things a length is about ("concise replies" vs "detailed reports"). Anything else is 'unknown' and falls
+   back to the challenge path, because a wrong 'supersede' would retire a genuinely separate fact (the callers keep every
    supersession reversible: the old text and its provenance go into the surviving record's history). */
 'use strict';
 (function (root, factory) {
@@ -96,6 +99,14 @@
   const PRONOUN = new Set(['it', 'this', 'that', 'these', 'those', 'them', 'one', 'ones', 'either', 'both']);
   const LOC_PREP = new Set(['in', 'at', 'on', 'inside']);
   const LOC_PART = new Set(['located', 'based', 'hosted', 'stored', 'deployed', 'running', 'kept', 'living']);
+  /* WHICH "where" a location word claims: where something IS (geo), what HOSTS / runs it (host), where it is STORED
+     (store). Three different questions: "hosted on AWS" never retires "located in Frankfurt". */
+  const LOC_CLASS = { lives: 'geo', live: 'geo', located: 'geo', resides: 'geo', reside: 'geo', sits: 'geo', based: 'geo', living: 'geo',
+    hosted: 'host', deployed: 'host', running: 'host', stored: 'store', kept: 'store' };
+  // a location's value must read as a PLACE: a proper name / a number (checked against the original text) or one of these
+  const PLACE_NOUN = new Set(['region', 'city', 'country', 'province', 'county', 'zone', 'datacenter', 'office', 'continent']);
+  // "the default branch is CALLED main" / "is named" / "is set to": the value is explicitly a name
+  const NAMING = new Set(['called', 'named']);
   // a qualifier names the DIMENSION a claim is about ("tabs FOR indentation", "dark mode IN the editor")
   const QUAL = new Set(['for', 'in', 'when', 'on', 'across', 'during', 'while', 'within', 'inside']);
   const CMP2 = [['instead', 'of'], ['rather', 'than']];
@@ -106,20 +117,26 @@
   const FUTURE = /^for (?:all|every) (?:future )?(?:tasks?|chats?|conversations?|projects?|work)$/;
   /* Mutually exclusive ALTERNATIVES: a value from one of these lists is a claim about that dimension even without
      a qualifier ("prefers tabs" and "prefers spaces" are the same subject). Every word of the value must be one of
-     the group's values or topic words, and at least one a value — "a single file" never reads as a quote style. A
-     qualifier made only of topic words just names the group ("tabs for indentation"). */
+     the group's values, topic words or objects, and at least one a value — "a single file" never reads as a quote
+     style. A qualifier made only of topic words just names the group ("tabs for indentation"). TOPIC words name the
+     dimension itself ("dark MODE" = "a light THEME"); OBJECTS name the thing the value is about, and stay in the key
+     (canonical form): "concise REPLIES" and "detailed REPORTS" are two different deliverables, never one subject. */
   const ALTERNATIVES = [
     { id: 'theme', values: ['dark', 'light'], topic: ['theme', 'themes', 'mode', 'modes', 'ui', 'color', 'colour', 'scheme', 'appearance', 'background', 'interface'] },
     { id: 'indent', values: ['tab', 'space'], topic: ['indentation', 'indent', 'indenting', 'whitespace', 'level', 'character'] },
     { id: 'length', values: ['short', 'shorter', 'long', 'longer', 'concise', 'brief', 'terse', 'verbose', 'detailed', 'lengthy', 'succinct', 'thorough', 'compact'],
-      topic: ['reply', 'answer', 'response', 'message', 'summary', 'explanation', 'output', 'note', 'report', 'update'] },
+      topic: ['length'],
+      objects: { reply: 'reply', answer: 'reply', response: 'reply', message: 'message', summary: 'summary', explanation: 'explanation', output: 'output',
+        note: 'note', report: 'report', update: 'update' } },
     { id: 'tone', values: ['formal', 'casual', 'informal', 'friendly', 'professional', 'playful'], topic: ['tone', 'style', 'voice', 'language', 'writing', 'register'] },
     { id: 'quotes', values: ['single', 'double'], topic: ['quote', 'quotation', 'mark', 'string'] },
     { id: 'units', values: ['metric', 'imperial'], topic: ['unit', 'measurement', 'system'] },
     { id: 'temperature', values: ['celsius', 'fahrenheit'], topic: ['temperature', 'degree', 'unit'] },
     { id: 'packages', values: ['npm', 'pnpm', 'yarn', 'bun'], topic: ['package', 'manager', 'install', 'dependency', 'script'] },
-    { id: 'case', values: ['camelcase', 'snakecase', 'kebabcase', 'pascalcase'], topic: ['case', 'naming', 'name', 'variable', 'identifier', 'key'] }
+    { id: 'case', values: ['camelcase', 'snakecase', 'kebabcase', 'pascalcase'], topic: ['case', 'naming', 'name', 'convention'],
+      objects: { variable: 'variable', identifier: 'identifier', key: 'key' } }
   ];
+  const inGroup = (g, t) => g.topic.indexOf(t) >= 0 || !!(g.objects && g.objects[t]);
   function stem(t) {
     if (SYN[t]) return SYN[t];
     if (t.length > 4 && /ies$/.test(t)) return t.slice(0, -3) + 'y';
@@ -144,7 +161,7 @@
       let hit = false, ok = true;
       for (const t of tokens) {
         if (g.values.indexOf(t) >= 0) hit = true;
-        else if (g.topic.indexOf(t) < 0) { ok = false; break; }
+        else if (!inGroup(g, t)) { ok = false; break; }
       }
       if (ok && hit) return g;
     }
@@ -160,6 +177,13 @@
     const sentences = raw.split(/[.!;\n]+(?:\s+|$)/).map(s => s.trim()).filter(Boolean);
     if (sentences.length !== 1) return null;
     let toks = words(sentences[0]);
+    /* NAME-SHAPED tokens, read from the ORIGINAL case (words() lowercases): capitalised past the first word ("Frankfurt",
+       "Postgres", "CI") — a place or a name — or carrying a digit ("18", "v2") — a name, never a place. Not a state. */
+    const named = new Set(), numbered = new Set();
+    String(sentences[0]).split(/[^A-Za-z0-9]+/).filter(Boolean).forEach((t, i) => {
+      if (i > 0 && t.length >= 2 && /^[A-Z]/.test(t)) named.add(stem(t.toLowerCase()));
+      if (/\d/.test(t)) numbered.add(stem(t.toLowerCase()));
+    });
     let neg = false;
     // strip the standing framing ("From now on, always …", "Remember that …", "For all future tasks, …")
     for (let guard = 0; guard < 8 && toks.length; guard++) {
@@ -175,8 +199,10 @@
     for (let i = 0; i < Math.min(toks.length, 7); i++) if (REL[toks[i]]) { at = i; break; }
     if (at < 0) return null;
     let rel = REL[toks[at]];
+    const copula = toks[at];
     let before = toks.slice(0, at), after = toks.slice(at + 1);
     if (rel === 'like-') { rel = 'like'; neg = !neg; }
+    let where = rel === 'loc' ? (LOC_CLASS[copula] || 'geo') : null, isName = false;
     // auxiliaries / negation between the subject and its verb ("does not prefer", "never uses", "is not in")
     const subj = [];
     for (const t of before) {
@@ -186,9 +212,12 @@
     }
     if (rel === 'be' || rel === 'loc') {
       while (after.length && (NEG.has(after[0]) || AUX.has(after[0]))) { if (NEG.has(after[0])) neg = !neg; after = after.slice(1); }
-      // "is (located|hosted|…) in X" and "lives in X" are a LOCATION; any other copula is an attribute
-      while (after.length && LOC_PART.has(after[0])) { rel = 'loc'; after = after.slice(1); }
-      if (after.length && LOC_PREP.has(after[0]) && (rel === 'loc' || rel === 'be')) { rel = 'loc'; after = after.slice(1); }
+      // "is (located|hosted|…) in X" and "lives in X" are a LOCATION (of the participle's kind); a bare "is in X" is
+      // one only when X reads as a place (checked below); any other copula is an attribute
+      while (after.length && LOC_PART.has(after[0])) { rel = 'loc'; where = LOC_CLASS[after[0]] || 'geo'; after = after.slice(1); }
+      if (after.length && LOC_PREP.has(after[0]) && (rel === 'loc' || rel === 'be')) { if (rel === 'be') where = 'geo'; rel = 'loc'; after = after.slice(1); }
+      if (rel === 'be' && after.length && NAMING.has(after[0])) { isName = true; after = after.slice(1); }
+      else if (rel === 'be' && after[0] === 'set' && after[1] === 'to') { isName = true; after = after.slice(2); }
     } else if (after.length && NEG.has(after[0]) && after[0] === 'no') { neg = !neg; after = after.slice(1); }
     if (!after.length) return null;
     // the subject: who or what the belief is about. An imperative ("use spaces …") is the Commander's own order.
@@ -222,17 +251,27 @@
     // the dimension (topic) being claimed — explicit, or no key at all
     let topic = null;
     const g = groupOf(pick) || (over && groupOf(over));
-    const qualNamesGroup = g && qual.length && qual.every(t => g.topic.indexOf(t) >= 0);
+    const qualNamesGroup = g && qual.length && qual.every(t => inGroup(g, t));
     const qualKey = qual.length && !qualNamesGroup ? 'q:' + qual.join(' ') : '';
-    if (g && (rel === 'pref' || rel === 'like' || rel === 'use')) { topic = 'alt:' + g.id + (qualKey ? '|' + qualKey : ''); if (rel !== 'use') rel = 'pref'; }
+    // what a length / naming-case value is ABOUT stays in the key: "concise replies" never retires "detailed reports"
+    const objects = g && g.objects ? pick.concat(over || [], qualNamesGroup ? qual : []).map(t => g.objects[t]).filter((t, i, a) => t && a.indexOf(t) === i).sort() : [];
+    const placeLike = toks => toks.some(t => named.has(t) || PLACE_NOUN.has(t));   // "until 3pm" is a time, never a place
+    const nameLike = toks => toks.some(t => named.has(t) || numbered.has(t));
+    if (g && (rel === 'pref' || rel === 'like' || rel === 'use')) {
+      topic = 'alt:' + g.id + (objects.length ? '|o:' + objects.join(',') : '') + (qualKey ? '|' + qualKey : '');
+      if (rel !== 'use') rel = 'pref';
+    }
     else if (rel === 'like' || rel === 'use') return null;   // several tastes / tools can hold at once: no key outside a group
-    else if (qualKey) topic = qualKey;
+    else if (qualKey && rel === 'pref') topic = qualKey;      // a preference FOR something; an attribute's qualifier is no dimension
     else if (over) topic = 'cmp:' + [pick.join(' '), over.join(' ')].sort().join('|');
-    else if (rel === 'loc') topic = '';
-    else if (rel === 'be' && subject !== 'user' && subjTokens.length >= 2) topic = '';   // an attribute: "the default branch is main"
+    // a location: only a PLACE ("in Frankfurt", "in the Virginia region"), never a state, a team or a dwelling
+    else if (rel === 'loc' && placeLike(pick)) topic = where && where !== 'geo' ? where : '';
+    // a thing's single-valued attribute: only a NAME ("the default branch is called main", "the Node version is 18",
+    // "the CI runner is Linux"), never a state ("the main branch is protected"), and singular ("the maintainers are …")
+    else if (rel === 'be' && subject !== 'user' && subjTokens.length >= 2 && (copula === 'is' || copula === 'was') && (isName || nameLike(pick))) topic = qualKey;
     if (topic == null) return null;
     // a value that only names the group's dimension ("dark mode" -> dark): compare what was CHOSEN
-    const valueOf = toks => (g ? toks.filter(t => g.topic.indexOf(t) < 0) : toks);
+    const valueOf = toks => (g ? toks.filter(t => !inGroup(g, t)) : toks);
     const value = { pick: valueOf(pick), over: over ? valueOf(over) : null };
     if (!value.pick.length) value.pick = pick;
     return { subject, rel, topic, value, neg, key: subject + '|' + rel + '|' + topic };
@@ -262,10 +301,32 @@
     // the same subject, two different alternatives groups (theme vs indentation). A qualifier or a comparison that
     // differs is NOT enough: "prefers npm start over serve" and "prefers to run npm start rather than serve" are one
     // belief worded twice, and their free-text topics differ.
-    const groupId = c => (/^alt:([a-z]+)$/.exec(c.topic) || [])[1] || '';
+    const groupId = c => (/^alt:([a-z]+)/.exec(c.topic) || [])[1] || '';
     if (x.subject === y.subject && groupId(x) && groupId(y) && groupId(x) !== groupId(y)) return 'distinct';
     return 'unknown';
   }
 
-  return { SIM_STOP, SIM_STOP_WORDS, SIM_THRESHOLD, simTokens, similarity, findSimilar, textOf, claimOf, subjectKey, relate, ALTERNATIVES, stem };
+  /* titlesConflict(titleA, bodyA, titleB, bodyB) -> true when two notes' TITLES name different things the bodies do not
+     ("Editor theme: User prefers dark mode" vs "Slides theme: User prefers light mode"). A writer that only reads the
+     body would call that one subject; the titles say it is two. What is left of each title after its generic words, the
+     alternatives vocabulary and every word either body already says must be comparable: both non-empty and neither a
+     subset of the other is a conflict. A title that only restates the body ("Theme", "Dark mode") never conflicts. */
+  const TITLE_GENERIC = new Set(['preference', 'pref', 'setting', 'user', 'commander', 'note', 'fact', 'profile', 'memory', 'info', 'information',
+    'detail', 'choice', 'rule', 'convention', 'default', 'configuration', 'location', 'current', 'new', 'updated', 'update', 'correction',
+    'corrected', 'changed', 'change', 'favorite', 'favourite']);
+  const ALT_WORDS = new Set([].concat.apply([], ALTERNATIVES.map(g => g.values.concat(g.topic, Object.keys(g.objects || {})))));
+  function titleRest(title, bodies) {
+    const said = new Set();
+    for (const b of bodies) for (const t of simTokens(b, { minLen: 2, stem })) said.add(t);
+    const out = [];
+    for (const t of simTokens(title, { minLen: 2, stem })) if (!TITLE_GENERIC.has(t) && !ALT_WORDS.has(t) && !PERSON.has(t) && !said.has(t)) out.push(t);
+    return out;
+  }
+  function titlesConflict(titleA, bodyA, titleB, bodyB) {
+    const a = titleRest(titleA, [bodyA, bodyB]), b = titleRest(titleB, [bodyA, bodyB]);
+    if (!a.length || !b.length) return false;
+    return !a.every(t => b.indexOf(t) >= 0) && !b.every(t => a.indexOf(t) >= 0);
+  }
+
+  return { SIM_STOP, SIM_STOP_WORDS, SIM_THRESHOLD, simTokens, similarity, findSimilar, textOf, claimOf, subjectKey, relate, titlesConflict, ALTERNATIVES, stem };
 });

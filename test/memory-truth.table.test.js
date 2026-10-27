@@ -66,8 +66,13 @@ const MemTruth = require('../frontend/app/memtruth.js');
     ['User prefers tabs', 'User hates tabs', 'supersede'],
     ['User prefers rounded purple cards for Acme website design', 'User does not prefer rounded purple cards for Acme website design', 'supersede'],
     ['The staging database is in Frankfurt', 'The staging DB lives in the Virginia region', 'supersede'],
-    ['The default branch is main', 'The default branch is develop', 'supersede'],
+    ['The default branch is called main', 'The default branch is called develop', 'supersede'],
+    ['The project Node version is 18', 'The project Node version is 20', 'supersede'],
+    ['The CI runner is Linux', 'The CI runner is Windows', 'supersede'],
+    ['User lives in Berlin', 'User lives in Paris', 'supersede'],
+    ['The staging server is hosted on AWS', 'The staging server is hosted on GCP', 'supersede'],
     ['User prefers concise replies', 'User prefers detailed replies', 'supersede'],
+    ['User prefers concise replies', 'User prefers detailed answers', 'supersede'],
     ['The staging database is in Frankfurt', 'The production database is in Frankfurt', 'distinct'],
     ['the staging database lives in the frankfurt region', 'the production database lives in the frankfurt region', 'distinct'],
     ['User prefers dark mode', 'User prefers tabs', 'distinct'],
@@ -82,6 +87,40 @@ const MemTruth = require('../frontend/app/memtruth.js');
   for (const [a, b, want] of TABLE) {
     A.eq(rel(a, b), want, want + ': «' + a + '» vs «' + b + '»');
     A.eq(rel(b, a), want, '…and the verdict is symmetric');
+  }
+  /* NEVER ONE SUBJECT (review 10-27): two genuinely separate facts that share a shape. A state is not an attribute's
+     name, a team / a meeting / a dwelling is not a place, a provider is not a location, and a length is about a thing —
+     replies and reports are two things. Each pair must stay off the supersession path (any verdict but 'supersede'),
+     so a write keeps today's challenge / similar-notes path instead of retiring the older fact. */
+  const NEVER = [
+    ['User prefers concise replies', 'User prefers detailed reports'],
+    ['User prefers short answers', 'User prefers long explanations'],
+    ['User prefers brief messages', 'User prefers detailed reports'],
+    ['User lives in Berlin', 'User is in the design team'],
+    ['User lives in Berlin', 'User lives in a flat'],
+    ['User lives in Berlin', 'User is in a meeting until 3pm'],
+    ['The frontend repo is private', 'The frontend repo is archived'],
+    ['The default branch is main', 'The default branch is protected'],
+    ['The main branch is protected', 'The main branch is called trunk'],
+    ['The main branch is protected', 'The main branch is green'],
+    ['The production database is Postgres', 'The production database is read-only'],
+    ['The staging database is postgres', 'The staging database is slow'],
+    ['The staging database is in Frankfurt', 'The staging database is in maintenance mode'],
+    ['The test suite is slow', 'The test suite is flaky'],
+    ['The repo is on GitHub', 'The repo is in C:/code/gen'],
+    ['The frontend is in React', 'The frontend is in the src folder'],
+    ['The CI runner is Linux', 'The CI runner is slow'],
+    ['The staging server is hosted on AWS', 'The staging server is in Frankfurt'],
+    ['The API key is stored in the vault', 'The API key is in the environment file'],
+    ['Our team is based in London', 'Our team is in the sales department']
+  ];
+  for (const [a, b] of NEVER) {
+    A.ok(rel(a, b) !== 'supersede' && rel(b, a) !== 'supersede', 'separate facts never supersede: «' + a + '» vs «' + b + '» (' + rel(a, b) + ')');
+  }
+  // the titles can say two notes are about different things even when the bodies read as one subject
+  A.ok(MemTruth.titlesConflict('Editor theme', 'User prefers dark mode', 'Slides theme', 'User prefers light mode'), 'titles: "Editor theme" and "Slides theme" name two different things');
+  for (const [ta, tb] of [['Theme', 'UI theme preference'], ['Dark mode', 'Light mode'], ['Staging DB', 'Staging database location'], ['', 'Theme']]) {
+    A.ok(!MemTruth.titlesConflict(ta, 'User prefers dark mode', tb, 'User prefers light mode'), 'titles that only restate the subject never conflict: «' + ta + '» vs «' + tb + '»');
   }
 }
 
@@ -122,6 +161,17 @@ const NOTE_TABLE = [
       A.eq(nb.active(), [row.first, row.second], row.name + ': two DIFFERENT facts stay two active records');
       A.ok(/^Saved note/.test(r.content) && !/already remember|Similar notes/.test(r.content), row.name + ': saved outright, no challenge, no "may replace" tail');
     }
+  }
+  // separate facts of the same shape stay two active records through notebook.write (review 10-27)
+  for (const [ta, a, tb, b] of [['Branch', 'The main branch is protected', 'Branch', 'The main branch is called trunk'],
+    ['Replies', 'User prefers concise replies', 'Reports', 'User prefers detailed reports'],
+    ['Editor theme', 'User prefers dark mode', 'Slides theme', 'User prefers light mode'],
+    ['Home', 'User lives in Berlin', 'Team', 'User is in the design team']]) {
+    const nb = notebook();
+    await nb.write({ title: ta, body: a });
+    const r = await nb.write({ title: tb, body: b });
+    A.eq(nb.active(), [a, b], 'never retired by a separate fact: «' + ta + ': ' + a + '» then «' + tb + ': ' + b + '»');
+    A.ok(!/same subject/.test(r.content) && !nb.notes()[0].history, '…no supersession receipt, no history: ' + r.content.slice(0, 90));
   }
   // flip back: the archived text may win again, still one active record
   {

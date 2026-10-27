@@ -78,13 +78,17 @@
   /* The active records a write of `body` retires: inside the write's project boundary (`boundary` = {scope,
      projectRoot}), never the Commander's rating records (feedbackmemory owns those), and holding the same subject with
      a different claim. opts.restatements adds the same claim in OTHER words — only for the Commander's own exact words,
-     which outrank a paraphrase of them. An identical text is never a target (that is a restatement, not a change). */
+     which outrank a paraphrase of them. An identical text is never a target (that is a restatement, not a change).
+     opts.title: the write's title — a held note whose title names a DIFFERENT thing ("Editor theme" vs "Slides theme")
+     is never retired by a body that reads as the same subject (MemTruth.titlesConflict). */
   function supersessionTargets(list, body, boundary, opts) {
     const want = retrieval.memoryProjectKey(boundary || {});
     const verdicts = opts && opts.restatements ? ['supersede', 'dupe'] : ['supersede'];
     const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+    const title = opts && typeof opts.title === 'string' ? opts.title : null;
     return (Array.isArray(list) ? list : []).filter(r => r && r.origin !== 'feedback' && retrieval.memoryProjectKey(r) === want &&
-      norm(bodyOf(r)) !== norm(body) && verdicts.indexOf(MemTruth.relate(bodyOf(r), body)) >= 0);
+      norm(bodyOf(r)) !== norm(body) && verdicts.indexOf(MemTruth.relate(bodyOf(r), body)) >= 0 &&
+      !(title != null && MemTruth.titlesConflict(String(r.title || ''), bodyOf(r), title, body)));
   }
 
   /* UNDO a supersession: a text that a supersession retired comes back as its OWN active record, with the provenance
@@ -372,7 +376,7 @@
           // user-stated or user-confirmed record): a model's inversion of what they said must not become the active belief
           // behind their back (ecd03ee7 class). That pair keeps the challenge path; an explicit replaceId still corrects it.
           const ownWords = n => n.confirmation === 'user-stated' || n.confirmation === 'user-confirmed';
-          const same = supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot }).filter(n => statedBy || !ownWords(n));
+          const same = supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot }, { title: String(args.title) }).filter(n => statedBy || !ownWords(n));
           if (same.length && !overridden && !taintedBy) {
             const prior = same.slice().sort((a, b) => writtenAt(b) - writtenAt(a))[0];
             const confirmation = statedBy ? (prior.confirmation === 'user-confirmed' ? 'user-confirmed' : 'user-stated') : 'inferred';
