@@ -30,6 +30,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (hubMod, tgMod, dcMod, slMod, mxMod, sgMod) {
   'use strict';
   const makeChannelHubDefault = hubMod && hubMod.makeChannelHub;
+  // failopen.note — a teardown fault is never invisible (the per-tag count + throttled warn), as in hub.js
+  const failNote = (typeof require === 'function') ? require('../failopen.js').note : function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); };
 
   // the SUPPORTED channels. env names mirror index.js's existing auto-start (token + shared key/model).
   // `auth` declares what a connect needs beyond provider config, so the host/UI stay data-driven:
@@ -121,8 +123,8 @@
      hub's timer redelivering the shared outbox beside the reconnected hub's (quick win 21). Never throws; false = nothing. */
   function unwireChannel(wired) {
     if (!wired) return false;
-    if (wired.hub && typeof wired.hub.close === 'function') { try { wired.hub.close(); } catch (_) {} }
-    if (wired.adapter && typeof wired.adapter.disconnect === 'function') { try { wired.adapter.disconnect(); } catch (_) {} }
+    if (wired.hub && typeof wired.hub.close === 'function') { try { wired.hub.close(); } catch (e) { failNote('channels.registry.unwire.hub', e); } }
+    if (wired.adapter && typeof wired.adapter.disconnect === 'function') { try { wired.adapter.disconnect(); } catch (e) { failNote('channels.registry.unwire.adapter', e); } }
     return true;
   }
 

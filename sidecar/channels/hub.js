@@ -667,7 +667,7 @@
       if (!editMessage) return;
       const tapped = ask.entry.meta && ask.entry.meta.tapped ? ask.entry.meta.tapped : '';
       const text = String((ask.entry.meta && ask.entry.meta.text) || '') + '\n\n' + consentStampLine(ask.decision, tapped);
-      try { Promise.resolve(editMessage(chatId, ask.messageId, text, {})).catch(function () {}); } catch (_) {}
+      try { Promise.resolve(editMessage(chatId, ask.messageId, text, {})).catch(swallow('channels.hub.consent.stamp')); } catch (e) { failNote('channels.hub.consent.stamp', e); }
     }
     /* AN UNANSWERED APPROVAL EXPIRED (2026-10-11). It fail-closes (the action does not run), but it used to do so in
        silence and the agent then told the user "you declined". Tell the chat what actually happened and how to retry;
