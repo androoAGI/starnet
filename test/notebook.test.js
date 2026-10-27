@@ -577,7 +577,13 @@ const dcall = (name, args) => ({ id: 'c', name, args, argsRaw: JSON.stringify(ar
     // the host's post-run passes (reflection / failure-review / study / threadmine / skill-review) turn a transcript into
     // durable notes and skills — a tainted run's transcript never feeds them, and auto-recall latches a tainted note
     const idx = readSidecarSource();
-    A.ok(idx.includes("['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])") && idx.includes('LearningEvidence.buildLearningEvidence(o, redact).eligible'),
+    // memory-truth-1027: reflection / failure-review / study / threadmine read taint through the ONE learning predicate
+    // (learning-eligibility.js); the skill review is still withheld unless separately attributed evidence exists
+    const LE = require('../sidecar/learning-eligibility.js');
+    const taintedRun = LE.passes(LE.runOutcome({ reason: 'done', tainted: true, reflect: true, task: true }));
+    A.ok(!taintedRun.reflection && !taintedRun.study && !taintedRun.threadmine && !LE.passes(LE.runOutcome({ reason: 'error', tainted: true, reflect: true, task: true }))['failure-review'] &&
+      idx.includes('tainted: !!execution.taintedBy(), quoted: quotedLearning') &&
+      idx.includes("for (const pass of noTrustedEvidence ? ['skill-review'] : [])") && idx.includes('LearningEvidence.buildLearningEvidence(o, redact).eligible'),
       'tainted transcripts cannot feed memory writers; skill review requires separately attributed evidence');
     A.ok(/latchRunTaint\('recalled memory saved by a run that read '/.test(idx), 'auto-recall of a tainted note latches the reading run');
     A.ok(/r\.pinned && !tasteIds\.has\(r\.id\) && !\(tasteWithheld && r\.origin === FeedbackMemory\.ORIGIN\) && !r\.taintedBy/.test(idx),
