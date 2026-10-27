@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bfd20c60f5a1cce0584f4824daf4c876e9a5a957",
+    "sourceCommit": "2171516f360b9bb2466e518474fc251082934ee7",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 458674,
-        "sha256": "bbb7f927db4cd5f00fd379aebd0f520a002a155794cd61031ded04c02ed893c0"
+        "bytes": 459676,
+        "sha256": "9ff8ea0275aa9379b6844f8c96575d1b523211e0cc9e930a3abf9c4ba5f0b089"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -253,8 +253,8 @@
       },
       {
         "path": "frontend/app/autojobstore.js",
-        "bytes": 21783,
-        "sha256": "031070b5e88f63dbdb33447045ac43e5a6131fc2767ed09afc2c7ec8de250019"
+        "bytes": 23715,
+        "sha256": "064240292acc9378c086b803a23b6d7ad962f1880c558f085fd154327c732787"
       },
       {
         "path": "frontend/app/autonomy.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 910327,
-        "sha256": "0812e6fa24d852f1a9827423073b5b5f2dfe7b10335f4e3b19979a34d23b2624"
+        "bytes": 912040,
+        "sha256": "a9d34514a59d24bc5dca254bb91c4fc3995de863dd550e20037c5df4a8a876e9"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -468,8 +468,8 @@
       },
       {
         "path": "frontend/app/dialogue.js",
-        "bytes": 35532,
-        "sha256": "974ac7e4c156bda7763bd3ded61cf2e335d3f2485f3195dec86afc59794e334a"
+        "bytes": 36196,
+        "sha256": "ebfda289d491d33cb9a250d2c6c11507a1b488b781bd6bf43f45787fff0e6d65"
       },
       {
         "path": "frontend/app/discoverystore.js",
@@ -743,8 +743,8 @@
       },
       {
         "path": "frontend/app/onboarding.js",
-        "bytes": 72736,
-        "sha256": "31af9fe34c99f9d1dd49c232c7dd4842ade404c8c0fc72942026f36f76a81d8e"
+        "bytes": 73872,
+        "sha256": "ebdf87a5498a6d39875552ad9f198fff6df022819997799825c3c71e56019788"
       },
       {
         "path": "frontend/app/outputbrowser.js",
@@ -788,8 +788,8 @@
       },
       {
         "path": "frontend/app/pitchstore.js",
-        "bytes": 30042,
-        "sha256": "09674ba261aa034143722d8f3b13a9b0254da8d088ae8f57838f3c97db67c860"
+        "bytes": 31478,
+        "sha256": "2f18c070af081a8cd0248850be91e11ebb1754f81f464dac6973f4a666a69bab"
       },
       {
         "path": "frontend/app/places.js",
