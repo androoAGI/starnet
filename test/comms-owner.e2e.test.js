@@ -8,6 +8,9 @@
         OFFER: the message box is on screen, a real click at its centre lands on it, and it takes focus;
      2. the Commander CLICKS another session in the rail (a real mouse event) → the hand-off steps aside, COMMS shows that session,
         #chat-input is visible and focusable, the first task stays pending and its draft is in the ↑ recall;
+     2b. a pick that lands on the conversation ALREADY on screen does the same (review 10-27; gh#158 "create and select a new
+        session"): reload → re-offered → a real click on the active session's own rail row steps it aside; then + NEW makes a
+        blank, reload → re-offered over that blank → a real click on + NEW (which reuses the blank on screen) steps it aside;
      3. reload → re-offered (still an offer); the Commander types a task into the message box and presses Enter → the hand-off
         steps aside and is COMPLETE (handoffPending false); reload again → it is never offered over COMMS again;
      4. gh#117: CREW › RECRUIT opens the RECRUITMENT BAY whose main key is RECRUIT <NAME>, on screen and clickable; MY WORK's
@@ -155,6 +158,34 @@ const path = require('node:path');
     const recalled = await evalJS(cdp, `(() => { const i = document.getElementById('chat-input'); i.focus(); i.value = ''; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })); const v = i.value; i.value = ''; return v; })()`);
     check('select: ↑ in the empty message box brings the draft back', recalled === DRAFT, JSON.stringify(recalled));
 
+    /* ---- 2b. picks that land on the conversation already on screen ---- */
+    const activeRow = `(() => { const id = Workstreams.activeId(); const li = document.querySelector('.ws-row[data-id=' + JSON.stringify(String(id)) + ']'); if (!li) return null; li.scrollIntoView({ block: 'center' }); const r = li.getBoundingClientRect(); return { id, x: r.left + Math.min(r.width / 2, 120), y: r.top + r.height / 2 }; })()`;
+    const newKey = `(() => { const b = document.getElementById('ws-new'); if (!b) return null; const r = b.getBoundingClientRect(); if (!(r.width > 0)) return null; return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`;
+    await cdp.send('Page.reload', {});
+    check('2b reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('2b reload: the pending first task is re-offered', !!(await until(cdp, offerUp, 40)));
+    await sleep(500);
+    const own = await evalJS(cdp, activeRow);
+    check('2b: the session on screen has its rail row', !!own, JSON.stringify(own));
+    if (own) { await click(cdp, own.x, own.y); await sleep(700); }
+    box = await evalJS(cdp, BOX);
+    check('2b row: re-clicking the session already on screen stays on it', !!own && (await evalJS(cdp, 'Workstreams.activeId()')) === own.id);
+    check('2b row: and the hand-off stepped aside (it used to stay over the conversation)', !box.panel && box.hitIsBox && box.pending === true, JSON.stringify(box));
+    const nk = await evalJS(cdp, newKey);
+    check('2b: + NEW is on screen', !!nk, JSON.stringify(nk));
+    if (nk) { await click(cdp, nk.x, nk.y); await sleep(700); }
+    const blank = await evalJS(cdp, 'Workstreams.activeId()');
+    check('2b: + NEW opened a blank session', !!blank && blank !== (own && own.id), String(blank));
+    await cdp.send('Page.reload', {});
+    check('2b reload 2: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
+    check('2b reload 2: re-offered over the blank session', !!(await until(cdp, offerUp, 40)) && (await evalJS(cdp, 'Workstreams.activeId()')) === blank);
+    await sleep(500);
+    const nk2 = await evalJS(cdp, newKey);
+    if (nk2) { await click(cdp, nk2.x, nk2.y); await sleep(700); }
+    box = await evalJS(cdp, BOX);
+    check('2b + NEW: over the untouched blank it reuses the session on screen', (await evalJS(cdp, 'Workstreams.activeId()')) === blank);
+    check('2b + NEW: and the hand-off stepped aside (gh#158 "create and select a new session … the same panel remains")', !box.panel && box.hitIsBox && box.pending === true, JSON.stringify(box));
+
     /* ---- 3. reload → re-offered; a task typed into the message box completes it ---- */
     await cdp.send('Page.reload', {});
     check('reload: the station is back', await waitDevReady(cdp, evalJS, { tries: 60 }));
@@ -183,8 +214,9 @@ const path = require('node:path');
 
     /* ---- 4. gh#117: CREW › RECRUIT opens a bay that RECRUITS ---- */
     await evalJS(cdp, `(() => { document.getElementById('bb-recruit').click(); return true; })()`);
+    // measured where it opens, BEFORE any scroll: a key below the fold must fail here (review 10-27), not be scrolled into view
     const bay = await until(cdp, `(() => { const w = document.querySelector('.term.mkt-window'); const b = w && w.querySelector('.mkt-cta-main'); if (!w || !b) return null;
-      b.scrollIntoView({ block: 'nearest' }); const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return { title: ((w.querySelector('.term-title') || {}).textContent || '').trim(), cta: b.textContent.replace(/\\s+/g, ' ').trim(), onScreen: r.width > 0 && r.top >= 0 && r.bottom <= innerHeight + 1 && r.left >= 0 && r.right <= innerWidth + 1,
         clickable: !!hit && (hit === b || b.contains(hit)), intent: (typeof Marketplace !== 'undefined' && Marketplace.currentIntent) ? Marketplace.currentIntent() : null,
         second: ((w.querySelector('.mkt-deploy-cur') || {}).textContent || '').trim() }; })()`, 40);
@@ -192,7 +224,7 @@ const path = require('node:path');
     check('gh#117: CREW › RECRUIT opens the RECRUITMENT BAY', !!bay && /RECRUITMENT BAY/.test(bay.title), JSON.stringify(bay));
     check('gh#117: its intent is recruit', !!bay && bay.intent === 'recruit', JSON.stringify(bay));
     check('gh#117: its main key RECRUITS a new agent', !!bay && /^⏼ RECRUIT\b/.test(bay.cta), JSON.stringify(bay));
-    check('gh#117: and that key is on screen and clickable', !!bay && bay.onScreen && bay.clickable, JSON.stringify(bay));
+    check('gh#117: and that key is on screen and clickable where the bay opens (no scroll)', !!bay && bay.onScreen && bay.clickable, JSON.stringify(bay));
     await evalJS(cdp, `(() => { document.querySelectorAll('.term .term-x').forEach(b => { try { b.click(); } catch (_) {} }); return true; })()`);
     await sleep(600);
     await evalJS(cdp, `(() => { App.openRecipes(); return true; })()`);   // WORK › MY WORK › RECIPES (stationui FAMILIES)
