@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "b0025591b192d9f0a269d508979faf5ece1525aa",
+    "sourceCommit": "04292d41960fcba5222bba3b03ecc7c6ac6b166f",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 458375,
-        "sha256": "27c2acc433b39bf4d591b4ff456aa77f48d777514af4b9bbbe5ca3b8a7def47b"
+        "bytes": 459328,
+        "sha256": "53c22e9147be81988af2b206d56fa4592fb802a4cc7d1007242adb1cac0164ab"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -1613,8 +1613,8 @@
       },
       {
         "path": "frontend/css/glass-demo.css",
-        "bytes": 34912,
-        "sha256": "e319aee38e06a6b357380406f80407b943c2df55cd3e77d9d8ce2cfc507cae47"
+        "bytes": 37104,
+        "sha256": "4fba9dcc07fd9fcfc75cd2f41824916430eeab2c05a555476f24624183b61a30"
       },
       {
         "path": "frontend/css/hudmode.css",
@@ -1668,8 +1668,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 204573,
-        "sha256": "9f6ddff40968ed833f76cc9dfa1d8436a8a485cfd6786fbfb71dc5e387063739"
+        "bytes": 205491,
+        "sha256": "a908c8311c0d1ea126c0f0b0e515b2a7c72998e372a9d139d5ff15a2ba536f07"
       },
       {
         "path": "frontend/css/plugins.css",
