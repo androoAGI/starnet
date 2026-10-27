@@ -2185,21 +2185,16 @@ body.glass-demo:not(.hud-mode) #terms .ch-steps code { color: var(--ph-bright); 
 /* ============================================================
    COMPACT SESSION ROWS (Andrew 10-27, on his purple compact rail: "it looks so good when its highlighted on a session …
    when ur looking at each other session that isnt highlighted it looks like shit"; "leave the squares as is, its more
-   about the text"). Every row is now the open row's card, turned down: a quiet glass face and a faint edge at rest, a
-   brighter one on hover, and the open row keeps its lit card. Read titles are soft near-white, not saturated phosphor;
-   something new, the open row and a wait are bright. The time is a quiet 15px. A group row opens on its title like every
-   other row, its crew on the line under it: their faces (app.js railAgentFaces), then their names. The square glass
-   lamps are glass-demo.css's, untouched.
+   about the text"; then "i dont rly like them all having a border like that either"). A clean list: no border and no
+   fill at rest, a faint fill on hover, and only the open row is a card (its lit card, untouched). Read titles are soft
+   near-white, not saturated phosphor; something new, the open row and a wait are bright. The time is a quiet 15px. A group
+   row opens on its title like every other row, its crew on the line under it: their faces (app.js railAgentFaces), then
+   their names. The square glass lamps are glass-demo.css's, untouched.
    ============================================================ */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams { gap: 5px; }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row { min-height: 0; margin-block: 0; padding: 8px 10px; gap: 10px; }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn) {
-  background: linear-gradient(120deg, rgba(var(--ph-rgb), .075), rgba(var(--ph-rgb), .02));
-  border: 1px solid rgba(var(--ph-rgb), .16); border-radius: 8px; box-shadow: none;
-}
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn):is(:hover, :focus-visible) {
-  background: linear-gradient(120deg, rgba(var(--ph-rgb), .13), rgba(var(--ph-rgb), .04)); border-color: rgba(var(--ph-rgb), .32);
-}
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams { gap: 2px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row { min-height: 0; margin-block: 0; padding: 9px 10px; gap: 10px; border-radius: 8px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn) { background: transparent; border-color: transparent; box-shadow: none; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn):is(:hover, :focus-visible) { background: rgba(var(--ph-rgb), .08); border-color: transparent; }
 /* lamp · title · runs · pin · time: the pin ends the title, as on every grid row */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > :is(.ws-title, .ws-rename) { order: 1; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > .ws-runs { order: 2; }
@@ -2232,8 +2227,13 @@ body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces > .ws-f
 }
 body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces > .ws-face + .ws-face { margin-left: -5px; }
 body.glass-demo.rows-inbox:not(.hud-mode) #screen-game #left #workstreams .ws-agent-group > .ws-faces { margin-right: 8px; }
-/* a row that waits on you is the same card in gold (the NEEDS YOU strip's colour); selected, it keeps its lit gold card */
+/* a row that waits on you rests on a faint gold fill (the NEEDS YOU strip's colour), no border; selected, it keeps its lit gold card */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row.attn:not(.sel) {
-  background: linear-gradient(120deg, rgba(var(--gold-rgb), .12), rgba(var(--gold-rgb), .035));
-  border: 1px solid rgba(var(--gold-rgb), .34); border-radius: 8px; box-shadow: none;
+  background: linear-gradient(120deg, rgba(var(--gold-rgb), .12), rgba(var(--gold-rgb), .035)); border-color: transparent; box-shadow: none;
+}
+/* the narrowest rail at the largest text cannot hold the faces and one whole name: the names win (a name is never cut
+   mid-word, walk 10-14 #6) and the faces step aside. Measured content box: ~161 CSS px at X-LARGE on a 232 px rail (hidden), ~184 at LARGE (shown). */
+body.glass-demo:not(.hud-mode) #screen-game #left #workstreams { container: ws-list / inline-size; }
+@container ws-list (max-width: 170px) {
+  body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces { display: none; }
 }
