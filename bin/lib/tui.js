@@ -109,7 +109,7 @@ const HELP = [
   ['1-6 or text', 'answer an open question'],
   ['tab  shift+tab', 'switch the agent shown in COMMS'],
   ['↑ ↓  pgup pgdn', 'your earlier messages · scroll COMMS'],
-  ['f1 – f5', 'the pages on the tab rule · /stat /crew /work'],
+  ['f1 – f6', 'the pages on the tab rule · /stat /crew /work /floor'],
   ['click', 'an agent opens its chat · a tab, its page'],
   ['right-click', 'an agent: its menu (model, new chat, stop…)'],
   ['ctrl+click', 'opens a link, or a file an agent wrote'],
@@ -267,7 +267,8 @@ function render(model, ui, size, now) {
 
   // ---- CREW: a framed list down the left — lamp, name, and a word for what it is doing — the one in COMMS marked; at its
   // foot, where the terminal draws images and the list leaves room, the station camera locked on the agent in COMMS -
-  const side = W >= 90 && rows.length > 0 && !(ui.wake && !ui.wake.crew);   // the awakening shows the crew once its agent exists
+  // the awakening shows the crew once its agent exists; the FLOOR is the crew itself, the whole width
+  const side = W >= 90 && rows.length > 0 && !(ui.wake && !ui.wake.crew) && !(ui.page === 'floor' && !ui.wake && !ui.picker && !ui.overlay);
   const sw = side ? 30 : 0;   // room for a name and its tag, and for the camera feed at its foot
   if (side) {
     // the crew BY KIND, each kind under its strip (the app's NEEDS YOU, grouped by kind): who waits on you, who works,
@@ -362,12 +363,14 @@ function render(model, ui, size, now) {
   const card = wk ? (wk.ask ? wakeCardLines(wk.ask, cw, now, ui.still) : []) : slash ? slashLines(slash, iy1 - iy0 - 4, cw) : menuRow ? menuLines(menuAgent, menuRow, now, ui.still)
     : front ? cardLines(front, model, cw, H) : ui.trust ? trustLines(ui.trust, cw) : [];
   const cardTop = iy1 - card.length + 1;
+  let floorAt = null;   // the FLOOR's picture region, when it draws one (the dashboard puts the picture there)
   const paneBot = card.length ? cardTop - 1 : iy1 + 1;
   if (ui.picker) drawPicker(g, ui.picker, iy0, paneBot, ix0, ix1, blink, hit);
   else if (ui.overlay) drawOverlay(g, ui.overlay, iy0, paneBot, ix0, ix1, tabsRow >= 0);
   else if (page === 'stat') drawStatPage(g, ui, head, rows, flows, iy0, paneBot, ix0, ix1, hit);
   else if (page === 'crew') drawCrewPage(g, model, rows, focusRow, ui, iy0, paneBot, ix0, ix1, now, hit);
   else if (page === 'work') drawWorkPage(g, flows, focusRow, ui, iy0, paneBot, ix0, ix1, now, hit);
+  else if (page === 'floor') floorAt = drawFloorPage(g, rows, ui, iy0, paneBot, ix0, ix1, hit);
   else if (wk) drawWake(g, wk, iy0, paneBot, ix0, ix1, ui, now);
   else if (!focusRow) g.put(ix0, iy0, trunc(head.feed === 'connecting' ? 'connecting to the station…' : 'no agents on this station yet', ix1 - ix0 + 1), 'dim');
   else drawPane(g, focusRow ? model.logOf(focusRow.id) : [], focusRow, iy0, paneBot, ix0, ix1, ui, now, hit);
@@ -384,7 +387,7 @@ function render(model, ui, size, now) {
       : hereId === 'comms' ? (focusRow ? 'COMMS ▸ ' + focusRow.name : 'COMMS') : hereId.toUpperCase();
     const detail = wk ? wk.stage.detail || '' : '';
     const all = wk ? (side ? [['crew', 'CREW', ' ' + rows.length]] : []).concat([['comms', 'COMMS', '']])
-      : [['stat', 'STAT', ''], ['crew', 'CREW', ' ' + rows.length], ['comms', 'COMMS', ''], ['work', 'WORK', flows.length ? ' ' + flows.length : ''], ['skills', 'SKILLS', '']];
+      : [['stat', 'STAT', ''], ['crew', 'CREW', ' ' + rows.length], ['floor', 'FLOOR', ''], ['comms', 'COMMS', ''], ['work', 'WORK', flows.length ? ' ' + flows.length : ''], ['skills', 'SKILLS', '']];
     // the place you are in keeps at least 8 cells of its name; a tab that leaves it less is left off, from the right
     const tw = t => t[0] === hereId ? 0 : 1 + width(t[1]) + width(t[2]) + 1;
     const fixedW = list => 2 + list.reduce((n, t) => n + tw(t) + 3, 0) + 4 + (detail ? width(detail) + 2 : 0);
@@ -462,12 +465,13 @@ function render(model, ui, size, now) {
       : front
       ? (front.question ? (front.question.options.length ? '1-' + front.question.options.length + ' pick · ' : '') + 'type an answer + enter · esc clears' : 'y allow once · ' + (canAlways(front) ? 'a always · ' : '') + 'n deny · v ' + (front.view ? 'hide' : 'view') + ' · ' + (narrow ? 'tab agent' : 'tab next agent'))
       : ui.trust ? 'y trust this folder · n not now · or just type to talk'
-        : page ? PAGE_HINT[page] + '  ·  esc back to COMMS  ·  f1-f5 pages'
-          : narrow ? 'tab agent · /model · /new · /help · ctrl+c quit' : 'tab next agent  ·  ↑ ↓ history  ·  /model  ·  /new  ·  /resume  ·  /help  ·  f1-f5 pages  ·  ctrl+c quit';
+        : page ? PAGE_HINT[page] + '  ·  esc back to COMMS  ·  f1-f6 pages'
+          : narrow ? 'tab agent · /model · /new · /help · ctrl+c quit' : 'tab next agent  ·  ↑ ↓ history  ·  /model  ·  /new  ·  /resume  ·  /help  ·  f1-f6 pages  ·  ctrl+c quit';
     g.put(0, hintY, trunc(t, W), 'dim');
   }
   const out = g.out();
   out.avatar = avatar;
+  out.floor = floorAt;
   out.hits = hits;
   out.areas = areas;
   return out;
@@ -476,11 +480,12 @@ function render(model, ui, size, now) {
 const AGENT_ROWS = 9;   // the titled rule above it + its 8-row scene
 
 // ---- THE PAGES: STAT, CREW and WORK, each the whole COMMS frame (SKILLS is the /skills list; COMMS the conversation) ----
-const PAGES = ['stat', 'crew', 'work'];
+const PAGES = ['stat', 'crew', 'floor', 'work'];
 const PAGE_HINT = {
   stat: 'the station: its level, spend, crew and work',
   crew: 'click an agent to open its chat · right-click one for its menu',
-  work: 'click a workflow to send it a job'
+  work: 'click a workflow to send it a job',
+  floor: 'the crew at work · a handoff flies desk to desk · click a name to open its chat'
 };
 const padR = (s, n) => s + ' '.repeat(Math.max(0, n - width(s)));
 // a page's rows from `top`, scrolled by ui.pageScroll: { label, segs, act, on, strip } (null = a blank row). A labelled row
@@ -545,6 +550,47 @@ function drawCrewPage(g, model, rows, focusRow, ui, top, bot, x0, x1, now, hit) 
   }
   drawPageRows(g, L, ui, top, bot, x0, x1, hit);
 }
+/* THE FLOOR (f6, /floor): the whole crew in one room. Where the terminal draws images it is a picture (bin/lib/floor.js):
+   this leaves its region empty and says where it is (the dashboard draws it there, with the name plates over it); with no
+   images, the same truth as text — the lead, the workers it sent (each with what it is doing), the rest. Under it the LOG
+   of the handoffs: who sent what to whom, who came back. ui.floorView: { images, ready, lead, kids, log } */
+function drawFloorPage(g, rows, ui, top, bot, x0, x1, hit) {
+  const fv = ui.floorView || {};
+  const w = x1 - x0 + 1;
+  const logLines = (fv.log || []).slice(-3);
+  const picBot = bot - 4;   // the LOG: its rule and three lines
+  let region = null;
+  if (fv.images && picBot - top >= 8) {
+    region = { x: x0, y: top, cols: w, rows: picBot - top };
+    if (!fv.ready) g.put(x0 + 2, top + 1, trunc('the floor is fetching the crew\'s art…', w - 2), 'dim');
+  } else {
+    const byId = new Map(rows.map(r => [r.id, r]));
+    const word = r => r.status.key === 'working' ? ['● ' + (r.now || 'working'), 'ph'] : r.status.key === 'needs' ? ['▲ ' + (r.now || 'needs you'), 'am'] : r.status.key === 'done' ? ['✓ done', 'ok'] : r.status.key === 'stopped' ? ['■ ' + r.status.text, 'dim'] : ['standing by', 'dim'];
+    const kids = (fv.kids || []).filter(id => byId.has(id));
+    const lead = byId.get(fv.lead);
+    let y = top;
+    const line = (r, lead2, prefix) => {
+      if (y >= picBot) return;
+      let x = g.put(x0, y, prefix, 'rule');
+      const x1n = g.put(x, y, r.name, lead2 ? 'ph b' : 'hi b');
+      x = lead2 ? g.put(x1n, y, '  lead', 'dim') : x1n;
+      const [t, st] = word(r);
+      g.put(x + 2, y, trunc(t, Math.max(4, x1 - x - 2)), st);
+      hit(x0, x1 + 1, y, { t: 'agent', id: r.id });
+      y++;
+    };
+    if (lead) line(lead, kids.length > 0, '');
+    kids.forEach((id, i) => line(byId.get(id), false, i === kids.length - 1 ? '└─▶ ' : '├─▶ '));
+    if (lead || kids.length) y++;
+    for (const r of rows) if (r !== lead && kids.indexOf(r.id) < 0) line(r, false, '');
+  }
+  let x = g.put(x0, picBot, 'LOG ', 'dim b');
+  while (x <= x1) x = g.put(x, picBot, '─', 'rule');
+  if (!logLines.length) g.put(x0, picBot + 1, trunc('no handoffs yet — when an agent sends work to the crew it shows here, and on the floor', w), 'dim');
+  logLines.forEach((e, i) => g.put(x0, picBot + 1 + i, trunc(clock(e.at) + '  ' + e.text, w), e.style || 'fg'));
+  return region;
+}
+function clock(at) { const d = new Date(at); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':'); }
 // WORK: the station's workflows (a click readies a job for one), its routines (the scheduler's own list) and the away shift
 // of the agent shown (/away list)
 function drawWorkPage(g, flows, focusRow, ui, top, bot, x0, x1, now, hit) {
@@ -978,7 +1024,7 @@ const PALETTE = {   // (the accent entries are retinted in place by /theme — t
 };
 // (256-color: the card sits on a near-black — the nearest palette brown, 58, is a loud olive)
 // hifill / amfill: the Pip-Boy's filled labels — white for where you are, amber for what waits on you
-const BG = { sel: ['#3a0c14', 52], card: ['#1f1405', 234], inv: ['#ff3b4e', 203], hifill: ['#ffffff', 231], amfill: ['#ffb43a', 214] };
+const BG = { sel: ['#3a0c14', 52], card: ['#1f1405', 234], inv: ['#ff3b4e', 203], hifill: ['#ffffff', 231], amfill: ['#ffb43a', 214], plate: ['#120c0e', 233] };
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function sgr(style, level) {
   const parts = String(style || '').split(/\s+/).filter(Boolean);

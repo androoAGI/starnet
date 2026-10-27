@@ -530,6 +530,27 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     await d.done();
   }
 
+  /* 16. /floor on a terminal with no images: the lead and the worker its run sent (live from the feed: the worker's run
+     names its lead run), what each is doing, and the LOG of the handoff and its return */
+  {
+    const d = await boot();
+    d.st.emit('agent.run.start', { runId: 'L1', agentId: 'agent', streamId: 'desk-1', trigger: 'directive', prompt: 'ship the landing page' });
+    d.st.emit('agent.run.start', { runId: 'W1', agentId: 'scout', streamId: 'w-1', parentRunId: 'L1', delegatedBy: 'agent', prompt: 'research pricing' });
+    d.st.emit('agent.tool_call', { runId: 'W1', agentId: 'scout', name: 'web.fetch', callId: 'c1', argsSummary: '{"url":"vercel.com/pricing"}' });
+    await sleep(400);
+    let at = d.mark();
+    await d.keys('/floor\r', 700);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/ULTRON lead ● /.test(said) && /└─▶ SCOUT ● web\.fetch/.test(said), 'floor: the lead and the worker it sent, each with what it is doing: ' + (said.match(/ULTRON lead.{0,120}/) || [''])[0]);
+    A.ok(/ULTRON → SCOUT team\.dispatch "research pricing"/.test(said), 'floor: the handoff in the LOG');
+    at = d.mark();
+    d.st.emit('agent.run.end', { runId: 'W1', agentId: 'scout', reason: 'done', turns: 1, usd: 0 });
+    await sleep(700);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/SCOUT → ULTRON done/.test(said), 'floor: its result comes back in the LOG');
+    await d.done();
+  }
+
   global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;
   A.report('cli-dashboard-drive.test');
   process.exit(process.exitCode || 0);
