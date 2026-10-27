@@ -1220,6 +1220,7 @@ test/project-home-ui.test.js
 test/cli.test.js
 test/cli.stop-child.test.js
 test/cli-desktop-closed.test.js
+test/cli-owner-identity.test.js
 test/cli-bootstrap-lineage.test.js
 test/cli-dashboard.test.js
 test/cli-dashboard-signal.test.js
