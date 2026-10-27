@@ -230,19 +230,42 @@ const Voice = (() => {
   const legsOf = reason => String(reason == null ? '' : reason).split(/;\s+/);
   const billingLeg = l => /\b402\b|insufficient[ _-]?(?:credit|quota|funds)|payment required|out of credit/i.test(l) || (TERMINAL_BILLING.test(l) && !TRANSIENT_LEG.test(l));
   const transientLeg = l => TRANSIENT_LEG.test(l) && !billingLeg(l);
+  // The page's own reading of a refused reply ('stale session' / 'token withheld', see apiFailureReason) leads the string.
+  const STALE_SESSION = /^stale session\b/i, TOKEN_WITHHELD = /^token withheld\b/i;
   function classifyFallback(reason) {
     const r = String(reason == null ? '' : reason);
+    if (STALE_SESSION.test(r)) return 'stale';
+    if (TOKEN_WITHHELD.test(r)) return 'withheld';
     if (legsOf(r).some(billingLeg)) return 'credits';
     // 'no key' is structural. With a transient leg in the ladder the station does NOT need a credential —
     // the free floor does have voice and simply blipped, so sending the user to buy a key would be a lie.
     if (/no key/i.test(r)) return legsOf(r).some(transientLeg) ? 'error' : 'nokey';
-    return 'error';
+    if (legsOf(r).some(transientLeg)) return 'error';
+    // Nothing in the ladder is a failure we know (2026-10-26: Microsoft started refusing the Edge token with HTTP 403,
+    // which matched no class, so every keyless station retried a permanent refusal as a blip and said only
+    // "unreachable"). An unknown failure is TERMINAL and NAMED: the tooltip quotes it.
+    return 'unknown';
   }
   function retryableFallback(reason) {
     const r = String(reason == null ? '' : reason);
-    if (legsOf(r).some(transientLeg)) return true;                  // something in the ladder may well work now
-    if (legsOf(r).some(billingLeg) || /no key/i.test(r)) return false;
-    return true;                                                   // an unclassified error is treated as transient
+    if (STALE_SESSION.test(r) || TOKEN_WITHHELD.test(r)) return false;   // a reload, not a retry, is the way back
+    // something in the ladder may well work now. Anything else — billing, no key, or a failure we cannot classify —
+    // will not fix itself in seconds, so it is NOT retried as a blip (an unclassified error used to be).
+    return legsOf(r).some(transientLeg);
+  }
+  // A refused reply with no JSON body (rejectBadApiToken's 403 'forbidden token', an HTML 5xx) read through the ONE
+  // shared classifier: a 403 is a restart only when the page's stale-token recovery proved it (Harness.sessionStale).
+  function apiFailureOf(r) {
+    try {
+      if (typeof Harness !== 'undefined' && Harness && typeof Harness.classifyApiFailure === 'function') return Harness.classifyApiFailure(r);
+    } catch (_) { /* fall through to the bare status */ }
+    return null;
+  }
+  function apiFailureReason(r) {
+    const f = apiFailureOf(r);
+    if (f && f.code === 'stale_session') return 'stale session: ' + f.message;
+    if (f && f.code === 'token_withheld') return 'token withheld: ' + f.message;
+    return 'http ' + (r && r.status);
   }
   // TRUTHFUL TELEMETRY, off the header. The voice swap must never be silent, but the COMMS status bar
   // (#chat-status) is for RUN-STATE only — never voice-outage banners (Andrew 2026-07-13: "there should
@@ -251,27 +274,40 @@ const Voice = (() => {
   // nag); it stays inspectable on hover and the recovery path (noteNeuralOk→reflectToggle) clears it once
   // the neural voice is back. We never call setStatus() with it.
   let fbMsg = '';          // the honest degrade reason — shown ONLY on the toggle tooltip, cleared on neural recovery
+  let neuralColdStale = false;   // the terminal cold-off was bought by a stale session: it lifts once the page reconnects
   function noteFallback(reason) {
     fbStreak++;
     const cls = classifyFallback(reason);
     // The long cold-off is bought by IRRECOVERABILITY, not by the message class: a ladder whose last leg
     // was a timeout or a rate limit is worth retrying in seconds even when an earlier leg said 402.
-    if (!retryableFallback(reason)) { neuralColdUntil = Date.now() + BILLING_COLD_MS; neuralColdTerminal = true; }
-    if (fbNotified === cls || (cls === 'error' && fbStreak < 3)) return;
-    fbNotified = cls;
+    if (!retryableFallback(reason)) { neuralColdUntil = Date.now() + BILLING_COLD_MS; neuralColdTerminal = true; neuralColdStale = cls === 'stale'; }
+    if (cls === 'error' && fbStreak < 3) return;
     // Truthful: there is no "backup voice" anymore — a failed chunk plays nothing and the reply stays
     // visible as text in COMMS. Say exactly that. Pinned on the toggle tooltip only, never #chat-status.
-    fbMsg = cls === 'credits' ? '🔇 real voice offline — voice provider out of credits · reply shown as text'
+    const msg = cls === 'credits' ? '🔇 real voice offline — voice provider out of credits · reply shown as text'
       : cls === 'nokey' ? '🔇 real voice needs an OpenRouter, Gemini, or OpenAI credential · reply shown as text'
+      : cls === 'stale' ? '🔇 voice offline — the station restarted; reload this page to reconnect · reply shown as text'
+      : cls === 'withheld' ? '🔇 voice offline — this browser was not verified as your own account (see the station notice) · reply shown as text'
+      : cls === 'unknown' ? '🔇 real voice failed — ' + String(reason || 'no reason given').replace(/\s+/g, ' ').slice(0, 140) + ' · reply shown as text'
       : '🔇 real voice unreachable · reply shown as text';
+    if (fbNotified === msg) return;   // once per distinct reason, not once per sentence
+    fbNotified = msg;
+    fbMsg = msg;
     if (toggleBtn) toggleBtn.title = fbMsg;
+  }
+  // The terminal cold-off holds until its clock runs out — except a stale session's, which ends the moment the page
+  // has reconnected (the recovery adopts the new key on any refused call; voice must not stay mute for the rest of it).
+  function terminalColdHolds() {
+    if (!neuralColdTerminal || Date.now() >= neuralColdUntil) return false;
+    if (neuralColdStale && typeof Harness !== 'undefined' && Harness && typeof Harness.sessionStale === 'function' && !Harness.sessionStale()) return false;
+    return true;
   }
   // a chunk actually spoke → the neural path is PROVEN alive, so LIFT the cold-off too. Without this, a
   // single blip's 4s cold-off kept suppressing the rest of the reply (and the next reply's opening words)
   // even though the very next call would have succeeded.
-  function noteNeuralOk() { fbStreak = 0; replyFails = 0; neuralColdUntil = 0; neuralColdTerminal = false; if (fbNotified) { fbNotified = ''; fbMsg = ''; reflectToggle(); } }
+  function noteNeuralOk() { fbStreak = 0; replyFails = 0; neuralColdUntil = 0; neuralColdTerminal = false; neuralColdStale = false; if (fbNotified) { fbNotified = ''; fbMsg = ''; reflectToggle(); } }
   // ANY toggle of the speaker button clears all cold-offs and re-probes the neural path fresh (no latch).
-  function clearNeuralCold() { neuralColdUntil = 0; neuralColdTerminal = false; fbStreak = 0; if (fbNotified) { fbNotified = ''; fbMsg = ''; } }
+  function clearNeuralCold() { neuralColdUntil = 0; neuralColdTerminal = false; neuralColdStale = false; fbStreak = 0; if (fbNotified) { fbNotified = ''; fbMsg = ''; } }
   // The ONE page credential /api/stt may use: the page's OpenRouter key, as an explicit {provider, key} pair (the
   // sidecar's only page-key STT leg is OpenRouter's audio-in chat model). Never the run provider's key.
   function sttCred() {
@@ -916,8 +952,11 @@ const Voice = (() => {
       }
       const ct = r.headers.get('Content-Type') || '';
       if (r.ok && ct.indexOf('audio') === 0) { const blob = await r.blob(); if (blob && blob.size) return { kind: 'neural', blob, engine: engineOf(r.headers.get('X-Voice-Provider') || job.voice.engine) }; }
-      let reason = 'http ' + r.status;
-      try { const j = await r.json(); if (j && j.reason) reason = j.reason; } catch (_) {}
+      let reason = '';
+      // the route's 200 envelope names its reason ({fallback, reason}; an older crash envelope carried only `error`)
+      try { const j = await r.json(); if (j && (j.reason || j.error)) reason = String(j.reason || j.error); } catch (_) { /* not JSON */ }
+      // no envelope at all (rejectBadApiToken's plain 403, an HTML 5xx): read the refusal through the shared classifier
+      if (!reason) reason = r.ok ? 'http ' + r.status : apiFailureReason(r);
       if (job.seq === speakSeq) recordSpeechEvent('synthesis_failure', { chunk: jobs.indexOf(job), attempt: job.attempt, httpStatus: r.status, category: classifyFallback(reason), retryable: retryableFallback(reason) });
       return { kind: 'fail', reason };
     }).catch(e => {
@@ -940,7 +979,7 @@ const Voice = (() => {
     // Once THIS reply has failed MID_REPLY_GIVEUP chunks in a row, the rest of it stays quiet whatever the clock
     // says: re-asking a dead provider every sentence (3 attempts each, up to 30s apiece) kept the reply 'speaking'
     // for minutes with no audio. The next reply starts fresh.
-    if ((replyTried && replyFails >= MID_REPLY_GIVEUP) || (!replyTried && neuralColdTerminal && Date.now() < neuralColdUntil)) { job.result = Promise.resolve({ kind: 'fail', reason: 'cooldown' }); return; }
+    if ((replyTried && replyFails >= MID_REPLY_GIVEUP) || (!replyTried && terminalColdHolds())) { job.result = Promise.resolve({ kind: 'fail', reason: 'cooldown' }); return; }
     replyTried = true;
     const seq = job.seq;
     // Two retries for a TRANSIENT failure (429 / network / 5xx) — a single provider blip must cost a
@@ -963,7 +1002,7 @@ const Voice = (() => {
         if (res.kind === 'skip') return res;   // intentional barge-in/teardown cancel — not a failure
         replyFails++;
         // cool the neural path off briefly (noteFallback lengthens this for 'no key'/'credits'); never latch.
-        neuralColdUntil = Date.now() + NEURAL_COLD_MS; neuralColdTerminal = false;
+        neuralColdUntil = Date.now() + NEURAL_COLD_MS; neuralColdTerminal = false; neuralColdStale = false;
         console.warn('[voice] neural TTS recovery exhausted:', res.reason);
         noteFallback(res.reason);
         return { kind: 'fail', reason: res.reason };
@@ -1502,12 +1541,11 @@ const Voice = (() => {
          the user's spoken sentence disappeared with no error and no diagnostic, byte-identical to having said
          nothing into a dead room. An unknown is not an empty. */
       if (!r.ok && !(j && (j.text || j.reason))) {
-        // a page the station KEPT its key from (Harness.tokenWithheld) gets the same 403, but it is not a restart: a
-        // reload only re-runs the same ownership check, and the station notice says why (review threads-backend-05)
-        const withheld = r.status === 403 && typeof Harness !== 'undefined' && Harness
-          && typeof Harness.tokenWithheld === 'function' && Harness.tokenWithheld();
-        const reason = withheld ? 'this browser was not verified as your own account — see the station notice'
-          : r.status === 403 ? 'the station restarted — reload the page to reconnect'
+        // Read through the ONE shared classifier (Harness.classifyApiFailure): a 403 is a restart only when the page's
+        // stale-token recovery proved it, and a page the station KEPT its key from (tokenWithheld) is not a restart — a
+        // reload only re-runs the same ownership check, and the station notice says why (review threads-backend-05).
+        const f = apiFailureOf(r);
+        const reason = f && (f.code === 'token_withheld' || f.code === 'stale_session' || f.code === 'forbidden') ? f.message
           : 'transcription unreachable (HTTP ' + r.status + ')';
         console.warn('[voice] STT HTTP', r.status);
         return { text: '', reason, failed: true };

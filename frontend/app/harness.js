@@ -297,6 +297,36 @@ const Harness = (() => {
     }
     return { settle, isStaleReply, refresh };
   }
+  /* ONE reading of a refused /api/* reply, for every surface that must say WHY a call failed: voice synthesis, the
+     push-to-talk transcript and the Live Voice probe each used to decide on their own that any 403 meant "the station
+     restarted". A 403 is a restart only when the stale-token recovery below PROVED it (state.sessionStale: the station
+     rotated its key and this page could not adopt it). A page the station kept its key from (state.tokenWithheld) is
+     never "restarted" — a reload only re-runs the same ownership check — and any other 403 is the route's own
+     refusal. state.sessionStale undefined = a caller with no recovery state, read as before (a stale session).
+     Pure over its two arguments: Harness.classifyApiFailure binds the live state, and tests lift it by source.
+     → null for a reply that is not a failure, else { code, status, terminal, staleSession, tokenWithheld, message }. */
+  function classifyApiFailure(response, state) {
+    if (!response || response.ok !== false) return null;
+    const s = state || {};
+    const status = Number(response.status) || 0;
+    if (status === 403 && s.tokenWithheld) {
+      return { code: 'token_withheld', status, terminal: true, staleSession: false,
+        tokenWithheld: s.withheldNotice || 'StarNet could not confirm this browser is yours — see the station notice.',
+        message: 'this browser was not verified as your own account — see the station notice' };
+    }
+    if (status === 403 && s.sessionStale !== false) {
+      return { code: 'stale_session', status, terminal: true, staleSession: true, tokenWithheld: '',
+        message: 'the station restarted — reload the page to reconnect' };
+    }
+    if (status === 403) {
+      return { code: 'forbidden', status, terminal: true, staleSession: false, tokenWithheld: '',
+        message: 'the station refused this request (HTTP 403)' };
+    }
+    // no answer, a timeout, a rate limit or a server fault may clear on its own; any other status will not
+    const transient = status === 0 || status === 408 || status === 429 || status >= 500;
+    return { code: transient ? 'station_unavailable' : 'http_error', status, terminal: !transient, staleSession: false, tokenWithheld: '',
+      message: 'unreachable (HTTP ' + status + ')' };
+  }
   // Set when a stale-token 403 could NOT be recovered in place — the one state where the honest answer is
   // "reload this page". Surfaces read it (Harness.sessionStale) so they stop blaming the network or the catalog.
   // NOT set for a page the station kept its key from (tokenWithheld): that is not a restart (tokenWithheldNotice says why).
@@ -2113,6 +2143,9 @@ const Harness = (() => {
     tokenWithheld: () => tokenWithheld,   // the station kept its key from this page (peerowner reason) — never "restarted"; '' = it has its key
     tokenWithheldNotice: () => tokenWithheldNotice(tokenWithheld),   // the full withheld sentence ('' = not withheld)
     tokenWithheldRetryable: () => withheldRetryable(tokenWithheld),   // a transient reason: a reload re-runs the check and may pass
+    // the ONE reading of a refused /api/* reply (voice synthesis, push-to-talk, the Live Voice probe): a 403 is a restart only when
+    // the stale-token recovery proved it (sessionStale), never for a withheld page, else the route's own refusal
+    classifyApiFailure: response => classifyApiFailure(response, { sessionStale, tokenWithheld, withheldNotice: tokenWithheldNotice(tokenWithheld) }),
     apiFetch: (u, init) => ensureApiToken().then(t => fetch(u, withApiToken(init, t))),
     totals: () => totals,
     setTotals: t => { totals = { tokens: t.tokens || 0, cost: t.cost || 0, calls: t.calls || 0 }; },

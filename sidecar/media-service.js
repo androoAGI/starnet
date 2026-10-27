@@ -798,8 +798,11 @@ function makeMediaService(options) {
   function ttsFailOpenPolicy(res, error) {
     try {
       if (!res.headersSent) {
+        // the SAME envelope every other TTS failure answers ({fallback, reason}): a body with only `error` left the desk
+        // no reason to read, so it saw 'http 200' and retried a crashed handler as if it were a network blip
+        const reason = redact('tts failure: ' + ((error && error.message) || error));
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        res.end(JSON.stringify({ error: redact('tts failure: ' + ((error && error.message) || error)) }));
+        res.end(JSON.stringify({ fallback: true, reason, error: reason }));
       } else res.end();
     } catch (_) { try { res.end(); } catch (_) {} }
   }

@@ -392,7 +392,21 @@ async function invokeTts(overrides, body) {
     assert.ok(files <= 480, 'the 32nd Kokoro miss sweeps the cache back under its cap (' + files + ' clips left of ' + (640 + 32) + ')');
   }
 
-  console.log('media-service: OK (47 assertions)');
+  // A THROWN /api/tts handler still answers the 200 media envelope the desk reads: {fallback:true, reason}. It used to
+  // write {error} only, so the desk found no reason, saw 'http 200', and retried a crash as if it were a network blip.
+  {
+    const service = await make({ redact: s => String(s).replace(/sk-[A-Za-z0-9-]+/g, '[redacted]') });
+    const r = { status: 0, headers: {}, body: '' };
+    service.ttsFailOpenPolicy({ headersSent: false, writeHead(s, h) { r.status = s; r.headers = h || {}; }, end(v) { r.body = String(v || ''); } },
+      new Error('Cannot read properties of undefined (key sk-or-v1-LEAK)'));
+    const j = JSON.parse(r.body);
+    assert.equal(r.status, 200, 'a crashed TTS handler keeps the 200-always contract');
+    assert.equal(j.fallback, true, 'the crash body is the fallback envelope the desk reads');
+    assert.match(String(j.reason), /^tts failure: Cannot read properties of undefined/, 'and it carries the crash as its reason: ' + j.reason);
+    assert.doesNotMatch(String(j.reason), /sk-or-v1-LEAK/, 'redacted');
+  }
+
+  console.log('media-service: OK (51 assertions)');
 })().finally(async () => {
   for (const root of roots) await fsp.rm(root, { recursive: true, force: true });
 }).catch(error => {

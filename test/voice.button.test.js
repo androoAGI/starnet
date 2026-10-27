@@ -21,6 +21,14 @@ const path = require('path');
 const vm = require('vm');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice.js'), 'utf8');
+// The page's ONE reading of a refused /api/* reply (harness.js classifyApiFailure), lifted by source so the rig's stub
+// Harness classifies a 403 exactly as the real one does, bound to whatever recovery state a case stubs.
+const HARNESS_SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'harness.js'), 'utf8');
+const CLASSIFY_API_FAILURE = (() => {
+  const m = /(  function classifyApiFailure\([\s\S]*?\n  \})/.exec(HARNESS_SRC);
+  if (!m) throw new Error('harness.js no longer defines classifyApiFailure');
+  return new Function(m[1] + '\nreturn classifyApiFailure;')();   // eslint-disable-line no-new-func
+})();
 
 // ---- controllable browser mocks --------------------------------------------------------------
 let liveRecs = 0, srStartMode = 'ok', srInstances = [];
@@ -138,6 +146,14 @@ function boot(opts) {
     __busy: false, __sent: []
   };
   if (opts.now) sandbox.Date = class extends Date { static now() { return opts.now(); } };
+  {
+    const H = sandbox.Harness;
+    if (!H.classifyApiFailure) H.classifyApiFailure = r => CLASSIFY_API_FAILURE(r, {
+      sessionStale: typeof H.sessionStale === 'function' ? H.sessionStale() : undefined,
+      tokenWithheld: typeof H.tokenWithheld === 'function' ? H.tokenWithheld() : '',
+      withheldNotice: typeof H.tokenWithheldNotice === 'function' ? H.tokenWithheldNotice() : ''
+    });
+  }
   // speechSynthesis is DELETED from the speak path; a test may inject a spy to prove it's never invoked.
   sandbox.globalThis = sandbox;
   win.SpeechRecognition = hasRecorder ? undefined : MockSR;
@@ -1054,6 +1070,56 @@ async function opensWithin(t, ms) {
     t.Voice.setSpeakReplies(true);
     t.Voice.speak('a line past the billing hard limit', 'agent'); await until(() => !t.Voice.isReplyPending(), 5000);
     A.eq(state.tts, 1, 'a billing leg with no rate-limit signal stays terminal (not retried)');
+  }
+
+  // --- a failure the desk cannot classify is TERMINAL and NAMED, never retried as a blip --------------------------
+  // 2026-10-26: Microsoft began refusing the Edge token with HTTP 403. 'edge: edge upgrade refused: HTTP 403' matched no
+  // class, and an unclassified reason was treated as transient: every keyless station retried a permanent refusal
+  // twice per sentence, re-asked every reply after a 4s cold-off, and the tooltip said only "unreachable".
+  {
+    const state = { tts: 0 };
+    const t = boot({ fetch: countingFetch(state, 'edge: edge upgrade refused: HTTP 403') });
+    t.Voice.setSpeakReplies(true);
+    t.Voice.speak('a line the free floor refuses', 'agent'); await until(() => !t.Voice.isReplyPending(), 5000);
+    A.eq(state.tts, 1, 'unclassified failure: NOT retried as a blip (one request)');
+    A.ok(/real voice failed — edge: edge upgrade refused: HTTP 403/.test(String(t.nodes['voice-toggle'].title || '')),
+      'unclassified failure: the tooltip NAMES it: ' + t.nodes['voice-toggle'].title);
+    t.Voice.speak('the next reply while the refusal stands', 'agent'); await tick(40);
+    A.eq(state.tts, 1, 'unclassified failure: the long cold-off holds — the next reply does not re-ask');
+  }
+  // a crashed /api/tts handler answers {fallback:true, reason:'tts failure: …'} (ttsFailOpenPolicy) — terminal and named
+  {
+    const state = { tts: 0 };
+    const t = boot({ fetch: countingFetch(state, 'tts failure: Cannot read properties of undefined (reading \'voice\')') });
+    t.Voice.setSpeakReplies(true);
+    t.Voice.speak('a line when the handler throws', 'agent'); await until(() => !t.Voice.isReplyPending(), 5000);
+    A.eq(state.tts, 1, 'handler crash: not retried');
+    A.ok(/real voice failed — tts failure: Cannot read properties/.test(String(t.nodes['voice-toggle'].title || '')),
+      'handler crash: the tooltip carries the crash reason: ' + t.nodes['voice-toggle'].title);
+  }
+  // a stale-token 403 (rejectBadApiToken's plain 'forbidden token') is read through Harness.classifyApiFailure, which
+  // consults Harness.sessionStale: "reload this page", never retried, and the cold-off lifts once the page reconnects
+  {
+    const state = { tts: 0 };
+    let stale = true;
+    const fetch403 = (url) => {
+      if (String(url).indexOf('/api/tts') >= 0) {
+        state.tts++;
+        return Promise.resolve({ ok: false, status: 403, headers: { get: () => 'text/plain' }, json: () => Promise.reject(new SyntaxError('Unexpected token f')) });
+      }
+      return Promise.resolve({ ok: true, headers: { get: () => 'application/json' }, json: () => Promise.resolve({ text: 'words' }), blob: () => Promise.resolve({ size: 1 }) });
+    };
+    const t = boot({ fetch: fetch403, harness: { sessionStale: () => stale } });
+    t.Voice.setSpeakReplies(true);
+    t.Voice.speak('a line from a page with an old token', 'agent'); await until(() => !t.Voice.isReplyPending(), 5000);
+    A.eq(state.tts, 1, 'stale-token 403: not retried (a reload, not a retry, is the way back)');
+    A.ok(/the station restarted; reload this page/.test(String(t.nodes['voice-toggle'].title || '')),
+      'stale-token 403: the tooltip says the station restarted and to reload: ' + t.nodes['voice-toggle'].title);
+    t.Voice.speak('still stale', 'agent'); await tick(40);
+    A.eq(state.tts, 1, 'stale-token 403: while the session is stale, the next reply does not re-ask');
+    stale = false;   // the page's recovery adopted the new key on some other call
+    t.Voice.speak('reconnected now', 'agent'); await tick(40);
+    A.eq(state.tts, 2, 'stale-token 403: once Harness.sessionStale() clears, the next reply asks again');
   }
 
   // --- the pinned degrade reason survives Voice.init (agent focus / persona / dossier apply) -----
