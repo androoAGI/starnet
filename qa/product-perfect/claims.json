@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "cd71e6085993cf31262f680a4e71744011f9330b",
+    "sourceCommit": "a64412d36fa88ea0e87a6b043fc606ad6a222c9e",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -338,8 +338,8 @@
       },
       {
         "path": "frontend/app/build.js",
-        "bytes": 756008,
-        "sha256": "cb350ade97faa6ad2e28c46083d74ac8bd9dad20306924a5cb94307b9452e320"
+        "bytes": 756513,
+        "sha256": "6ea11fb95f0cb0809cfef21145745b86297ef0acf5e9460d262f4abcd669403d"
       },
       {
         "path": "frontend/app/buildshare.js",
@@ -778,8 +778,8 @@
       },
       {
         "path": "frontend/app/pipeline.js",
-        "bytes": 173404,
-        "sha256": "683546ba1ab0c28e9efa2fd8c00037c9e1c1bc4f02a0701e33b15fa87c464dab"
+        "bytes": 174774,
+        "sha256": "f17f2700a678e3c7e9a5386b3be777dfe759cc9a7d64603eab3f948a8cb80004"
       },
       {
         "path": "frontend/app/pitch.js",
