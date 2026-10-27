@@ -29,6 +29,10 @@ A.eq(rels.slice(1), rels.slice(1).slice().sort(), 'H1: the other files follow in
 A.ok(rels.every(r => r.startsWith('sidecar/') && r.endsWith('.js')), 'H1: only sidecar .js files are read');
 A.ok(rels.includes('sidecar/loop.js') && rels.includes('sidecar/channels/hub.js'), 'H1: nested modules are included');
 A.eq(new Set(rels).size, rels.length, 'H1: no file is read twice');
+A.eq(['workspaces', 'workspaces.dev', 'Workspaces-old', 'node_modules', '.cache'].map(S.isSkippedDir), [true, true, true, true, true],
+  'H1: runtime workspaces, dependencies and dot-dirs under sidecar/ are never read as source');
+A.eq(['channels', 'tools', 'workspace-lineage'].map(S.isSkippedDir), [false, false, false], 'H1: real source directories are read');
+A.ok(!rels.some(r => /\/workspaces(?:[.-][^/]*)?\//i.test(r)), 'H1: no file under a runtime workspace directory is in the source');
 const indexText = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');   // the one sanctioned direct read: the helper's own check
 A.ok(S.readSidecarIndex() === indexText, 'H1: readSidecarIndex() is index.js byte for byte');
 const all = S.readSidecarSource();

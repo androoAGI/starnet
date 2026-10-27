@@ -41,11 +41,17 @@ const INDEX_REL = 'sidecar/index.js';
 let filesCache = null;
 const textCache = new Map();
 
+/* Directories that are never sidecar source: dependencies, dot-dirs, and the gitignored runtime workspaces a dev
+   sidecar can create under sidecar/ (sidecar/workspaces and sidecar/workspaces.<name> — agents write arbitrary .js
+   there, and scripts/prepare-node.mjs refuses to bundle them for the same reason). */
+function isSkippedDir(name) {
+  return name === 'node_modules' || name.startsWith('.') || /^workspaces(?:[.-].*)?$/i.test(name);
+}
+
 function walk(dir, out) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
     const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(abs, out);
+    if (entry.isDirectory()) { if (!isSkippedDir(entry.name)) walk(abs, out); }
     else if (entry.isFile() && entry.name.endsWith('.js')) out.push(path.relative(ROOT, abs).split(path.sep).join('/'));
   }
   return out;
@@ -198,5 +204,6 @@ module.exports = {
   functionSourceIn,
   locateSidecarFunction,
   sidecarFileContaining,
+  isSkippedDir,
   SIDECAR_INDEX: INDEX_REL
 };
