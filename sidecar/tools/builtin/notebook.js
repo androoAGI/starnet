@@ -93,13 +93,20 @@
 
   /* UNDO a supersession: a text that a supersession retired comes back as its OWN active record, with the provenance
      it had (snapshot), and the history entry it came from is marked restoredAs. Returns null when `body` is not a
-     retired-by-supersession text of any record (an ordinary correction's archive is never resurrected this way). */
-  function restoreSuperseded(list, body, now, newId, runId) {
+     retired-by-supersession text of any record (an ordinary correction's archive is never resurrected this way).
+     opts.boundary {scope, projectRoot}: the WRITE's project boundary — only a text retired inside it comes back, into it
+     (a run in project B never resurrects project A's belief, and the tool never says "this project" of another one).
+     opts.taintedBy: the run read outside content, so the record comes back stamped with that taint, unpinned, and
+     without the Commander's authority (a tainted run's note is never pinned or theirs — 2026-10-10). */
+  function restoreSuperseded(list, body, now, newId, runId, opts) {
     const same = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+    const o = opts || {};
+    const want = o.boundary ? retrieval.memoryProjectKey(o.boundary) : null;
+    const inBoundary = (r, s) => want == null || (retrieval.memoryProjectKey(r) === want && retrieval.memoryProjectKey(s) === want);
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       const hist = Array.isArray(r && r.history) ? r.history : [];
-      const at = hist.findIndex(h => h && h.supersession && h.snapshot && !h.restoredAs && same(h.body) === same(body));
+      const at = hist.findIndex(h => h && h.supersession && h.snapshot && !h.restoredAs && same(h.body) === same(body) && inBoundary(r, h.snapshot));
       if (at < 0) continue;
       const h = hist[at], s = h.snapshot;
       const back = { id: newId, kind: s.kind || 'note', title: h.title || '', body: h.body, scope: s.scope || 'global', streamId: s.streamId || null,
@@ -110,7 +117,11 @@
       if (s.confirmation) back.confirmation = s.confirmation;
       if (s.statedBy) back.statedBy = s.statedBy;
       if (s.taintedBy) back.taintedBy = s.taintedBy;
-      const marked = Object.assign({}, r, { history: hist.map((e, j) => (j === at ? Object.assign({}, e, { restoredAs: newId, restoredAt: now }) : e)) });
+      if (o.taintedBy) {
+        back.taintedBy = String(o.taintedBy).slice(0, 200); back.pinned = false; delete back.statedBy;
+        if (back.confirmation === 'user-stated' || back.confirmation === 'user-confirmed') delete back.confirmation;
+      }
+      const marked =Object.assign({}, r, { history: hist.map((e, j) => (j === at ? Object.assign({}, e, { restoredAs: newId, restoredAt: now }) : e)) });
       const out = list.slice(); out[i] = marked; out.push(back);
       return { list: out, record: back, from: marked };
     }
@@ -390,7 +401,7 @@
           }
           // UNDO: distinct:true with a text a supersession retired restores that record, with the provenance it had
           if (overridden) {
-            const back = restoreSuperseded(list, body, now, nextId(list), runId);
+            const back = restoreSuperseded(list, body, now, nextId(list), runId, { boundary: { scope: scope, projectRoot: projectRoot }, taintedBy: taintedBy });
             if (back) { note = back.record; restored = back.from; return back.list; }
           }
           const apart = new Set(relations.filter(x => x.r === 'distinct').map(x => x.n));

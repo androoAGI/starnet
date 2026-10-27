@@ -249,6 +249,40 @@ const NOTE_TABLE = [
     const again = await nb.write({ title: 'DB', body: 'The staging database is in Frankfurt', distinct: true });
     A.ok(/already remember/.test(again.content) || nb.active().filter(b => b === 'The staging database is in Frankfurt').length === 1, 'a second restore never duplicates it');
   }
+  // UNDO reaches RECALL: a text retired by the Commander's own words (a user-stated survivor) comes back into auto-recall
+  {
+    const context = require('../sidecar/context.js');
+    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: Date.UTC(2026, 8, 1), origin: 'commander', confirmation: 'inferred' }]);
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { commanderWords: 'Actually I prefer light mode now.' });
+    A.eq(nb.notes()[0].confirmation, 'user-stated', '(the survivor is the Commander\'s own words)');
+    const r = await nb.write({ title: 'Theme', body: 'User prefers dark mode', distinct: true });
+    A.ok(/both are active now/.test(r.content), '(restored)');
+    A.eq(context.activeMemoryRecords(nb.notes()).map(n => n.body), ['User prefers light mode', 'User prefers dark mode'], 'a restored text is ACTIVE for recall too, not retired by the history entry it came from');
+    A.ok(context.rank(nb.notes(), 'dark mode theme', { now: Date.now(), k: 8 }).some(x => (x.record || x).body === 'User prefers dark mode'), 'and auto-recall ranks it');
+  }
+  // UNDO stays inside the write's project: a run in project B never resurrects project A's belief
+  {
+    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'stream', streamId: 'sA', projectRoot: 'C:/Work/A', title: 'Theme', body: 'User prefers dark mode', createdAt: 1 }]);
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { streamId: 'sA', projectRoot: 'C:/Work/A' });
+    const r = await nb.write({ title: 'Theme', body: 'User prefers dark mode', distinct: true }, { streamId: 'sB', projectRoot: 'C:/Work/B' });
+    const mine = nb.notes().filter(n => n.projectRoot === 'C:/Work/B');
+    A.ok(mine.length === 1 && mine[0].body === 'User prefers dark mode' && !mine[0].restoredFrom, 'project B saves its OWN note: ' + JSON.stringify(nb.notes().map(n => [n.id, n.projectRoot, n.body])));
+    A.ok(!nb.notes()[0].history[0].restoredAs && !/Restored/.test(r.content), 'project A\'s retired text stays retired, and the result claims no restore');
+  }
+  // UNDO on a tainted run carries the taint: never pinned, never the Commander's words (2026-10-10 law)
+  {
+    const said = { id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: 1, pinned: true,
+      confirmation: 'user-stated', statedBy: { runId: 'r0', quote: 'I prefer dark mode' } };
+    const nb = notebook([said]);
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { commanderWords: 'Actually I prefer light mode now.' });
+    const taint = { connectorAuthority: { taintedBy: () => 'web page https://evil.example' } };
+    const refused = await nb.write({ title: 'Theme', body: 'User prefers dark mode', distinct: true, pinned: true }, taint);
+    A.ok(/pin refused|cannot pin/.test(refused.summary + refused.content), '(a tainted run cannot pin outright)');
+    await nb.write({ title: 'Theme', body: 'User prefers dark mode', distinct: true }, taint);
+    const back = nb.notes().find(n => n.body === 'User prefers dark mode');
+    A.ok(back && back.taintedBy === 'web page https://evil.example' && back.pinned === false && !back.statedBy && back.confirmation !== 'user-stated',
+      'a tainted run\'s restore is stamped with its taint, unpinned, and not the Commander\'s words: ' + JSON.stringify(back));
+  }
   /* ---------- 4. trusted capture and the Keep verdict: the host's own writer (sidecar/index.js, executed) ---------- */
   {
     const vm = require('vm');
