@@ -188,9 +188,11 @@ async function readNdjson(res) {
     const job = (await create.json()).job;
 
     // ---- run 1: the model repeats the identical write; the server must see it ONCE ----
+    const pressed1 = Date.now();
     const run1 = await fetch(B + '/api/cron/run', { method: 'POST', headers, body: JSON.stringify({ id: job.id }) });
     A.eq(run1.status, 200, 'Run Now returns a stream');
     const panel1 = await readNdjson(run1);
+    const settled1 = Date.now();
     const calls1 = panel1.filter(e => e.name === 'agent.tool_call' && e.payload && e.payload.name === 'mcp__demo__send_message');
     A.eq(calls1.length, 2, 'the model attempted the write twice in one run');
     const results1 = panel1.filter(e => e.name === 'agent.tool_result' && e.payload && calls1.some(c => c.payload.callId === e.payload.callId));
@@ -207,9 +209,13 @@ async function readNdjson(res) {
     const ledger = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
     const rows = Object.values(ledger.rows || {});
     A.eq(rows.length, 1, 'exactly one write recorded');
-    // Run Now is a MANUAL fire (no scheduled tick), so its work item is the run itself; a scheduled fire stamps
-    // 'cron:<jobId>:<scheduledFor>' (cron-driver.js) so a retry of one tick dedupes and the next tick does not.
-    A.ok(rows[0].tool === 'mcp__demo__send_message' && rows[0].connector === 'demo' && /^run:/.test(rows[0].scope) && rows[0].runId, 'the row names the tool, connector and the work-item scope');
+    // Run Now is the scheduled fire pressed by hand (quick win 31, sidecar/routine-identity.js): its work item is the
+    // routine + THIS press's fire time, 'cron:<jobId>:<firedAt>', the shape a scheduled tick stamps with its scheduledFor
+    // (cron-driver.js). A retried/resumed press dedupes under it; the next press is a new fire time, so a new work item.
+    A.ok(rows[0].tool === 'mcp__demo__send_message' && rows[0].connector === 'demo' && rows[0].runId, 'the row names the tool and connector');
+    const scope1 = new RegExp('^cron:' + job.id + ':(\\d+)$').exec(String(rows[0].scope || ''));
+    A.ok(!!scope1, 'the row\'s work-item scope is the routine + its fire time, as a scheduled tick stamps it (' + rows[0].scope + ')');
+    A.ok(!!scope1 && Number(scope1[1]) >= pressed1 && Number(scope1[1]) <= settled1, 'the fire time in the scope is THIS press (' + (scope1 && scope1[1]) + ' in [' + pressed1 + ', ' + settled1 + '])');
     A.ok(String(rows[0].content).indexOf('id=msg-1') >= 0, 'the recorded result is the real first result');
     A.ok(fs.readFileSync(ledgerFile, 'utf8').indexOf('mcp-secret-token') < 0, 'the ledger never carries the connector secret');
 
@@ -220,6 +226,8 @@ async function readNdjson(res) {
     const results2 = panel2.filter(e => e.name === 'agent.tool_result' && e.payload && e.payload.summary === 'idempotent-replay');
     A.eq(results2.length, 1, 'run 2 again dedupes only its OWN repeat');
     A.eq(writeCalls().length, 2, 'the new work item reached the server once more (2 real sends across 2 runs)');
+    const scopes2 = Object.values(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).rows || {}).map(r => String(r.scope || ''));
+    A.ok(scopes2.length === 2 && scopes2[0] !== scopes2[1] && scopes2.every(s => s.indexOf('cron:' + job.id + ':') === 0), 'each press recorded its write under its OWN fire-time scope (' + scopes2.join(', ') + ')');
     checkScenario = true;
     const checked = await readNdjson(await fetch(B + '/api/cron/run', { method: 'POST', headers, body: JSON.stringify({ id: job.id }) }));
     const executions = mcp.calls.filter(c => c.msg.method === 'tools/call' && c.msg.params.name === 'run_command');
