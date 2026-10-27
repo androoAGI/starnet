@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**40** open (open+claimed) of 379 total — 0 P0 · 0 P1 · 40 P2
+**42** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 42 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -332,6 +332,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | providers | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | release-0135-prep | — |
 | P2 | open | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | — |
 | P2 | open | release | [All 30 superseded StarNet releases (v0.6.4 to v0.13.3) remain publicly downloadable from the releases repo](bugs/1a69136d-all-30-superseded-starnet-releases-v0-6-4-to-v0.md) | sweep/release | — |
+| P2 | open | release | [cli-app-launch e2e keeps running for minutes after a failed assertion instead of exiting](bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md) | gate-seams | — |
 | P2 | open | release | [Every INSTALL UPDATE attempt writes another full-station backup to update-snapshots and nothing ever prunes them](bugs/31db37b0-every-install-update-attempt-writes-another-full.md) | sweep/release | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
 | P2 | open | release | [T0.2 reports a clean Windows surface is available when only a QEMU binary exists and no Windows guest is configured](bugs/c856c4f7-t0-2-reports-a-clean-windows-surface-is-availabl.md) | sweep/release | — |
@@ -350,6 +351,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | skills | [A model can remove the Commander's pin on a skill directly, without a staged proposal](bugs/97743dff-a-model-can-remove-the-commander-s-pin-on-a-skil.md) | sweep/skills | — |
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
+| P2 | open | world | [Kepler Relay preset: the fabrication room is walkable but not reachable from command](bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md) | gate-seams | — |
 | P2 | open | world | [station.test_line claims an unconfirmed onward hand-off for a job that landed in a non-sending OUTBOX](bugs/3ee2d13a-test-line-unconfirmed-hand-off-from-a-non-sendin.md) | conveyor-final-runtime | — |
 | P2 | fixed | autonomy | [A clock that jumped ahead and was corrected back strands recurring routines for the length of the jump](bugs/7ae7e435-a-clock-that-jumped-ahead-and-was-corrected-back.md) | sweep/autonomy | 6102a1612 |
 | P2 | fixed | autonomy | [A cron advance anchored inside a fall-back repeated hour fires that day's ambiguous time a second time](bugs/10ecf010-a-cron-advance-anchored-inside-a-fall-back-repea.md) | sweep/autonomy | 822503be5 |
@@ -521,7 +523,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | sessions | 5 |
 | skills | 3 |
 | onboarding | 3 |
-| world | 1 |
+| world | 2 |
 | voice | 2 |
-| release | 6 |
+| release | 7 |
 

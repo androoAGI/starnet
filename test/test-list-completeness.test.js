@@ -30,7 +30,8 @@ const UNGATED = {
   'test/kepler-showcase.test.js':
     'RED since 45fd0b096 (2026-09-16, "synchronize station before seating integration"): in the Kepler Relay preset the ' +
     'fabrication room is walkable but no longer reachable from command. The preset (dev/kepler-showcase.cjs, shipped ' +
-    'as frontend/app/kepler-showcase.js) or the test needs fixing; then gate it on test/fast.list.',
+    'as frontend/app/kepler-showcase.js) or the test needs fixing; then gate it on test/fast.list. Tracked as ' +
+    'qa/bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md.',
   'dev/industrial-textures/projection-effects-pixels.test.cjs':
     'A QA raster generator, not a regression step: every run rewrites docs/station-remaster/projection-effects/' +
     'state-pixels.png and pixel-checks.json in the working tree, and its canvas fallback is a path on one machine.'
@@ -93,6 +94,9 @@ for (const rel of ungated) {
   A.ok(fs.existsSync(path.join(ROOT, rel)), 'C1: UNGATED ' + rel + ' exists (drop the entry when the file goes)');
   A.ok(!gated.has(rel), 'C1: UNGATED ' + rel + ' is not on a gate (drop the entry once it is gated)');
   A.ok(String(UNGATED[rel]).length > 60, 'C1: UNGATED ' + rel + ' says why');
+  for (const bug of String(UNGATED[rel]).match(/qa\/bugs\/[\w.-]+\.md/g) || []) {
+    A.ok(fs.existsSync(path.join(ROOT, bug)), 'C1: UNGATED ' + rel + ' links a bug record that exists (' + bug + ')');
+  }
 }
 
 // C2 + C4

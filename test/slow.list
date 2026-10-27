@@ -21,7 +21,10 @@ test/browser.test.js
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.
 test/taint-lineage.e2e.test.js
-# cli-app-launch.e2e: starts the app in the background for the CLI — 61.7 s alone, cut off at 120 s under load.
+# cli-app-launch.e2e: starts the app in the background for the CLI — healthy runs 52.7 s, 61.7 s, 71.0 s, so it is
+# listed by the same >= 40 s rule as every other entry. NOT for the 120 s cut-off in the first HTTP run: that was a
+# hang AFTER a failed assertion, an open bug (qa/bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md),
+# and a repeat of it will now run to 600 s before it is killed.
 test/cli-app-launch.e2e.test.js
 # routing.sample.e2e — 114.1 s.
 test/routing.sample.e2e.test.js
