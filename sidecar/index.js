@@ -38,7 +38,7 @@ const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
 const ImageTask = require('./image-task.js');
 const { makeCostEngine } = require('./cost.js');
-const { makeLedger } = require('./ledger.js');
+const { makeLedger, makeAuxMeter } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
@@ -1371,6 +1371,18 @@ const ledgerIo = {
   }
 };
 const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
+// every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js)
+const auxSpend = kind => makeAuxMeter({ ledger, kind });
+// the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
+// $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
+function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
+function auxLoopFloors(result, unmetered) {
+  const out = {};
+  if (unmetered || !result) return out;
+  if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
+  if (result.reason === 'cancelled' && result.streamCut === true) out.usageMissing = true;
+  return out;
+}
 const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global }, ledger, clock: { now: () => Date.now() }, strictScope: budgetScopeIsExplicit });
 // A cap someone CHOSE is strict (fail-closed on uncertain spend history); the SHIPPED $25/day default is a soft rail
 // nobody chose (budget.js strictScope). agent/global ship at 0, so any governed value there was chosen. Read at
@@ -3389,8 +3401,8 @@ async function hybridVectors(o) {
   const recs = Array.isArray(o.recs) ? o.recs : [];
   const query = String(o.query == null ? '' : o.query).replace(/\s+/g, ' ').trim();
   if (!recs.length || !query) return null;
-  let usd = 0, tokens = 0, calls = 0;
-  const book = (usage) => { try { const c = o.cost.reconcile(usage, embedder.model); usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0); calls++; } catch (e) { failNote('embed.cost.reconcile', e); } };
+  const spend = auxSpend('embed');
+  const book = (usage) => spend.add(usage, o.cost, embedder.model);
   try {
     const stored = notebookStore.get('embed:' + o.agentId);
     const plan = Embed.planVectors(recs, stored, embedder.model, EMBED_BACKFILL_CAP);
@@ -3413,13 +3425,14 @@ async function hybridVectors(o) {
       embedQueryCache.set(qKey, queryVec);
       while (embedQueryCache.size > EMBED_QUERY_CACHE_MAX) embedQueryCache.delete(embedQueryCache.keys().next().value);
     }
-    if (calls) console.log('[cortex] hybrid recall: ' + plan.length + ' memory vector(s) + query embedded via ' + embedder.model + ' (' + calls + ' call' + (calls === 1 ? '' : 's') + ', ' + tokens + ' tok)');
+    const calls = spend.calls();
+    if (calls) console.log('[cortex] hybrid recall: ' + plan.length + ' memory vector(s) + query embedded via ' + embedder.model + ' (' + calls + ' call' + (calls === 1 ? '' : 's') + ', ' + spend.tokens() + ' tok)');
     return { vectors, queryVec };
   } catch (e) {
     console.warn('[cortex] embedding lane fell back to BM25:', (e && e.message) || e);
     return null;
   } finally {
-    if (usd || tokens) { try { ledger.record({ runId: o.runId, agentId: o.agentId, turns: 0, usd, tokens, model: embedder.model, unmetered: !!o.unmetered }); } catch (e) { failNote('embed.ledger.record', e); } }
+    try { spend.book({ runId: o.runId, agentId: o.agentId, model: embedder.model, unmetered: !!o.unmetered }); } catch (e) { failNote('embed.ledger.record', e); }
   }
 }
 
@@ -3454,7 +3467,7 @@ async function runReflection(o) {
   const origin = String((o && o.origin) || 'commander');   // which surface formed these beliefs (memcore.originOf)
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('reflection');
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
@@ -3465,14 +3478,7 @@ async function runReflection(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   /* (aux-tier repair, 2026-08-17) A typed-postconditions line — `let finalCompletionEvidence =
      execution.completionEvidence()` — landed HERE instead of in runOnce (890855829 merge damage). `execution`
@@ -3536,7 +3542,7 @@ async function runReflection(o) {
     clearTimeout(timer);
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3556,7 +3562,7 @@ async function runFailureReview(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('failure-review');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3565,14 +3571,7 @@ async function runFailureReview(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     const stored = notebookStore.get('notebook:' + agentId);
@@ -3617,7 +3616,7 @@ async function runFailureReview(o) {
   finally {
     clearTimeout(timer);
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3666,7 +3665,7 @@ async function runStudy(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('study');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3675,14 +3674,7 @@ async function runStudy(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? commanderDossier.get() : '';
@@ -3706,7 +3698,7 @@ async function runStudy(o) {
   } catch (e) { console.warn('[study] pass failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3735,7 +3727,7 @@ async function runThreadMine(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('threadmine');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -3744,14 +3736,7 @@ async function runThreadMine(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     // known fingerprints = every live (non-declined) thread + the permanent declined denylist — so a duplicate or a
@@ -3778,7 +3763,7 @@ async function runThreadMine(o) {
   } catch (e) { console.warn('[threads] mine failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -3938,8 +3923,8 @@ async function runBackgroundSkillReview(o) {
   } catch (e) { console.warn('[skills] background review failed:', (e && e.message) || e); throw e; }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+    if (auxLoopRan(result)) {
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -3997,8 +3982,8 @@ async function runSkillCurator(o) {
   } catch (e) { console.warn('[skills] curator failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
-    if (result && result.usd) {
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', unmetered }); } catch (_) {}
+    if (auxLoopRan(result)) {
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}
     }
   }
 }
@@ -7798,20 +7783,13 @@ async function runScoutCycle(o) {
   const unmetered = !!(o && o.unmetered);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('scout');
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (system, prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-    return out;
+    return spend.stream(provider, req, cost);
   };
   try {
     const pack = nightshiftContextPack();
@@ -7936,7 +7914,7 @@ async function runScoutCycle(o) {
   } finally {
     clearTimeout(timer);
     // book the cycle's own spend into the append-only ledger (same discipline as reflection/study).
-    if (usd) { try { ledger.record({ runId, agentId, turns: 0, usd, tokens, model: model || '', unmetered }); } catch (_) {} }
+    try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
 
@@ -10271,7 +10249,7 @@ async function runQuestRefreshCycle(why) {
   if (!model) { questRefreshNote({ outcome: 'skipped', reason: 'no default model configured (set DEFAULT_MODEL)' }); return; }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, QUESTREFRESH_TIMEOUT_MS);
-  let usd = 0, tokens = 0;
+  const spend = auxSpend('quest-refresh');
   try {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
@@ -10356,13 +10334,7 @@ async function runQuestRefreshCycle(why) {
       { role: 'system', content: 'You are the station\'s quest master. Follow the format exactly; ground every claim in the provided evidence.' },
       { role: 'user', content: directive }
     ] };
-    let out = '', usage = null;
-    for await (const ev of provider.stream(req)) {
-      if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
-    }
-    const c = cost.reconcile(usage, model);
-    usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+    const out = await spend.stream(provider, req, cost);
 
     if (capturedGoalBinding !== QuestRefresh.goalBinding(commanderGoals.get())) {
       questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
@@ -10404,7 +10376,7 @@ async function runQuestRefreshCycle(why) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {
     clearTimeout(timer);
-    if (usd) { try { ledger.record({ runId: 'questrefresh-' + Date.now(), agentId: 'station', turns: 0, usd, tokens, model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {} }
+    try { spend.book({ runId: 'questrefresh-' + Date.now(), agentId: 'station', model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {}
   }
 }
 
@@ -13905,8 +13877,11 @@ async function stationOneShot(prompt, tag, failLead) {
   // book whatever usage arrived — on a timeout or a provider error too: those tokens were billed (sweep 2026-10-02)
   const book = () => {
     if (!usage || !cost) return;
-    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); } catch (e) { failNote(tag + '.reconcile', e); return; }
-    if (usd) { try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (e) { failNote(tag + '.ledger', e); } }
+    let unpriced = false;
+    try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); unpriced = !!c.unpriced; } catch (e) { failNote(tag + '.reconcile', e); return; }
+    // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER)
+    const unmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
   };
   try {
     const provider = await providerForRunConfig(cfg, reasoningEffort);
@@ -14167,12 +14142,12 @@ function handleBudgetStatus(req, res) {
     managedRunDefaultUsd: (credits.configured() && MANAGED_PER_RUN_DEFAULT > 0) ? MANAGED_PER_RUN_DEFAULT : null,
     spentToday: known ? ledger.usdForDay(now) : null,
     lifetime: known ? ledger.totalUsd() : null,
-    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.count() : null,
+    totalUsd: known ? ledger.totalUsd() : null, runs: known ? ledger.runCount() : null,   // runs, not rows: aux housekeeping rows are spend, never a run
     // Interrupted runs whose charge was never booked — what SPENDING LIMITS lists for the Commander to settle. The
     // exact totals above stay null while any is open; the booked rows are still real, so they read as a floor.
     unsettled: budgetUnsettledRuns(),
     atLeast: (accounting.readError === 'UNSETTLED_SPEND' && accounting.durable)
-      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.count() } : null
+      ? { today: ledger.usdForDay(now), lifetime: ledger.totalUsd(), runs: ledger.runCount() } : null
   })));
 }
 function budgetUnsettledRuns() {
@@ -19439,11 +19414,11 @@ const slashActions = slashActionsMod.makeSlashActions({
         ok: true,
         today: ledger.usdForDay(t),
         lifetime: ledger.totalUsd(),
-        runs: ledger.count(),
+        runs: ledger.runCount(),
         tokens: ledger.all().reduce((s, r) => s + (Number(r && r.tokens) || 0), 0),
-        unpricedRuns: ledger.all().filter(r => r && r.unpriced === true && !r.unmetered).length,
-        unmeteredRuns: ledger.all().filter(r => r && r.unmetered === true).length,
-        usageMissingRuns: ledger.all().filter(r => r && r.usageMissing === true && !r.unmetered).length,   // stopped mid-answer: their $ is a floor
+        unpricedRuns: ledger.all().filter(r => r && !r.aux && r.unpriced === true && !r.unmetered).length,
+        unmeteredRuns: ledger.all().filter(r => r && !r.aux && r.unmetered === true).length,
+        usageMissingRuns: ledger.all().filter(r => r && !r.aux && r.usageMissing === true && !r.unmetered).length,   // stopped mid-answer: their $ is a floor
         agentUsd: ledger.usdForAgent(agentId),
         caps: { perRun: effectiveCaps.perRun, perAgent: effectiveCaps.perAgent, perDay: effectiveCaps.perDay, global: effectiveCaps.global }
       };
