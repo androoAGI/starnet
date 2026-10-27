@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "65a7787afe35d44ff3d4f6cd74cddcf0dbc4810b",
+    "sourceCommit": "11d66e79216e351a981fc42ac8aa924b4baf0797",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -153,8 +153,8 @@
       },
       {
         "path": "frontend/agent-station-demo.html",
-        "bytes": 86406,
-        "sha256": "48cc9c2dcf83e1081580bff13f17391189c53b44a1e7bdf6a52d2cee84877aab"
+        "bytes": 86575,
+        "sha256": "81a55d0fc8464076e0945fa39f4d4b187b8e3757f053a4b3cfcc526974ed29ed"
       },
       {
         "path": "frontend/app/agentid.js",
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 909152,
-        "sha256": "790e7ec64de6fc46097fb34b8c019a79475ef714810f10e705f12e47b6fd734d"
+        "bytes": 909967,
+        "sha256": "fa0a8271e06043c4eb57d93d0673c4b17b7b6e8f22857fee0bf1bdea6ce7c884"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -698,8 +698,8 @@
       },
       {
         "path": "frontend/app/memtruth.js",
-        "bytes": 18718,
-        "sha256": "32e60bdc6d9e5d19e73b2d23300c8193cb57d0abe699fe66b270f21eccf04549"
+        "bytes": 24298,
+        "sha256": "8e5d1070250e5d0f9581248aa028e07b308ac8a342994e2738c49696c39f66c6"
       },
       {
         "path": "frontend/app/mint.js",
