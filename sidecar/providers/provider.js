@@ -199,6 +199,14 @@
     const n = Number(raw);
     return (isFinite(n) && n >= 0) ? Math.min(d, Math.floor(n)) : d;
   }
+  /* How many of those retries an error of THIS class is worth: the class's own budget when it names a smaller one
+     (errorClass REASONS.unreachable.retryBudget = 1 — nothing listening at the address is not healed by a ladder), else
+     the adapter's. `cls` is a classifyApiError verdict. */
+  function retryLimit(cls, retries) {
+    const r = Math.max(0, Math.floor(Number(retries) || 0));
+    const b = cls && typeof cls.retryBudget === 'number' && cls.retryBudget >= 0 ? Math.floor(cls.retryBudget) : r;
+    return Math.min(r, b);
+  }
   function abortableDelay(ms, signal) {
     return new Promise((resolve, reject) => {
       if (signal && signal.aborted) return reject(makeAbortError());
@@ -343,7 +351,7 @@
   }
 
   const timeouts = { envInt, connectMs, idleMs, connectSignal, connectGuard, idleGuardedReader, timeoutError, makeAbortError };
-  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries, stampRequestHost, requestHostOf, readErrorBody, safeErrorField, MAX_ERR_BODY };
+  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries, retryLimit, stampRequestHost, requestHostOf, readErrorBody, safeErrorField, MAX_ERR_BODY };
 
   function recoveredToolContent(callId, content) {
     let body;

@@ -91,7 +91,10 @@ function providerFailure(input) {
     return { action: 'fallback', reason: String(cls.reason || 'provider_failure'), retryable: true, delayMs: 0, rotate: !!cls.shouldRotateCredential };
   }
   const retriesUsed = Math.max(0, finite(i.retriesUsed, 0));
-  const maxRetries = Math.max(0, finite(i.maxRetries, RETRY_DELAYS_MS.length));
+  // a class that names a smaller budget (errorClass unreachable: ONE retry) caps the ladder; the adapters cap their own
+  // pre-stream ladders the same way (provider.runtime.retryLimit), so the two together still make one retry
+  const budget = typeof cls.retryBudget === 'number' && cls.retryBudget >= 0 ? cls.retryBudget : Infinity;
+  const maxRetries = Math.min(budget, Math.max(0, finite(i.maxRetries, RETRY_DELAYS_MS.length)));
   const fallbackUnavailable = !cls.shouldFallback || !i.hasFallback;
   /* An adapter-exhausted pre-stream failure used to end the run outright (a 4x503 blip killed a single-provider
      run in 1.6s). It now CONTINUES the same bounded ladder for the transient classes — the caller has already

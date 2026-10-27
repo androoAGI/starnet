@@ -513,8 +513,9 @@
           if (isAbort(e, signal)) throw e;
           provider.runtime.stampRequestHost(e, baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
-          if (!classifyApiError(e, { model: body.model }).retryable) throw e;
-          if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }   // network error / connect timeout -> retry
+          const failure = classifyApiError(e, { model: body.model });   // unreachable: one retry (its retryBudget), then name the host
+          if (!failure.retryable) throw e;
+          if (attempt < provider.runtime.retryLimit(failure, retries)) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }   // network error / connect timeout -> retry
           throw provider.runtime.markPreStreamRetriesExhausted(e, { attempts: attempt + 1, waitedMs: waited });
         } finally {
           guard.disarm();

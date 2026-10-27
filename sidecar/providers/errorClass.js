@@ -9,7 +9,8 @@
 
    Reasons: auth · billing · rate_limit · quota_exhausted · overloaded · server_error · timeout ·
             context_overflow · output_cap · model_not_found · content_policy_blocked · format_error ·
-            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · unknown.
+            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · unreachable ·
+            unknown.
 
    Priority pipeline: content/policy -> HTTP status (code+message consulted inside the ambiguous 400 branch)
    -> structured error-code (for errors with no HTTP status) -> message patterns -> transport -> a
@@ -74,6 +75,13 @@
        repeats it, and the adapter's own sentence (which server, which card speaks to it) is the fix. No fallback
        either: a failover would finish every run on another model and the misconfiguration would never be shown. */
     endpoint_mismatch:      { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
+    /* NOTHING ANSWERED at the provider's address (bug 8873fd77, GH#111): the connection was refused (ECONNREFUSED — the
+       server is not running, e.g. Ollama or LM Studio not started) or the name did not resolve (ENOTFOUND / EAI_AGAIN).
+       These used to ride `timeout` through the whole ~106 s ladder, the retry line said "(timeout)" and the end read a
+       bare "fetch failed". ONE retry covers a blip (`retryBudget`, read by the adapters' pre-stream ladders and by
+       recovery-policy), then the turn ends naming the host and what to check. Another provider is another host, so a
+       configured fallback is still worth taking. */
+    unreachable:            { retryable: true,  shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false, retryBudget: 1 },
     unknown:                { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false }
   };
 
@@ -342,6 +350,22 @@
     return (Number(ctx.approxTokens) || 0) > 0.4 * limit || (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit;
   }
 
+  // the host a refusal came from: the hostname the adapter stamped (provider.js stampRequestHost — never a URL)
+  function refusalHost(err) { return (err && typeof err.requestHost === 'string' && err.requestHost) || ''; }
+  // REASONS.unreachable — what nothing answering at that address means, in words the Commander can act on. The host and
+  // port come from the transport cause (undici: cause.hostname for a name that did not resolve, cause.address +
+  // cause.port for a refused connection), else the hostname the adapter stamped.
+  function unreachableNote(err) {
+    const code = String(transportCode(err) || '').toUpperCase();
+    const cause = (err && err.cause) || {};
+    let host = String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+    const port = Number(cause.port) > 0 ? String(cause.port) : '';
+    if (host && port && host.indexOf(':') < 0) host += ':' + port;
+    const where = host || 'the provider\'s address';
+    if (code === 'ECONNREFUSED') return 'nothing is listening at ' + where + ' (the connection was refused) — start that server (Ollama, LM Studio …) or correct its address in SETTINGS → AI & MODELS, then send again';
+    return 'the name ' + (host || 'of the provider\'s server') + ' did not resolve (' + code + ') — check the address in SETTINGS → AI & MODELS and this computer\'s network, then send again';
+  }
+
   /* A 429 is not always "wait a few seconds". A ChatGPT-subscription user who has burned their WEEKLY quota
      gets a 429 whose body says exactly that and whose reset is days away — so the honest class is a spent
      allowance, not a rate limit. Status-before-message precedence is deliberate (see the note in pickReason),
@@ -443,7 +467,9 @@
     if (/no endpoints|model not found|not a valid model|unknown model|no allowed providers/.test(low)) return 'model_not_found';
     if (/unauthorized|invalid api key|no auth credentials|authentication/.test(low)) return 'auth';
     if (/timed out|timeout/.test(low)) return 'timeout';
-    // 5. transport
+    // 5. transport — nothing answering at the address (refused, or a name that did not resolve) is `unreachable`;
+    //    a connection that was made and then dropped or stalled stays `timeout`
+    if (/^(?:ECONNREFUSED|ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || ''))) return 'unreachable';
     if (/ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EPIPE|ECONNABORTED|UND_ERR/i.test(transportCode(err))) return 'timeout';
     // 6. ratio heuristic (only with a known limit)
     if (overRatio(low, ctx)) return 'context_overflow';
@@ -474,6 +500,8 @@
     } else if (reason === 'model_not_found' && IMAGE_INPUT_REFUSED_RE.test(low)) {
       // the provider's words stay first (the UI routes on the adapter label + status); the fix rides after them
       text += IMAGE_INPUT_FIX;
+    } else if (reason === 'unreachable') {
+      text += ' — ' + unreachableNote(err);
     }
     return {
       reason,
@@ -489,6 +517,8 @@
       // model_not_found only: the model cannot take a PART of this request (image input, tool use, a parameter) —
       // a request without that part still reaches it (UNSUPPORTED_PART_RE). False for every other verdict.
       unsupportedPart: reason === 'model_not_found' && UNSUPPORTED_PART_RE.test(low),
+      // the most re-sends this class is worth, when it is fewer than a ladder's (unreachable: 1); null = the ladder's own
+      retryBudget: typeof f.retryBudget === 'number' ? f.retryBudget : null,
       // `reason` above was already picked from the RAW message, so annotating here cannot move the verdict — it
       // only makes the text a human can act on ("fetch failed" -> "fetch failed (ENOTFOUND api.openai.com)").
       // This is the message the loop emits as agent.run.error, which is what lands in the diagnostics ring.
@@ -497,5 +527,5 @@
   }
 
   return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio } };
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote } };
 });
