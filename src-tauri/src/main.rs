@@ -17,6 +17,7 @@ mod erase_all;
 mod fresh_start;
 mod hud_mode;
 mod lifecycle_preferences;
+mod process_identity;
 mod sidecar_output;
 mod sidecar_reap;
 mod sidecar_startup;

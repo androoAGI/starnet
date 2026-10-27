@@ -1,0 +1,47 @@
+{
+  "about": "Shared fixtures for the PID-reuse rule. sidecar/process-identity.js judgeReuse and src-tauri/src/process_identity.rs judge_reuse must both return `verdict` for every case (test/process-identity.fixtures.test.js and the Rust unit test read this one file). stamp = what a claimant wrote into its owner claim; seen = what a probe of the PID's CURRENT process returned. Times are epoch ms. 60 000 = REUSE_SLACK_MS, 2 000 = REUSE_EXE_SLACK_MS, 7 200 000 = the CIM tolerance.",
+  "judge": [
+    { "name": "equal Linux start ticks are the same process", "stamp": { "startedAt": 1000, "startTicks": "123456" }, "seen": { "ok": true, "startTicks": "123456" }, "verdict": "same-process" },
+    { "name": "different Linux start ticks are a reused PID", "stamp": { "startedAt": 1000, "startTicks": "123456" }, "seen": { "ok": true, "startTicks": "999999" }, "verdict": "reused" },
+    { "name": "ticks win over any wall-clock reading", "stamp": { "startedAt": 1000, "startTicks": "5" }, "seen": { "ok": true, "startTicks": "5", "startedAt": 99999999 }, "verdict": "same-process" },
+    { "name": "a probe that failed is unknown (busy)", "stamp": { "startedAt": 1000, "executable": "node.exe" }, "seen": { "ok": false, "reason": "access denied" }, "verdict": "unknown" },
+    { "name": "no start time on the probe is unknown", "stamp": { "startedAt": 1000, "executable": "node.exe" }, "seen": { "ok": true, "executable": "node.exe" }, "verdict": "unknown" },
+    { "name": "no start time on the stamp is unknown", "stamp": { "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 5000, "executable": "node.exe" }, "verdict": "unknown" },
+    { "name": "the 2026-10-15 soak: cmd.exe born 31 min after the node claim", "stamp": { "startedAt": 1792053050000, "executable": "C:\\Users\\x\\AppData\\Local\\StarNet\\node.exe" }, "seen": { "ok": true, "startedAt": 1792054912000, "executable": "C:\\Windows\\System32\\cmd.exe" }, "verdict": "reused" },
+    { "name": "same image born more than the slack after the stamp is reused", "stamp": { "startedAt": 1000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 1060001, "executable": "node.exe" }, "verdict": "reused" },
+    { "name": "same image born exactly at the slack edge is not proof", "stamp": { "startedAt": 1000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 1060000, "executable": "node.exe" }, "verdict": "same-process" },
+    { "name": "a holder born before its own stamp is the same process", "stamp": { "startedAt": 1000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 999000, "executable": "node.exe" }, "verdict": "same-process" },
+    { "name": "another image born past the 2 s slack is reused", "stamp": { "startedAt": 1000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 1002001, "executable": "cmd.exe" }, "verdict": "reused" },
+    { "name": "another image inside the 2 s slack is not proof", "stamp": { "startedAt": 1000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 1002000, "executable": "cmd.exe" }, "verdict": "same-process" },
+    { "name": "image names compare without directory, case or .exe", "stamp": { "startedAt": 1000000, "executable": "C:\\Program Files\\StarNet\\NODE.EXE" }, "seen": { "ok": true, "startedAt": 1030000, "executable": "/usr/local/bin/node" }, "verdict": "same-process" },
+    { "name": "a missing image on either side never counts as another image", "stamp": { "startedAt": 1000000 }, "seen": { "ok": true, "startedAt": 1030000, "executable": "cmd.exe" }, "verdict": "same-process" },
+    { "name": "an approximate (cim) reading proves reuse only past slack + tolerance", "stamp": { "startedAt": 1000000, "executable": "svchost.exe" }, "seen": { "ok": true, "startedAt": 8260001, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "reused" },
+    { "name": "an approximate reading inside slack + tolerance is not proof", "stamp": { "startedAt": 1000000, "executable": "svchost.exe" }, "seen": { "ok": true, "startedAt": 8260000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "same-process" },
+    { "name": "an approximate reading of another image after the stamp is reused", "stamp": { "startedAt": 10000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 3000000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "reused" },
+    { "name": "an approximate reading of another image that places it before the stamp stays busy", "stamp": { "startedAt": 10000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 2800000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "same-process" }
+  ],
+  "lstart": [
+    ["Wed Oct 15 08:30:50 2026 /usr/local/bin/node", { "startedAt": 1792053050000, "executable": "/usr/local/bin/node" }],
+    ["Mon Jan  5 01:02:03 2026 node", { "startedAt": 1767574923000, "executable": "node" }],
+    ["Mon Jan  5 01:02:03 2026", { "startedAt": 1767574923000, "executable": "" }],
+    ["  Sat Feb 29 23:59:59 2028 /Applications/StarNet.app/Contents/MacOS/node\n", { "startedAt": 1835481599000, "executable": "/Applications/StarNet.app/Contents/MacOS/node" }],
+    ["garbage", null],
+    ["Wed Foo 15 08:30:50 2026 node", null],
+    ["", null]
+  ],
+  "procStat": [
+    ["4242 (node (x) y) S 1 4242 4242 0 -1 4194560 1 0 0 0 0 0 0 0 20 0 11 0 987654 0 0", "987654"],
+    ["17 (node) R 1 17 17 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 123 0", "123"],
+    ["1 (init) S", ""],
+    ["no parenthesis here", ""]
+  ],
+  "imageName": [
+    ["C:\\x\\node.exe", "node"],
+    ["node.exe", "node"],
+    ["node", "node"],
+    ["/usr/local/bin/node", "node"],
+    ["C:/Program Files/StarNet/Skynet-Desktop.EXE", "skynet-desktop"],
+    ["  cmd.exe  ", "cmd"],
+    ["", ""]
+  ]
+}
