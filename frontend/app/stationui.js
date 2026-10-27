@@ -2506,6 +2506,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const head = mkEl('div', 'mc-head');
     const tag = mkEl('span', 'turnin-kind'); tag.textContent = MEM_KIND[p.kind] || 'NOTE'; head.appendChild(tag);
     const org = originChip(p.origin); if (org) head.appendChild(org);
+    // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome). The failure
+    // review's lessons already wear that chip as their origin; anything else a failed run raised gets the same one here.
+    if (p.outcome === 'failed' && p.origin !== 'failure-review') {
+      const f = mkEl('span', 'mc-scope'); f.textContent = ORIGIN_LABEL['failure-review']; f.title = 'raised by a run that failed'; head.appendChild(f);
+    }
     card.appendChild(head);
     const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = p.replaceId ? 'Update remembered preference: “' + p.previousBody + '” → “' + p.content + '”' : (p.content || '(empty)'); card.appendChild(bodyEl);
     const meta = mkEl('div', 'mc-meta');

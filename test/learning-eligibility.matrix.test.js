@@ -93,4 +93,55 @@ for (const kind of Object.keys(KIND_FACTS)) {
   A.ok(core.indexOf("if (_learn['trusted-capture'])") > at && gates.reflection && core.indexOf('const _gateReflect = ') > at, 'and every reader comes after it');
 }
 
-A.report('learning-eligibility.matrix');
+/* ---------- 3. proposals carry their run outcome, so the deck can say "from a failed run" (releases#7) ---------- */
+(async () => {
+  const fs = require('fs'), path = require('path'), vm = require('vm');
+  const { readSidecarSource } = require('./helpers/source');
+  const MS = require('../sidecar/memory-store.js');
+  let pending = [];
+  const store = { get: () => pending, update: async (k, fn) => { const n = fn(pending); if (n !== undefined) pending = n; } };
+  await MS.appendPending(store, 'agent', 'run_f', [{ id: 'owner_1', kind: 'profile', content: 'Always CC finance on invoices.', outcome: 'failed' }, { id: 'p2', kind: 'fact', content: 'x y z' }], 1);
+  A.eq(MS.listPending(store, 'agent').map(p => p.outcome || null), ['failed', null], 'the durable queue keeps a proposal\'s run outcome (and adds none it was not given)');
+
+  const src = readSidecarSource();
+  // the trusted capture's held statement carries the run outcome (executed from the sidecar, like test/trusted-learning)
+  {
+    const L = require('../sidecar/trusted-learning.js'), context = require('../sidecar/context.js'), reflectMod = require('../sidecar/reflect.js'), NB = require('../sidecar/tools/builtin/notebook.js');
+    const start = src.indexOf('async function captureTrustedLearning('), end = src.indexOf('async function appendDeclined(', start);
+    const queued = [], status = {};
+    const sandbox = { TrustedLearning: L, highStakes: reflectMod.highStakes, redact: context.redact, recordFromProposal: reflectMod.recordFromProposal,
+      reviseRecord: NB.reviseRecord, supersedeRecords: NB.supersedeRecords, supersessionTargets: NB.supersessionTargets, memcore: require('../sidecar/memcore.js'),
+      personalizationStore: { read: () => ({ enabled: true }) }, memoryConfig: { reflectEnabled: true }, buildDeclinedIndex: () => ({ has: () => false }),
+      notebookStore: { update: async () => {} }, recordRunReceipt: () => {}, stashProposals: () => {}, queuePending: async (a, r, items) => { queued.push(...items); },
+      chanEmit: () => {}, hookSpine: { invoke() {} }, QuestSweeps: { learnedFactKeys: () => [] }, questStore: { openForAgent: () => [] },
+      skillEvaluationIo: { get: k => status[k], set: (k, v) => { status[k] = v; } }, failNote: (w, e) => { throw e; }, swallow: () => () => {},
+      skillStore: {}, skillNameFromReflection: s => s, console: { log() {}, warn() {} }, Date };
+    const api = vm.runInNewContext(src.slice(start, end) + '\n({ captureTrustedLearning })', sandbox);
+    const content = 'Always CC my wife at jane.doe@example.com on invoices.';
+    await api.captureTrustedLearning({ agentId: 'nova', runId: 'run_failed', projectRoot: '', input: { source: 'interactive-owner', content }, outcome: 'failed',
+      learningEvidence: L.evidence({ runId: 'run_failed', trustedInput: { source: 'interactive-owner', content } }) });
+    A.ok(queued.length === 1 && queued[0].outcome === 'failed', 'a statement a FAILED run held for review carries that outcome: ' + JSON.stringify(queued));
+    A.eq(status['learning:nova'][0].outcome, 'failed', 'and the learning receipt records how the run ended');
+  }
+  // the failure review's own lessons, the reflection deck, and the pending route that serves the deck
+  {
+    const { sidecarTopLevelFunction } = require('./helpers/source');
+    A.ok(/origin: Failreview\.ORIGIN, outcome: 'failed' \}/.test(sidecarTopLevelFunction('runFailureReview')), 'failure-review proposals carry outcome failed');
+    A.ok(/origin: origin, outcome: 'done',/.test(sidecarTopLevelFunction('runReflection')), 'reflection proposals carry outcome done');
+    const at = src.indexOf('function servePending(req, res)');
+    const fn = src.slice(at, src.indexOf('\n}\n', at) + 2);
+    let sent = null;
+    const serve = vm.runInNewContext('(' + fn + ')', { respondJson: (res, code, obj) => { sent = { code, obj }; }, URL, isAgentId: () => true, redact: x => x,
+      listPending: () => MS.listPending(store, 'agent'), readRouteFailure: () => ({ error: 'x' }) });
+    serve({ url: '/api/memory/pending?agent=agent' }, {});
+    A.ok(sent && sent.code === 200 && sent.obj.pending[0].outcome === 'failed' && !('outcome' in sent.obj.pending[1]), 'GET /api/memory/pending serves the outcome to the deck: ' + JSON.stringify(sent && sent.obj));
+  }
+  // MEMORY > Awaiting your decision marks it
+  {
+    const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
+    const at = ui.indexOf('function pendingCard(p, a)');
+    const card = ui.slice(at, ui.indexOf('\n  }\n', at));
+    A.ok(at > 0 && /p\.outcome === 'failed' && p\.origin !== 'failure-review'/.test(card) && /ORIGIN_LABEL\['failure-review'\]/.test(card), 'the pending card marks a failed run\'s proposal with the "⚠ failed run" chip the failure review already wears');
+  }
+  A.report('learning-eligibility.matrix');
+})().catch(e => { console.log('FAIL: threw ' + (e && e.stack || e)); process.exit(1); });

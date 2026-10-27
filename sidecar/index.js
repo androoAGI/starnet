@@ -3521,7 +3521,7 @@ async function runReflection(o) {
       // prop_N id). The frontend fetches it via /api/memory/proposals — renders a passive receipt for saved:true
       // items and the Keep/Edit/Discard confirm deck for the rest. A single stash per runId (a second stashProposals
       // for the same runId would OVERWRITE the first — so merge here).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin,
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin, outcome: 'done',
         ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}) }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
@@ -3609,7 +3609,7 @@ async function runFailureReview(o) {
       }
       // ONE stash per runId (a failed run never reflected, so this slot is free) + the durable pending queue for
       // the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN }));
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, outcome: 'failed' }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
       if (pending.length) await queuePending(agentId, runId, pending);
@@ -29085,7 +29085,7 @@ async function captureTrustedLearning(o) {
   // material (evidence.trustedOnly) reads true here as well; `quoted` says that was the reason, while the run row's
   // taintedBy stays empty because the run itself never latched outside content.
   const status = { runId: o.runId, at: Date.now(), tainted: !!(o.learningEvidence.tainted || o.learningEvidence.trustedOnly), saved: 0, held: 0,
-    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}),
+    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}), ...(o.outcome ? { outcome: o.outcome } : {}),
     trustedDirectives: o.learningEvidence.trustedUserMessages.length, verifiedChecks: o.learningEvidence.checks.filter(c => c.status === 'passed').length,
     reason: 'no_explicit_standing_preference' };
   if (!personalizationStore.read().enabled || !memoryConfig.reflectEnabled) status.reason = 'learning_paused';
@@ -29098,7 +29098,7 @@ async function captureTrustedLearning(o) {
       const content = redact(prop.content);
       if (declined.has(prop.content) || declined.has(content)) continue;
       if (content !== prop.content || TrustedLearning.needsReview(content, highStakes)) {
-        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander' });
+        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', ...(o.outcome ? { outcome: o.outcome } : {}) });
         continue;
       }
       try {
@@ -29391,7 +29391,8 @@ function servePending(req, res) {
       runId: p.runId || '', id: p.id || '', kind: p.kind || 'note',
       content: String(p.content || ''), scope: p.scope || 'global', projectRoot: p.projectRoot || null,
       origin: p.origin || 'commander', createdAt: p.createdAt || 0,
-      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {})
+      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {}),
+      ...(p.outcome ? { outcome: p.outcome } : {})   // the run's outcome (memory-truth-1027): the deck marks a failed run's proposal
     }));
     json(200, { agentId: agent, pending: rows });
   } catch (e) { json(500, readRouteFailure('memory.pending', e)); }   // an un-answered high-stakes deck must not vanish behind a 200-empty

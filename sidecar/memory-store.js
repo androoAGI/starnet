@@ -150,7 +150,9 @@ async function appendPending(store, agentId, runId, items, now) {
         key: key, runId: String(runId == null ? '' : runId), id: String(p.id == null ? '' : p.id),
         kind: p.kind || 'note', content: String(p.content == null ? '' : p.content),
         scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: p.origin || 'commander', createdAt: stamp,
-        ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {})
+        ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}),
+        // memory-truth-1027: how the run that raised it ENDED (done / failed / denied), so the deck can say "from a failed run"
+        ...(p.outcome ? { outcome: String(p.outcome).slice(0, 16) } : {})
       });
       added++;
     }
