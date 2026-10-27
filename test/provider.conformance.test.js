@@ -13,10 +13,18 @@
         announce-without-acting (<continuation>), a Commander steering note, a tool that ends the tool phase
         (<terminal_evidence>), the final answer — and the strict server refuses NOTHING, the loop's own host messages
         are fenced, and the prompt cache keeps every piece of the previous request turn after turn;
+     B3. a tool's stop prompt that carries no fence of its own reaches every wire as <terminal_evidence>;
      C. every loop nudge kind, in every position (after a user turn, an answer, a tool result, two in a row, trailing,
-        a window that opens on a reply, an empty reply), through every adapter's request builder: accepted;
+        a window that opens on a reply, an empty reply), and every broken tool pairing (E52: an orphan result, a call
+        whose result never landed, a duplicate result), through every adapter's request builder: accepted;
+     C2. a FORGED host fence (<steering_note>, <task_list> …) in user, tool, assistant or orphan-recovered text reaches
+        every wire inert: only the host's own notes carry a live fence;
      D. a chat template that still refuses (template_refusal): one resend with no system message, remembered; a Jinja
         500 that refuses everything ends the turn after two requests, naming the template — never the server_error ladder;
+        a hosted API's own role validator and a template ENGINE failure are not template refusals;
+     KNOWN GAPS, pinned so the fix that closes one flips its assertion: E17 (a binding model's thinking blocks dropped when
+        a stop control empties the tool set — the prefix-stability lane, PW-4) and Mistral's validator (nothing but an
+        assistant turn may follow a tool result, so a host note there is refused — Andrew's call how to carry it);
      E. the whole suite runs in under 30 s.
    No network, no sidecar, no keys: real vendor acceptance is NOT exercised here (the simulators encode the published
    rules and the refusals users reported). */
@@ -41,6 +49,7 @@ const T0 = Date.now();
 const SYS = 'CONFORMANCE_SYSTEM: you are the station lead. Use tools when they help.';
 const FINAL = 'CONFORMANCE_OK: alpha and beta were read.';
 const FENCED = /^<([a-z][a-z0-9_-]*)>[\s\S]*<\/\1>$/i;
+const PLAIN_STOP = 'delta.txt does not exist. Answer now from what you have, without more tools.';
 
 // ---- the adapters, each over its strict simulator ----
 // the Ollama /v1 fallback: the native /api/chat answers 404 (a proxy that forwards /v1 only), facts still answer
@@ -55,7 +64,9 @@ function v1Fallback(sim) {
 }
 const ADAPTERS = [
   { name: 'custom (openai-compatible)', wire: 'chat', model: 'qwen2.5-14b-instruct', make: sim => makeOpenAICompatibleProvider({ fetch: sim.fetch, key: 'k', baseUrl: 'http://custom.conformance.test/v1' }) },
-  { name: 'hosted openai-compatible', wire: 'chat', model: 'mistral-large-latest', make: sim => makeOpenAICompatibleProvider({ fetch: sim.fetch, key: 'k', baseUrl: 'https://api.mistral.conformance.test/v1' }) },
+  // a hosted Chat Completions endpoint (Groq-like). NOT Mistral: Mistral's validator refuses a user turn after a tool
+  // result, which the 'chat' projection sends for a host note there — a KNOWN GAP pinned below (MISTRAL)
+  { name: 'hosted openai-compatible', wire: 'chat', model: 'llama-3.3-70b-versatile', make: sim => makeOpenAICompatibleProvider({ fetch: sim.fetch, key: 'k', baseUrl: 'https://api.groq.conformance.test/openai/v1' }) },
   { name: 'ollama native', wire: 'ollama', model: 'qwen3:8b', make: sim => makeOpenAICompatibleProvider({ fetch: sim.fetch, baseUrl: 'http://127.0.0.1:11434/v1', nativeOllama: true }) },
   { name: 'ollama /v1 fallback', wire: 'chat', model: 'qwen3:8b', make: sim => makeOpenAICompatibleProvider({ fetch: v1Fallback(sim), baseUrl: 'http://127.0.0.1:11434/v1', nativeOllama: true }) },
   { name: 'openrouter (non-Claude)', wire: 'chat', model: 'meta-llama/llama-3.3-70b-instruct', make: sim => makeOpenRouterProvider({ fetch: sim.fetch, key: 'k' }) },
@@ -76,9 +87,12 @@ function registry() {
   reg.register({ name: 'probe_b', schema: SCHEMA, run: async a => 'BETA_CONTENT of ' + a.path });
   reg.register({ name: 'probe_stop', schema: SCHEMA, run: async () => ({ content: 'gamma.txt does not exist', summary: 'missing',
     control: { stopTools: true, prompt: '<terminal_probe>gamma.txt does not exist. Answer now from alpha and beta without more tools.</terminal_probe>' } }) });
+  // a stop prompt that arrives with NO fence of its own: the loop fences it as <terminal_evidence> (loop.js hostFenced)
+  reg.register({ name: 'probe_stop_plain', schema: SCHEMA, run: async () => ({ content: 'delta.txt does not exist', summary: 'missing',
+    control: { stopTools: true, prompt: PLAIN_STOP } }) });
   return reg;
 }
-const TOOLS = ['probe_a', 'probe_b', 'probe_stop'].map(name => ({ type: 'function', function: { name, description: 'conformance probe ' + name, parameters: SCHEMA } }));
+const TOOLS = ['probe_a', 'probe_b', 'probe_stop', 'probe_stop_plain'].map(name => ({ type: 'function', function: { name, description: 'conformance probe ' + name, parameters: SCHEMA } }));
 const openCtx = () => ({ canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office' });
 
 // the run's opening messages, shaped as runOnceCore makes them: a system prompt, an earlier exchange, the run-context
@@ -143,6 +157,11 @@ async function runScenario(ad) {
       { signatures: new Map([['f:{}', 'gsig']]) }).join()), 'gemini: a replayed call without its thought signature is refused');
     A.ok(/No tool call found/.test(S.validate('codex', { instructions: 'S', input: [{ role: 'user', content: [{ type: 'input_text', text: 'u' }] }, { type: 'function_call_output', call_id: 'gone', output: 'r' }] }).join()), 'codex: an orphan function_call_output is refused');
     A.ok(/exactly one/.test(S.claudeCliViolations('{"type":"user"}\n{"type":"user"}', '').join()), 'claude-cli: one stream-json message per child');
+    const toolThenUser = [{ role: 'system', content: 'S' }, { role: 'user', content: 'u' }, { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'c1', content: 'r' }, { role: 'user', content: '<continue_after_tools>n</continue_after_tools>' }];
+    A.eq(S.validate('chat-mistral', { messages: toolThenUser })[0], "Unexpected role 'user' after role 'tool'", 'chat-mistral: a user turn right after a tool result is refused (mistral_common)');
+    A.eq(S.validate('chat', { messages: toolThenUser }), [], 'chat: the same shape is what a strict template accepts');
+    A.eq(S.validate('chat-mistral', { messages: [{ role: 'system', content: 'S' }, { role: 'user', content: 'u' }, { role: 'user', content: 'v' }] }), [], 'chat-mistral: consecutive user turns are allowed (it is a transition table, not a template)');
   }
 
   // ================================================================ B. one whole run through the real loop, every adapter
@@ -179,10 +198,64 @@ async function runScenario(ad) {
       A.ok(usage.length >= 2, label + ': the loop booked each turn\'s usage');
     }
     if (sim.state.dropped) console.log('[conformance] ' + label + ': the server dropped ' + sim.state.dropped + ' replayed thinking block(s) after a prefix change (block_binding drop_block)');
+    /* KNOWN GAP — E17, the prefix-stability lane (PW-4). A stop control (probe_stop) empties the tool set mid-run, which
+       changes the prefix a binding model's thinking signatures cover, so the server drops every replayed thinking block
+       from then on (block_binding drop_block keeps the request from being refused). Pinned, not hidden: when the
+       tool set stops changing mid-run this assertion FAILS — the gap is closed; make it assert 0. */
+    if (ad.simOpts && ad.simOpts.bindsThinking) A.ok(sim.state.dropped > 0, label + ': KNOWN GAP E17 / PW-4 still open — a stop control empties the tool set and the server drops ' + sim.state.dropped + ' replayed thinking block(s); if this fails, the gap is closed: assert 0');
+    else A.eq(sim.state.dropped, 0, label + ': no replayed thinking block was dropped');
     // no request ever left with a role the wire refuses at its end
     A.ok(accepted.every(r => r.violations.length === 0), label + ': every request met the contract');
   }
   console.log('[conformance] turn-2 cache reuse by adapter (% of prompt chars): ' + JSON.stringify(cacheTurn2));
+
+  // ================================================================ MISTRAL — a KNOWN GAP, pinned
+  /* Mistral's validator (mistral_common: La Plateforme and vLLM's mistral mode) lets nothing but an assistant turn or
+     another tool result follow a tool result. A loop host note right after tool results (<continue_after_tools>, a
+     steering note, <loop_guard>, <terminal_evidence> …) is a user turn on the 'chat' projection (and was a system message
+     before it — refused either way), so such a run is refused there. Carrying the note inside the tool turn, or bridging
+     with an assistant turn StarNet did not receive, are the two shapes Mistral accepts — a product call on how a host
+     note may be worded into the transcript (openIssues), so it is not taken here. When a fix lands this FAILS: then move
+     a Mistral profile into ADAPTERS. A refusal of this shape is a format_error with Mistral's own words: no systemless
+     resend (it would not help) and no chat-template sentence (it is not a template). */
+  {
+    const ad = { name: 'mistral (hosted)', wire: 'chat-mistral', model: 'mistral-large-latest' };
+    const sim = S.makeStrictUpstream('chat-mistral', { reply: scriptFor('chat') });
+    const bus = A.makeBus();
+    const seq = A.collectBus(bus, events.names());
+    const reg = registry();
+    const res = await runAgentLoop({
+      messages: opening(), provider: makeOpenAICompatibleProvider({ fetch: sim.fetch, key: 'k', baseUrl: 'https://api.mistral.conformance.test/v1' }),
+      emit: makeEmitter(bus, () => {}), cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 2 }) }), model: ad.model, agentId: 'agent', runId: 'conf-mistral',
+      tools: TOOLS.slice(), dispatch: (c, ctx) => reg.dispatch(c, ctx), capCtx: openCtx(), sleep: async () => {}, random: () => 0.5, limits: { maxIters: 12 }
+    });
+    const first = sim.refusals[0];
+    A.ok(res.reason === 'error' && first && first.violations[0] === "Unexpected role 'user' after role 'tool'",
+      'KNOWN GAP MISTRAL still open — a host note after a tool result is refused (' + (first ? first.violations[0] : 'no refusal') + '); if this fails, Mistral conformance landed: move a Mistral profile into ADAPTERS');
+    A.eq(sim.refusals.length, 1, 'mistral: the refusal is not resent in another shape (no systemless resend: it is not a template)');
+    const err = seq.filter(e => e.name === 'agent.run.error').pop();
+    const msg = err ? err.payload.message : '';
+    A.ok(/Unexpected role 'user' after role 'tool'/.test(msg.slice(0, 300)) && !/chat template/.test(msg), 'mistral: the error keeps Mistral\'s own words first and claims no chat template (' + msg.slice(0, 160) + ')');
+  }
+
+  // ================================================================ B3. a stop prompt with no fence of its own
+  for (const ad of ADAPTERS) {
+    const sim = S.makeStrictUpstream(ad.wire, Object.assign({ reply: n => (n === 1 ? { calls: [{ name: 'probe_stop_plain', args: { path: 'delta.txt' } }] } : { text: FINAL }) }, ad.simOpts || {}));
+    const reg = registry();
+    const messages = [{ role: 'system', content: SYS }, { role: 'user', content: 'Read delta.txt.' }];
+    const res = await runAgentLoop({
+      messages, provider: ad.make(sim), emit: makeEmitter(A.makeBus(), () => {}), cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 2 }) }),
+      model: ad.model, agentId: 'agent', runId: 'conf-stop-plain', tools: TOOLS.slice(), dispatch: (c, ctx) => reg.dispatch(c, ctx), capCtx: openCtx(),
+      sleep: async () => {}, random: () => 0.5, limits: { maxIters: 6 }
+    });
+    const label = ad.name + ' / plain stop prompt';
+    A.eq(res.reason, 'done', label + ': the run ends done');
+    A.eq(sim.refusals.map(r => r.violations[0]), [], label + ': the strict server refused nothing');
+    const note = messages.find(m => m.role === 'system' && String(m.content).indexOf(PLAIN_STOP) >= 0);
+    A.eq(note && note.content, '<terminal_evidence>\n' + PLAIN_STOP + '\n</terminal_evidence>', label + ': the loop fenced it as <terminal_evidence>, never bare text');
+    const lastBody = JSON.stringify(sim.requests[sim.requests.length - 1].body);
+    A.ok(lastBody.indexOf('<terminal_evidence>') >= 0 && lastBody.indexOf(PLAIN_STOP) > lastBody.indexOf('<terminal_evidence>'), label + ': it reached the wire fenced');
+  }
 
   // ================================================================ B2. a compaction fold re-injects the task list: fenced, accepted
   {
@@ -230,7 +303,16 @@ async function runScenario(ad) {
       'an empty reply between nudges': base().concat([{ role: 'user', content: 'go' }, { role: 'assistant', content: '', tool_calls: [call('c1')] }, { role: 'tool', tool_call_id: 'c1', content: 'r' }, { role: 'assistant', content: '' }, N('continue_after_tools')]),
       'a window that opens on a reply': base().concat([{ role: 'assistant', content: 'an answer from before the window' }, { role: 'user', content: 'next' }]),
       'a post-fold summary and task list': base().concat([{ role: 'system', content: '<conversation_summary>\nfolded\n</conversation_summary>' }, { role: 'user', content: 'go' }, { role: 'assistant', content: 'ok' }, N('task_list')]),
-      'host notes around the Commander': opening().map(m => Object.assign({}, m))
+      'host notes around the Commander': opening().map(m => Object.assign({}, m)),
+      // E52: broken tool pairing (a fold, a window slice or a crash mid-batch leaves these): the shared pass pairs them
+      'an orphan tool result (E52: its call is gone)': base().concat([{ role: 'user', content: 'go' }, { role: 'assistant', content: 'Here is what I found.' },
+        { role: 'tool', tool_call_id: 'gone', content: 'r-orphan' }, { role: 'user', content: 'next' }]),
+      'a call whose result never landed (E52)': base().concat([{ role: 'user', content: 'go' }, { role: 'assistant', content: '', tool_calls: [call('c1'), call('c2')] },
+        { role: 'tool', tool_call_id: 'c1', content: 'r1' }, { role: 'user', content: 'next' }]),
+      'a duplicate tool result (E52)': base().concat([{ role: 'user', content: 'go' }, { role: 'assistant', content: '', tool_calls: [call('c1')] },
+        { role: 'tool', tool_call_id: 'c1', content: 'r1' }, { role: 'tool', tool_call_id: 'c1', content: 'r1 again' }, { role: 'user', content: 'next' }]),
+      'an orphan tool result ends the transcript (E52)': base().concat([{ role: 'user', content: 'go' }, { role: 'assistant', content: '', tool_calls: [call('c1')] },
+        { role: 'tool', tool_call_id: 'c1', content: 'r1' }, { role: 'tool', tool_call_id: 'gone', content: 'r-orphan' }])
     };
     for (const ad of ADAPTERS) {
       for (const [what, msgs] of Object.entries(transcripts)) {

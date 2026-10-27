@@ -17,6 +17,9 @@
      chat-claude  a Claude model behind a Chat Completions router (OpenRouter / managed): the router hoists the
                   leading system block and merges consecutive user turns (Anthropic's own rule), so those two are
                   allowed; everything else as `chat`.
+     chat-mistral Mistral's own validator (mistral_common: La Plateforme, vLLM's mistral mode): a role-transition table —
+                  nothing but an assistant turn or another tool result may follow a tool result — instead of the
+                  template's one-system-message and strict-alternation rules; the shared key/pairing/last-role rules.
      ollama       Ollama's native /api/chat (the openai-compatible adapter's nativeOllama wire): the `chat` rules over
                   native messages (string content, `images`, tool_name on results, object arguments).
      anthropic    the Messages API: top-level system, messages alternate user/assistant from a user turn and end on a
@@ -118,6 +121,25 @@ function chatShapeViolations(messages, opts) {
 function chatViolations(body, opts) {
   if (!body || typeof body !== 'object') return ['body is not JSON'];
   return chatShapeViolations(body.messages, opts);
+}
+
+/* Mistral's own validator (mistral_common, which La Plateforme and vLLM's mistral tokenizer mode run): not a chat
+   template but a ROLE TRANSITION table — after a system message: user, assistant or system; after a user turn:
+   assistant, system or user; after an assistant turn: assistant, user or tool; after a TOOL result: only assistant or
+   another tool result ("Unexpected role 'user' after role 'tool'"). Plus the shared rules (message keys, call/result
+   pairing, no empty assistant turn) and its own last-role rule ("Expected last role User or Tool"). Consecutive turns
+   of one role and a later system message are allowed, so those two chat-template rules are not applied. */
+const MISTRAL_NEXT = { system: ['user', 'assistant', 'system'], user: ['assistant', 'system', 'user'], assistant: ['assistant', 'user', 'tool'], tool: ['assistant', 'tool'] };
+function mistralViolations(body) {
+  if (!body || typeof body !== 'object') return ['body is not JSON'];
+  const msgs = Array.isArray(body.messages) ? body.messages : [];
+  const order = [];
+  for (let i = 1; i < msgs.length; i++) {
+    const prev = msgs[i - 1] && msgs[i - 1].role, cur = msgs[i] && msgs[i].role;
+    if (MISTRAL_NEXT[prev] && MISTRAL_NEXT[prev].indexOf(cur) < 0) order.push("Unexpected role '" + cur + "' after role '" + prev + "'");
+  }
+  const shared = chatShapeViolations(msgs, { claude: true }).filter(v => !/^System message must be at the beginning|^Conversation roles must alternate/.test(v));
+  return order.concat(shared);
 }
 
 // Ollama native: tool results name their call by tool_name; ids are optional on the native wire
@@ -334,6 +356,7 @@ function validate(wire, body, state) {
   switch (wire) {
     case 'chat': return chatViolations(body);
     case 'chat-claude': return chatViolations(body, { claude: true });
+    case 'chat-mistral': return mistralViolations(body);
     case 'ollama': return ollamaViolations(body);
     case 'anthropic': return anthropicViolations(body, state);
     case 'gemini': return geminiViolations(body, state);
@@ -504,7 +527,7 @@ function makeStrictUpstream(wire, opts) {
     const r = Object.assign({}, reply(run.n, viewOf(wire, body), rec));
     r.calls = (r.calls || []).map(c => Object.assign({ id: (wire === 'anthropic' ? 'toolu_sim_' : 'call_sim_') + (++callSeq) }, c));
     rec.reply = r;
-    if (wire === 'chat' || wire === 'chat-claude') return encodeChat(r, usage);
+    if (wire === 'chat' || wire === 'chat-claude' || wire === 'chat-mistral') return encodeChat(r, usage);
     if (wire === 'ollama') return encodeOllama(r, usage);
     if (wire === 'anthropic') {
       const on = body.thinking && body.thinking.type && body.thinking.type !== 'disabled';
@@ -619,5 +642,5 @@ function startStrictHttp(opts) {
   })));
 }
 
-module.exports = { validate, chatShapeViolations, chatViolations, ollamaViolations, anthropicViolations, geminiViolations, codexViolations,
+module.exports = { validate, chatShapeViolations, chatViolations, mistralViolations, ollamaViolations, anthropicViolations, geminiViolations, codexViolations,
   claudeCliViolations, piecesOf, commonPrefix, makeStrictUpstream, startStrictHttp, textOf };
