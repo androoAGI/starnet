@@ -2112,6 +2112,21 @@ const Chat = (() => {
     return read;
   }
 
+  /* THE DESK REDACTS ITS COPY BEFORE IT MERGES, as the phone does (remote/host.js mergedTurns; wave 1 qw18, 10-27). The
+     save is raw and the station redacts each row it writes, so a turn holding a secret never keyed equal: it showed twice,
+     raw copy kept. When the station's rows carry a redaction, the station redacts this copy's turn texts with the store's
+     own redact (the page has none). A row it holds then merges as ONE turn, redacted; a row it does not hold (this send's
+     own turn) stays as typed. -> Map(raw -> redacted), or false (no answer: the merge runs on the raw copy, as before). */
+  async function redactedTexts(ws, ms) {
+    const texts = [...new Set((ws.history || []).filter(r => r && !r.sys && typeof r.content === 'string').map(r => r.content))];
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), ms);
+    try {
+      const r = await fetch('/api/transcript/redact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts }), cache: 'no-store', signal: controller.signal });
+      const j = r.ok ? await r.json() : null;
+      return !!j && Array.isArray(j.texts) && j.texts.length === texts.length && new Map(texts.map((t, i) => [t, String(j.texts[i])]));
+    } catch (_) { return false; } finally { clearTimeout(timeout); }
+  }
+
   async function reconcileServerHistory(ws, loadToken, read) {
     if (!ws || !ws.id) return;
     const cronSession = String(ws.id).indexOf('cron-') === 0;
@@ -2140,11 +2155,21 @@ const Chat = (() => {
     read.retryable = !reachable && !refused && !failed;   // unanswered (or unreadable) — a send may keep asking (ensureHistoryReady)
     read.serverFailed = !reachable && failed;              // answered 5xx — a send asks once more, then refuses (ensureHistoryReady)
     // A superseded read, removed session or deliberate clear cannot write back.
-    if (historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
-      || (read.history.length && !ws.history.length)) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    const stale = () => historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
+      || (read.history.length && !ws.history.length);
+    if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
-    const next = placeSteerNotes(mergeCanonicalHistory(ws.history, turns));
+    const clean = turns.some(t => t && /\[redacted-/.test(String(t.content))) ? await redactedTexts(ws, read.timeoutMs > 0 ? read.timeoutMs : 8000) : null;
+    if (clean !== null && stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    if (clean === false) noteContinuity(ws, 'history-redact-unavailable');
+    const typed = new Map();   // a redacted copy -> the row as typed: a copy the station did not match goes back as it was
+    const local = !clean ? ws.history : ws.history.map(r => {
+      const t = r && !r.sys && typeof r.content === 'string' ? clean.get(r.content) : undefined;
+      if (t === undefined || t === r.content) return r;
+      const copy = Object.assign({}, r, { content: t }); typed.set(copy, r); return copy;
+    });
+    const next = placeSteerNotes(mergeCanonicalHistory(local, turns).map(r => typed.get(r) || r));
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())

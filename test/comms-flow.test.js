@@ -175,7 +175,7 @@ const reset = () => { ROOT.children = []; const log = new El('div'); log.id = 'c
 
   // the wiring: the stream collects, the run's end files before branching, the read-back places
   A.ok(/fileRunSteers\(ws, runSteers, thisRunId, error \? '' : \(reply \|\| acc\)\);\s*\n\s*if \(error\) \{/.test(src), 'the run files its notes the moment it ends, before its reply is saved');
-  A.ok(/const next = placeSteerNotes\(mergeCanonicalHistory\(ws\.history, turns\)\);/.test(src), 'reading the conversation back places the notes');
+  A.ok(/const next = placeSteerNotes\(mergeCanonicalHistory\(local, turns\)\.map\(r => typed\.get\(r\) \|\| r\)\);/.test(src), 'reading the conversation back places the notes (on the desk copy, redacted first: qw18)');
 }
 
 A.report('comms-flow.test');
