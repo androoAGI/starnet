@@ -69,10 +69,29 @@ const EXPECT = { ceremony: { session: 'hold', turn: 'hold', ask: 'hold' }, tour:
     let picked = null;
     s.D.node({ lines: 'continue the optional tour?', options: [{ label: '▸ CONTINUE THE TOUR', value: 'go' }, { label: 'Skip for now', value: 'skip', skip: true }] }).then(r => { picked = r; });
     await settle();
+    // the INBOX door (yieldTour with no reason) keeps its old scope: a kit-out beat is NOT answered for the Commander (review
+    // 10-27: picking its skip ran beatEquippedPartial / finishUp → the hand-off reopened over the INBOX card just asked for)
+    A.eq(s.D.yieldTour(), false, 'an INBOX click never picks a kit-out beat’s skip key for the Commander');
+    await settle();
+    A.eq(picked, null, 'the kit-out beat is left unanswered by the INBOX door');
     A.eq(s.D.preempt('session'), true, 'a kit-out beat yields a session pick like every tour beat');
     await settle();
     A.ok(picked && picked.preempted === 'session' && picked.skip, 'through its skip key, marked preempted');
     s.D.close();
+  }
+  {
+    // nor does the INBOX door ever answer an offer or the awakening
+    for (const opts of [{ name: 'NOVA', offer: { notNow() {}, stepAside() {} } }, { name: 'NOVA' }]) {
+      const s = station();
+      s.D.open(opts);
+      let picked = null;
+      s.D.node({ lines: 'q', options: [{ label: 'not now', value: 'no', skip: true }] }).then(r => { picked = r; });
+      await settle();
+      A.eq(s.D.yieldTour(), false, 'yieldTour() leaves a ' + s.D.owner() + ' panel alone');
+      await settle();
+      A.eq(picked, null, 'its question stays the Commander’s to answer');
+      s.D.close();
+    }
   }
   {
     // the INBOX door's yieldTour() (no reason) keeps its old meaning: the tour's own way out, NOT a preemption
