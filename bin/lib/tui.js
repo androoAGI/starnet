@@ -448,7 +448,12 @@ function render(model, ui, size, now) {
   if (ui.flash && ui.flash.until > now) g.put(0, hintY, trunc(ui.flash.text, W), ui.flash.style || 'am');
   else if (ui.quitArmed && ui.quitArmed > now) g.put(0, hintY, trunc('ctrl+c again to quit — ' + ui.quitNote, W), 'am b');
   else {
-    const t = wk
+    // /connect is no setup: esc leaves it, and a key or a URL is typed whole (its options are a click)
+    const t = wk && wk.connect
+      ? (wk.ask && (wk.ask.secret || wk.ask.freeText) ? 'type ' + (wk.ask.customLabel || 'it') + ' + enter · esc goes back'
+        : wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type it + enter · ' : '') + 'esc goes back'
+          : 'esc goes back')
+      : wk
       ? (wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type your own + enter · ' : '') + 'ctrl+c pauses setup'
         : wk.typing ? 'any key shows the rest' : 'ctrl+c pauses setup')
       : slash ? 'tab completes /' + slash.items[slash.sel].name + ' · enter runs it · ↑ ↓ pick · esc hides this'

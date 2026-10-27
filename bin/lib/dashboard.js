@@ -473,7 +473,7 @@ function runDashboard(station, opts) {
     p.items = connect.ordered().filter(x => x.id !== 'starnet' || f.credits.state !== 'absent').map(x => {
       const g = connect.groupOf(x.id), st = connect.status(x, f);
       return { p: x, group: g.label, groupShort: g.short, search: (x.id + ' ' + x.name + ' ' + g.label + ' ' + connect.need(x)).toLowerCase(),
-        cols: [[padTo(x.name, 18), 'fg'], [padTo(connect.need(x), 32), 'dim'], st] };
+        cols: [[padTo(x.name, 18), 'fg'], [padTo(connect.need(x), 36), 'dim'], st] };
     });
     p.loading = false;
     paint();
