@@ -101,7 +101,9 @@ function providerFailure(input) {
      advanced retriesUsed/waitedMs by the adapter's spend (preStreamSpend), so nothing is multiplied. */
   const ladderOpen = !i.preStreamRetriesExhausted || PRESTREAM_CONTINUABLE[cls.reason] === 1;
   if (ladderOpen && cls.retryable && fallbackUnavailable && retriesUsed < maxRetries) {
-    const local = jitteredDelay(RETRY_DELAYS_MS[Math.min(retriesUsed, RETRY_DELAYS_MS.length - 1)], i.jitterSample);
+    // a class that names a floor for its wait (errorClass retryDelayMs: a failed name lookup waits out a blip) waits at least that
+    const floorMs = Math.max(0, finite(cls.retryDelayMs, 0));
+    const local = Math.max(floorMs, jitteredDelay(RETRY_DELAYS_MS[Math.min(retriesUsed, RETRY_DELAYS_MS.length - 1)], i.jitterSample));
     const stated = Math.min(MAX_SERVER_WAIT_MS, Math.max(0, finite(cls.retryAfterMs, 0)));
     if (stated > 0 && stated >= local) {
       // The server named its wait: honor it (never earlier), capped, with UPWARD-only jitter so agents sharing a

@@ -86,9 +86,10 @@
        server is not running, e.g. Ollama or LM Studio not started) or the name did not resolve (ENOTFOUND / EAI_AGAIN).
        These used to ride `timeout` through the whole ~106 s ladder, the retry line said "(timeout)" and the end read a
        bare "fetch failed". ONE retry covers a blip (`retryBudget`, read by the adapters' pre-stream ladders and by
-       recovery-policy), then the turn ends naming the host and what to check. Another provider is another host, so a
-       configured fallback is still worth taking. */
-    unreachable:            { retryable: true,  shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false, retryBudget: 1 },
+       recovery-policy), then the turn ends naming the host and what to check. No fallback, exactly as `timeout` before
+       it (review 2026-10-27): a local server that is simply not started must not send the conversation to a cloud
+       fallback, nor to another model on the same dead server; whether it should is Andrew's call. */
+    unreachable:            { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false, retryBudget: 1 },
     unknown:                { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false }
   };
 
@@ -385,19 +386,48 @@
   }
   // the host a refusal came from: the hostname the adapter stamped (provider.js stampRequestHost — never a URL)
   function refusalHost(err) { return (err && typeof err.requestHost === 'string' && err.requestHost) || ''; }
-  // REASONS.unreachable — what nothing answering at that address means, in words the Commander can act on. The host and
-  // port come from the transport cause (undici: cause.hostname for a name that did not resolve, cause.address +
-  // cause.port for a refused connection), else the hostname the adapter stamped.
+  /* WHERE A HOST IS, from its name alone: 'loopback' (this computer), 'private' (this network: an RFC 1918 / link-local /
+     CGNAT / ULA address, a .local / .lan / .internal / .home name, or a bare name with no dot — a LAN machine or a
+     container service), 'public' for anything else, '' when there is no host. Only what the name proves: a public
+     name that resolves to a LAN address still reads 'public'. */
+  function hostScope(host) {
+    const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/:\d+$/, '');
+    if (!h) return '';
+    if (h === 'localhost' || /\.localhost$/.test(h) || /^127(?:\.\d+){3}$/.test(h) || h === '::1' || h === '0.0.0.0' || h === '::') return 'loopback';
+    if (/^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(h) || /^169\.254\./.test(h)
+      || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h) || /^f[cd][0-9a-f]{0,2}:/.test(h) || /^fe80:/.test(h)
+      || /\.(?:local|lan|internal|home|home\.arpa)$/.test(h) || (h.indexOf('.') < 0 && h.indexOf(':') < 0)) return 'private';
+    return 'public';
+  }
+  /* REASONS.unreachable — what nothing answering at that address means, in words the Commander can act on, and only
+     what the harness can prove (review 2026-10-27). The host and port come from the transport cause (undici:
+     cause.hostname for a name that did not resolve, cause.address + cause.port for a refused connection), else the
+     hostname the adapter stamped. A refused connection on THIS computer means nothing is listening on that port; on
+     this network the server there is not running or refused it; anywhere else a firewall, proxy or VPN can refuse a
+     connection as well as a stopped server can, so it says "refused" and points at the network, never "start Ollama". */
   function unreachableNote(err) {
     const code = String(transportCode(err) || '').toUpperCase();
     const cause = (err && err.cause) || {};
-    let host = String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+    const name = String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+    let host = name;
     const port = Number(cause.port) > 0 ? String(cause.port) : '';
     if (host && port && host.indexOf(':') < 0) host += ':' + port;
     const where = host || 'the provider\'s address';
-    if (code === 'ECONNREFUSED') return 'nothing is listening at ' + where + ' (the connection was refused) — start that server (Ollama, LM Studio …) or correct its address in SETTINGS → AI & MODELS, then send again';
+    if (code === 'ECONNREFUSED') {
+      const scope = hostScope(name);
+      if (scope === 'loopback') return 'nothing is listening at ' + where + ' on this computer (the connection was refused) — start the server that should answer there (Ollama, LM Studio …) or correct its address in SETTINGS → AI & MODELS, then send again';
+      if (scope === 'private') return 'the connection to ' + where + ' was refused — the server there is not running or not accepting connections: start it, or correct its address in SETTINGS → AI & MODELS, then send again';
+      return 'the connection to ' + where + ' was refused — a firewall, proxy or VPN on this network can do that as well as a stopped server: check this computer\'s network and the address in SETTINGS → AI & MODELS, then send again';
+    }
+    if (code === 'EAI_AGAIN') return 'the name ' + (host || 'of the provider\'s server') + ' could not be looked up just now (EAI_AGAIN, a temporary DNS failure) — check this computer\'s network, then send again';
     return 'the name ' + (host || 'of the provider\'s server') + ' did not resolve (' + code + ') — check the address in SETTINGS → AI & MODELS and this computer\'s network, then send again';
   }
+  /* ONE RETRY, BUT NOT A HASTY ONE, FOR A NAME LOOKUP (review 2026-10-27). unreachable makes one retry (retryBudget). A
+     refused connection retries at the ladder's first rung; a name that did not resolve — what a Wi-Fi drop, a VPN
+     reconnect or a DNS hiccup looks like for a second or two (Windows reports an offline lookup as ENOTFOUND) — waits
+     this long first, so that one retry outlasts a blip instead of landing inside it. Read by every adapter's pre-stream
+     ladder and by recovery-policy (provider.runtime.retryDelay, the classification's retryDelayMs). */
+  const DNS_RETRY_DELAY_MS = 4000;
 
   /* A 429 is not always "wait a few seconds". A ChatGPT-subscription user who has burned their WEEKLY quota
      gets a 429 whose body says exactly that and whose reset is days away — so the honest class is a spent
@@ -558,6 +588,9 @@
       unsupportedPart: reason === 'model_not_found' && UNSUPPORTED_PART_RE.test(low),
       // the most re-sends this class is worth, when it is fewer than a ladder's (unreachable: 1); null = the ladder's own
       retryBudget: typeof f.retryBudget === 'number' ? f.retryBudget : null,
+      // unreachable only: a name that did not resolve waits DNS_RETRY_DELAY_MS before its one retry (a blip outlasted);
+      // null = the ladder's own rung
+      retryDelayMs: reason === 'unreachable' && /^(?:ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || '')) ? DNS_RETRY_DELAY_MS : null,
       // `reason` above was already picked from the RAW message, so annotating here cannot move the verdict — it
       // only makes the text a human can act on ("fetch failed" -> "fetch failed (ENOTFOUND api.openai.com)").
       // This is the message the loop emits as agent.run.error, which is what lands in the diagnostics ring.
@@ -566,5 +599,5 @@
   }
 
   return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal, isTemplateRefusal,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote } };
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote, hostScope, templateRefusalText } };
 });

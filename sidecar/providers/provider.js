@@ -207,6 +207,15 @@
     const b = cls && typeof cls.retryBudget === 'number' && cls.retryBudget >= 0 ? Math.floor(cls.retryBudget) : r;
     return Math.min(r, b);
   }
+  /* How long to wait before retry `attempt` (0-based) of an error of THIS class: the adapter's own rung, or longer when the
+     class names a floor (errorClass retryDelayMs: a name lookup that failed waits out a network blip before its one
+     retry). `cls` is a classifyApiError verdict; `delays` the adapter's RETRY_DELAYS. */
+  function retryDelay(cls, attempt, delays) {
+    const list = Array.isArray(delays) ? delays : [];
+    const rung = list.length ? Number(list[Math.min(Math.max(0, Math.floor(Number(attempt) || 0)), list.length - 1)]) || 0 : 0;
+    const floor = cls && typeof cls.retryDelayMs === 'number' && cls.retryDelayMs > 0 ? cls.retryDelayMs : 0;
+    return Math.max(rung, floor);
+  }
   function abortableDelay(ms, signal) {
     return new Promise((resolve, reject) => {
       if (signal && signal.aborted) return reject(makeAbortError());
@@ -351,7 +360,7 @@
   }
 
   const timeouts = { envInt, connectMs, idleMs, connectSignal, connectGuard, idleGuardedReader, timeoutError, makeAbortError };
-  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries, retryLimit, stampRequestHost, requestHostOf, readErrorBody, safeErrorField, MAX_ERR_BODY };
+  const runtime = { isAbort, abortableDelay, markPreStreamRetriesExhausted, preStreamRetries, retryLimit, retryDelay, stampRequestHost, requestHostOf, readErrorBody, safeErrorField, MAX_ERR_BODY };
 
   function recoveredToolContent(callId, content) {
     let body;

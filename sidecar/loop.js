@@ -2280,7 +2280,10 @@
           // policy shrank it to fit), it is the last local rung, so the total is n. (A server-stated Retry-After is
           // honored outside the budget and is not predictable here, so it keeps the rung count.)
           const patienceSpent = decision.ladderMs > 0 && ladderWaitMs >= STREAM_RETRY_PATIENCE_MS;
-          emitRetry({ attempt: retriesUsed, reason: retryReasonOf(decision.reason, streamErr), delayMs: decision.delayMs, maxAttempts: patienceSpent ? Math.min(retriesUsed, MAX_STREAM_RETRIES) : MAX_STREAM_RETRIES,
+          // …and must not promise rungs the CLASS refuses: a class that names a smaller budget (errorClass unreachable:
+          // ONE retry, which recovery-policy enforces) reads "retry 1/1", never "1/6" (review 2026-10-27)
+          const classCap = typeof cls.retryBudget === 'number' && cls.retryBudget >= 0 ? Math.min(MAX_STREAM_RETRIES, Math.max(retriesUsed, cls.retryBudget)) : MAX_STREAM_RETRIES;
+          emitRetry({ attempt: retriesUsed, reason: retryReasonOf(decision.reason, streamErr), delayMs: decision.delayMs, maxAttempts: patienceSpent ? Math.min(retriesUsed, classCap) : classCap,
             stage: sawStreamEvent ? 'mid_stream' : 'pre_stream', retryAfterMs: cls.retryAfterMs, waitedMs: waitedBefore, patienceMs: STREAM_RETRY_PATIENCE_MS });
           if (sleep) { const backoff = startWaiting('retry_backoff', false); try { await sleep(decision.delayMs); } catch (_) {} backoff.stop(); }
           if (signal.aborted) break;   // a cancel during the backoff ends cleanly below

@@ -852,7 +852,7 @@
           // a TLS rejection or a crash in our own request code cannot heal by re-sending: fail fast, unmarked
           const failure = classifyApiError(e, { model: body.model });   // unreachable: one retry (its retryBudget), then name the host
           if (!failure.retryable) throw e;
-          if (attempt < provider.runtime.retryLimit(failure, retries)) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }
+          if (attempt < provider.runtime.retryLimit(failure, retries)) { const wait = provider.runtime.retryDelay(failure, attempt, RETRY_DELAYS); waited += wait; await delay(wait, signal); continue; }
           throw provider.runtime.markPreStreamRetriesExhausted(e, { attempts: attempt + 1, waitedMs: waited });
         } finally {
           guard.disarm();
