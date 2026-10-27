@@ -1,10 +1,16 @@
-# Quarantined flaky steps. Read by scripts/run-test-list.mjs: a step listed here that fails is retried ONCE.
-# A pass on the retry is reported in its own "quarantined flaky steps" section and does not turn the gate red;
-# a second failure is a real failure. A step here must also be on a gate list (test-list-completeness checks it).
-# Add a step only with the evidence that it flakes on an unchanged tree, and name the flaking case.
+# Quarantined flaky steps. Read by scripts/run-test-list.mjs.
+# Format: <step> | <case prefix> [| <case prefix> ...]
+# A case prefix is the start of the FAIL message (the text after "FAIL: ") of an assertion known to flake. A listed
+# step that fails is retried ONCE only when every FAIL line it printed starts with one of its case prefixes; a
+# failure anywhere else in the file, a crash that prints no FAIL line, or a timeout is a real failure, never retried.
+# A pass on the retry is reported in its own "quarantined flaky steps" section and does not turn the gate red; a
+# second failure is a real failure. A step here must also be on a gate list (test-list-completeness checks it).
+# Add a step only with the evidence that it flakes on an unchanged tree, and name the flaking case(s).
 #
-# voice.button: the timing-sensitive mic state machine fails intermittently under load and reruns alone green.
-test/voice.button.test.js
-# save-quota-writethrough: case Q3 (queued acknowledgement) fails intermittently under load, on trunk too, and
-# reruns alone green.
-test/save-quota-writethrough.test.js
+# voice.button: the timing-sensitive mic status restore (frontend/app/voice.js) loses a race under load; the
+# assertions seen failing (memory voice-button-test-is-flaky, 2026-07-31, 1 in 6 standalone runs and 2 of 4 gates,
+# trunk too) are the stt 403 / stt degrade status reads and the transcript send.
+test/voice.button.test.js | stt 403: | stt degrade: | a successful listen still sends the transcript
+# save-quota-writethrough: case Q3 (queued acknowledgement) races CloudSave's debounced writes against the test's
+# tick under load, on trunk too, and reruns alone green. Its precondition failing fails the rest of Q3 with it.
+test/save-quota-writethrough.test.js | Q3

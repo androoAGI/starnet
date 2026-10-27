@@ -102,7 +102,8 @@ jobs:
   # regression surfaced at release time or in a user's report. The list runs as four contiguous shards in declared
   # order (scripts/run-test-list.mjs --shard=K/N); fail-fast is off so one red shard never hides another's result.
   # Every step carries the runner's own bound (120 s, 600 s for test/slow.list), so a hung suite fails by name
-  # instead of eating the job's timeout. The Chrome steps are the gate job's, verbatim (several e2e suites drive
+  # instead of eating the job's timeout, and --deadline ends the shard with its failure list 2 min inside the
+  # 30 min wrapper. The Chrome steps are the gate job's, verbatim (several e2e suites drive
   # CDP): keep the three copies (here, the gate job, release-train.yml) in sync.
   http-gate:
     name: http-gate (shard ${{ matrix.shard }}/4)
@@ -176,7 +177,7 @@ jobs:
           echo "::notice::Warm Chrome CDP answered within the tests' 10s budget."
 
       - name: HTTP test gate (shard ${{ matrix.shard }}/4)
-        run: node scripts/timeout.mjs --label test:http --timeout=1800000 -- node scripts/run-test-list.mjs test/http.list --shard=${{ matrix.shard }}/4
+        run: node scripts/timeout.mjs --label test:http --timeout=1800000 -- node scripts/run-test-list.mjs test/http.list --shard=${{ matrix.shard }}/4 --deadline=1680000
 
   # Pure Rust policy checks. The connector key policy tests in src-tauri/src/credentials.rs and the acceptance
   # harness's input guards use injected closures and input checks only: no keychain entry, no native process, no

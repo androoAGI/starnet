@@ -36,8 +36,10 @@ const UNGATED = {
     'state-pixels.png and pixel-checks.json in the working tree, and its canvas fallback is a path on one machine.'
 };
 
-const readList = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/)
+const readLines = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/^﻿/, '').split(/\r?\n/)
   .map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+// a list line is its step; test/flaky.list adds ` | <case prefix> ...` after it (run-test-list.mjs parseFlakyEntries)
+const readList = rel => readLines(rel).map(line => line.split('|')[0].trim());
 
 function walk(dir, out) {
   for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
@@ -108,5 +110,7 @@ for (const rel of SIDE_LISTS) {
   A.eq(strays, [], 'C3: every step of ' + rel + ' is run by a mandatory gate');
 }
 A.ok(readList('test/flaky.list').length <= 5, 'C3: the flaky quarantine stays short — fix a flake rather than listing it');
+const caseless = readLines('test/flaky.list').filter(line => !line.split('|').slice(1).some(part => part.trim()));
+A.eq(caseless, [], 'C3: every quarantined step names its flaking case(s), so no other failure in that file can pass on retry');
 
 A.report('test-list-completeness.test');
