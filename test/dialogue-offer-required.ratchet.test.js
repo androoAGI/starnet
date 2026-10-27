@@ -8,7 +8,9 @@
      offer    — passes `offer: { notNow, stepAside }`: ends above the message box, steps aside for the Commander. REQUIRED for
                 every opener, with both ways out;
      tour     — tour:true / owner:'tour': the opt-in quick tour (yields a session pick). Allowed only in tutorial.js;
-     ceremony — neither: the awakening, which IS the conversation. Allowed only in onboarding.js.
+     ceremony — neither: the FIRST-RUN awakening, which IS the conversation. Allowed only in onboarding.js, and only for the
+                awakening's own two beats (startQuestions, closeOut). The deferred interview (offerDeferred) runs mid-game on a
+                returning station, so it is an offer (review 10-27: it was counted as the awakening and held all three).
    The two allowances are a RATCHET: a count may only go down. A new non-offer opener anywhere fails; a ceremony or tour beat that
    becomes an offer fails too, until its allowance is lowered here so it can never come back. */
 'use strict';
@@ -18,7 +20,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 // THE RATCHET — lower only. Each entry: file → how many non-offer openers of that kind it may keep, and why.
-const CEREMONY_ALLOWANCE = { 'frontend/app/onboarding.js': 3 };   // the awakening: wake, the interview, its close-out beat
+const CEREMONY_ALLOWANCE = { 'frontend/app/onboarding.js': 2 };   // the first-run awakening: its interview (startQuestions) and its close-out beat (closeOut)
 // tutorial.js: firstCommand's classic beat and QUICK TOUR 1 are tour:true; the two kit-out beats are owner:'tour'
 const TOUR_ALLOWANCE = { 'frontend/app/tutorial.js': 4 };
 
@@ -97,6 +99,17 @@ for (const file of ['frontend/app/pitchstore.js', 'frontend/app/autojobstore.js'
   A.ok(mine.length >= 1 && mine.every(s => s.kind === 'offer'), file + ': every opener is an offer (' + mine.map(s => s.line + ' ' + s.kind).join(', ') + ')');
 }
 A.eq(sites.filter(s => s.file === 'frontend/app/pitchstore.js').length, 2, 'pitchstore.js opens two panels (the First Pitch, the first-task hand-off), both offers');
+// the awakening's two ceremony beats are exactly its first-run openers; the deferred interview (mid-game) is the offer
+{
+  const onb = fs.readFileSync(path.join(ROOT, 'frontend/app/onboarding.js'), 'utf8');
+  const spanOf = header => { const at = onb.indexOf(header); const body = A.fnBody(onb, header); return at < 0 ? [0, -1] : [onb.slice(0, at).split('\n').length, onb.slice(0, at + body.length).split('\n').length]; };
+  const within = (s, sp) => s.line >= sp[0] && s.line <= sp[1];
+  const mine = sites.filter(s => s.file === 'frontend/app/onboarding.js');
+  const deferred = spanOf('  function offerDeferred(opts) {'), questions = spanOf('  async function startQuestions() {'), close = spanOf('  async function closeOut() {');
+  A.ok(deferred[1] > deferred[0] && questions[1] > questions[0] && close[1] > close[0], 'onboarding.js offerDeferred, startQuestions and closeOut sliced');
+  A.eq(mine.filter(s => within(s, deferred)).map(s => s.kind), ['offer'], 'the deferred interview opens as an OFFER (it runs mid-game on a returning station)');
+  A.eq(mine.filter(s => s.kind === 'ceremony').map(s => within(s, questions) ? 'startQuestions' : within(s, close) ? 'closeOut' : 'elsewhere:' + s.line), ['startQuestions', 'closeOut'], 'the only ceremony openers are the first-run awakening’s own two beats');
+}
 
 // 4. the classifier itself (so a refactor of the scan cannot quietly pass everything)
 A.eq(kindOf(" { name, offer: { notNow: () => 1, stepAside: () => 2 } } "), 'offer', 'kindOf: an offer');

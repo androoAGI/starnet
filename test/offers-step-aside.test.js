@@ -208,5 +208,62 @@ const PITCH = 'PITCH: a custom invoice sorter\nWHY: you do it by hand\nBUILD: wo
     A.eq(t.AutoJobStore._state().proposed, true, 'an offer answered in part was delivered: spent, so its declined or scheduled jobs are not offered again');
   }
 
+  /* ---------- the deferred interview (onboarding.js offerDeferred) is an offer too (review 10-27) ---------- */
+  {
+    const onb = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'frontend/app/onboarding.js'), 'utf8');
+    const parts = ['  function offerDeferred(opts) {', '  function setDeferred() {', '  function deferredPending() {', '  function clearDeferred() {'].map(h => A.fnBody(onb, h));
+    A.ok(parts.every(x => x.length > 0) && parts[0].length < 5000, 'onboarding.js offerDeferred and its IOU helpers sliced');
+    const rigD = () => {
+      const store = memStore(), nudges = [];
+      store.mem['starnet.interview.deferred.v1'] = '1';
+      const s = station({ globals: { localStorage: store.ls, Chat: { nudge: (text, opts, cb) => nudges.push(cb), isBusy: () => false } } });
+      vm.runInContext([
+        "var DEFER_KEY = 'starnet.interview.deferred.v1', running = false, docs = null, commit = null, notifyFn = null, getSystem = null, NAME = 'NOVA', persona = null, specialty = null, role = null, steps = [], i = 0, beatN = 0, beatTotal = 0, meetingLog = [];",
+        'function brainReady() { return true; } function buildSteps() { return []; }',
+        // the meeting the awakening uses, cut down to its shape: a latency line, then questions, standing down when running ends
+        "async function runLeadMeeting() { await Dialogue.say('let’s fill in the picture.', { auto: true }); if (!running) return; meetingLog.push('asked'); const a = await Dialogue.node({ lines: 'a few questions, or a deeper conversation?', options: [{ label: 'A short conversation', value: 'loose' }] }); if (!running) return; meetingLog.push('answered:' + a.value); }"
+      ].concat(parts).join('\n'), s.ctx);
+      return { s, store, nudges, run: () => vm.runInContext('running', s.ctx), log: () => vm.runInContext('meetingLog', s.ctx) };
+    };
+    const accept = async t => {
+      A.eq(vm.runInContext('offerDeferred({})', t.s.ctx), true, 'a returning station with a live brain is offered the deferred interview');
+      A.eq(t.store.mem['starnet.interview.deferred.v1'], undefined, 'the IOU is spent on offer, as before');
+      const done = t.nudges[0]({ value: 'go' });
+      await wait(320); await settle();
+      return { done };   // wrapped: an async function returning a promise would adopt it and wait for the interview to end
+    };
+    {
+      const t = rigD();
+      const { done } = await accept(t);
+      A.ok(t.s.panel() && t.s.panel().classList.contains('fnv-offer'), 'the deferred interview opens as an OFFER (it used to own the whole of COMMS as the awakening)');
+      A.eq(t.s.D.owner(), 'offer', 'owned as an offer by the arbiter');
+      A.ok(t.s.inputUsable(), 'the message box stays usable under it');
+      A.eq(t.log(), ['asked'], 'the interview is asking its question');
+      A.eq(t.s.D.preempt('session'), true, 'the Commander picking another conversation steps it aside');
+      await Promise.race([done, wait(200)]); await settle();
+      A.eq(t.s.D.isOpen(), false, 'the panel is gone');
+      A.eq(t.run(), false, 'the meeting stands down: Onboarding is no longer running (nothing else stays blocked behind it)');
+      A.eq(t.store.mem['starnet.interview.deferred.v1'], '1', 'unanswered, never declined: the IOU is re-armed for a later boot');
+      A.eq(t.log(), ['asked'], 'and nothing was answered for the Commander');
+    }
+    {
+      const t = rigD();
+      const { done } = await accept(t);
+      A.eq(t.s.D.preempt('ask'), true, 'an approval reaching the Commander steps it aside too');
+      await Promise.race([done, wait(200)]); await settle();
+      A.eq(t.s.D.isOpen(), false, 'the panel is gone, so the approval card is not under it');
+    }
+    {
+      const t = rigD();
+      const { done } = await accept(t);
+      const ev = t.s.key('Escape');
+      A.eq(ev.defaultPrevented, true, 'Esc is the interview’s "not now"');
+      await Promise.race([done, wait(200)]); await settle();
+      A.eq(t.s.D.isOpen(), false, 'Esc closes it');
+      A.eq(t.run(), false, 'and the meeting stands down');
+      A.eq(t.store.mem['starnet.interview.deferred.v1'], undefined, 'the Commander left it: the IOU stays spent (declining is answering)');
+    }
+  }
+
   A.report('offers-step-aside');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });
