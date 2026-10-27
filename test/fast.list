@@ -346,6 +346,7 @@ test/skill-guard-remote-install.test.js
 test/abilities.skills-lane.test.js
 test/skills.library.test.js
 test/skills.gate.test.js
+test/skill-support-files.test.js
 test/skills.trust-origin.test.js
 test/skills.review-approval.test.js
 test/skills.worker-shared-approval.test.js

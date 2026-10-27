@@ -274,7 +274,7 @@
         markRead(v);
         if (!pending && typeof onView === 'function') { try { onView(v, ctx); } catch (_) {} }
         const files = v.files && v.files.length
-          ? '\n\nSupport files:\n' + v.files.map(f => '- ' + f.path + (f.content ? '\n' + f.content : '')).join('\n')
+          ? '\n\nSupport files:\n' + v.files.map(require('../../skills/runtime.js').supportFileLine).join('\n')   // base64 text decoded, binary named (#145)
           : '';
         const setup = v.setup ? '\n\nSetup:\n' + v.setup : '';
         return { content: (pending ? '[Pending review draft — not active or approved]\n' : '') + '# ' + v.name + (v.summary ? '\n' + v.summary : '') + setup + '\n\n' + v.body + files, summary: 'loaded ' + v.name };
