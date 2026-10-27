@@ -14,8 +14,10 @@
    stores), so the test drives it without booting a sidecar. */
 'use strict';
 
-const MAX_TEXTS = 500;        // a desk copy keeps at most ~120 turns (chat.js HISTORY_CAP)
-const MAX_BODY = 8 << 20;     // …and a long paste is a few hundred KB; past this readBody answers 413
+// The desk asks only for the rows its typed merge left unmatched, newest first, at most 400 texts and 2 M JSON chars
+// (chat.js redactAsk; a desk copy itself is uncapped between sends). Past either bound the route refuses the whole ask.
+const MAX_TEXTS = 500;
+const MAX_BODY = 8 << 20;     // past this readBody answers 413
 
 // each text through redact, in order. Throws when redact throws (the route turns that into a 500).
 function redactTexts(texts, redact) {
