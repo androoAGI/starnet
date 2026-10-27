@@ -28,6 +28,7 @@
 
 const nodeCrypto = require('crypto');
 const { note } = require('../failopen.js');
+const SO = require('../speech-outcome.js');
 
 const MAX_FRAMES = 1000;            // 60 s of 60 ms frames
 const MAX_FRAME_BYTES = 1500;       // one Opus packet; the device's 16 kHz mono frames are ~100–200 bytes
@@ -39,6 +40,14 @@ const VOICE_TTL_MS = 5 * 60 * 1000;
 const SWEEP_EVERY_MS = 60 * 1000;
 const FRAME_MS = [10, 20, 40, 60];
 const UTT_RE = /^[A-Za-z0-9_-]{1,40}$/;
+
+// A failed hear/speak carries the typed SpeechOutcome (sidecar/speech-outcome.js) beside its sentence:
+// { ok:false, error, code, terminal, outcome } — additive, so a device that reads only `error` is unchanged.
+function typedFailure(error, outcome) {
+  const out = { ok: false, error };
+  if (outcome && typeof outcome === 'object' && outcome.code) { out.code = outcome.code; out.terminal = !!outcome.terminal; out.outcome = outcome; }
+  return out;
+}
 
 /* ---------- Ogg/Opus muxing (RFC 7845) ---------- */
 
@@ -346,8 +355,12 @@ function makeRemoteVoice(deps) {
       if (typeof transcribeOgg !== 'function') return { ok: false, error: 'this station cannot transcribe speech' };
       const ogg = opusFramesToOgg(u.frames, { frameMs: u.frameMs });
       let r;
-      try { r = await transcribeOgg(ogg); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
-      if (!r || !r.ok) return { ok: false, error: 'the station could not transcribe that (' + String((r && r.reason) || 'no transcription').slice(0, 160) + ')' };
+      try { r = await transcribeOgg(ogg); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e), outcome: SO.outcome([SO.errorLeg('station', e)]) }; }
+      if (!r || !r.ok) {
+        const why = String((r && r.reason) || 'no transcription');
+        return typedFailure('the station could not transcribe that (' + why.slice(0, 160) + ')',
+          (r && r.outcome) || SO.outcome([SO.leg('station', 'unknown', { detail: why })]));
+      }
       // Whisper turns room noise into timestamps or punctuation ("00:00:01 - 00:00:03", first live test): a
       // transcript with no letters in any script is not speech, and must not become a run on the overseer.
       const text = String(r.text || '').trim();
@@ -362,9 +375,15 @@ function makeRemoteVoice(deps) {
   // that finishes loading mid-reply (or a flaky leg) never changes the speaker or the format halfway through.
   async function synthOne(text, provider) {
     let r;
-    try { r = await synthesize(text, provider ? { provider } : undefined); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
-    // the typed SpeechOutcome rides along (sidecar/speech-outcome.js): the device is told WHICH failure, not only its text
-    if (!r || !r.ok || !Buffer.isBuffer(r.buf) || !r.buf.length) return { ok: false, reason: String((r && r.reason) || 'no audio'), outcome: (r && r.outcome) || null };
+    try { r = await synthesize(text, provider ? { provider } : undefined); }
+    catch (e) { r = { ok: false, reason: (e && e.message) || String(e), outcome: SO.outcome([SO.errorLeg('station', e)]) }; }
+    // the typed SpeechOutcome rides along (sidecar/speech-outcome.js): the device is told WHICH failure, not only its text.
+    // A synthesizer that answered 'ok' with no audio, or failed without an outcome, is still typed and named.
+    if (!r || !r.ok || !Buffer.isBuffer(r.buf) || !r.buf.length) {
+      const reason = String((r && r.reason) || 'no audio');
+      const outcome = (r && r.outcome) || SO.outcome([r && r.ok ? SO.leg('station', 'empty_audio', { detail: 'no audio' }) : SO.leg('station', 'unknown', { detail: reason })]);
+      return { ok: false, reason, outcome };
+    }
     return r;
   }
 
@@ -394,8 +413,9 @@ function makeRemoteVoice(deps) {
   async function speak(deviceId, a) {
     sweep();
     const text = String(a.text == null ? '' : a.text).replace(/\s+/g, ' ').trim();
-    if (!text) return { ok: false, error: 'nothing to say' };
-    if (text.length > MAX_SPEAK_TEXT) return { ok: false, error: 'that is too long to say in one reply (' + MAX_SPEAK_TEXT + ' characters max)' };
+    if (!text) return typedFailure('nothing to say', SO.outcome([SO.leg('request', 'no_text', { detail: 'nothing to say' })]));
+    if (text.length > MAX_SPEAK_TEXT) return typedFailure('that is too long to say in one reply (' + MAX_SPEAK_TEXT + ' characters max)',
+      SO.outcome([SO.leg('request', 'text_too_long', { detail: text.length + ' characters; the cap is ' + MAX_SPEAK_TEXT })]));
     if (typeof synthesize !== 'function') return { ok: false, error: 'this station has no voice' };
     const sentences = splitSentences(text);
     // Ownership starts at admission. An older first chunk may finish after a replacement or device revocation;
@@ -409,11 +429,7 @@ function makeRemoteVoice(deps) {
       return { ok: false, error: 'that reply was replaced, forgotten, or expired' };
     }
     pendingReplies.delete(deviceId);
-    if (!first.ok) {
-      const out = { ok: false, error: 'the station could not speak that (' + first.reason.slice(0, 160) + ')' };
-      if (first.outcome) { out.code = first.outcome.code; out.terminal = !!first.outcome.terminal; out.outcome = first.outcome; }
-      return out;
-    }
+    if (!first.ok) return typedFailure('the station could not speak that (' + first.reason.slice(0, 160) + ')', first.outcome);
     const firstMime = String(first.mime || '');
     const rec = { id: String(newId()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), mime: /wav/.test(firstMime) ? ADPCM_MIME : firstMime,
       provider: String(first.provider || ''), parts: [], buf: Buffer.alloc(0), rate: 0, gain: 1, enc: null, complete: false, error: '', at: now() };

@@ -368,6 +368,68 @@ function parsePages(buf) {
     A.ok(!none.ok && /cannot do voice/.test(none.error), 'a station without voice says so');
   }
 
+  /* ---------- 4b. every remote speech failure reaches the DEVICE typed: { error, code, terminal, outcome } ----------
+     Through the REAL gateway and the REAL remote voice (and the real media-service ladder where the failure starts
+     there): the gateway used to rebuild every failure as { ok:false, error } and drop the typed outcome; a thrown
+     synthesize, an empty sentence, a failed or thrown transcription carried free text only. */
+  {
+    const { makeMediaService } = require('../sidecar/media-service.js');
+    const os = require('os');
+    const path = require('path');
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-remote-typed-'));
+    let keyThrows = false;
+    const media = makeMediaService({
+      workspaces: ws, fs, fsp: fs.promises,
+      fetch: async () => { throw new Error('unexpected network'); },
+      edgetts: { enabled: () => false, resolveVoice: () => 'v', synth: async () => Buffer.alloc(0) },
+      localVoice: { status: () => ({ available: false }), defaultVoice: () => 'am_onyx', edgeVoiceFor: () => 'en-US-ChristopherNeural' },
+      nativeStt: { status: () => ({ available: false }) },
+      readBody: async () => '{}', readBodyBuffer: async () => Buffer.alloc(0),
+      providerRuntimeKey: () => { if (keyThrows) throw new TypeError('key store blew up'); return ''; },
+      providerRuntimeBaseUrl: () => '', normalizeProviderId: v => String(v || '').toLowerCase(),
+      env: () => '', processEnv: {}, redact: String, logger: { error() {}, warn() {}, log() {} }, now: () => 1
+    });
+    const noText = await media.synthesizeStationVoice('   ');
+    A.eq(noText.outcome && [noText.outcome.code, noText.outcome.terminal], ['no_text', true], 'station voice: an empty sentence is typed no_text');
+    const agentNoText = await media.synthesizeForAgent({ text: '' });
+    A.eq(agentNoText.outcome && agentNoText.outcome.code, 'no_text', 'agent voice: an empty sentence is typed no_text');
+    keyThrows = true;
+    const thrownStt = await media.transcribeForMime(Buffer.from('ogg bytes'), 'audio/ogg');
+    keyThrows = false;
+    A.eq(thrownStt.outcome && [thrownStt.outcome.code, thrownStt.outcome.terminal], ['internal_error', true], 'stt: a ladder that THREW is typed internal_error (terminal, named): ' + JSON.stringify(thrownStt));
+    A.ok(/key store blew up/.test(String(thrownStt.reason)), 'stt: with the legacy reason kept');
+    fs.rmSync(ws, { recursive: true, force: true });
+
+    const gwWith = (voice) => makeGateway({ host: {}, approvals: { size: () => 0 }, voice, now: () => 1 });
+    const frames = Array(10).fill(b64u(SILK_WB_60MS));
+    // a thrown synthesize, through the real remote voice and the real gateway
+    const throwing = gwWith(makeRemoteVoice({ now: () => 1, newId: () => 't1', synthesize: async () => { throw new TypeError('synth exploded'); } }));
+    const t1 = await throwing.call({ verb: 'speak', args: { text: 'Say this.' } }, { deviceId: 'devA' });
+    A.ok(!t1.ok && /synth exploded/.test(t1.error), 'speak: a thrown synthesize still reaches the device as a sentence: ' + t1.error);
+    A.eq([t1.code, t1.terminal], ['internal_error', true], 'speak: and TYPED through the gateway (internal_error, terminal)');
+    A.ok(t1.outcome && Array.isArray(t1.outcome.legs) && t1.outcome.legs[0].engine === 'station', 'speak: with the outcome and its legs');
+    // the station ladder's own typed failure (the floor refused) passes through the gateway untouched
+    const refusedOutcome = { ok: false, terminal: true, retryAfterMs: 0, code: 'refused', engine: 'edge', legs: [{ engine: 'edge', code: 'refused', http: 403, detail: 'edge upgrade refused: HTTP 403' }] };
+    const refusing = gwWith(makeRemoteVoice({ now: () => 1, newId: () => 't2', synthesize: async () => ({ ok: false, reason: 'edge: edge upgrade refused: HTTP 403', outcome: refusedOutcome }) }));
+    const t2 = await refusing.call({ verb: 'speak', args: { text: 'Say this.' } }, { deviceId: 'devA' });
+    A.eq([t2.code, t2.terminal, t2.outcome && t2.outcome.legs[0].http], ['refused', true, 403], 'speak: the ladder\'s typed outcome reaches the device through the gateway');
+    // nothing to say (an all-space reply), through the real remote voice and gateway
+    const empty = await gwWith(makeRemoteVoice({ now: () => 1, newId: () => 't3', synthesize: async () => ({ ok: true }) })).call({ verb: 'speak', args: { text: '   ' } }, { deviceId: 'devA' });
+    A.eq([empty.ok, empty.code], [false, 'no_text'], 'speak: nothing to say is typed no_text');
+    // a synthesizer that answered ok with no audio is typed too, never a null outcome
+    const silent = await gwWith(makeRemoteVoice({ now: () => 1, newId: () => 't4', synthesize: async () => ({ ok: true, buf: Buffer.alloc(0) }) })).call({ verb: 'speak', args: { text: 'Say this.' } }, { deviceId: 'devA' });
+    A.eq(silent.code, 'empty_audio', 'speak: ok-with-no-audio is typed empty_audio');
+    // hear: the STT ladder's typed outcome, and a thrown transcription
+    const sttOutcome = { ok: false, terminal: true, retryAfterMs: 0, code: 'no_key', engine: 'keyed', legs: [{ engine: 'keyed', code: 'no_key', http: 0, detail: 'no Groq, OpenAI or OpenRouter credential, and no local engine' }] };
+    const deaf = gwWith(makeRemoteVoice({ now: () => 1, newId: () => 'h1', transcribeOgg: async () => ({ ok: false, reason: 'no key', outcome: sttOutcome }) }));
+    const h1 = await deaf.call({ verb: 'hear', args: { utt: 'h1', part: 0, frames, frameMs: 60, last: true } }, { deviceId: 'devA' });
+    A.ok(!h1.ok && /could not transcribe that \(no key\)/.test(h1.error), 'hear: a failed transcription is still a sentence: ' + h1.error);
+    A.eq([h1.code, h1.terminal], ['no_key', true], 'hear: and carries the STT ladder\'s typed outcome through the gateway');
+    const crashing = gwWith(makeRemoteVoice({ now: () => 1, newId: () => 'h2', transcribeOgg: async () => { throw new Error('unreadable Ogg/Opus audio'); } }));
+    const h2 = await crashing.call({ verb: 'hear', args: { utt: 'h2', part: 0, frames, frameMs: 60, last: true } }, { deviceId: 'devA' });
+    A.ok(!h2.ok && typeof h2.code === 'string' && h2.code && h2.outcome, 'hear: a THROWN transcription is typed too (' + h2.code + ')');
+  }
+
   /* ---------- 5. a question spoken on a voice-only device gets a reply shaped to be heard ---------- */
   {
     const { withVoiceStyle, VOICE_SURFACE } = require('../sidecar/remote/voice-style.js');

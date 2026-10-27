@@ -345,9 +345,12 @@ function makeMediaService(options) {
     return unusable('unexpected content-type: ' + contentType, 'bad_response');
   }
 
+  // nothing to say is the REQUEST's failure, typed like every other (it says nothing about an engine)
+  const noTextOutcome = () => SO.outcome([SO.leg('request', 'no_text', { detail: 'no text' })]);
+
   async function synthesizeForAgent(args) {
     const text = String((args && args.text) || '').replace(/\s+/g, ' ').trim();
-    if (!text) return { ok: false, reason: 'no text' };
+    if (!text) return { ok: false, reason: 'no text', outcome: noTextOutcome() };
     const style = String((args && args.style) || '').replace(/\s+/g, ' ').trim().slice(0, 500);
     const wantVoice = String((args && args.voice) || '').trim();
     const input = style ? ('Say the following in ' + style + ': ' + text) : text;
@@ -398,7 +401,7 @@ function makeMediaService(options) {
      loading in the background and this reply goes to the next leg at once. A failed load is retried the same way. */
   async function synthesizeStationVoice(text, opts) {
     const said = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!said) return { ok: false, reason: 'no text' };
+    if (!said) return { ok: false, reason: 'no text', outcome: noTextOutcome() };
     const pin = String((opts && opts.provider) || '');
     const lad = SO.ladder();
     const LOCAL = 'local-kokoro';
@@ -891,7 +894,12 @@ function makeMediaService(options) {
     const match = /(webm|wav|mp3|mpeg|m4a|mp4)/.exec(String(mime || ''));
     const format = /ogg|opus/.test(String(mime || '')) ? 'ogg' : (match ? match[1] : 'ogg');
     try { return await transcribeAudioBuffer(buffer, format === 'mpeg' ? 'mp3' : format); }
-    catch (error) { return { ok: false, reason: (error && error.message) || 'transcribe failed' }; }
+    catch (error) {
+      // the ladder itself threw (it never should): typed and named, never a bare string
+      const outcome = SO.outcome([SO.errorLeg('station', error)]);
+      speechStatus.record(outcome, 'stt');
+      return { ok: false, reason: (error && error.message) || 'transcribe failed', outcome };
+    }
   }
 
   /* A page credential reaches openrouter.ai ONLY when it IS an OpenRouter key. The desk used to send its RUN provider's
