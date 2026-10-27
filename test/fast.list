@@ -885,6 +885,7 @@ test/line-edit.test.js
 test/line-edit-panel.test.js
 test/line-place.test.js
 test/line-too-long.test.js
+test/line-budget-shadowed.test.js
 test/conveyor-no-handoff.test.js
 test/line-sendto.test.js
 test/conveyor-ui-truth.test.js
