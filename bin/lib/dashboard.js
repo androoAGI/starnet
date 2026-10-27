@@ -160,14 +160,22 @@ function runDashboard(station, opts) {
     try { Xp = Xp || require(require('node:path').join(__dirname, '..', '..', 'frontend', 'app', 'xp.js')); } catch (_) { return; }
     ui.stats = doc && doc.stationStats ? Xp.compute(doc.stationStats) : null;
   }
-  // the FLOOR's art: the furniture and every pose of every skin on the floor, fetched once into the camera's own store
+  // the FLOOR's art: the furniture and every pose of every skin on the floor, fetched once into the camera's own store — a
+  // few at a time (a big crew is hundreds of sprites), and a sprite is missing only when the station says so (404): a
+  // request that failed is asked again on a later frame
   function loadFloorAssets(sets) {
     for (const p of floor.needs(sets)) {
+      if (inFlight.size >= 24) return;
       if (inFlight.has(p)) continue;
       inFlight.add(p);
-      client.request('GET', p, null, { raw: true, timeoutMs: 8000 }).then(r => { feed.add(p, r.ok && r.status === 200 ? r.buf : null); inFlight.delete(p); }, () => { inFlight.delete(p); });
+      client.request('GET', p, null, { raw: true, timeoutMs: 8000 }).then(r => {
+        if (r.ok && r.status === 200) feed.add(p, r.buf);
+        else if ((r.ok && r.status === 404) || (floorFails.set(p, (floorFails.get(p) || 0) + 1), floorFails.get(p) >= 3)) feed.add(p, null);   // (three tries, then the floor draws without it)
+        inFlight.delete(p);
+      }, () => { inFlight.delete(p); });
     }
   }
+  const floorFails = new Map();
   function loadFeedAssets(id) {
     for (const p of feed.needs(id)) {
       if (inFlight.has(p)) continue;

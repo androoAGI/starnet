@@ -83,46 +83,64 @@ A.ok(f.plates.every(p => p.row >= 0 && p.row < box.rows), 'every plate is inside
 const same = pf.frame({ lead: 'agent', agents: agents('working') }, 12000, true, box);
 A.ok(same.sixel === pf.frame({ lead: 'agent', agents: agents('working') }, 12000, true, box).sixel, 'a still frame is the same frame');
 
-/* 3b. a crowd (Andrew 10-27: "what if a user has like 20 agents"): desks for the job only, more rows when many work, a lounge
-   of a few with a plate counting the rest */
+/* 3b. a crowd (Andrew 10-27: "the more agents the user has, the more it zooms out to fit more desks … almost like it can
+   pan, … not all need to always be visible"): a desk each, the room zoomed out a row at a time, past the last zoom a room
+   wider than the view that pans to the work; the edges say who is past them */
 {
-  const { geom, LOUNGE_MAX } = require('../bin/lib/floor.js');
-  const g1 = geom(1380, 460, 20, 1, true), g2 = geom(1380, 460, 20, 2, true);
-  A.ok(g2.S < g1.S && g2.per > g1.per, 'a second row makes the room smaller and each row longer: ' + JSON.stringify([g1.S, g1.per, g2.S, g2.per]));
-  const SKINS = fs.readdirSync(path.join(__dirname, '..', 'frontend', 'assets', 'sprites')).filter(s => /^approved_/.test(s) && fs.existsSync(path.join(__dirname, '..', 'frontend', 'assets', 'sprites', s, 'type_north_1.png'))).slice(0, 20);
-  const cf = makeFloor(feed);
-  for (const p of cf.needs(SKINS)) { const f2 = path.join(__dirname, '..', 'frontend', p); feed.add(p, fs.existsSync(f2) ? fs.readFileSync(f2) : null); }
-  const crew = SKINS.map((s, i) => ({ id: 'c' + i, name: 'C' + i, set: s, key: 'idle', now: 'web.fetch vercel.com/pricing' }));
-  const cbox = { cellW: 10, cellH: 20, cols: 138, rows: 23 };
-  let t = 0, cfr = null;
-  const run = (ms) => { for (const end = t + ms; t < end; t += 250) cfr = cf.frame({ lead: 'c0', agents: crew }, t, false, cbox); };
-  run(3000);
-  let L = cf.layout();
-  A.eq([L.crowd, L.desks.size, L.more], [true, 1, 19 - LOUNGE_MAX], 'nobody on a job: only the lead\'s desk is anyone\'s, ' + LOUNGE_MAX + ' in the lounge, the rest counted');
-  A.ok(cfr.plates.some(p => p.id === '' && p.segs[0][0] === '+' + (19 - LOUNGE_MAX) + ' standing by'), 'the lounge\'s plate: how many more stand by');
-  A.eq(cf._sims.size, 1 + LOUNGE_MAX, 'who is out of view is not drawn');
-  for (let i = 1; i <= 9; i++) crew[i].key = 'working';
-  run(3000);
-  L = cf.layout();
-  A.ok(L.desks.size === 10 && L.empty.length > 0 && L.front.every(id => /^c[1-9]$/.test(id)), 'nine on the job: a desk each (and the lead\'s), more standing empty: ' + L.desks.size + '/' + L.empty.length);
-  const ys = new Set(L.front.map(id => L.desks.get(id)[1]));
-  A.ok(ys.size >= 2, 'more than one row seats them: ' + [...ys]);
-  A.ok(L.front.every(id => cf._sims.get(id).sat), 'each reached its desk and sits (a long way is walked quickly)');
-  const fronts = cfr.plates.filter(p => p.id && L.desks.has(p.id) && p.id !== 'c0');
-  const box2 = p => { const w = p.segs.reduce((n, q) => n + q[0].length, 0) + 2; const x = p.col - Math.floor(w / 2); return [x, x + w]; };
-  A.ok(!fronts.some(p => fronts.some(q => q !== p && q.row === p.row && box2(q)[0] < box2(p)[1] - 1 && box2(p)[0] < box2(q)[1] - 1)), 'no desk plate covers another (each cut to its desk\'s width)');
-  A.eq(L.more, 10 - LOUNGE_MAX, 'the rest: ' + LOUNGE_MAX + ' in view, the others counted');
-  const c5 = L.desks.get('c5').join();
-  crew[2].key = 'done';
-  run(1000);
-  A.ok(cf.layout().desks.has('c2') && cf.layout().desks.get('c5').join() === c5, 'one finishes: it keeps its desk a moment, and nobody else\'s desk moves');
-  run(4000);
-  A.ok(!cf.layout().desks.has('c2'), '...then its desk is free and it goes to the lounge');
-  for (let i = 1; i <= 9; i++) crew[i].key = 'idle';
-  run(1500);
-  A.ok(new Set([...cf.layout().empty, ...cf.layout().desks.values()].map(d => d[1])).size >= 2, 'the job ends: the rows stay a few seconds (no room that breathes)');
-  run(6000);
-  A.eq(cf.layout().desks.size + cf.layout().empty.length, 1 + geom(1380, 460, 20, 1, true).per, '...then it is one row again');
+  const { geom, LOUNGE_MAX, S_MIN } = require('../bin/lib/floor.js');
+  const g1 = geom(1380, 540, 20, 1, true), g3 = geom(1380, 540, 20, 3, true);
+  A.ok(g3.S < g1.S && g3.per > g1.per, 'more rows: a smaller room, longer rows: ' + JSON.stringify([g1.S, g1.per, g3.S, g3.per]));
+  const SKINS = fs.readdirSync(path.join(__dirname, '..', 'frontend', 'assets', 'sprites')).filter(s => /^approved_/.test(s) && fs.existsSync(path.join(__dirname, '..', 'frontend', 'assets', 'sprites', s, 'type_north_1.png')));
+  const crewOf = n => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, name: 'C' + i, set: SKINS[i % SKINS.length], key: 'idle', now: 'web.fetch vercel.com/pricing' }));
+  const loaded = makeFloor(feed);
+  for (const p of loaded.needs(SKINS.slice(0, 40))) { const f2 = path.join(__dirname, '..', 'frontend', p); feed.add(p, fs.existsSync(f2) ? fs.readFileSync(f2) : null); }
+  const cbox = { cellW: 10, cellH: 20, cols: 138, rows: 27 };
+  const runFor = (cf, crew, from, ms, box) => { let fr = null; for (let t = from; t < from + ms; t += 250) fr = cf.frame({ lead: 'c0', agents: crew }, t, false, box || cbox); return fr; };
+
+  // twenty: everyone at a desk, the room zoomed out to fit them all — no panning
+  const c20 = crewOf(20), f20 = makeFloor(feed);
+  let fr = runFor(f20, c20, 0, 3000);
+  let L = f20.layout();
+  const g20 = geom(cbox.cols * cbox.cellW, cbox.rows * cbox.cellH, cbox.cellH, L.rows, true);
+  A.ok(L.crowd && L.desks.size === 20 && L.rows >= 2 && g20.S >= S_MIN, 'twenty: a desk each, in ' + L.rows + ' rows, the room zoomed out to ' + g20.S.toFixed(2));
+  A.ok(L.camX === 0 && Math.round(L.worldW) === Math.round(g20.WW), '...and all of it in view (no pan)');
+  A.eq([...f20._sims.keys()].length, 20, 'everyone is drawn');
+  const lounging = [...f20._sims.entries()].filter(([, s]) => s.spot != null).length;
+  A.ok(lounging <= LOUNGE_MAX, 'with nothing to do, a few go about the lounge (' + lounging + '), the rest stand by their desks');
+  A.ok(fr.plates.filter(p => p.id && p.id !== 'c0').every(p => p.segs.length <= 2 && !/standing by/.test(p.segs.map(s => s[0]).join(''))), 'standing by, a crowd\'s plate is just its name');
+  for (let i = 1; i <= 9; i++) c20[i].key = 'working';
+  fr = runFor(f20, c20, 3000, 3000);
+  L = f20.layout();
+  A.ok([1, 2, 3, 4, 5, 6, 7, 8, 9].every(i => f20._sims.get('c' + i).sat), 'nine sent work: each walks to its own desk and sits (a long way is walked quickly)');
+  const fronts = fr.plates.filter(p => p.id && p.id !== 'c0' && p.center);
+  const span = p => { const w = p.segs.reduce((n, q) => n + q[0].length, 0) + 2; const x = p.col - Math.floor(w / 2); return [x, x + w]; };
+  A.ok(!fronts.some(p => fronts.some(q => q !== p && q.row === p.row && span(q)[0] < span(p)[1] - 1 && span(p)[0] < span(q)[1] - 1)), 'no plate covers another (each cut to its desk\'s width)');
+  const c1 = L.desks.get('c1').join();
+  const still = [...f20._sims.entries()].filter(([, s]) => !s.walking && !s.sat).map(([id]) => id);
+  runFor(f20, c20, 6000, 500, Object.assign({}, cbox, { rows: 21 }));   // an ask card takes the bottom of the page: the picture is shorter
+  A.ok(f20.layout().desks.get('c1').join() !== c1 && still.every(id => !f20._sims.get(id).walking) && [1, 2, 3].every(i => f20._sims.get('c' + i).sat), 'the picture changes size: the room re-lays, and nobody walks over to where they already were');
+
+  // forty: past the last zoom the room runs on past the view, which pans to the work and says who is past each edge
+  const c40 = crewOf(40), f40 = makeFloor(feed);
+  fr = runFor(f40, c40, 0, 2000);
+  L = f40.layout();
+  const view = cbox.cols * cbox.cellW / geom(cbox.cols * cbox.cellW, cbox.rows * cbox.cellH, cbox.cellH, L.rows, true).S;
+  A.ok(L.desks.size === 40 && L.worldW > view + 100, 'forty: a desk each still, the room wider than the view: ' + Math.round(L.worldW) + ' > ' + Math.round(view));
+  const leadX = L.desks.get('c0')[0] + 48;
+  A.ok(Math.abs(L.camX + view / 2 - leadX) < 5, 'nothing going on: the view is on the lead');
+  const right = Array.from({ length: 6 }, (_, i) => L.desks.get('c' + (39 - i * 2))[0]);
+  for (let i = 0; i < 6; i++) c40[39 - i * 2].key = 'working';
+  const before = L.camX;
+  fr = runFor(f40, c40, 2000, 4000);
+  L = f40.layout();
+  A.ok(L.camX > before && right.every(x => x >= L.camX - 1 && x + 96 <= L.camX + view + 1), 'work at the far end: the view glides there, the workers all in it');
+  const tags = fr.plates.filter(p => p.id === '').map(p => p.segs.map(s => s[0]).join(''));
+  const pastLeft = [...L.desks.entries()].filter(([id, d]) => id !== 'c0' && (d[0] + 48 - L.camX) * (cbox.cols * cbox.cellW / view) / cbox.cellW < 1).length;
+  A.ok(tags.some(t => t === '◀ ' + pastLeft), 'the left edge says how many are past it: ' + JSON.stringify(tags) + ' / ' + pastLeft);
+  c40[1].key = 'needs';
+  fr = runFor(f40, c40, 6000, 500);
+  const tl = fr.plates.filter(p => p.id === '' && p.col === 0).map(p => p.segs.map(s => s[0]).join(''))[0] || '';
+  A.ok(/▲ 1/.test(tl) || f40.layout().camX < L.camX, 'one past the edge waits on you: the edge says so (or the view goes to it): ' + tl);
 }
 
 /* 4. the page */
