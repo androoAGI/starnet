@@ -232,6 +232,9 @@ const Tutorial = (() => {
     const result = await PitchStore.offerHandoff({ tour });
     if (!result) { if (active) finishUp(true, true); return; }
     if (result.action === 'tour') { resumeFirstTask = true; beatShowAround(); return; }
+    // the hand-off stepped aside (gh#158): the Commander picked a conversation or sent a turn. Its panel is already gone and the
+    // first task stays pending (offered again at the next boot); nothing is said over the conversation they chose.
+    if (result.action === 'aside') { if (active) finishUp(true, true); return; }
     if (active) finishUp(true, true);
     else { state.firstCommandDone = true; state.briefDismissed = true; save(); if (hasDialogue() && Dialogue.isOpen()) Dialogue.close(); }
     if (result.action === 'start') {

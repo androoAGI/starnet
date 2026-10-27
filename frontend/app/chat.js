@@ -1505,7 +1505,7 @@ const Chat = (() => {
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
     input.value = ''; closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
-    send(t, { attachments: atts });
+    send(t, { attachments: atts, composer: true });   // composer: the Commander typed this turn (a pending first task reads it)
   }
 
   /* ── ATTACHMENTS ────────────────────────────────────────────────────────────────────────────────────
@@ -2225,9 +2225,13 @@ const Chat = (() => {
     historyPinPending = historyPin;
     revealKey = '';   // a reveal into this conversation runs after load(); this only drops a stale one
     const nextWs = ws || (typeof Workstreams !== 'undefined' ? Workstreams.active() : null);
+    const prevWs = activeWs;
     if (activeWs?.id !== nextWs?.id) focusVersion++;
     activeWs = nextWs;
     paintTitle();
+    // ANOTHER CONVERSATION IS ON SCREEN (gh#158): an offer panel over COMMS (the first-task hand-off included) steps aside,
+    // unanswered, so COMMS shows the conversation now open and its message box. A re-sync of the same one never does.
+    if (prevWs && nextWs && prevWs.id !== nextWs.id) stepOfferAside('session');
     noteContinuity(activeWs, 'session-selected');
     heldCard = null; heldQueue.length = 0;
     if (activeWs && activeWs.conversationMode === 'group' && typeof GroupChat !== 'undefined') {
@@ -11201,6 +11205,9 @@ const Chat = (() => {
     // tools, but never feeds what reads the Commander's own wording (the profile, the recurring-job miner, the intent
     // offer) — two "yes please" acceptances must not look like a recurring job called "yes please".
     const acceptedOffer = !!(isTask && Classify.isAffirmation && Classify.isAffirmation(text));
+    // a task the Commander typed into the message box completes a pending first-task hand-off (gh#158). Never a retry, a goal
+    // step, or a send made for them (the tour's file example, a recipe launch, a hand-off Start): those carry no `composer`.
+    if (opts && opts.composer && isTask && !retry && !goalContinuation && typeof PitchStore !== 'undefined' && PitchStore.noteCommsTask) { try { PitchStore.noteCommsTask(text); } catch (_) {} }
     // INTENT OFFER: a real, fresh directive is the one moment the Commander has stated what they want in their
     // own words — the only honest place to say "there is a class built for exactly this". Gated to genuine new
     // work: never a retry (already offered on the original), never a recipe launch (they came FROM the library),

@@ -265,6 +265,20 @@ const PitchStore = (() => {
 
   // A durable first-task review. Merely displaying it never spends the handoff.
   // Interview proposals and edits survive a tour/reload; nothing runs until Start.
+  /* THE HAND-OFF IS AN OFFER (gh#158). It opened with no offer, so it owned the whole of COMMS, message box included, and
+     tutorial.onEnterGame re-shows it on every boot while handoffPending stays set: a v0.14.0 Commander with real conversations
+     selected one, the camera moved, and COMMS stayed on YOUR FIRST TASK with no message box. Now it opens as an offer
+     (Dialogue armOffer): it ends above the message box, and it steps aside, unanswered, when the Commander picks a conversation
+     or sends a turn (Dialogue.stepAside) or presses Esc. Stepping aside is never a decline: handoffPending and the draft stay,
+     the draft goes into the message box's ↑ recall at once, and the hand-off is offered again at the next boot. A task the
+     Commander sends from COMMS completes it (noteCommsTask). */
+  const handoffAside = why => ({ action: 'aside', why: String(why || '') });
+  function stepHandoffAside(res) {
+    try { if (Dialogue.isOpen && Dialogue.isOpen()) Dialogue.close(); } catch (_) {}
+    const draft = String((state && state.handoffDraft) || '').trim();
+    if (draft && typeof Chat !== 'undefined' && Chat.rememberSent) { try { Chat.rememberSent(draft); } catch (_) {} }
+    return res;
+  }
   async function offerHandoff(opts) {
     if (!ready() || firing || typeof Dialogue === 'undefined' || !Dialogue.node) return null;
     if (typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()) return null;
@@ -274,8 +288,11 @@ const PitchStore = (() => {
     state.handoffPending = true;
     if (state.handoffDraft == null) state.handoffDraft = state.firstMove || '';
     save();
+    let leave = null;
+    const left = new Promise(resolve => { leave = resolve; });
+    const until = p => Promise.race([p, left]);
     try {
-      Dialogue.open({ name: deps.getName ? deps.getName() : 'AGENT' });
+      Dialogue.open({ name: deps.getName ? deps.getName() : 'AGENT', offer: { notNow: () => leave(handoffAside('esc')), stepAside: why => leave(handoffAside(why)) } });
       let note = '';
       while (state === session && state.handoffPending) {
         const purpose = deps.getPurpose ? String(deps.getPurpose() || '').trim() : '';
@@ -283,7 +300,7 @@ const PitchStore = (() => {
         const lines = note || (state.handoffDraft
           ? 'here’s the first task we can begin with. change anything you like, then start when you’re ready.'
           : (purpose ? 'your direction: ' + purpose + '\n\nwhat would you like us to work on first?' : 'what would you like us to make, learn, or figure out first?'));
-        const pick = await Dialogue.node({ lines: [{ text: lines, cps: 60, holdAfter: 0 }],
+        const pick = await until(Dialogue.node({ lines: [{ text: lines, cps: 60, holdAfter: 0 }],
           allowCustom: true, customFirst: true, customValue: state.handoffDraft,
           customPlaceholder: 'Describe the first thing you want to work on…', submitLabel: 'Start this task →',
           onCustomInput: text => { if (state === session) { state.handoffDraft = text; save(); } },
@@ -291,8 +308,9 @@ const PitchStore = (() => {
             { label: 'Help me choose a first task', value: 'help', help: true },
             ...(opts && opts.tour ? [{ label: 'Show me around first', value: 'tour', open: true }] : []),
             { label: 'I’ll explore on my own', value: 'explore', skip: true }
-          ] });
+          ] }));
         if (state !== session || !pick) return null;
+        if (pick.action === 'aside') return stepHandoffAside(pick);
         if (pick.custom && String(pick.value || '').trim()) {
           state.handoffDraft = String(pick.value).trim(); save();
           return { action: 'start', task: state.handoffDraft };
@@ -304,11 +322,12 @@ const PitchStore = (() => {
           if (typeof Harness !== 'undefined' && Harness.chat && Harness.configured && Harness.configured()) {
             let timer;
             try {
-              const result = await Promise.race([
+              const result = await until(Promise.race([
                 Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true }),
                 new Promise(resolve => { timer = setTimeout(() => resolve(null), 12000); })
-              ]);
+              ]));
               if (state !== session) return null;
+              if (result && result.action === 'aside') return stepHandoffAside(result);
               const proposed = result && !result.error && Pitch.parseStarter(result.text);
               if (proposed) { state.handoffDraft = proposed.move; save(); note = (proposed.why || 'one possible starting point.') + ' edit the task below to make it yours.'; }
             } catch (_) {} finally { clearTimeout(timer); }
@@ -332,6 +351,15 @@ const PitchStore = (() => {
     else if (typeof Chat !== 'undefined' && Chat.prefill) Chat.prefill(task);
     return !!sent;
   }
+  // A TASK THE COMMANDER SENDS FROM COMMS COMPLETES THE HAND-OFF (gh#158). startHandoff completes it for a task sent for them;
+  // a task they type into the message box themselves (the one a failed Start put back there, or simply their own first task)
+  // is the same first task. Before this the hand-off stayed pending after that send and came back over COMMS on every boot.
+  // chat.js calls it only for a task directive the Commander sent from the message box (never a retry or a send made for them).
+  function noteCommsTask(text) {
+    if (!ready() || !state.handoffPending || !String(text == null ? '' : text).trim()) return false;
+    state.handoffPending = false; state.starterDone = true; delete state.firstMove; save();
+    return true;
+  }
   function handoffPending() { return !!(state && state.handoffPending); }
 
   // S2: a brand-new hero re-earns its First Pitch. Drop the self-persisted flag (Save.clear() only wipes the
@@ -342,7 +370,7 @@ const PitchStore = (() => {
   function done() { return !!(state && state.pitched); }
 
   // _-prefixed handles are exposed for the deterministic node test (harmless in the browser).
-  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, offerHandoff, startHandoff, handoffPending, _decide: decide, _fire: fire, _settle: settlePitch, _pending: () => pendingPitch, _state: () => state };
+  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, offerHandoff, startHandoff, noteCommsTask, handoffPending, _decide: decide, _fire: fire, _settle: settlePitch, _pending: () => pendingPitch, _state: () => state };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { PitchStore };
