@@ -405,6 +405,7 @@ test/qa-saboteur.test.js
 test/qa-bugs.test.js
 test/qa-bug-lifecycle.test.js
 test/qa-bugs-register.test.js
+test/qa-bugs-fixed-in-tree.test.js
 test/ledger-reconcile.test.js
 test/qa-guardian.test.js
 test/qa-message-content.test.js
