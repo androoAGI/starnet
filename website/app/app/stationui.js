@@ -2506,6 +2506,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const head = mkEl('div', 'mc-head');
     const tag = mkEl('span', 'turnin-kind'); tag.textContent = MEM_KIND[p.kind] || 'NOTE'; head.appendChild(tag);
     const org = originChip(p.origin); if (org) head.appendChild(org);
+    // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome). The failure
+    // review's lessons already wear that chip as their origin; anything else a failed run raised gets the same one here.
+    if (p.outcome === 'failed' && p.origin !== 'failure-review') {
+      const f = mkEl('span', 'mc-scope'); f.textContent = ORIGIN_LABEL['failure-review']; f.title = 'raised by a run that failed'; head.appendChild(f);
+    }
     card.appendChild(head);
     const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = p.replaceId ? 'Update remembered preference: “' + p.previousBody + '” → “' + p.content + '”' : (p.content || '(empty)'); card.appendChild(bodyEl);
     const meta = mkEl('div', 'mc-meta');
@@ -2640,6 +2645,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     card.appendChild(head);
 
     const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = rec.body || '(empty)'; card.appendChild(bodyEl);
+    // memory-truth-1027: what this belief REPLACED. A newer claim on the same subject (or a correction) retires the old
+    // text from recall; it stays visible here, newest first, instead of silently vanishing. The full list is the tip.
+    const hist = Array.isArray(rec.history) ? rec.history : [];
+    if (hist.length) {
+      const was = mkEl('div', 'mc-meta'), line = mkEl('span', 'mc-prov');
+      const h = hist[0];
+      line.textContent = 'replaced: “' + h.body + '”' + (h.replacedAt ? ' · ' + new Date(h.replacedAt).toLocaleDateString() : '') + (hist.length > 1 ? ' · +' + (hist.length - 1) + ' earlier' : '');
+      line.title = hist.map(x => '“' + x.body + '”' + (x.restoredAs ? ' (restored as its own memory)' : '')).join('\n');
+      was.appendChild(line); card.appendChild(was);
+    }
 
     const meta = mkEl('div', 'mc-meta');
     const prov = mkEl('span', 'mc-prov');
