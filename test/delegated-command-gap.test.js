@@ -61,7 +61,7 @@ const { withheldCommandTools, commandGap } = require('../sidecar/capability/with
   // a terminal but never read or stop it) and a per-call exact confirmation on a watched one. The eight that fell through:
   const declared = {
     'shell.bg.read': 'none', 'terminal.status': 'none', 'terminal.read': 'none', 'terminal.resize': 'none',
-    'terminal.interrupt': 'none', 'terminal.stop': 'none', 'channel.targets': 'none', 'channel.send': 'external-credentialed'
+    'terminal.interrupt': 'none', 'terminal.stop': 'none', 'channel.targets': 'none', 'channel.send': 'external-unknown'
   };
   for (const [name, impact] of Object.entries(declared)) {
     const t = registry.get(name);
@@ -77,18 +77,28 @@ const { withheldCommandTools, commandGap } = require('../sidecar/capability/with
   // a GRANTED routine (the terminal grant) now gets the whole terminal: it can read and stop what it starts
   const granted = enforceRunAuthority(floor, registry, makeRunAuthority({ surface: 'autonomous', isTask: true, fullAccess: false, unattendedGrants: ['workbench'] }));
   A.ok(['terminal.start', 'terminal.read', 'terminal.status', 'terminal.stop', 'shell.exec', 'shell.bg.read'].every(n => granted.tools.indexOf(n) >= 0), 'a routine granted the terminal can start, read and stop it');
-  // channel.send: known, outward, credentialed — projected, but a tainted run still loses it and an unattended ASK run
-  // still cannot send (scope execute: the consent broker's exec lockout), exactly as before
+  // channel.send declares the lane it always fell into (review of quick win 8): outward messaging under the Commander's
+  // bot identity keeps an exact per-call confirmation that never becomes a standing grant, and is never offered to a
+  // delegated worker or an unattended ASK run (whose exec lockout would refuse every call anyway)
   const commsRun = enforceRunAuthority({ tools: ['channel.targets', 'channel.send'] }, registry, authority);
-  A.ok(commsRun.tools.indexOf('channel.targets') >= 0 && commsRun.tools.indexOf('channel.send') >= 0, 'channel tools are projected (no longer an unknown effect)');
+  A.ok(commsRun.tools.indexOf('channel.targets') >= 0, 'channel.targets (impact none) is projected to the delegated ASK worker');
+  A.ok(commsRun.tools.indexOf('channel.send') < 0, 'channel.send is NOT offered to a delegated / unattended ASK run');
+  const fullComms = enforceRunAuthority({ tools: ['channel.send'] }, registry, makeRunAuthority({ surface: 'autonomous', isTask: true, fullAccess: true }));
+  A.ok(fullComms.tools.indexOf('channel.send') >= 0, 'Full Access keeps it (unchanged)');
   const taint = require('../sidecar/taint.js');
-  A.ok(taint.allowedWhenTainted(registry.get('channel.send')) === false, 'a tainted run still cannot send a channel message (external-credentialed is revoked)');
+  A.ok(taint.allowedWhenTainted(registry.get('channel.send')) === false, 'a tainted run still cannot send a channel message');
   A.ok(['terminal.read', 'terminal.stop', 'shell.bg.read', 'channel.targets'].every(n => taint.allowedWhenTainted(registry.get(n)) === true), 'reading and stopping its own work stay open after taint');
-  const { makeConsentBroker } = require('../sidecar/permissions.js');
-  const unattended = makeConsentBroker({ surface: 'autonomous' })({ name: 'channel.send', args: { target: 'telegram:1', text: 'hi' } }, registry.get('channel.send'));
-  A.ok(unattended && unattended.allow === false && /silence is not consent/.test(unattended.reason), 'an unattended ASK run asking to send is refused by the exec lockout: ' + JSON.stringify(unattended));
-  const authorized = await authority.authorize({ name: 'channel.send', args: {} }, registry.get('channel.send'));
-  A.ok(authorized.ok === true && !authorized.oneShot, 'a credentialed send goes through the ordinary consent broker, not the one-shot exact confirmation');
+  const workerAsk = await authority.authorize({ name: 'channel.send', args: {} }, registry.get('channel.send'));
+  A.ok(workerAsk.ok === false, 'a delegated worker asking to send is refused before any broker could cache a grant: ' + JSON.stringify(workerAsk));
+  // a watched run: every send asks, and an "always" answer covers that one send only
+  let asked = 0;
+  const watched = makeRunAuthority({ surface: 'interactive', isTask: true, fullAccess: false, confirm: async () => { asked++; return 'always'; } });
+  const s1 = await watched.authorize({ name: 'channel.send', args: { target: 'telegram:1', text: 'one' } }, registry.get('channel.send'));
+  const s2 = await watched.authorize({ name: 'channel.send', args: { target: 'telegram:1', text: 'two' } }, registry.get('channel.send'));
+  A.ok(s1.ok === true && s1.oneShot === true && s2.ok === true && s2.oneShot === true, 'a watched send is a one-shot exact confirmation (no broker, so no standing grant): ' + JSON.stringify([s1, s2]));
+  A.eq(asked, 2, 'an "always" answer is not remembered: the second send asks again');
+  const watchedOffer = enforceRunAuthority({ tools: ['channel.send'] }, registry, watched);
+  A.ok(watchedOffer.tools.indexOf('channel.send') >= 0, 'a watched run is offered it');
 
   // ---- 2. the withheld map index.js builds from that diff ----
   const kept = new Set(worker.tools);

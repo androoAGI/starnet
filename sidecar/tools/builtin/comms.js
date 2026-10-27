@@ -155,12 +155,16 @@
     };
 
     const sendTool = {
-      /* impact external-credentialed, the class web_request has: it acts OUTWARD as the station on a third-party
-         platform with a credential the Commander stored (the channel's bot token), and can carry workspace files out.
-         It is known, so a watched run asks through the ordinary consent broker instead of the one-shot exact
-         confirmation for unknown effects; a tainted run still loses it (taint.js revokes external-credentialed); an
-         unattended ASK run still cannot send (scope execute: the exec lockout), unless Full Access. */
-      name: 'channel.send', capability: 'comms', impact: 'external-credentialed', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
+      /* impact external-unknown, DECLARED, and deliberately the lane it always fell into. It acts OUTWARD as the station
+         on a third-party platform with the channel's stored bot token and can carry workspace files out (capability
+         registry: "the obvious prompt-injection exfiltration target"), and this lane is the strictest one that still
+         lets the Commander send: a watched run asks an exact per-call confirmation and ANY yes covers that one send only
+         (no "always" grant is ever recorded); a delegated worker and an unattended ASK run are never offered it; a
+         tainted run loses it; Full Access keeps it. external-credentialed (web_request's class) was tried in quick win 8
+         and rejected in review: it made one "Always" a station-wide comms:execute grant, offered it to delegated workers
+         under a watched lead, and offered it to unattended runs whose exec lockout refuses every call. Moving it to a
+         class that stores grants waits for Andrew's security sign-off. */
+      name: 'channel.send', capability: 'comms', impact: 'external-unknown', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
       description: 'Send a message from this station to a connected messaging chat (Telegram, Discord, Slack, Matrix, Signal), optionally with files attached. Use this when the Commander asks to be told, pinged, notified, or messaged somewhere, or to report a result outside the station — including sending them an image, chart, or document you produced. The target must be a chat channel.targets lists — an agent cannot message a new id.',
       schema: {
         type: 'object',
