@@ -17,7 +17,12 @@
    and the wiring, sliced from the real files:
      6. chat.js load() steps an offer aside when ANOTHER conversation goes on screen (never on a re-sync of the same one);
      7. chat.js: only a composer task (never a retry / goal step / send made for them) completes the hand-off;
-     8. tutorial.js presentHandoff ends quietly on a step-aside: no Start, no line over the chosen conversation. */
+     8. tutorial.js presentHandoff ends quietly on a step-aside: no Start, no line over the chosen conversation;
+   and the review fixes (10-27):
+     10. a typed task completes the hand-off only where it can run (a model is configured), the bar Start sets, and clears the draft;
+     11. the Commander's own turn steps it aside WITHOUT pushing the old draft over what they just sent in the ↑ recall;
+     12. the composer paths that never reach send() — a group conversation, the busy type-ahead queue — step an offer aside and
+         complete the hand-off for a typed task, executed through chat.js typedTaskCompletesHandoff. */
 'use strict';
 const A = require('./_assert.js');
 const vm = require('node:vm');
@@ -83,14 +88,24 @@ function rig(opts) {
     /* the Commander's own turn steps it aside the same way */
     const third = t.PitchStore.offerHandoff();
     await settle();
+    const recalled = t.recall.length;
     t.s.D.stepAside('turn');
     const res3 = await Promise.race([third, settle().then(() => 'still waiting')]);
     A.eq(res3 && res3.action, 'aside', 'the Commander sending a turn steps the hand-off aside');
     A.eq(res3 && res3.why, 'turn', 'and says why');
+    /* 11. …without pushing the old draft into the ↑ recall after the line they just sent */
+    A.eq(t.recall.length, recalled, 'their own turn pushes no stale draft into ↑ (↑ right after a send brings back what they sent)');
+    A.eq(t.PitchStore._state().handoffDraft, 'Sort my inbox into three piles', 'the draft is still kept for the next offer');
+
+    /* 10. a typed task on a station that cannot run it (no model configured) keeps the first task pending */
+    A.eq(t.PitchStore.noteCommsTask('Sort my inbox into three piles, oldest first'), false, 'no model configured: a typed task does not spend the hand-off on a run that cannot start');
+    A.eq(t.PitchStore.handoffPending(), true, 'the first task stays pending (the bar Start sets)');
+    t.s.ctx.Harness = { configured: () => true };
 
     /* 5. a task sent from COMMS completes the hand-off */
     A.eq(typeof t.PitchStore.noteCommsTask === 'function' && t.PitchStore.noteCommsTask('Sort my inbox into three piles, oldest first'), true, 'a task sent from COMMS completes the pending hand-off');
     A.eq(t.PitchStore.handoffPending(), false, 'the hand-off is no longer pending');
+    A.eq(t.PitchStore._state().handoffDraft, undefined, 'and its draft is cleared: there is nothing left to offer');
     A.eq(await t.PitchStore.offerHandoff(), null, 'and it is never offered over COMMS again');
     A.eq(t.PitchStore.noteCommsTask('another task'), false, 'a later task finds nothing pending');
     t.PitchStore.init(t.deps);
@@ -168,6 +183,33 @@ function rig(opts) {
   A.ok(send.length > 1000 && send.length < chat.length / 2, 'chat.js send() sliced');
   A.ok(/if \(opts && opts\.composer && isTask && !retry && !goalContinuation && typeof PitchStore !== 'undefined' && PitchStore\.noteCommsTask\)/.test(send),
     'send() completes the hand-off only for a composer task — never a retry, a goal step, or a send made for them');
+
+  /* ---------- 12. the composer paths that never reach send(), executed ---------- */
+  {
+    const helper = A.fnBody(chat, '  function typedTaskCompletesHandoff(t, ws) {');
+    A.ok(helper.length > 200 && helper.length < 2000, 'chat.js typedTaskCompletesHandoff sliced');
+    const run = (o) => {
+      const noted = [], seen = [];
+      const c = vm.createContext({
+        PitchStore: { handoffPending: () => o.pending, noteCommsTask: x => { noted.push(x); return true; } },
+        Classify: { isTaskDirective: (x, ctx) => { seen.push(ctx && ctx.priorAgentTurn); return /^(sort|draft|make)/i.test(x); } }
+      });
+      vm.runInContext(helper + '\nthis.f = typedTaskCompletesHandoff;', c);
+      const r = c.f(o.text, { history: o.history || [] });
+      return { r, noted, seen };
+    };
+    const a = run({ pending: true, text: 'Sort my inbox', history: [{ role: 'assistant', content: 'want me to sort it?' }] });
+    A.ok(a.r === true && a.noted.length === 1, 'a typed task in a group / the queue completes a pending hand-off');
+    A.eq(a.seen, ['want me to sort it?'], 'classified with the agent’s last reply as context, like send()');
+    A.eq(run({ pending: true, text: 'hello there' }).noted, [], 'chat is not a task: nothing completed');
+    A.eq(run({ pending: false, text: 'Sort my inbox' }).noted, [], 'nothing pending: nothing completed');
+    const sub = A.fnBody(chat, '  async function submitComposer() {');
+    const groupSends = sub.split('await GroupChat.sendText(t,').length - 1;
+    A.eq(groupSends, 2, 'submitComposer has its two group send paths');
+    A.eq((sub.match(/stepOfferAside\('turn'\);[^\n]*\n\s*const sent = await GroupChat\.sendText\(t,/g) || []).length, 2, 'both group paths step an offer aside right before the send (a group turn never reaches send())');
+    A.eq((sub.match(/const sent = await GroupChat\.sendText\(t, [^\n]*\n\s*if \(sent\) typedTaskCompletesHandoff\(t, ws\);/g) || []).length, 2, 'and a sent group task completes the hand-off');
+    A.ok(/if \(isBusy\(\)\) \{ if \(t\) \{[^\n]*enqueue\(t\); stepOfferAside\('turn'\); typedTaskCompletesHandoff\(t, activeWs\); \}/.test(sub), 'a task typed while busy (queued) completes it too');
+  }
 
   /* ---------- 8. tutorial.js presentHandoff on a step-aside, executed ---------- */
   {

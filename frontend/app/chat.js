@@ -1475,7 +1475,9 @@ const Chat = (() => {
       if (hasStaged) await settleAttachments();
       if (activeWs?.id !== ws.id) return;   // you moved on while the files uploaded: the message stays in the box
       const atts = pendingAtts.filter(entry => entry.status === 'ready' && entry.ref).map(entry => entry.ref);
+      stepOfferAside('turn');   // a turn typed here never reaches send(): it steps an offer aside the same way (review 10-27)
       const sent = await GroupChat.sendText(t, { attachments: atts, attachmentAgent: ws.agentId });
+      if (sent) typedTaskCompletesHandoff(t, ws);
       if (sent && activeWs?.id === ws.id) { takeAttachments(); if (input.value.trim() === t) input.value = ''; closeSlash(); autoGrowInput(); }
       return;
     }
@@ -1484,7 +1486,9 @@ const Chat = (() => {
       if (hasStaged) await settleAttachments();
       if (activeWs?.id !== ws.id || focusVersion !== submissionFocusVersion) return;
       const atts = pendingAtts.filter(entry => entry.status === 'ready' && entry.ref).map(entry => entry.ref);
+      stepOfferAside('turn');   // a group turn never reaches send(): it steps an offer aside the same way (review 10-27)
       const sent = await GroupChat.sendText(t, { attachments: atts, attachmentAgent: ws.agentId });
+      if (sent) typedTaskCompletesHandoff(t, ws);
       if (sent && activeWs?.id === ws.id) { takeAttachments(); if (input.value.trim() === t) input.value = ''; closeSlash(); autoGrowInput(); }
       return;
     }
@@ -1497,7 +1501,9 @@ const Chat = (() => {
       return;
     }
     // BUSY: type-ahead queues TEXT; staged files wait in the strip for the next idle send (one run per stream).
-    if (isBusy()) { if (t) { input.value = ''; closeSlash(); autoGrowInput(); enqueue(t); } return; }
+    // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
+    // sends it with no composer mark, so send() could not tell it was typed)
+    if (isBusy()) { if (t) { input.value = ''; closeSlash(); autoGrowInput(); enqueue(t); stepOfferAside('turn'); typedTaskCompletesHandoff(t, activeWs); } return; }
     // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
     // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
     if (hasStaged) await settleAttachments();
@@ -6795,6 +6801,17 @@ const Chat = (() => {
     return !!(Dialogue.stepAside && Dialogue.stepAside(why));
   }
   function noteAskLanding() { return stepOfferAside('ask'); }
+  /* A TASK THE COMMANDER TYPED COMPLETES A PENDING FIRST-TASK HAND-OFF (gh#158), on the composer paths that never reach send()'s
+     own check: a group conversation (GroupChat.sendText) and the busy type-ahead queue. Same classifier as send() (the agent's
+     last reply as context), and PitchStore.noteCommsTask keeps the first task pending on a station that cannot run it. */
+  function typedTaskCompletesHandoff(t, ws) {
+    if (!t || typeof PitchStore === 'undefined' || !PitchStore.noteCommsTask || !PitchStore.handoffPending || !PitchStore.handoffPending()) return false;
+    const h = (ws && Array.isArray(ws.history)) ? ws.history : [];
+    let prior = '';
+    for (let i = h.length - 1; i >= 0; i--) { const m = h[i]; if (m && m.role === 'assistant') { prior = typeof m.content === 'string' ? m.content : ''; break; } if (m && m.role === 'user') break; }
+    if (!(typeof Classify !== 'undefined' && Classify.isTaskDirective && Classify.isTaskDirective(t, { priorAgentTurn: prior }))) return false;
+    try { return !!PitchStore.noteCommsTask(t); } catch (_) { return false; }
+  }
   // ANY approval or question raised for the Commander (a run's own, a delegated worker's, a group's, a background one) steps an
   // offer panel aside before its card draws: "defer while an ask waits" (askWaiting keeps it from re-opening meanwhile)
   if (typeof U !== 'undefined' && U.bus && U.bus.on) U.bus.on('permission.prompt', noteAskLanding);

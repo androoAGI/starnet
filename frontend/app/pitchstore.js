@@ -302,8 +302,11 @@ const PitchStore = (() => {
   let helpCtl = null;          // the in-flight "Help me choose" call's AbortController (reset() ends it too)
   function stepHandoffAside(res) {
     try { if (Dialogue.isOpen && Dialogue.isOpen()) Dialogue.close(); } catch (_) {}
+    // the draft goes into the ↑ recall when the Commander went elsewhere (a session pick, an ask, Esc) — never on their own turn:
+    // they just typed in that box, and ↑ right after a send must bring back what they sent, not the old draft (review 10-27).
+    // The draft is still kept for the next offer.
     const draft = String((state && state.handoffDraft) || '').trim();
-    if (draft && typeof Chat !== 'undefined' && Chat.rememberSent) { try { Chat.rememberSent(draft); } catch (_) {} }
+    if (draft && !(res && res.why === 'turn') && typeof Chat !== 'undefined' && Chat.rememberSent) { try { Chat.rememberSent(draft); } catch (_) {} }
     return res;
   }
   async function offerHandoff(opts) {
@@ -388,9 +391,12 @@ const PitchStore = (() => {
   // a task they type into the message box themselves (the one a failed Start put back there, or simply their own first task)
   // is the same first task. Before this the hand-off stayed pending after that send and came back over COMMS on every boot.
   // chat.js calls it only for a task directive the Commander sent from the message box (never a retry or a send made for them).
+  // The bar startHandoff sets (review 10-27): a station with no model configured cannot run that task, so the first task stays
+  // pending (offered again) instead of being spent on a run that fails. A completed hand-off has no draft left to offer.
   function noteCommsTask(text) {
     if (!ready() || !state.handoffPending || !String(text == null ? '' : text).trim()) return false;
-    state.handoffPending = false; state.starterDone = true; delete state.firstMove; save();
+    if (typeof Harness !== 'undefined' && Harness.configured && !Harness.configured()) return false;
+    state.handoffPending = false; state.starterDone = true; delete state.firstMove; delete state.handoffDraft; save();
     return true;
   }
   function handoffPending() { return !!(state && state.handoffPending); }
