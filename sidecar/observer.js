@@ -53,6 +53,8 @@ function observerView(name, payload, ctx) {
         // the trusted project the run works in ('' = the agent's own workspace): a terminal opens the files it writes there
         projectRoot: str(c.projectRoot)
       });
+      // a delegated worker's run: the lead run (and agent) that sent it — the terminal's FLOOR draws the handoff
+      if (c.parentRunId) { v.parentRunId = str(c.parentRunId); v.delegatedBy = str(c.delegatedBy); }
       const prompt = typeof c.prompt === 'function' ? c.prompt() : c.prompt;
       if (prompt) v.prompt = clip(prompt, CLIP.prompt);
       return v;

@@ -21111,6 +21111,8 @@ async function runOnceCore(o) {
   const rawEmit = internal ? o.emit : observer.tee(o.emit, {
     runId, agentId, streamId: o.streamId || '', surface: o.surface || '', trigger, lineId: workflowLine || '', dockId: o.dockId || '',
     projectRoot: o.projectRoot || '',
+    // a delegated worker's run names the lead run that sent it (team.dispatch): a terminal draws the handoff on its FLOOR
+    parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '',
     prompt: () => require('./observer.js').lastUserText(messages)
   });
   const emit = o.broadcast

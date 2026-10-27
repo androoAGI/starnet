@@ -26,6 +26,7 @@ const { makeStation, costText, ONCE_ONLY_TOOLS } = require('./station-model.js')
 const tui = require('./tui.js');
 const sixel = require('./sixel.js');
 const camfeed = require('./camfeed.js');
+const { makeFloor } = require('./floor.js');
 const folderLib = require('./folder.js');
 const mouse = require('./mouse.js');
 const theme = require('./theme.js');
@@ -122,6 +123,7 @@ function runDashboard(station, opts) {
      wears (GET /api/save), and the sprites and furniture the feed draws (/assets/...), fetched when an agent's feed first
      needs them. An agent with no skin wears the default, as in the app. */
   const feed = camfeed.makeCamFeed();
+  const floor = makeFloor(feed);   // the FLOOR page: the whole crew in one room, from the same art
   let skinTable = null;
   const inFlight = new Set();
   async function loadSkins() {
@@ -158,6 +160,22 @@ function runDashboard(station, opts) {
     try { Xp = Xp || require(require('node:path').join(__dirname, '..', '..', 'frontend', 'app', 'xp.js')); } catch (_) { return; }
     ui.stats = doc && doc.stationStats ? Xp.compute(doc.stationStats) : null;
   }
+  // the FLOOR's art: the furniture and every pose of every skin on the floor, fetched once into the camera's own store — a
+  // few at a time (a big crew is hundreds of sprites), and a sprite is missing only when the station says so (404): a
+  // request that failed is asked again on a later frame
+  function loadFloorAssets(sets) {
+    for (const p of floor.needs(sets)) {
+      if (inFlight.size >= 24) return;
+      if (inFlight.has(p)) continue;
+      inFlight.add(p);
+      client.request('GET', p, null, { raw: true, timeoutMs: 8000 }).then(r => {
+        if (r.ok && r.status === 200) feed.add(p, r.buf);
+        else if ((r.ok && r.status === 404) || (floorFails.set(p, (floorFails.get(p) || 0) + 1), floorFails.get(p) >= 3)) feed.add(p, null);   // (three tries, then the floor draws without it)
+        inFlight.delete(p);
+      }, () => { inFlight.delete(p); });
+    }
+  }
+  const floorFails = new Map();
   function loadFeedAssets(id) {
     for (const p of feed.needs(id)) {
       if (inFlight.has(p)) continue;
@@ -575,12 +593,13 @@ function runDashboard(station, opts) {
     { name: 'stat', desc: 'the STAT page: the station\'s level, spend, crew and work' },
     { name: 'crew', desc: 'the CREW page: every agent on one line' },
     { name: 'work', desc: 'the WORK page: workflows, routines, the away shift' },
+    { name: 'floor', desc: 'the FLOOR: the whole crew in one room, handoffs flying desk to desk' },
     { name: 'comms', desc: 'back to the conversation' },
     { name: 'connect', aliases: ['providers'], desc: 'add a provider — the app’s AI & MODELS list: sign in, link, or paste a key', argsHint: '[provider]' },
     { name: 'theme', aliases: ['themes'], desc: 'the terminal colors: ' + theme.NAMES.join(' · '), argsHint: '[' + theme.NAMES.join('|') + ']' },
     { name: 'quit', aliases: ['exit'], desc: 'quit starnet' }
   ].map(c => Object.assign({ source: 'terminal', aliases: [], argsHint: '', here: true }, c));
-  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'comms', 'connect', 'providers', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
+  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
     'agents', 'insights', 'memory', 'bundles', 'blueprint', 'reload-mcp', 'reload-skills', 'steer', 'copy', 'compress', 'reasoning', 'fast', 'debug', 'queue', 'background', 'loop', 'save', 'goal', 'subgoal', 'yolo', 'personality'];
   async function loadCatalog() {
     const id = ui.focus || 'agent';
@@ -816,7 +835,7 @@ function runDashboard(station, opts) {
     const parts = text.split(/\s+/), cmd = parts[0].toLowerCase();
     if (cmd === '/help' || cmd === '/?') { ui.overlay = { title: 'COMMANDS', items: tui.HELP, foot: 'any key closes this' }; return paint(); }
     if (cmd === '/quit' || cmd === '/exit') return quit(true);
-    if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms') return openPage(cmd.slice(1));
+    if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms' || cmd === '/floor') return openPage(cmd.slice(1));
     if (cmd === '/theme' || cmd === '/themes') return themeCommand(parts[1] || '');
     if (cmd === '/connect' || cmd === '/providers') return openConnectPicker(parts.slice(1).join(' '));
     // the app's own commands, done here (above: what each does and which station route it uses)
@@ -1649,7 +1668,7 @@ function runDashboard(station, opts) {
     }
     stop(0);
   }
-  const F_PAGES = { f1: 'stat', f2: 'crew', f3: 'comms', f4: 'work', f5: 'skills' };
+  const F_PAGES = { f1: 'stat', f2: 'crew', f3: 'comms', f4: 'work', f5: 'skills', f6: 'floor' };
   function onKey(str, key) {
     const k = key || {};
     if (mouseReader(str, k)) return;   // a mouse report, put back together from the keys Node split it into
@@ -1747,14 +1766,25 @@ function runDashboard(station, opts) {
     // character, and on consoles without a deferred wrap the bottom-right cell scrolls the whole screen
     const size = { cols: Math.max(20, (out.columns || 80) - 1), rows: out.rows || 24 };
     const skip = ui.logoImage ? ui.logoImage.cols : 0, skipRows = ui.logoImage ? ui.logoImage.rows : 0;
+    // the FLOOR's handoffs come from the runs the station reports (each delegated run names the lead run that sent it): read on
+    // every paint, whatever page is shown, so its LOG is whole when you open it
+    const nameOf = id => { const a = model.state.agents.get(id); return a ? a.name : String(id).toUpperCase(); };
+    floor.observe(model.state.runs, nameOf, id => { const a = model.state.agents.get(id); return a && a.last ? a.last.reason : 'done'; }, t);
+    const floorLead = floor.leadOf(model.state.runs, ui.focus || 'agent');
+    ui.floorView = { images: !!ui.images, ready: floorReady, lead: floorLead, kids: [...new Set([...floor._known.values()].filter(k => k.lead === floorLead).map(k => k.agentId))], log: floor.log() };
     const screen = tui.render(model, ui, size, t);
     lastHits = screen.hits || []; lastAreas = screen.areas || {}; lastScreen = screen;   // what a click lands on
     const av = screen.avatar;   // where the camera feed goes, when the card is up
+    const fv = screen.floor && floorReady ? screen.floor : null;   // where the FLOOR's picture goes, once it can be drawn
     // every rendered row is padded to the full width, so no erase-to-end is needed (or wanted). A row beside the logo
     // image starts to its right, a row beside the feed is written either side of it: an image's cells are never
     // written over (that would erase it)
     const rows = screen.map((segs, y) => {
       if (y < skipRows) return '\x1b[' + (y + 1) + ';' + (skip + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, skip), level);
+      if (fv && y >= fv.y && y < fv.y + fv.rows) {
+        return '\x1b[' + (y + 1) + ';1H' + tui.toAnsi(tui.sliceSegs(segs, 0, fv.x), level) + '\x1b[0m' +
+          '\x1b[' + (y + 1) + ';' + (fv.x + fv.cols + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, fv.x + fv.cols), level);
+      }
       if (av && y >= av.y && y < av.y + av.rows) {
         return '\x1b[' + (y + 1) + ';1H' + tui.toAnsi(tui.sliceSegs(segs, 0, av.x), level) + '\x1b[0m' +
           '\x1b[' + (y + 1) + ';' + (av.x + av.cols + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, av.x + av.cols), level);
@@ -1772,6 +1802,35 @@ function runDashboard(station, opts) {
       const key = pic ? pic.key + '@' + av.x + ',' + av.y : '';
       if (pic && key !== avatarShown) { s += '\x1b[0m\x1b[' + (av.y + 1) + ';' + (av.x + 1) + 'H' + pic.sixel; avatarShown = key; }
     } else avatarShown = '';
+    // the FLOOR: its picture (drawn again when what it shows changes, at most four times a second: a frame is a whole room),
+    // then the name plates over it — text cells, so a plate is never part of the picture
+    if (screen.floor) {
+      const box = screen.floor;
+      const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, now: r.now }));
+      if (!floorPic || t - floorAt >= 250 || ui.still) {
+        floorAt = t;
+        floorPic = floor.frame({ lead: floorLead, agents }, t, ui.still, { cellW: term.cellW, cellH: term.cellH, cols: box.cols, rows: box.rows });
+        if (!floorPic) loadFloorAssets(agents.map(a => a.set).filter(Boolean));
+      }
+      const was = floorReady;
+      floorReady = !!floorPic;
+      if (floorReady !== was) { prevRows = []; schedulePaint(); }   // the region changes hands (text ↔ picture): repaint it whole
+      if (floorPic && fv) {
+        const plates = floorPic.plates.map(p => {
+          const segs = [[' ', 'fg plate']].concat(p.segs.map(([tx, st]) => [tx, st + ' plate'])).concat([[' ', 'fg plate']]);
+          const w = segs.reduce((n, q) => n + tui.width(q[0]), 0);
+          const col = Math.max(0, Math.min(box.cols - w, p.center ? p.col - Math.floor(w / 2) : p.col));
+          return { x: box.x + col, y: box.y + p.row, w, segs, id: p.id };
+        });
+        const key = floorPic.key + '|' + plates.map(p => p.x + ',' + p.y + tui.toPlain(p.segs)).join('|') + '@' + box.x + ',' + box.y;
+        if (key !== floorShown) {
+          s += '\x1b[0m\x1b[' + (box.y + 1) + ';' + (box.x + 1) + 'H' + floorPic.sixel;
+          for (const p of plates) s += '\x1b[' + (p.y + 1) + ';' + (p.x + 1) + 'H' + tui.toAnsi(p.segs, level) + '\x1b[0m';
+          floorShown = key;
+        }
+        for (const p of plates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
+      }
+    } else { floorShown = ''; floorPic = null; floorReady = false; }
     if (rows.length < prevRows.length) s += '\x1b[' + (rows.length + 1) + ';1H\x1b[J';
     prevRows = rows;
     if (s) try { out.write(s); } catch (_) {}
@@ -1787,11 +1846,12 @@ function runDashboard(station, opts) {
     inp.resume();
     out.on('resize', onResize);
   }
-  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
+  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; floorShown = ''; floorPic = null; buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
   function onResize() { redrawAll(); }
 
   // ---- the real logo, as an image -----------------------------------------------------------------------------------
   let term = {}, image = null, imageShown = false, avatarShown = '';
+  let floorPic = null, floorAt = 0, floorShown = '', floorReady = false;
   // ask the terminal (before the screen opens) whether it draws Sixel and how big a cell is. Replies arrive in order, so
   // DA1, which every terminal answers, goes last and closes the probe.
   function probeTerminal(ms) {

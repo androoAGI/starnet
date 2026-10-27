@@ -1226,6 +1226,7 @@ test/cli-dashboard-signal.test.js
 test/cli-dashboard-drive.test.js
 test/cli-theme.test.js
 test/cli-connect.test.js
+test/cli-floor.test.js
 test/cli-version.test.js
 test/cli-launcher.test.js
 test/cli-link.test.js
