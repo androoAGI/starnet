@@ -346,7 +346,7 @@
     const numericHost = /^\d+$/.test(h) || /^0x[0-9a-f]+$/i.test(h);   // integer / hex IP encodings (e.g. http://2130706433/)
     const bareName = h.indexOf('.') < 0 && h.indexOf(':') < 0 && !numericHost;  // single-label intranet name
     if (blockedName || bareName || numericHost || isPrivateV4(h) || isPrivateV6(h))
-      throw new Error('refusing to fetch private/loopback/intranet host: ' + h);
+      throw hostRefusal('refusing to fetch private/loopback/intranet host: ' + h);
     return u;
   }
   // Resolve every candidate and return the address that the connection must use.
@@ -375,7 +375,8 @@
     for (const a of (addrs || [])) {
       const ip = (a && a.address) || '';
       if (!net.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
-      if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing: ' + u.hostname + ' resolves to private address ' + ip);
+      // host-authored like the static refusal above: the host wrote this line and no fetched byte reached the run
+      if (isPrivateV4(ip) || isPrivateV6(ip)) throw hostRefusal('refusing: ' + u.hostname + ' resolves to private address ' + ip);
     }
     return addrs;
   }

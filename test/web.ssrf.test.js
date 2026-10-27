@@ -97,5 +97,31 @@ async function rejectsAsync(p, msg) { try { await p; A.ok(false, msg + ' — did
     rejects(() => assertSafeUrl(u), 'trailing-dot FQDN refused: ' + u);
   A.eq(assertSafeUrl('https://example.com./').protocol, 'https:', 'a PUBLIC name with a root label is still allowed');
 
+  // ---- G. a private-address refusal is HOST-AUTHORED (quick win 35) ----
+  // The host wrote the refusal and no fetched byte reached the run, so it must carry hostAuthored like the guard's
+  // file:// and invalid-URL refusals: without it a refused web_fetch latched the run's untrusted-content taint and
+  // revoked its shell / credentialed powers for the rest of the run over a page it never read (index.js taint latch).
+  const caught = fn => { try { fn(); } catch (e) { return e; } return null; };
+  for (const url of ['http://localhost/', 'http://127.0.0.1/', 'http://169.254.169.254/latest/meta-data/', 'http://[::1]/', 'http://internal-api/']) {
+    const e = caught(() => assertSafeUrl(url));
+    A.ok(e && e.hostAuthored === true && /refusing to fetch private\/loopback\/intranet host/.test(e.message), 'the static private-host refusal is host-authored: ' + url);
+  }
+  let rebound = null;
+  try { await assertResolvedSafe(new URL('http://totally-public.example/'), privLookup); } catch (e) { rebound = e; }
+  A.ok(rebound && rebound.hostAuthored === true && /resolves to private address 169\.254\.169\.254/.test(rebound.message), 'the DNS-rebinding refusal is host-authored');
+  let dnsDown = null;
+  try { await assertResolvedSafe(new URL('https://public.example/'), async () => { throw new Error('resolver unavailable'); }); } catch (e) { dnsDown = e; }
+  A.ok(dnsDown && dnsDown.hostAuthored !== true, 'a resolver failure is not dressed up as a host refusal');
+  // …and it reaches the tool result the taint latch reads, through the real registry dispatch
+  {
+    const { makeRegistry } = require('../sidecar/tools/registry.js');
+    const reg = makeRegistry();
+    makeWebTools({ fetchImpl: okFetch, lookup: privLookup }).register(reg);
+    const literal = await reg.dispatch({ id: 'c1', name: 'web_fetch', args: { url: 'http://127.0.0.1:8787/api/key' } }, { agentId: 'agent' });
+    A.ok(literal.isError && literal.hostAuthored === true, 'web_fetch on a loopback URL: an error result marked host-authored: ' + JSON.stringify(literal).slice(0, 200));
+    const resolved = await reg.dispatch({ id: 'c2', name: 'web_fetch', args: { url: 'http://totally-public.example/' } }, { agentId: 'agent' });
+    A.ok(resolved.isError && resolved.hostAuthored === true, 'web_fetch on a name that resolves private: an error result marked host-authored: ' + JSON.stringify(resolved).slice(0, 200));
+  }
+
   A.report('web.ssrf.test');
 })();
