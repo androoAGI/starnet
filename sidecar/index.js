@@ -7301,7 +7301,7 @@ const cronDriver = makeCronDriver({
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
     }
   })
 });
@@ -17069,7 +17069,7 @@ async function handleCronRun(req, res) {
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
           }
         });
         if (line && String(line.text || '').trim()) state.buf = line.text;
@@ -20834,6 +20834,13 @@ const hostLiveRuns = new Map();   // runId -> { agentId, startedAt, source }
    id gets a stop handle here for exactly as long as runOnce is driving it; its signal is the caller's signal OR this
    handle, so a stop by id ends it the same way its owner's own abort would (the owner still sees the run end). */
 const runStopHandles = new Map();   // runId -> AbortController
+/* What a routine hop that ended 'cancelled' says on its record. Its stop came through its stop handle: the Commander's STOP or
+   E-STOP, OR the station's own process-fault containment (quiesceForProcessFault aborts every stop handle), and a fault stop
+   is named as the fault, never "you" (halt.js markFaulted's law; the same faulted() reading the trigger and hand-off runners
+   use: a fault after the Commander's own E-STOP stays theirs). */
+function hopStoppedSaid() {
+  return (processFaultQuiesced === true && cronHalted !== true) ? 'the station hit an internal fault and stopped this run' : 'stopped by you';
+}
 async function runOnceTracked(o) {
   const rid = o && o.runId ? String(o.runId) : '';
   // a DELEGATED worker (parentRunId / its own o.steer) is not given one: the subagent manager owns its stop (interrupt,

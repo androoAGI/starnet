@@ -70,4 +70,29 @@ A.ok(quiesce.length > 1000 && quiesce.length < 20000, 'one bounded quiesceForPro
 A.ok(/contain\('stop-handles', \(\) => killStopHandles\(runStopHandles, e => failNote\('process-fault\.quiesce\.stop-handles', e\)\)\);/.test(quiesce), 'the fault quiesce kills every stop handle in its own containment, noting a failed abort');
 A.ok(quiesce.indexOf("contain('stop-handles'") > quiesce.indexOf("contain('runs'"), 'after the run and hub kills');
 
+// ---- 5. a routine hop the FAULT stopped names the fault, never "stopped by you" (review of quick win 1) ----
+// The quiesce disarms cron but never aborts its leases, so the stop-handle kill above is what stops an in-flight routine
+// hop; its sink reads agent.run.end 'cancelled' and its record said "stopped by you" for a stop the Commander never made.
+{
+  const said = sidecarFunctionSource('hopStoppedSaid');
+  A.ok(said.length > 40 && said.length < 800, 'one bounded hopStoppedSaid');
+  const run = (processFaultQuiesced, cronHalted) => new Function('processFaultQuiesced', 'cronHalted', said + '\nreturn hopStoppedSaid();')(processFaultQuiesced, cronHalted);
+  A.eq(run(true, false), 'the station hit an internal fault and stopped this run', 'a hop stopped by the fault quiesce says the station\'s fault');
+  A.eq(run(false, false), 'stopped by you', 'a hop the Commander stopped (STOP by id) still says so');
+  A.eq(run(false, true), 'stopped by you', 'and an E-STOP is theirs');
+  A.eq(run(true, true), 'stopped by you', 'a fault after their own E-STOP stays theirs (the trigger and hand-off runners\' faulted() reading)');
+  // both routine-hop sinks read it: the scheduled fire's advanceChain hop and RUN NOW's chain hop (handleCronRun)
+  const runNow = sidecarTopLevelFunction('handleCronRun');
+  A.ok(/error: hs\.errMsg \|\| \(hs\.stopped \? hopStoppedSaid\(\) : null\)/.test(runNow), 'RUN NOW\'s chain hop words its stop through hopStoppedSaid');
+  const { readSidecarSource } = require('./helpers/source');
+  // the module-level cron driver config (not a named function): sliced between its advanceChain and the boot reconcile
+  // comment that follows it, both required and in one slice, so the lock is about that hop sink alone
+  const idx = readSidecarSource();
+  const a = idx.indexOf('advanceChain: (o) => chainRunner.advance({');
+  const b = idx.indexOf('// A crash can land after markRun durably commits', a);
+  A.ok(a > 0 && b > a, 'found the scheduled fire\'s advanceChain hop sink');
+  const fire = idx.slice(a, b);
+  A.ok(/error: hs\.errMsg \|\| \(hs\.stopped \? hopStoppedSaid\(\) : null\)/.test(fire) && !/'stopped by you'/.test(fire), 'the scheduled fire\'s hop words its stop through hopStoppedSaid');
+}
+
 A.report('estop-stop-handles.test');
