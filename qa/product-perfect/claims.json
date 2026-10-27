@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "618596d42a6e25b17836f4f4f1efb079bed2c25b",
+    "sourceCommit": "2ae03f666094f7d403c2e592cb11f2c89f4c1db8",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -1373,8 +1373,8 @@
       },
       {
         "path": "frontend/app/windows/connectors.js",
-        "bytes": 158990,
-        "sha256": "2fd71f04197845e3745d9d3db85716cce3be36dc230eb7050bf704c51b87b553"
+        "bytes": 161998,
+        "sha256": "1033d4d201abaad24e361175e97c8ee7b6366b57e10bf7b4a5702df2fd3af581"
       },
       {
         "path": "frontend/app/windows/logbook.js",
@@ -1548,8 +1548,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 434405,
-        "sha256": "94b5f0ee9fdce27006adea4100ba6ee4bedaa431956d3a076ffdb12f994cc78c"
+        "bytes": 434610,
+        "sha256": "f7c4d8047fb6f2216aa1237a21191d67cfa77e5e43aedc97fecbfa9cef1dee29"
       },
       {
         "path": "frontend/css/asciifx.css",
