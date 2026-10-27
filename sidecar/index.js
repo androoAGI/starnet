@@ -227,6 +227,7 @@ const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor,
 const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TASTE: verdicts + corrections -> durable like/dislike memory
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
+const LearningEligibility = require('./learning-eligibility.js');   // memory-truth-1027: the ONE rule for which runs may teach which learning pass
 const Embed = require('./embed.js');              // memory-compound: the embedding lane of hybrid recall (BM25 + vectors over a configured provider)
 const { swallow, note: failNote, summary: failopenSummary, setClock: failopenSetClock } = require('./failopen.js');    // tagged fail-open: a swallowed error stays visible (throttled warn + counter + diagnostics summary)
 const { makeProcessFaultHandler } = require('./process-fault.js');   // fail-loud-but-safe uncaughtException policy (degrade health, release locks, exit(1) for the shell watchdog)
@@ -24576,11 +24577,21 @@ async function runOnceCore(o) {
   const quotedLearning = o.quotedOwnerInput === true || replayedQuoted;
   const learningTaint = execution.taintedBy() || (quotedLearning ? 'quoted user material' : null);
   const learningEvidence = TrustedLearning.evidence({ runId, trigger: o.trigger, tainted: execution.taintedBy(), trustedOnly: quotedLearning, trustedInput: trustedLearningInput, completion: finalCompletionEvidence, loadedSkills });
-  if ((_auxDone || _auxFail) && o.reflect && isTask && !internal) {
-    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence });
+  /* ONE LEARNING ELIGIBILITY RULE (memory-truth-1027; releases#7, quick win 19). The run is classified once —
+     done · failed · denied · cancelled · unfinished, plus tainted / quoted / line hop — and every learning pass below
+     reads its verdict from the same predicate (learning-eligibility.js) instead of its own copy of the guards: a run
+     whose approval was refused (reflect.js refusedAction) teaches no pass that reads its transcript, a line hand-off
+     reaches no pass at all, outside or quoted material withholds every transcript pass, and trusted capture (the
+     Commander's captured directive) still counts on a failed or refused run. _learn.kind rides the proposals a pass
+     raises, so MEMORY > Awaiting your decision can say "from a failed run". */
+  const _learn = LearningEligibility.passes(LearningEligibility.runOutcome({
+    reason: result && result.reason, aborted: signal.aborted, recovery: !!o.recovery, truncated: _truncated, clarifying: !!taskQuestionAsked,
+    denied: refusedAction(execution.toolTraceList()), tainted: !!execution.taintedBy(), quoted: quotedLearning, lineHop: _lineHop,
+    reflect: !!o.reflect, task: !!isTask, internal: !!internal }));
+  if (_learn['trusted-capture']) {
+    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence, outcome: _learn.kind });
   }
-  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _auxDone && !_lineHop && reflectSalient(result.messages, o.recurring)
-      && !refusedAction(execution.toolTraceList())   // a run whose approval was not given proposes no memories (reflect.js refusedAction)
+  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
       && !reflectingNow.has(agentId) && (Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
@@ -24588,14 +24599,14 @@ async function runOnceCore(o) {
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
   // call or ≥2 turns: an instant stub teaches nothing), the in-flight guard, and its own per-agent cooldown. A run the
   // PROVIDER refused (Failreview.providerRefused) is never reviewed on it: same content, same refusal (xai-403-1023).
-  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _auxFail
+  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _learn['failure-review']
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
       && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
-  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _auxDone && !_lineHop && Study.studySalient(result.messages, o.recurring)
+  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
       && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
-  const _gateThreadmine = !!(process.env.SKYNET_THREAD_MINE !== '0' && o.reflect && isTask && _auxDone && !_lineHop && threadmine.mineSalient(result.messages)
+  const _gateThreadmine = !!(process.env.SKYNET_THREAD_MINE !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
@@ -24630,13 +24641,14 @@ async function runOnceCore(o) {
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
   if (_capReached) _auxCandidates.length = 0;
-  // External transcript text never enters a durable learning pass. The skill reviewer may still use the
-  // separately captured owner directive and host checks; its structured packet discards all external bytes.
+  // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining
+  // read that through _learn above (tainted / quoted). The skill reviewer may still use the separately captured owner
+  // directive and host checks; its structured packet discards all external bytes, so only a run with neither skips it.
   // Quoted material (learningTaint's quotedLearning half: typed, or replayed from an earlier turn) skips the same
   // passes, but latches no taint: tools, standing grants, workers and later turns keep the owner's authority.
   if (learningTaint) {
     const noTrustedEvidence = !learningEvidence.trustedUserMessages.length && !learningEvidence.checks.length;
-    for (const pass of ['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])) {
+    for (const pass of noTrustedEvidence ? ['skill-review'] : []) {
       const at = _auxCandidates.indexOf(pass);
       if (at >= 0) _auxCandidates.splice(at, 1);
     }

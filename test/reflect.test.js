@@ -153,7 +153,10 @@ const { makeClock } = require('../shared/clock-rng.js');
   A.eq(refusedAction(null), false, 'garbage in -> false (never throws)');
   {
     const idx = readSidecarSource();
-    A.ok(/const _gateReflect = !!\(o\.reflect && [^\n]*reflectSalient\(result\.messages, o\.recurring\)\n\s*&& !refusedAction\(execution\.toolTraceList\(\)\)/.test(idx), 'the run-end REFLECTION gate skips a run whose approval was not given');
+    // memory-truth-1027: refusedAction feeds the ONE learning predicate (denied), which the reflection gate reads
+    A.ok(/denied: refusedAction\(execution\.toolTraceList\(\)\)/.test(idx) && /const _gateReflect = !!\(o\.reflect && [^\n]*_learn\.reflection && reflectSalient\(result\.messages, o\.recurring\)/.test(idx), 'the run-end REFLECTION gate skips a run whose approval was not given');
+    const LE = require('../sidecar/learning-eligibility.js');
+    A.eq(LE.passes(LE.runOutcome({ reason: 'done', denied: true, reflect: true, task: true })).reflection, false, '…through the predicate: a denied run is not reflected on');
   }
 
   // recordFromProposal: a Kept proposal becomes the §5.2 notebook record (content mirrors into body for the
