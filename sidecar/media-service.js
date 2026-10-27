@@ -670,7 +670,11 @@ function makeMediaService(options) {
       const leave = () => {
         joined.waiters--;
         if (joined.waiters > 0 || joined.timer) return;
-        joined.timer = setTimeout(() => joined.ac.abort(), KEYED_ABANDON_GRACE_MS);
+        joined.timer = setTimeout(() => {
+          // a request for this clip that arrives after the abort starts its own call, never joins a dying one
+          if (keyedInFlight.get(cacheKey) === joined) keyedInFlight.delete(cacheKey);
+          joined.ac.abort();
+        }, KEYED_ABANDON_GRACE_MS);
         if (joined.timer && typeof joined.timer.unref === 'function') joined.timer.unref();
       };
       ac.signal.addEventListener('abort', leave, { once: true });

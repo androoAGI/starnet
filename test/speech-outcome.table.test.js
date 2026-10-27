@@ -325,6 +325,39 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       const st = svc.ttsStatus();
       A.ok(!(st.legs.edge && st.legs.edge.code === 'cancelled'), 'disconnect: a cancelled leg is not recorded as the engine\'s failure');
     }
+    // ---- SEAM: a PAID keyed call every desk abandoned is aborted, but only after a grace a retry can join (df610df1) ----
+    {
+      let calls = 0, abortedAt = 0, release = null;
+      const t0 = Date.now();
+      const svc = await sidecar({ keys: OR, edge: false, fetch: (url, init) => new Promise((resolve, reject) => {
+        calls++;
+        release = () => resolve({ ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => Buffer.from('ONE-PAID-CLIP') });
+        const s = init && init.signal;
+        // a provider takes a moment to honor an abort: the call is still settling when the next request arrives
+        if (s) s.addEventListener('abort', () => { abortedAt = Date.now() - t0; setTimeout(() => { const e = new Error('This operation was aborted'); e.name = 'AbortError'; reject(e); }, 400); });
+      }) });
+      const first = tts(svc, { text: 'One paid sentence.' }, { closeAfterMs: 100 });   // the desk gives up at once
+      await tick(500);
+      A.eq(abortedAt, 0, 'abandon: the paid call is NOT aborted the moment its only desk leaves (a spaced retry may join it)');
+      const retry = tts(svc, { text: 'One paid sentence.' });                            // the desk's retry, 0.5 s later
+      await tick(2600);
+      A.eq(abortedAt, 0, 'abandon: a retry that joined within the grace keeps the call alive past it');
+      release();
+      const r = await retry;
+      const gone = await first;
+      A.eq(gone.wrote, false, 'abandon: nothing is written to the desk that left');
+      A.eq([calls, r.body.toString()], [1, 'ONE-PAID-CLIP'], 'abandon: the retry is answered by the ONE paid call');
+      calls = 0; abortedAt = 0;
+      const lone = tts(svc, { text: 'A sentence nobody waits for.' }, { closeAfterMs: 100 });
+      await until(() => abortedAt > 0, 4000);
+      A.ok(abortedAt > 0, 'abandon: with no desk left after the grace, the paid call is aborted');
+      const fresh = tts(svc, { text: 'A sentence nobody waits for.' });   // arrives while the aborted call is still settling
+      await tick(50);
+      A.eq(calls, 2, 'abandon: a request after the abort starts its own call, never joins the dying one');
+      release();
+      await fresh;
+      await lone;
+    }
     // ---- SEAM: GET /api/tts/status names the last outcome of every leg ----
     {
       edgeMode = 'refuse403';
