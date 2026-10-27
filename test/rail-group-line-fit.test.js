@@ -88,9 +88,10 @@ const decl = (rules, sel, prop) => {
 };
 const appCss = rulesOf('frontend/css/app.css'), pip = rulesOf('frontend/css/pipglass.css');
 const compact = 'body:not(.rows-inbox) #workstreams .ws-row:has(> .ws-agent-group)';
-A.ok(/"dot agent agent agent"\s*"title title pin meta"/.test(decl(appCss, compact, 'grid-template-areas') || ''), 'COMPACT: the names span the whole first line; pin and time sit on the title line');
+// COMPACT opens on the title like every other row (Andrew 10-27); the names keep a whole line of their own, under it
+A.ok(/"dot title pin meta"\s*"\. agent agent agent"/.test(decl(appCss, compact, 'grid-template-areas') || ''), 'COMPACT: the names span a whole line under the title; pin and time sit on the title line');
 const compactAttn = 'body:not(.rows-inbox) #workstreams .ws-row.attn:has(> .ws-agent-group)';
-A.ok(/^"dot agent agent agent"/.test(decl(appCss, compactAttn, 'grid-template-areas') || ''), 'COMPACT attention row: the names still own the first line (a hover kebab never squeezes them)');
+A.ok(/^"dot title title pin"\s*"\. agent agent agent"/.test(decl(appCss, compactAttn, 'grid-template-areas') || ''), 'COMPACT attention row: the names still own a whole line (a hover kebab never squeezes them)');
 const fsz = parseFloat(decl(appCss, 'body:not(.rows-inbox) #workstreams .ws-agent.ws-agent-group', 'font-size') || '0');
 A.ok(fsz >= 14, 'the COMPACT names line is at least the 14px glass floor (was 12px under a 17px title), got ' + fsz);
 const inboxGlass = 'body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row:has(> .ws-agent-group)';

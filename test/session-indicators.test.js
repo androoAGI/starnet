@@ -158,8 +158,11 @@ A.ok(!context.railRowTip(savedA, row(savedA), true).includes('right-click'), 'pr
   A.eq(decl('body:not(.rows-inbox) #workstreams .ws-agent.ws-agent-group', 'font-size'), '14px', 'the compact crew line sits at the 14px glass floor, not a shrunken chip (walk 10-14 #6: it was 12px under a 17px title)');
   const grid = 'body:not(.rows-inbox) #workstreams .ws-row:has(> .ws-agent-group)';
   A.eq(decl(grid, 'display'), 'grid', 'a compact group row lays the identity on its own line');
-  // the names own the whole first line; the row's time/status ends the title line (rc walk 10-14: "NOVA, … +1  Working")
-  A.ok(/"dot agent agent agent"\s*"title title pin meta"/.test(decl(grid, 'grid-template-areas') || ''), 'names take the whole first line; the pin and status end the title line (no shared cell can widen under the names)');
+  // the names own a whole line; the row's time/status ends the title line (rc walk 10-14: "NOVA, … +1  Working"). Title first
+  // (Andrew 10-27: a gold names line over an unaligned title "looks hideous"): the row opens like every other row
+  A.ok(/"dot title pin meta"\s*"\. agent agent agent"/.test(decl(grid, 'grid-template-areas') || ''), 'the title opens the row; the names take the whole line under it; the pin and status end the title line (no shared cell can widen under the names)');
+  const attnAreas = decl('body:not(.rows-inbox) #workstreams .ws-row.attn:has(> .ws-agent-group)', 'grid-template-areas') || '';
+  A.ok(/^"dot title title pin"\s*"\. agent agent agent"/.test(attnAreas), 'a waiting group row opens on its title too, its names under it');
   A.ok(/"dot agent agent agent"\s*"title title pin meta"\s*"recpt recpt recpt recpt"/.test(decl('body.rows-inbox #workstreams .ws-row:has(> .ws-agent-group)', 'grid-template-areas') || ''),
     'INBOX: a group row\'s names own the top line too (a "Connecting" status squeezed them to 0px)');
   // the shipped glass INBOX look (pipglass.css) lays its own rows: the same law there, and two real names too wide for the

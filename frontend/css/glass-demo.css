@@ -263,53 +263,31 @@ body.glass-demo #left #workstreams .ws-meta { font-size: 11px; }
 /* Project lamps retain their quiet square; session lamps have their own state language. */
 body.glass-demo #left .ws-dot { width: 6px; height: 6px; border-radius: 1px; }
 body.glass-demo #left #ws-new { height: 25px; padding: 2px 8px; font-size: 15px; letter-spacing: .6px; text-shadow: 0 0 4px var(--ph-glow2); }
-/* A fixed glass bezel keeps the rail still as the signal inside changes. */
+/* THE SESSION LAMP is the CREW card's housed round lamp (Andrew 10-27: "the indicator for the session … looks insanely
+   cheap" — the 12px glass square read as a checkbox on every row, a to-do list instead of a rail). One lamp language for a
+   crew card and a session row. Every state keeps its own signal, by colour and by RHYTHM (rhythm survives every palette,
+   app.css): SEEN a dim resting lamp (never hidden), UNSEEN lit gold, WORKING phosphor on the working beat, CONNECTING a hollow
+   ring, REPLY gold and APPROVAL red on the faster beat of a wait, FAILED red on a slow flash. Matte: no halo. */
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot {
-  position: relative; display: inline-block; box-sizing: border-box; flex: 0 0 12px; width: 12px; height: 12px;
-  border: 1px solid color-mix(in srgb,currentColor 65%,transparent); border-radius: 2px;
-  color: var(--ph-dim); opacity: 1; animation: none;
-  background: linear-gradient(145deg,color-mix(in srgb,currentColor 13%,transparent),transparent 70%);
-  box-shadow: inset 0 1px 0 var(--gd-light), 0 1px 2px rgba(0,0,0,.28);
+  position: relative; display: inline-block; box-sizing: border-box; flex: 0 0 8px; width: 8px; height: 8px;
+  border: 0; border-radius: 50%; color: var(--ph-dim); background: currentColor; opacity: 1; animation: none;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.3);
 }
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::before,
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::after { content: ''; position: absolute; box-sizing: border-box; }
-/* Read rests as an empty glass square; the filled core belongs to unread activity. */
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.seen {
-  color: color-mix(in srgb,var(--text) 50%,var(--ph-dim));
-}
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.unseen { color: var(--gold); box-shadow: inset 0 1px 0 var(--gd-light), 0 0 6px rgba(var(--gold-rgb),.18); }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.unseen::before { inset: 2px; border-radius: 1px; background: currentColor; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
-/* Working: a scan traverses the inside of the square; the housing never blinks or moves. */
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.working { color: var(--ph-bright); overflow: hidden; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.working::before {
-  left: 2px; top: 1px; width: 6px; height: 2px; background: currentColor;
-  box-shadow: 0 -2px 0 color-mix(in srgb,currentColor 18%,transparent); animation: gd-session-scan 1.8s steps(5, jump-none) infinite;
-}
-@keyframes gd-session-scan { 0%,100% { transform: translateY(1px); opacity: .6; } 50% { transform: translateY(5px); opacity: 1; } }
-/* Connecting: a small center point, distinct from the confirmed-work scan. */
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.connecting { border-style: dashed; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.connecting::before { inset: 4px; background: currentColor; }
-/* Reply: two message strokes. Approval: a red exclamation with a slow light pulse. */
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.reply { color: var(--gold); }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.reply::before { left: 2px; top: 2px; width: 6px; height: 1px; background: currentColor; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.reply::after { left: 2px; top: 6px; width: 4px; height: 1px; background: currentColor; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.approval { color: var(--bad); animation: gd-approval-pulse 1.6s steps(8, jump-none) infinite; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.approval::before { left: 4px; top: 1px; width: 2px; height: 4px; background: currentColor; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.approval::after { left: 4px; top: 7px; width: 2px; height: 1px; background: currentColor; }
-@keyframes gd-approval-pulse {
-  0%,100% { border-color: var(--bad); box-shadow: inset 0 1px 0 var(--gd-light), 0 0 7px color-mix(in srgb,var(--bad) 45%,transparent); }
-  50% { border-color: color-mix(in srgb,var(--bad) 45%,transparent); box-shadow: inset 0 1px 0 var(--gd-light), 0 0 1px transparent; }
-}
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::after { content: none; }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.seen { color: color-mix(in srgb,var(--text) 26%,var(--panel2)); }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.unseen { color: var(--gold); }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.working { color: var(--ph-bright); animation: gd-session-beat 1.15s steps(8, jump-none) infinite; }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.connecting { color: var(--ph-dim); background: transparent; box-shadow: inset 0 0 0 1px currentColor, 0 0 0 1px rgba(0,0,0,.55); }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.reply { color: var(--gold); animation: gd-session-beat .72s steps(6, jump-none) infinite; }
+body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.approval { color: var(--bad); animation: gd-session-beat .72s steps(6, jump-none) infinite; }
+@keyframes gd-session-beat { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 @keyframes gd-session-failure { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
-/* Failed: the crossed core flashes; its X stays distinct from the live approval exclamation. */
+/* Failed: red on a slow flash, apart from a live approval's fast beat. */
 body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.failed { color: var(--bad); animation: gd-session-failure 1.6s steps(8, jump-none) infinite; }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.failed::before,
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.failed::after { left: 1px; top: 4px; width: 8px; height: 1px; background: currentColor; transform: rotate(45deg); }
-body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.failed::after { transform: rotate(-45deg); }
 @media (prefers-reduced-motion: reduce) {
   body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot,
   body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot::before { animation: none; }
-  body.glass-demo #left :is(#workstreams .ws-row,#projects .proj-sess-full) > .ws-dot.working::before { transform: translateY(3px); opacity: 1; }
 }
 /* Small, familiar window glyphs on station glass. */
 body.glass-demo .gd-sheet .gd-controls { gap: 4px; }

@@ -862,7 +862,7 @@ body.glass-demo .con-rail-item.con-toptab .con-rail-glyph.has-ico { width: 16px;
    NAME on top in its own colour (as on its CREW card) with the time, the session title under it (two lines at
    most). The latest message is the row's hover tip (app.js
    railRowTip), never a sentence under the name. Rows rest quiet on hairlines; only the selected one is a
-   card. The lamp stays the station's square glass lamp with every state glyph; a row that needs
+   card. The lamp is the station's session lamp (round since 10-27, glass-demo.css), every state kept; a row that needs
    you says "Approval needed" / "Reply needed" in gold where the time sits.
    The list keeps glass-demo.css's 6px row gap and 6px ends: from 10-03 to 10-21 this comment had lost its opener, so the
    browser threw away the 1px-gap rule that stood here and the rows Andrew has looked at since were spaced by glass-demo.css.
@@ -918,9 +918,9 @@ body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="older"] > .ws-agent { display: none; }
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="older"] .ws-title { font-size: 16px !important; -webkit-line-clamp: 1; }
 
-/* the lamp is the station's own SQUARE glass lamp (glass-demo.css: empty when read, lit core when unread, the
-   scan / reply strokes / approval mark / failure X inside it). Andrew 10-03: the one thing he did not want
-   changed. This block only seats it on the agent's line. */
+/* the lamp is the station's session lamp (glass-demo.css). Andrew 10-03 kept the square glass lamp here; 10-27 the
+   square read as a checkbox on every row ("the indicator for the session … looks insanely cheap"), so every session row
+   now wears the CREW card's housed round lamp, each state by colour and rhythm. This block only seats it on the agent's line. */
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row > .ws-dot { justify-self: start; align-self: center; margin: 0; }
 
 /* line 2: the session's title, full width, two lines at most */
@@ -2181,3 +2181,48 @@ body.glass-demo:not(.hud-mode) #terms .automation-win :is(.sec-l, .con-rail-labe
      monospace — a bigger, smooth face inside VT323 lines: it is the station face, set apart by colour */
 body.glass-demo:not(.hud-mode) #terms code { font-family: inherit; }
 body.glass-demo:not(.hud-mode) #terms .ch-steps code { color: var(--ph-bright); }
+
+/* ============================================================
+   COMPACT SESSION ROWS (Andrew 10-27, on his purple rail: "the sessions are insanely ugly … the text is ugly, the
+   ultron, cypher, it just looks hideous like that … it looks insanely cheap until you click on it"). The compact rail was
+   bare saturated text and a checkbox per row, its group names a gold headline over a title that started under the lamp.
+   Now a quiet list in the INBOX rows' language: rows rest on hairlines and only the open one is a card; every row opens
+   on lamp · title · pin · time, a group's names on the line under its title; read titles are calm, unread / open / waiting
+   ones bright; the time is a quiet 15px; the pin a drawn bookmark. The round lamp is glass-demo.css's.
+   ============================================================ */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams { gap: 0; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row {
+  position: relative; min-height: 0; margin-block: 0; padding: 8px 10px; gap: 10px;
+}
+/* a hairline between resting rows, from the title's edge; it steps aside around a lit row */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row + .ws-row::before {
+  content: ''; position: absolute; left: 28px; right: 10px; top: 0; height: 1px; background: rgba(var(--ph-rgb), .09); pointer-events: none;
+}
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.sel, .attn, :hover, :focus-visible)::before,
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.sel, .attn, :hover, :focus-visible) + .ws-row::before { opacity: 0; }
+/* lamp · title · runs · pin · time: the pin ends the title, as on every grid row */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > :is(.ws-title, .ws-rename) { order: 1; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > .ws-runs { order: 2; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > .ws-pin { order: 3; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > :is(.ws-meta, .ws-kebab) { order: 4; }
+/* a group row and a waiting row are grids: the same lamp column and gap, so every title starts on one edge */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.attn, :has(> .ws-agent-group)) {
+  grid-template-columns: 8px minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 2px;
+}
+/* type: a read title is calm text; something new, the open row and a wait are bright */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { color: color-mix(in srgb, var(--text) 80%, var(--panel2)); letter-spacing: .3px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row:is(.sel, .unread, .attn) .ws-title { color: var(--ph-bright); }
+/* the time: quiet, a step under the title; gold when it is new, bright while it runs */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row > .ws-meta {
+  --sn-type-meta: 15px; letter-spacing: .3px; color: var(--cg-mute); opacity: 1; text-shadow: none;
+}
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-dot.unseen ~ .ws-meta { color: var(--gold); }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row.busy > .ws-meta { color: var(--ph-bright); }
+/* a group's members: a quiet line under its title (the names keep the 14px floor; the lead's colour stays on its CREW card) */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent.ws-agent-group { letter-spacing: .6px; text-shadow: none; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent-group > :is(.ws-agent-names, .ws-agent-more) { color: var(--cg-mute); }
+/* the pin: a drawn gold bookmark, not a fallback-font star */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-pin {
+  width: 7px; height: 10px; overflow: hidden; color: transparent; font-size: 0; text-shadow: none;
+  background: var(--gold); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); opacity: .85;
+}
