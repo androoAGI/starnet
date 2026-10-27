@@ -151,6 +151,18 @@ FunctionEnd
   Pop $0
   Sleep 400
 
+  ; 3. Anything else still running FROM the install directory: a bundled helper an orphaned older station left behind
+  ;    (node-pty's OpenConsole.exe, a renamed runtime) holds its own file open and stalls NSIS on "error opening file for
+  ;    writing". A current shell's job already ended its station's tree with step 1; this is for what an older one left.
+  ;    Confined to images under $INSTDIR\ (never a prefix sibling); the folder arrives through the ENVIRONMENT, never pasted
+  ;    into the command (an apostrophe in the profile path broke a quoted literal — see the PATH hook below).
+  ;    test/installer-stop-leftovers.test.js runs this exact line against planted processes.
+  System::Call 'Kernel32::SetEnvironmentVariable(t "STARNET_INSTALL_DIR", t "$INSTDIR")'
+  ; STARNET_STOP_LEFTOVERS
+  nsExec::ExecToLog '"$R9" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$d=$$env:STARNET_INSTALL_DIR; if (-not $$d) { exit }; $$d=$$d.TrimEnd($\'\$\') + $\'\$\'; Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"'
+  Pop $0
+  Sleep 300
+
   Pop $R9
   Pop $1
   Pop $0

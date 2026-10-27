@@ -247,6 +247,7 @@ test/upgrade-085-090.test.js
 test/t3-release-smoke.test.js
 test/t4-update-delivery.test.js
 test/installer-upgrade-resilience.test.js
+test/installer-stop-leftovers.test.js
 test/t5-public-distribution.test.js
 test/minisign-verify.test.js
 test/release-assemble-manifest.test.js
