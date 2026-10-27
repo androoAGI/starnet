@@ -1271,8 +1271,14 @@
         } else bits.push('Idle — nothing running.');
         const me = (roster || []).find(x => String(x.agentId) === String(boundId));
         bits.push('Agent: ' + (me ? (me.name || me.agentId) : boundId) + (me && me.model ? ' (' + me.model + ')' : ''));
+        // count what the NEXT RUN replays: the canonical stream when the host wires historyFor (the run reads THAT, and /new
+        // moves the chat onto a fresh one), else the legacy store file — never a number the run would not see (quick win 23)
         let turns = 0;
-        try { turns = (store && typeof store.loadHistory === 'function') ? store.loadHistory(boundId).length : 0; } catch (_) { turns = 0; }
+        try {
+          const sid = historyFor ? resolvedStreamId(chatId) : null;
+          const h = sid ? historyFor(sid, boundId) : ((store && typeof store.loadHistory === 'function') ? store.loadHistory(boundId) : []);
+          turns = Array.isArray(h) ? h.length : 0;
+        } catch (_) { turns = 0; }
         bits.push('History: ' + turns + ' message' + (turns === 1 ? '' : 's') + ' remembered.');
         bits.push('Approve/deny buttons: ' + ((boundRec && boundRec.approvals) ? 'ON' : 'OFF') + '.');
         await deliver(chatId, bits.join('\n'), '', 'command');
