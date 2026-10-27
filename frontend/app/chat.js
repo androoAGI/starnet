@@ -6787,7 +6787,13 @@ const Chat = (() => {
      UNDER the panel — 19 approve clicks hit the panel's line. An offer panel (Dialogue.open({ offer })) now steps aside,
      unanswered, the moment an approval or question reaches the Commander — asked-for or not, since a paused run is waiting on
      them — and when they send a turn of their own (its reply would stream under it). Never a decline: it is offered again. */
-  function stepOfferAside(why) { return !!(typeof Dialogue !== 'undefined' && Dialogue.stepAside && Dialogue.stepAside(why)); }
+  // the arbiter (Dialogue.preempt / OWNER_RULES) decides who yields: an offer always does, the quick tour yields a session pick,
+  // the awakening never — COMMS never decides that per call site
+  function stepOfferAside(why) {
+    if (typeof Dialogue === 'undefined') return false;
+    if (Dialogue.preempt) return !!Dialogue.preempt(why);
+    return !!(Dialogue.stepAside && Dialogue.stepAside(why));
+  }
   function noteAskLanding() { return stepOfferAside('ask'); }
   // ANY approval or question raised for the Commander (a run's own, a delegated worker's, a group's, a background one) steps an
   // offer panel aside before its card draws: "defer while an ask waits" (askWaiting keeps it from re-opening meanwhile)
