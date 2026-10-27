@@ -63,6 +63,7 @@ const PitchStore = (() => {
     if (!ready()) return { go: false, reason: 'not-ready' };
     if (firing) return { go: false, reason: 'firing' };
     if (state.pitched) return { go: false, reason: 'already-pitched' };
+    if (asideThisSession) return { go: false, reason: 'stepped-aside' };   // moved past once this session: never a per-run-end nag
     p = p || {};
     if (p.reason !== 'done') return { go: false, reason: 'not-done' };          // only a cleanly completed task graduates
     if ((p.agentId || 'agent') !== 'agent') return { go: false, reason: 'not-hero' };   // summoned crew never pitch
@@ -136,8 +137,12 @@ const PitchStore = (() => {
      included, through the model call and the choice. Now it ends above the message box and steps aside, unanswered, when the
      Commander picks a conversation, sends a turn or an ask reaches them: it stays un-pitched and a later run end offers it again,
      and a model call still in flight is aborted. Esc before the pitch is on screen steps aside the same way; Esc on the pitch is
-     its own "something else" key. */
+     its own "something else" key.
+     NEVER A NAG LOOP (review 10-27): a pitch that stepped aside is not offered again this session (asideThisSession), so it costs
+     at most one model call per session until it is answered; one that reached the screen first also spends its unit of the
+     shared session ask budget, as an answered one does. */
   const PITCH_ASIDE = { aside: true }, PITCH_NOT_NOW = { notNow: true };
+  let asideThisSession = false;
   async function fire(p) {
     if (firing || !ready()) return;
     if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return;
@@ -146,7 +151,7 @@ const PitchStore = (() => {
     const left = new Promise(resolve => { leave = resolve; });
     const until = q => Promise.race([q, left]);
     const away = r => r === PITCH_ASIDE || r === PITCH_NOT_NOW;
-    const standDown = () => { try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
+    const standDown = () => { asideThisSession = true; try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
     try {
       const recipes = (typeof Recipes !== 'undefined' && Recipes.list)
         ? Recipes.list().map(r => ({ id: r.id, name: r.name, tagline: r.tagline })) : [];
@@ -179,7 +184,10 @@ const PitchStore = (() => {
       }
       if (typeof SFX !== 'undefined' && SFX.idea) { try { SFX.idea(); } catch (_) {} }   // G3a: the pitch beat gets its soft chime (was mute)
       const picked = await until(Dialogue.node({ lines: presented, options: Pitch.choices() }));
-      if (picked === PITCH_ASIDE) { standDown(); return; }   // unanswered: never a decline, a later run end offers it again
+      if (picked === PITCH_ASIDE) {   // unanswered: never a decline, offered again in a later session
+        try { if (typeof Chat !== 'undefined' && Chat.spendAsk) Chat.spendAsk(); } catch (_) {}   // it DID reach the screen: one unit of the budget
+        standDown(); return;
+      }
       const choice = picked === PITCH_NOT_NOW ? { value: 'other', label: 'something else' } : picked;   // Esc = its own "something else"
       state.pitched = true; save();   // we DID deliver a pitch — never offer the first one again (a transient error above leaves it un-pitched)
       // a pitch that actually reached the screen spends one unit of the shared session ask budget (never the
@@ -228,7 +236,7 @@ const PitchStore = (() => {
   // the pitch replaced its classic close; any quiet outcome resolves false and leaves the pitch armed.
   async function offerAtHandoff(runId) {
     try {
-      if (!ready() || firing || state.pitched) return false;
+      if (!ready() || firing || state.pitched || asideThisSession) return false;
       if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return false;
       if (!deps.wasTaskRun || !deps.wasTaskRun(runId)) return false;   // stricter than the auto path: the tour MUST prove the run was a real task
       const sum = (typeof DossierStore !== 'undefined' && DossierStore.summary) ? DossierStore.summary() : null;
@@ -389,7 +397,7 @@ const PitchStore = (() => {
 
   // S2: a brand-new hero re-earns its First Pitch. Drop the self-persisted flag (Save.clear() only wipes the
   // main save envelope; this store owns its own key, like curiositystore).
-  function reset() { if (helpCtl) { try { helpCtl.abort(); } catch (_) {} helpCtl = null; } state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { asideThisSession = false; if (helpCtl) { try { helpCtl.abort(); } catch (_) {} helpCtl = null; } state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
 
   // has the one-time First Pitch already fired? (read by the ongoing-suggestion engine — graduation gates it).
   function done() { return !!(state && state.pitched); }
