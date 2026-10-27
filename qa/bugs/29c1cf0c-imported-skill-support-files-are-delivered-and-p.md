@@ -10,7 +10,7 @@ lane: contribution/skills
 fix: eac484af
 origin: customer
 report: https://github.com/androoAGI/starnet/issues/145
-affected: Build and platform unknown
+affected: v0.13.5, Linux browser mode
 family: skill-package-encoding
 installer: unverified
 recovery: unconfirmed
@@ -34,7 +34,7 @@ Imported support text is shown as base64 in skill.view. Editing the installed sk
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+The tool now decodes valid UTF-8 after approval checks, and the mirror writes bytes according to each file's encoding. The regression passes at the sidecar boundary; installer delivery and the reporter's recovery are not confirmed.
 
 ## Regression
 
