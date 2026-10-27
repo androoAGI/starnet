@@ -156,6 +156,21 @@ const NOTE_TABLE = [
     await nb2.write({ title: 'Theme', body: 'User prefers light mode' });
     A.eq(nb2.notes()[0].confirmation, 'inferred', 'an unproven one stays the agent\'s inference ([corrected, unconfirmed] in recall)');
   }
+  // an UNPROVEN write never retires the Commander's own words (ecd03ee7 class): it is challenged instead; their words may
+  {
+    const said = [{ id: 'note_1', kind: 'note', scope: 'global', title: 'Indentation', body: 'User prefers spaces over tabs for indentation', createdAt: 1,
+      confirmation: 'user-stated', statedBy: { runId: 'r0', quote: 'From now on, always use spaces instead of tabs for indentation' } }];
+    const nb = notebook(said);
+    const r = await nb.write({ title: 'Indentation', body: 'User prefers tabs over spaces for indentation' });
+    A.eq(nb.active(), ['User prefers spaces over tabs for indentation'], 'a model\'s unproven inversion does not retire the Commander\'s stated preference');
+    A.ok(/already remember/.test(r.content) && /replaceId/.test(r.content), 'it is challenged, and told the explicit correction path');
+    const kept = notebook([Object.assign({}, said[0], { confirmation: 'user-confirmed', statedBy: undefined })]);
+    await kept.write({ title: 'Indentation', body: 'User prefers tabs over spaces for indentation' });
+    A.eq(kept.active(), ['User prefers spaces over tabs for indentation'], 'nor a preference they Kept');
+    const proven = notebook(said);
+    await proven.write({ title: 'Indentation', body: 'User prefers tabs over spaces for indentation' }, { commanderWords: 'Actually I prefer tabs over spaces for indentation now.' });
+    A.eq(proven.active(), ['User prefers tabs over spaces for indentation'], 'their own newer words do retire it');
+  }
   // never on a tainted run, never on distinct:true, never across a project boundary
   {
     const nb = notebook();
@@ -172,13 +187,13 @@ const NOTE_TABLE = [
   }
   // UNDO: re-saving a retired text with distinct:true restores it as its own record, with the provenance it had
   {
-    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'DB', body: 'The staging database is in Frankfurt', createdAt: 5, confirmation: 'user-confirmed', origin: 'commander' }]);
+    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'DB', body: 'The staging database is in Frankfurt', createdAt: 5, confirmation: 'inferred', origin: 'schedule' }]);
     await nb.write({ title: 'DB', body: 'The staging DB lives in the Virginia region' });
     A.eq(nb.active(), ['The staging DB lives in the Virginia region'], '(the move retired the Frankfurt fact)');
     const r = await nb.write({ title: 'DB', body: 'The staging database is in Frankfurt', distinct: true });
     A.eq(nb.active(), ['The staging DB lives in the Virginia region', 'The staging database is in Frankfurt'], 'undo: the retired fact is active again, beside the newer one');
     const back = nb.notes()[1];
-    A.ok(back.confirmation === 'user-confirmed' && back.createdAt === 5 && back.restoredFrom && back.restoredFrom.id === 'note_1', 'restored with the provenance it had (your confirmation, its original date), and where it came from');
+    A.ok(back.confirmation === 'inferred' && back.origin === 'schedule' && back.createdAt === 5 && back.restoredFrom && back.restoredFrom.id === 'note_1', 'restored with the provenance it had (its confirmation, the surface it came from, its original date), and where it came from');
     A.ok(nb.notes()[0].history[0].restoredAs === back.id, 'the history entry it came from says it was restored');
     A.ok(/Restored as its own active note/.test(r.content), 'the tool result says so');
     const again = await nb.write({ title: 'DB', body: 'The staging database is in Frankfurt', distinct: true });

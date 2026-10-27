@@ -368,7 +368,11 @@
           const relations = candidates.map(n => ({ n, r: MemTruth.relate(bodyOf(n), body) }));
           const known = relations.find(x => x.r === 'dupe');
           if (known && !overridden) { dupe = known.n; return undefined; }
-          const same = supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot });   // the host's writer uses the same rule
+          // the host's writer uses the same rule. An UNPROVEN write never retires the Commander's own words on its own (a
+          // user-stated or user-confirmed record): a model's inversion of what they said must not become the active belief
+          // behind their back (ecd03ee7 class). That pair keeps the challenge path; an explicit replaceId still corrects it.
+          const ownWords = n => n.confirmation === 'user-stated' || n.confirmation === 'user-confirmed';
+          const same = supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot }).filter(n => statedBy || !ownWords(n));
           if (same.length && !overridden && !taintedBy) {
             const prior = same.slice().sort((a, b) => writtenAt(b) - writtenAt(a))[0];
             const confirmation = statedBy ? (prior.confirmation === 'user-confirmed' ? 'user-confirmed' : 'user-stated') : 'inferred';
