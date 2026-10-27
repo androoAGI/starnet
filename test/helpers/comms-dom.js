@@ -74,7 +74,7 @@ function station(opts) {
   };
   for (const e of all(body)) e._doc = doc;
   const ctx = vm.createContext(Object.assign({
-    console, Promise, setTimeout, clearTimeout, setInterval, clearInterval, JSON, Math, Date, Object, Array, String, Number, Boolean, Error,
+    console, setTimeout, clearTimeout, setInterval, clearInterval,   // the context keeps its OWN intrinsics (an outer Array breaks instanceof)
     AbortController, document: doc,
     window: { addEventListener: (k2, fn) => { if (k2 === 'keydown') winKeys.push(fn); }, removeEventListener: (k2, fn) => { if (k2 === 'keydown') { const i = winKeys.indexOf(fn); if (i >= 0) winKeys.splice(i, 1); } } },
     CustomEvent: function CustomEvent(t) { this.type = t; },

@@ -132,10 +132,21 @@ const PitchStore = (() => {
   // run the directive → parse → present the beat → route the choice. Awaitable so the test can drive it. `p` is the
   // triggering agent.run.end payload; its runId lets getRecentTask name the run that ACTUALLY just finished (not
   // whatever workstream happens to be on screen — they differ if the Commander switched streams mid-run).
+  /* THE FIRST PITCH IS AN OFFER (comms-owner arbiter, wave 1). It opened with no offer and covered the whole of COMMS, message box
+     included, through the model call and the choice. Now it ends above the message box and steps aside, unanswered, when the
+     Commander picks a conversation, sends a turn or an ask reaches them: it stays un-pitched and a later run end offers it again,
+     and a model call still in flight is aborted. Esc before the pitch is on screen steps aside the same way; Esc on the pitch is
+     its own "something else" key. */
+  const PITCH_ASIDE = { aside: true }, PITCH_NOT_NOW = { notNow: true };
   async function fire(p) {
     if (firing || !ready()) return;
     if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return;
     firing = true;
+    let leave = null, ctl = null;
+    const left = new Promise(resolve => { leave = resolve; });
+    const until = q => Promise.race([q, left]);
+    const away = r => r === PITCH_ASIDE || r === PITCH_NOT_NOW;
+    const standDown = () => { try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
     try {
       const recipes = (typeof Recipes !== 'undefined' && Recipes.list)
         ? Recipes.list().map(r => ({ id: r.id, name: r.name, tagline: r.tagline })) : [];
@@ -145,11 +156,15 @@ const PitchStore = (() => {
       const name = deps.getName ? deps.getName() : 'AGENT';
 
       if (typeof Chat !== 'undefined' && Chat.clearNudge) Chat.clearNudge();   // retire any stale gentle nudge from a prior run before the focused panel opens over it
-      Dialogue.open({ name });
-      await Dialogue.say('give me a second — now that i know you a little, let me think about what would actually be worth building for you…', { auto: true });   // latency patter — never gate a wait on a click
+      Dialogue.open({ name, offer: { notNow: () => leave(PITCH_NOT_NOW), stepAside: () => leave(PITCH_ASIDE) } });
+      const heard = await until(Dialogue.say('give me a second — now that i know you a little, let me think about what would actually be worth building for you…', { auto: true }));   // latency patter — never gate a wait on a click
+      if (away(heard)) { standDown(); return; }   // nothing was pitched yet: stays un-pitched
       // evidence:true (W2) — this call ASKS what is worth building for this Commander, so it reasons from the
       // same bounded evidence pack an ordinary task run gets, not from the static dossier block alone.
-      const res = await Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true });
+      try { ctl = typeof AbortController === 'function' ? new AbortController() : null; } catch (_) { ctl = null; }
+      const res = await until(Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true, signal: ctl ? ctl.signal : undefined }));
+      if (away(res)) { standDown(); return; }   // stepped aside mid-call: the call is aborted, the pitch stays un-pitched
+      ctl = null;
       const parsed = (res && !res.error) ? Pitch.parsePitch(res.text) : null;
       if (!parsed) {   // graceful: no usable pitch (model hiccup / unparseable) → say nothing, stay un-pitched so a later run can retry
         if (Dialogue.isOpen()) Dialogue.close();
@@ -163,7 +178,9 @@ const PitchStore = (() => {
         if (credit) presented += ' ' + credit;
       }
       if (typeof SFX !== 'undefined' && SFX.idea) { try { SFX.idea(); } catch (_) {} }   // G3a: the pitch beat gets its soft chime (was mute)
-      const choice = await Dialogue.node({ lines: presented, options: Pitch.choices() });
+      const picked = await until(Dialogue.node({ lines: presented, options: Pitch.choices() }));
+      if (picked === PITCH_ASIDE) { standDown(); return; }   // unanswered: never a decline, a later run end offers it again
+      const choice = picked === PITCH_NOT_NOW ? { value: 'other', label: 'something else' } : picked;   // Esc = its own "something else"
       state.pitched = true; save();   // we DID deliver a pitch — never offer the first one again (a transient error above leaves it un-pitched)
       // a pitch that actually reached the screen spends one unit of the shared session ask budget (never the
       // transient-error path above, which delivered nothing to be budgeted).

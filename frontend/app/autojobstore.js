@@ -123,12 +123,22 @@ const AutoJobStore = (() => {
   // THE FLOW (awaitable for the test): reason out proposals → present them one at a time → schedule the approved
   // ones via /api/cron. Used by BOTH the proactive offer and the manual button. `proactive` only controls the
   // fire-once bookkeeping (a manual run never burns or needs the flag).
+  /* THE ROUTINE PROPOSALS ARE AN OFFER (comms-owner arbiter, wave 1). The panel opened with no offer and covered the whole of COMMS,
+     message box included, for the model call and every proposal. Now it ends above the message box and steps aside, unanswered,
+     when the Commander picks a conversation, sends a turn or an ask reaches them: the model call is aborted, the proposal on screen
+     is deferred, and the proactive offer is not spent unless something was scheduled (a later run end offers it again). Esc is
+     the panel's own "leave it — not now" (a dismiss, as before). */
+  const JOBS_ASIDE = { aside: true }, JOBS_NOT_NOW = { notNow: true };
   async function propose(opts) {
     opts = opts || {};
     if (firing || !ready()) return { scheduled: 0 };
     if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return { scheduled: 0 };
     firing = true;
     let scheduled = 0;
+    let leave = null, ctl = null;
+    const left = new Promise(resolve => { leave = resolve; });
+    const until = q => Promise.race([q, left]);
+    const standDown = () => { try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
     try {
       let existing = [];
       try { existing = deps.getExistingJobs ? (await deps.getExistingJobs()) || [] : []; } catch (_) { existing = []; }
@@ -140,9 +150,13 @@ const AutoJobStore = (() => {
       const name = deps.getName ? deps.getName() : 'AGENT';
 
       if (typeof Chat !== 'undefined' && Chat.clearNudge) Chat.clearNudge();   // retire any stale gentle nudge before the focused panel opens
-      Dialogue.open({ name });
-      await Dialogue.say('give me a second — let me think about what would be worth running for you on a schedule…', { auto: true });   // latency patter — never gate a wait on a click
-      const res = await Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true });
+      Dialogue.open({ name, offer: { notNow: () => leave(JOBS_NOT_NOW), stepAside: () => leave(JOBS_ASIDE) } });
+      const heard = await until(Dialogue.say('give me a second — let me think about what would be worth running for you on a schedule…', { auto: true }));   // latency patter — never gate a wait on a click
+      if (heard === JOBS_ASIDE || heard === JOBS_NOT_NOW) { standDown(); return { scheduled: 0 }; }   // nothing offered yet: the flag stays unset
+      try { ctl = typeof AbortController === 'function' ? new AbortController() : null; } catch (_) { ctl = null; }
+      const res = await until(Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, signal: ctl ? ctl.signal : undefined }));
+      if (res === JOBS_ASIDE || res === JOBS_NOT_NOW) { standDown(); return { scheduled: 0 }; }   // stepped aside mid-call: aborted, flag unset
+      ctl = null;
       // THE GROUNDING VETO runs here: a proposal whose GROUNDS shares nothing with `known` is dropped, so an
       // invented rationale can never become a cron job the station wakes to forever.
       const proposals = (res && !res.error) ? AutoJobs.parseProposals(res.text, { beliefs: known }) : [];
@@ -163,11 +177,13 @@ const AutoJobStore = (() => {
         return { scheduled: 0, pinned: added };
       }
 
-      await Dialogue.say(AutoJobs.introLine(proposals.length));
+      const intro = await until(Dialogue.say(AutoJobs.introLine(proposals.length)));
+      if (intro === JOBS_ASIDE) { standDown(); return { scheduled: 0 }; }   // stepped aside before any proposal was shown
       // W6: the live routine names, re-read once here, so an approve for a name that already exists is skipped
       // (the server would reject it anyway — this keeps the count honest and avoids a doomed POST).
       const live = await liveJobNames();
-      for (const pr of proposals) {
+      let steppedAside = false;
+      for (const pr of (intro === JOBS_NOT_NOW ? [] : proposals)) {   // Esc on the intro = "leave it — not now" before the first one
         if (!Dialogue.isOpen()) break;
         if (existsAmong(pr.title, live)) continue;   // already a live routine with this name — don't offer a dup
         const rid = 'routine:' + nameFp(pr.title) + ':' + Date.now();
@@ -177,18 +193,25 @@ const AutoJobStore = (() => {
            OVERLAPS what the station knows; the words are still the model's. Same mis-typing the suggest ledger
            carried one file over, same fix: rationale/text. Both ledgerPosts in this file (here and pinProposals). */
         ledgerPost({ id: rid, surface: 'routine', kind: 'routine', title: pr.title, target: nameFp(pr.title), traits: ['routine', 'cadence:' + (pr.cadenceId || 'unknown')], evidence: [{ id: 'routine-grounds', type: 'rationale', text: pr.grounds || pr.why || '' }], readiness: { ready: true, reasons: [] }, modelVersion: 'autojobs-v2' });
-        const choice = await Dialogue.node({ lines: AutoJobs.proposalLines(pr), options: AutoJobs.approveChoices(), dismissable: true, dismissLabel: 'leave it — not now' });
+        const picked = await until(Dialogue.node({ lines: AutoJobs.proposalLines(pr), options: AutoJobs.approveChoices(), dismissable: true, dismissLabel: 'leave it — not now' }));
+        if (picked === JOBS_ASIDE) { ledgerPost({ id: rid, state: 'deferred', reason: 'wrong_time' }); steppedAside = true; break; }   // unanswered: deferred, never declined
+        const choice = picked === JOBS_NOT_NOW ? { value: '', skip: true, dismissed: true } : picked;   // Esc = "leave it — not now"
         if (choice && choice.dismissed) { ledgerPost({ id: rid, state: 'deferred', reason: 'wrong_time' }); break; }
         if (choice && choice.value === 'yes' && deps.scheduleJob) {
           try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); if (r && r.ok === true && !r.duplicate) { scheduled++; live.push(pr.title); ledgerPost({ id: rid, state: 'completed', reason: 'completed' }); } } catch (_) {}
         } else if (choice) ledgerPost({ id: rid, state: 'declined', reason: 'wrong_thing' });
       }
+      if (steppedAside) {
+        standDown();   // the Commander moved on: no done-line over what they went to
+        if (opts.proactive && scheduled > 0) { state.proposed = true; save(); }   // spent only if something real was scheduled
+        return { scheduled };
+      }
       if (Dialogue.isOpen()) {
         // HONEST done-line: if we actually scheduled something, name whether the scheduler that fires it is armed
         // (so we never promise a run the disarmed scheduler won't make). undefined armed-state → neutral copy.
         const armed = scheduled > 0 ? await schedulerArmed() : undefined;
-        await Dialogue.say(AutoJobs.doneLine(scheduled, armed));
-        Dialogue.close();
+        await until(Dialogue.say(AutoJobs.doneLine(scheduled, armed)));
+        if (Dialogue.isOpen()) Dialogue.close();
       }
       if (opts.proactive) { state.proposed = true; save(); }   // the one-time proactive offer is spent (delivered)
     } catch (_) {
