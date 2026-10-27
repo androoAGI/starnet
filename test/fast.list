@@ -90,6 +90,7 @@ test/todo.durability.test.js
 test/halt.test.js
 test/readbody.test.js
 test/set-key-body.test.js
+test/provider-credential-live.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
 test/source-helper.test.js

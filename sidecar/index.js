@@ -2869,8 +2869,11 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
-  if (registryProviderUsesCodex(id)) return !!(codexTokens && codexTokens.access_token) || anyExtraAccountLive(id);
-  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return !!(e && e.tokens && e.tokens.access_token) || anyExtraAccountLive(id); }
+  // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
+  // accountChain runs on). GitHub #92: a refresh token another client consumed left the tokens on disk, so diagnostics,
+  // /api/runtime/agent and every channel/routine 'configured' said yes to a sign-in no run could use.
+  if (registryProviderUsesCodex(id)) return (!!(codexTokens && codexTokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id);
+  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return (!!(e && e.tokens && e.tokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id); }
   if (providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) return false;
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
   return true;
@@ -21333,8 +21336,9 @@ async function runOnceCore(o) {
     stationOpenAIKey: providerRuntimeKey('openai', ''),
     stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
     // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
-    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run
-    codexSignedIn: !!(codexTokens && codexTokens.access_token) && !codexAuthDead
+    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
+    // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
+    codexSignedIn: accountLive('codex', '')
   };
   let studioRoute = ImageTask.resolveRoute(studioInput);
   // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
