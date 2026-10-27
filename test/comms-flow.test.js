@@ -133,4 +133,49 @@ const reset = () => { ROOT.children = []; const log = new El('div'); log.id = 'c
   A.ok(log.lastElementChild === card, 'the card is still the last row');
 }
 
+/* ── 3. A NOTE SENT MID-RUN SURVIVES A RELOAD, WHERE THE AGENT READ IT ──
+   The page saves only the reply's last stretch (every tool call starts it over) and the station's transcript never holds
+   the note, so a reload dropped it (reproduced on trunk e1bfd6dda). The run's end files each note it streamed as a station
+   row unless the saved reply shows it; reading the conversation back puts the note after the turn it followed, by time. */
+{
+  const fns = A.fnBody(src, 'function steerEchoesOf(delta)') + '\n' + A.fnBody(src, 'function fileRunSteers(ws, notes, runId, savedText)') + '\n'
+    + A.fnBody(src, 'function placeSteerNotes(rows)') + '\n;this.__s = { steerEchoesOf, fileRunSteers, placeSteerNotes };';
+  const ctx = vm.createContext({ String, Number, Array, Object });
+  vm.runInContext(fns, ctx);
+  const S = ctx.__s;
+  A.eq(S.steerEchoesOf('Looking.\n[steering] use the blue folder\nOk.\n[steering] and skip tests\n'), ['use the blue folder', 'and skip tests'], 'every steering line in a delta is read');
+
+  // filing: a note the last stretch shows stays in it; a note an earlier tool call wiped is filed once
+  const ws = { history: [{ role: 'user', content: 'redesign the station', sourceRunId: 'r1', ts: 100 }] };
+  const notes = [{ text: 'everything should change', ts: 400 }, { text: 'keep the command room', ts: 900 }];
+  A.eq(S.fileRunSteers(ws, notes, 'r1', 'Done.\n[steering] keep the command room\nKept it.'), 1, 'only the note the saved reply does not show is filed');
+  A.eq(ws.history[1], { role: 'system', sys: true, steerEcho: true, content: '[steering] everything should change', sourceRunId: 'r1', ts: 400 },
+    'filed as the station row a reload already knows (sys: never model context), stamped when it arrived');
+  A.eq(S.fileRunSteers(ws, notes, 'r1', 'Done.\n[steering] keep the command room\nKept it.'), 0, 'and never twice');
+  A.eq(S.fileRunSteers(ws, notes, null, ''), 0, 'a run with no id files nothing');
+
+  // reading back: the station inserts the run's middle turns AHEAD of the filed note; the note returns after the turn it followed
+  const merged = [
+    { role: 'user', content: 'redesign the station', sourceRunId: 'r1', ts: 100 },
+    { role: 'assistant', content: 'Clearing the old rooms.', sourceRunId: 'r1', ts: 200 },
+    { role: 'assistant', content: 'Checking the room list.', sourceRunId: 'r1', ts: 350 },
+    { role: 'assistant', content: 'Got your note: replacing the whole layout.', sourceRunId: 'r1', ts: 600 },
+    { role: 'system', sys: true, steerEcho: true, content: '[steering] everything should change', sourceRunId: 'r1', ts: 400 },
+    { role: 'assistant', content: 'Done.', sourceRunId: 'r1', ts: 1000 },
+    { role: 'user', content: 'next task', sourceRunId: 'r2', ts: 1100 }
+  ];
+  const placed = S.placeSteerNotes(merged);
+  A.eq(placed.map(r => r.content), ['redesign the station', 'Clearing the old rooms.', 'Checking the room list.', '[steering] everything should change',
+    'Got your note: replacing the whole layout.', 'Done.', 'next task'], 'the note sits after the turn it followed, before the reply to it');
+  A.eq(S.placeSteerNotes(placed).map(r => r.content), placed.map(r => r.content), 'placing again changes nothing (the next load reads the saved order)');
+  A.ok(merged[4].steerEcho, 'the input is not mutated');
+  const unstamped = [{ role: 'user', content: 'go', sourceRunId: 'rA' }, { role: 'assistant', content: 'Halfway.', sourceRunId: 'rA' },
+    { role: 'system', sys: true, steerEcho: true, content: '[steering] use the blue folder', sourceRunId: 'rA', ts: 4 }, { role: 'user', content: 'again', sourceRunId: 'rB' }];
+  A.eq(S.placeSteerNotes(unstamped).map(r => r.content), unstamped.map(r => r.content), 'a run with no stamped rows keeps the note where the merge put it');
+
+  // the wiring: the stream collects, the run's end files before branching, the read-back places
+  A.ok(/fileRunSteers\(ws, runSteers, thisRunId, error \? '' : \(reply \|\| acc\)\);\s*\n\s*if \(error\) \{/.test(src), 'the run files its notes the moment it ends, before its reply is saved');
+  A.ok(/const next = placeSteerNotes\(mergeCanonicalHistory\(ws\.history, turns\)\);/.test(src), 'reading the conversation back places the notes');
+}
+
 A.report('comms-flow.test');

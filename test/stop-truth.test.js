@@ -169,7 +169,8 @@ function stopRig(opts) {
   }
   {
     // the wiring the sandbox injects: the live run's tokens mark echoes, and every teardown settles the run's lines
-    A.ok(/onToken: d => \{ acc \+= d; Channels\.appendToken\(ws\.id, d\); if \(thisRunId && d && d\.indexOf\('\[steering\] '\) >= 0\) markSentNowLanded\(ws\.id, thisRunId, d\);/.test(src),
+    // (it also collects every note the run streams, with when it arrived, so the run's end can file it: comms-flow 10-26)
+    A.ok(/onToken: d => \{ acc \+= d; Channels\.appendToken\(ws\.id, d\); if \(d && d\.indexOf\('\[steering\] '\) >= 0\) \{ for \(const t of steerEchoesOf\(d\)\) runSteers\.push\(\{ text: t, ts: Date\.now\(\) \}\); if \(thisRunId\) markSentNowLanded\(ws\.id, thisRunId, d\); \}/.test(src),
       'the run\'s own token stream marks a sent-now line read when its [steering] echo arrives');
     A.ok(/\} finally \{[\s\S]{0,600}Channels\.end\(ws\.id\);\s*if \(thisRunId\) \{ if \(streamLost \|\| interruptedStreams\.has\(ws\.id\)\) releaseSentNow\(ws\.id, thisRunId, acc\); else settleSentNow\(ws\.id, thisRunId, acc\); \}/.test(src), 'send()\'s teardown settles the run\'s sent-now lines on every end, against the run\'s own text — unless its stream died (the station decides those)');
     // LIVE (this lane): the station was killed mid-run with a send-now line pending; the page's thrown teardown is not always

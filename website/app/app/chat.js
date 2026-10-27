@@ -2144,7 +2144,7 @@ const Chat = (() => {
       || (read.history.length && !ws.history.length)) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
-    const next = mergeCanonicalHistory(ws.history, turns);
+    const next = placeSteerNotes(mergeCanonicalHistory(ws.history, turns));
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())
@@ -8955,6 +8955,51 @@ const Chat = (() => {
   }
   // the note as the run gets it: one line (the loop echoes it as '\n[steering] <note>\n' and the page reads one line back)
   function steerWire(text) { return String(text == null ? '' : text).replace(/\s*\r?\n\s*/g, ' ').trim(); }
+  // every steering line a token delta carries ('\n[steering] <note>\n' → '<note>')
+  function steerEchoesOf(delta) {
+    const out = [], re = /(?:^|\n)\[steering\] ([^\n]*)/g;
+    let m;
+    while ((m = re.exec(String(delta || '')))) if (m[1].trim()) out.push(m[1]);
+    return out;
+  }
+  /* A NOTE THE RUN READ STAYS IN THE CONVERSATION (Andrew 10-26: the MID-RUN line was gone after a reload). Its echo rides
+     the token stream, but the page saves only the reply's last stretch (every tool call starts it over) and the station's
+     transcript never records the note (the loop hands it to the model as a system line). So when the run ends, each note it
+     streamed is filed as ONE station row — the shape showSentNowRead files after a reload, which never seeds the model —
+     unless the saved reply already shows it. placeSteerNotes puts it back after the turn it followed, by time. */
+  function fileRunSteers(ws, notes, runId, savedText) {
+    if (!ws || !runId || !Array.isArray(notes) || !notes.length) return 0;
+    const h = Array.isArray(ws.history) ? ws.history : (ws.history = []);
+    const shown = '\n' + String(savedText || '') + '\n';
+    let added = 0;
+    for (const n of notes) {
+      const echo = '[steering] ' + n.text;
+      if (shown.indexOf('\n' + echo + '\n') >= 0) continue;   // the saved reply shows it: renderHistory draws it from there
+      if (h.some(m => m && m.steerEcho && String(m.sourceRunId || '') === String(runId) && String(m.content || '') === echo)) continue;
+      h.push({ role: 'system', sys: true, steerEcho: true, content: echo, sourceRunId: runId, ts: n.ts });
+      added++;
+    }
+    return added;
+  }
+  /* A NOTE SITS WHERE THE AGENT READ IT. A filed note lands at its run's end, ahead of the turns the station's transcript
+     adds when the conversation is read back, so the merge leaves it after the agent's reply to it. Each note moves to just
+     after the last row of its own run stamped no later than the note (the run's middle turns carry the station's time of
+     writing, the note the time it was read). A run with no stamped row before it leaves it where it is. Pure. */
+  function placeSteerNotes(rows) {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    const tsOf = r => Number(r && r.ts) || 0;
+    for (const note of list.filter(r => r && r.steerEcho && r.sourceRunId && tsOf(r) > 0)) {
+      const from = list.indexOf(note);
+      list.splice(from, 1);
+      let at = -1;
+      for (let j = 0; j < list.length; j++) {
+        const r = list[j];
+        if (r && String(r.sourceRunId || '') === String(note.sourceRunId) && tsOf(r) > 0 && tsOf(r) <= tsOf(note)) at = j;
+      }
+      list.splice(at >= 0 ? at + 1 : from, 0, note);
+    }
+    return list;
+  }
   // that echo on this stream's own run is the proof the agent has it — a STOP no longer gives it back
   function markSentNowLanded(id, runId, delta) {
     const list = sentNow.get(id); if (!list || !list.length) return;
@@ -11258,6 +11303,7 @@ const Chat = (() => {
     liveRunRoots.set(ws.id, runRoot);
     activeLiveRow = streamingAgent(undefined, undefined, runRoot);
     let acc = '';
+    const runSteers = [];   // every '[steering] …' note this run streamed, with when it arrived (fileRunSteers)
     // the model the SIDECAR reported for this run's usage — captured from the usage payload rather than
     // read off the agent's config, so the SESSIONS rail's INBOX receipt names what actually answered.
     // Last write wins: a run that hopped models is honestly labelled by the one that finished it.
@@ -11362,7 +11408,7 @@ const Chat = (() => {
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
         onRunId: id => { retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
-        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (thisRunId && d && d.indexOf('[steering] ') >= 0) markSentNowLanded(ws.id, thisRunId, d); if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
+        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now() }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is
@@ -11427,6 +11473,8 @@ const Chat = (() => {
             .catch(() => Harness.summonAck(rid, ev.requestId, null));
         }
       });
+      // the run is over: every note it read is filed before its reply (a note the saved reply already shows stays in it)
+      fileRunSteers(ws, runSteers, thisRunId, error ? '' : (reply || acc));
       if (error) {
         // PLAIN-LANGUAGE: lead with the beginner-facing message, keep the raw error as a dim sub-line; persist
         // the friendly text (not the plumbing) so a switch-back / replay shows the same readable failure.
