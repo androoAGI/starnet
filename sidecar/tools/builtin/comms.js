@@ -138,7 +138,8 @@
     const sendMediaTo = typeof deps.sendMediaTo === 'function' ? deps.sendMediaTo : null;
 
     const targetsTool = {
-      name: 'channel.targets', capability: 'comms', scope: 'read', requiresConsent: false,
+      // impact none: it lists the chats the host already holds; no network, no send
+      name: 'channel.targets', capability: 'comms', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List the messaging chats this station can actually send to (channel, chat, which agent it is bound to, and whether that channel is connected right now). Call this before channel.send.',
       schema: { type: 'object', properties: {} },
       run: async () => {
@@ -154,7 +155,12 @@
     };
 
     const sendTool = {
-      name: 'channel.send', capability: 'comms', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
+      /* impact external-credentialed, the class web_request has: it acts OUTWARD as the station on a third-party
+         platform with a credential the Commander stored (the channel's bot token), and can carry workspace files out.
+         It is known, so a watched run asks through the ordinary consent broker instead of the one-shot exact
+         confirmation for unknown effects; a tainted run still loses it (taint.js revokes external-credentialed); an
+         unattended ASK run still cannot send (scope execute: the exec lockout), unless Full Access. */
+      name: 'channel.send', capability: 'comms', impact: 'external-credentialed', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
       description: 'Send a message from this station to a connected messaging chat (Telegram, Discord, Slack, Matrix, Signal), optionally with files attached. Use this when the Commander asks to be told, pinged, notified, or messaged somewhere, or to report a result outside the station — including sending them an image, chart, or document you produced. The target must be a chat channel.targets lists — an agent cannot message a new id.',
       schema: {
         type: 'object',
