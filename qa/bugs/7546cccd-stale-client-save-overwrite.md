@@ -10,6 +10,7 @@ lane: agent/adversarial-audit-0910
 fix: 64ed8711b
 origin: audit
 ---
+
 # An older client can erase newer conversations by saving its stale snapshot with a fresh timestamp
 
 ## Symptom
@@ -33,6 +34,10 @@ Audited source: 2aa8305c0. qa/evidence/adversarial-0910/restart-receipt.json rec
 Root cause: frontend/app/app.js:1456 serializes the entire local Workstreams and agent/station state. frontend/app/save.js:114 supplies Date.now() at write time, not the revision originally read. sidecar/savestore.js:209 only rejects incoming timestamps older than the stored timestamp. An old snapshot written later passes this guard and atomically replaces the new data at sidecar/savestore.js:210. There is no expected-base revision comparison.
 
 Novelty: docs/UPDATE_STATE_SAFETY_AUDIT_2026-07-06.md P1.1 identified roster replacement and explicitly cited savestore's timestamp check as the safe comparison. This finding demonstrates that the savestore protection itself is insufficient. It is also distinct from expired API tokens and the fixed rating-watermark guard.
+
+## Verdict
+
+Fixed in `64ed8711b` (2026-09-10; an ancestor of trunk, first released in v0.11.2): HTTP saves compare a server-issued revision, and a stale snapshot is kept separately behind a conflict notice instead of replacing the newer station (see Repair verification below). Regression: test/save-concurrency.test.js and test/cloudsave-concurrency.test.js, green on this tree. Installed desktop execution is not verified here. Reconciled 2026-10-27 (reliability wave 1, quick win 37).
 
 ## Regression
 

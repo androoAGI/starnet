@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 33 P2
+**34** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 34 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -315,6 +315,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | autonomy | [Customer cannot explain idle behavior and unexpectedly high usage](bugs/acb47320-idle-usage-customer-unexplained.md) | reliability-followup | — |
 | P2 | open | autonomy | [Repeated project verification reportedly consumes overnight budget](bugs/f8d479d9-repeated-project-verification-reportedly-consume.md) | agent/reliability-audit-0919 | — |
 | P2 | open | channels | [Zoho Mail bootstrap tool reportedly requires undiscoverable account](bugs/54564ff9-zoho-mail-bootstrap-tool-reportedly-requires-und.md) | agent/reliability-audit-0919 | — |
+| P2 | open | onboarding | [A first task that fails at the provider consumes the hand-off with no retry](bugs/159d44fc-a-first-task-that-fails-at-the-provider-consumes.md) | sweep/onboarding | — |
 | P2 | open | onboarding | [Google Drive authorization is hard blocked for a fresh personal account](bugs/f2ac6356-google-drive-authorization-is-hard-blocked-for-a.md) | release-0135-prep | — |
 | P2 | open | onboarding | [Customer reports unusable visibility without build or platform details](bugs/6bb9d2a1-visibility-failure-without-diagnostics.md) | release-0120-prep-0915 | — |
 | P2 | open | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | — |
@@ -372,7 +373,6 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | channels | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | agent/comms-controls-0906 | e4e4512b198279e35cdd9f2cc2be9d786b02e87f |
 | P2 | fixed | channels | [/usage on an unsettled ledger answers '…See SETTINGS › SPENDING LIMITS..' with a doubled period, on Telegram and in COMMS](bugs/67ba42c6-usage-on-an-unsettled-ledger-answers-see-setting.md) | sweep/channels | cc57c42b6 |
 | P2 | fixed | channels | [With /mention off, a group command @-addressed to another bot (/new@otherbot, /stop@otherbot) runs on this bot](bugs/bbf17048-with-mention-off-a-group-command-addressed-to-an.md) | sweep/channels | debe64ba4 |
-| P2 | fixed | onboarding | [A first task that fails at the provider consumes the hand-off with no retry](bugs/159d44fc-a-first-task-that-fails-at-the-provider-consumes.md) | sweep/onboarding | d4d64e972 |
 | P2 | fixed | onboarding | [A grabbed awakening offer becomes the Commander's first task in the agent's own voice](bugs/90efe1f0-a-grabbed-awakening-offer-becomes-the-commander.md) | sweep/onboarding | 22b3454a9 |
 | P2 | fixed | onboarding | [A wall-of-text onboarding answer rides every system prompt uncapped](bugs/8faefe89-a-wall-of-text-onboarding-answer-rides-every-sys.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [An emoji-only or punctuation-only answer is saved as the Commander's stated belief](bugs/289ed1ab-an-emoji-only-or-punctuation-only-answer-is-save.md) | sweep/onboarding | 8130d66ee |
@@ -522,7 +522,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | safecell | 3 |
 | sessions | 4 |
 | skills | 2 |
-| onboarding | 2 |
+| onboarding | 3 |
 | world | 1 |
 | voice | 2 |
 | release | 6 |
