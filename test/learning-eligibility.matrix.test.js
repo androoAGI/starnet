@@ -157,7 +157,11 @@ for (const kind of Object.keys(KIND_FACTS)) {
     const dAt = chat.indexOf('function renderTurninBatch(batch)');
     const deck = chat.slice(dAt, chat.indexOf('\n  function ', dAt + 10));
     const cur = deck.slice(deck.indexOf('function renderCurrent()'), deck.indexOf('slot.appendChild(item)', deck.indexOf('function renderCurrent()')));
-    A.ok(dAt > 0 && /prop\.outcome === 'failed'/.test(cur) && /'⚠ failed run'/.test(cur) && cur.indexOf("'⚠ failed run'") < cur.indexOf('item.appendChild(text)'), 'the COMMS deck card marks a proposal a failed run raised, beside its kind tag');
+    const mark = cur.slice(cur.indexOf("if (prop.outcome === 'failed')"), cur.indexOf('\n', cur.indexOf("if (prop.outcome === 'failed')")));
+    A.ok(dAt > 0 && mark.length > 30 && /className = 'turnin-evidence'/.test(mark) && /from a failed run/.test(mark), 'the COMMS deck card marks a proposal a failed run raised: ' + mark.slice(0, 160));
+    // the item is a two-column grid (kind | text): a third pill crushes the text column to one character a line (seen in the
+    // 10-27 page proof); the deck's evidence line claims a full row instead, between the belief and its buttons
+    A.ok(!/turnin-kind/.test(mark) && cur.indexOf('item.appendChild(text)') < cur.indexOf(mark) && cur.indexOf(mark) < cur.indexOf('item.appendChild(btns)'), 'the mark is a full-row evidence line after the belief, never a third pill in the kind/text grid');
   }
   A.report('learning-eligibility.matrix');
 })().catch(e => { console.log('FAIL: threw ' + (e && e.stack || e)); process.exit(1); });
