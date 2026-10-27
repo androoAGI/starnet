@@ -396,6 +396,47 @@ function mkHub(store, sendImpl, events) {
     hub2.close();
   }
 
+  // ---- H4. a NON-RETRYABLE send failure is parked as undeliverable, never queued to retry forever ----
+  // The transport says retryable:false for a 4xx (chat not found, message too long, forbidden): the same send fails
+  // identically every pass. Queued anyway, it sat at the head of the outbox and every flush pass broke on it — the
+  // replies queued BEHIND it never went out (quick win 22). It is said ONCE, as one channel.delivery event.
+  {
+    const events = [];
+    const store = mkStore(memFs());
+    const hub = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store,
+      send: async (chatId) => (chatId === 'gone' ? { ok: false, error: 'Bad Request: chat not found', retryable: false }
+        : chatId === 'abort' ? { ok: false, error: 'aborted', retryable: false } : { ok: true, messageId: 'm' }),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }),
+      emit: (name, payload) => events.push([name, payload]),
+      newId: (() => { let n = 0; return () => 'h4run-' + (++n); })(),
+      sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    const r = await hub._internals.deliver('gone', 'the finished answer', 'r-h4', 'done', 'ag');
+    A.eq(r.ok, false, 'the send failed');
+    A.eq(store.loadOutbox('telegram'), [], 'a non-retryable failure is NOT queued for redelivery');
+    const dels = events.filter(e => e[0] === 'channel.delivery');
+    A.eq(dels.length, 1, 'exactly one channel.delivery event');
+    A.eq([dels[0][1].ok, dels[0][1].reason], [false, 'undeliverable'], 'it says the reply is undeliverable');
+    // the outbox refusing would have thrown (heldText) — an undeliverable reply must not keep its inbox receipt alive either
+    const full = mkStore(memFs());
+    full.pushOutbox = () => { throw new Error('channel outbox is full'); };
+    const hub2 = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store: full,
+      send: async () => ({ ok: false, error: 'Forbidden: bot was blocked by the user', retryable: false }),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: () => 'x', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    let threw = null;
+    try { await hub2._internals.deliver('c', 'answer', 'r', 'done', ''); } catch (e) { threw = e; }
+    A.eq(threw, null, 'an undeliverable reply never throws for a replay: replaying would fail identically');
+    hub2.close();
+    // an ABORTED send is the transport being torn down, not the chat refusing: it still queues
+    await hub._internals.deliver('abort', 'answer two', 'r-h4b', 'done', 'ag');
+    A.eq(store.loadOutbox('telegram').length, 1, 'an aborted send is still queued for redelivery');
+    hub.close();
+  }
+
   // ---- I. a STALE recovery snapshot never replays a message that completed while recovery waited ----
   // Live-caught 2026-10-20 (sweep/channels): a follow-up typed while a task was running was steered into it AND
   // run again as its own task afterwards. The follow-up's ack delivery drained the outbox, whose "capacity is back"

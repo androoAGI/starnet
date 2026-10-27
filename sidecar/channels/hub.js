@@ -924,7 +924,7 @@
       // fence-doctored chunks bakes synthetic ``` markers into the stored text, re-fenced on every redelivery).
       const parts = chunkTextParts(text, maxMessageLength);
       const chunks = parts.send;
-      let ok = true, failedAt = -1, messageId = '';
+      let ok = true, failedAt = -1, messageId = '', lastFail = null;
       // A message the stream already put in the chat. Chunk 0 REPLACES it rather than being sent again — that
       // replacement is the whole difference between "streamed" and "streamed, then repeated".
       let seed = (seedId && editMessage) ? String(seedId) : '';
@@ -956,9 +956,15 @@
           try { r = await send(chatId, chunks[i], opts); } catch (e) { r = { ok: false, error: (e && e.message) || 'send threw' }; }
         }
         if (r && r.threadGone) forgetThread(chatId);   // the topic is gone; stop aiming at it
-        if (!r || r.ok === false) { ok = false; failedAt = i; break; }
+        if (!r || r.ok === false) { ok = false; failedAt = i; lastFail = r || null; break; }
         if (last && r.messageId) messageId = String(r.messageId);
       }
+      /* UNDELIVERABLE (quick win 22): the transport said this send can NEVER succeed (retryable:false — a 4xx such as
+         "chat not found", "message is too long", "bot was blocked"). Queued, it failed identically on every flush and,
+         sitting at the head of the outbox, stopped every pass before the replies queued behind it; held for an inbox
+         replay, it would re-run the message only to fail again. It is parked: said once, never retried. An ABORTED
+         send is our own transport being torn down, not the chat refusing — that one still queues. */
+      const undeliverable = !ok && !!lastFail && lastFail.retryable === false && String(lastFail.error || '') !== 'aborted';
       // DURABLE OUTBOX: a reply that failed to send used to be recorded (channel.delivery ok:false) and then
       // LOST — the agent did the work and the Commander never saw the result. Queue the undelivered remainder
       // (only the chunks that did NOT go out) in the store's bounded outbox; flushOutbox redelivers it when the
@@ -978,8 +984,10 @@
       }
       if (!ok && unreachable) {
         try { console.error('[' + channel + '] reply for chat ' + chatId + ' NOT queued — this chat has blocked or removed the bot'); } catch (_) {}
+      } else if (undeliverable) {
+        try { console.error('[' + channel + '] reply for chat ' + chatId + ' is undeliverable and was NOT queued: ' + String(lastFail.error || 'refused').slice(0, 200)); } catch (_) {}
       }
-      const mustPersistFailure = !ok && !unreachable && reason !== 'command' && reason !== 'prompt' && typeof store.pushOutbox === 'function';
+      const mustPersistFailure = !ok && !unreachable && !undeliverable && reason !== 'command' && reason !== 'prompt' && typeof store.pushOutbox === 'function';
       let failurePersisted = false;
       let failurePersistError = null;
       if (mustPersistFailure) {
@@ -990,7 +998,7 @@
           scheduleOutboxRetry();
         } catch (e) { failurePersistError = e; }
       }
-      const ev = { channel, chatId: String(chatId), runId: runId || '', ok, chunks: chunks.length, reason: reason || '' };
+      const ev = { channel, chatId: String(chatId), runId: runId || '', ok, chunks: chunks.length, reason: undeliverable ? 'undeliverable' : (reason || '') };
       if (agentId) ev.agentId = String(agentId);   // additive/optional — attribute the dish to the acting agent
       try { emit('channel.delivery', ev); } catch (_) {}
       if (ok) { try { kickOutbox(); } catch (_) {} }   // a proven-healthy send is the cue to drain any backlog

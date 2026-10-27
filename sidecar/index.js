@@ -265,6 +265,7 @@ const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bo
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const StopReason = require('./stop-reason.js');   // plain-English stop sentences shared by channels/routines/loops
 const { makeChannelRegistry, wireChannel, unwireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
@@ -6818,10 +6819,36 @@ function channelLiveHealth(channel) {
   if (!channel || channel === 'telegram') return telegramStatus || { connected: false, state: 'down' };
   return genericStatus[channel] || { connected: false, state: 'down' };
 }
+/* channelReach(channel) -> { ok, live, error } — handle AND proven health (channels/reach.js). Every send outside a hub's own
+   reply path asks it: the notifier, a routine's chat delivery, channel.send / its upload, and channel.targets. */
+const channelReach = makeChannelReach({ liveChannelFor: (c) => liveChannelFor(c), channelLiveHealth: (c) => channelLiveHealth(c) }).reach;
+/* channel.send / its file upload take the TARGET KEY (the chat map key: '<botId>|<chatId>' on a bound bot) and resolve it
+   back to its record, so the tool never knows about the namespacing. An unknown key or an unreachable channel answers
+   ok:false rather than throwing — the tool reports partial delivery honestly and transports never throw by contract. */
+function commsTargetReach(target) {
+  let rec = null;
+  try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
+  if (!rec) return { ok: false, error: 'unknown chat target' };
+  const channel = String(rec.channel || 'telegram');
+  const reach = channelReach(channel);
+  if (!reach.ok) return { ok: false, error: reach.error };
+  return { ok: true, channel: channel, adapter: reach.live.adapter, chatId: String(rec.chatId || target) };
+}
+function commsSendTo(target, text) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  return Promise.resolve(t.adapter.send(t.chatId, text)).catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
+}
+function commsSendMediaTo(target, item) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  if (typeof t.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: t.channel + ' cannot carry files' });
+  return Promise.resolve(t.adapter.sendMedia(t.chatId, item)).catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
+}
 const autoNotifier = makeAutoNotifier({
   send: (chatId, text, channel) => {
-    const ch = liveChannelFor(channel);
-    const p = (ch && ch.adapter) ? ch.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: 'channel not connected' });
+    const reach = channelReach(channel);   // handle AND proven health: an errored channel is not pinged (quick win 22)
+    const p = reach.ok ? reach.live.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: reach.error });
     // DELIVERY HONESTY (2026-07-15 audit): transports NEVER throw — a failure is a resolved { ok:false,
     // error } SendResult. Normalize that to a rejection so the notifier's per-send outcome reporting
     // (onDelivery below) sees a failed ping as a failure instead of a phantom success.
@@ -6971,8 +6998,7 @@ function cronPreflightConfig(job) {
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) return { ok: false, code: 'missing-target', reason: 'delivery target "' + target + '" no longer exists; re-save or remove it' };
     const channel = String(rec.channel || 'telegram');
-    const live = liveChannelFor(channel), health = channelLiveHealth(channel);
-    if (!(live && live.adapter && health && health.connected && health.state === 'up')) {
+    if (!channelReach(channel).ok) {
       return { ok: false, code: 'channel-unavailable', reason: 'delivery channel "' + channel + '" is not connected and healthy; reconnect it or choose local delivery' };
     }
   }
@@ -7066,8 +7092,8 @@ async function deliverCronResult(job, result) {
     if (deliveredTargets.has(target)) continue;
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }
-    const channel = String(rec.channel || 'telegram'), live = liveChannelFor(channel);
-    if (!(live && live.adapter)) { failed++; firstError = firstError || channel + ' is not connected'; continue; }
+    const channel = String(rec.channel || 'telegram'), reach = channelReach(channel), live = reach.live;
+    if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }   // a live handle is not a heartbeat (channels/reach.js)
     const chatId = String(rec.chatId || target), route = rec.threadId ? { threadId: rec.threadId } : undefined;
     await cronChatTurn(channel + '\u0001' + chatId + '\u0001' + String(rec.threadId || ''), async () => {
       try {
@@ -21941,7 +21967,6 @@ async function runOnceCore(o) {
         return Object.keys(chats).map((key) => {
           const rec = chats[key] || {};
           const channel = String(rec.channel || 'telegram');
-          const live = liveChannelFor(channel);
           return {
             target: key,
             channel: channel,
@@ -21949,7 +21974,7 @@ async function runOnceCore(o) {
             agentId: String(rec.agentId || ''),
             // A handle is not a heartbeat — see channelLiveHealth. Both must hold: something to send THROUGH,
             // and a transport that has actually proved a round-trip and not since failed.
-            connected: !!(live && live.adapter) && !!channelLiveHealth(channel).connected
+            connected: channelReach(channel).ok
           };
         });
       } catch (_) { return []; }
@@ -21957,16 +21982,7 @@ async function runOnceCore(o) {
     // sendTo takes the TARGET KEY and resolves it back to its record, so the tool never has to know about the
     // '<botId>|<chatId>' namespacing. An unknown key answers ok:false rather than throwing — the tool reports
     // partial delivery honestly and transports never throw by contract.
-    sendTo: (target, text) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      return Promise.resolve(live.adapter.send(String(rec.chatId || target), text))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
-    },
+    sendTo: (target, text) => commsSendTo(target, text),
     // the platform's real message ceiling, straight off the channel descriptor that already declares it (a
     // second table would drift and Discord's 2000 is unforgiving); 'telegram:<botId>' resolves as telegram.
     maxLenFor: (channel) => {
@@ -21980,17 +21996,7 @@ async function runOnceCore(o) {
     readFile: readChannelUpload,
     // Upload through the SAME target-key resolution sendTo uses, so an agent can attach a file exactly where it
     // may already send words — known-targets-only is unchanged by this feature.
-    sendMediaTo: (target, item) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      if (typeof live.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: channel + ' cannot carry files' });
-      return Promise.resolve(live.adapter.sendMedia(String(rec.chatId || target), item))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
-    },
+    sendMediaTo: (target, item) => commsSendMediaTo(target, item),
     redact: redact,
     emit: chanEmit
   }).register(registry);
