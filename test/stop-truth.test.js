@@ -138,7 +138,8 @@ function stopRig(opts) {
     r.ctx.queued.set('ws1', ['use the blue folder', 'say hi in French', 'make it short']);
     r.ctx.__sendNow('ws1', 0, 'use the blue folder'); r.ctx.__sendNow('ws1', 0, 'say hi in French'); r.ctx.__sendNow('ws1', 0, 'make it short');
     await tick(); await tick();
-    A.eq(r.lines.filter(l => /Sent into the live run/.test(l)).length, 3, 'each accepted line says only that the run holds it');
+    A.eq(r.ctx.sentNow.get('ws1').filter(n => n.accepted).length, 3, 'each accepted line is held as SENT (the strip shows it; Andrew 10-26: no SYSTEM line)');
+    A.ok(!r.lines.some(l => /Sent into the live run/.test(l)), 'and no line announces it in the transcript');
     r.ctx.__landed('ws1', 'run-1', 'Working.\n[steering] use the blue folder\n');
     Channels.appendToken('ws1', 'Working.\n[steering] say hi in French\n');
     r.ctx.__stop('click');

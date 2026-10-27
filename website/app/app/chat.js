@@ -565,9 +565,9 @@ const Chat = (() => {
     // TWO-TIER TRANSCRIPT: the run's tool rails FOLD under this resolved line so the machinery recedes
     // and the speech stays contiguous. The rails are MOVED, never deleted — the full work log is one
     // click away (truthful telemetry intact, just collapsed).
-    const rails = runRails.filter(r => r && r.isConnected && r.childElementCount > 0);
+    const rails = runRails.filter(r => r && r.isConnected && railChips(r).length > 0);
     runRails = [];
-    const tools = rails.reduce((n, r) => n + r.childElementCount, 0);
+    const tools = rails.reduce((n, r) => n + railChips(r).length, 0);   // the chips only: a folded rail's summary row is not a tool
     if (tools > 0) bits.push(tools + (tools === 1 ? ' tool' : ' tools'));
     card.textContent = '';
     const sum = document.createElement('span'); sum.className = 'cp-sum';
@@ -600,18 +600,24 @@ const Chat = (() => {
     const fold = card.nextElementSibling && card.nextElementSibling.classList.contains('run-fold') ? card.nextElementSibling : null;
     let anchor = null;
     for (let n = (fold || card).nextElementSibling; n; n = n.nextElementSibling) {
-      if (n.classList.contains('user')) break;
+      // a note the Commander sent mid-run belongs to this run's stretch; only their next real turn ends it
+      if (!n.classList.contains('steer-echo') && n.classList.contains('user')) break;
       if (n.classList.contains('cmsg') && n.classList.contains('agent') && !n.matches('.nudge,.consent,.turnin,.tool,.deliverable')) anchor = n;
     }
-    if (!anchor) return;
-    anchor.after(card);
-    if (fold) card.after(fold);
+    if (anchor) {
+      anchor.after(card);
+      if (fold) card.after(fold);
+    }
     // the rails that split the answer into paragraphs just folded away, so its rows are ADJACENT now — a follow-up row
-    // stamped the same minute as the one above becomes one message (same rule row() applies at creation)
-    for (let n = anchor, p = anchor.previousElementSibling; p && n.classList.contains('agent'); n = p, p = p.previousElementSibling) {
-      if (!p.classList.contains('agent') || !p.classList.contains('cmsg') || p.matches('.nudge,.consent,.turnin,.tool,.deliverable')) break;
-      const a = n.querySelector(':scope > .cmsg-head > .cmsg-ts'), b = p.querySelector(':scope > .cmsg-head > .cmsg-ts');
-      if (a && b && a.textContent === b.textContent) n.classList.add('ts-repeat');
+    // stamped the same minute as the one above becomes one message (same rule row() applies at creation). Every pair in
+    // this run's stretch, back to the turn that started it: a mid-run note or a station line between two paragraphs no
+    // longer ends the walk (10-26: "8:23 PM" stood alone between two paragraphs of one reply). Same speaker only.
+    const prose = n => !!(n && n.classList && n.classList.contains('agent') && n.classList.contains('cmsg') && !n.matches('.nudge,.consent,.turnin,.tool,.deliverable'));
+    const headOf = n => { const w = n.querySelector(':scope > .cmsg-head > .who'), t = n.querySelector(':scope > .cmsg-head > .cmsg-ts'); return w && t ? w.textContent + '|' + t.textContent : ''; };
+    for (let n = anchor || card.previousElementSibling; n; n = n.previousElementSibling) {
+      if (!n.classList.contains('steer-echo') && n.classList.contains('user')) break;
+      const p = n.previousElementSibling;
+      if (prose(n) && prose(p) && headOf(n) && headOf(n) === headOf(p)) n.classList.add('ts-repeat');
     }
   }
   // POST-RUN DEDUPE: when a recap card is about to render (it owns cost · duration · model + the artifact list),
@@ -2903,6 +2909,15 @@ const Chat = (() => {
     const nm = (typeof App !== 'undefined' && App.agentName && App.agentName(id)) || String(id || 'agent').toUpperCase();
     return String(nm).toUpperCase() + ' · BRIEF';
   }
+  /* A NOTE SENT MID-RUN IS THE COMMANDER'S OWN MESSAGE (Andrew 10-26: "[steering] u seem to be adding just new rooms…" sat
+     under ULTRON's name, so the agent read as saying it). The run's '[steering] …' echo is drawn on the Commander's side,
+     labelled MID-RUN, the wire marker stripped. One row for the live echo and every replay of it. */
+  function steerRow(text, stamp) {
+    const r = row('user', { stamp: stamp, brief: 'COMMANDER · MID-RUN' });
+    r.d.classList.add('steer-echo');
+    r.body.textContent = String(text == null ? '' : text).replace(/^\[steering\] /, '');
+    return r;
+  }
   // render a SENT user turn's attachments: images as clickable thumbnails, other files as openable chips — both
   // served by the sidecar's jailed /api/file route (so they survive a reload, exactly like agent deliverables).
   function renderUserAttachments(rowEl, atts) {
@@ -3015,6 +3030,13 @@ const Chat = (() => {
   const BROADCAST_QUEUE_CAP = 8;   // bounded FIFO: a celebration flood drops the OLDEST queued line, never grows unbounded
   let lastBroadcastAt = 0;
   let lastTrophyLine = null, lastTrophyAt = 0;   // the moment's trophy line (see ONE MOMENT, ONE TROPHY LINE)
+  let lastQuestLine = null, lastQuestAt = 0;     // the moment's quest line (see ONE MOMENT, ONE QUEST LINE)
+  const QUEST_DONE = 'QUEST COMPLETE · ';
+  // the quest line a new QUEST COMPLETE folds into: one that landed in the last 10s (a different moment opens a new line)
+  function questMoment(raw) {
+    const l = lastQuestLine;
+    return String(raw).indexOf(QUEST_DONE) === 0 && l && l.isConnected && l.dataset && l.dataset.quests && Date.now() - lastQuestAt < 10000 ? l : null;
+  }
   const broadcastQueue = [];       // {text, opts} coalesced inside the window — drained in order, one per window slot
   let broadcastDrainTimer = null;
   function broadcastBlocked() {
@@ -3041,6 +3063,7 @@ const Chat = (() => {
     if (!log) return false;
     opts = opts || {};
     if (broadcastBlocked()) return false;   // blocked (onboarding/interview/offscreen) → dropped, never queued
+    if (questMoment(text)) return renderBroadcast(text, opts);   // it folds into a line already there: no new row to rate-limit
     const now = Date.now();
     // inside the rate-limit window, OR a drain is already in flight: QUEUE (preserving order) rather than drop.
     // Bounded — at the cap the oldest queued line is discarded so the queue can never grow without limit.
@@ -3087,10 +3110,37 @@ const Chat = (() => {
       autoscroll();
       return true;
     }
+    /* ONE MOMENT, ONE QUEST LINE (Andrew 10-26: five "QUEST COMPLETE · … CAN REACH … NOW" rows stacked mid-run). Placing gear
+       finishes several reach quests at once; they fold into the moment's line the way trophies do — "3 QUESTS COMPLETE ·
+       NOVA CAN REACH WEB NOW · SAM ALTMAN CAN REACH WEB NOW +1 (see QUEST LOG)". Two titles show, the rest are counted; the
+       QUEST LOG lists every one. */
+    const qLine = questMoment(raw);
+    if (qLine) {
+      let names = [];
+      try { names = JSON.parse(qLine.dataset.quests) || []; } catch (_) { names = []; }
+      const nm = raw.slice(QUEST_DONE.length).trim();
+      if (nm && names.indexOf(nm) < 0) names.push(nm);
+      qLine.dataset.quests = JSON.stringify(names);
+      qLine.textContent = '';
+      const g = document.createElement('span'); g.className = 'bc-glyph'; g.textContent = '▸ ';
+      const em = document.createElement('span'); em.className = 'bc-name'; em.textContent = names.slice(0, 2).join(' · ');
+      qLine.appendChild(g);
+      qLine.appendChild(document.createTextNode(names.length + ' QUESTS COMPLETE · '));
+      qLine.appendChild(em);
+      qLine.appendChild(document.createTextNode((names.length > 2 ? ' +' + (names.length - 2) : '') + ' (see QUEST LOG)'));
+      lastQuestAt = Date.now();
+      autoscroll();
+      return true;
+    }
     // the block is only opened once we KNOW a new line will land in it. It used to be appended before the trophy fold
     // above, so a second trophy folding into an earlier block left an EMPTY block behind — a blank box in the transcript.
+    // THE LIVE CARD IS NOT A ROW (10-26): while a run is live its working card is pinned as the log's last child, so "the last
+    // row" was always the card and no line ever joined the block above it. Look past the live card, and open a new block
+    // ABOVE it so the card stays pinned at the bottom.
     let d = null, stack = null;
-    const last = log.lastElementChild;
+    const liveCard = log.querySelector('#comms-presence:not(.resolved)');
+    let last = log.lastElementChild;
+    if (last && last === liveCard) last = last.previousElementSibling;
     if (last && last.classList && last.classList.contains('broadcast')) { d = last; stack = d.querySelector('.bc-stack'); }
     if (!d || !stack) {
       d = document.createElement('div');
@@ -3098,11 +3148,12 @@ const Chat = (() => {
       d.setAttribute('role', 'status');   // a live-region system line for AT (it renders no speaker chip)
       stack = document.createElement('span'); stack.className = 'bc-stack';
       d.appendChild(stack);
-      log.appendChild(d);
+      if (liveCard && liveCard === log.lastElementChild) log.insertBefore(d, liveCard); else log.appendChild(d);
     }
     const line = document.createElement('span');
     line.className = 'bc-line' + (opts.tone === 'gold' ? ' bc-gold' : '');   // tone rides the LINE (a shared block can mix tones)
     if (raw.indexOf(TROPHY) === 0) { line.dataset.trophies = JSON.stringify([raw.slice(TROPHY.length).trim()]); lastTrophyLine = line; lastTrophyAt = Date.now(); }
+    if (raw.indexOf(QUEST_DONE) === 0) { line.dataset.quests = JSON.stringify([raw.slice(QUEST_DONE.length).trim()]); lastQuestLine = line; lastQuestAt = Date.now(); }
     const hi = opts.highlight ? String(opts.highlight) : '';
     const ix = hi ? raw.indexOf(hi) : -1;
     // prefix glyph
@@ -3236,6 +3287,51 @@ const Chat = (() => {
     log.appendChild(toolRail); autoscroll();
     return toolRail;
   }
+  /* ONE LINE PER BURST OF WORK (Andrew 10-26: "SO many tool calls clutter up the chat and they never disappear"). A rail of
+     two or more calls shows ONE summary row until it is opened: the call it is on while it runs ("▸ 4 steps · fs.read
+     notes.md"), what it used once it is done ("✓ 5 steps · fs.list, fs.read  0.2s"). A single call keeps its own row. Every
+     chip stays in its rail, unchanged: one click on the summary lists them all, and the run-end fold still moves the
+     rails under RUN COMPLETE. Nothing is hidden that a click cannot show; the summary only reads the chips' own state. */
+  function railChips(rail) { return rail ? Array.from(rail.children).filter(n => n.classList && n.classList.contains('tool-chip')) : []; }
+  function syncRail(rail) {
+    if (!rail || !rail.classList || !rail.classList.contains('tool-rail')) return;
+    const chips = railChips(rail);
+    let sum = rail.querySelector(':scope > .tr-sum');
+    if (chips.length < 2) { if (sum) sum.hidden = true; rail.classList.remove('tr-multi'); return; }
+    if (!sum) {
+      sum = document.createElement('button'); sum.type = 'button'; sum.className = 'tr-sum';
+      sum.setAttribute('aria-expanded', 'false');
+      for (const c of ['tr-glyph', 'tr-count', 'tr-names', 'tr-stat', 'tr-exp']) { const s = document.createElement('span'); s.className = c; sum.appendChild(s); }
+      sum.querySelector('.tr-exp').setAttribute('aria-hidden', 'true');
+      sum.addEventListener('click', () => { const open = rail.classList.toggle('open'); sum.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+      rail.insertBefore(sum, rail.firstChild);
+    }
+    sum.hidden = false; rail.classList.add('tr-multi');
+    const text = (c, sel) => { const n = c.querySelector(sel); return n ? n.textContent : ''; };
+    const live = chips.filter(c => c.classList.contains('pending')).pop();
+    const errs = chips.filter(c => c.classList.contains('err')).length;
+    // a burst where SOME steps failed finished all the same: a plain check, and the stat says how many failed. Only a burst
+    // where every step failed wears the red ✗ (an agent probing for a missing file is ordinary work, not an alarm)
+    const allFailed = !live && errs === chips.length;
+    sum.classList.toggle('pending', !!live); sum.classList.toggle('err', allFailed); sum.classList.toggle('mixed', !live && errs > 0 && !allFailed);
+    sum.classList.toggle('ok', !live && !errs);
+    sum.querySelector('.tr-glyph').textContent = live ? '▸' : allFailed ? '✗' : '✓';
+    sum.querySelector('.tr-count').textContent = chips.length + ' steps';
+    let names = '', stat = '';
+    if (live) {
+      names = text(live, '.tc-name') + (text(live, '.tc-args') ? ' ' + text(live, '.tc-args') : '');
+      stat = text(live, '.tc-stat');   // a browser call's "Waiting for browser session…" still shows while the rail is folded
+    } else {
+      const seen = [];
+      for (const c of chips) { const n = text(c, '.tc-name'); if (n && seen.indexOf(n) < 0) seen.push(n); }
+      names = seen.join(', ');
+      const ms = chips.reduce((t, c) => t + (Number(c.dataset && c.dataset.ms) || 0), 0);
+      stat = errs ? errs + ' failed' : ms ? fmtMs(ms) : '';
+    }
+    sum.querySelector('.tr-names').textContent = names;
+    sum.querySelector('.tr-stat').textContent = stat;
+    sum.setAttribute('aria-label', chips.length + ' steps' + (names ? ': ' + names : '') + (stat ? ', ' + stat : ''));
+  }
   /* A BREAK CLOSES THE RAIL, IT DOES NOT ORPHAN THE CALLS IN FLIGHT (fixed 2026-08-05).
      This used to also `pendingChips.clear()`, and that quietly double-listed the work trail of every run
      that wrote a file. Order of events for one `fs.write`: the CALL opens a rail and registers its chip →
@@ -3306,12 +3402,14 @@ const Chat = (() => {
           const j = await Harness.api.get('/api/connectors');
           if (!chip.isConnected || !chip.classList.contains('pending')) return;
           stat.textContent = (j.browserSession?.waitingRunIds || []).includes(ev.runId) ? 'Waiting for browser session…' : '';
+          syncRail(chip.parentElement);
         } catch (_) { if (chip.classList.contains('pending')) stat.textContent = ''; }
         if (chip.isConnected && chip.classList.contains('pending')) setTimeout(checkWait, 1000);
       };
       setTimeout(checkWait, 500);
     }
     rail.appendChild(chip);
+    syncRail(rail);
     if (ev.callId != null) { pendingChips.set(ev.callId, chip); if (pendingChips.size > 200) pendingChips.delete(pendingChips.keys().next().value); }
     autoscroll();
     return chip;
@@ -3332,6 +3430,7 @@ const Chat = (() => {
     const glyph = chip.querySelector('.tc-glyph'); if (glyph) glyph.textContent = (heldCall || deniedCall) ? '▸' : ev.isError ? '✗' : '✓';
     const stat = chip.querySelector('.tc-stat');
     if (stat) stat.textContent = heldCall ? 'not run yet' : deniedCall ? 'denied' : ev.ms ? fmtMs(ev.ms) : (ev.isError ? 'failed' : '');
+    if (chip.dataset && ev.ms > 0) chip.dataset.ms = String(ev.ms);   // the rail's folded summary adds these up
     const detail = chip.querySelector('.tc-detail');
     if (detail) {
       const dRes = document.createElement('div'); dRes.className = 'tc-d-res' + (heldCall ? ' held' : deniedCall ? ' denied' : ev.isError ? ' err' : '');
@@ -3349,6 +3448,7 @@ const Chat = (() => {
       chip = toolChip({ callId: null, name: fallbackName || 'tool', argsSummary: '' });
     }
     foldChipResult(chip, ev);
+    syncRail(chip.parentElement);
     autoscroll();
     return chip;
   }
@@ -3365,6 +3465,7 @@ const Chat = (() => {
       if (head) head.addEventListener('click', () => toggleChip(head));
       rail.appendChild(chip);
     }
+    syncRail(rail);   // the group chat folds a burst to one line too
     return rail;
   }
   // a clickable COMMS row for a file the agent produced — opens it via the sidecar's jailed /api/file route
@@ -8312,8 +8413,8 @@ const Chat = (() => {
       // a SYSTEM STATUS marker (sys — e.g. an autosessions run-outcome framing line) renders as a system-styled
       // line, NOT as agent speech; it never seeds the model (historyWindow drops it) and it stays visible in-thread.
       // a SEND NOW line the station says its run read, filed after a reload lost the reply that showed it (showSentNowRead):
-      // the same dim steer-echo row the live stream drew
-      if (m && m.sys && m.steerEcho) { const s = row('agent', { stamp: stamp }); s.d.classList.add('tool', 'steer-echo'); s.body.textContent = String(m.content || ''); continue; }
+      // the same mid-run Commander row the live stream drew
+      if (m && m.sys && m.steerEcho) { steerRow(m.content, stamp); continue; }
       if (m && m.sys) { if ((m.content || '').trim()) toolLine(m.content, !!m.error); continue; }
       if (m.role !== 'assistant') continue;   // only dialogue turns render (a stray system marker never shows as an agent reply)
       if (!(m.content || '').trim()) { if (m.stopped) { lastReal = m; if (m.stopNote) toolLine('⏹ ' + m.stopNote); } continue; }   // zero-token stop: durable recovery truth, never a blank speech row (its reason line survives the reload)
@@ -8326,11 +8427,11 @@ const Chat = (() => {
       const spoke = (m && m.agentId && typeof App !== 'undefined' && App.agentName) ? App.agentName(m.agentId) : null;
       if (stamp !== false) flushDeliverablesBefore(stamp);   // the files this reply's run produced were shown BEFORE the reply landed
       // a steering note folded mid-run is saved inside the reply as a '[steering] …' line (the token stream carried it):
-      // replay it as the same dim note row the live stream drew, never as a line of the agent's own prose
+      // replay it as the same mid-run Commander row the live stream drew, never as a line of the agent's own prose
       const parts = /(^|\n)\[steering\] /.test(shownText) ? shownText.split(/(?:^|\n)\[steering\] ([^\n]*)\n?/) : [shownText];
       const files = turnFileRefs(m);   // one resolver per reply, like the live stream: every paragraph came from the same run
       for (let pi = 0; pi < parts.length; pi++) {
-        if (pi % 2 === 1) { const s = row('agent', { stamp: stamp, who: spoke }); s.d.classList.add('tool', 'steer-echo'); s.body.textContent = '[steering] ' + parts[pi]; continue; }
+        if (pi % 2 === 1) { steerRow(parts[pi], stamp); continue; }
         if (!parts[pi].trim()) continue;
         const r = row('agent', { stamp: stamp, who: spoke });   // past turns render as plain GROUPED messages; only the LIVE reply is the lit headline
         if (m.error) r.d.classList.add('err');
@@ -8478,13 +8579,11 @@ const Chat = (() => {
       seg = null; raw = '';
     }
     // A folded /steer note echoes back from the sidecar as a '\n[steering] …\n' token delta. It is the
-    // Commander's note, not agent prose — render it as its own dim note row and CLOSE the paragraph around
-    // it, so it never sits in a caret'd row that reads as the agent typing it.
+    // Commander's note, not agent prose — render it as the Commander's own mid-run row and CLOSE the paragraph
+    // around it, so it never sits in a caret'd row that reads as the agent typing it.
     function steerNote(text) {
       endToolRail();
-      const r = row('agent', { stamp: true, who: whoName || null });
-      r.d.classList.add('tool', 'steer-echo');
-      r.body.textContent = '[steering] ' + text;
+      steerRow(text, true);
       autoscroll();
     }
     function plain(t) { if (!t) return; if (!seg) open(); raw += t; queueProse(); }
@@ -8703,9 +8802,24 @@ const Chat = (() => {
       const now = document.createElement('button'); now.className = 'queued-now'; now.type = 'button'; now.textContent = 'send now';
       now.setAttribute('data-tip', 'Hand this to the run that is working now: the agent reads it before its next step, instead of after the run finishes');
       now.onclick = () => sendQueuedNow(activeWs.id, i, t);
-      pill.appendChild(document.createTextNode('⤷ ')); pill.appendChild(label); pill.appendChild(now); pill.appendChild(x);
+      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'next';
+      pill.appendChild(tag); pill.appendChild(label); pill.appendChild(now); pill.appendChild(x);
       strip.appendChild(pill);
     });
+    /* SENT, NOT READ YET (Andrew 10-26: a SYSTEM line announced every send-now, then the note showed up under the agent's
+       name). A line the run holds stays in the strip, keyless, until the run's echo shows the agent read it; the transcript
+       then shows it as the Commander's own MID-RUN message. A 200 proves only that the run holds it, so that is all it says. */
+    const held = (typeof sentNow !== 'undefined' && activeWs && sentNow.get(activeWs.id)) || [];
+    for (const n of held) {
+      if (!n.accepted || n.landed) continue;
+      const pill = document.createElement('span'); pill.className = 'queued-pill sent';
+      pill.setAttribute('data-tip', 'Sent into the live run — the agent reads it before its next step');
+      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'sent';
+      const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = n.text;
+      const when = document.createElement('span'); when.className = 'queued-when'; when.textContent = 'read at its next step';
+      pill.appendChild(tag); pill.appendChild(label); pill.appendChild(when);
+      strip.appendChild(pill);
+    }
     const grew = strip.offsetHeight - h0;
     if (atEnd && grew > 0) log.scrollTop += (heldCard && log.contains(heldCard)) ? Math.min(grew, Math.max(0, topInLog(heldCard) - 8)) : grew;
   }
@@ -8713,7 +8827,8 @@ const Chat = (() => {
      pill leaves the queue while the POST is in flight (so flushQueued can't also send it as a new turn); it goes
      back to the FRONT of the queue on any refusal — run not confirmed yet (no runId), the loop already closed its
      buffer (409), buffer full (429), network — and the line says why. A 200 only means the sidecar holds it: the
-     transcript's own '[steering] …' row is the proof it landed, so the success line promises the next step, nothing more.
+     transcript's own '[steering] …' row is the proof it landed, so the strip shows it SENT ("read at its next step") and
+     nothing more — no SYSTEM line (Andrew 10-26: the success line cluttered the chat above a note it then repeated).
      STOP OUTRANKS IT (0.13.5 merge): the line stays in sentNow until its run ends; a STOP the station confirms gives back
      every one the transcript never showed landing (restoreSentNow), and an answer arriving after that changes nothing —
      no "sent" line, and never a re-queue that would auto-send it behind the stop.
@@ -8754,7 +8869,7 @@ const Chat = (() => {
         if (j && j.ok) {
           if (!(sentNow.get(id) || []).includes(note)) return;   // a STOP already gave it back to the message box
           note.accepted = true;
-          if (Channels.runIdOf(id) === rid) return say('Sent into the live run — the agent reads it before its next step.');
+          if (Channels.runIdOf(id) === rid) return renderQueued();   // the strip shows it SENT until the run reads it — no SYSTEM line
           // its run ended while we asked: read = settled; never read = it goes as the next message (the loop said NOT applied)
           forgetSentNow(id, note);
           if (note.landed) return;
@@ -8835,6 +8950,7 @@ const Chat = (() => {
     const list = sentNow.get(id) || [], ran = String(acc || '');
     const mine = list.filter(n => runId == null || n.runId === runId), rest = list.filter(n => mine.indexOf(n) < 0);
     rest.length ? sentNow.set(id, rest) : sentNow.delete(id);
+    if (mine.length && activeWs && activeWs.id === id) renderQueued();   // the page let go of them: no SENT pill stays behind
     dropSentNow(id, mine.filter(n => n.landed || ran.indexOf('[steering] ' + n.wire + '\n') >= 0).map(n => n.id));
   }
   // the note as the run gets it: one line (the loop echoes it as '\n[steering] <note>\n' and the page reads one line back)
@@ -8842,11 +8958,12 @@ const Chat = (() => {
   // that echo on this stream's own run is the proof the agent has it — a STOP no longer gives it back
   function markSentNowLanded(id, runId, delta) {
     const list = sentNow.get(id); if (!list || !list.length) return;
-    const re = /(?:^|\n)\[steering\] ([^\n]*)/g; let m;
+    const re = /(?:^|\n)\[steering\] ([^\n]*)/g; let m, read = false;
     while ((m = re.exec(String(delta || '')))) {
       const n = list.find(x => !x.landed && x.runId === runId && x.wire === m[1]);
-      if (n) n.landed = true;
+      if (n) { n.landed = true; read = true; }
     }
+    if (read && activeWs && activeWs.id === id) renderQueued();   // its SENT pill leaves: the transcript shows it now
   }
   /* A SENT-NOW LINE IS NEVER LOST ON STOP EITHER. The station took it (200) but the run was stopped before its next step
      folded it in: the note died with the run. Once the stop is CONFIRMED, every sent-now line of that run whose
@@ -8858,6 +8975,7 @@ const Chat = (() => {
     const lost = mine.filter(n => !n.landed && acc.indexOf('[steering] ' + n.wire + '\n') < 0);
     const rest = list.filter(n => n.runId !== runId);
     rest.length ? sentNow.set(id, rest) : sentNow.delete(id);
+    if (activeWs && activeWs.id === id) renderQueued();   // its SENT pills leave the strip with the run
     dropSentNow(id, mine.filter(n => lost.indexOf(n) < 0).map(n => n.id));   // read: settled with the stopped turn
     if (!lost.length) return;
     giveBack(id, lost.map(n => n.text), lost.length === 1 ? 'The run stopped before the agent read your send-now message — it is back in the message box.'
@@ -8890,6 +9008,7 @@ const Chat = (() => {
     const rest = list.filter(n => n.runId !== runId || !n.accepted);
     rest.length ? sentNow.set(id, rest) : sentNow.delete(id);
     dropSentNow(id, list.filter(n => rest.indexOf(n) < 0).map(n => n.id));   // settled here: read, or a queued pill again
+    if (activeWs && activeWs.id === id) renderQueued();   // a SENT pill of the ended run never outlives it
     if (!unread.length) return;
     queued.set(id, unread.map(n => n.text).concat(queued.get(id) || []));
     renderQueued();
