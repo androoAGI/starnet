@@ -358,31 +358,48 @@
     return (Number(ctx.approxTokens) || 0) > 0.4 * limit || (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit;
   }
 
-  /* A CHAT-TEMPLATE REFUSAL (REASONS.template_refusal). The wordings a local runtime's template engine or a role-order
-     validator puts in front of the request it refused: Qwen-family Jinja templates ("System message must be at the
-     beginning", raise_exception), Llama-2 / Mistral / Gemma ("Conversation roles must alternate user/assistant/…",
-     "After the optional system message, conversation roles must alternate"), Gemma ("System role not supported"),
-     LM Studio ("Error rendering prompt with jinja template"), llama.cpp / vLLM ("Jinja Exception", "chat template"),
-     hosted validators ("Unexpected role 'system' after role 'tool'", "Expected last role User or Tool"). */
-  const TEMPLATE_REFUSAL_RE = /system message must be at the beginning|roles must alternate|system role (?:is )?not supported|jinja (?:exception|template|error)|raise_exception|(?:render|rendering|apply|applying) (?:the )?(?:prompt with (?:the )?)?(?:jinja |chat )template|chat template|unexpected role '?(?:system|user|assistant|tool)'? after role|expected last role/;
-  function isTemplateRefusal(text) { return TEMPLATE_REFUSAL_RE.test(String(text || '').toLowerCase()); }
+  /* A CHAT-TEMPLATE REFUSAL (REASONS.template_refusal): a model's CHAT TEMPLATE refused the conversation's ROLE SHAPE.
+     Narrowed on review (2026-10-27) to what proves both halves — a role-shape wording AND a template behind it:
+       · the role wordings only chat templates raise: Qwen-family Jinja ("System message must be at the beginning"),
+         Gemma ("System role not supported"), the Hugging Face Llama-2 / Mistral / Gemma templates ("Conversation roles
+         must alternate user/assistant/…", "After the optional system message, conversation roles must alternate");
+       · any role-order wording when the text also names the template engine: LM Studio ("Error rendering prompt with
+         jinja template: …"), llama.cpp ("Jinja Exception: …"), raise_exception.
+     NOT a template, so NOT this class: a hosted API's own role validator — Anthropic ("messages: roles must alternate
+     between "user" and "assistant""), Mistral / mistral_common ("Unexpected role 'user' after role 'tool'", "Expected
+     last role User or Tool") — which keeps format_error, its own words first and no chat-template advice; and a template
+     ENGINE failure that names no role shape ("default chat template is no longer allowed", "Unknown StringValue filter:
+     safe", "chat template does not support tool calls"), which is not StarNet's conversation shape and keeps the class
+     it had. */
+  const TEMPLATE_ROLE_RE = /system message must be at the beginning|system role (?:is )?not supported|conversation roles must alternate/;
+  const ROLE_ORDER_RE = /roles must alternate|unexpected role '?(?:system|user|assistant|tool)'? after role|expected last role/;
+  const TEMPLATE_ENGINE_RE = /jinja|chat template|raise_exception|(?:render|rendering|apply|applying) (?:the )?(?:prompt with (?:the )?)?(?:jinja |chat )?template/;
+  function templateRefusalLow(low) { return TEMPLATE_ROLE_RE.test(low) || (ROLE_ORDER_RE.test(low) && TEMPLATE_ENGINE_RE.test(low)); }
+  function isTemplateRefusal(text) { return templateRefusalLow(String(text || '').toLowerCase()); }
   /* NAME THE TEMPLATE (#102) — and name it FIRST. The customer's diagnostics clamp each error to 300 characters
      (diagnostics.js MSG_MAX) and Ollama's Jinja exception arrives as a ~350-character JSON blob ("While executing
      CallExpression at line 106 …"), so a note appended after it never reached the report the Commander pastes. The
      sentence keeps the adapter's "<label> http <status>" lead (what the page routes on), then says whose template, on
-     which host, refused what, with the template's own words; the full provider text rides last, in brackets. */
+     which host, refused what, with the template's own words; the full provider text rides last, in brackets. With no
+     role words to quote (TEMPLATE_SAID_RE found none) the provider's own text leads instead, so the 300 characters a
+     report keeps always hold the evidence. Updating the model is advice only for a server on this computer or this
+     network; a hosted endpoint's template is its operator's. */
   const TEMPLATE_SAID_RE = /(system message must be at the beginning|(?:after the optional system message, )?conversation roles must alternate[^"'\\\n.]{0,60}|roles must alternate[^"'\\\n.]{0,60}|system role (?:is )?not supported|unexpected role '?[a-z]+'? after role '?[a-z]+'?|expected last role[^"'\\\n.]{0,60})/i;
   function templateRefusalText(text, low, err, ctx) {
     const original = String(text == null ? '' : text);
     const lead = (/^(.{1,80}?\bhttp \d{3})\b\s*[-—:]?\s*/i.exec(original) || [])[1] || '';
-    const said = (TEMPLATE_SAID_RE.exec(original) || [])[1] || '';
+    const said = ((TEMPLATE_SAID_RE.exec(original) || [])[1] || '').trim();
     const model = String((ctx && ctx.model) || '').trim();
     const host = refusalHost(err);
-    return (lead ? lead + ' — ' : '') + 'the chat template of ' + (model ? 'the model ' + model : 'this model') + (host ? ' on ' + host : '')
-      + ' refused the conversation StarNet sent' + (said ? ' ("' + said.trim() + '")' : '')
-      + ' — StarNet sends one system message first, then user and assistant turns in turn, ending on a user turn'
-      + (err && err.templateRetried ? ', and the same conversation with no system message at all was refused too' : '')
-      + '. That template is stricter than the model\'s own chat format: update the model on that server (a newer build usually fixes its template), or pick another model in the COMMS model dock. [' + original + ']';
+    const naming = 'the chat template of ' + (model ? 'the model ' + model : 'this model') + (host ? ' on ' + host : '') + ' refused the conversation StarNet sent';
+    const why = ' — StarNet sends one system message first, then user and assistant turns in turn, ending on a user turn'
+      + (err && err.templateRetried ? ', and the same conversation with no system message at all was refused too' : '');
+    const scope = hostScope(host);
+    const fix = '. That template is stricter than the model\'s own chat format: '
+      + (scope === 'loopback' || scope === 'private' ? 'update the model on that server (a newer build usually fixes its template), or pick' : 'pick')
+      + ' another model in the COMMS model dock.';
+    if (!said) return original + ' — ' + naming + why + fix;
+    return (lead ? lead + ' — ' : '') + naming + ' ("' + said + '")' + why + fix + ' [' + original + ']';
   }
   // the host a refusal came from: the hostname the adapter stamped (provider.js stampRequestHost — never a URL)
   function refusalHost(err) { return (err && typeof err.requestHost === 'string' && err.requestHost) || ''; }
@@ -471,9 +488,9 @@
     //     used to fold history for nothing, retry the identical max_tokens, and kill the run.
     if ((!status || status === 400 || status === 422) && parseOutputCap(low) > 0) return 'output_cap';
     // 1c. the model's chat template refused the conversation's shape — whatever status carried it: Ollama's /v1 sends
-    //     its Jinja exception as a 500 (#102), LM Studio and validators as a 400/422. Never our credential (401/403)
-    //     and never a busy moment (429).
-    if (status !== 401 && status !== 403 && status !== 429 && TEMPLATE_REFUSAL_RE.test(low)) return 'template_refusal';
+    //     its Jinja exception as a 500 (#102), LM Studio as a 400. Never our credential (401/403) and never a busy
+    //     moment (429). A hosted API's own role validator is not a template (templateRefusalLow): it stays format_error.
+    if (status !== 401 && status !== 403 && status !== 429 && templateRefusalLow(low)) return 'template_refusal';
     // 2. HTTP status
     if (status) {
       // a 403 the UPSTREAM gave for this region (OpenAI behind OpenRouter: unsupported_country_region_territory) is the

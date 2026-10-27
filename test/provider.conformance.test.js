@@ -321,6 +321,52 @@ async function runScenario(ad) {
     A.ok(end && end.payload.reason === 'error', 'Jinja 500: agent.run.end error');
     const cls = classifyApiError(Object.assign(new Error('openai-compatible http 500 - Jinja Exception: System message must be at the beginning'), { status: 500 }), { model: 'm' });
     A.eq([cls.reason, cls.retryable, cls.shouldFallback], ['template_refusal', false, true], 'template_refusal: not retryable; a configured fallback (another template) may answer');
+
+    // D3. only a CHAT TEMPLATE refusing the ROLE SHAPE is template_refusal (review 2026-10-27)
+    const E = (status, text, host) => Object.assign(new Error(text), { status, requestHost: host });
+    const notTemplate = {
+      'anthropic validator': E(400, 'anthropic http 400 — messages: roles must alternate between "user" and "assistant", but found multiple "user" roles in a row', 'api.anthropic.com'),
+      'mistral validator (after tool)': E(400, "openai-compatible http 400 — Unexpected role 'user' after role 'tool'", 'api.mistral.ai'),
+      'mistral validator (last role)': E(400, 'openai-compatible http 400 — Expected last role User or Tool (or Assistant with prefix True) for serving but got assistant', 'api.mistral.ai'),
+      'no chat template at all': E(400, 'openai-compatible http 400 — As of transformers v4.44, default chat template is no longer allowed, so you must provide a chat template if the tokenizer does not define one.', 'api.example.test'),
+      'template engine gap': E(400, 'openai-compatible http 400 — Error rendering prompt with jinja template: Unknown StringValue filter: safe', '127.0.0.1'),
+      'template without tool support': E(400, 'openai-compatible http 400 — this chat template does not support tool calls', 'api.example.test')
+    };
+    for (const [what, err] of Object.entries(notTemplate)) {
+      const c = classifyApiError(err, { model: 'some-model' });
+      A.ok(c.reason !== 'template_refusal', what + ': not a template refusal (' + c.reason + ')');
+      A.ok(c.message.indexOf(err.message) === 0 && !/the chat template of/.test(c.message), what + ': the provider\'s own words lead, no chat-template sentence');
+    }
+    A.eq(classifyApiError(notTemplate['anthropic validator'], {}).reason, 'format_error', 'a hosted role validator stays format_error (no fallback, as before the lane)');
+    const isTpl = {
+      'vLLM HF template (bare)': E(400, 'openai-compatible http 400 — Conversation roles must alternate user/assistant/user/assistant/...', '10.0.0.5'),
+      'LM Studio role refusal': E(400, 'openai-compatible http 400 — Error rendering prompt with jinja template: "Conversation roles must alternate user/assistant/user/assistant/..."', 'localhost'),
+      'Gemma': E(400, 'openai-compatible http 400 — System role not supported', 'gemma.lan'),
+      'llama.cpp validator wording behind Jinja': E(500, "openai-compatible http 500 — Jinja Exception: Unexpected role 'system' after role 'tool'", '127.0.0.1'),
+      'hosted Qwen template': E(500, 'openai-compatible http 500 — Jinja Exception: System message must be at the beginning', 'api.together.test')
+    };
+    for (const [what, err] of Object.entries(isTpl)) {
+      const c = classifyApiError(err, { model: 'some-model' });
+      A.eq(c.reason, 'template_refusal', what + ': a template refusal');
+      A.ok(/the chat template of the model some-model on \S+ refused the conversation StarNet sent \("/.test(c.message.slice(0, 300)), what + ': the template\'s own words are quoted inside the 300 characters a report keeps');
+    }
+    A.ok(/update the model on that server/.test(classifyApiError(isTpl['vLLM HF template (bare)'], { model: 'm' }).message), 'a template on this network: update the model on that server');
+    const hosted = classifyApiError(isTpl['hosted Qwen template'], { model: 'm' }).message;
+    A.ok(!/update the model on that server/.test(hosted) && /pick another model in the COMMS model dock/.test(hosted), 'a hosted endpoint\'s template: no "update the model on that server" (it is its operator\'s), pick another model');
+    // a template refusal with no role words to quote (only reachable through the exported sentence builder): the provider's text leads
+    const quoteless = require('../sidecar/providers/errorClass.js')._internals.templateRefusalText('openai-compatible http 500 — Jinja Exception: something odd in the template', '', { requestHost: '127.0.0.1' }, { model: 'm' });
+    A.ok(quoteless.indexOf('openai-compatible http 500 — Jinja Exception: something odd in the template — the chat template') === 0, 'no role words to quote: the provider\'s own text leads the sentence');
+    // the openai-compatible adapter does not spend a systemless resend on a hosted validator's refusal
+    let mposts = 0;
+    const mfetch = async (url, init) => {
+      if (!init || init.method !== 'POST') return new Response('{"data":[]}');
+      mposts++;
+      return new Response(JSON.stringify({ object: 'error', message: "Unexpected role 'user' after role 'tool'", type: 'invalid_request_message_order', code: '3230' }), { status: 400 });
+    };
+    let merr = null;
+    try { for await (const _ of makeOpenAICompatibleProvider({ fetch: mfetch, key: 'k', baseUrl: 'https://api.mistral.conformance.test/v1' }).stream({ model: 'mistral-large-latest', messages: [{ role: 'system', content: SYS }, { role: 'user', content: 'hi' }] })) { /* drain */ } } catch (e) { merr = e; }
+    A.eq(mposts, 1, 'a hosted validator\'s refusal: ONE request, no systemless resend (it would not help)');
+    A.ok(merr && classifyApiError(merr, {}).reason === 'format_error', 'a hosted validator\'s refusal: format_error');
   }
 
   // ================================================================ E. the suite stays fast
