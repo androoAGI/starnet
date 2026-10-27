@@ -49,7 +49,9 @@ function countingFs(reads) {
 
 // the sidecar side (one process): the real handlers over a real savestore. o.tombstones: the deleted-session ledger;
 // o.fs: an fs facade; o.Date: the handlers' clock; o.clock: the store's clock ({ now }); o.realBody: requests arrive as a
-// byte stream read by the REAL bounded reader (sidecar/http-body.js: its 16 MiB cap, its tooLarge error)
+// byte stream read by the REAL bounded reader (sidecar/http-body.js: its 16 MiB cap, its tooLarge error); o.noMerge: the station
+// REFUSES every merge (POST /api/save/adopt answers ok:false) — a case about a conflict that STANDS (the banner, the restore,
+// the boot offer): since save-latch-kill a refused save is merged in-session, so only a refused merge leaves one standing
 function sidecar(root, o) {
   o = o || {};
   const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: o.clock || { now: () => Date.now() } });
@@ -76,7 +78,7 @@ function sidecar(root, o) {
       const u = String(url);
       if (u.indexOf('/api/save/conflicts/restore') === 0) return call(api.handleSaveConflictRestore, { body: opts.body });
       if (u.indexOf('/api/save/conflicts') === 0) return call(api.serveSaveConflicts, { url: u });
-      if (u.indexOf('/api/save/adopt') === 0) return call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      if (u.indexOf('/api/save/adopt') === 0) return o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
       return (opts && opts.method === 'POST') ? call(api.handleSaveWrite, { body: opts.body }) : call(api.serveSaveLoad, { url: u });
     }
   };

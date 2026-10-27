@@ -77,7 +77,9 @@ function sidecar(root, o) {
       const u = String(url);
       if (u.indexOf('/api/save/conflicts/restore') === 0) return call(api.handleSaveConflictRestore, { body: opts.body });
       if (u.indexOf('/api/save/conflicts') === 0) return call(api.serveSaveConflicts, { url: u });
-      if (u.indexOf('/api/save/adopt') === 0) return call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      // o.noMerge: the station refuses every merge — a case about a conflict that STANDS (since save-latch-kill a refused save is
+      // merged in-session, so only a refused merge leaves the conflict, its banner and its restore in place)
+      if (u.indexOf('/api/save/adopt') === 0) return o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
       return (opts && opts.method === 'POST') ? call(api.handleSaveWrite, { body: opts.body }) : call(api.serveSaveLoad, { url: u });
     }
   };
@@ -141,8 +143,9 @@ function stationUi(cloudSave, uiStore) {
     }
     {
       // proof1b (revision-agnostic): this window's save after its conflict is refused growth-stale, which preserves nothing
+      // (a station that refuses the merge: the conflict stands, so its restore is what is tested)
       const root = workspace();
-      const host = sidecar(root);
+      const host = sidecar(root, { noMerge: true });
       host.saveStore.save('agent', stationDoc(), { compareRevision: true });
       const cacheA = new Map();
       let newest = null, cs = null;
@@ -365,7 +368,7 @@ function stationUi(cloudSave, uiStore) {
     {
       const root = workspace();
       receipt(root, 7000);
-      const host = sidecar(root);
+      const host = sidecar(root, { noMerge: true });   // a station that refuses the merge: window C's conflict stands, with its banner
       // a fresh station founded after the reset, then the Commander restores the old station's backup into it
       host.saveStore.save('agent', stationDoc({ agent: { id: 'agent', name: 'VEGA', createdAt: 8000 } }), { compareRevision: true });
       const imp = host.saveStore.save('agent', stationDoc({ _saveRevision: host.saveStore.load('agent')._saveRevision, updatedAt: 9000, _saveClient: 'import-page' }), { compareRevision: true });
@@ -427,8 +430,8 @@ function stationUi(cloudSave, uiStore) {
       A.ok(next.ok === false && next.conflict === true && next.ownSeed === true && !next.reseeded, '6: its next save after the restart is preserved as its OWN seed, not another window\'s (' + JSON.stringify(next) + ')');
       const other = store.save('agent', stationDoc({ _saveRevision: 5, updatedAt: 9200, _saveClient: 'window-b' }), { compareRevision: true });
       A.ok(other.conflict === true && other.reseeded === true && !other.ownSeed, '6: a different window is still told another copy was saved back first');
-      // the banner wording, through the real page + save light
-      const host = sidecar(root);
+      // the banner wording, through the real page + save light (a station that refuses the merge: the conflict stands)
+      const host = sidecar(root, { noMerge: true });
       // window A's page, stamping what that window holds: its id and the pre-seed revision 23 it never heard past
       const host2 = { fetch: (url, opts) => host.fetch(url, opts && opts.body ? Object.assign({}, opts, { body: opts.body.replace(/"_saveClient":"[^"]*"/, '"_saveClient":"window-a"').replace(/"_saveRevision":\d+/, '"_saveRevision":23') }) : opts) };
       const pa = page(host2, new Map());

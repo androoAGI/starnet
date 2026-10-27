@@ -38,6 +38,7 @@
   'use strict';
 
   const COPY_SUFFIX = '~restored';
+  const COPY_MAX = 20;   // restored copies of one session: ~restored … ~restored20
 
   function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function list(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => w && typeof w === 'object' && typeof w.id === 'string' && w.id) : []; }
@@ -104,9 +105,21 @@
       return { kind: 'extend', id, have, more: theirs };
     }
     if (startsWith(theirs, mine)) return { kind: 'extend', id, have, more: theirs.slice(mine.length) };
-    const copyId = id + COPY_SUFFIX;
-    if (ctx.byId.has(copyId) || ctx.deleted(copyId, activity(raw))) return null;        // restored (or dismissed) before
-    return { kind: 'copy', id, have, copyId, history: theirs };
+    /* BOTH SIDES CHANGED IT DIFFERENTLY: the preserved one is kept beside it as a restored copy. A copy an earlier restore or
+       merge made is CONTINUED when this one continues it, and left alone when it already holds this one (a second restore of
+       the same save brings nothing twice); a session that diverged AGAIN gets the next copy (~restored2, ~restored3, …).
+       save-latch-kill: a refused save is now merged in-session, so a session two windows keep writing (General) diverges
+       again and again — a second divergence used to stay out of the station, only in the copy kept beside it (and pruned).
+       A copy the Commander deleted stays deleted: that slot is never refilled, and nothing past it is added. */
+    for (let n = 1; n <= COPY_MAX; n++) {
+      const copyId = id + COPY_SUFFIX + (n > 1 ? String(n) : '');
+      const copy = ctx.byId.get(copyId);
+      if (!copy) return ctx.deleted(copyId, activity(raw)) ? null : { kind: 'copy', id, have, copyId, history: theirs };
+      const ch = hist(copy);
+      if (startsWith(ch, theirs)) return null;                                          // that copy already holds it
+      if (startsWith(theirs, ch)) return { kind: 'extend', id: copyId, have: copy, more: theirs.slice(ch.length) };
+    }
+    return null;
   }
   function context(current, preserved, opts) {
     const stationList = list(current);

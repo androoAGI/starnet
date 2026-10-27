@@ -27921,7 +27921,10 @@ async function handleSaveAdopt(req, res) {
     if ((windowBase || added) && Buffer.byteLength(JSON.stringify(doc)) > (16 << 20) - (64 << 10)) return json(200, { ok: false, error: 'the merged station would be too large to save', tooLarge: true });
     // the station file is the base: the window's crew, floor and settings changes are not in the merge, so its whole save is
     // kept beside the station under a name of its own (restorable and downloadable, like a refused save's copy)
-    const kept = windowBase ? null : saveStore.preserve('agent', Object.assign({}, body, { _saveClient: ('kept-' + at + (writer ? '-' + writer : '')).slice(0, 80) }));
+    // a window merging its OWN live save in-session (writer = the asking page: cloudsave mergeInSession) keeps ONE copy, overwritten
+    // by its later rounds (each a newer whole save of that window), so a run of in-session merges never prunes away older copies
+    const keptName = (writer && by && writer === by) ? 'kept-' + writer : 'kept-' + at + (writer ? '-' + writer : '');
+    const kept = windowBase ? null : saveStore.preserve('agent', Object.assign({}, body, { _saveClient: keptName.slice(0, 80) }));
     if (!windowBase && !added) return json(200, { ok: true, revision: Number(station._saveRevision) || 0, updatedAt: Number(station.updatedAt) || 0, doc: station,
       base: 'station', added: 0, extended: 0, copied: 0, backup: null, ...(kept ? { kept } : {}) });
     const backup = saveStore.backup('agent', 'adopt-' + at);

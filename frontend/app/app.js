@@ -6021,7 +6021,11 @@ const App = (() => {
     const merge = (typeof CloudSave !== 'undefined' && CloudSave.mergeNotice) ? CloudSave.mergeNotice() : null;
     if (merge) {
       const n = merge.added + merge.extended + merge.copied, s = k => k === 1 ? '' : 's';
-      const line = merge.late
+      // inSession (save-latch-kill): another window saved first while this one was open; this window's refused save was merged
+      // in-session and the window reopened on the merge (cloudsave mergeInSession) — never a banner that will not clear
+      const line = merge.inSession
+        ? 'Another window saved station changes while this one was open, so this window’s changes were merged into the station file' + (n ? ' (' + n + ' session' + s(n) + ' from this window added)' : '') + ' and this window reopened on the merge.' + (merge.kept ? ' This window’s whole save from before is kept beside it as ' + merge.kept + '.' : '')
+        : merge.late
         ? 'Your unsent changes from last time were merged into the station file before this window opened. The station file from before is kept beside it.'
         : merge.base === 'window'
         ? 'Your newest changes from last time had not reached the station file; they are in it now' + (n ? ', with ' + n + ' session' + s(n) + ' only the station file held' : '') + '. The station file from before is kept as ' + (merge.backup || 'a backup beside it') + '.'

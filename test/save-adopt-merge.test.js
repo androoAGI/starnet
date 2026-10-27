@@ -199,15 +199,19 @@ async function lostAckThenDeath(opts) {
       await tick();
       // the stale tab (still on the first save) writes the shared cache last, with one session of its own; it is refused
       const staleDoc = Object.assign(clone(start), { workstreams: start.workstreams.concat([{ id: 'stale-tab', history: [turn('user', 's')] }]) });
-      persist(stale, shared, staleDoc); A.eq(await stale.flush({ force: true }), false, 'fixture: the stale tab is refused');
+      persist(stale, shared, staleDoc); A.eq(await stale.flush({ force: true }), false, 'fixture: the stale tab’s save does not land as it is');
+      // since save-latch-kill the refusal is merged IN-SESSION, with the station file as the base, and the stale tab re-enters
+      const sm = stale.mergeNotice();
+      A.eq(sm && [sm.base, sm.inSession], ['station', true], 'f: the stale tab’s refused save was merged in-session, the station file the base');
+      A.eq(stale._reloads.length, 1, 'f: and the stale tab re-entered (reloaded onto the merge), never sending its own view on top');
       const host = sidecar(root);
       const Z = page(host, shared);                                  // the stale tab is reloaded
       const resumed = await Z.reconcile(JSON.parse(shared.get('starnet.save')));
       A.eq(resumed.agent.name, 'RENAMED', 'f: the live tab\'s rename stands');
       A.ok(!titles(resumed).includes('OLD'), 'f: the live tab\'s delete stands');
       A.ok(titles(resumed).includes('stale-tab'), 'f: the stale tab\'s own session is brought in');
-      A.eq(Z.mergeNotice() && Z.mergeNotice().base, 'station', 'f: the station file was the base');
       A.eq(host.saveStore.load('agent').agent.name, 'RENAMED', 'f: and the station file still says so');
+      A.ok(titles(host.saveStore.load('agent')).includes('stale-tab') && !titles(host.saveStore.load('agent')).includes('OLD'), 'f: the station file holds the stale tab’s session and keeps the live tab’s delete');
     }
 
     // ================= g. the dead window's id rides ONE resend, never this page's later saves (review #3) =================

@@ -64,6 +64,27 @@ assert.deepEqual([again.added, again.extended, again.copied], [[], [], []], 'a s
 assert.equal(restorable(r.doc, windowSave), 0, 'so a notice never offers it again');
 assert.equal(restorable(station, { workstreams: 'not a list' }), 0);
 
+// save-latch-kill: a refused save is now merged IN-SESSION, so a session two windows keep writing diverges again and again. A
+// copy an earlier merge made is continued; a new divergence gets the next copy; the same save twice still brings nothing twice;
+// a copy the Commander deleted is never refilled. (A second divergence used to stay out of the station entirely.)
+{
+  const st = { generalId: 'g', deletedIds: [], workstreams: [
+    ws('g', [turn('user', 'hi'), turn('assistant', 'station 1')], { title: null }),
+    ws('g~restored', [turn('user', 'hi'), turn('assistant', 'window 1')], { title: 'General (restored copy)' })] };
+  const cont = { generalId: 'g', workstreams: [ws('g', [turn('user', 'hi'), turn('assistant', 'window 1'), turn('user', 'window 1 more')], { title: null })] };
+  const p1 = plan(st, cont);
+  assert.deepEqual([p1.added, p1.extended, p1.copied], [[], ['g~restored'], []], 'latch-kill: a window that continued its earlier copy extends that copy');
+  assert.deepEqual(p1.doc.workstreams.find(w => w.id === 'g~restored').history.map(t => t.content), ['hi', 'window 1', 'window 1 more']);
+  assert.deepEqual(p1.doc.workstreams.find(w => w.id === 'g').history.map(t => t.content), ['hi', 'station 1'], 'latch-kill: the station\'s own session is untouched');
+  const third = { generalId: 'g', workstreams: [ws('g', [turn('user', 'hi'), turn('assistant', 'window 2')], { title: null })] };
+  const p2 = plan(st, third);
+  assert.deepEqual(p2.copied, ['g~restored2'], 'latch-kill: a session that diverged again gets the next copy');
+  assert.equal(restorable(st, third), 1, 'latch-kill: and the offer counts it');
+  assert.deepEqual([plan(p2.doc, third).copied, plan(p2.doc, third).extended], [[], []], 'latch-kill: the same save twice brings nothing twice');
+  const dismissed = { generalId: 'g', deletedIds: ['g~restored'], workstreams: [st.workstreams[0]] };
+  assert.deepEqual([plan(dismissed, third).copied, restorable(dismissed, third)], [[], 0], 'latch-kill: a restored copy the Commander deleted is never refilled');
+}
+
 // review 10-23 #3b (proof3): a CLEARED station session is not "behind", and extending a session appends only the missing
 // turns while every station-side field stays the station's ("nothing in the station is removed" holds for metadata too)
 {
