@@ -363,7 +363,8 @@ function makeRemoteVoice(deps) {
   async function synthOne(text, provider) {
     let r;
     try { r = await synthesize(text, provider ? { provider } : undefined); } catch (e) { r = { ok: false, reason: (e && e.message) || String(e) }; }
-    if (!r || !r.ok || !Buffer.isBuffer(r.buf) || !r.buf.length) return { ok: false, reason: String((r && r.reason) || 'no audio') };
+    // the typed SpeechOutcome rides along (sidecar/speech-outcome.js): the device is told WHICH failure, not only its text
+    if (!r || !r.ok || !Buffer.isBuffer(r.buf) || !r.buf.length) return { ok: false, reason: String((r && r.reason) || 'no audio'), outcome: (r && r.outcome) || null };
     return r;
   }
 
@@ -408,7 +409,11 @@ function makeRemoteVoice(deps) {
       return { ok: false, error: 'that reply was replaced, forgotten, or expired' };
     }
     pendingReplies.delete(deviceId);
-    if (!first.ok) return { ok: false, error: 'the station could not speak that (' + first.reason.slice(0, 160) + ')' };
+    if (!first.ok) {
+      const out = { ok: false, error: 'the station could not speak that (' + first.reason.slice(0, 160) + ')' };
+      if (first.outcome) { out.code = first.outcome.code; out.terminal = !!first.outcome.terminal; out.outcome = first.outcome; }
+      return out;
+    }
     const firstMime = String(first.mime || '');
     const rec = { id: String(newId()).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), mime: /wav/.test(firstMime) ? ADPCM_MIME : firstMime,
       provider: String(first.provider || ''), parts: [], buf: Buffer.alloc(0), rate: 0, gain: 1, enc: null, complete: false, error: '', at: now() };
@@ -424,7 +429,7 @@ function makeRemoteVoice(deps) {
           if (replies.get(deviceId) === rec) replies.delete(deviceId);
           return;
         }
-        if (!r.ok) { rec.error = r.reason.slice(0, 160); break; }
+        if (!r.ok) { rec.error = r.reason.slice(0, 160); rec.code = r.outcome ? r.outcome.code : ''; break; }
         const e = append(rec, r);
         if (e) { rec.error = e; break; }
       }
@@ -447,7 +452,7 @@ function makeRemoteVoice(deps) {
     const done = r.complete && offset + chunk.length >= r.buf.length;
     // kept after the last chunk: a frame lost on the relay can be asked for again until the TTL or the next reply
     r.at = now();
-    return { ok: true, data: { id: r.id, offset, bytes: r.buf.length, data: chunk.toString('base64url'), done, pending: !done && !chunk.length, error: r.error || undefined } };
+    return { ok: true, data: { id: r.id, offset, bytes: r.buf.length, data: chunk.toString('base64url'), done, pending: !done && !chunk.length, error: r.error || undefined, code: r.code || undefined } };
   }
 
   function forget(deviceId) { utterances.delete(deviceId); replies.delete(deviceId); pendingReplies.delete(deviceId); heard.delete(deviceId); }

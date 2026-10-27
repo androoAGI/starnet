@@ -158,9 +158,12 @@ function makeSpeechStatus(o) {
     // result = a success(engine) or an outcome(legs); source = 'tts' | 'agent' | 'remote' | 'stt' | 'self-probe'
     record(result, source) {
       if (!result) return;
+      // a malformed request says nothing about an engine, and a caller that went away is not the engine's failure
+      const legs = (result.legs || []).filter(l => l && l.engine !== 'request' && l.code !== 'cancelled');
+      if (!legs.length) return;
       const at = now();
       const src = String(source || 'tts');
-      for (const l of result.legs || []) note(l.engine, { at, ok: l.code === 'ok', code: l.code, http: l.http || 0, detail: l.detail || '', source: src });
+      for (const l of legs) note(l.engine, { at, ok: l.code === 'ok', code: l.code, http: l.http || 0, detail: l.detail || '', source: src });
       last = { at, ok: !!result.ok, terminal: !!result.terminal, code: result.code, engine: result.engine || '', source: src };
     },
     snapshot() {

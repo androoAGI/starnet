@@ -106,7 +106,11 @@ async function invokeTts(overrides, body) {
 
   // No credentials and no local engine is an honest terminal capability result.
   const keyless = await make();
-  assert.deepEqual(await keyless.transcribeAudioBuffer(Buffer.from('audio'), 'webm'), { ok: false, reason: 'no key' });
+  const keylessStt = await keyless.transcribeAudioBuffer(Buffer.from('audio'), 'webm');
+  assert.equal(keylessStt.ok, false);
+  assert.equal(keylessStt.reason, 'no key', 'the legacy reason is unchanged for one release');
+  assert.equal(keylessStt.outcome.code, 'no_key', 'and the typed outcome names the missing credential');
+  assert.equal(keylessStt.outcome.terminal, true, 'which no retry can fix');
   assert.deepEqual(keyless.sttStatus(), {
     available: false, preferred: 'none', cloud: false, local: false, native: false
   });

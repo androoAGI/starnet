@@ -110,7 +110,10 @@ class SidecarFixture {
     // POSIX resolves ~ from $HOME (os.homedir() honors it); Windows uses USERPROFILE, which we
     // deliberately leave alone — node/npm subprocesses still need a sane Windows profile.
     if (process.platform !== 'win32') hermeticProfile.HOME = this.profile;
-    const env = Object.assign({}, process.env, hermeticProfile, this.env, extraEnv || {}, {
+    // A test-booted sidecar never makes the boot-time check of Microsoft's Edge voice (media-service.js
+    // startFloorProbe): no live traffic from a gate. A test that wants the probe sets it back on in its env.
+    const quiet = { SKYNET_EDGE_TTS_PROBE: '0' };
+    const env = Object.assign({}, process.env, hermeticProfile, quiet, this.env, extraEnv || {}, {
       SKYNET_PORT: String(this.port),
       STARNET_PORT: String(this.port),
       SKYNET_WORKSPACES: this.workspace,
