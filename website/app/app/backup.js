@@ -32,6 +32,8 @@ const Backup = (() => {
      key while another window writes it) is never bundled as this one's station, and an import lands in this window's own
      journal, never over another live window's. */
   const JOURNAL_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?$/;
+  // a journal's merge description (cloudsave.js writeSide): this window's own unsent-save bookkeeping, never a backup's
+  const JOURNAL_SIDE_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?\.merge$/;
   function saveKeyNow() { try { if (typeof Save !== 'undefined' && Save && typeof Save.key === 'function') return Save.key(); } catch (_) {} return SAVE_KEY; }
   const SECRET_POLICY = 'credentials-excluded';
   // BYOK is default-deny: only these known, nonsecret selections are portable. This keeps a future credential
@@ -71,7 +73,7 @@ const Backup = (() => {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.indexOf(PREFIX) === 0 && !JOURNAL_RE.test(k) && !isCredentialKey(k)) out[k] = localStorage.getItem(k);
+        if (k && k.indexOf(PREFIX) === 0 && !JOURNAL_RE.test(k) && !JOURNAL_SIDE_RE.test(k) && !isCredentialKey(k)) out[k] = localStorage.getItem(k);
       }
     } catch (_) {}
     const mem = saveRaw === undefined ? memorySaveRaw() : saveRaw;
@@ -211,6 +213,7 @@ const Backup = (() => {
         if (isCredentialKey(k)) continue;                                        // portable files never grant credential authority
         const to = toCurrentKey(k);
         if (to !== SAVE_KEY && JOURNAL_RE.test(to)) continue;                       // another window's journal: never written over
+        if (JOURNAL_SIDE_RE.test(to)) continue;                                     // a journal's merge description: never imported
         localStorage.setItem(to === SAVE_KEY ? saveKeyNow() : to, store[k]); n++;   // map skynet.* -> starnet.*; the station into THIS window's journal
       }
     } catch (e) { return { ok: false, error: (e && e.message) || 'write failed' }; }

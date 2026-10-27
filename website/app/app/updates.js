@@ -308,12 +308,19 @@ const Updates = (() => {
     try { if (typeof StationUI !== 'undefined' && StationUI && typeof StationUI.refreshSave === 'function') StationUI.refreshSave(); } catch (_) {}
   }
 
+  // the station-save journals (cloudsave.js): 'starnet.save' and one 'starnet.save.w.<window>' per extra live tab. Only THIS
+  // window's journal rides the update bundle — every journal is a whole station save, and the prepare route reads at most
+  // 16 MiB (review 10-27: two journals of a big station would refuse the update). The others stay where they are.
+  const SAVE_JOURNAL_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?(?:\.merge)?$/;   // (.merge: a journal's merge description, cloudsave writeSide)
   function browserStoreSnapshot() {
     const out = {};
+    let own = 'starnet.save';
+    try { if (typeof CloudSave !== 'undefined' && CloudSave && typeof CloudSave.journalKey === 'function') own = String(CloudSave.journalKey() || own); } catch (_) {}
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (!/^(?:starnet|skynet)\./i.test(String(key || ''))) continue;
+        if (SAVE_JOURNAL_RE.test(String(key)) && key !== own && key !== own + '.merge') continue;
         const value = localStorage.getItem(key);
         if (value != null) out[key] = String(value);
       }
