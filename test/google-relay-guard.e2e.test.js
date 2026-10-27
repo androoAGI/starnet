@@ -53,8 +53,8 @@ let nextTool = GMAIL_READ;                                       // which tool t
     OPENROUTER_API_KEY: '', OPENROUTER_KEY: '', SKYNET_AUX_BUDGET: '0', SKYNET_FULL_ACCESS: '1',
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
     STARNET_TEST_FAKE_IMAP_PORT: String(fakeImap.port),
-    NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-signin-preload.cjs').replace(/\\/g, '/') +
-      ' --require=' + path.join(__dirname, 'fixtures/gmail-imap-preload.cjs').replace(/\\/g, '/')
+    NODE_OPTIONS: '--require=' + JSON.stringify(path.join(__dirname, 'fixtures/google-signin-preload.cjs').replace(/\\/g, '/')) +
+      ' --require=' + JSON.stringify(path.join(__dirname, 'fixtures/gmail-imap-preload.cjs').replace(/\\/g, '/'))
   } });
   const secrets = path.join(fixture.workspace, '.secrets/credits.json');
   fs.mkdirSync(path.dirname(secrets), { recursive: true });

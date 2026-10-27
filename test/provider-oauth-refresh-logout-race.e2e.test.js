@@ -39,7 +39,7 @@ const signedOut = raw => raw === undefined || raw === null || (typeof raw === 'o
   const preload = path.join(__dirname, 'fixtures', 'provider-oauth-refresh-logout-preload.cjs').replace(/\\/g, '/');
   const fixture = SidecarFixture.create({
     prefix: 'starnet-provider-refresh-logout-', timeoutMs: 30000,
-    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + preload }
+    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + JSON.stringify(preload) }
   });
   const ws = fixture.workspace;
   seed(ws);

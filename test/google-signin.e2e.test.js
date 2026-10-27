@@ -13,7 +13,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
     STARNET_DEFAULT_MODEL: 'replay', STARNET_OPENROUTER_KEY: '',
     STARNET_CONNECTOR_ENCRYPTION_KEY: keyHex,
-    NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-signin-preload.cjs').replace(/\\/g, '/')
+    NODE_OPTIONS: '--require=' + JSON.stringify(path.join(__dirname, 'fixtures/google-signin-preload.cjs').replace(/\\/g, '/'))
   } });
   const file = name => path.join(fixture.workspace, name);
   const statePath = file('connectors/state.json');
