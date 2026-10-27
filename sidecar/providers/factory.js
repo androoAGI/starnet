@@ -33,6 +33,11 @@
      once at boot rather than threaded through selectProvider's ~10 call sites, all of which pass the same
      globalThis.fetch. Absent = every adapter behaves byte-identically to before. */
   let rateLimits = null;
+  /* SUBSCRIPTION USAGE (sub-usage.js): what a subscription says of its own windows, per sign-in. Attached once at boot
+     like the quota tracker; opts.usageAccount names the sign-in an adapter runs on ('' = the provider's own). ChatGPT
+     says it in its response headers (the fetch is read, never changed); Claude Code in a line of its run's stream. */
+  let subUsage = null;
+  function attachSubUsage(tracker) { subUsage = (tracker && typeof tracker.wrapFetch === 'function') ? tracker : null; return subUsage; }
   function attachRateLimits(tracker) {
     rateLimits = (tracker && typeof tracker.wrapFetch === 'function') ? tracker : null;
     return rateLimits;
@@ -122,6 +127,7 @@
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));
     if (rateLimits && typeof opts.fetch === 'function') opts = Object.assign({}, opts, { fetch: rateLimits.wrapFetch(id, opts.fetch) });
+    if (subUsage && profile.adapter === 'codex' && typeof opts.fetch === 'function') opts = Object.assign({}, opts, { fetch: subUsage.wrapFetch(id, opts.usageAccount || '', opts.fetch) });
 
     if (profile.adapter === 'codex') {
       return codex.makeCodexProvider(Object.assign({
@@ -237,7 +243,8 @@
     if (profile.adapter === 'claude-cli') {
       // A local child process, not HTTP: no fetch/key/baseUrl — the CLI's own sign-in is the credential.
       // configDir = an extra connected account (subscription stacking); absent = the CLI's default sign-in.
-      return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined });
+      return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined,
+        onRateLimit: subUsage ? info => subUsage.observeClaude(opts.usageAccount || '', info) : undefined });
     }
     throw new Error('provider adapter is not wired: ' + profile.adapter);
   }
@@ -254,6 +261,7 @@
     providerRequiresKey: registry.providerRequiresKey,
     providerRequiresBaseUrl: registry.providerRequiresBaseUrl,
     attachRateLimits: attachRateLimits,
+    attachSubUsage: attachSubUsage,
     attachCatalogCache: attachCatalogCache
   };
 });

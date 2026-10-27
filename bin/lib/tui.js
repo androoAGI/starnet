@@ -117,7 +117,7 @@ const HELP = [
   ['/retry', 'send your last message again'],
   ['/status', 'the agent, its model, its folder, the station'],
   ['/skills', 'its skills · run one: /<skill> <task>'],
-  ['/usage  /tools', 'spend · what it can call'],
+  ['/usage  /tools', 'what is left on each provider · what it can call'],
   ['/routine', 'scheduled routines: list, create, pause'],
   ['/cron  on · off', 'the routines scheduler: its state, arm it'],
   ['/away', 'work it builds on its own away shift'],

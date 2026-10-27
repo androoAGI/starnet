@@ -28,7 +28,8 @@
    thrown as a 429 `usage_limit_reached`, which errorClass files as quota_exhausted: the loop rotates to the next
    account instead of retrying this one.
 
-   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs? })
+   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit? })
+     onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
      -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts } */
 'use strict';
 (function (root, factory) {
@@ -758,6 +759,8 @@
     // Injected wall clock (determinism law). Without one, a proven sign-in is kept for this instance's life
     // and a failed probe is never cached — the factory builds a fresh adapter per request anyway.
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;
+    // the CLI's own word on this sign-in's usage windows (a rate_limit_event line, every run): handed to the host as is
+    const rateLimitSeen = info => { if (typeof opts.onRateLimit === 'function' && info) { try { opts.onRateLimit(info); } catch (_) { /* a reader never breaks a run */ } } };
     let status = null, statusAt = 0, statusPromise = null;
     let seq = 0;
     // tool-call ids are unique per ADAPTER, not just per turn: the factory builds a fresh adapter per request (and per
@@ -858,6 +861,7 @@
         } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') t.streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
         else if (j.type === 'stream_event' && j.event && j.event.type === 'message_delta' && j.event.usage) t.streamUsage = Object.assign(t.streamUsage || {}, j.event.usage);
         else if (j.type === 'assistant' && j.error) t.apiError = String(j.error);
+        else if (j.type === 'rate_limit_event') rateLimitSeen(j.rate_limit_info);
         else if (j.type === 'result') t.result = j;
         return out;
       };
@@ -1359,6 +1363,7 @@
               } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_delta' && j.event.usage) T.streamUsage = Object.assign(T.streamUsage || {}, j.event.usage);
               else if (j.type === 'system' && j.subtype === 'compact_boundary') T.compacted = true;
               else if (j.type === 'assistant' && j.error) T.apiError = String(j.error);
+              else if (j.type === 'rate_limit_event') rateLimitSeen(j.rate_limit_info);
               else if (j.type === 'result') { ended = j; break; }
             }
           } finally { clearTimeout(grace); }

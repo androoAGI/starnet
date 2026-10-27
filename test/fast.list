@@ -149,6 +149,7 @@ test/provider.timeouts.test.js
 test/provider.registry.test.js
 test/managed-cache.test.js
 test/ratelimits.test.js
+test/sub-usage.test.js
 test/provider.codex-auth.test.js
 test/purge-leaked-codex-tokens.test.js
 test/provider.oauth-device.test.js
@@ -1223,6 +1224,7 @@ test/cli-dashboard-drive.test.js
 test/cli-theme.test.js
 test/cli-connect.test.js
 test/cli-floor.test.js
+test/cli-usage.test.js
 test/cli-version.test.js
 test/cli-launcher.test.js
 test/cli-link.test.js
