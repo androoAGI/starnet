@@ -11,7 +11,7 @@
    (sliced out of index.js into a vm), the run seam's mapping (source lock: runOnceCore is not sliceable), the model
    dock (modeldock.js required against stub globals) and Harness.listModels (sliced out of harness.js). */
 'use strict';
-const { readSidecarSource, locateSidecarFunction, sidecarSourceFiles } = require('./helpers/source');
+const { readSidecarSource, locateSidecarFunction, sidecarSourceFiles, sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -180,7 +180,8 @@ module.exports = (async () => {
     const region = ['function stationDefaultFor(id, ident) {', 'function channelRunConfigFor(agentId, candidate) {',
       'async function probeChannelRunConfig(config, timeoutMs) {', 'function devHubSecrets() {', 'function sampleRunConfigFor(agentId) {',
       'function providerForRunConfig(c, reasoningEffort) {', 'async function stationOneShot(prompt, tag, failLead) {']
-      .map(m => sliceTop(index, m, m.replace(/\(.*$/, ''))).join('\n');
+      .map(m => sliceTop(index, m, m.replace(/\(.*$/, ''))).join('\n')
+      + '\n' + sidecarFunctionSource('ENV');   // devHubSecrets reads its default model through the real ENV() (STARNET_ first)
     const sb = Object.assign({}, helpers, {
       agentRoster: roster, process: { env }, AbortController, setTimeout, clearTimeout, crypto: require('crypto'),
       normalizeProvider: p => String(p || 'openrouter').toLowerCase(),

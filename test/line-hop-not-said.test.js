@@ -29,7 +29,12 @@ const { makeClock } = require('../shared/clock-rng.js');
 
   /* ---------- 2. the run-end gate and the stash (sidecar/index.js, source-locked: runOnceCore is not unit-loadable) ---------- */
   const src = readSidecarSource();
-  A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(latestUserText\(msgs\)\)\);/.test(src), 'the gate reads the run\'s own latest user turn for the hand-off frame');
+  // quick win 17: the gate reads the run's directive as captured BEFORE the loop (the loop appends its own user-role turns,
+  // e.g. a screen capture, which made the post-loop latest user text the wrong turn to judge)
+  const lh = sidecarTopLevelFunction('runOnceCore');
+  A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(runDirective\)\);/.test(lh)
+    && lh.indexOf('const runDirective = latestUserText(') >= 0 && lh.indexOf('const runDirective = latestUserText(') < lh.indexOf('const _lineHop ='),
+    'the gate reads the run\'s own directive, captured before the loop, for the hand-off frame');
   A.ok(/const _gateStudy = !!\(Study && o\.reflect && memoryConfig\.studyEnabled && isTask && _auxDone && !_lineHop && /.test(src), 'STUDY never runs on a line hand-off');
   A.ok(/const _gateThreadmine = !!\([^\n]*_auxDone && !_lineHop && threadmine\.mineSalient/.test(src), 'THREAD-MINE never runs on a line hand-off');
   A.ok(/const _gateReflect = !!\(o\.reflect && memoryConfig\.reflectEnabled && isTask && _auxDone && !_lineHop && reflectSalient/.test(src), 'REFLECTION never saves "the user prefers …" from a line hand-off');
