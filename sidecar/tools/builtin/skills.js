@@ -274,7 +274,16 @@
         markRead(v);
         if (!pending && typeof onView === 'function') { try { onView(v, ctx); } catch (_) {} }
         const files = v.files && v.files.length
-          ? '\n\nSupport files:\n' + v.files.map(f => '- ' + f.path + (f.content ? '\n' + f.content : '')).join('\n')
+          ? '\n\nSupport files:\n' + v.files.map(f => {
+            let content = f.content, label = '';
+            if (f.encoding === 'base64') {
+              const bytes = Buffer.from(content || '', 'base64');
+              const text = bytes.toString('utf8');
+              if (Buffer.from(text, 'utf8').equals(bytes)) content = text;
+              else label = ' [base64]';
+            }
+            return '- ' + f.path + label + (content ? '\n' + content : '');
+          }).join('\n')
           : '';
         const setup = v.setup ? '\n\nSetup:\n' + v.setup : '';
         return { content: (pending ? '[Pending review draft — not active or approved]\n' : '') + '# ' + v.name + (v.summary ? '\n' + v.summary : '') + setup + '\n\n' + v.body + files, summary: 'loaded ' + v.name };

@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**40** open (open+claimed) of 379 total — 0 P0 · 0 P1 · 40 P2
+**40** open (open+claimed) of 380 total — 0 P0 · 0 P1 · 40 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **115** · source fixed: **98** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **109**.
+User/owner reports: **116** · source fixed: **99** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **110**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -62,6 +62,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | message-attachments | fixed | unverified | unconfirmed |
 | [Approved skill is withheld from autonomous workers](bugs/f702f2f6-approved-skill-is-withheld-from-autonomous-worke.md) | skill-approval-worker | fixed | unverified | persists |
 | [Campaign cards missing from browser element discovery](bugs/305a9e3d-campaign-cards-missing-from-browser-element-disc.md) | browser-card-discovery | fixed | unverified | unconfirmed |
+| [Imported skill support files are delivered and persisted as base64 text](bugs/29c1cf0c-imported-skill-support-files-are-delivered-and-p.md) | skill-package-encoding | fixed | unverified | unconfirmed |
 | [Live spoken replies stall after the output audio context closes](bugs/3364dfb0-live-spoken-replies-stall-after-the-output-audio.md) | speech-device-recovery | fixed | unverified | unconfirmed |
 | [Mac desktop microphone blocked while browser mirror works](bugs/8a553481-mac-desktop-microphone-blocked-while-browser-mir.md) | desktop-microphone | fixed | unverified | unconfirmed |
 | [Spoken replies fragment at punctuation and omit failed audio chunks](bugs/e1051446-spoken-replies-fragment-at-punctuation-and-omit.md) | voice-continuity | fixed | unverified | unconfirmed |
@@ -283,6 +284,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | skills | [Base64-stored support files are scanned as their encoding, so a body edit releases a withheld installed package](bugs/297e2db4-base64-stored-support-files-are-scanned-as-their.md) | sweep/skills | bd449b81b |
 | P1 | fixed | skills | [Campaign cards missing from browser element discovery](bugs/305a9e3d-campaign-cards-missing-from-browser-element-disc.md) | agent/browser-campaign-navigation-0912 | dcbc2b941 |
 | P1 | fixed | skills | [gate.verify()'s tamper branch re-enters decide(), which clears the tamper against the STALE stored contentDigest — one approval permanently blesses whatever is](bugs/76d5dc8a-gate-verify.md) | sweep/skills | 598ab4a4 |
+| P1 | fixed | skills | [Imported skill support files are delivered and persisted as base64 text](bugs/29c1cf0c-imported-skill-support-files-are-delivered-and-p.md) | contribution/skills | eac484af |
 | P1 | fixed | skills | [Installed package description and category are never scanned yet ride every run's skill index](bugs/23996f04-installed-package-description-and-category-are-n.md) | sweep/skills | bd449b81b |
 | P1 | fixed | skills | [Skill hydrate reads files through a support folder that is itself a junction, and through hardlinked files](bugs/c723d5f4-skill-hydrate-reads-files-through-a-support-fold.md) | sweep/skills | bd449b81b |
 | P1 | fixed | voice | [A stale sidecar token lets Local Live open a silent microphone session after restart](bugs/ff73b79a-a-stale-sidecar-token-lets-local-live-open-a-sil.md) | agent/voice-release-sweep | 8bc9ff9a |
