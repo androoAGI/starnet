@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "836bdc8e44bc38e0b23ae360768ca8eddd61d0da",
+    "sourceCommit": "798c242c652b4d6c4ba1d6268f11724d4b1ca7d1",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 896735,
-        "sha256": "254fe4e3ebab504eca2c7a622b3553f58adccf104acef40c6ba48165074b97c6"
+        "bytes": 905985,
+        "sha256": "40369c644e895f7ff1c11d6c0cf8d8bc6754148d3de3cf76a6a31f31a9f29c93"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -573,8 +573,8 @@
       },
       {
         "path": "frontend/app/group-chat.js",
-        "bytes": 121317,
-        "sha256": "5fc2c83f87959a477dab7af440c97dac4625d3aaf7116a5454877dff5d864458"
+        "bytes": 121951,
+        "sha256": "485658706a5c90cf501222c140ef12bf66a2834b56461c2d1e6d9d644d092c0f"
       },
       {
         "path": "frontend/app/harness.js",
@@ -1578,8 +1578,8 @@
       },
       {
         "path": "frontend/css/comms-convo.css",
-        "bytes": 24646,
-        "sha256": "ef478aa10df724140ae437cd3c79e111cb94126eddd0bc3923f0f1e3d390f2c2"
+        "bytes": 28036,
+        "sha256": "66f6c3e9093b20375d14d3e393f1805fe03e938b59680fb4fad26aae8eaae4f6"
       },
       {
         "path": "frontend/css/comms-layout.css",
@@ -1588,8 +1588,8 @@
       },
       {
         "path": "frontend/css/comms.css",
-        "bytes": 57140,
-        "sha256": "e2133d0076ca11861bce4d920e442898ef7c5ae4630f8538ea2a0def28540399"
+        "bytes": 59088,
+        "sha256": "8231e526e190ae760f6b2ba902400a3047fe59c61e4c8ec57354e92faec580c8"
       },
       {
         "path": "frontend/css/crew-glass.css",
@@ -1668,8 +1668,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 198614,
-        "sha256": "a26c09761766f99acfd3b69020e0312eaf199fbce8bd06f8d71678c64e7c557f"
+        "bytes": 200018,
+        "sha256": "1be21dcab8792461578861c88413d992ac605255a99384b11c19b7003ae0c7af"
       },
       {
         "path": "frontend/css/plugins.css",
