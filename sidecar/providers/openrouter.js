@@ -573,6 +573,8 @@
            'insufficient_quota' is an empty wallet, not a busy moment). The message stays this adapter's own sentence
            (label + status — what the UI routes on; err.ownMessage tells errorClass so). */
         if (errBody && typeof errBody === 'object') { err.body = errBody; err.ownMessage = true; }
+        // an upstream chat template refused the shape (errorClass template_refusal): its sentence names where it was sent
+        if (errorClass.isTemplateRefusal(detail)) provider.runtime.stampRequestHost(err, baseUrl);
         const cls = classifyApiError(err, { model: body.model });   // single source of truth for retryability
         err.transient = cls.retryable;                              // keep the field other code reads, now classifier-derived
         if (cls.retryable && attempt < retries) { const wait = Math.min(60000, Math.max(RETRY_DELAYS[attempt], cls.retryAfterMs || 0)); waited += wait; await delay(wait, signal); continue; }   // honor the server-stated wait, capped at 60s

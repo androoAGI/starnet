@@ -9,8 +9,8 @@
 
    Reasons: auth · billing · rate_limit · quota_exhausted · overloaded · server_error · timeout ·
             context_overflow · output_cap · model_not_found · content_policy_blocked · format_error ·
-            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · unreachable ·
-            unknown.
+            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · template_refusal ·
+            unreachable · unknown.
 
    Priority pipeline: content/policy -> HTTP status (code+message consulted inside the ambiguous 400 branch)
    -> structured error-code (for errors with no HTTP status) -> message patterns -> transport -> a
@@ -75,6 +75,13 @@
        repeats it, and the adapter's own sentence (which server, which card speaks to it) is the fix. No fallback
        either: a failover would finish every run on another model and the misconfiguration would never be shown. */
     endpoint_mismatch:      { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
+    /* The model's CHAT TEMPLATE refused the conversation's shape (#102: Ollama /v1 answered HTTP 500 "Jinja Exception:
+       System message must be at the beginning"; Gemma's "System role not supported"; "Conversation roles must
+       alternate"). It is not the server having a bad moment: the same body is refused identically, so the 500 was
+       resent as server_error for nothing and the Commander read "try again". The adapter resends ONCE in the strictest
+       shape (provider.projectRoles 'chat-nosystem') and remembers it for that endpoint + model; this class is what is
+       left after that. Another model has another template, so a configured fallback is still worth taking. */
+    template_refusal:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
     /* NOTHING ANSWERED at the provider's address (bug 8873fd77, GH#111): the connection was refused (ECONNREFUSED — the
        server is not running, e.g. Ollama or LM Studio not started) or the name did not resolve (ENOTFOUND / EAI_AGAIN).
        These used to ride `timeout` through the whole ~106 s ladder, the retry line said "(timeout)" and the end read a
@@ -350,6 +357,32 @@
     return (Number(ctx.approxTokens) || 0) > 0.4 * limit || (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit;
   }
 
+  /* A CHAT-TEMPLATE REFUSAL (REASONS.template_refusal). The wordings a local runtime's template engine or a role-order
+     validator puts in front of the request it refused: Qwen-family Jinja templates ("System message must be at the
+     beginning", raise_exception), Llama-2 / Mistral / Gemma ("Conversation roles must alternate user/assistant/…",
+     "After the optional system message, conversation roles must alternate"), Gemma ("System role not supported"),
+     LM Studio ("Error rendering prompt with jinja template"), llama.cpp / vLLM ("Jinja Exception", "chat template"),
+     hosted validators ("Unexpected role 'system' after role 'tool'", "Expected last role User or Tool"). */
+  const TEMPLATE_REFUSAL_RE = /system message must be at the beginning|roles must alternate|system role (?:is )?not supported|jinja (?:exception|template|error)|raise_exception|(?:render|rendering|apply|applying) (?:the )?(?:prompt with (?:the )?)?(?:jinja |chat )template|chat template|unexpected role '?(?:system|user|assistant|tool)'? after role|expected last role/;
+  function isTemplateRefusal(text) { return TEMPLATE_REFUSAL_RE.test(String(text || '').toLowerCase()); }
+  /* NAME THE TEMPLATE (#102) — and name it FIRST. The customer's diagnostics clamp each error to 300 characters
+     (diagnostics.js MSG_MAX) and Ollama's Jinja exception arrives as a ~350-character JSON blob ("While executing
+     CallExpression at line 106 …"), so a note appended after it never reached the report the Commander pastes. The
+     sentence keeps the adapter's "<label> http <status>" lead (what the page routes on), then says whose template, on
+     which host, refused what, with the template's own words; the full provider text rides last, in brackets. */
+  const TEMPLATE_SAID_RE = /(system message must be at the beginning|(?:after the optional system message, )?conversation roles must alternate[^"'\\\n.]{0,60}|roles must alternate[^"'\\\n.]{0,60}|system role (?:is )?not supported|unexpected role '?[a-z]+'? after role '?[a-z]+'?|expected last role[^"'\\\n.]{0,60})/i;
+  function templateRefusalText(text, low, err, ctx) {
+    const original = String(text == null ? '' : text);
+    const lead = (/^(.{1,80}?\bhttp \d{3})\b\s*[-—:]?\s*/i.exec(original) || [])[1] || '';
+    const said = (TEMPLATE_SAID_RE.exec(original) || [])[1] || '';
+    const model = String((ctx && ctx.model) || '').trim();
+    const host = refusalHost(err);
+    return (lead ? lead + ' — ' : '') + 'the chat template of ' + (model ? 'the model ' + model : 'this model') + (host ? ' on ' + host : '')
+      + ' refused the conversation StarNet sent' + (said ? ' ("' + said.trim() + '")' : '')
+      + ' — StarNet sends one system message first, then user and assistant turns in turn, ending on a user turn'
+      + (err && err.templateRetried ? ', and the same conversation with no system message at all was refused too' : '')
+      + '. That template is stricter than the model\'s own chat format: update the model on that server (a newer build usually fixes its template), or pick another model in the COMMS model dock. [' + original + ']';
+  }
   // the host a refusal came from: the hostname the adapter stamped (provider.js stampRequestHost — never a URL)
   function refusalHost(err) { return (err && typeof err.requestHost === 'string' && err.requestHost) || ''; }
   // REASONS.unreachable — what nothing answering at that address means, in words the Commander can act on. The host and
@@ -407,6 +440,10 @@
     // 1b. OUTPUT cap — BEFORE the overflow patterns, whose `maximum.*tokens` matches this refusal's wording and
     //     used to fold history for nothing, retry the identical max_tokens, and kill the run.
     if ((!status || status === 400 || status === 422) && parseOutputCap(low) > 0) return 'output_cap';
+    // 1c. the model's chat template refused the conversation's shape — whatever status carried it: Ollama's /v1 sends
+    //     its Jinja exception as a 500 (#102), LM Studio and validators as a 400/422. Never our credential (401/403)
+    //     and never a busy moment (429).
+    if (status !== 401 && status !== 403 && status !== 429 && TEMPLATE_REFUSAL_RE.test(low)) return 'template_refusal';
     // 2. HTTP status
     if (status) {
       // a 403 the UPSTREAM gave for this region (OpenAI behind OpenRouter: unsupported_country_region_territory) is the
@@ -500,6 +537,8 @@
     } else if (reason === 'model_not_found' && IMAGE_INPUT_REFUSED_RE.test(low)) {
       // the provider's words stay first (the UI routes on the adapter label + status); the fix rides after them
       text += IMAGE_INPUT_FIX;
+    } else if (reason === 'template_refusal') {
+      text = templateRefusalText(text, low, err, ctx);
     } else if (reason === 'unreachable') {
       text += ' — ' + unreachableNote(err);
     }
@@ -526,6 +565,6 @@
     };
   }
 
-  return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal,
+  return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal, isTemplateRefusal,
     _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote } };
 });

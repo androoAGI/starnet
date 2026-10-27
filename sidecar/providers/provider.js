@@ -696,6 +696,17 @@
     imageRefusals.add(String(endpoint || '') + '\u0000' + String(model));
   }
   function refusedImages(endpoint, model) { return !!model && imageRefusals.has(String(endpoint || '') + '\u0000' + String(model)); }
+  /* A CHAT TEMPLATE that refused the 'chat' shape (errorClass template_refusal) and then ACCEPTED the same request with no
+     system message at all (projectRoles 'chat-nosystem': Gemma-style templates have no system role) is sent that shape
+     from then on, for this process: the next request does not pay a refused round trip first. Keyed by endpoint + model,
+     bounded like imageRefusals. Remembered only on that proof (the resend went through), never on the refusal alone. */
+  const systemlessTemplates = new Set();
+  function noteSystemlessTemplate(endpoint, model) {
+    if (!model) return;
+    if (systemlessTemplates.size >= 500) systemlessTemplates.clear();
+    systemlessTemplates.add(String(endpoint || '') + '\u0000' + String(model));
+  }
+  function systemlessTemplate(endpoint, model) { return !!model && systemlessTemplates.has(String(endpoint || '') + '\u0000' + String(model)); }
 
   /* RUN CONTEXT NOTE (lean-prompt, 2026-10-12). The per-run block (task brief, runtime identity, quests, crew call, the
      run's own skill index) used to ride the END of the system prompt, so the system differed on every message and no
@@ -1077,5 +1088,6 @@
     RUN_CONTEXT_OPEN, RUN_CONTEXT_CLOSE, runContextNote, isRunContextNote, CREW_CALL_OPEN, CREW_CALL_CLOSE, crewCallFence, isCrewCallNote,
     HOST_NOTE_TAGS, isHostNote, isClaudeModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
     prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS, isBatchOnlyModel, chatModelId,
-    imageInputOf, withoutImageParts, imageOmittedNote, noteImageRefusal, refusedImages, IMAGE_SOURCE, tagImageSource, imageSourceOf };
+    imageInputOf, withoutImageParts, imageOmittedNote, noteImageRefusal, refusedImages, IMAGE_SOURCE, tagImageSource, imageSourceOf,
+    noteSystemlessTemplate, systemlessTemplate };
 });
