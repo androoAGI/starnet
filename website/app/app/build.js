@@ -163,6 +163,10 @@ const Build = (() => {
     if (e && e.code === 'LINE_BUDGET_SHADOWED' && e.inForceName) {
       return 'This INBOX has its own LINE BUDGET, but a line has ONE: the budget in force is the one on the INBOX “' + e.inForceName + '”, so the numbers on this one are not used. Change the budget there, or clear this one’s.';
     }
+    // an UNNAMED INBOX in force: every INBOX on the line shows the line's name, so point at it by the numbers its card shows
+    if (e && e.code === 'LINE_BUDGET_SHADOWED' && e.inForceBudget) {
+      return 'This INBOX has its own LINE BUDGET, but a line has ONE: the budget in force is on the INBOX placed first on this line that carries one — the one whose LINE BUDGET reads ' + e.inForceBudget + ' — so the numbers on this one are not used. Change the budget there, or clear this one’s.';
+    }
     return VAL_WHY[e && e.code] || null;
   }
   const esc = s => U.esc(s == null ? '' : s);   // one complete impl (escapes & < > " ' — value="…" attrs here stay injection-safe)
