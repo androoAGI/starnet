@@ -18,6 +18,7 @@ mod fresh_start;
 mod hud_mode;
 mod lifecycle_preferences;
 mod process_identity;
+mod process_job;
 mod sidecar_output;
 mod sidecar_reap;
 mod sidecar_startup;
@@ -68,7 +69,7 @@ struct AppState {
     root: PathBuf,
     workspaces: PathBuf,
     startup_log: Option<PathBuf>,
-    sidecar: Mutex<Option<Child>>,
+    sidecar: Mutex<Option<sidecar_startup::OwnedSidecar>>,
     // What the sidecar prints (sidecar_output.rs): the rotating sidecar.log beside startup.log, the
     // live child's drained output, and the redacted last lines of the latest spawn that never came up.
     sidecar_log: Arc<sidecar_output::SidecarLog>,
@@ -266,18 +267,13 @@ fn terminate_sidecar_child(child: &mut Child) {
 }
 
 impl AppState {
-    /// Kill the child sidecar on intentional shutdown. HONESTY NOTE: this only covers the
-    /// graceful paths — the ExitRequested run-event and `Drop for AppState`. A hard kill of
-    /// the shell (`taskkill /F`, crash, task-manager End Task, power loss) runs NEITHER, and
-    /// there is no in-process hook that can — which is exactly how orphan sidecars happen.
-    /// The reliable other half is `reap_orphan_sidecars`, which runs at the NEXT boot before
-    /// spawning and terminates any process still running from our own bundled node runtime.
+    /// Stop the sidecar NOW, without asking it first (a cancelled start, a window that never came up, app teardown):
+    /// the one stop routine, stop_station, without its graceful ask. A hard kill of the shell (`taskkill /F`, crash,
+    /// End Task, power loss) runs none of this; on Windows the station's kill-on-close job (process_job.rs) ends the
+    /// tree with the shell, everywhere the sidecar's parent watch (sidecar/parent-watch.js) shuts it down, and
+    /// `reap_orphan_sidecars` at the next boot is the backstop for a sidecar too wedged to notice.
     fn kill_sidecar(&self) {
-        if let Ok(mut guard) = self.sidecar.lock() {
-            if let Some(mut child) = guard.take() {
-                terminate_sidecar_child(&mut child);
-            }
-        }
+        stop_station(self, StopHow::Now, "stopped without asking");
     }
 }
 
@@ -1593,7 +1589,7 @@ const SIDECAR_READY_TIMEOUT: Duration = Duration::from_secs(60);
 fn wait_for_port_or_exit(
     port: u16,
     timeout: Duration,
-    sidecar: Option<&Mutex<Option<Child>>>,
+    sidecar: Option<&Mutex<Option<sidecar_startup::OwnedSidecar>>>,
 ) -> (bool, Option<Option<i32>>) {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -1697,11 +1693,7 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
             format!(
                 "sidecar-reap: kept pid={} — {}",
                 p.pid,
-                if keep.contains(&p.pid) {
-                    "a starnet terminal this StarNet runs for"
-                } else {
-                    "its parent is alive (a starnet terminal, a station it runs, or a sidecar's own child)"
-                }
+                sidecar_reap::kept_reason(p, keep, std::process::id(), &reap)
             ),
         );
     }
@@ -1709,11 +1701,21 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
     for pid in reap {
         let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, 0, pid) };
         if handle.is_null() {
+            let error = std::io::Error::last_os_error();
+            log_startup(
+                startup_log,
+                format!("sidecar-reap: skipped orphan pid={pid} — could not open it to end it ({error})"),
+            );
             continue;
         }
         // Full image path again, on the handle the kill goes through — the ONLY thing that authorizes it (a pid
         // reused since the listing is never touched).
-        if sidecar_reap::windows_image(handle).is_some_and(|full| same_path(&full, node)) {
+        if !sidecar_reap::windows_image(handle).is_some_and(|full| same_path(&full, node)) {
+            log_startup(
+                startup_log,
+                format!("sidecar-reap: skipped pid={pid} — it no longer runs the bundled node (its pid was reused since the listing)"),
+            );
+        } else {
             if unsafe { TerminateProcess(handle, 1) } != 0 {
                 reaped += 1;
                 log_startup(
@@ -1836,10 +1838,11 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
                 pid: pid as u32,
                 parent: parent.unwrap_or(0),
                 // ps could not say: spared (what is not proven orphaned is never reaped)
-                parent_alive: match parent {
-                    None => true,
-                    Some(0) | Some(1) => false,
-                    Some(ppid) => terminal_session::terminal_running(ppid),
+                parent_state: match parent {
+                    None => sidecar_reap::Parent::Unprovable,
+                    Some(0) | Some(1) => sidecar_reap::Parent::Gone,
+                    Some(ppid) if terminal_session::terminal_running(ppid) => sidecar_reap::Parent::Alive,
+                    Some(_) => sidecar_reap::Parent::Gone,
                 },
             }
         })
@@ -1851,11 +1854,7 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
             format!(
                 "sidecar-reap: kept pid={} — {}",
                 p.pid,
-                if keep.contains(&p.pid) {
-                    "a starnet terminal this StarNet runs for"
-                } else {
-                    "its parent is alive (a starnet terminal, a station it runs, or a sidecar's own child)"
-                }
+                sidecar_reap::kept_reason(p, keep, std::process::id(), &reap)
             ),
         );
     }
@@ -1883,6 +1882,11 @@ fn reap_orphan_sidecars(node: &Path, keep: &[u32], startup_log: &Option<PathBuf>
                     "sidecar-reap: terminated orphan sidecar pid={pid} ({})",
                     node.display()
                 ),
+            );
+        } else {
+            log_startup(
+                startup_log,
+                format!("sidecar-reap: skipped orphan pid={pid} — it is still running after SIGTERM and SIGKILL"),
             );
         }
     }
@@ -1977,6 +1981,18 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     set_sidecar_branded_env(&mut cmd, "SKYNET_IPC_TOKEN", &state.ipc_token);
     set_sidecar_branded_env(&mut cmd, "SKYNET_API_TOKEN", &state.api_token);
     set_sidecar_branded_env(&mut cmd, "SKYNET_WORKSPACES", state.workspaces.as_os_str());
+    // The station watches this shell and shuts itself down cleanly if it is ever gone without stopping it
+    // (sidecar/parent-watch.js) — the belt to the Windows job's braces, and the only guard on macOS and Linux.
+    set_sidecar_branded_env(&mut cmd, "SKYNET_PARENT_PID", std::process::id().to_string());
+    // How the station opens an app FOR the person so it is never the station's: this exe, run as
+    // `--starnet-breakaway` (process_job.rs; sidecar/breakaway.js builds the call). Windows only: no jobs elsewhere.
+    match std::env::current_exe() {
+        Ok(exe) if cfg!(windows) => set_sidecar_branded_env(&mut cmd, "SKYNET_BREAKAWAY_EXE", exe.as_os_str()),
+        _ => {
+            cmd.env_remove("SKYNET_BREAKAWAY_EXE");
+            cmd.env_remove("STARNET_BREAKAWAY_EXE");
+        }
+    }
     if let Some(key) = read_key() {
         set_sidecar_branded_env(&mut cmd, "SKYNET_OPENROUTER_KEY", key);
     }
@@ -2046,6 +2062,12 @@ fn spawn_sidecar(state: &AppState) -> bool {
         match sidecar_startup::spawn(&mut cmd, &state.sidecar) {
             Ok(spawned) => {
                 let pid = spawned.pid;
+                for line in spawned.retired.log_lines("station-stop") {
+                    log_startup(&state.startup_log, line);
+                }
+                if let Some(why) = &spawned.job_error {
+                    log_startup(&state.startup_log, format!("spawn_sidecar pid={pid}: {why}; the parent watch and the boot reaper remain"));
+                }
                 let output = sidecar_output::attach(
                     &state.sidecar_log,
                     redactor,
@@ -2073,7 +2095,12 @@ fn spawn_sidecar(state: &AppState) -> bool {
                 );
                 if !listening && exited.is_none() {
                     match sidecar_startup::stop_timed_out(&state.sidecar, pid) {
-                        Ok(()) => log_startup(&state.startup_log, format!("spawn_sidecar pid={pid} timed out; child stopped and reaped")),
+                        Ok(left) => {
+                            log_startup(&state.startup_log, format!("spawn_sidecar pid={pid} timed out; child stopped and reaped"));
+                            for line in left.log_lines("station-stop") {
+                                log_startup(&state.startup_log, line);
+                            }
+                        }
                         Err(error) => log_startup(&state.startup_log, format!("spawn_sidecar pid={pid} timeout cleanup failed: {error}; retaining child ownership")),
                     }
                 }
@@ -2912,7 +2939,8 @@ fn post_sidecar_halt(state: &AppState, timeout: Duration) {
 /// child with TerminateProcess, which no handler in the sidecar can see — so the STATION browser (a real Chrome
 /// window the sidecar started) was left running with its network proxy dead, still holding the durable profile
 /// (2026-09-30 release review). Best-effort and bounded like the halt: a dead sidecar is simply already gone.
-fn post_sidecar_quit(state: &AppState, timeout: Duration) {
+/// Returns whether the sidecar accepted (a 2xx): only then is waiting for it to leave worth the time.
+fn post_sidecar_quit(state: &AppState, timeout: Duration) -> bool {
     use std::io::{Read, Write};
     let body = "{}";
     let head = format!(
@@ -2920,38 +2948,95 @@ fn post_sidecar_quit(state: &AppState, timeout: Duration) {
         state.api_token,
         body.len()
     );
-    if let Ok(mut s) = TcpStream::connect(("127.0.0.1", state.port)) {
-        let _ = s.set_read_timeout(Some(timeout));
-        let _ = s.set_write_timeout(Some(timeout));
-        let _ = s.write_all(head.as_bytes());
-        let _ = s.write_all(body.as_bytes());
-        let _ = s.flush();
-        let mut buf = [0u8; 64];
-        let _ = s.read(&mut buf);
-    }
+    let Ok(mut s) = TcpStream::connect(("127.0.0.1", state.port)) else {
+        return false;
+    };
+    let _ = s.set_read_timeout(Some(timeout));
+    let _ = s.set_write_timeout(Some(timeout));
+    let _ = s.write_all(head.as_bytes());
+    let _ = s.write_all(body.as_bytes());
+    let _ = s.flush();
+    let mut buf = [0u8; 64];
+    let n = s.read(&mut buf).unwrap_or(0);
+    quit_was_accepted(&buf[..n])
+}
+
+/// `HTTP/1.x 2xx` — the sidecar said it is shutting down.
+fn quit_was_accepted(response: &[u8]) -> bool {
+    response.starts_with(b"HTTP/1.1 2") || response.starts_with(b"HTTP/1.0 2")
 }
 
 /// Ask the sidecar to shut down cleanly (it closes the station browser, flushing its sign-ins, and exits), wait a
-/// bounded moment for it to leave, then `kill_sidecar` ends whatever is left. The kill still guarantees no orphan.
-fn stop_sidecar_gracefully(state: &AppState) {
-    post_sidecar_quit(state, Duration::from_secs(2));
-    let deadline = Instant::now() + Duration::from_millis(3500);
-    while Instant::now() < deadline {
-        let exited = state
-            .sidecar
-            .lock()
-            .ok()
-            .map(|mut guard| match guard.as_mut() {
-                Some(child) => matches!(child.try_wait(), Ok(Some(_))),
-                None => true,
-            })
-            .unwrap_or(true);
-        if exited {
-            break;
+/// bounded moment for it to leave, then end whatever is left — the one stop routine, stop_station.
+fn stop_sidecar_gracefully(state: &AppState) -> Option<u32> {
+    stop_station(state, StopHow::Ask, "asked to quit")
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StopHow {
+    /// POST /api/lifecycle/quit first and give the sidecar a bounded moment to run its own graceful shutdown
+    Ask,
+    /// straight to the end (a cancelled start, a window that never came up, app teardown)
+    Now,
+}
+
+/// THE way StarNet stops a station it owns. Every stop goes through here: Quit, window close, tray Quit, the updater,
+/// RESTART STATION SERVICE, START FRESH, ERASE, a cancelled start, app teardown (a timed-out boot attempt goes through
+/// sidecar_startup::stop_timed_out, the same last two steps). In order:
+///   1. ask (StopHow::Ask): POST /api/lifecycle/quit; when the sidecar accepts, wait up to 3.5 s for it to run its own
+///      graceful shutdown (it closes the station browser, flushing sign-ins, reaps its children, releases its claim).
+///      A sidecar that does not answer is not waited for.
+///   2. end the sidecar process if it is still there (unix: SIGTERM, 4 s, SIGKILL; Windows: TerminateProcess) and wait
+///      for it, so it is gone when this returns;
+///   3. end what it left behind (Windows: every process still in the station's job; sidecar_startup end_leftovers),
+///      sparing one that shows a window on the user's screen; every process decided about gets a startup.log line.
+/// The caller decides about the guardian (shutting_down / recovery_in_progress) BEFORE calling. Returns the stopped
+/// sidecar's pid (None = there was none).
+fn stop_station(state: &AppState, how: StopHow, why: &str) -> Option<u32> {
+    let asked = how == StopHow::Ask && post_sidecar_quit(state, Duration::from_secs(2));
+    if asked {
+        let deadline = Instant::now() + Duration::from_millis(3500);
+        while Instant::now() < deadline {
+            let exited = state
+                .sidecar
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => matches!(child.try_wait(), Ok(Some(_))),
+                    None => true,
+                })
+                .unwrap_or(true);
+            if exited {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
         }
-        std::thread::sleep(Duration::from_millis(50));
     }
-    state.kill_sidecar();
+    // take it out under the lock, end it after releasing (a respawn takes the same lock)
+    let mut owned = state.sidecar.lock().ok().and_then(|mut guard| guard.take())?;
+    let pid = owned.id();
+    let left_on_its_own = matches!(owned.try_wait(), Ok(Some(_)));
+    if !left_on_its_own {
+        terminate_sidecar_child(&mut owned);
+    }
+    let left = owned.end_leftovers();
+    drop(owned);
+    log_startup(
+        &state.startup_log,
+        format!(
+            "station-stop: pid={pid} {} ({why})",
+            match (asked, left_on_its_own) {
+                (true, true) => "shut down cleanly when asked",
+                (true, false) => "asked to quit, then ended",
+                (false, true) => "had already exited",
+                (false, false) => "ended without asking",
+            }
+        ),
+    );
+    for line in left.log_lines("station-stop") {
+        log_startup(&state.startup_log, line);
+    }
+    Some(pid)
 }
 
 /// Bounded drain, then stop: flip `shutting_down` so the guardian never respawns, ask the sidecar to halt all
@@ -4614,10 +4699,11 @@ async fn starnet_update_check(
     // launches must overwrite the bundled node.exe — but our sidecar is STILL RUNNING from
     // that same node runtime, so it holds a write lock and NSIS freezes on an "error opening
     // file for writing" dialog forever. The plugin exits via std::process::exit(0), which
-    // does NOT fire Tauri's ExitRequested handler where kill_sidecar() normally runs — so
+    // does NOT fire Tauri's ExitRequested handler where the station is normally stopped — so
     // without this hook the sidecar is never reaped before the installer touches node.exe.
     // on_before_exit runs immediately before that process exit: stop the guardian respawn and
-    // kill the child so node.exe is unlocked when NSIS arrives. The Update object built here
+    // stop the station (stop_station: it is asked first, so the station browser closes cleanly,
+    // then ended with everything it started) so node.exe is unlocked when NSIS arrives. The Update object built here
     // carries this hook into the install path (the plugin clones it onto the pending update).
     let app_for_exit = app.clone();
     let update = app
@@ -4625,7 +4711,9 @@ async fn starnet_update_check(
         .on_before_exit(move || {
             if let Some(state) = app_for_exit.try_state::<AppState>() {
                 state.shutting_down.store(true, Ordering::SeqCst);
-                state.kill_sidecar();
+                // the one stop routine: the station browser closes cleanly and what the station started ends before
+                // NSIS touches the install directory
+                stop_sidecar_gracefully(state.inner());
             }
         })
         .timeout(Duration::from_secs(30))
@@ -4885,12 +4973,9 @@ fn starnet_restart_sidecar(state: State<AppState>) -> Result<bool, String> {
         g.next_respawn_in_ms = None;
         g.reason = None;
     }
-    // Take the child out under the lock, terminate it after releasing (spawn_sidecar re-takes the lock).
-    let prior = st.sidecar.lock().ok().and_then(|mut g| g.take());
-    if let Some(mut child) = prior {
-        terminate_sidecar_child(&mut child);
-        let _ = child.wait();
-    }
+    // The one stop routine: a sidecar that still answers shuts down cleanly (its station browser and children with it);
+    // one that is wedged is ended without waiting for it. Then spawn_sidecar re-takes the lock.
+    stop_station(st, StopHow::Ask, "restart");
     let listening = spawn_sidecar(st);
     log_startup(
         &st.startup_log,
@@ -4928,12 +5013,7 @@ fn starnet_start_fresh(
         "fresh-start: explicit unreachable-screen reset requested",
     );
 
-    let prior = st.sidecar.lock().ok().and_then(|mut guard| guard.take());
-    let stopped_pid = prior.as_ref().map(Child::id);
-    if let Some(mut child) = prior {
-        terminate_sidecar_child(&mut child);
-        let _ = child.wait();
-    }
+    let stopped_pid = stop_station(st, StopHow::Ask, "fresh start");
 
     let mut acknowledged = legacy_workspace_paths(&st.root, &st.workspaces);
     if let Some(parent) = st.workspaces.parent() {
@@ -5069,7 +5149,7 @@ fn starnet_erase_everything(
         .sidecar
         .lock()
         .ok()
-        .and_then(|guard| guard.as_ref().map(Child::id));
+        .and_then(|guard| guard.as_ref().map(|child| child.id()));
     stop_sidecar_gracefully(st);
 
     let mut acknowledged = legacy_workspace_paths(&st.root, &st.workspaces);
@@ -5236,6 +5316,11 @@ fn starnet_set_close_to_tray(
 }
 
 fn main() {
+    // `--starnet-breakaway <spec>`: the station opening an app for the person outside its job (process_job.rs). Runs
+    // that one program and exits — before Tauri, the single-instance check or anything else of the app starts.
+    if let Some(code) = process_job::breakaway_main() {
+        std::process::exit(code);
+    }
     let mut context = tauri::generate_context!();
     context.assets = Box::new(desktop_assets::DesktopAssets::new(context.assets));
     // Pick the sidecar port BEFORE the app is built so the webview CSP can name exactly that

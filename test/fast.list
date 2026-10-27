@@ -204,6 +204,7 @@ test/iteration-budget.test.js
 test/updatecore.test.js
 test/quitguard.test.js
 test/desktop-lifecycle-preferences.test.js
+test/desktop-station-stop.test.js
 test/desktop-installed-cdp-forwarding.test.js
 test/cloudsavecore.test.js
 test/cloudsave-refusal.test.js
