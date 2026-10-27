@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "282014bf7c1085493c7a60ae9bd36b3ccd0274d1",
+    "sourceCommit": "031ca7be17dcf6d3686d5d0585bcb538a15cc0d3",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 909152,
-        "sha256": "790e7ec64de6fc46097fb34b8c019a79475ef714810f10e705f12e47b6fd734d"
+        "bytes": 911329,
+        "sha256": "481a7c6b226596ba4e07530a8571d5f36b79bb31e7396c1cd9cab7e8453a3fdf"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -448,8 +448,8 @@
       },
       {
         "path": "frontend/app/delegated.js",
-        "bytes": 52067,
-        "sha256": "dbaa184921390912b07e62a3f6934b2aa38d97335b45032ead8d796dccc19498"
+        "bytes": 52061,
+        "sha256": "a07bb6b88fca31e947f2f85f9463a0667bb99b347e1eb2400fdc6901dca7f3a1"
       },
       {
         "path": "frontend/app/deliverables.js",
@@ -723,8 +723,8 @@
       },
       {
         "path": "frontend/app/needsyou.js",
-        "bytes": 47187,
-        "sha256": "dbe8c2de491f77ab0a7b5ff370c3681a372dbba92a28655f156737572d2ea6af"
+        "bytes": 47181,
+        "sha256": "4bf3d872157b2de3275d1c1f441077d71780fa3dd938ef4935c4caf7d51d701a"
       },
       {
         "path": "frontend/app/nightnudge.js",
