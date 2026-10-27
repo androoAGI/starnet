@@ -29,15 +29,16 @@ const clock = { now: () => clk };
   A.eq(io.lines.length, 2, 'both rows appended to io');
 }
 
-// ---- B. reason clamped to the known enum; unknown -> 'done' ----
+// ---- B. reason clamped to the known enum; unknown -> 'error' (bug 812c3bfb: an unknown end is never a finished run) ----
 {
   const s = makeRunStore({ io: memIo(), clock });
   A.eq(s.record({ runId: 'r', reason: 'refusal' }).reason, 'refusal', 'valid reason kept');
   A.eq(s.record({ runId: 'r', reason: 'budget' }).reason, 'budget', 'budget reason kept');
   A.eq(s.record({ runId: 'r', reason: 'empty' }).reason, 'empty', 'provider-empty remains empty (never rewritten as success)');
   A.eq(s.record({ runId: 'r', reason: 'clarifying' }).reason, 'clarifying', 'a Task Brief question remains neutral (never rewritten as success)');
-  A.eq(s.record({ runId: 'r', reason: 'kaboom' }).reason, 'done', 'unknown reason clamped to done');
-  A.eq(s.record({ runId: 'r' }).reason, 'done', 'missing reason defaults to done');
+  A.eq(s.record({ runId: 'r', reason: 'kaboom' }).reason, 'error', 'unknown reason clamped to error, never done');
+  A.eq(s.record({ runId: 'r' }).reason, 'error', 'a missing reason (a run that threw) records as error, never done');
+  A.eq(s.record({ runId: 'r', reason: 'done' }).reason, 'done', 'a real done is kept');
 }
 
 // ---- C. title is length-capped (no unbounded blob on disk) ----
