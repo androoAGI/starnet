@@ -1291,6 +1291,7 @@ test/linewatch.test.js
 test/deskscreen.test.js
 test/agent-skin-thumbs.test.js
 test/estop-sample-hub.test.js
+test/estop-stop-handles.test.js
 test/line-test-stop.test.js
 test/conveyor-tab-readable.test.js
 test/workflow-panel-overhaul.test.js
