@@ -453,8 +453,11 @@ async function run() {
     const kb = lastKeyboard(sends);
     A.ok(!!kb, 'the consent keyboard was sent');
     A.eq(decision, 'deny', 'the RUN was denied by the fail-closed timer');
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    // (quick win 24) the expiry itself stamped the message — before any tap — so the late tap only acknowledges
+    A.eq(edits.length, 1, 'the expiry stamped the permission message before anyone tapped');
     await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[0][0].callback_data, callbackId: 'late', messageId: 'm1' });
-    A.ok(sends.some(s => /already expired/.test(s.t)), 'a late tap is told the request expired and was denied — never a false "approved"');
+    A.ok(!sends.some(s => /already expired/.test(s.t)), 'a late tap adds no correction message: the stamp already says what happened');
     A.eq(edits.length, 1, 'the original permission message is stamped exactly once');
     A.ok(/DENIED/.test(edits[0].text), 'the PERMANENT record states the decision the broker applied');
     A.ok(!/▸ ✅ Allow/.test(edits[0].text), 'and never stamps the button as though the grant landed');
@@ -527,6 +530,80 @@ async function run() {
     A.ok(/ALLOWED/.test(stamp), 'it states the decision that was applied');
     A.ok(acks.every(a => !/denied|expired/i.test(String(a || ''))), 'the toast does not claim a denial: ' + JSON.stringify(acks));
     A.ok(!sends.some(s => /already expired|was denied/.test(s.t)), 'and no "expired — denied" correction is sent');
+  }
+
+  // ---- 5H. (quick win 24) THE SETTLE STAMPS THE KEYBOARD, whoever settled it ----
+  // The permission message used to be stamped only by a TAP. An ask answered on STARNET REMOTE, expired by the fail-closed
+  // timer, or ended by a superseding message kept four live-looking buttons under it until someone tapped one (bug 9e60dd9f's
+  // "not fixed here"). The hub now .then()s the broker's own decision and edits the message ONCE with it, stripping the
+  // buttons; a tap only acknowledges.
+  {
+    // (a) allowed on another surface: stamped ALLOWED at settle, with no tap at all
+    const sends = [], edits = []; const store = fakeStore({ 555: { agentId: 'tg_555', approvals: true } });
+    const host = makeHostConsent(5000);
+    let promptSeen = null;
+    const runOnce = async (o) => { await o.prompt({ name: 'fs.write', args: {} }, { scope: 'write' }); o.emit('agent.token', { delta: 'Wrote it.' }); o.emit('agent.run.end', { reason: 'done' }); };
+    const hub = makeChannelHub({
+      isOwner: () => true, runOnce, store, prompts: makePromptRegistry({ newId: idGen('tok') }),
+      send: (c, t, opts) => { sends.push({ c, t, opts }); return Promise.resolve({ ok: true, messageId: 'kb1' }); },
+      answerCallback: () => Promise.resolve({ ok: true }),
+      editMessage: (c, mid, text, opts) => { edits.push({ c, mid, text, opts }); return Promise.resolve({ ok: true }); },
+      askConsent: (o) => host.ask(Object.assign({}, o, { onPrompt: (pid, f) => { promptSeen = { runId: o.runId, promptId: pid }; o.onPrompt(pid, f); } })),
+      resolveConsent: host.resolve,
+      secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen('run')
+    });
+    const running = hub.onInbound(dm('write it'));
+    await waitFor(() => !!promptSeen && !!lastKeyboard(sends));
+    await waitFor(() => sends.length >= 1);
+    A.ok(host.resolve(promptSeen.runId, promptSeen.promptId, 'once'), 'fixture: STARNET REMOTE allows the ask through the same finisher');
+    await running;
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    A.eq(edits.length, 1, 'the permission message is stamped once the ask settles — no tap needed');
+    A.eq(edits[0] && edits[0].mid, 'kb1', 'it edits the keyboard message itself');
+    A.ok(edits[0] && /ALLOWED/.test(edits[0].text.split('\n').pop()), 'the stamp states the broker\'s decision: ' + (edits[0] && edits[0].text.split('\n').pop()));
+    A.ok(edits[0] && !(edits[0].opts && edits[0].opts.reply_markup), 'and the edit carries no keyboard: the spent buttons are stripped');
+  }
+  {
+    // (b) the fail-closed timer: stamped at the expiry, with no tap
+    const sends = [], edits = []; const store = fakeStore({ 555: { agentId: 'tg_555', approvals: true } });
+    const host = makeHostConsent(20);
+    const runOnce = async (o) => { await o.prompt({ name: 'fs.write', args: {} }, { scope: 'write' }); o.emit('agent.run.end', { reason: 'done' }); };
+    const hub = makeChannelHub({
+      isOwner: () => true, runOnce, store, prompts: makePromptRegistry({ newId: idGen('tok') }),
+      send: (c, t, opts) => { sends.push({ c, t, opts }); return Promise.resolve({ ok: true, messageId: 'kb2' }); },
+      answerCallback: () => Promise.resolve({ ok: true }),
+      editMessage: (c, mid, text, opts) => { edits.push({ c, mid, text, opts }); return Promise.resolve({ ok: true }); },
+      askConsent: host.ask, resolveConsent: host.resolve,
+      secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen('run')
+    });
+    await hub.onInbound(dm('write it'));
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    A.eq(edits.length, 1, 'an expired ask is stamped when it expires — not left live-looking until a tap');
+    A.ok(edits[0] && /DENIED|did not run/.test(edits[0].text.split('\n').pop()), 'the stamp says the action did not run: ' + (edits[0] && edits[0].text.split('\n').pop()));
+  }
+  {
+    // (c) a tap that wins: the message is still stamped exactly ONCE (by the settle), with the button that granted it
+    const sends = [], acks = [], edits = []; const store = fakeStore({ 555: { agentId: 'tg_555', approvals: true } });
+    const host = makeHostConsent(5000);
+    const reg = makePromptRegistry({ newId: idGen('tok') });
+    const runOnce = async (o) => { await o.prompt({ name: 'fs.write', args: {} }, { scope: 'write' }); o.emit('agent.run.end', { reason: 'done' }); };
+    const hub = makeChannelHub({
+      isOwner: () => true, runOnce, store, prompts: reg,
+      send: (c, t, opts) => { sends.push({ c, t, opts }); return Promise.resolve({ ok: true, messageId: 'kb3' }); },
+      answerCallback: (id, text) => { acks.push(text); return Promise.resolve({ ok: true }); },
+      editMessage: (c, mid, text, opts) => { edits.push({ c, mid, text, opts }); return Promise.resolve({ ok: true }); },
+      askConsent: host.ask, resolveConsent: host.resolve,
+      secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen('run')
+    });
+    const running = hub.onInbound(dm('write it'));
+    await waitFor(() => { const e = reg.peekChat('555', 'consent'); return !!(e && e.messageId); });
+    const kb = lastKeyboard(sends);
+    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[1][0].callback_data, callbackId: 'cbS', messageId: 'kb3' });
+    await running;
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    A.eq(edits.length, 1, 'a winning tap leaves exactly ONE stamp (the settle\'s), never a second edit');
+    A.ok(/▸ ✅ Allow for this session/.test(edits[0].text), 'stamped with the button that granted it');
+    A.ok(/Allow for this session/.test(acks[0] || ''), 'the tap itself is acknowledged');
   }
 
   // ---- 5G. an UNDELIVERABLE keyboard denies AT ONCE instead of stalling out the consent timeout ----

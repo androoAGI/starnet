@@ -590,7 +590,7 @@
     // fail-closed deny timer is ALREADY running. So this must never throw back into that path and never be
     // awaited by it. If the keyboard fails to send, the prompt simply goes unanswered and the host denies it on
     // schedule — the safe direction, and the same outcome as a Commander who never looks at their phone.
-    function sendConsentPrompt(chatId, runId, promptId, fields) {
+    function sendConsentPrompt(chatId, runId, promptId, fields, ask) {
       (async () => {
         const f = fields || {};
         const entry = prompts.create({
@@ -605,6 +605,7 @@
           meta: { runId: runId, promptId: promptId }
         });
         if (!entry) return;
+        if (ask) ask.entry = entry;
         // argsSummary is the WHOLE request now (consentSummary): fit it under a chat message's limit, and say when it
         // doesn't fit — a silent cut would ask for an approval of words the Commander never saw
         const ARGS_MAX = 3000;
@@ -616,8 +617,12 @@
           + '\n\nIf you don\'t answer, this is denied and the run moves on.';
         entry.meta.text = body;
         const r = await deliver(chatId, body, runId, 'prompt', '', { reply_markup: keyboardFor(entry) });
-        // Only a message that actually LANDED can be edited when tapped.
-        if (r && r.ok) { if (r.messageId) prompts.attach(entry.token, r.messageId); return; }
+        // Only a message that actually LANDED can be edited when tapped — or stamped when the ask settles. An ask that
+        // settled while this keyboard was still on its way is stamped the moment it lands.
+        if (r && r.ok) {
+          if (r.messageId) { prompts.attach(entry.token, r.messageId); if (ask) { ask.messageId = String(r.messageId); stampConsent(chatId, ask); } }
+          return;
+        }
         // THE KEYBOARD NEVER LANDED. Retire the token, then DENY IMMEDIATELY instead of letting the host's
         // fail-closed timer run its full course. The Commander was never actually asked, so making them wait out
         // CONSENT_TIMEOUT_MS for the answer that is already certain would turn an undeliverable prompt into a
@@ -626,6 +631,29 @@
         prompts.take(entry.token);
         try { if (resolveConsent) resolveConsent(runId, promptId, 'deny'); } catch (e) { failNote('channels.hub.consent.deny', e); }
       })().catch(function () {});
+    }
+    /* THE SETTLE STAMPS THE KEYBOARD (quick win 24). The broker's decision is the only truth about a permission ask, and it
+       can come from a tap here, from STARNET REMOTE answering the same finisher, from the fail-closed timer, or from the run
+       ending (a superseding message, E-STOP — an abort settles as deny). Stamping only on a TAP left every other ending with
+       four live-looking buttons under it, and a late tap then had to guess what had happened. So the hub .then()s the ask
+       and edits the keyboard message ONCE with the decision the broker applied, stripping the buttons (an edit with no
+       reply_markup). A tap only acknowledges; it records which button won so the stamp can name it.
+       `ask` = { entry, messageId, decision, stamped }: messageId arrives when the keyboard lands, decision when the ask
+       settles — whichever comes second stamps. Cosmetic in effect (the decision is applied either way) and never awaited. */
+    function consentStampLine(decision, tapped) {
+      const d = String(decision || '');
+      if (tapped) return '▸ ' + String(tapped);
+      if (/^(once|session|always|full)$/.test(d)) return '▸ already answered in StarNet — ALLOWED (' + d + ')';
+      if (d === 'timeout') return '▸ ⌛ no answer in time — DENIED, the action did not run';
+      return '▸ ❌ DENIED — the action did not run';
+    }
+    function stampConsent(chatId, ask) {
+      if (!ask || ask.stamped || ask.decision === undefined || !ask.messageId || !ask.entry) return;
+      ask.stamped = true;
+      if (!editMessage) return;
+      const tapped = ask.entry.meta && ask.entry.meta.tapped ? ask.entry.meta.tapped : '';
+      const text = String((ask.entry.meta && ask.entry.meta.text) || '') + '\n\n' + consentStampLine(ask.decision, tapped);
+      try { Promise.resolve(editMessage(chatId, ask.messageId, text, {})).catch(function () {}); } catch (_) {}
     }
     /* AN UNANSWERED APPROVAL EXPIRED (2026-10-11). It fail-closes (the action does not run), but it used to do so in
        silence and the agent then told the user "you declined". Tell the chat what actually happened and how to retry;
@@ -2353,16 +2381,18 @@
           // typed follow-up can say the run is paused on this keyboard (LIVE STEER above)
           myRec.awaitingConsent = (myRec.awaitingConsent || 0) + 1;
           const release = function () { myRec.awaitingConsent = Math.max(0, (myRec.awaitingConsent || 1) - 1); };
+          const ask = { entry: null, messageId: '', decision: undefined, stamped: false };   // stampConsent's record of this one ask
           let asked;
           try {
             asked = askConsent({
             agentId: agentId, runId: runId, signal: ac.signal, call: call, tool: tool,
-            onPrompt: function (promptId, fields) { sendConsentPrompt(chatId, runId, promptId, fields); },
+            onPrompt: function (promptId, fields) { sendConsentPrompt(chatId, runId, promptId, fields, ask); },
             // the fail-closed timer fired with no tap: SAY so, or the chat sees the run carry on as if they had refused
             onTimeout: function (promptId, fields) { notifyConsentTimeout(chatId, runId, fields); }
             });
           } catch (e) { release(); throw e; }
-          return Promise.resolve(asked).finally(release);
+          // the broker's decision, whoever made it, stamps the keyboard (stampConsent) — then the run gets it unchanged
+          return Promise.resolve(asked).then(function (d) { ask.decision = d; stampConsent(chatId, ask); return d; }).finally(release);
         } : undefined;
 
         // the receipt now names the run that is about to start (written AFTER the user turn was filed above)
@@ -2659,6 +2689,9 @@
         let done = false;
         try { done = !!resolveConsent(entry.meta.runId, entry.meta.promptId, opt.value); } catch (_) { done = false; }
         lostRace = !done;
+        // THIS button settled it: the settle's stamp (stampConsent, a microtask away) names it. Set synchronously, before
+        // any await, so the stamp can never run first.
+        if (done) entry.meta.tapped = String(opt.display || opt.value);
       }
       // A lost race is not always a denial: the same ask may have been ALLOWED on another surface (STARNET REMOTE) a moment
       // before this tap — stamping that "expired — DENIED" contradicted an action that ran (2026-10-20).
@@ -2668,24 +2701,16 @@
       }
       await ack(allowedAs ? '✓ Already answered elsewhere — allowed' : lostRace ? '⚠ Already expired — denied' : ((/^[\p{L}\p{N}]/u.test(shown) ? '✓ ' : '') + shown));
 
-      // Stamp the OUTCOME into the original message and strip the spent buttons. Cosmetic ONLY in the sense
-      // that the decision is already recorded whether or not this edit lands (Telegram 400s a no-op edit, and
-      // the message may have been deleted by the user) — which is why it is fired inside its own guard and its
-      // result is not read. What it must never be is a different answer from the one the broker applied.
-      if (editMessage && entry.messageId) {
-        const outcome = allowedAs
-          ? '▸ already answered in StarNet — ALLOWED (' + allowedAs + ')'
-          : lostRace
-          ? '▸ ⚠ expired — DENIED, the run moved on'
-          : '▸ ' + String(opt.display || opt.value);
-        try { await editMessage(chatId, entry.messageId, String(entry.meta.text || '') + '\n\n' + outcome, {}); } catch (_) {}
-      }
+      // A CONSENT tap only acknowledges (quick win 24): the ask's own settle stamps the permission message with the
+      // decision the broker applied, whoever settled it (stampConsent) — a tap that lost the race finds it already
+      // stamped, and the toast above says what happened. A second edit here could only disagree with that stamp.
+      if (entry.kind === 'consent') return;
 
-      if (entry.kind === 'consent') {
-        // The host had already settled it — the fail-closed timer fired, the run was superseded, or E-STOP hit.
-        // Telling the user their tap landed would be a lie about what the harness actually did.
-        if (lostRace && !allowedAs) { try { await deliver(chatId, '⚠ That permission request had already expired — the action was denied and the run moved on.', entry.meta.runId || '', 'prompt'); } catch (_) {} }
-        return;
+      // Stamp the CHOICE into the original message and strip the spent buttons. Cosmetic ONLY in the sense that the
+      // answer is already taken whether or not this edit lands (Telegram 400s a no-op edit, and the message may have
+      // been deleted by the user) — which is why it is fired inside its own guard and its result is not read.
+      if (editMessage && entry.messageId) {
+        try { await editMessage(chatId, entry.messageId, String(entry.meta.text || '') + '\n\n▸ ' + String(opt.display || opt.value), {}); } catch (_) {}
       }
 
       // A CHOICE tap re-enters the NORMAL inbound path carrying the option's own text — byte-identical to the
