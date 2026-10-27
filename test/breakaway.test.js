@@ -111,7 +111,11 @@ function fakeChild(out, code) {
     const exec = env.slice(env.indexOf('execute: function (opts) {'), env.indexOf('startBackground: function (opts) {'));
     A.ok(/spawn: opts\.breakaway \? require\('\.\/breakaway\.js'\)\.makeBreakaway\(/.test(exec), 'environment.execute runs a breakaway command through the launcher');
     const shell = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'shell.js'), 'utf8');
-    A.ok(/ledgerCmd: redact\(cmd\), breakaway: forPerson \}\)/.test(shell), 'shell.exec passes the decision to the environment backend');
+    const decide = shell.slice(shell.indexOf('const forPerson = '), shell.indexOf('return run.then(function (res) {'));
+    A.ok(/^const forPerson = isWin && remoteOwner && \(!environment \|\| environmentBackendId === 'local'\) && !!opensVisibleWindow\(cmd, shellDialect\);/.test(decide),
+      'shell.exec decides: Windows, full power, the local backend, and a command that opens a window');
+    A.ok(/environment\.execute\(\{[^\n]*ledgerCmd: redact\(cmd\), breakaway: forPerson \}\)/.test(decide) && /runCommand\(\{ spawn: forPerson \? breakaway\.spawnVia\(spawn\) : spawn,/.test(decide),
+      'and both run paths carry that decision');
     const resolve = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'resolve.js'), 'utf8');
     const launch = resolve.slice(resolve.indexOf("if (action === 'launch') {"), resolve.indexOf("if (action === 'import_media') {"));
     A.ok(/breakawaySpawn\(app, \[\]/.test(launch) && !/[^y]spawn\(app/.test(launch), 'the Resolve launch runs through the launcher, never a plain spawn');
