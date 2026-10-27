@@ -15032,13 +15032,17 @@ function handleRuntimeKnobsGet(req, res) {
    whether a run could actually start right now. Behind the same per-launch token + loopback pin as every /api
    route, so this is not a new trust surface. */
 function handleRuntimeAgent(req, res) {
-  // Resolve exactly as the other HEADLESS host does (devHubSecrets): provider 'openrouter' + the runtime
-  // credential + STARNET_DEFAULT_MODEL. Deliberately not a new env knob — a second resolution rule would
-  // eventually disagree with the one the runs actually use, and then this route would lie.
-  const provider = 'openrouter';
+  // A headless client is an UNPINNED caller, so it runs on the station default: the record stationDefaultFor hands every
+  // unpinned agent (the hero's model + provider — what a routine or a channel hop of an unpinned agent runs on). Only a
+  // station whose hero has no model yet falls back to the bare headless rule (devHubSecrets: provider 'openrouter' + the
+  // runtime credential + STARNET_DEFAULT_MODEL). GitHub #96 follow-up: a ChatGPT-only station answered
+  // openrouter / no model / configured:false here, so the editor bridge refused to run on a station that runs fine.
+  // Not a new resolver: a later run-wire lane replaces this path.
+  const stationDefault = stationDefaultFor('headless', {});
+  const provider = stationDefault ? normalizeProvider(stationDefault.provider) : 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = String(ENV('DEFAULT_MODEL') || '').trim();
+  const model = stationDefault ? String(stationDefault.model).trim() : String(ENV('DEFAULT_MODEL') || '').trim();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,

@@ -768,6 +768,7 @@ test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
+test/headless-station-default.test.js
 test/workstreams.test.js
 test/workstreams.search-perf.test.js
 test/workstreams.latest-visible.test.js
