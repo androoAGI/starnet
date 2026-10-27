@@ -106,6 +106,7 @@ const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUK
 const { makeSpotifyStore } = require('./spotify/store.js');               // Spotify OAuth (PKCE) token store + auto-refresh
 const spotifyPkce = require('./spotify/pkce.js');                          // pure PKCE helpers (verifier/challenge/urls)
 const { makeSaveStore } = require('./savestore.js');
+const SaveWire = require('./save-wire.js');   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
 const { mergeNotes } = require('./notebookrestore.js');
 const { makeRunStore } = require('./runstore.js');
 const { makeGrowthRatings, deriveRating: deriveGrowthRating } = require('./growthratings.js');
@@ -27889,7 +27890,8 @@ function keepTerminalApprovals(doc, station) {
 }
 async function handleSaveAdopt(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  // over the cap: a NAMED 413 (save-wire.js), never 'bad json' — the page says "too large", not "check the disk"
+  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return (e && e.tooLarge) ? json(413, SaveWire.tooLargeReply()) : json(400, { error: 'bad json' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body) || body.schema !== 'starnet.save' || !body.agent || typeof body.agent !== 'object') return json(400, { error: 'a save envelope object is required' });
   const by = /^[A-Za-z0-9_-]{1,72}$/.test(String(body._saveAdoptBy || '')) ? body._saveAdoptBy : null;
   if (Object.prototype.hasOwnProperty.call(body, '_saveAdoptBy')) { body = Object.assign({}, body); delete body._saveAdoptBy; }
@@ -27941,7 +27943,8 @@ async function handleSaveWrite(req, res) {
   // Measured long-haul boundary: 5,000 three-turn workstreams serialize to ~8.47 MiB.
   // Keep an explicit 16 MiB ceiling (roughly 9,000 at that density) rather than resetting a
   // valid 30-90 day save at the former 8 MiB limit. History is never compacted or discarded here.
-  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  // Over the cap: a NAMED 413 (save-wire.js SAVE_BODY_MAX = this literal), never 'bad json' (gh#121, starnet-releases#4).
+  let body; try { body = JSON.parse(await readBody(req, 16 << 20)) || {}; } catch (e) { return (e && e.tooLarge) ? json(413, SaveWire.tooLargeReply()) : json(400, { error: 'bad json' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'a save envelope object is required' });
   // the record key is the agent's OWN id — body.agent is the agent OBJECT ({id,name,...}), not a selector
   // string, so derive from body.agent.id (an explicit body.agentId wins if a future caller sends one).
@@ -27966,7 +27969,11 @@ async function handleSaveWrite(req, res) {
     // moment the save that deletes it lands (qa/bugs/3e926b6a). Never turns a landed save into an error reply.
     if (result && result.ok === true && agentId === 'agent') observeDeletedSessions(body);
     json(200, result);
-  } catch (e) { json(400, { error: (e && e.message) || 'save failed' }); }
+  } catch (e) {
+    // a failed station-file write carries its errno: the page names the disk only for ENOSPC / EPERM / EACCES (save-wire.js)
+    const failed = SaveWire.writeFailureReply(e);
+    json(failed.status, failed.body);
+  }
 }
 
 // GET/POST /api/growth/ratings - the authoritative, idempotent ledger for explicit work verdicts.

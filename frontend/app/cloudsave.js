@@ -143,7 +143,7 @@ const CloudSave = (() => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
       signal: controller.signal
-    }).then(async response => ({ response, body: await response.json() }));
+    }).then(async response => ({ response, body: await response.json().catch(() => null) }));   // an unparseable body is still an answer: its status names the cause
     return Promise.race([request, new Promise((_, reject) => {
       deadline = setTimeout(() => {
         reject(new Error('save acknowledgement timed out'));
@@ -159,9 +159,10 @@ const CloudSave = (() => {
     else health = { lastPushOkAt: now(), lastPushFailAt: health.lastPushFailAt, consecutiveFailures: 0, nextRetryAt: 0 };
     if (warnedStale) { warnedStale = false; try { console.info('[cloudsave] durable mirror sync recovered.'); } catch (_) {} }
   }
-  function markFail() {
-    if (Core) health = Core.recordFailure(health, now());
-    else health = { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: now(), consecutiveFailures: health.consecutiveFailures + 1, nextRetryAt: 0 };
+  // cause: why this attempt failed, by name (CloudSaveCore.causeOf) — the save light and the update drain say it
+  function markFail(cause) {
+    if (Core) health = Core.recordFailure(health, now(), cause);
+    else health = { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: now(), consecutiveFailures: health.consecutiveFailures + 1, nextRetryAt: 0, cause: cause || 'offline' };
     // warn EXACTLY once when we first cross into stale territory — not once per attempt (no console spam,
     // no throw into callers). The UI save-dot carries the ongoing signal; this is just a dev breadcrumb.
     const stale = Core ? Core.isStale(health, now()) : false;
@@ -209,11 +210,15 @@ const CloudSave = (() => {
     const doc = pending, docCacheFailed = pendingCacheFailed, docSeq = pendingSeq, sentRaw = pendingRaw; pending = null; pendingRaw = null; pendingCacheFailed = false;
     if (!isSave(doc) || retired) return Promise.resolve(false);
     const armed = restoreArmed && docSeq >= restoreSeq;
+    // WHY this attempt failed, by name, from what the station answered (null until it fails; no answer at all = 'offline')
+    let cause = null;
+    const causeOf = (status, body) => Core && Core.causeOf ? Core.causeOf({ answered: true, status, body }) : 'refused';
     const attempt = postNow(armed ? Object.assign({}, doc, { _saveRestore: true }) : doc)
       .then(({ response: r, body }) => {
         // a non-ok HTTP status (e.g. 409 stale, 500) is a FAILURE, not a success — fetch only rejects on
         // network error, so we must inspect r.ok ourselves or we'd stamp health OK on a rejected write.
-        if (r && r.ok === false) { throw new Error('save HTTP ' + r.status); }
+        // The body still names it: a 413 is "too large", an errno write failure carries its code (sidecar/save-wire.js).
+        if (r && r.ok === false) { cause = causeOf(r.status, body); throw new Error('save HTTP ' + r.status); }
         // EL-11 FIX 1 ("the worst lie class"): the sidecar answers REFUSALS as HTTP 200 { ok:false, ... }
         // (degraded workspace / stale stamp / unreadable prior) — the status line alone is NEVER proof the
         // write landed. Parse the body: ok:false is a FAILED push, and degraded:true latches its own state.
@@ -221,7 +226,7 @@ const CloudSave = (() => {
         if (body && typeof body === 'object') {
           if (armed && typeof body.ok === 'boolean') restoreArmed = false;   // the station answered the import's save: disarmed
           degraded = (body.ok === false && body.degraded === true);   // any parsed answer re-proves (or clears) the degraded verdict
-          if (body.conflict) { inherited = null; conflict = body; if (body.recovery) preservedSeq = Math.max(preservedSeq, docSeq); markFail(); return false; }
+          if (body.conflict) { inherited = null; conflict = body; if (body.recovery) preservedSeq = Math.max(preservedSeq, docSeq); markFail('conflict'); return false; }
           if (body.ok && Number.isInteger(body.revision)) {
             revision = body.revision;
             landedSeq = Math.max(landedSeq, docSeq);
@@ -264,14 +269,14 @@ const CloudSave = (() => {
             if (!pending && docCacheFailed && doc === memoryDoc) cacheFailedConfirmed = true;
           }
           staleCatchUp = (body.ok === false && body.growthStale === true) ? requestRatingCatchUp() : null;
-          if (body.ok === false) throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown')));
+          if (body.ok === false) { cause = causeOf(r && r.status, body); throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown'))); }
         }
-        if (!body || body.ok !== true) throw new Error('save acknowledgement missing');
+        if (!body || body.ok !== true) { cause = 'refused'; throw new Error('save acknowledgement missing'); }
         markOk();
         return true;
       })
       .catch(() => {
-        markFail();
+        markFail(cause || 'offline');   // no answer (network, the 15 s deadline) proves only that the station did not answer
         // re-queue the newest doc (newest-wins: a fresher push during the attempt already replaced it) and
         // arm the backoff retry. Fail soft — the cache is still authoritative locally, nothing throws out.
         // the string is dropped on a failure: an outage must not pin a second whole-save copy (the retry compares the old way)
@@ -582,7 +587,7 @@ const CloudSave = (() => {
   // AND there's a live failure streak. Never asserts "backed up" the harness can't prove.
   function healthNow() {
     const s = Core ? Core.snapshot(health, now())
-      : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false };
+      : { lastPushOkAt: health.lastPushOkAt, lastPushFailAt: health.lastPushFailAt, consecutiveFailures: health.consecutiveFailures, nextRetryAt: 0, warn: false, stale: false, cause: health.consecutiveFailures > 0 ? (health.cause || 'offline') : null };
     s.conflict = conflict;   // conflict.reset: the station file is empty because this computer's station was RESET
     s.seeded = seeded;       // { revision, at } once this window's copy re-seeded a missing station file (bug 5c019483)
     s.degraded = degraded;   // EL-11 FIX 1: refused-by-newer-StarNet is its own persistent, renderable state
