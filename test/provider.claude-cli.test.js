@@ -323,6 +323,24 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
     A.eq([childEnv.CLAUDECODE, childEnv.HOME, childEnv.CLAUDE_CODE_DISABLE_AUTO_MEMORY], [undefined, '/h', '1'], 'not a nested session; user env kept; auto-memory off');
   }
 
+  // K. a one-shot call (no cache prefix, no tools) skips the prompt cache; a run that re-reads its cache keeps it.
+  {
+    const oneShot = { model: 'sonnet', messages: [{ role: 'system', content: 'S' }, { role: 'user', content: 'x' }] };
+    const a = make({ lines: [init('none'), result({ result: 'ok' })] });
+    await collect(a.p, oneShot);
+    A.eq(a.calls[0].opts.env.DISABLE_PROMPT_CACHING, '1', 'a one-shot extraction call spawns with prompt caching off');
+    const b = make({ lines: [init('none'), result({ result: 'ok' })] });
+    await collect(b.p, Object.assign({ cacheSystemPrefix: 'S' }, oneShot));
+    A.eq(b.calls[0].opts.env.DISABLE_PROMPT_CACHING, undefined, 'a run with a cache prefix keeps the cache');
+    const c = make({ lines: [init('none'), result({ result: 'ok' })] });
+    await collect(c.p, Object.assign({ tools: [{ name: 'fs_read', description: 'd', parameters: { type: 'object', properties: {} } }] }, oneShot));
+    A.eq(c.calls[0].opts.env.DISABLE_PROMPT_CACHING, undefined, 'a tool loop keeps the cache (its next turns read it back)');
+    const d = make({ lines: [init('none'), result({ result: 'ok' })] }, { env: { PATH: '', STARNET_CLI_CACHE_ONESHOTS: '1' } });
+    await collect(d.p, oneShot);
+    A.eq(d.calls[0].opts.env.DISABLE_PROMPT_CACHING, undefined, 'STARNET_CLI_CACHE_ONESHOTS=1 restores caching for one-shots');
+    A.ok(!Object.keys(d.calls[0].opts.env).some(k => /^(STARNET|SKYNET)_/i.test(k)), 'the switch itself never reaches the CLI');
+  }
+
   // L. subscription stacking: an extra account runs as its own CLI identity; the default sign-in sets nothing.
   {
     const { p, calls } = make({ lines: [init('none'), result({ result: 'ok' })] }, { configDir: '/ws/.secrets/accounts/claude-cli/abc12345' });

@@ -657,13 +657,13 @@
     }
     /* The CLI gets the station-free env (child-env.js: no STARNET_/SKYNET_ secrets, no station-held key values),
        and its own memory stays out of the turn: auto-memory would inject the CLI user's notes into a StarNet agent. */
-    function childEnv() {
+    function childEnv(extra) {
       const out = childEnvLib.stationChildEnv(env);
       delete out.CLAUDECODE;               // a sidecar started from inside a Claude Code session is not a nested session
       delete out.CLAUDE_CODE_ENTRYPOINT;
       out.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
       if (opts.configDir) out.CLAUDE_CONFIG_DIR = String(opts.configDir);   // an extra account's own CLI identity
-      return out;
+      return extra ? Object.assign(out, extra) : out;
     }
     function killDirect(child) {
       try { child.kill(); } catch (e) { failNote('claudecli.kill', e); }
@@ -965,6 +965,19 @@
       }
     }
 
+    /* ONE-SHOT CALLS SKIP THE PROMPT CACHE. The CLI writes every prompt to the 1h cache, which costs about twice an
+       uncached read, and only pays off when a later call re-reads it. A request with no cacheSystemPrefix and no
+       tools is a single extraction call (reflection, study, thread-mine, scout, compaction, the browser's internal
+       one-shots): nothing ever re-reads it, so the write is pure overhead. Those spawn with DISABLE_PROMPT_CACHING=1
+       (proven live: the same prompt bills as plain input, 0 cache write). A run with a prefix or tools keeps the
+       cache: its later turns read it back (that covers every tool turn that runs one-shot: STARNET_CLAUDE_CLI_PERSIST=0,
+       or a second request while the persistent child is busy). STARNET_CLI_CACHE_ONESHOTS=1 restores the old behaviour. */
+    function oneShotEnv(r) {
+      if (/^(1|true|on|yes)$/i.test(envOf('STARNET_CLI_CACHE_ONESHOTS') || envOf('SKYNET_CLI_CACHE_ONESHOTS'))) return null;
+      const hasTools = Array.isArray(r.tools) && r.tools.length > 0;
+      return (!r.cacheSystemPrefix && !hasTools) ? { DISABLE_PROMPT_CACHING: '1' } : null;
+    }
+
     // ONE-SHOT: one `claude -p` child for one turn (STARNET_CLAUDE_CLI_PERSIST=0 runs every turn this way).
     const ONE_SHOT_EXIT_GRACE_MS = Number(opts.oneShotExitGraceMs) > 0 ? Number(opts.oneShotExitGraceMs) : 3000;   // after its result line a child normally exits by itself in ~2 s
     async function* oneShotStream(req, cmd, box) {
@@ -989,7 +1002,7 @@
       };
       const onAbort = () => { killTree(child); push(null); };
       try {
-        child = spawn(cmd.file, args, { env: childEnv(), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        child = spawn(cmd.file, args, { env: childEnv(oneShotEnv(req)), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       } catch (e) {
         removeFile(sysFile);
         throw notInstalled();

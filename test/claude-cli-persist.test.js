@@ -112,6 +112,7 @@ const tick = ms => new Promise(r => setTimeout(r, ms || 0));
     A.ok(args.indexOf('--strict-mcp-config') >= 0 && args[args.indexOf('--mcp-config') + 1] === '{"mcpServers":{}}' && args.indexOf('--disable-slash-commands') >= 0 &&
       args[args.indexOf('--setting-sources') + 1] === '', 'the same isolation flags as a one-shot turn');
     A.eq(spawns[0].opts.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY, '1', 'auto-memory stays off');
+    A.eq(spawns[0].opts.env.DISABLE_PROMPT_CACHING, undefined, 'the persistent child keeps the prompt cache (its next turns read it back)');
     const ins = spawns[0].inputs.map(textIn);
     A.eq(ins.length, 3, 'one user line per turn');
     A.eq(spawns[0].inputs[0].message.content, [{ type: 'text', text: '<user>\nRead a.txt and b.txt.\n</user>' }], 'turn 1 sends the opening request as one tagged block (the PROMPT CACHE blocks)');
