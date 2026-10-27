@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8c44f06338e06d564a5f16bdc88bea254f94f26d",
+    "sourceCommit": "ada4a0b5f1d5af04e77e9f251ec9564a20ce0f95",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 459909,
-        "sha256": "00dcca05db848024dd047b1faad993c65965004f7212d0e88e1f1fe02106ab9a"
+        "bytes": 465388,
+        "sha256": "a88f3ea2070ddb99fa4d461c6de8a038b82de66205dfe62fec340538ffc7a7dc"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/backup.js",
-        "bytes": 16598,
-        "sha256": "b124a532224882b1448af38f5f57b611a064c3d5be85147ce0e1b2a6636e52dd"
+        "bytes": 16961,
+        "sha256": "abd1f414e6bab020cf021bbf4478c65ef455d7aa2e1ed14ce98c5cc115e40100"
       },
       {
         "path": "frontend/app/battlepass.js",
@@ -373,13 +373,13 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 70240,
-        "sha256": "4df4cbe28d3d93fea67fa805df3b3028ce3e52c9b776180a08d9e789142caab0"
+        "bytes": 84823,
+        "sha256": "49d53419e36881194c7eb1f106dae93026fc851f4c32edc6c91d88adb41c40f0"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
-        "bytes": 9816,
-        "sha256": "463d9cfd5692816135dfdf10f29f5cec54f322222c66b9a1d706237e3f89fffe"
+        "bytes": 16203,
+        "sha256": "fa69aef22305cfa3d88720ae82cf0d12d116c33d7688d6343ad79c7ec7199ec9"
       },
       {
         "path": "frontend/app/codexsignin.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 969436,
-        "sha256": "994c8ee3aa850fe9aaf59ddb1617092f9e382c2761afb6670cba669b75902c04"
+        "bytes": 970227,
+        "sha256": "ded278d5811f729c0d865fcdb821e68572eacecda2757f4d6f6636a72f975afa"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1318,8 +1318,8 @@
       },
       {
         "path": "frontend/app/updates.js",
-        "bytes": 35033,
-        "sha256": "c7f7f5b8ea27a0208ef2266ef7e9e15eedd7d6a63b126346ad8d28e0d16269d3"
+        "bytes": 35846,
+        "sha256": "c63d6ac7c9f6f8b0c9f02271c882e4f9095bef0e0dc1e8015a6624c578901d4e"
       },
       {
         "path": "frontend/app/userprops.js",
