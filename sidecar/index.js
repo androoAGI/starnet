@@ -2580,7 +2580,7 @@ const commanderDossier = {
   _block: '',
   get() { return this._block; },
   set(block) {
-    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend caps it ~800; this is a hard safety ceiling
+    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend composes it under dossier.js BLOCK_CHARS (1600); this is a hard safety ceiling
     try {
       fs.mkdirSync(WORKSPACES, { recursive: true });
       saveResilient(DOSSIER_FILE, { block: this._block });   // fsync-durable + .bak last-known-good
@@ -3519,8 +3519,8 @@ async function runReflection(o) {
       }
       // stash ONE batch (mixed: saved receipts carry saved:true + a real record id; high-stakes carry the pending
       // prop_N id). The frontend fetches it via /api/memory/proposals — renders a passive receipt for saved:true
-      // items and the Keep/Edit/Discard confirm deck for the rest. A single stash per runId (a second stashProposals
-      // for the same runId would OVERWRITE the first — so merge here).
+      // items and the Keep/Edit/Discard confirm deck for the rest. A run's batch MERGES (putRunBatch → memcore.mergeReceipts,
+      // keyed by key||id): the saves recordRunReceipt already registered above and any mid-run notebook.write receipts stay.
       const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin, outcome: 'done',
         ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}) }));
       const combined = saved.concat(pending);
@@ -3607,8 +3607,8 @@ async function runFailureReview(o) {
           if (w.ok) { saved.push({ id: w.id, kind: w.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, saved: true }); recordRunReceipt(agentId, runId, saved[saved.length - 1]); }
         } catch (_) {}   // one failed write never sinks the batch
       }
-      // ONE stash per runId (a failed run never reflected, so this slot is free) + the durable pending queue for
-      // the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
+      // the run's batch MERGES (putRunBatch: trusted capture may already have stashed a held statement for this run) + the
+      // durable pending queue for the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
       const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, outcome: 'failed' }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
