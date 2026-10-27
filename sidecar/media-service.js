@@ -619,11 +619,10 @@ function makeMediaService(options) {
     const prefer = normalizeProviderId(String((body && body.preferProvider) || ''));
     const chain = TTS_KEY_PROVIDERS.includes(prefer) ? [prefer].concat(TTS_KEY_PROVIDERS.filter(p => p !== prefer)) : TTS_KEY_PROVIDERS;
     let ttsProvider = '', ttsKey = '';
-    const explicitKey = String((body && body.key) || '').trim();
-    if (explicitKey) {
-      ttsProvider = normalizeProviderId(String((body && body.keyProvider) || '')) || 'openrouter';
-      if (!TTS_KEY_PROVIDERS.includes(ttsProvider)) ttsProvider = 'openrouter';
-      ttsKey = explicitKey;
+    const explicit = ttsPageKey(body && body.key, body && body.keyProvider);
+    if (explicit) {
+      ttsProvider = explicit.provider;
+      ttsKey = explicit.key;
     } else {
       for (const provider of chain) {
         const key = providerRuntimeKey(provider, '');
@@ -906,6 +905,22 @@ function makeMediaService(options) {
     const named = String(provider || '').trim();
     if (named) return normalizeProviderId(named) === 'openrouter' ? k : '';
     return /^sk-or-/i.test(k) ? k : '';
+  }
+
+  /* The same rule for the desk's spoken sentence (POST /api/tts {key, keyProvider}): a page key is used only with the
+     TTS provider it is NAMED for. A key named for a provider that has no voice (an Anthropic key), or a legacy body
+     that names none, used to be re-labelled 'openrouter' and sent to openrouter.ai as a Bearer token; now an unnamed
+     key is trusted only when it is an sk-or- key, and anything else is ignored (the station's own keys and the free
+     floor answer instead). */
+  function ttsPageKey(key, provider) {
+    const k = String(key || '').trim();
+    if (!k) return null;
+    const named = String(provider || '').trim();
+    if (named) {
+      const p = normalizeProviderId(named);
+      return TTS_KEY_PROVIDERS.includes(p) ? { key: k, provider: p } : null;
+    }
+    return /^sk-or-/i.test(k) ? { key: k, provider: 'openrouter' } : null;
   }
 
   async function handleStt(req, res) {
