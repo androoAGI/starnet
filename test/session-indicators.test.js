@@ -87,6 +87,14 @@ Workstreams.appendRun('a', 'run-new', 4000);
 Channels.begin('a', 4000);
 A.eq(row(savedA).dot, 'ws-dot connecting', 'a new attempt clears the stale failure signal');
 Channels.reset();
+// a delivery session (idle-built work) waiting for review: the unseen lamp and the time, like any new reply — no "⚒ REVIEW"
+// tag on the row (Andrew 10-27); what is waiting is still said to assistive technology and in the tooltip
+Workstreams.adopt({ id: 'workshop-r1', title: '⚒ Pricing page v2', lastActiveAt: 5000, lastReadAt: 0 });
+const shop = Workstreams.get('workshop-r1');
+A.eq([row(shop).dot, row(shop).meta], ['ws-dot unseen', '1m'], 'a build waiting for review lights the unseen lamp and keeps the time');
+A.ok(context.railRowLabel(shop, row(shop)).includes('a build is waiting for your review'), 'what is waiting is named for assistive technology');
+A.ok(context.railRowTip(shop, row(shop)).startsWith('Pricing page v2 · a build is waiting for your review'), 'the tooltip names it by its title alone (no old ⚒ mark) and says what waits');
+A.ok(!/REVIEW'/.test(A.fnBody(app, 'function railRowState(w)')), 'no row state prints a REVIEW tag');
 const css = fs.readFileSync(path.join(__dirname, '../frontend/css/glass-demo.css'), 'utf8');
 A.ok(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ws-dot::before \{ animation: none; \}/.test(css), 'reduced motion disables both lamp and scan animation');
 A.ok(/\.ws-dot\.failed \{[^}]*animation: gd-session-failure/.test(css), 'failure X has its own flashing animation');
@@ -134,6 +142,21 @@ A.ok(!context.railRowTip(savedA, row(savedA), true).includes('right-click'), 'pr
     A.ok(context.railRowLabel(crew, row(crew)).includes(question ? 'waiting for your answer' : 'awaiting your approval'), 'the full crew label retains the truthful pending request');
     A.eq(context.railAgentLine(crew), '<span class="ws-agent-names">ULTRON, CYPHER</span><span class="ws-agent-more">+3</span>', 'attention does not replace or shorten the crew identity');
   }
+  // A GROUP SHOWS ITS CREW (Andrew 10-27): the first three members' own skin thumbs, lead first, ahead of the names line
+  {
+    const faces = A.fnBody(app, 'function railAgentFaces(w)');
+    A.ok(faces.length > 80 && faces.length < 1500, 'railAgentFaces located');
+    const drawn = [];
+    context.AgentPortraits = { thumbHTML: (a, w, h, cls) => { drawn.push([a && a.name, w, h, cls]); return '<i>' + (a ? a.name : '?') + '</i>'; } };
+    vm.runInContext(faces, context);
+    A.eq(context.railAgentFaces(crew), '<span class="ws-faces" aria-hidden="true"><i>ULTRON</i><i>CYPHER</i><i>MIRA</i></span>', 'a five-member group shows three faces, lead first');
+    A.eq(drawn.map(d => d.join(' ')), ['ULTRON 20 24 ws-face', 'CYPHER 20 24 ws-face', 'MIRA 20 24 ws-face'], 'each face is the member\'s own 20x24 skin thumb');
+    A.eq(context.railAgentFaces({ ...pair, conversationMode: 'direct' }), '', 'a one-on-one row shows no faces');
+    A.eq(context.railAgentFaces({ ...pair, id: 'unknown' }), '', 'unknown membership shows no faces (never an invented crew)');
+    delete context.AgentPortraits;
+    A.eq(context.railAgentFaces(crew), '', 'no portrait painter: no faces, the names line still says who is in it');
+    A.ok(/railAgentColorAttr\(w\) \+ '>' \+ railAgentFaces\(w\) \+ railAgentLine\(w\) \+ '<\/span>'/.test(A.fnBody(app, 'function renderRail()')), 'the rail draws the faces ahead of the names, inside the crew line');
+  }
   members.crew = ['ultron', 'vex']; delete groupState.crew;
   A.eq(context.railAgentLine(crew), '<span class="ws-agent-names">ULTRON, VEX</span>', 'membership shrink removes the stale overflow count');
   context.agents.set('ultron', { name: 'UL<&"\'' });
@@ -158,8 +181,11 @@ A.ok(!context.railRowTip(savedA, row(savedA), true).includes('right-click'), 'pr
   A.eq(decl('body:not(.rows-inbox) #workstreams .ws-agent.ws-agent-group', 'font-size'), '14px', 'the compact crew line sits at the 14px glass floor, not a shrunken chip (walk 10-14 #6: it was 12px under a 17px title)');
   const grid = 'body:not(.rows-inbox) #workstreams .ws-row:has(> .ws-agent-group)';
   A.eq(decl(grid, 'display'), 'grid', 'a compact group row lays the identity on its own line');
-  // the names own the whole first line; the row's time/status ends the title line (rc walk 10-14: "NOVA, … +1  Working")
-  A.ok(/"dot agent agent agent"\s*"title title pin meta"/.test(decl(grid, 'grid-template-areas') || ''), 'names take the whole first line; the pin and status end the title line (no shared cell can widen under the names)');
+  // the names own a whole line; the row's time/status ends the title line (rc walk 10-14: "NOVA, … +1  Working"). Title first
+  // (Andrew 10-27: a gold names line over an unaligned title "looks hideous"): the row opens like every other row
+  A.ok(/"dot title pin meta"\s*"\. agent agent agent"/.test(decl(grid, 'grid-template-areas') || ''), 'the title opens the row; the names take the whole line under it; the pin and status end the title line (no shared cell can widen under the names)');
+  const attnAreas = decl('body:not(.rows-inbox) #workstreams .ws-row.attn:has(> .ws-agent-group)', 'grid-template-areas') || '';
+  A.ok(/^"dot title title pin"\s*"\. agent agent agent"/.test(attnAreas), 'a waiting group row opens on its title too, its names under it');
   A.ok(/"dot agent agent agent"\s*"title title pin meta"\s*"recpt recpt recpt recpt"/.test(decl('body.rows-inbox #workstreams .ws-row:has(> .ws-agent-group)', 'grid-template-areas') || ''),
     'INBOX: a group row\'s names own the top line too (a "Connecting" status squeezed them to 0px)');
   // the shipped glass INBOX look (pipglass.css) lays its own rows: the same law there, and two real names too wide for the

@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "d95ab1a4bd18f8a6b6fe8cc555297c8486740f91",
+    "sourceCommit": "2ae03f666094f7d403c2e592cb11f2c89f4c1db8",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 458375,
-        "sha256": "27c2acc433b39bf4d591b4ff456aa77f48d777514af4b9bbbe5ca3b8a7def47b"
+        "bytes": 459334,
+        "sha256": "f7aebeb61d4ef89d23a9d97e199515336f6f03a1ba17f3f2de49d8f33d078964"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -738,8 +738,8 @@
       },
       {
         "path": "frontend/app/nightreportstore.js",
-        "bytes": 11156,
-        "sha256": "0d36eef08b86f8423e443709deaa68a0d45c6e708082253bd7183375d3c2b87f"
+        "bytes": 11158,
+        "sha256": "0b35fd21438477e96d285de9531ea3dde0fd93d2f981adeb562d19d9d62f1ebc"
       },
       {
         "path": "frontend/app/onboarding.js",
@@ -1448,8 +1448,8 @@
       },
       {
         "path": "frontend/app/workshopstore.js",
-        "bytes": 40216,
-        "sha256": "68ae247d1a654c378fea6ee927c37869af93770d5709a69ffca97c5b2723045d"
+        "bytes": 40207,
+        "sha256": "88a1c93b7afbcf2d3b366e8f0d205a82e956ae8178d34018be4fb2bfd60ef004"
       },
       {
         "path": "frontend/app/worksignal.js",
@@ -1463,8 +1463,8 @@
       },
       {
         "path": "frontend/app/workstreams.js",
-        "bytes": 53850,
-        "sha256": "4b0e2a075413f2f3dc35f6d6c4c09cd785c9bc19ef2e419f2737e23f329e6c3e"
+        "bytes": 54218,
+        "sha256": "4de437d194cfa5eb8f645ea288a92c45e800da2af3233f066781cf16c8cd5c19"
       },
       {
         "path": "frontend/app/workview.js",
@@ -1548,8 +1548,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 434472,
-        "sha256": "1600e2e6cf43389811e1676e6692d229d9e08c18442638c2c06009763b53e97d"
+        "bytes": 434610,
+        "sha256": "f7c4d8047fb6f2216aa1237a21191d67cfa77e5e43aedc97fecbfa9cef1dee29"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1668,8 +1668,8 @@
       },
       {
         "path": "frontend/css/pipglass.css",
-        "bytes": 200018,
-        "sha256": "1be21dcab8792461578861c88413d992ac605255a99384b11c19b7003ae0c7af"
+        "bytes": 207992,
+        "sha256": "7ea5cb15db17339ccff079db0e9f6706286eafcccc5ccf72c3929a2acd25b55b"
       },
       {
         "path": "frontend/css/plugins.css",

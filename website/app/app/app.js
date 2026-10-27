@@ -4219,15 +4219,15 @@ const App = (() => {
     // A settled failure uses the crossed lamp; only a live approval/question earns the action row.
     if (w.lastRunOk === false) return { dot: 'ws-dot failed', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'last run failed — open to inspect' };
     // a DELIVERY session ('workshop-<runId>' — idle-built work) that hasn't been reviewed is a decision the
-    // Commander owes, not just an unread chat: say REVIEW on the row itself (2026-07-15 UX audit — the ⚒ prefix
-    // alone didn't distinguish "your agent made you something" from ordinary unread activity).
+    // Commander owes: its lamp is unseen like any new reply, and its hover/label says what is waiting. The row
+    // itself keeps the time — a "⚒ REVIEW" tag there read as clutter (Andrew 10-27).
     if (String(w.id).indexOf('workshop-') === 0 && Workstreams.unread(w)) {
-      return { dot: 'ws-dot unseen', meta: '⚒ REVIEW', busy: false, attn: false, status: 'a build is waiting for your review' };
+      return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'a build is waiting for your review' };
     }
     // UNSEEN vs SEEN is the whole idle axis now. `unread` is two real stored timestamps
     // (lastActiveAt > lastReadAt) and is never true for the stream you have open, so the dot goes
     // faded the instant you actually look at it — which is what makes a glance down the rail mean
-    // something. The ⚒ REVIEW branch above keeps its own wording: a BUILD waiting is a different
+    // something. The build branch above keeps its own status wording: a BUILD waiting is a different
     // errand from a reply waiting, even though both are "unseen".
     if (Workstreams.unread(w)) return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'unread activity' };
     return { dot: 'ws-dot seen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'read' };
@@ -4255,6 +4255,15 @@ const App = (() => {
     const names = ids.slice(0, 2).map(id => { const m = agents.get(id); return (m && m.name) || id; }).join(', ');
     const more = ids.length - 2;
     return '<span class="ws-agent-names">' + U.esc(names) + '</span>' + (more > 0 ? '<span class="ws-agent-more">+' + more + '</span>' : '');
+  }
+  /* A GROUP SHOWS ITS CREW (Andrew 10-27: the names alone, "ULTRON, CYPHER", read as a line of text, not a group). The
+     first three members' own skin thumbs, lead first — the same portraits their CREW cards show — ahead of the names
+     line; the names and the +N stay as they are. '' for a one-on-one row or an unknown membership. */
+  function railAgentFaces(w) {
+    const members = w.conversationMode === 'group' && typeof GroupChat !== 'undefined' && GroupChat.membersOf ? GroupChat.membersOf(w.id) : null;
+    if (!members || members.length < 2 || typeof AgentPortraits === 'undefined' || !AgentPortraits.thumbHTML) return '';
+    const ids = [w.agentId].concat(members.filter(id => id !== w.agentId)).filter(id => members.includes(id)).slice(0, 3);
+    return '<span class="ws-faces" aria-hidden="true">' + ids.map(id => AgentPortraits.thumbHTML(agents.get(id) || null, 20, 24, 'ws-face')).join('') + '</span>';
   }
   /* WHOLE NAMES (walk 10-14 #6): the row gives the names line its whole first line (app.css / pipglass.css), and this
      picks the reading that fits it — "ULTRON, CYPHER +3", else "ULTRON +4" — so a name is never cut mid-word
@@ -4430,7 +4439,7 @@ const App = (() => {
       return '<li class="' + rowClass(w, st, activeId) + '" data-id="' + U.esc(w.id) + '"' + runAttr + ' tabindex="' + (w.id === railFocusId ? '0' : '-1') + '" role="option" aria-selected="' + (w.id === activeId ? 'true' : 'false') + '" aria-posinset="' + (i + 1) + '" aria-setsize="' + rows.length + '" aria-label="' + U.esc(railRowLabel(w, st)) + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + st.dot + '" aria-hidden="true"></span>' +
         (w.pinned ? '<span class="ws-pin" aria-hidden="true">★</span>' : '') +
-        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentLine(w) + '</span>' +
+        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentFaces(w) + railAgentLine(w) + '</span>' +
         '<span class="ws-title">' + U.esc(title) + '</span>' + runsKey +
         '<span class="ws-meta">' + U.esc(st.meta) + '</span>' +
         '<span class="ws-receipt" aria-hidden="true">' + U.esc(railReceipt(w)) + '</span>' +
