@@ -3488,7 +3488,8 @@ async function runReflection(o) {
     // never re-proposes a belief the Commander already rejected (stored as plain text → wrapped so textOf reads it).
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
-    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), clock: { now: () => Date.now() }, max: 5 });
+    // projectRoot: a held belief in ANOTHER project is never this run's replacement target (reflect.js reachable)
+    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
     // the Commander paused (or forgot) learning while the model was answering: remember nothing from this pass
     if (!learningUnchangedSince(pz)) return;
     let proposals = (out && out.proposals) || [];
@@ -29158,7 +29159,19 @@ async function writeMemoryRecord(agentId, prop, opts) {
     if (prop && prop.replaceId) {
       if (!opts.userConfirmed) throw new Error('a proposed memory correction must be reviewed before replacing the existing belief');
       const at = list.findIndex(r => r.id === prop.replaceId);
-      rec = reviseRecord(list[at], { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
+      /* ONE ACTIVE RECORD PER SUBJECT through the reviewed path too (memory-truth-1027). reflect() names the newest record on
+         the subject; any OTHER active record in its boundary that holds an older claim on the same subject (a legacy pair)
+         folds into the record the Commander approved, instead of staying active beside it. */
+      const prior = list[at];
+      const others = prior ? supersessionTargets(list, redact(content), { scope: prior.scope || 'global', projectRoot: prior.projectRoot || null }).filter(r => r !== prior) : [];
+      if (others.length) {
+        const out = supersedeRecords(list, [prior].concat(others), { survivor: prior, previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true, source: opts.source || null }, Date.now());
+        rec = out.record; superseded = out.retired;
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id;
+        return out.list;
+      }
+      rec = reviseRecord(prior, { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
       if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
       list[at] = rec;
       writtenId = rec.id;

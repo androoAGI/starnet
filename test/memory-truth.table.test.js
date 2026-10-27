@@ -382,6 +382,22 @@ const NOTE_TABLE = [
       await silent.api.writeMemoryRecord('nova', { kind: 'profile', content: 'User prefers light mode', scope: 'global' }, { runId: 's1', source: 'reflection' });
       A.eq(silent.notes()[0].content, 'User prefers dark mode', 'a model\'s silent save retires nothing (reflection sends a same-subject claim to review instead)');
     }
+    // reflect() → Keep on a notebook that already holds TWO records on the subject: one active record after the Keep
+    {
+      const legacy = [
+        { id: 'note_1', kind: 'profile', scope: 'global', title: 'Preference', content: 'User prefers dark mode', body: 'User prefers dark mode', createdAt: 1 },
+        { id: 'note_2', kind: 'profile', scope: 'global', title: 'Preference', content: 'User likes the dark theme', body: 'User likes the dark theme', createdAt: 2 }
+      ];
+      const st = station(legacy);
+      const run = { runId: 'rf2', messages: [{ role: 'user', content: 'x'.repeat(50) }, { role: 'assistant', content: 'y'.repeat(200) }] };
+      const prop = (await reflectMod.reflect(run, { existing: st.notes(), propose: async () => 'PREFERENCE: User prefers light mode' })).proposals[0];
+      A.ok(prop && prop.replaceId === 'note_2', '(reflect names the newest record on the subject): ' + JSON.stringify(prop));
+      const w = await st.api.writeMemoryRecord('nova', prop, { runId: 'k2', source: 'turn-in', userConfirmed: true, trustDelta: 2 });
+      A.ok(w.ok && w.id === 'note_2', 'Keep revises the approved record: ' + JSON.stringify(w));
+      A.eq(st.active(), ['User prefers light mode'], 'reflect → Keep with a legacy pair: exactly ONE active record');
+      A.eq(st.notes()[0].history.map(h => h.body).sort(), ['User likes the dark theme', 'User prefers dark mode'], '…both older texts in its history');
+      A.eq(st.notes()[0].confirmation, 'user-confirmed', '…carrying the Commander\'s approval');
+    }
   }
 
   /* ---------- 5. reflect(): a same-subject claim becomes a reviewed REPLACEMENT; a different fact is proposed ---------- */
@@ -402,6 +418,19 @@ const NOTE_TABLE = [
     A.eq(p.length, 0, 'reflect: the same claim in other words is a restatement, dropped');
     p = await say([{ content: 'User prefers dark mode' }], 'PREFERENCE: The user prefers the dark theme');
     A.eq(p.length, 0, 'reflect: a declined belief worded again stays declined');
+    // a replacement never reaches across a project boundary, nor into the Commander's rating records
+    const inB = [{ id: 'note_7', kind: 'fact', content: 'The repo uses npm', body: 'The repo uses npm', scope: 'stream', streamId: 'sB', projectRoot: 'C:/Work/B', createdAt: 1 }];
+    const fromA = (await reflect(run, { existing: inB, projectRoot: 'C:/Work/A', propose: async () => 'FACT: The repo uses pnpm' })).proposals;
+    A.ok(fromA.length === 1 && !fromA[0].replaceId, 'reflect in project A never proposes rewriting project B\'s fact: ' + JSON.stringify(fromA));
+    const noProject = (await reflect(run, { existing: inB, propose: async () => 'FACT: The repo uses pnpm' })).proposals;
+    A.ok(noProject.length === 1 && !noProject[0].replaceId, '…nor does a run outside any project');
+    const fromB = (await reflect(run, { existing: inB, projectRoot: 'C:/Work/B', propose: async () => 'FACT: The repo uses pnpm' })).proposals;
+    A.ok(fromB.length === 1 && fromB[0].replaceId === 'note_7', 'inside project B it is a replacement of B\'s fact');
+    const crossUpdate = (await reflect(run, { existing: inB, projectRoot: 'C:/Work/A', propose: async () => 'UPDATE note_7: The repo uses pnpm' })).proposals;
+    A.eq(crossUpdate.length, 0, 'an explicit UPDATE of another project\'s record is dropped');
+    const rating = [{ id: 'note_3', kind: 'profile', origin: 'feedback', content: 'User prefers dark mode', body: 'User prefers dark mode', scope: 'global', createdAt: 1 }];
+    p = await say(rating, 'PREFERENCE: User prefers light mode');
+    A.ok(p.every(x => !x.replaceId), 'a rating record (origin feedback) is never a replacement target: ' + JSON.stringify(p));
     // the reviewed replacement, Kept, leaves one active record with the old text in its history
     const st2 = [{ id: 'note_1', kind: 'profile', title: 'Preference', content: 'User prefers dark mode', body: 'User prefers dark mode', scope: 'global', createdAt: 1 }];
     const prop = (await say(st2, 'PREFERENCE: The user prefers a light theme'))[0];

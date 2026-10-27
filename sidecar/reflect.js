@@ -8,10 +8,11 @@
    replay-safe. Auto-proposals are CANDIDATES ONLY — they never auto-write (§5.6, D-mem.1). */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
+  const node = typeof require === 'function';
+  const api = factory(node ? require('../frontend/app/memtruth.js') : root.MemTruth, node ? require('./context.js') : (root.SK && root.SK.context));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).reflect = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth, retrieval) {
   'use strict';
 
   // Accepted kinds match the advertised FACT/PREFERENCE contract. NOTE was dropped: it was a loose
@@ -153,8 +154,13 @@
     for (const r of (Array.isArray(opts.existing) ? opts.existing : [])) { const t = textOf(r).trim(); seen[t.toLowerCase()] = 1; if (t) priorTexts.push(t); }
 
     const existing = Array.isArray(opts.existing) ? opts.existing : [];
+    /* WHICH HELD BELIEFS A CLAIM MAY REPLACE OR RESTATE: only ones this run can see — never another project's record (a run
+       in project A must not propose rewriting project B's fact; replaceId Keep has no project check of its own), and never
+       the Commander's rating records (feedbackmemory owns those; notebook.js supersessionTargets excludes them too).
+       opts.projectRoot is the run's project; absent, project-scoped records are out of reach like any other project. */
+    const reachable = r => !!r && r.origin !== 'feedback' && (!retrieval || retrieval.memoryAllowedInProject(r, opts.projectRoot || null));
     const archived = new Set(existing.flatMap(r => (r && Array.isArray(r.history) ? r.history : []).map(h => String(h && h.body || '').trim().toLowerCase())));
-    const prompt = buildPrompt(run.messages, PROMPT_CAP, priorTexts.slice(), existing);
+    const prompt = buildPrompt(run.messages, PROMPT_CAP, priorTexts.slice(), existing.filter(reachable));   // only reachable ids are offered for UPDATE
     let raw;
     try { raw = await propose(prompt); } catch (_) { return { proposals: [], prompt: prompt }; }   // a failed reflection never hurts the run
     const now = clock.now();
@@ -165,14 +171,14 @@
       const key = content.toLowerCase();
       if (!content || seen[key] || (!cand.replaceId && archived.has(key))) continue;
       if (lowValue(content)) continue;            // drop trivia / run-specific narration (the value floor)
-      let replacement = cand.replaceId ? existing.find(r => r && r.id === cand.replaceId) : null;
+      let replacement = cand.replaceId ? existing.find(r => r && r.id === cand.replaceId && reachable(r)) : null;
       if (cand.replaceId && !replacement) continue;
       /* THE SUBJECT FIRST (memory-truth-1027, the shared MemTruth.relate every writer uses). The same claim in other
          words is a restatement (dropped, like an exact dupe — declined texts included, so a rejected belief stays
          rejected). A DIFFERENT claim on the same subject ("prefers light mode" after "prefers dark mode") used to be
          dropped as a near-duplicate when it shared enough words, or proposed as a second active belief when it did not;
          it is now a replacement of the newest record holding that subject, reviewed before it replaces anything. */
-      const verdicts = existing.map(r => ({ r, v: r ? MemTruth.relate(bodyText(r), content) : 'unknown' }));
+      const verdicts = existing.map(r => ({ r, v: reachable(r) ? MemTruth.relate(bodyText(r), content) : 'unknown' }));
       if (!replacement && verdicts.some(x => x.v === 'dupe')) continue;
       if (!replacement) {
         const same = verdicts.filter(x => x.v === 'supersede' && x.r.id).map(x => x.r).sort((a, b) => (b.updatedAt || b.createdAt || b.ts || 0) - (a.updatedAt || a.createdAt || a.ts || 0));
@@ -181,7 +187,7 @@
       // Negation can invert a preference while preserving almost every word. Route
       // that ambiguity to review, never silently discard or auto-overwrite it.
       const negated = t => /\b(?:not|no|never|without|avoid|dislikes?|don['’]t|doesn['’]t)\b/i.test(t);
-      if (!replacement) replacement = existing.find(r => r && r.id && jaccard(textOf(r), content) >= SIM_THRESHOLD && negated(textOf(r)) !== negated(content));
+      if (!replacement) replacement = existing.find(r => reachable(r) && r.id && jaccard(textOf(r), content) >= SIM_THRESHOLD && negated(textOf(r)) !== negated(content));
       // a near-duplicate by word overlap — unless the subject key says it is a DIFFERENT fact of the same shape
       // ("the staging db is in frankfurt" vs "the production db is in frankfurt"), which is proposed, never dropped
       let near = false;
