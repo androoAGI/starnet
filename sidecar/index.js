@@ -279,6 +279,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
+const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
@@ -17050,10 +17051,10 @@ async function handleCronRun(req, res) {
             return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
           }
         });
-        if (line && String(line.text || '').trim()) state.buf = line.text;
-        // THE ROUTINE'S SPEND IS THE WHOLE LINE'S SPEND (2026-08-22): out.usd is hop-only, so add it to the entry
-        // run's reconciled spend exactly as the scheduled fire does (cron-driver `state.usd += line.usd`).
-        if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd;
+        // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
+        // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
+        // under its answer and on the routine's record (quick win 25), never delivering stage one's work as the whole line's.
+        foldLineIntoFire(state, line);
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
     runs.delete(runId);

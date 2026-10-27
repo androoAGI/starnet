@@ -68,6 +68,9 @@
   // plain words for an unclean end ("the model sent back an empty reply…"), the machine reason kept in brackets
   const incompleteRunMessage = (typeof require === 'function') ? require('./stop-reason.js').incompleteRunMessage : (r) => 'run ended without completion: ' + (r || 'missing terminal outcome');
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // what a finished work line leaves on the fire: its answer + stop note, its spend, its stop facts (routing/line-fire.js)
+  const foldLineIntoFire = (typeof require === 'function') ? require('./routing/line-fire.js').foldLineIntoFire
+    : function (state, line) { if (line && String(line.text || '').trim()) state.buf = line.text; if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd; return state; };
 
   const SILENT_MARKER = '[SILENT]';
   const iso = cron._internals.iso;   // ms(arg) -> ISO; deterministic (the lint bans only the zero-arg new Date)
@@ -319,6 +322,7 @@
             runId: runId, status: ok ? 'ok' : 'error',
             reason: state.reason || (ok ? 'done' : 'error'),
             error: errMsg || undefined, transient: transient, output: ok ? reply : undefined, usd: state.usd || 0,
+            line: state.line || null,   // the work line's stop facts (stopped / unapproved / partial), null on a clean or no line
             monitorHash: ok ? state.monitorHash : undefined
           }, { now: at, defaultTz: defaultTz, maxConsecutiveFailures: maxConsecutiveFailures });
           committed = setJobs(next) !== false;
@@ -616,7 +620,8 @@
             unattendedGrants: [],
             onHop: function () { renewLease(job.id, runId); }
           })).then(
-            function (line) { if (line && String(line.text || '').trim()) state.buf = line.text; if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd; finishFire(job.id, runId, state, null); },
+            // the LINE's answer, its stop note when it stopped short, its spend and its stop facts — as the channel hub folds it
+            function (line) { foldLineIntoFire(state, line); finishFire(job.id, runId, state, null); },
             // A CHAIN FAILURE NEVER CHANGES THE ROUTINE'S OUTCOME: stage one really did run and really did
             // produce work. Same law the channel path holds — the line is never a gate on the answer.
             // It is still SAID OUT LOUD: a silently swallowed chain error is indistinguishable from a floor

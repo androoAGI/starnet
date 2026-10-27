@@ -76,6 +76,38 @@ async function fireAndSettle(s, reply) {
     A.eq(s.getJob('j1').lastStatus, 'ok', 'and its durable record is clean');
   }
 
+  /* ---- (quick win 25, GitHub #122) a line that STOPPED SHORT says so on the routine's answer and record ----
+     The hub has always appended chain.stopNote and handed stopped/unapproved/partial to its outcome hook; the routine
+     took only the line's text, so a line that died at stage two delivered stage one's answer as if the line had run. */
+  {
+    const s = setup({ advanceChain: async () => ({ text: 'THE DRAFT', hops: [{ agentId: 'writer' }], stopped: 'editor failed: provider 500', unapproved: 'the review loop used all 2 passes, so the work went on unapproved', usd: 0.25 }) });
+    await fireAndSettle(s, 'raw findings');
+    const job = s.getJob('j1');
+    A.eq(job.lastStatus, 'ok', 'a line failure still never changes the routine\'s outcome');
+    A.ok(/^THE DRAFT\n\n⚠ the work line stopped early — editor failed: provider 500\.$/.test(job.lastOutput), 'the delivered answer says the line stopped early, and why: ' + JSON.stringify(job.lastOutput));
+    A.eq(job.lastLine, { stopped: 'editor failed: provider 500', unapproved: 'the review loop used all 2 passes, so the work went on unapproved' }, 'the routine\'s record keeps the line\'s stop facts');
+    A.ok(/stopped early/.test((job.finalization && job.finalization.result) || ''), 'and the delivery receipt carries the same words');
+    A.eq(job.lastUsd, 0.25, 'the line\'s hop spend is added to the entry run\'s (foldLineIntoFire)');
+    const { lineStopNote } = require('../sidecar/routing/line-fire.js');
+    const { makeChainRunner } = require('../sidecar/routing/chain.js');
+    A.eq(makeChainRunner({ plan: () => null, runAgent: async () => ({}) }).stopNote({ stopped: 'x' }), lineStopNote({ stopped: 'x' }), 'the channel hub and the routine say it in ONE wording (chain.stopNote is lineStopNote)');
+  }
+  {
+    // Run Now (index.js handleCronRun) calls chainRunner.advance itself: it must fold the line through the SAME helper
+    const { sidecarTopLevelFunction } = require('./helpers/source.js');
+    const runNow = sidecarTopLevelFunction('handleCronRun');
+    A.ok(runNow.length > 1000 && /chainRunner\.advance\(/.test(runNow), 'fixture: handleCronRun is sliced and runs the line');
+    A.ok(/foldLineIntoFire\(state, line\)/.test(runNow), 'Run Now folds its line through foldLineIntoFire (stop note + stop facts), like the scheduled fire');
+    A.ok(!/state\.buf = line\.text/.test(runNow), 'and no longer takes only the line\'s text');
+  }
+  {
+    // a clean line leaves no facts behind (and clears an earlier fire's)
+    const s = setup({ advanceChain: async () => ({ text: 'CLEAN', hops: [{ agentId: 'writer' }], stopped: null }) });
+    await fireAndSettle(s, 'raw');
+    A.eq(s.getJob('j1').lastLine, null, 'a clean line records no stop facts');
+    A.eq(s.getJob('j1').lastOutput, 'CLEAN', 'and adds no note');
+  }
+
   /* ---- a TRUNCATED entry run buys no hops: the line advances only on reason 'done' ---- */
   // max_turns/budget/missing-terminal set no errMsg, yet finishFire records them as failures. The old gate
   // read only errMsg+buf, so a truncated run spent real money on every downstream hop over partial stage-one

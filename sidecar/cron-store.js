@@ -56,6 +56,8 @@
   const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;   // terminal failures in a row before a recurring job auto-pauses
   const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;      // a single safe path component (matches index.js agentId guard)
   const iso = cron._internals.iso;            // ms(arg) -> ISO; deterministic (no zero-arg new Date)
+  // a fire's work-line stop facts, bounded (routing/line-fire.js lineFacts — the one shape the routine paths record)
+  const lineFactsOf = (typeof require === 'function') ? require('./routing/line-fire.js').lineFacts : function () { return null; };
 
   // fields a user may edit via updateJob. `id`, timestamps, run-state and counters are NOT editable here.
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
@@ -160,6 +162,7 @@
       lastRunAt: null, lastRunId: null, lastStatus: null, lastError: null, lastReason: null,
       // Bounded final output is the durable data plane for contextFrom. It is runtime data, never editable.
       lastOutput: null,
+      lastLine: null,   // the last fire's work-line stop facts { stopped?, unapproved?, partial? } (markRun)
       retryCount: 0,
       // misfire policy for a recurring job (see normMisfire above). null -> schedule-derived default.
       misfire: normMisfire(spec.misfire),
@@ -601,6 +604,8 @@
       next.lastStatus = ok ? 'ok' : 'error';
       next.lastError = ok ? null : (result.error != null ? String(result.error) : 'error');
       if (ok && result.output != null) next.lastOutput = String(result.output).slice(0, 32000);
+      // the WORK LINE's stop facts for this fire (routing/line-fire.js lineFacts): null = no line, or a clean one
+      next.lastLine = lineFactsOf(result.line);
       if (ok && result.monitorHash != null) {
         next.monitorHash = String(result.monitorHash).slice(0, 200);
         next.monitorLastCheckedAt = iso(now);
