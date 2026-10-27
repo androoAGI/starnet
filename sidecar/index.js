@@ -12933,7 +12933,7 @@ function quiesceForProcessFault() {
   // name the station's fault, never "you stopped this job" (wave 2 repair, conveyor-backend-08's sibling)
   contain('sample', () => { if (sampleInFlight) { sampleInFlight.stopRequested = true; sampleInFlight.stopCause = 'fault'; } markFaulted((sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); killAll(null, (sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); });
   // every run runOnce drives by id (routine fires, hops, triggers, hubs, /v1) through its stop handle, after the kills above
-  contain('stop-handles', () => killStopHandles(runStopHandles));
+  contain('stop-handles', () => killStopHandles(runStopHandles, e => failNote('process-fault.quiesce.stop-handles', e)));
   contain('groups', () => groupSessions && groupSessions.halt && groupSessions.halt());
   contain('subagents', () => subagents && subagents.interruptAll && subagents.interruptAll());
   contain('shell-background', () => shellBg && shellBg.killAll && shellBg.killAll());
@@ -26155,7 +26155,7 @@ function handleHalt(req, res) {
   // EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1) holds a stop handle
   // (runOnceTracked). Last among the run kills, so the count is only the runs none of the kills above reached (QA 0930).
   let handleAborted = 0;
-  try { handleAborted = killStopHandles(runStopHandles); } catch (e) { failNote('stop-handles.estop', e); }
+  try { handleAborted = killStopHandles(runStopHandles, e => failNote('stop-handles.estop', e)); } catch (e) { failNote('stop-handles.estop', e); }
   try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too

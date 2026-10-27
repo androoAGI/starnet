@@ -36,7 +36,9 @@ function handle(ownerSignal) {
   A.eq(killStopHandles(handles), 0, 'a second E-STOP counts nothing that is already stopped');
   A.eq(killStopHandles(null), 0, 'no map: 0, never a throw');
   const boom = new Map([['x', { abort() { throw new Error('boom'); } }], ['y', handle(null)]]);
-  A.eq(killStopHandles(boom), 1, 'one throwing handle never stops the rest');
+  const noted = [];
+  A.eq(killStopHandles(boom, e => noted.push(e.message)), 1, 'one throwing handle never stops the rest, and is not counted as a stop');
+  A.eq(noted, ['boom'], 'its error goes to the host\'s failNote, never swallowed');
   // and the same run in `runs` AND a stop handle (an interactive run is both) is counted once across the two kills
   const ac = new AbortController();
   const runs = new Map([['r', ac]]);
@@ -53,19 +55,19 @@ A.ok(/o\.signal = o\.signal \? AbortSignal\.any\(\[o\.signal, kc\.signal\]\) : k
 // ---- 3. E-STOP kills the stop handles after its other kills and counts them in `halted` ----
 const halt = sidecarTopLevelFunction('handleHalt');
 A.ok(halt.length > 1000 && halt.length < 20000, 'one bounded handleHalt');
-const at = halt.indexOf('killStopHandles(runStopHandles)');
+const at = halt.indexOf('killStopHandles(runStopHandles, ');
 A.ok(at > 0, 'handleHalt kills every stop handle');
 for (const earlier of ['killAll(runs,', 'cronDriver.abortAllLeases()', 'nightshiftDriver.abortBeat()', 'loopDriver.abortAllLeases()']) {
   const i = halt.indexOf(earlier);
   A.ok(i > 0 && i < at, 'the stop handles are killed after ' + earlier + ', so the count holds only runs it missed');
 }
-A.ok(/handleAborted = killStopHandles\(runStopHandles\)/.test(halt), 'their count is kept');
+A.ok(/handleAborted = killStopHandles\(runStopHandles, e => failNote\('stop-handles\.estop', e\)\)/.test(halt), 'their count is kept, and a handle that fails to abort is noted');
 A.ok(/halted: halted \+ phoneAborted \+ handleAborted,/.test(halt), 'and added to the halted total the E-STOP toast shows');
 
 // ---- 4. the process-fault quiesce reaches them too, in its own containment ----
 const quiesce = sidecarTopLevelFunction('quiesceForProcessFault');
 A.ok(quiesce.length > 1000 && quiesce.length < 20000, 'one bounded quiesceForProcessFault');
-A.ok(/contain\('stop-handles', \(\) => killStopHandles\(runStopHandles\)\);/.test(quiesce), 'the fault quiesce kills every stop handle in its own containment');
+A.ok(/contain\('stop-handles', \(\) => killStopHandles\(runStopHandles, e => failNote\('process-fault\.quiesce\.stop-handles', e\)\)\);/.test(quiesce), 'the fault quiesce kills every stop handle in its own containment, noting a failed abort');
 A.ok(quiesce.indexOf("contain('stop-handles'") > quiesce.indexOf("contain('runs'"), 'after the run and hub kills');
 
 A.report('estop-stop-handles.test');
