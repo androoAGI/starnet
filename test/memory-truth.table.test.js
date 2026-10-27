@@ -29,9 +29,31 @@ const MemTruth = require('../frontend/app/memtruth.js');
   }
   const study = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'study.js'), 'utf8');
   A.ok(!JACCARD.test(study) && /require\('\.\/memtruth\.js'\)/.test(study) && /root\.MemTruth/.test(study), 'study.js (browser + sidecar) reads the same module, via the UMD root in the browser');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'index.html'), 'utf8');
-  const mt = html.indexOf('<script src="app/memtruth.js">'), st = html.indexOf('<script src="app/study.js">');
-  A.ok(mt > 0 && st > mt, 'index.html loads memtruth.js before study.js');
+  // EVERY page that loads study.js loads memtruth.js first (study.js reads MemTruth at load: without it, it throws and
+  // window.Study never exists) — index.html AND the agent-station demo entry (test/website-app-sync.test.js holds the
+  // website/app mirror to these files)
+  const pages = [];
+  const frontendDir = path.join(__dirname, '..', 'frontend');
+  for (const f of fs.readdirSync(frontendDir)) if (/\.html$/.test(f)) pages.push(path.join(frontendDir, f));
+  const studyPages = pages.filter(p => fs.readFileSync(p, 'utf8').indexOf('<script src="app/study.js">') >= 0);
+  A.ok(studyPages.some(p => /frontend[\\/]index\.html$/.test(p)) && studyPages.some(p => /agent-station-demo\.html$/.test(p)), 'found the pages that load study.js: ' + studyPages.map(p => path.basename(path.dirname(p)) + '/' + path.basename(p)).join(', '));
+  for (const p of studyPages) {
+    const html = fs.readFileSync(p, 'utf8');
+    const mt = html.indexOf('<script src="app/memtruth.js">'), st = html.indexOf('<script src="app/study.js">');
+    A.ok(mt > 0 && st > mt, path.basename(path.dirname(p)) + '/' + path.basename(p) + ' loads memtruth.js before study.js');
+  }
+  // …and study.js really loads in a browser-shaped global only with it (the classic-script load the pages do)
+  {
+    const vm = require('vm');
+    const load = withMemTruth => {
+      const win = {}; win.window = win; win.globalThis = win;
+      const ctx = vm.createContext(win);
+      if (withMemTruth) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'memtruth.js'), 'utf8'), ctx);
+      try { vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'study.js'), 'utf8'), ctx); } catch (_) {}
+      return typeof win.Study;
+    };
+    A.eq(load(true), 'object', 'with memtruth.js first, window.Study exists');
+  }
   const memtruthText = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'memtruth.js'), 'utf8');
   A.ok(JACCARD.test(memtruthText), 'the formula lives once, in memtruth.js');
 
