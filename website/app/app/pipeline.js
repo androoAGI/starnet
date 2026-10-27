@@ -1028,7 +1028,14 @@
       for (const iid of c.intakes) {
         const ip = props.find(q => q.id === iid);
         const lim = ip ? normalizeLineLimits(ip.limits) : null;
-        if (lim) { rec.limits = lim; lineLimits[lineId] = lim; budgetIntake[lineId] = iid; break; }
+        if (!lim) continue;
+        if (!rec.limits) { rec.limits = lim; lineLimits[lineId] = lim; budgetIntake[lineId] = iid; continue; }
+        /* A SECOND INBOX's LINE BUDGET IS NOT IN FORCE (quick win 29): a line has ONE budget, the first INBOX's above. This one's
+           card still shows its own numbers, so raising them there changed nothing — say so on it, naming the INBOX that speaks.
+           Advice only (warn), outside plan.hash; the budget the executor reads is unchanged. */
+        const inForce = props.find(q => q.id === budgetIntake[lineId]);
+        errors.push({ code: 'LINE_BUDGET_SHADOWED', propId: iid, lineId, inForce: budgetIntake[lineId],
+          inForceName: (inForce && typeof inForce.label === 'string' && inForce.label.trim()) ? inForce.label.trim().slice(0, 48) : '', warn: true });
       }
       // The first Inbox with a project supplies the whole connected workflow.
       for (const iid of c.intakes) {

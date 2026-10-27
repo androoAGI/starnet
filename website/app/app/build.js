@@ -126,6 +126,8 @@ const Build = (() => {
     CHAIN_CYCLE: 'WORK LINE LOOPS — CUT ONE HANDOFF',
     // the longest way through this line runs more stages than its stage ceiling: a job that goes that way stops part-way (2026-10-09 P0) — said on its INBOX
     LINE_TOO_LONG: 'TOO LONG — RAISE THE LINE BUDGET',
+    // a SECOND INBOX's own LINE BUDGET: the line's first INBOX with one speaks for the whole line (advice, said on the ignored one)
+    LINE_BUDGET_SHADOWED: 'BUDGET NOT USED — SEE FIRST INBOX',
     // SEND TO (2026-10-10) — said on the OUTBOX whose hand-off is off; advice, never a blocker
     SEND_TO_MISSING: 'SENDS NOWHERE — PICK A LINE', SEND_TO_SELF: 'SENDS TO ITSELF — PICK ANOTHER LINE',
     SEND_TO_LOOP: 'SENDS IN A CIRCLE — CUT ONE SEND TO'
@@ -143,6 +145,7 @@ const Build = (() => {
     LOOP_NO_DONE: 'This LOOP has no DONE lane — run a belt OUT of its tile onward (the first exit, in E/S/W/N order, is DONE unless you choose one).',
     LOOP_NO_BACK: 'This LOOP has no BACK lane — run a second belt OUT of its tile back to an earlier BAY.',
     LINE_TOO_LONG: 'Too long — the longest way through this line runs more stages than its LINE BUDGET allows, so a job that goes the longest way would stop part-way (the stages that ran are still paid for). Raise “max stages after the first” in this INBOX’s Workflow card › Optional limits · LINE BUDGET (24 at most), or shorten the line.',
+    LINE_BUDGET_SHADOWED: 'This INBOX has its own LINE BUDGET, but a line has ONE: the first INBOX on it that carries a budget sets it for the whole line, so the numbers on this one are not used. Change the budget on that INBOX, or clear this one’s.',
     SEND_TO_MISSING: 'This OUTBOX sends to an INBOX that is gone or starts no line yet (or the OUTBOX itself ends no line), so nothing is sent on. Click the OUTBOX and pick a line under SEND TO (or NOWHERE).',
     SEND_TO_SELF: 'This OUTBOX sends its work back into its own line’s INBOX, so nothing is sent on. Click it and pick another line under SEND TO (or NOWHERE).',
     // (advice on the OUTBOX's card, never a floor nag — Pipeline.sendToFileAdvice says when it is true: final floor lane M19 / M29)
@@ -156,6 +159,9 @@ const Build = (() => {
       const fits = e.stages - 1 <= 24;
       return 'Too long — the longest way through this line runs ' + e.stages + ' stages, but its LINE BUDGET allows ' + (e.maxHops + 1) + ' (the first + ' + e.maxHops + ' more), so a job that goes that way would stop at stage ' + (e.maxHops + 2) + ' (the stages that ran are still paid for). '
         + (fits ? 'Raise “max stages after the first” to ' + (e.stages - 1) + ' in this INBOX’s Workflow card › Optional limits · LINE BUDGET, or shorten the line.' : 'No LINE BUDGET allows that many (25 stages at most): shorten the line.');
+    }
+    if (e && e.code === 'LINE_BUDGET_SHADOWED' && e.inForceName) {
+      return 'This INBOX has its own LINE BUDGET, but a line has ONE: the budget in force is the one on the INBOX “' + e.inForceName + '”, so the numbers on this one are not used. Change the budget there, or clear this one’s.';
     }
     return VAL_WHY[e && e.code] || null;
   }
