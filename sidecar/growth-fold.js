@@ -16,6 +16,21 @@
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
+/* WHERE THE FOLD READS THE LEDGER FROM (review 10-27): the save's own watermark — except for a save whose watermark was
+   written by the old per-acknowledgement scheme (stationStats.ratingSyncVersion !== 2), which may sit PAST ratings it never
+   applied. The page repairs such a save by replaying the whole ledger while every receipt list is complete (xpstore.js
+   init); the fold stamps version 2, so it must do the same repair first or the page would never replay them. At the receipt
+   cap the old floor stays, exactly as the page keeps it. */
+function foldSince(doc, Xp) {
+  const station = doc && doc.stationStats && typeof doc.stationStats === 'object' ? doc.stationStats : null;
+  const mark = Math.max(0, num(station && station.ratingSyncAt));
+  if (!station || station.ratingSyncVersion === 2) return mark;
+  const cap = Xp && Number.isFinite(Xp.RECEIPT_CAP) ? Xp.RECEIPT_CAP : Infinity;
+  const rows = [station].concat([doc.agent].concat(Array.isArray(doc.agents) ? doc.agents : []).map(a => a && a.stats));
+  const complete = rows.every(s => !s || !s.receipts || !Array.isArray(s.receipts.feedback) || s.receipts.feedback.length < cap);
+  return complete ? 0 : mark;
+}
+
 /* foldSave(doc, read, Xp, through) -> { doc, applied } | null
      doc     the save envelope (not modified: a copy is returned)
      read    growthRatings.since({ since: watermark, through, epoch }) -> { ratings (oldest first), complete }
@@ -53,4 +68,4 @@ function foldSave(doc, read, Xp, through) {
   return { doc: out, applied };
 }
 
-module.exports = { foldSave };
+module.exports = { foldSave, foldSince };
