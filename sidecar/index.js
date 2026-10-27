@@ -15458,13 +15458,23 @@ function annotateConnectorAvailability(e) {
   if (e.staticOauth) e.needsClient = !connectorOauthClient(e.staticOauth.authorizationServer).clientId;
   if (e.googleApi) {
     e.releaseDeferred = googleConnectorDeferred(e);
-    if (!e.releaseDeferred && googleClientConfig.EARLY_ACCESS === true && !googleClientConfig.isSelectedFiles(e)) {
+    // a restricted service Google blocks outright: no SIGN IN, the card names the connection that works instead
+    e.signInHeld = !e.releaseDeferred && googleClientConfig.signInHeld(e);
+    let useWorks = false;
+    if (e.signInHeld) {
+      const use = googleClientConfig.heldUse(e), alt = use && connectorCatalog.get(use.id);
+      // only point at an alternative that connects in THIS build (never held itself, so this recursion is one level)
+      useWorks = !!alt && !connectorStorageError && (!alt.googleApi || annotateConnectorAvailability(Object.assign({}, alt)).signInAvailable !== false);
+      if (useWorks) e.useInstead = use.id;
+      e.blurb = String(e.blurb || '').replace(' Sign in with Google to connect your account.', '');
+    }
+    if (!e.releaseDeferred && !e.signInHeld && googleClientConfig.EARLY_ACCESS === true && !googleClientConfig.isSelectedFiles(e)) {
       e.earlyAccess = true;
       if (String(e.blurb || '').indexOf(EARLY_ACCESS_BLURB) !== 0) e.blurb = EARLY_ACCESS_BLURB + (e.blurb || '');   // catalog entries are fresh clones per request
     }
     if (e.releaseDeferred) e.blurb = 'Planned for a later update. ' + e.blurb.replace(/^Planned for a later update\. /, '').replace(' Sign in with Google to connect your account.', '');
-    e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
-    if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleDeferredMessage(e) : googleClientConfig.UNAVAILABLE);
+    e.signInAvailable = !connectorStorageError && !e.releaseDeferred && !e.signInHeld && !e.needsClient && (!googleClientConfig.isSelectedFiles(e) || connectorVault.protected);
+    if (!e.signInAvailable) e.signInMessage = connectorStorageError || (e.releaseDeferred ? googleDeferredMessage(e) : e.signInHeld ? googleClientConfig.heldMessage(e, useWorks) : googleClientConfig.UNAVAILABLE);
   }
   return e;
 }
@@ -15729,6 +15739,7 @@ async function handleConnectorOauthStart(req, res) {
   if (connectorStorageError) return json(503, { error: connectorStorageError, code: 'connector_storage_locked', signInAvailable: false });
   if (googleClientConfig.isSelectedFiles(entry) && !connectorVault.protected) return json(503, { error: 'Selected Google files requires encrypted credential storage in the StarNet desktop app.', code: 'connector_storage_required' });
   if (googleConnectorDeferred(entry)) return json(503, { error: googleDeferredMessage(entry), code: 'google_release_deferred', signInAvailable: false });
+  if (googleClientConfig.signInHeld(entry)) return json(503, { error: annotateConnectorAvailability(Object.assign({}, entry, { googleApi: true })).signInMessage, code: 'google_signin_held', signInAvailable: false });
   const rawAttempt = String(body.attemptId || '').trim();
   const attemptId = /^[A-Za-z0-9_-]{8,80}$/.test(rawAttempt) ? rawAttempt : crypto.randomBytes(12).toString('hex');
   if (connectorOauthAttempts.has(attemptId)) return json(409, { error: 'this sign-in attempt is already running', attemptId });

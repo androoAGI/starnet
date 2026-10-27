@@ -31,9 +31,19 @@ const IMAP_HOST = 'imap.gmail.com', IMAP_PORT = 993;
 const SMTP_HOST = 'smtp.gmail.com', SMTP_PORT = 465;
 const SETUP_URL = 'https://myaccount.google.com/apppasswords';
 const TWO_STEP_URL = 'https://myaccount.google.com/signinoptions/two-step-verification';
-const AUTH_HELP = 'Gmail did not accept this app password. Check that 2-Step Verification is on for this Google account ('
-  + TWO_STEP_URL + '), create a new app password at ' + SETUP_URL + ' and paste it into the Gmail (app password) card again. '
-  + 'On a work or school (Google Workspace) account, an administrator can turn app passwords off.';
+// One fix per refusal Gmail can give (imap-client loginRefusal). The address never appears: these reach logs and the model.
+const AUTH_HELP = {
+  credentials: 'Gmail did not accept this address and app password. Create the app password while signed in to Google as '
+    + 'this same address (the Create app password link on the Gmail (app password) card opens that account), then choose '
+    + 'NEW APP PASSWORD on the card and paste it. If Google says app passwords are not available, turn on 2-Step Verification '
+    + 'first (' + TWO_STEP_URL + '); on a work or school account, an administrator may have turned app passwords off.',
+  'needs-app-password': 'Gmail needs an app password here, not your Google account password. Create one at ' + SETUP_URL
+    + ', then choose NEW APP PASSWORD on the Gmail (app password) card and paste its 16 letters.',
+  'web-login': 'Google paused this sign-in as unusual. Open Gmail in your browser signed in as this address and confirm it '
+    + 'was you if Google asks, then choose NEW APP PASSWORD on the Gmail (app password) card and connect again.',
+  'imap-off': 'IMAP is turned off for this Google account, so StarNet cannot reach the mailbox. On a work or school account, '
+    + 'ask your Google Workspace administrator to allow IMAP, then connect again from the Gmail (app password) card.'
+};
 
 const MAX_RESULTS = 50, DEFAULT_RESULTS = 20;
 const READ_CAP = 4 * 1024 * 1024;              // bytes of one message fetched by read_message
@@ -121,10 +131,10 @@ function makeGmailImapTransport(opts) {
   let receive = () => {}, closed = false, boxes = null;
   const live = new Map();   // request id -> abort()
 
-  function authError() { const e = new Error(AUTH_HELP); e.authRejected = true; return e; }
+  function authError(reason) { const e = new Error(AUTH_HELP[reason] || AUTH_HELP.credentials); e.authRejected = true; return e; }
   function friendly(e) {
     if (e && e.credentialInvalid) { const x = new Error(e.message + ' Open the Gmail (app password) card to fix it.'); x.authRejected = true; return x; }
-    if (e && e.kind === 'auth') return authError();
+    if (e && e.kind === 'auth') return authError(e.reason);
     if (e && e.kind === 'timeout') return new Error('Gmail did not respond in time; try again');
     if (e && e.kind === 'limit') return new Error('Gmail ' + e.message);
     if (e && (e.kind === 'network' || e.kind === 'closed')) return Object.assign(new Error('Gmail connection failed: ' + e.message), e.effectUnknown ? { effectUnknown: true } : {});

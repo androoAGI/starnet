@@ -27,6 +27,18 @@ class ImapError extends Error {
 const NUL = '\u0000';
 const LIT_MARK = /\u0000L(\d+)\u0000/;
 
+/* Why Gmail refused a login, as a fixed reason read from the server's reply WITHOUT surfacing the reply (it can echo
+   the attempted user name). Gmail's IMAP and SMTP word the same refusals alike: "Application-specific password
+   required", "Please log in via your web browser" / [WEBALERT], "not enabled for IMAP" / "IMAP access is disabled
+   for your domain". Anything else (IMAP [AUTHENTICATIONFAILED], SMTP 535 5.7.8) is the address + password pair. */
+function loginRefusal(text) {
+  const t = String(text || '');
+  if (/application-specific password/i.test(t)) return 'needs-app-password';
+  if (/web ?browser|web ?login|WEBALERT/i.test(t)) return 'web-login';
+  if (/not enabled for IMAP|\bIMAP\b[^.]*\bdisabled\b/i.test(t)) return 'imap-off';
+  return 'credentials';
+}
+
 /* ---------- tokenizer: IMAP response text (with literal markers) -> nested arrays ---------- */
 function tokenize(text, literals) {
   let i = 0;
@@ -185,7 +197,7 @@ function openSession(opts) {
       const code = (/^\[([^\]]*)\]/.exec(rest) || [])[1] || '';
       if (status === 'OK') c.resolve({ untagged: c.untagged, code, text: rest });
       else c.reject(new ImapError(status === 'NO' ? 'the mail server declined the request' : 'the mail server rejected the command',
-        status === 'NO' ? 'no' : 'bad', { code: code.toUpperCase(), serverText: c.quiet ? '' : rest.slice(0, 300) }));
+        status === 'NO' ? 'no' : 'bad', { code: code.toUpperCase(), serverText: c.quiet ? '' : rest.slice(0, 300), refusal: c.quiet ? loginRefusal(rest) : '' }));
     }
 
     function write(data) {
@@ -228,7 +240,7 @@ function openSession(opts) {
         // quiet: the server's reply to LOGIN is never surfaced (it can echo the attempted user name)
         await command(['LOGIN', quoted(user), quoted(pass)], { quiet: true });
       } catch (e) {
-        if (e && (e.kind === 'no' || e.kind === 'bad')) throw new ImapError('login rejected', 'auth', { code: e.code });
+        if (e && (e.kind === 'no' || e.kind === 'bad')) throw new ImapError('login rejected', 'auth', { code: e.code, reason: e.refusal || 'credentials' });
         throw e;
       }
     }
@@ -289,4 +301,4 @@ function openSession(opts) {
   });
 }
 
-module.exports = { openSession, tokenize, pairs, astring, quoted, ImapError };
+module.exports = { openSession, tokenize, pairs, astring, quoted, ImapError, loginRefusal };
