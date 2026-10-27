@@ -925,7 +925,7 @@ body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row > .ws-dot {
 
 /* line 2: the session's title, full width, two lines at most */
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-title {
-  margin: 0; font-size: 14.5px !important; line-height: 1.2; letter-spacing: 0;   /* Geist Mono: THE LIST FACE */
+  margin: 0; font-size: var(--sn-rail-title) !important; line-height: 1.2; letter-spacing: 0;   /* THE RAIL'S TYPE GRID */
   color: color-mix(in srgb, var(--text) 86%, var(--panel2));
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere;
 }
@@ -1222,8 +1222,8 @@ body.glass-demo:not(.hud-mode) #screen-game #left #projects > .ws-row.proj-row:i
 body.glass-demo:not(.hud-mode) #screen-game #left #projects > .ws-row.proj-row:is(.project-selected, [aria-current="page"]) { background: var(--pip-fill); }
 body.glass-demo:not(.hud-mode) #screen-game #left #projects > .ws-row.proj-row:is(.project-selected, [aria-current="page"], :hover, :focus-visible)::before,
 body.glass-demo:not(.hud-mode) #screen-game #left #projects > .ws-row.proj-row:is(.project-selected, [aria-current="page"], :hover, :focus-visible) + .ws-row.proj-row::before { opacity: 0; }
-body.glass-demo:not(.hud-mode) #screen-game #left #projects .proj-row .ws-title { font-size: 14px !important; white-space: nowrap; overflow: hidden; }
-body.glass-demo:not(.hud-mode) #screen-game #left #projects :is(.proj-path, .proj-sess-n) { font-size: 12.5px; letter-spacing: 0; color: var(--cg-mute); opacity: 1; }
+body.glass-demo:not(.hud-mode) #screen-game #left #projects .proj-row .ws-title { font-size: var(--sn-rail-title) !important; letter-spacing: 0; white-space: nowrap; overflow: hidden; }
+body.glass-demo:not(.hud-mode) #screen-game #left #projects :is(.proj-path, .proj-sess-n) { font-size: var(--sn-rail-meta); letter-spacing: 0; color: var(--cg-mute); opacity: 1; }
 body.glass-demo:not(.hud-mode) #screen-game #left #projects :is(.proj-git-badge, .proj-tag) {
   font-size: 15px; letter-spacing: .4px; line-height: inherit; padding: 0; border: 0; border-radius: 0; background: none;
 }
@@ -2127,23 +2127,25 @@ body.glass-demo:not(.hud-mode) #screen-game #chat-panel > h3 { background: linea
 body.glass-demo:not(.hud-mode) #screen-game #bottombar > .bb-group:is([data-group="crew"], [data-group="system"]) { background: none; }
 
 /* ============================================================
-   THE LIST FACE (Andrew 10-27, on the clean session list: "better fitting font … i think its the cheap font also").
-   VT323 is drawn on its own pixel grid; at a rail row's 14-17px (and 90% text size) that grid falls between device pixels
-   and the letters smear, which is what read as cheap. The left rail's two lists — SESSIONS and PROJECTS — read in Geist
-   Mono, a screen mono bundled locally beside VT323 (style.css @font-face, NOTICE.md). The rail's chrome — its tabs, search,
-   NEEDS YOU — and every window stay VT323, and VT323 is this stack's fallback, so a glyph Geist Mono lacks is still the
-   house face, never Courier (font.law.test.js). Its sizes are its own: a 14px title (14.5px on an INBOX row, a PROJECTS
-   row's 14px, both set where those rows are) reads as large as VT323's 17px did, a 12.5px time as its 15px. readability.css
-   holds every rail title at 17px with !important, so the compact title answers in kind — here, ahead of the dashboard
+   THE RAIL'S TYPE GRID (Andrew 10-27: the session text looked cheap, and "it needs to be starnet style text" — VT323, set
+   right). VT323 is drawn on a 25px pixel grid, 0.4em a letter. Set where its letters fall between device pixels — 17px at
+   TEXT SIZE 90 is 15.3 — every stroke smears and each letter lands on a different fraction of a pixel. The rail's text is
+   set where the face draws clean instead: its device size on the 2.5px ladder (17.5, 20, 22.5, 25 …), so every letter is a
+   whole number of device pixels wide, and TEXT SIZE still steps it. --sn-unzoom is the zoom's exact reciprocal (stationui.js).
+     title  17.5 at TEXT SIZE 90-100, 20 at 110-115, 25 at 130 (snapped down from 19.5px)
+     time   15 at 90-100, 17.5 at 110-115 (nearest to 15.5px)
+     names  the crew line's caps, snapped UP from 14px: never under the glass floor (rail-group-line-fit), a pixel of tracking
+   readability.css holds a rail title at 17px with !important, so the titles answer in kind — here, ahead of the dashboard
    pass below, which wins by its selectors alone.
    ============================================================ */
-body.glass-demo:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) :is(.ws-title, .ws-rename, .ws-meta, .ws-runs, .ws-agent, .ws-agent > *, .proj-path, .proj-sess-n) {
-  font-family: 'Geist Mono', 'VT323', monospace;
+body.glass-demo:not(.hud-mode) #screen-game #left {
+  --sn-rail-title: calc(round(down, 19.5px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1));
+  --sn-rail-meta: calc(round(nearest, 15.5px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1));
+  --sn-rail-caps: calc(round(up, 14px / var(--sn-unzoom, 1), 2.5px) * var(--sn-unzoom, 1));
+  --sn-rail-px: calc(1px * var(--sn-unzoom, 1));
 }
-body.glass-demo:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) :is(.ws-title, .ws-rename, .ws-meta, .proj-path, .proj-sess-n) { letter-spacing: 0; }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { font-size: 14px !important; }
-body.glass-demo.rows-inbox:not(.hud-mode) #screen-game #left #workstreams .ws-row:is(.sel, .unread, .attn) .ws-title { font-weight: 500; }
-body.glass-demo:not(.hud-mode) #screen-game #left #projects .ws-meta { --sn-type-meta: 12.5px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { font-size: var(--sn-rail-title) !important; }
+body.glass-demo:not(.hud-mode) #screen-game #left #projects .ws-meta { --sn-type-meta: var(--sn-rail-meta); letter-spacing: 0; }
 
 /* ============================================================
    THE DASHBOARD PASS (Andrew 10-26: "no solid organization like there used to be" → one composed pass, shot whole and
@@ -2223,18 +2225,16 @@ body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams 
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.attn, :has(> .ws-agent-group)) {
   grid-template-columns: 12px minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 4px;
 }
-/* type, in THE LIST FACE (its 14px title is set there): a title weighs 500 when something is new, open or waiting; a 12.5px time */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title {
-  line-height: 1.3; font-weight: 400; color: color-mix(in srgb, var(--ph-bright) 80%, var(--panel2));
-}
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row:is(.sel, .unread, .attn) .ws-title { font-weight: 500; color: var(--ph-bright); }
+/* type: sizes on THE RAIL'S TYPE GRID (above), no tracking, so each letter stays a whole number of device pixels wide */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { color: color-mix(in srgb, var(--ph-bright) 80%, var(--panel2)); letter-spacing: 0; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row:is(.sel, .unread, .attn) .ws-title { color: var(--ph-bright); }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row > .ws-meta {
-  --sn-type-meta: 12.5px; color: color-mix(in srgb, var(--text) 70%, var(--panel2)); opacity: 1; text-shadow: none;
+  --sn-type-meta: var(--sn-rail-meta); letter-spacing: 0; color: color-mix(in srgb, var(--text) 70%, var(--panel2)); opacity: 1; text-shadow: none;
 }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-dot.unseen ~ .ws-meta { color: var(--gold); }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row.busy > .ws-meta { color: var(--ph-bright); }
 /* the crew line: faces, then names in soft near-white (not the lead's colour: the faces carry who is who) */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent.ws-agent-group { align-items: center; gap: 8px; font-size: 11.5px; letter-spacing: .06em; text-shadow: none; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent.ws-agent-group { align-items: center; gap: 8px; font-size: var(--sn-rail-caps); letter-spacing: var(--sn-rail-px); text-shadow: none; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent-group > :is(.ws-agent-names, .ws-agent-more) { color: color-mix(in srgb, var(--text) 82%, var(--panel2)); }
 /* the pin: a drawn gold bookmark, not a fallback-font star */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-pin {

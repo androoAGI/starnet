@@ -99,4 +99,23 @@ A.ok(/"dot\s+agent\s+agent\s+agent"\s*"\.\s+title\s+pin\s+meta"/.test(decl(pip, 
 const inboxGlassAttn = 'body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row.attn:has(> .ws-agent-group)';
 A.ok(/^"dot agent agent agent"/.test(decl(pip, inboxGlassAttn, 'grid-template-areas') || ''), 'INBOX attention row: the names own the first line too');
 A.ok(/"dot agent agent agent"/.test(decl(appCss, 'body.rows-inbox #workstreams .ws-row:has(> .ws-agent-group)', 'grid-template-areas') || ''), 'INBOX (base sheet): the same names line');
+
+/* ---- THE RAIL'S TYPE GRID (Andrew 10-27: the session text looked cheap; "it needs to be starnet style text"). VT323 is a
+   0.4em-wide face on a 25px pixel grid: the rail sets it at device sizes on the 2.5px ladder, so a letter is a whole number
+   of device pixels wide at every TEXT SIZE. Evaluated the way the browser does it: CSS round() over the zoom. ---- */
+const gridOf = name => decl(pip, 'body.glass-demo:not(.hud-mode) #screen-game #left', name) || '';
+const snapped = (v, z) => {
+  const m = /^calc\(round\((down|nearest|up), ([\d.]+)px \/ var\(--sn-unzoom, 1\), 2\.5px\) \* var\(--sn-unzoom, 1\)\)$/.exec(v);
+  if (!m) return null;
+  const steps = parseFloat(m[2]) * z / 2.5;
+  return (m[1] === 'down' ? Math.floor(steps + 1e-9) : m[1] === 'up' ? Math.ceil(steps - 1e-9) : Math.round(steps)) * 2.5;
+};
+for (const ts of [90, 100, 110, 115, 130, 145]) {
+  const z = ts / 100, sizes = ['--sn-rail-title', '--sn-rail-meta', '--sn-rail-caps'].map(n => snapped(gridOf(n), z));
+  A.ok(sizes.every(px => px > 0), 'TEXT SIZE ' + ts + ': the rail type grid is three snapped sizes (title, time, names)');
+  A.ok(sizes.every(px => Math.abs(px * 0.4 - Math.round(px * 0.4)) < 1e-9), 'TEXT SIZE ' + ts + ': every rail letter is a whole number of device px wide — ' + sizes.join(' / '));
+  A.ok(sizes[0] / z >= 17 && sizes[2] / z >= 14, 'TEXT SIZE ' + ts + ': a title never under the 17px reading floor, the names never under the 14px glass floor');
+}
+A.eq(snapped(gridOf('--sn-rail-title'), 0.9), 17.5, 'at Andrew\'s TEXT SIZE 90 a title is 17.5 device px (it was 15.3, between VT323\'s pixels)');
+A.ok(/#workstreams \.ws-title \{ font-size: var\(--sn-rail-title\) !important; \}/.test(read('frontend/css/pipglass.css')), 'the compact title takes the grid size over readability.css\'s 17px !important');
 A.report('rail-group-line-fit.test');
