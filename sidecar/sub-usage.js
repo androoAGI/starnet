@@ -54,7 +54,7 @@ function header(h, name) {
 function makeSubUsage(opts) {
   const o = opts || {};
   const now = () => (o.clock && typeof o.clock.now === 'function' ? o.clock.now() : Date.now());
-  const saveMs = typeof o.saveMs === 'number' ? o.saveMs : 5000;
+  const saveMs = typeof o.saveMs === 'number' ? o.saveMs : 1000;   // a hard kill (no shutdown hook) loses at most this much
   const store = new Map();   // providerId -> Map(account -> entry)
   const deps = o.file ? { fs: o.fs || require('fs'), path: o.path || require('path') } : null;
   if (deps) {
