@@ -29,7 +29,7 @@ const K = require('./_save-restore-kit.js');
 const SEEDS = Math.max(1, Number(process.env.SAVE_INTERLEAVE_SEEDS) || 500);
 const ONLY = process.env.SAVE_INTERLEAVE_ONLY ? Number(process.env.SAVE_INTERLEAVE_ONLY) : null;
 const STEPS = 70;
-const SEEDED_OPTS = { separate: process.env.SAVE_INTERLEAVE_SEPARATE !== '0' };   // every window its own browser (shared-browser tabs: the journal slice)
+const SEEDED_OPTS = { separate: process.env.SAVE_INTERLEAVE_SEPARATE === '1', noJournal: process.env.SAVE_INTERLEAVE_NO_JOURNAL === '1' };   // two tabs of one browser + a desktop window
 const quiet = { log() {}, info() {}, warn() {}, error() {}, debug() {} };
 const clone = v => JSON.parse(JSON.stringify(v));
 const settle = () => new Promise(r => setImmediate(r));
@@ -158,7 +158,33 @@ function world(seed, opts) {
   function drop(req) { const i = queue.indexOf(req); if (i >= 0) queue.splice(i, 1); trace('DROP', req.url, 'from', req.win.name + '#' + req.gen); }
 
   // ---- browsers and windows ----
-  function browser(name) { return { name, cache: new Map() }; }
+  // a browser: one localStorage (cache) and one BroadcastChannel hub that every live page of it is on
+  function browser(name) { return { name, cache: new Map(), members: new Set() }; }
+  function localStorageOf(b) {
+    const c = b.cache;
+    return { getItem: k => (c.has(k) ? c.get(k) : null), setItem: (k, v) => { c.set(k, String(v)); }, removeItem: k => { c.delete(k); },
+      get length() { return c.size; }, key: i => Array.from(c.keys())[i] || null };
+  }
+  // the page's BroadcastChannel: a dead window's page hears and answers nothing; delivery is a later task, as in a browser
+  function channelFor(b, w, gen) {
+    return class FakeChannel {
+      constructor(name) { this.name = name; this.fns = new Set(); b.members.add(this); }
+      alive() { return w.gen === gen && w.status !== 'dead'; }
+      addEventListener(t, fn) { if (t === 'message') this.fns.add(fn); }
+      removeEventListener(t, fn) { this.fns.delete(fn); }
+      postMessage(data) {
+        if (!this.alive()) return;
+        const msg = JSON.parse(JSON.stringify(data));
+        for (const m of b.members) if (m !== this && m.name === this.name) setImmediate(() => { if (m.alive()) for (const fn of Array.from(m.fns)) fn({ data: msg }); });
+      }
+      close() { b.members.delete(this); }
+    };
+  }
+  // save.js's key()/useKey()/load() over the browser cache: the page's own journal (cloudsave openJournal picks it)
+  function saveOf(ls) {
+    let key = 'starnet.save';
+    return { CURRENT: 6, key: () => key, useKey: k => { key = String(k); return key; }, load: () => { try { return JSON.parse(ls.getItem(key) || 'null'); } catch (_) { return null; } } };
+  }
   // opts.separate: every window in a browser of its own (no shared browser cache)
   const browsers = [browser('chrome'), browser('desktop'), browser('other')];
   const windows = [
@@ -171,22 +197,27 @@ function world(seed, opts) {
   function docOf(w) {
     return { schema: 'starnet.save', version: 6, agent: { id: 'agent', name: 'NOVA', createdAt: 5000 }, agents: [], generalId: 'general', activeId: 'general', deletedIds: [], workstreams: clone(w.state) };
   }
-  function cacheKey(w) { return opts.journalKey ? opts.journalKey(w) : 'starnet.save'; }
+  // the key this window's page writes its save under (its journal; the single legacy key with opts.noJournal)
+  function cacheKey(w) { return (opts.noJournal || !w.page.journalKey) ? 'starnet.save' : w.page.journalKey(); }
   function boot(w) {
     w.gen++;
     const gen = w.gen, owner = w.name + '#' + gen;
     w.status = 'booting'; w.wantReload = false; w.state = null;
     const sessionStorage = { getItem: k => (w.session.has(k) ? w.session.get(k) : null), setItem: (k, v) => w.session.set(k, String(v)), removeItem: k => w.session.delete(k) };
+    const localStorage = localStorageOf(w.browser), Save = saveOf(localStorage);
     const extra = {
       console: quiet, Date: VDate, setTimeout: (fn, ms) => clock.set(fn, ms, owner), clearTimeout: id => clock.clear(id),
-      crypto: { randomUUID: uuid }, sessionStorage,
+      crypto: { randomUUID: uuid }, sessionStorage, localStorage, Save, BroadcastChannel: channelFor(w.browser, w, gen),
       location: { reload() { if (w.gen === gen) w.wantReload = true; } }
     };
-    if (opts.pageExtra) Object.assign(extra, opts.pageExtra(w, gen));
     w.page = K.page({ fetch: pageFetch(w, gen) }, w.browser.cache, extra);
-    const local = opts.bootLocal ? opts.bootLocal(w) : (() => { try { return JSON.parse(w.browser.cache.get('starnet.save') || 'null'); } catch (_) { return null; } })();
-    trace('boot', w.name + '#' + gen, 'local', JSON.stringify(brief(local)));
-    w.boot = w.page.reconcile(local).then(doc => {
+    // the boot path (app.js init): this window's journal first, then the local save read from it, then reconcile
+    const opened = (opts.noJournal || !w.page.openJournal) ? Promise.resolve() : w.page.openJournal();   // a build without journals: the one shared key
+    w.boot = opened.then(() => {
+      const local = Save.load();
+      trace('boot', w.name + '#' + gen, 'journal', cacheKey(w), 'session', JSON.stringify([...w.session]), 'keys', JSON.stringify([...w.browser.cache.keys()]), 'local', JSON.stringify(brief(local)));
+      return w.page.reconcile(local);
+    }).then(doc => {
       trace('booted', w.name + '#' + gen, JSON.stringify(brief(doc)), 'merge', JSON.stringify(w.page.mergeNotice()));
       if (w.gen !== gen) return;
       if (!doc || doc.__saveUnknown || doc.__futureSave || !Array.isArray(doc.workstreams)) { w.status = 'gated'; return; }
@@ -291,9 +322,13 @@ async function runSeed(seed, opts) {
   for (const w of W.windows) W.boot(w);
   if (!await W.drain()) W.fail('the first boots never settled');
   for (let i = 0; i < STEPS && W.problems.length === 0; i++) await W.step(true);
-  // healthy from here: every window up, everything answered
-  for (const w of W.windows) if (w.status === 'dead' || w.status === 'gated') W.boot(w);
-  if (!await W.drain()) W.fail('I2: the station and the windows never went quiet');
+  // healthy from here: every window up, everything answered. A window whose boot read nothing during the faults sits at the
+  // save-unreachable gate, which asks again once the station answers (app.js): the same as booting it again
+  for (let round = 0; round < 3; round++) {
+    for (const w of W.windows) if (w.status === 'dead' || w.status === 'gated') W.boot(w);
+    if (!await W.drain()) W.fail('I2: the station and the windows never went quiet');
+    if (!W.windows.some(w => w.status === 'gated')) break;
+  }
   // I2: no wedge — each window, in turn, makes one more change, and it lands
   for (const w of W.windows) {
     if (w.status !== 'live') { W.fail('I2: ' + w.name + ' is ' + w.status + ' on a healthy network'); continue; }
@@ -340,6 +375,26 @@ async function runSeed(seed, opts) {
     A.ok(await W.drain(), 'named: the tab, now behind, saves');
     A.ok(turnsOf(W.host.saveStore.load('agent')).has(text3) && tab.page.health().conflict === null, 'named: the tab merges and re-enters too: both windows\' work is in the station file');
     A.eq(W.problems, [], 'named: no invariant broke');
+  }
+  // ================= NAMED: qa/bugs 27bae3d6 — two tabs of ONE browser: a reload never boots the other tab's snapshot =================
+  {
+    const W = world(13, { windows: 2 });   // tabA and tabB share one browser cache and one BroadcastChannel
+    const [ta, tb] = W.windows;
+    W.boot(ta); A.ok(await W.drain(), '27bae3d6: tab A boots');
+    W.boot(tb); A.ok(await W.drain(), '27bae3d6: tab B boots');
+    A.ok(ta.page.journalKey() !== tb.page.journalKey(), '27bae3d6: two live tabs write two journals (' + ta.page.journalKey() + ' / ' + tb.page.journalKey() + ')');
+    const b1 = W.edit(tb, 'own'); A.ok(await W.drain(), '27bae3d6: tab B saves');
+    const a1 = W.edit(ta, 'own'); A.ok(await W.drain(), '27bae3d6: tab A, behind, saves');
+    A.eq(ta.page.health().conflict, null, '27bae3d6: tab A merged in-session: no banner');
+    const bKey = tb.page.journalKey();
+    W.kill(tb); W.boot(tb); A.ok(await W.drain(), '27bae3d6: tab B reloads');
+    A.eq(tb.page.journalKey(), bKey, '27bae3d6: the reloaded tab continues ITS OWN journal');
+    const view = new Set([].concat(...tb.state.map(s => s.history.map(t => t.content))));
+    A.ok(view.has(b1), '27bae3d6: and resumes its own work, never the other tab\'s snapshot');
+    A.eq(tb.page.mergeNotice(), null, '27bae3d6: and never says another window\'s work is this one\'s (no merge notice)');
+    const st = turnsOf(W.host.saveStore.load('agent'));
+    A.ok(st.has(a1) && st.has(b1), '27bae3d6: both tabs\' work is in the station file');
+    A.eq(W.problems, [], '27bae3d6: no invariant broke');
   }
   // ================= NAMED: a station that REFUSES the merge keeps the conflict standing, as before =================
   {

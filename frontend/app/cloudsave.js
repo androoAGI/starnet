@@ -108,8 +108,25 @@ const CloudSave = (() => {
   let lastHead = null;                 // GET /api/save's `head`: { client, requestUpdatedAt, revision } when the store can prove it
   const CLIENT_RE = /^[A-Za-z0-9_-]{1,80}$/;
   function writerId() { return inherited || clientId; }
-  // the browser-cache key this page's save lives under
-  function cacheKey() { return (typeof Save !== 'undefined' && Save && typeof Save.key === 'function') ? Save.key() : 'starnet.save'; }
+  /* THIS WINDOW'S CRASH JOURNAL (wave-1 save-latch-kill; qa/bugs 27bae3d6). The browser cache is a journal of THIS window's
+     newest save, never a store another window reads as its own: two tabs of one browser share localStorage, and the single
+     'starnet.save' key let a reloaded tab boot ANOTHER live tab's stale snapshot as its own work, and let any tab's persist
+     overwrite a crashed tab's unsent save. Each window now writes its own key (save.js key(): 'starnet.save', or
+     'starnet.save.w.<window>' for a second live tab). openJournal() picks it at boot: a live window's journal is never
+     touched (every page answers "anyone here?" with the key it writes), a DEAD window's journal is crash recovery — the
+     newest one is continued by this page (reconcile resends or merges its unsent work exactly as before), every other one's
+     unsent work is merged into the station and its key removed once the station has it. */
+  const LEGACY_KEY = 'starnet.save', JOURNAL_PREFIX = 'starnet.save.w.';
+  const JOURNAL_RE = /^starnet\.save\.w\.[A-Za-z0-9_-]{1,80}$/;
+  const JOURNAL_NOTE_KEY = 'starnet.save.journal';   // sessionStorage: the journal this tab writes, so its reload continues it
+  let journalKey = null;          // set by openJournal(); null = never opened (the legacy key, as before)
+  let otherJournals = [];         // dead windows' journals this page did not continue: settled once the station is read
+  const heardClaims = new Set();  // journals other pages said they write (their boot's claim)
+  function cacheKey() { return journalKey || ((typeof Save !== 'undefined' && Save && typeof Save.key === 'function') ? Save.key() : LEGACY_KEY); }
+  function useJournal(k) {
+    journalKey = k;
+    try { if (typeof Save !== 'undefined' && Save && typeof Save.useKey === 'function') Save.useKey(k); } catch (_) {}
+  }
   /* ANOTHER LIVE STARNET PAGE IN THIS BROWSER (re-review 10-25): two tabs share one browser cache, so a tab reopened while
      another runs is not a crash recovery. Every page answers a reopening page's "anyone here?"; a reopening page that hears an
      answer neither resends nor merges a dirty cache (that would move the station under the live tab): its save is preserved,
@@ -118,7 +135,26 @@ const CloudSave = (() => {
   try {
     if (typeof BroadcastChannel === 'function') {
       pagesChannel = new BroadcastChannel('starnet-pages');
-      pagesChannel.addEventListener('message', e => { const m = e && e.data; if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId }); } catch (_) {} } });
+      pagesChannel.addEventListener('message', e => {
+        const m = e && e.data;
+        // the journal this page writes (null while it is still booting: it owns none yet)
+        if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId, journal: journalKey }); } catch (_) {} }
+        // two pages that booted at the same moment can pick the same dead journal: the lower page id keeps it, the other
+        // moves to a journal of its own (carrying the save it already holds), so no two live pages ever share one key. A claim
+        // heard while this page is still booting marks that journal as taken (openJournal)
+        if (m && m.claim && m.from !== clientId) heardClaims.add(String(m.claim));
+        if (m && m.claim && m.from !== clientId && journalKey && m.claim === journalKey && !retired) {
+          if (String(m.from) < clientId) {
+            const old = journalKey, fresh = JOURNAL_PREFIX + clientId;
+            useJournal(fresh);
+            try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, fresh); } catch (_) {}
+            try { const raw = localStorage.getItem(old); if (raw != null) localStorage.setItem(fresh, raw); } catch (_) {}
+          } else {
+            // this page keeps it: say so, so the other page (which may not have heard this page's own claim) moves
+            try { pagesChannel.postMessage({ claim: journalKey, from: clientId }); } catch (_) {}
+          }
+        }
+      });
     }
   } catch (_) { pagesChannel = null; }
   function anotherPageOpen(ms) {
@@ -264,7 +300,7 @@ const CloudSave = (() => {
             if (body.seeded === true) seeded = { revision: body.revision, at: now() };
             if (pending) pending._saveRevision = revision;
             try {
-              const cachedRaw = localStorage.getItem('starnet.save');
+              const cachedRaw = localStorage.getItem(cacheKey());
               /* SERIALIZE ONCE (idle CPU piece 3, 2026-10-20). The cache still holds the very string this doc was cloned
                  from (push's raw): it is this doc, so mark it clean without re-parsing it and stringifying both sides
                  to compare. The bytes written are exactly what the compare path below writes: the same keys in the same
@@ -277,12 +313,12 @@ const CloudSave = (() => {
               // or the final successful save stays dirty and creates a false conflict on the next restart.
               const payload = d => JSON.stringify({ ...d, _saveClient: undefined, _saveRevision: undefined });
               if (same) {
-                localStorage.setItem('starnet.save', JSON.stringify({ ...doc, _saveRevision: revision, _saveDirty: false,
+                localStorage.setItem(cacheKey(), JSON.stringify({ ...doc, _saveRevision: revision, _saveDirty: false,
                   ...(Number.isFinite(body.updatedAt) ? { updatedAt: body.updatedAt } : {}) }));
               } else if (!pending && cached && payload(cached) === payload(doc)) {
                 cached._saveRevision = revision; cached._saveDirty = false;
                 if (Number.isFinite(body.updatedAt)) cached.updatedAt = body.updatedAt;
-                localStorage.setItem('starnet.save', JSON.stringify(cached));
+                localStorage.setItem(cacheKey(), JSON.stringify(cached));
               } else if (docCacheFailed && cacheOkSeq < docSeq && cached && num(cached.updatedAt) <= num(doc.updatedAt)) {
                 // #121: the station file now holds a save NEWER than anything the cache could take. The cached copy is
                 // a superseded ancestor; left in place, the next boot (or a re-entry) would resume it and revert the
@@ -290,7 +326,7 @@ const CloudSave = (() => {
                 // save the cache DID hold is itself the entry (cacheOkSeq), never dropped here; a queued save it could
                 // not hold lives in memory meanwhile. (A cache entry newer than this doc came from another window and
                 // is not ours to drop.)
-                localStorage.removeItem('starnet.save');
+                localStorage.removeItem(cacheKey());
               }
             } catch (_) {}
             // the station file confirmed this page's newest save while the cache could not hold it
@@ -508,9 +544,97 @@ const CloudSave = (() => {
     })();
   }
 
+  // the pages live in this browser right now and the journals they write: { journals: Set, any: bool }. A page of a build from
+  // before the journal answers without one: it writes the legacy key. No BroadcastChannel = nobody answers.
+  function livePages(ms) {
+    if (!pagesChannel) return Promise.resolve({ journals: new Set(), any: false });
+    return new Promise(resolve => {
+      const ping = clientId + ':' + now() + ':j';
+      const journals = new Set();
+      let any = false;
+      // a page of a build from before the journal answers with no journal field: it writes the legacy key
+      const on = e => { const m = e && e.data; if (m && m.pong === ping) { any = true; if (!Object.prototype.hasOwnProperty.call(m, 'journal')) journals.add(LEGACY_KEY); else if (typeof m.journal === 'string' && m.journal) journals.add(m.journal); } };
+      try { pagesChannel.addEventListener('message', on); pagesChannel.postMessage({ ping, from: clientId }); } catch (_) { resolve({ journals, any }); return; }
+      setTimeout(() => { try { pagesChannel.removeEventListener('message', on); } catch (_) {} resolve({ journals, any }); }, ms);
+    });
+  }
+  function journalKeysNow() {
+    const out = [];
+    try {
+      if (localStorage.getItem(LEGACY_KEY) != null) out.push(LEGACY_KEY);
+      for (let i = 0; i < localStorage.length; i++) { const k = String(localStorage.key(i) || ''); if (JOURNAL_RE.test(k)) out.push(k); }
+    } catch (_) {}
+    return out;
+  }
+  // { key, raw, doc }: doc undefined = unreadable, null = nothing there
+  function readJournal(k) {
+    let raw = null;
+    try { raw = localStorage.getItem(k); } catch (_) { return { key: k, raw: null, doc: undefined }; }
+    try { return { key: k, raw, doc: raw == null ? null : JSON.parse(raw) }; } catch (_) { return { key: k, raw, doc: undefined }; }
+  }
+  // a journal is removed only while it still holds exactly what this page read: a window this page took for dead (it did not
+  // answer in time — a busy tab) that wrote again since keeps its newer journal
+  function dropJournal(j) {
+    try { if (localStorage.getItem(j.key) === j.raw) localStorage.removeItem(j.key); } catch (_) {}
+    j.settled = true;
+  }
+  /* openJournal() — the boot path's first step (app.js, before the local save is read). Picks this page's journal: the newest
+     save among the DEAD windows' journals (this page continues that window: reconcile resends or merges its unsent work), else
+     the legacy key when no live page writes it, else a fresh key of this page's own. A live page's journal is never read as
+     this page's. The other dead journals with unsent work are merged into the station now (POST /api/save/adopt: additive),
+     before this page reads it, so this page boots onto a station that already holds them; a merge the station refuses is
+     kept beside it as an ordinary preserved copy. A journal is removed only once the station has its work (a clean journal:
+     once the station file has been read). */
+  async function openJournal() {
+    const keys = journalKeysNow();
+    const live = keys.length ? await livePages(250) : { journals: new Set(), any: false };
+    for (const k of heardClaims) live.journals.add(k);   // claimed by a page that booted alongside this one
+    const dead = keys.filter(k => !live.journals.has(k)).map(readJournal);
+    // a RELOADED (or session-restored) tab continues ITS OWN journal: the key rides sessionStorage, which survives a reload
+    // and is this tab's alone (a duplicated tab copies it, but then the original answers for it: live, not taken)
+    let remembered = null;
+    try { remembered = (typeof sessionStorage !== 'undefined' && sessionStorage) ? sessionStorage.getItem(JOURNAL_NOTE_KEY) : null; } catch (_) { remembered = null; }
+    const ownKey = remembered && (remembered === LEGACY_KEY || JOURNAL_RE.test(remembered)) && !live.journals.has(remembered) ? remembered : null;
+    let mine = null;
+    if (!ownKey) for (const j of dead) if (isSave(j.doc) && (!mine || num(j.doc.updatedAt) > num(mine.doc.updatedAt))) mine = j;
+    useJournal(ownKey || (mine ? mine.key : (live.journals.has(LEGACY_KEY) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
+    try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, journalKey); } catch (_) {}
+    try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId }); } catch (_) {}
+    otherJournals = dead.filter(j => j.key !== journalKey);
+    // the other dead windows' unsent work, into the station first
+    for (const j of otherJournals) {
+      if (!isSave(j.doc) || isFutureSave(j.doc) || !j.doc._saveDirty) continue;
+      const answer = await adoptMerge(j.doc);
+      if (!answer) break;                                   // the station is not answering: keep them all for a later boot
+      let kept = !answer.refused;
+      if (answer.refused) {
+        // not mergeable (another station, a reset, too large): preserved beside the station as that window's refused save
+        try { const r = await postNow(j.doc); kept = !!(r && r.body && (r.body.ok === true || (r.body.conflict && r.body.recovery))); } catch (_) { kept = false; }
+      }
+      if (kept) dropJournal(j);
+    }
+    return journalKey;
+  }
+  // after this page has read the station: a dead window's CLEAN journal is a copy the station file already holds — removed.
+  // An unreadable or newer-format journal is left as it is.
+  function settleJournals() {
+    if (lastPullOutcome !== 'save') return;
+    for (const j of otherJournals) {
+      if (j.settled || j.doc === undefined || isFutureSave(j.doc)) continue;
+      if (!isSave(j.doc) || !j.doc._saveDirty) dropJournal(j);
+    }
+    otherJournals = otherJournals.filter(j => !j.settled);
+  }
+
   // pick the newer of local/remote, refresh the local cache to match, and push local up if it was ahead.
-  // Returns the winning doc (or local/null) for the boot path to resume from.
+  // Returns the winning doc (or local/null) for the boot path to resume from. With a journal opened, the dead windows'
+  // clean journals are settled once the station has been read.
   async function reconcile(local) {
+    const out = await reconcileWith(local);
+    if (journalKey) { try { settleJournals(); } catch (_) {} }
+    return out;
+  }
+  async function reconcileWith(local) {
     // FORWARD-VERSION GUARD (P0.3): a local cache written by a NEWER build must never be pushed up or resumed
     // by this older code. Surface the gate before we even pull — the boot path stops here and asks to update.
     if (isFutureSave(local)) return futureSentinel(num(local.version));
@@ -541,7 +665,7 @@ const CloudSave = (() => {
     const content = d => JSON.stringify({ ...d, updatedAt: undefined, _saveRevision: undefined, _saveClient: undefined, _saveDirty: undefined });
     if (isSave(local) && local._saveDirty && content(local) === content(remote)) {
       local = { ...local, updatedAt: remote.updatedAt, _saveRevision: revision, _saveDirty: false };
-      try { localStorage.setItem('starnet.save', JSON.stringify(local)); } catch (_) {}
+      try { localStorage.setItem(cacheKey(), JSON.stringify(local)); } catch (_) {}
       return local;
     }
     // A DIRTY CACHE BEHIND THE STATION FILE, WRITTEN BY THE WINDOW THAT WROTE THE STATION FILE'S HEAD: that window saved,
@@ -554,7 +678,9 @@ const CloudSave = (() => {
     const ownHeadBehind = !!writer && !!lastHead && lastHead.client === writer && lastHead.revision === revision && num(local._saveRevision) < revision
       && (founded(local) === founded(remote) || (Number.isNaN(founded(local)) && Number.isNaN(founded(remote))));
     const dirtyBehind = isSave(local) && local._saveDirty && num(local._saveRevision) !== revision;
-    const liveTab = dirtyBehind && await anotherPageOpen(250);   // a second tab, not a crash recovery: preserved as before
+    // a second tab, not a crash recovery: preserved as before — unless this page opened its journal (openJournal): then
+    // local is a DEAD window's journal, never a live tab's view, and its unsent work is crash recovery
+    const liveTab = dirtyBehind && !journalKey && await anotherPageOpen(250);
     if (!liveTab && ownHeadBehind && num(local.updatedAt) > num(lastHead.requestUpdatedAt)) {
       revision = num(local._saveRevision);
       inherited = writer;   // this page continues that window's work until the station answers one of its saves for real
@@ -592,12 +718,12 @@ const CloudSave = (() => {
       // The durable mirror is designed to outlive the cache and survive app updates, so it can legitimately be
       // an OLDER schema (v1/v2) than this build. resumeInto() assumes a current-schema doc (reads .workstreams,
       // expects .agent.stats); adopting a raw v1/v2 remote would silently drop history + skip the XP seed.
-      const priorLocalRaw = (() => { try { return localStorage.getItem('starnet.save'); } catch (_) { return null; } })();
+      const priorLocalRaw = (() => { try { return localStorage.getItem(cacheKey()); } catch (_) { return null; } })();
       let adopted = false, adoptError = null;
       try {
         const raw = JSON.stringify(remote);
-        localStorage.setItem('starnet.save', raw);
-        adopted = localStorage.getItem('starnet.save') === raw;
+        localStorage.setItem(cacheKey(), raw);
+        adopted = localStorage.getItem(cacheKey()) === raw;
       } catch (e) { adoptError = String((e && (e.name || e.code)) || 'error') + (e && e.message ? ': ' + e.message : ''); }
       try {
         // re-validate through Save.load(): it re-checks the forward-version guard on the just-adopted doc and
@@ -614,7 +740,7 @@ const CloudSave = (() => {
         let mem = null;
         try { mem = Save.fromDoc(remote); } catch (_) { mem = null; }
         if (mem && mem.status === 'ok' && isSave(mem.doc) && num(mem.doc.version) <= currentVersion()) {
-          if (priorLocalRaw != null) { try { localStorage.removeItem('starnet.save'); } catch (_) {} }
+          if (priorLocalRaw != null) { try { localStorage.removeItem(cacheKey()); } catch (_) {} }
           cacheFailed = true; cacheFailedConfirmed = true; memoryDoc = mem.doc;   // it came FROM the station file
           cacheFailedReason = adoptError;
           try { console.warn('[cloudsave] browser storage cannot hold this station; resumed it from the station file.'); } catch (_) {}
@@ -624,7 +750,7 @@ const CloudSave = (() => {
       // adoption produced no readable current-schema doc (Save unavailable, or the re-read failed the guard).
       // NEVER return the raw, unmigrated remote — resumeInto() would misread it. Roll the cache back to the
       // prior local and prefer it. Without one, a failed adoption cannot justify first-run onboarding.
-      try { if (priorLocalRaw != null) localStorage.setItem('starnet.save', priorLocalRaw); else localStorage.removeItem('starnet.save'); } catch (_) {}
+      try { if (priorLocalRaw != null) localStorage.setItem(cacheKey(), priorLocalRaw); else localStorage.removeItem(cacheKey()); } catch (_) {}
       try { console.warn('[cloudsave] adopted remote did not re-validate; kept prior local cache.'); } catch (_) {}
       // We kept the old document, so keep its causal revision too. Giving it the remote
       // revision would let the next autosave overwrite newer durable edits without conflict.
@@ -722,7 +848,7 @@ const CloudSave = (() => {
     const confirmed = await flush({ force: true });
     if (pending || activeFlushes.size) throw new Error('This window changed while saving. Try reloading again after your work finishes.');
     if (!confirmed && !conflict) throw new Error('Could not preserve this window. Download its save before reloading.');
-    localStorage.removeItem('starnet.save');
+    localStorage.removeItem(cacheKey());
     location.reload();
   }
 
@@ -769,10 +895,10 @@ const CloudSave = (() => {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     // a change made WHILE the restore ran is in no file yet: keep its browser copy, which the reload preserves as this
     // window's work (a dirty copy on an older revision is pushed and kept beside the station, never dropped)
-    if (pushSeq === newest) { pending = null; pendingRaw = null; try { localStorage.removeItem('starnet.save'); } catch (_) {} }
+    if (pushSeq === newest) { pending = null; pendingRaw = null; try { localStorage.removeItem(cacheKey()); } catch (_) {} }
     location.reload();
     return j;
   }
-  return { localSnapshot: () => latestLocal, writerId, mergeNotice: () => lastMerge, memorySave, reloadCurrent, conflicts, restoreConflict, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
+  return { openJournal, journalKey: () => cacheKey(), localSnapshot: () => latestLocal, writerId, mergeNotice: () => lastMerge, memorySave, reloadCurrent, conflicts, restoreConflict, revision: () => revision, push, pull, reconcile, flush, flushForUpdate, installUnloadFlush, health: healthNow, isFutureSentinel, isUnknownSentinel, markDegraded, recoveryNotice, lineage, ackRecovery, pullOutcome: () => lastPullOutcome, _isSave: isSave, _isFutureSave: isFutureSave };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = CloudSave;

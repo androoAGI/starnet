@@ -5978,6 +5978,9 @@ const App = (() => {
     // call site can adopt/re-save it), which would otherwise look like "no save" here and fall through to a fresh
     // create that clobbers the newer save on first persist(). Check the honest status BEFORE reconcile and stop:
     // the gate returns without ever touching the stored doc.
+    // THIS WINDOW'S CRASH JOURNAL first (cloudsave openJournal, save-latch-kill): the local save read below is this window's
+    // own — a dead window's it continues, never another live tab's — and every other dead window's unsent work is merged in
+    try { if (typeof CloudSave !== 'undefined' && CloudSave.openJournal) await CloudSave.openJournal(); } catch (_) {}
     const localStatus = Save.loadStatus ? Save.loadStatus() : { status: (Save.load() ? 'ok' : 'none'), version: 0 };
     if (localStatus.status === 'future') { showFutureSaveGate(localStatus.version); return; }
 
