@@ -11961,6 +11961,8 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
       mime: MIME[ext] || 'application/octet-stream', active: isActiveDeliverable(abs), name: safeDownloadName(abs), data: buf.subarray(0, n).toString('base64') };
   },
   routines: () => cronStateSnapshot(Date.now()).jobs,
+  // the scheduler's own state: with scheduling OFF or the E-STOP engaged no routine fires, whatever its switch says (quick win 30)
+  scheduler: () => { const s = cronStateSnapshot(Date.now()); return { enabled: s.enabled === true, halted: s.halted === true }; },
   setRoutine: async (jobId, enabled) => {
     if (!cronStore.getJob(cronJobs, jobId)) return { ok: false, error: 'no such routine' };
     try {

@@ -1409,6 +1409,7 @@ test/channels.store-cache.test.js
 test/notebook-peer-reads.test.js
 test/task-turn-evidence.test.js
 test/remote-crew-looks.test.js
+test/remote-routines-scheduler.test.js
 test/save-persist-cost.test.js
 test/run-recoveries-page.test.js
 test/type-floor.test.js
