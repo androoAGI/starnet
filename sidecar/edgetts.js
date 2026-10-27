@@ -235,19 +235,58 @@ function makeWsParser(onFrame, onClose) {
   };
 }
 
+/* CODED failures (sidecar/speech-outcome.js): every rejection carries err.speechCode (+ err.http for a refused
+   upgrade), so a caller never re-reads the message to decide whether a failure is a blip or permanent. The messages
+   are unchanged (an older desk still reads them as text). Socket errors from node keep their own err.code
+   (ECONNRESET, ENOTFOUND…), which the outcome maps to 'network'. */
+function speechError(message, speechCode, extra) {
+  const e = new Error(message);
+  e.speechCode = speechCode;
+  if (extra) Object.assign(e, extra);
+  return e;
+}
+// An HTTP answer instead of the 101 upgrade. 403 is Edge refusing the token (wrong DRM version or a skewed clock).
+function refusedCode(status) {
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'upstream_unavailable';
+  return 'refused';
+}
+
+/* CLOCK SKEW (upstream rany2/edge-tts drm.py handle_client_response_error): Sec-MS-GEC hashes the 5-minute window
+   the CLIENT believes it is in, so a machine whose clock is off by minutes presents a token for the wrong window and
+   gets 403 on every request. On a 403 that carries the server's Date header, synth retries ONCE from the server's
+   clock when that clock names a different window, and remembers the offset so later calls start right. A 403 that
+   persists from the server's own clock is a real refusal (the v1-token outage), never retried again. */
+let clockSkewMs = 0;
+function serverDateMs(res) {
+  const t = Date.parse(String((res && res.headers && res.headers.date) || ''));
+  return Number.isFinite(t) && t > 0 ? t : 0;
+}
+
 /* synth(text, opts) → Promise<Buffer mp3>. On ANY failure (refused upgrade, timeout, socket error, empty
-   audio) it REJECTS — the /api/tts caller catches and degrades. opts:
+   audio, a cancelled caller) it REJECTS with a coded error — the /api/tts caller catches and degrades. opts:
      voice     — Edge voice name (default: env SKYNET_EDGE_TTS_VOICE or en-US-ChristopherNeural)
      host/port — endpoint override (default speech.platform.bing.com / 443|80). Test-only.
      insecure  — use plain http upgrade instead of https (loopback test server). Test-only.
-     timeoutMs — hard wall-clock (default 15000).
+     timeoutMs — hard wall-clock per attempt (default 15000); the sidecar passes what is left of the sentence's deadline.
+     signal    — an AbortSignal: the caller went away (the desk's request closed), so stop and reject 'cancelled'.
    host/port/insecure also read from SKYNET_EDGE_TTS_HOST / _PORT / _INSECURE so a spawned sidecar can be
    aimed at a loopback server without a code change. */
 function synth(text, opts) {
   opts = opts || {};
   // determinism law: the wall clock is injected by the composition root (sidecar/index.js passes Date.now()).
   const nowMs = Number(opts.nowMs);
-  if (!Number.isFinite(nowMs) || nowMs <= 0) return Promise.reject(new Error('edgetts.synth: opts.nowMs (injected clock) is required'));
+  if (!Number.isFinite(nowMs) || nowMs <= 0) return Promise.reject(speechError('edgetts.synth: opts.nowMs (injected clock) is required', 'internal_error'));
+  const sentAt = nowMs + clockSkewMs;
+  return synthOnce(text, opts, sentAt).catch(err => {
+    const serverMs = err && err.speechCode === 'refused' && err.http === 403 ? Number(err.serverDateMs) || 0 : 0;
+    if (!serverMs || (opts.signal && opts.signal.aborted) || secMsGec(serverMs) === secMsGec(sentAt)) throw err;
+    clockSkewMs = serverMs - nowMs;   // this machine's clock is off: start every later call from the server's
+    return synthOnce(text, opts, serverMs);
+  });
+}
+
+function synthOnce(text, opts, nowMs) {
   const voice = resolveVoice(opts);
   const insecure = (opts.insecure != null) ? !!opts.insecure : truthyOn(env('EDGE_TTS_INSECURE'));
   const host = String(opts.host || env('EDGE_TTS_HOST') || 'speech.platform.bing.com').trim();
@@ -255,6 +294,8 @@ function synth(text, opts) {
   const timeoutMs = opts.timeoutMs > 0 ? opts.timeoutMs : 15000;
   const transport = insecure ? http : https;
   const safe = xmlEscape(String(text || ''));
+  const signal = opts.signal || null;
+  if (signal && signal.aborted) return Promise.reject(speechError('edge cancelled', 'cancelled'));
 
   return new Promise((resolve, reject) => {
     const key = randomBytes(16).toString('base64');
@@ -274,17 +315,22 @@ function synth(text, opts) {
     } catch (e) { return reject(e); }
     // Timeout MUST tear down BOTH the request and any upgraded socket — a leaked half-open socket would keep a
     // peer (e.g. a loopback test server) from ever closing. All exits funnel through settle() so nothing lingers.
-    const timer = setTimeout(() => settle(new Error('edge timeout')), timeoutMs);
+    const timer = setTimeout(() => settle(speechError('edge timeout', 'timeout')), timeoutMs);
+    const onAbort = () => settle(speechError('edge cancelled', 'cancelled'));
+    if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort, { once: true });
     function settle(err, val) {
       if (settled) return; settled = true;
       clearTimeout(timer);
+      if (signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort);
       try { req.destroy(); } catch (_) {}
       if (sock) { try { sock.destroy(); } catch (_) {} }
       if (err) reject(err instanceof Error ? err : new Error(String(err))); else resolve(val);
     }
     req.on('error', (e) => settle(e));
-    // A plain HTTP response (not a 101 upgrade) means the endpoint refused the websocket — degrade.
-    req.on('response', (res) => settle(new Error('edge upgrade refused: HTTP ' + res.statusCode)));
+    // A plain HTTP response (not a 101 upgrade) means the endpoint refused the websocket — degrade. The server's
+    // Date header rides along so synth() can tell a skewed local clock from a real refusal.
+    req.on('response', (res) => settle(speechError('edge upgrade refused: HTTP ' + res.statusCode, refusedCode(res.statusCode),
+      { http: res.statusCode, serverDateMs: serverDateMs(res) })));
     req.on('upgrade', (res, socket) => {
       sock = socket;
       const audio = [];
@@ -293,9 +339,9 @@ function synth(text, opts) {
       // ONLY turn.end completes a clip. A CLOSE frame or a dropped connection before it is a CUT stream: resolving
       // the audio received so far served half a sentence as a whole one — and /api/tts cached it under the full
       // sentence's key, so the truncated clip replayed from disk forever. A drop used to wait out the wall clock.
-      const cut = () => done(new Error('edge socket closed before turn.end'));
+      const cut = () => done(speechError('edge socket closed before turn.end', 'cut_stream'));
       socket.on('end', cut); socket.on('close', cut);
-      const finish = () => { const out = Buffer.concat(audio); if (out.length) done(null, out); else done(new Error('edge: empty audio')); };
+      const finish = () => { const out = Buffer.concat(audio); if (out.length) done(null, out); else done(speechError('edge: empty audio', 'empty_audio')); };
       const parse = makeWsParser((opcode, payload) => {
         if (opcode === 0x9) { try { socket.write(wsEncode(0xA, payload)); } catch (_) {} return; }   // pong the ping
         if (opcode === 0x1) {                                            // text control frame
@@ -327,4 +373,6 @@ function synth(text, opts) {
 // Is the Edge floor enabled? Default ON; disable with SKYNET_EDGE_TTS=0 (tests need offline determinism).
 function enabled() { return !truthyOff(env('EDGE_TTS')); }
 
-module.exports = { secMsGec, wsEncode, makeWsParser, synth, resolveVoice, enabled, DEFAULT_VOICE, OUTPUT_FORMAT };
+// clockSkew: the offset a skewed-clock retry learned (status + tests); _resetClockSkew: tests only.
+module.exports = { secMsGec, wsEncode, makeWsParser, synth, resolveVoice, enabled, DEFAULT_VOICE, OUTPUT_FORMAT,
+  clockSkew: () => clockSkewMs, _resetClockSkew: () => { clockSkewMs = 0; } };

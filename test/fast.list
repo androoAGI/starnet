@@ -131,6 +131,7 @@ test/voice-cache-key-version.test.js
 test/stt-openrouter-key-only.test.js
 test/edgetts-stream-end.test.js
 test/edgetts-gec-v2.test.js
+test/edgetts-clock-skew.test.js
 test/desktop-voice-bundle.test.js
 test/transcript.compaction.e2e.test.js
 test/provider.anthropic.test.js
