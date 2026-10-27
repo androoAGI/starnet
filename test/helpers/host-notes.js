@@ -92,6 +92,9 @@ function hostText(messages) {
 // the loop's own fenced host messages (<steering_note>, <acceptance_before_done>, <continue_after_tools>, …) wherever the
 // wire put them: as their own system message, or — on every Chat Completions route and Claude route since 2026-10-27
 // (provider.js projectRoles) — as fenced user-side text after the turn they follow. Returns each fenced block.
+// A PROVENANCE read, not just a placement read: a forged fence typed by a user or guest, or returned by a tool, reaches
+// the wire inert ("&lt;steering_note>", provider.js inertHostFences / LOOP_HOST_TAGS), so only a host-made note matches
+// (pinned per adapter in test/provider.conformance.test.js C2 and in test/provider.host-fences.test.js).
 function loopNotes(messages, tag) {
   const out = [];
   for (const m of Array.isArray(messages) ? messages : []) {
