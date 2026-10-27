@@ -851,7 +851,7 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 // (handleRuntimeKnobsSet), so the next run uses the new value without a restart.
 // maxSubscriptionTokens: per-run TOKEN ceiling for $0 subscription turns (a Claude Code sign-in); cache re-reads count
 // 1/10 (loop.js SUBSCRIPTION SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP overrides; 0 disables.
-const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxCostUsd: 1.00, maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
+const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
 const MAX_TOOL_BYTES_PINNED = knobEnvLocked('MAX_TOOL_BYTES');
 const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget (mcp/manager.js); per-connector timeoutMs overrides
 // Spend governance: per-run, per-agent and global ceilings default OFF; per-DAY ships ON as a soft rail
@@ -3721,8 +3721,8 @@ async function runStudy(o) {
    AND the permanent declined denylist, and STASHES the survivors for turn-in. Nothing becomes an open thread until
    the Commander KEEPS it (POST /api/threads/turnin) — stash, not auto-commit (the memory/study law). Fail-open:
    a failed mine never touches the run. */
-const THREAD_MINE_TIMEOUT_MS = num(process.env.SKYNET_THREAD_MINE_TIMEOUT_MS, 45000);
-const THREAD_MINE_COOLDOWN_MS = num(process.env.SKYNET_THREAD_MINE_COOLDOWN_MS, 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
+const THREAD_MINE_TIMEOUT_MS = num(ENV('THREAD_MINE_TIMEOUT_MS'), 45000);
+const THREAD_MINE_COOLDOWN_MS = num(ENV('THREAD_MINE_COOLDOWN_MS'), 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
 const THREAD_STASH_CAP = 200;
 const threadsByRun = new Map();        // runId -> { agentId, runId, createdAt, proposals:[{id,title,spec,fingerprint,sourceRef}] }
 const latestThreadRun = new Map();     // agentId -> newest pending thread-mine runId (fetch fallback when runId unknown)
@@ -3786,12 +3786,12 @@ async function runThreadMine(o) {
   }
 }
 
-const SKILL_REVIEW_TIMEOUT_MS = num(process.env.SKYNET_SKILL_REVIEW_TIMEOUT_MS, 45000);
-const SKILL_REVIEW_MAX_COST_USD = num(process.env.SKYNET_SKILL_REVIEW_MAX_USD, 0.08);
+const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), 45000);
+const SKILL_REVIEW_MAX_COST_USD = num(ENV('SKILL_REVIEW_MAX_USD'), 0.08);
 // THE SKILL NUDGE (skillreview.nudgeAfterRun): per agent, the model turns taken with skill tools on the wire since
 // its skillbase last changed. Carried across runs AND restarts: a desktop station restarts most days, and a count
 // that reset with the process would rarely reach the bar. SKYNET_SKILL_REVIEW_EVERY sets the bar (default 10, 0 = off).
-const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(process.env.SKYNET_SKILL_REVIEW_EVERY);
+const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(ENV('SKILL_REVIEW_EVERY'));
 const SKILL_NUDGE_FILE = path.join(WORKSPACES, 'skill.nudge.json');
 const skillNudge = (() => {
   try {
@@ -3862,8 +3862,8 @@ async function rehydrateReviewJob(job) {
     unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
   });
 }
-const SKILL_CURATOR_INTERVAL_MS = num(process.env.SKYNET_SKILL_CURATOR_INTERVAL_MS, 24 * 60 * 60 * 1000);
-const SKILL_CURATOR_MAX_COST_USD = num(process.env.SKYNET_SKILL_CURATOR_MAX_USD, 0.12);
+const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
+const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), 0.12);
 const skillCuratorLastRun = new Map();
 async function runBackgroundSkillReview(o) {
   const { agentId, runId, messages, provider, model, cost, loadedSkills, managedSkills, verdict, correction } = o || {};
@@ -3967,7 +3967,7 @@ async function runSkillCurator(o) {
   if (SKILL_CURATOR_INTERVAL_MS > 0 && (nowMs - (skillCuratorLastRun.get(agentId) || 0)) < SKILL_CURATOR_INTERVAL_MS) return;
   const all = skillStore.list(agentId, { includeArchived: true });
   skillStore.curate(agentId, { now: nowMs });
-  if (process.env.SKYNET_SKILL_CURATOR_LLM !== '1' || !skillCurator.shouldCurate(all)) {
+  if (ENV('SKILL_CURATOR_LLM') !== '1' || !skillCurator.shouldCurate(all)) {
     skillCuratorLastRun.set(agentId, nowMs);
     return;
   }
@@ -11150,7 +11150,7 @@ function devHubSecrets() {
   const provider = 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = chatModelId(provider, String(process.env.SKYNET_DEFAULT_MODEL || process.env.STARNET_DEFAULT_MODEL || '').trim());   // a batch-only id runs on its base model
+  const model = chatModelId(provider, String(ENV('DEFAULT_MODEL') || '').trim());   // a batch-only id runs on its base model; ENV(): STARNET_ wins, as everywhere
   return { key, model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, ''), agentId: undefined, system: undefined };
 }
 function getDevHub() {
@@ -24610,7 +24610,7 @@ async function runOnceCore(o) {
       && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
   const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _auxDone && !_lineHop && Study.studySalient(result.messages, o.recurring)
       && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
-  const _gateThreadmine = !!(process.env.SKYNET_THREAD_MINE !== '0' && o.reflect && isTask && _auxDone && !_lineHop && threadmine.mineSalient(result.messages)
+  const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _auxDone && !_lineHop && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
@@ -24620,15 +24620,15 @@ async function runOnceCore(o) {
   const _skillToolsOn = resolved.tools.indexOf('skill.manage') >= 0 || resolved.tools.indexOf('skill.write') >= 0;
   const _throwawayAgent = /^sub-/.test(agentId) && !agentRoster.has(agentId);
   // /v1 runs (o.toolsOptional) never fire the paid background passes (skill review, scout) on an external caller's traffic
-  const _nudge = (process.env.SKYNET_SKILL_REVIEW !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
+  const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
   const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
-  const _gateCurator = !!(process.env.SKYNET_SKILL_CURATOR !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
+  const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
   // budgeted candidate, and only when no cycle is already in flight.
-  const _scoutQualifies = !!(process.env.SKYNET_SCOUT !== '0' && isTask && !o.toolsOptional && _auxDone);
+  const _scoutQualifies = !!(ENV('SCOUT') !== '0' && isTask && !o.toolsOptional && _auxDone);
   const _gateScout = !!(_scoutQualifies && !scoutingNow);
 
   // The JOINT decision: rank the candidates by locked priority and grant up to SKYNET_AUX_BUDGET this run-end.
@@ -24656,7 +24656,7 @@ async function runOnceCore(o) {
       if (at >= 0) _auxCandidates.splice(at, 1);
     }
   }
-  const _auxBudget = AuxGovernor.parseBudget(process.env.SKYNET_AUX_BUDGET);
+  const _auxBudget = AuxGovernor.parseBudget(ENV('AUX_BUDGET'));
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
@@ -24710,7 +24710,7 @@ async function runOnceCore(o) {
     skillReviewingNow.add(agentId);
     runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (process.env.SKYNET_SKILL_REVIEW !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
     // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet) so that if the Commander rates it
     // `ok`/`miss` (POST /api/growth/ratings) the SAME quiet review runs again WITH THE VERDICT in the prompt.
@@ -28070,7 +28070,7 @@ async function handleGrowthRatings(req, res) {
     feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: canonical.verdict, words: String(body.correction || ''), directive, run: lead });
   }
   let skillReviewArmed = false;
-  if (!result.duplicate && process.env.SKYNET_SKILL_REVIEW !== '0') {
+  if (!result.duplicate && ENV('SKILL_REVIEW') !== '0') {
     // ARM, don't fire (slice 2): hold the review for a grace window so the Commander's correction — a follow-up
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));

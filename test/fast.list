@@ -388,6 +388,7 @@ test/agent-config-target.test.js
 test/notebookrestore.test.js
 test/runstore.test.js
 test/thrown-run-reason.test.js
+test/aux-env-knobs.test.js
 test/run-journal.test.js
 test/run-recovery-continuation.test.js
 test/run-recovery-ui.test.js
