@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "282014bf7c1085493c7a60ae9bd36b3ccd0274d1",
+    "sourceCommit": "8c44f06338e06d564a5f16bdc88bea254f94f26d",
     "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 458375,
-        "sha256": "27c2acc433b39bf4d591b4ff456aa77f48d777514af4b9bbbe5ca3b8a7def47b"
+        "bytes": 459909,
+        "sha256": "00dcca05db848024dd047b1faad993c65965004f7212d0e88e1f1fe02106ab9a"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -303,8 +303,8 @@
       },
       {
         "path": "frontend/app/backup.js",
-        "bytes": 15569,
-        "sha256": "2b68539ff282de46a73d0de72fa877f7a4cb78da3560bc1cdef512c4561ed1ff"
+        "bytes": 16598,
+        "sha256": "b124a532224882b1448af38f5f57b611a064c3d5be85147ce0e1b2a6636e52dd"
       },
       {
         "path": "frontend/app/battlepass.js",
@@ -373,13 +373,13 @@
       },
       {
         "path": "frontend/app/cloudsave.js",
-        "bytes": 52139,
-        "sha256": "e8090bd96dcee0944c53609df5498319ab028966df6c379a1e637a32d350fa68"
+        "bytes": 70240,
+        "sha256": "4df4cbe28d3d93fea67fa805df3b3028ce3e52c9b776180a08d9e789142caab0"
       },
       {
         "path": "frontend/app/cloudsavecore.js",
-        "bytes": 5596,
-        "sha256": "b5bb80d02e23ba1fbaf74ae098abd03d3f46d38d6eeeb52fa50949daff435fff"
+        "bytes": 9816,
+        "sha256": "463d9cfd5692816135dfdf10f29f5cec54f322222c66b9a1d706237e3f89fffe"
       },
       {
         "path": "frontend/app/codexsignin.js",
@@ -1098,8 +1098,8 @@
       },
       {
         "path": "frontend/app/save.js",
-        "bytes": 10000,
-        "sha256": "4a4a38468db6be4a25c4127e7e1b911b47eacdd36d2940274c1cb5ad76833fa3"
+        "bytes": 11099,
+        "sha256": "51ad350bf1e57a7fb74fbd9a9635b55f1bbfe40446b2f4fd84ecd5b2197c4b85"
       },
       {
         "path": "frontend/app/schedpicker.js",
@@ -1203,8 +1203,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 968181,
-        "sha256": "1bf9386906408f1c4cf6889822876d9766b9e2738350bd0ae679375212dc3ed9"
+        "bytes": 969436,
+        "sha256": "994c8ee3aa850fe9aaf59ddb1617092f9e382c2761afb6670cba669b75902c04"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1318,8 +1318,8 @@
       },
       {
         "path": "frontend/app/updates.js",
-        "bytes": 33128,
-        "sha256": "1edd440802629f7575e941dc74103adb452dc352ea636257aeff5139ae19dbf2"
+        "bytes": 35033,
+        "sha256": "c7f7f5b8ea27a0208ef2266ef7e9e15eedd7d6a63b126346ad8d28e0d16269d3"
       },
       {
         "path": "frontend/app/userprops.js",
