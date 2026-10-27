@@ -2,8 +2,10 @@
    skins and furniture, StarNet's palette, made of ASCII — camfeed.js asciiSixel), wide enough for everyone.
 
    Who sits where: the LEAD (the agent whose run sent work out, else the agent shown in COMMS) at the desk against the back
-   wall, the rest of the crew at a row of desks in front of it, in roster order (a desk stays its agent's). More agents than
-   desks: the rest have none and only go about the room.
+   wall, the rest of the crew at a row of desks in front of it, in roster order (a desk stays its agent's).
+   A CROWD (more than one row seats — Andrew 10-27, "what if a user has like 20 agents"): desks for the job only (an agent on
+   one keeps its desk till a moment after it is done), as many rows as the job needs (up to 4, the room drawn smaller), and a
+   lounge at the left with a few of the rest in view and a plate counting the others ("+12 standing by").
 
    What each one does follows its real state, as on the camera:
      working     it walks to its desk, sits and types; its monitor's light falls on it, a rim in the accent picks it out
@@ -34,26 +36,57 @@ const STATE_RGB = { needs: [255, 180, 58], done: [93, 255, 168], stopped: [70, 5
 const lerp = (a, b, k) => a + (b - a) * Math.max(0, Math.min(1, k));
 function rnd(seed) { let s = 9; for (const c of String(seed)) s = (s * 31 + c.charCodeAt(0)) >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
-/* the room for a world WW px wide: desks (the lead's at the back, a row in front), furniture, the places an idle agent goes */
-function layout(ids, lead, WW) {
-  const others = ids.filter(id => id !== lead);
-  const room = Math.max(1, Math.floor((WW - 60) / 190));   // desks that fit in the front row, 190 px apart at least
-  const front = others.slice(0, room);
+/* the room for a world WW px wide: desks (the lead's at the back, a row in front), furniture, the places an idle agent goes.
+   A CROWD (more agents than one row seats) works differently (o.crowd, from makeFloor): desks only for the agents on a job,
+   in o.rows rows (o.per a row; o.slots: id -> desk number, a desk stays its agent's while it works), the empty ones standing
+   ready; the lounge at the left (the couch, the coffee, the wall screens) for the rest */
+const LOUNGE_W = 270;
+function layout(ids, lead, WW, o) {
   const desks = new Map();
   desks.set(lead, [Math.round(WW / 2 - DESK_W / 2), LEAD_Y]);
-  front.forEach((id, i) => desks.set(id, [Math.round(30 + (i + 0.5) * (WW - 60) / front.length - DESK_W / 2), ROW_Y]));
+  if (!o || !o.crowd) {
+    const others = ids.filter(id => id !== lead);
+    const room = Math.max(1, Math.floor((WW - 60) / 190));   // desks that fit in the front row, 190 px apart at least
+    const front = others.slice(0, room);
+    front.forEach((id, i) => desks.set(id, [Math.round(30 + (i + 0.5) * (WW - 60) / front.length - DESK_W / 2), ROW_Y]));
+    const props = [['console', 10, 52, 1], ['screens', 70, 18, 1], ['whiteboard', WW - 330, 12], ['rack', WW - 110, 40, 1],
+      ['plant', WW / 2 - 160, 66], ['plant', WW / 2 + 112, 66], ['coffee', WW - 56, 262], ['couch', 14, 290]];
+    const spots = [
+      { at: [WW - 40, 300], pose: 'standN' }, { at: [134, 330], pose: 'sitS', over: 'couch' }, { at: [170, 150], pose: 'standN' },
+      { at: [WW - 230, 140], pose: 'standN' }, { at: [WW - 70, 150], pose: 'standN' }, { at: [WW / 2 - 200, 150], pose: 'stand' }
+    ];
+    return { desks, props, spots, front, empty: [], crowd: false, colW: front.length ? (WW - 60) / front.length : WW };
+  }
+  const Hw = o.Hw, span = WW - 30 - LOUNGE_W, colW = span / o.per, empty = [], byslot = new Map();
+  for (const [id, n] of o.slots) byslot.set(n, id);
+  for (let n = 0; n < o.per * o.rows; n++) {
+    const at = [Math.round(LOUNGE_W + (n % o.per + 0.5) * colW - DESK_W / 2), Math.round(ROW_Y + Math.floor(n / o.per) * o.pitch)];
+    if (byslot.has(n)) desks.set(byslot.get(n), at); else empty.push(at);
+  }
   const props = [['console', 10, 52, 1], ['screens', 70, 18, 1], ['whiteboard', WW - 330, 12], ['rack', WW - 110, 40, 1],
-    ['plant', WW / 2 - 160, 66], ['plant', WW / 2 + 112, 66], ['coffee', WW - 56, 262], ['couch', 14, 290]];
+    ['plant', WW / 2 - 160, 66], ['plant', WW / 2 + 112, 66], ['coffee', 200, Hw - 150], ['couch', 14, Hw - 64], ['plant', 20, Hw - 150]];
   const spots = [
-    { at: [WW - 40, 300], pose: 'standN' }, { at: [134, 330], pose: 'sitS', over: 'couch' }, { at: [170, 150], pose: 'standN' },
-    { at: [WW - 230, 140], pose: 'standN' }, { at: [WW - 70, 150], pose: 'standN' }, { at: [WW / 2 - 200, 150], pose: 'stand' }
+    { at: [134, Hw - 24], pose: 'sitS', over: 'couch' }, { at: [216, Hw - 112], pose: 'standN' }, { at: [170, 150], pose: 'standN' },
+    { at: [90, Hw - 100], pose: 'stand' }
   ];
-  return { desks, props, spots, front };
+  return { desks, props, spots, front: [...desks.keys()].filter(id => id !== lead), empty, crowd: true, colW, lounge: [134, Hw - 70] };
 }
 
-/* how tall the room is (world px) in a picture H px tall with cells cellH tall: the front row's seats (ROW_Y + 128) end ~2.6
-   rows above its foot, so their name plates fit under them at any height */
-function roomHeight(H, cellH) { return Math.max(REF_H, (ROW_Y + DESK_SEAT[1] + 14) / Math.max(0.5, 1 - 2.6 * cellH / H)); }
+/* the room's geometry in a picture W x H px with cells cellH tall and `rows` rows of desks: how tall the world is (Hw), its
+   scale (S), how wide (WW), the rows' pitch and how many desks a row seats. Each row's seats (ROW_Y + 128) end ~2.6 text rows
+   above the next row's desks (or the floor's foot), so their name plates fit under them at any height */
+function geom(W, H, cellH, rows, crowd) {
+  const c = 2.6 * cellH / H, band = DESK_SEAT[1] + 14;
+  const Hw = Math.max(REF_H, (ROW_Y + band * rows) / Math.max(0.3, 1 - (rows - 1) * c - (rows > 1 ? 3.2 : 2.6) * cellH / H));
+  const S = H / Hw, WW = W / S;
+  const per = Math.max(1, Math.floor((WW - 60 - (crowd ? LOUNGE_W : 0)) / 190));
+  return { Hw, S, WW, per, pitch: band + c * Hw };
+}
+function roomHeight(H, cellH) { return geom(1, H, cellH, 1, false).Hw; }
+const ON_JOB = { working: 1, needs: 1, stopped: 1 };
+const MARK = { working: ['●', 'ph b'], needs: ['▲', 'am b'], done: ['✓', 'ok b'], stopped: ['■', 'dim'] };
+const DONE_HOLD = 4000;   // a crowd's agent that finished keeps its desk this long (it stands by it), then goes to the lounge
+const LOUNGE_MAX = 3;     // a crowd's lounge shows this many of the agents with nothing to do; a plate counts the rest
 
 function makeFloor(feed) {
   const sims = new Map();      // agent id -> its walk
@@ -62,6 +95,9 @@ function makeFloor(feed) {
   const known = new Map();     // delegated run id -> { agentId, lead }
   const frames = new Map();
   let lastLayout = null;
+  const slots = new Map();     // a crowd: agent id -> its desk number, while it is on the job
+  const lastBusy = new Map();  // agent id -> when it was last on the job (the lounge shows the latest first)
+  let rowsNow = 1, fewerSince = 0;
 
   // what the room still lacks to draw these skins: the furniture and each set's pose frames (every fallback)
   function needs(sets) {
@@ -104,7 +140,7 @@ function makeFloor(feed) {
   }
 
   // one agent's walk toward where its state puts it
-  function step(a, L, now) {
+  function step(a, L, now, spot) {
     const desk = L.desks.get(a.id);
     const seat = desk ? [desk[0] + DESK_SEAT[0], desk[1] + DESK_SEAT[1]] : null;
     let s = sims.get(a.id);
@@ -117,15 +153,23 @@ function makeFloor(feed) {
     const dt = Math.min(0.25, Math.max(0, (now - s.last) / 1000));
     s.last = now;
     const atDesk = seat && (a.key === 'working' || a.key === 'needs' || a.key === 'stopped');
+    if (atDesk && s.sat) { s.x = seat[0]; s.y = seat[1]; }   // the room re-laid (the picture changed size, a row came or went): it stays in its chair
     if (atDesk) { s.tx = seat[0]; s.ty = seat[1]; s.spot = null; s.arrived = false; }
     else if (s.sat) { s.sat = false; s.tx = s.x - 40; s.ty = s.y + 8; s.spot = null; s.dwellUntil = now + (a.key === 'done' ? 2600 : 600); s.arrived = false; }   // it stands up first
+    else if (spot === 'desk') { s.tx = seat[0] - 40; s.ty = seat[1] + 8; s.spot = null; }   // a crowd's lead, between jobs: by its desk (its plate is there)
+    else if (spot != null) {   // a crowd's lounger: its own spot (where that is now: the room may have been re-laid)
+      if (s.spot !== spot) s.arrived = false;
+      s.spot = spot; s.tx = L.spots[spot].at[0]; s.ty = L.spots[spot].at[1];
+    }
     else if (s.arrived && now > s.dwellUntil) {
       let n = Math.floor(s.rand() * L.spots.length);
       if (n === s.spot) n = (n + 1) % L.spots.length;
       s.spot = n; s.tx = L.spots[n].at[0] + (s.rand() - 0.5) * 30; s.ty = L.spots[n].at[1]; s.arrived = false;
     }
     const dx = s.tx - s.x, dy = s.ty - s.y, dist = Math.hypot(dx, dy);
-    if (dist > 0.5) { const m = Math.min(dist, SPEED * dt); s.x += dx / dist * m; s.y += dy / dist * m; if (Math.abs(dx) > 0.5) s.dir = dx > 0 ? 1 : -1; }
+    // a long way (a big room): it hurries, there in a second and a half
+    if (s.vx !== s.tx || s.vy !== s.ty) { s.vx = s.tx; s.vy = s.ty; s.v = Math.max(SPEED, dist / 1.5); }
+    if (dist > 0.5) { const m = Math.min(dist, s.v * dt); s.x += dx / dist * m; s.y += dy / dist * m; if (Math.abs(dx) > 0.5) s.dir = dx > 0 ? 1 : -1; }
     s.walking = dist > 1;
     if (!s.walking && !s.arrived && !atDesk) { s.arrived = true; s.dwellUntil = now + 3000 + s.rand() * 5000; }
     s.sat = !!atDesk && dist <= 1;
@@ -139,14 +183,42 @@ function makeFloor(feed) {
     if (needs(sets).length) return null;
     const W = box.cols * box.cellW, H = box.rows * box.cellH;
     if (W < 60 || H < 60) return null;
-    // the room is as tall as it must be for the front row's plates to fit under it: two text rows below the seated feet
-    const S = H / roomHeight(H, box.cellH), WW = W / S;
-    const L = layout(scene.agents.map(a => a.id), scene.lead, WW);
+    // the room is as tall as it must be for each row's plates to fit under it: two text rows below the seated feet
+    const ids = scene.agents.map(a => a.id), others = scene.agents.filter(a => a.id !== scene.lead);
+    let G = geom(W, H, box.cellH, 1, false), L;
+    const hidden = new Set(), loungeAt = new Map();   // a crowd: who is out of view; each lounger's own spot (they take turns)
+    const spotOf = id => loungeAt.has(id) ? loungeAt.get(id) : null;
+    if (others.length <= G.per) { slots.clear(); rowsNow = 1; fewerSince = 0; L = layout(ids, scene.lead, G.WW); }
+    else {
+      // a crowd: desks for the job only. Who is on it (or just finished, a moment) keeps its desk; the rows are as many as
+      // the job needs (at most 4), one fewer only once it has fitted in fewer for a few seconds (no room that breathes)
+      for (const a of others) if (ON_JOB[a.key]) lastBusy.set(a.id, now);
+      const busy = others.filter(a => ON_JOB[a.key] || (a.key === 'done' && slots.has(a.id) && now - (lastBusy.get(a.id) || 0) < DONE_HOLD));
+      const busyIds = new Set(busy.map(a => a.id));
+      for (const id of [...slots.keys()]) if (!busyIds.has(id)) slots.delete(id);
+      let need = 1;
+      while (need < 4 && geom(W, H, box.cellH, need, true).per * need < busy.length) need++;
+      if (need >= rowsNow) { rowsNow = need; fewerSince = 0; }
+      else if (!fewerSince) fewerSince = now;
+      else if (now - fewerSince > 4000) { rowsNow = need; fewerSince = 0; }
+      G = geom(W, H, box.cellH, rowsNow, true);
+      const cap = G.per * rowsNow;
+      for (const [id, n] of [...slots]) if (n >= cap) slots.delete(id);
+      for (const a of busy) if (!slots.has(a.id)) { const used = new Set(slots.values()); let n = 0; while (used.has(n)) n++; if (n < cap) slots.set(a.id, n); }
+      L = layout(ids, scene.lead, G.WW, { crowd: true, Hw: G.Hw, rows: rowsNow, per: G.per, pitch: G.pitch, slots });
+      // the lounge: who has no desk, the latest off the job first; a few in view, the rest counted on a plate
+      const off = others.filter(a => !L.desks.has(a.id)).sort((x, y) => (lastBusy.get(y.id) || 0) - (lastBusy.get(x.id) || 0));
+      off.slice(LOUNGE_MAX).forEach(a => hidden.add(a.id));
+      const turn = Math.floor(now / 12000);
+      off.slice(0, LOUNGE_MAX).forEach((a, i) => loungeAt.set(a.id, (i + turn) % L.spots.length));
+    }
+    L.more = hidden.size;
+    const S = G.S;
     lastLayout = L;
     const t = still ? 0 : now;
     // ---- where everyone is, and how it holds itself ----
-    const placed = scene.agents.filter(a => a.set).map((a, i) => {
-      const s = step(a, L, still ? 0 : now);
+    const placed = scene.agents.filter(a => a.set && !hidden.has(a.id)).map((a, i) => {
+      const s = step(a, L, still ? 0 : now, !L.crowd ? null : a.id === scene.lead ? 'desk' : !L.desks.has(a.id) ? spotOf(a.id) : null);
       let p;
       if (s.sat) p = a.key === 'working' && !still ? pose(a.set, 'type', Math.floor(t / 160) + i) : pose(a.set, 'type', 0);
       else if (s.walking && !still) p = pose(a.set, s.dir > 0 ? 'walkE' : 'walkW', Math.floor(t / 100) + i);
@@ -156,7 +228,7 @@ function makeFloor(feed) {
     }).filter(x => x.p);
     const fl = flights.map(f => ({ f, k: still ? 1 : (now - f.t0) / FLY_MS })).filter(x => x.k >= 0 && x.k <= 1);
     const pulse = still || Math.floor(t / 450) % 2 === 0;
-    const rk = [W, H, scene.lead, pulse ? 1 : 0, accentRim().join()].concat(placed.map(x => x.a.id + ':' + x.a.key + ':' + x.p + ':' + Math.round(x.s.x) + ',' + Math.round(x.s.y)), fl.map(x => x.f.to + x.f.kind + Math.round(x.k * 30))).join('|');
+    const rk = [W, H, scene.lead, pulse ? 1 : 0, accentRim().join(), rowsNow + 'x' + G.per + (L.crowd ? 'c' : '')].concat(placed.map(x => x.a.id + ':' + x.a.key + ':' + x.p + ':' + Math.round(x.s.x) + ',' + Math.round(x.s.y)), fl.map(x => x.f.to + x.f.kind + Math.round(x.k * 30))).join('|');
     const plates = platesFor(scene, placed, L, S, box);
     if (frames.has(rk)) return Object.assign({}, frames.get(rk), { plates });
 
@@ -182,7 +254,7 @@ function makeFloor(feed) {
     };
     const layers = [];
     const deskImg = feed.scaledOf(furnPath('desk'), S), chairImg = feed.scaledOf(furnPath('chair'), S);
-    for (const [, d] of L.desks) {
+    for (const d of [...L.desks.values(), ...L.empty]) {
       layers.push({ y: d[1] + deskImg.h / S - 8, draw: () => blit(deskImg, Math.round(d[0] * S), Math.round(d[1] * S), 3) });
       const sx = d[0] + DESK_SEAT[0], sy = d[1] + DESK_SEAT[1];
       layers.push({ y: sy - 1, draw: () => blit(chairImg, Math.round(sx * S - chairImg.w / 2), Math.round(sy * S - chairImg.h + 8 * S), 3) });
@@ -209,7 +281,7 @@ function makeFloor(feed) {
     const lightOf = key => key === 'working' ? rim.map(v => v * 0.43) : key === 'needs' ? (pulse ? [110, 74, 12] : [48, 30, 6]) : key === 'done' ? [16, 80, 40] : null;
     const stateOf = new Map(placed.map(x => [x.a.id, x.a]));
     for (const [id, d] of L.desks) { const a = stateOf.get(id); const c = a && lightOf(a.key); if (c) glow(d[0] + 82, d[1] + 22, 150, c, 1.2, true); }   // its light pools on the floor too
-    const seatOf = id => { const sm = sims.get(id); return sm ? [sm.x, sm.y - 50] : null; };
+    const seatOf = id => { const sm = !hidden.has(id) && sims.get(id); return sm ? [sm.x, sm.y - 50] : null; };
     for (const { f, k } of fl) {
       const a = seatOf(f.from), b = seatOf(f.to); if (!a || !b) continue;
       const c = f.kind === 'task' ? [255, 180, 58] : f.kind === 'result' ? [93, 255, 168] : [255, 107, 61];
@@ -244,29 +316,50 @@ function makeFloor(feed) {
     return Object.assign({}, res, { plates });
   }
 
-  /* the name plates, in text cells over the picture: under each desk agent its name and what it is doing; the lead's beside
-     it; an agent with no desk, under its feet */
+  /* the name plates, in text cells over the picture: under each desk agent its name and what it is doing (cut to its desk's
+     width; where desks stand close, one line: its state's mark and its name); the lead's beside it; an agent with no desk,
+     under its feet; a crowd's lounge, how many more stand by out of view */
   function platesFor(scene, placed, L, S, box) {
     const out = [];
     const cell = (wx, wy2) => [Math.round(wx * S / box.cellW), Math.round(wy2 * S / box.cellH)];
     const kids = [...known.values()].filter(k => k.lead === scene.lead).length;
+    const fit = Math.max(4, Math.floor(L.colW * S / box.cellW) - 1), tight = fit < 12;
     for (const { a, s } of placed) {
-      const word = stateWord(a);
       const desk = L.desks.get(a.id);
+      const word = cut(stateWord(a), desk ? fit : 24);
       if (a.id === scene.lead && desk) {
         const [c, r] = cell(desk[0] + DESK_SEAT[0] + 70, desk[1] + DESK_SEAT[1]);
         out.push({ id: a.id, col: c, row: r - 4, segs: [[a.name, 'ph b'], ['  lead', 'dim']] });
         out.push({ id: a.id, col: c, row: r - 3, segs: kids ? [['● waiting on ' + kids, 'ph b']] : word });
-        if (kids && a.now) out.push({ id: a.id, col: c, row: r - 2, segs: [[a.now, 'dim']] });
+        if (kids && a.now) out.push({ id: a.id, col: c, row: r - 2, segs: cut([[a.now, 'dim']], Math.max(8, box.cols - c - 3)) });
         continue;
       }
       const [c, r] = desk && s.sat ? cell(desk[0] + DESK_SEAT[0], desk[1] + DESK_SEAT[1]) : cell(s.x, s.y);
       // under its feet; near the floor's foot (no room there), over its head
-      const at = r + 2 < box.rows ? r + 1 : Math.max(0, r - Math.round(110 * S / box.cellH) - 1);
-      out.push({ id: a.id, col: c, row: at, segs: [[a.name, a.key === 'idle' ? 'fg b' : 'hi b']], center: true });
+      const at = r + 2 + (L.more && !desk ? 1 : 0) < box.rows ? r + 1 : Math.max(0, r - Math.round(110 * S / box.cellH) - 1);   // the lounge's last row is its +N plate's
+      const nameSt = a.key === 'idle' ? 'fg b' : 'hi b';
+      if (L.crowd && !desk) { out.push({ id: a.id, col: c, row: at, segs: MARK[a.key] ? [[MARK[a.key][0] + ' ', MARK[a.key][1]], [a.name, nameSt]] : [[a.name, nameSt]], center: true, solo: true }); continue; }   // a lounger: its name
+      if (tight && desk) { out.push({ id: a.id, col: c, row: at, segs: cut(MARK[a.key] ? [[MARK[a.key][0] + ' ', MARK[a.key][1]], [a.name, nameSt]] : [[a.name, nameSt]], fit), center: true }); continue; }
+      out.push({ id: a.id, col: c, row: at, segs: cut([[a.name, nameSt]], desk ? fit : 24), center: true });
       out.push({ id: a.id, col: c, row: at + 1, segs: word, center: true });
     }
+    if (L.more) out.push({ id: '', col: Math.round(LOUNGE_W / 2 * S / box.cellW), row: box.rows - 1, segs: [['+' + L.more + ' standing by', 'dim']], center: true });
+    // loungers stand close: a lounger's plate that would cover another goes up a row (or a few)
+    const span = p => { const w = p.segs.reduce((n, q) => n + q[0].length, 0) + 2; const x = p.center ? p.col - Math.floor(w / 2) : p.col; return [x, x + w]; };
+    const hits = p => out.some(q => q !== p && q.row === p.row && span(q)[0] < span(p)[1] && span(p)[0] < span(q)[1]);
+    for (const p of out) if (p.solo) for (let k = 0; k < 4 && hits(p); k++) p.row--;
     return out.filter(p => p.row >= 0 && p.row < box.rows);
+  }
+  // segs cut to n characters, the last one an ellipsis when it had to cut
+  function cut(segs, n) {
+    const out = [];
+    let left = n;
+    for (const [tx, st] of segs) {
+      if (left <= 0) break;
+      if (tx.length <= left) { out.push([tx, st]); left -= tx.length; continue; }
+      out.push([tx.slice(0, Math.max(0, left - 1)).replace(/\s+$/, '') + '…', st]); left = 0;
+    }
+    return out;
   }
   function stateWord(a) {
     if (a.key === 'working') { const m = /^(\S+)\s*(.*)$/.exec(a.now || 'thinking') || []; return [['● ' + (m[1] || 'thinking'), 'ph b']].concat(m[2] ? [[' ' + m[2], 'fg']] : []); }
@@ -278,4 +371,4 @@ function makeFloor(feed) {
   return { needs, observe, frame, leadOf, log: () => events.slice(), layout: () => lastLayout, _sims: sims, _known: known };
 }
 
-module.exports = { makeFloor, layout, roomHeight, REF_H };
+module.exports = { makeFloor, layout, geom, roomHeight, REF_H, LOUNGE_MAX };

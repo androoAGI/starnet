@@ -582,7 +582,15 @@ function drawFloorPage(g, rows, ui, top, bot, x0, x1, hit) {
     if (lead) line(lead, kids.length > 0, '');
     kids.forEach((id, i) => line(byId.get(id), false, i === kids.length - 1 ? '└─▶ ' : '├─▶ '));
     if (lead || kids.length) y++;
-    for (const r of rows) if (r !== lead && kids.indexOf(r.id) < 0) line(r, false, '');
+    // the rest: who has something going on, then who stands by — on one line when they would not all fit
+    const rest = rows.filter(r => r !== lead && kids.indexOf(r.id) < 0);
+    const by = rest.filter(r => r.status.key === 'idle');
+    rest.filter(r => r.status.key !== 'idle').forEach(r => line(r, false, ''));
+    if (by.length && picBot - y >= by.length) by.forEach(r => line(r, false, ''));
+    else if (by.length && y < picBot) {
+      const x = g.put(x0, y, by.length + ' standing by  ', 'dim');
+      g.put(x, y, trunc(by.map(r => r.name).join(', '), Math.max(4, x1 - x)), 'fg');
+    }
   }
   let x = g.put(x0, picBot, 'LOG ', 'dim b');
   while (x <= x1) x = g.put(x, picBot, '─', 'rule');

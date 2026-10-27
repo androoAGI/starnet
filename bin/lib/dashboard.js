@@ -1820,7 +1820,7 @@ function runDashboard(station, opts) {
           for (const p of plates) s += '\x1b[' + (p.y + 1) + ';' + (p.x + 1) + 'H' + tui.toAnsi(p.segs, level) + '\x1b[0m';
           floorShown = key;
         }
-        for (const p of plates) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
+        for (const p of plates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
       }
     } else { floorShown = ''; floorPic = null; floorReady = false; }
     if (rows.length < prevRows.length) s += '\x1b[' + (rows.length + 1) + ';1H\x1b[J';
