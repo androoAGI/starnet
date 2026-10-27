@@ -130,6 +130,7 @@ test/media-service.test.js
 test/voice-cache-key-version.test.js
 test/stt-openrouter-key-only.test.js
 test/speech-outcome.table.test.js
+test/voice-floor-canary.test.js
 test/edgetts-stream-end.test.js
 test/edgetts-gec-v2.test.js
 test/edgetts-clock-skew.test.js
