@@ -13,7 +13,11 @@
       before. Uncertainty never authorizes a second station.
    3. stopChild never deletes the owner claim, not even for the dead child it spawned: the station's next boot
       reclaims it under its election ticket, and an unlink from outside raced that protocol (a station that reclaimed
-      the workspace in between lost its live claim). */
+      the workspace in between lost its live claim).
+   4. Cheapest first: a claim stamped before this computer last started is dead before any PID check (the station's
+      own boot rule, shared through sidecar/process-identity.js predatesBoot); a live owner the OS shows LISTENING is
+      attached to with NO identity probe (a PowerShell / ps call — seconds on every `starnet` while the app runs);
+      only a live PID with no port — the case that refused — is probed. */
 const fs = require('fs');
 const os = require('os');
 const net = require('net');
@@ -56,6 +60,32 @@ const tail = s => s.trim().split('\n').slice(-3).join(' | ');
       await cli3.stopChild(child, ws);
       A.ok(fs.existsSync(lock), 'stopChild leaves the dead child\'s owner claim for the station\'s own reclaim');
       A.eq(fs.existsSync(lock) ? fs.readFileSync(lock, 'utf8') : null, claim, 'byte for byte');
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  }
+
+  // ---- 4. the claim is judged cheapest first: the identity probe runs only where it decides anything ----
+  {
+    const { discoverDesktop } = require('../bin/starnet.js');
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-claim-order-'));
+    try {
+      fs.writeFileSync(path.join(ws, '.starnet-workspace-owner.json'), JSON.stringify({ version: 1, pid: 4242, nonce: 'n', startedAt: 9000000000000 }));
+      const probes = [];
+      const verdict = v => (claim, pid) => { probes.push(pid); return v; };
+      // a live owner LISTENING on a port is a station to attach to: no identity probe (it is a PowerShell / ps call)
+      const listening = discoverDesktop(ws, { pidAlive: () => true, listeningPortOf: () => 51234, claimVerdict: verdict('reused'), bootedAt: () => 1 });
+      A.eq([listening.ownerAlive, listening.port, listening.source], [true, 51234, 'os'], 'a listening owner is attached to');
+      A.eq(probes.length, 0, 'and its identity is never probed (no PowerShell per `starnet` while the app runs)');
+      // a live PID with no port the OS can name — the case that used to refuse — is probed: a recycled PID is no owner
+      const silent = discoverDesktop(ws, { pidAlive: () => true, listeningPortOf: () => 0, claimVerdict: verdict('reused'), bootedAt: () => 1 });
+      A.eq(probes, [4242], 'a live owner with no port is probed, once');
+      A.eq([silent.ownerAlive, silent.ownerReused], [false, true], 'and a recycled PID is not the owner');
+      // a claim stamped before this computer last started is dead before any PID check (the station's own boot rule)
+      fs.writeFileSync(path.join(ws, '.starnet-workspace-owner.json'), JSON.stringify({ version: 1, pid: 4242, nonce: 'n', startedAt: 1000 }));
+      let asked = 0;
+      const stale = discoverDesktop(ws, { pidAlive: () => { asked++; return true; }, listeningPortOf: () => 51234, claimVerdict: verdict('same-process'), bootedAt: () => 10000000 });
+      A.eq([stale.ownerAlive, stale.ownerStale, asked], [false, true, 0], 'a pre-boot claim names no running station, and its PID is not even asked about');
+      const unknownBoot = discoverDesktop(ws, { pidAlive: () => true, listeningPortOf: () => 51234, claimVerdict: verdict('same-process'), bootedAt: () => 0 });
+      A.eq(unknownBoot.ownerAlive, true, 'an unknown boot time proves nothing');
     } finally { fs.rmSync(ws, { recursive: true, force: true }); }
   }
 

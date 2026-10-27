@@ -1,5 +1,5 @@
 {
-  "about": "Shared fixtures for the PID-reuse rule. sidecar/process-identity.js judgeReuse and src-tauri/src/process_identity.rs judge_reuse must both return `verdict` for every case (test/process-identity.fixtures.test.js and the Rust unit test read this one file). stamp = what a claimant wrote into its owner claim; seen = what a probe of the PID's CURRENT process returned. Times are epoch ms. 60 000 = REUSE_SLACK_MS, 2 000 = REUSE_EXE_SLACK_MS, 7 200 000 = the CIM tolerance.",
+  "about": "Shared fixtures for the PID-reuse rule. sidecar/process-identity.js judgeReuse and src-tauri/src/process_identity.rs judge_reuse must both return `verdict` for every case (test/process-identity.fixtures.test.js and the Rust unit test read this one file). stamp = what a claimant wrote into its owner claim; seen = what a probe of the PID's CURRENT process returned. Times are epoch ms. 60 000 = REUSE_SLACK_MS, 2 000 = REUSE_EXE_SLACK_MS, 7 200 000 = the CIM tolerance. predatesBoot rows are [bootedAt, stampedAt, predates] for the boot rule (sidecar/process-identity.js predatesBoot, process_identity.rs predates_boot), 60 000 = BOOT_SLACK_MS.",
   "judge": [
     { "name": "equal Linux start ticks are the same process", "stamp": { "startedAt": 1000, "startTicks": "123456" }, "seen": { "ok": true, "startTicks": "123456" }, "verdict": "same-process" },
     { "name": "different Linux start ticks are a reused PID", "stamp": { "startedAt": 1000, "startTicks": "123456" }, "seen": { "ok": true, "startTicks": "999999" }, "verdict": "reused" },
@@ -19,6 +19,16 @@
     { "name": "an approximate reading inside slack + tolerance is not proof", "stamp": { "startedAt": 1000000, "executable": "svchost.exe" }, "seen": { "ok": true, "startedAt": 8260000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "same-process" },
     { "name": "an approximate reading of another image after the stamp is reused", "stamp": { "startedAt": 10000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 3000000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "reused" },
     { "name": "an approximate reading of another image that places it before the stamp stays busy", "stamp": { "startedAt": 10000000, "executable": "node.exe" }, "seen": { "ok": true, "startedAt": 2800000, "executable": "svchost.exe", "source": "cim", "toleranceMs": 7200000 }, "verdict": "same-process" }
+  ],
+  "predatesBoot": [
+    [10000000, 9000000, true],
+    [10000000, 9939999, true],
+    [10000000, 9940000, false],
+    [10000000, 9990000, false],
+    [10000000, 10500000, false],
+    [0, 5000, false],
+    [10000000, 0, false],
+    [30000, 1, false]
   ],
   "lstart": [
     ["Wed Oct 15 08:30:50 2026 /usr/local/bin/node", { "startedAt": 1792053050000, "executable": "/usr/local/bin/node" }],

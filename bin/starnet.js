@@ -101,6 +101,15 @@ function claimVerdict(claim, pid) {
   claimVerdicts.set(key, verdict);
   return verdict;
 }
+// when this computer last started (the sidecar's own reading: workspace-owner.js makeBootedAt), 0 when unknown
+function defaultBootedAt() {
+  const up = Number(os.uptime());
+  return up > 0 ? Date.now() - up * 1000 : 0;
+}
+function claimPredatesBoot(claim, bootedAt) {
+  try { return require(path.join(REPO, 'sidecar', 'process-identity.js')).predatesBoot(claim && claim.startedAt, bootedAt); }
+  catch (_) { return false; }
+}
 function listeningPortOf(pid) {
   try {
     if (process.platform === 'win32') {
@@ -114,7 +123,14 @@ function listeningPortOf(pid) {
 /* What the desktop app's workspace proves: { workspace, ownerPid, ownerAlive, port }. The owner file is the
    sidecar's own fail-closed claim (sidecar/workspace-owner.js); a live pid + its listening port is a station
    we can attach to. Read-only — nothing here writes into the desktop's workspace. */
-function discoverDesktop(ws) {
+/* `deps` (tests): { pidAlive, listeningPortOf, claimVerdict, bootedAt } — the real ones by default.
+   The claim is judged by the station's own rules, cheapest first: a claim stamped before this computer last started
+   is dead (sidecar/process-identity.js predatesBoot); a dead PID is dead; a live PID the OS shows LISTENING is a
+   station to attach to (no identity probe on that path — the probe is a PowerShell/ps call, seconds on every
+   `starnet` while the app runs). Only a live PID with no port the OS can name — the case that refused — is probed:
+   a recycled PID is no owner. */
+function discoverDesktop(ws, deps) {
+  const d = Object.assign({ pidAlive, listeningPortOf, claimVerdict, bootedAt: defaultBootedAt }, deps || {});
   /* station: the workspace holds one; appRan: the desktop app has run on it (the shell's own startup.log or
      last-run-version sits beside it) — so its keys live in the app's keychain, not in this terminal */
   const out = { workspace: ws, ownerPid: 0, ownerAlive: false, port: 0, source: '', station: hasStation(ws),
@@ -122,11 +138,12 @@ function discoverDesktop(ws) {
   let claim = null;
   try { claim = JSON.parse(fs.readFileSync(path.join(ws, '.starnet-workspace-owner.json'), 'utf8')); } catch (_) { return out; }
   out.ownerPid = Number(claim && claim.pid) || 0;
-  out.ownerAlive = pidAlive(out.ownerPid);
-  if (out.ownerAlive && claimVerdict(claim, out.ownerPid) === 'reused') { out.ownerAlive = false; out.ownerReused = true; }
+  if (claimPredatesBoot(claim, d.bootedAt())) { out.ownerStale = true; return out; }
+  out.ownerAlive = d.pidAlive(out.ownerPid);
   if (!out.ownerAlive) return out;
-  out.port = listeningPortOf(out.ownerPid);
+  out.port = d.listeningPortOf(out.ownerPid);
   if (out.port) { out.source = 'os'; return out; }
+  if (d.claimVerdict(claim, out.ownerPid) === 'reused') { out.ownerAlive = false; out.ownerReused = true; return out; }
   try {
     const rec = core.parseStartupLog(fs.readFileSync(path.join(path.dirname(ws), 'startup.log'), 'utf8'));
     if (rec && rec.pid === out.ownerPid && rec.port) { out.port = rec.port; out.source = 'startup.log'; }
