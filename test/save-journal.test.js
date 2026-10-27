@@ -159,6 +159,28 @@ const turn = K.turn;
       A.ok(left.length <= 2 && left.includes(on.cs.journalKey()) && left.includes(off.cs.journalKey()), 'c: once the station is read, only the live pages\' journals remain (' + left + ')');
     }
 
+    {
+      // review 10-27: NO STATION FILE (absent). The older dead journal's merge is refused as absent; it must NOT be posted as a
+      // plain save (it would seed the station in place of the newest journal this page continues, and then the newest one would
+      // be merged with the OLDER one as the base). It is kept for a later boot; this page's own (newest) save seeds the file.
+      const root = K.workspace(); const host = K.sidecar(root);
+      const b = browser();
+      b.cache.set('starnet.save.w.older', JSON.stringify(station({ _saveDirty: true, _saveRevision: 0, _saveClient: 'older', updatedAt: Date.now() + 1,
+        agent: { id: 'agent', name: 'OLDER', createdAt: 5000 }, workstreams: [{ id: 'general', title: null, history: [turn('user', 'hi')] }, { id: 'o1', title: 'O', history: [turn('user', 'older window')] }] })));
+      b.cache.set('starnet.save.w.newest', JSON.stringify(station({ _saveDirty: true, _saveRevision: 0, _saveClient: 'newest', updatedAt: Date.now() + 9,
+        agent: { id: 'agent', name: 'NEWEST', createdAt: 5000 }, workstreams: [{ id: 'general', title: null, history: [turn('user', 'hi')] }, { id: 'n1', title: 'N', history: [turn('user', 'newest window')] }] })));
+      const posts = [];
+      const watch = { fetch: (u, init) => { if (init && init.method === 'POST') posts.push(String(u) + ':' + JSON.parse(init.body)._saveClient); return host.fetch(u, init); } };
+      const p = page(b, watch);
+      const k = await p.cs.openJournal();
+      A.eq(k, 'starnet.save.w.newest', 'c: absent station: the page continues the newest dead journal');
+      A.ok(!posts.some(x => x === '/api/save:older'), 'c: the older journal is never posted as a plain save over an absent station (' + posts + ')');
+      A.ok(b.cache.has('starnet.save.w.older'), 'c: it is kept for a later boot');
+      await p.cs.reconcile(p.Save.load());
+      await p.cs.flush({ force: true });
+      A.eq(host.saveStore.load('agent') && host.saveStore.load('agent').agent.name, 'NEWEST', 'c: the station file is seeded by the newest window\'s save, never the older one');
+    }
+
     // ---- d. a backup carries THIS window's save; an import lands in this window's journal ----
     {
       const b = browser();
@@ -169,12 +191,14 @@ const turn = K.turn;
       b.cache.set('starnet.save.w.other', JSON.stringify(station({ agent: { id: 'agent', name: 'OTHER', createdAt: 5000 } })));
       b.cache.set('starnet.save', JSON.stringify(station({ agent: { id: 'agent', name: 'LEGACY-OTHER', createdAt: 5000 } })));
       b.cache.set('starnet.theme', 'dark');
+      b.cache.set('starnet.save.w.mine.merge', '{"v":1}');   // a journal's merge description (cloudsave writeSide)
       p.ctx.module = { exports: {} };
       vm.runInContext(backupSrc + '\n;globalThis.Backup = Backup;', p.ctx);
       const store = p.ctx.Backup.collectStore();
       A.eq(JSON.parse(store['starnet.save']).agent.name, 'MINE', 'd: the backup carries THIS window\'s save as the station');
       A.ok(!Object.keys(store).some(k => /^starnet\.save\.w\./.test(k)), 'd: and no window\'s journal key');
       A.eq(store['starnet.theme'], 'dark', 'd: other records ride along as before');
+      A.ok(!Object.keys(store).some(k => /merge$/.test(k)), 'd: and no journal merge description (review 10-27: it is this window’s own unsent-save bookkeeping)');
       const r = p.ctx.Backup.applyBundle({ schema: 'starnet.backup', version: 1, store: { 'starnet.save': JSON.stringify(station({ agent: { id: 'agent', name: 'IMPORTED', createdAt: 5000 } })), 'starnet.save.w.other': 'x', 'starnet.theme': 'light' } });
       A.ok(r && r.ok === true, 'd: the import applies (' + JSON.stringify(r) + ')');
       A.eq(JSON.parse(b.cache.get('starnet.save.w.mine')).agent.name, 'IMPORTED', 'd: the imported station lands in THIS window\'s journal');

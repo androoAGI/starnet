@@ -106,9 +106,10 @@ const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUK
 const { makeSpotifyStore } = require('./spotify/store.js');               // Spotify OAuth (PKCE) token store + auto-refresh
 const spotifyPkce = require('./spotify/pkce.js');                          // pure PKCE helpers (verifier/challenge/urls)
 const { makeSaveStore } = require('./savestore.js');
-const SaveWire = require('./save-wire.js');
+const SaveWire = require('./save-wire.js');   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
+const SaveMerge = require('./save-merge.js');   // a window another window saved past: its saves are merged three-way, never refused
 const GrowthFold = require('./growth-fold.js');   // a save that trails the rating ledger is folded forward, never refused (when the read is complete)
-const XpEngine = require('../frontend/app/xp.js');   // the pure growth engine the page folds ratings with — the same one, server-side   // POST /api/save's named refusals: a 413 that says too large, a write failure with its errno
+const XpEngine = require('../frontend/app/xp.js');   // the pure growth engine the page folds ratings with — the same one, server-side
 const { mergeNotes } = require('./notebookrestore.js');
 const { makeRunStore } = require('./runstore.js');
 const { makeGrowthRatings, deriveRating: deriveGrowthRating } = require('./growthratings.js');
@@ -1199,8 +1200,9 @@ function reportDomainStoreIssue(tag) {
    ledger total can under-count only past ~2×LOG_MAX_BYTES of lifetime spend, which is far beyond any
    default cap — is documented in docs/PERSISTENCE_HARDENING.md. Env-overridable. */
 const LOG_MAX_BYTES = Math.max(1 << 20, num(ENV('LOG_MAX_BYTES'), 16 * 1024 * 1024));
-function readBoundedJsonl(file) {
-  return loadBounded({ fs: fs }, file, LOG_MAX_BYTES)
+// onCut (optional): told when the bounded read left older lines out (logbound.js)
+function readBoundedJsonl(file, onCut) {
+  return loadBounded({ fs: fs, onCut }, file, LOG_MAX_BYTES)
     .map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
 }
 function rotateJsonl(file) { try { rotateIfLarge({ fs: fs }, file, LOG_MAX_BYTES); } catch (_) {} }
@@ -1616,10 +1618,11 @@ const GROWTH_RATINGS_FILE = path.join(WORKSPACES, 'growth-ratings.jsonl');
 const growthRatingsIo = {
   // This ledger decides first-wins XP authority. An unreadable file is unknown history, never empty history.
   readAll() {
-    const rows = readBoundedJsonl(GROWTH_RATINGS_FILE);
-    // the bounded boot read keeps only the newest LOG_MAX_BYTES: say when it cut older lines, so the growth fold never claims
-    // ratings this store does not hold (growthratings.js gapTs; save-latch-kill)
-    try { loadBounded({ fs: fs, strict: true }, GROWTH_RATINGS_FILE, LOG_MAX_BYTES); } catch (e) { if (e && /truncated/.test(String(e.message))) rows.cutBefore = true; }
+    // the bounded boot read keeps only the newest LOG_MAX_BYTES: it says when it cut older lines (logbound onCut, the same one
+    // read), so the growth fold never claims ratings this store does not hold (growthratings.js gapTs; save-latch-kill)
+    let cut = false;
+    const rows = readBoundedJsonl(GROWTH_RATINGS_FILE, () => { cut = true; });
+    if (cut) rows.cutBefore = true;
     return rows;
   },
   append(entry) {
@@ -2168,6 +2171,21 @@ let agentRosterSaveRevision = 0;
 const AGENT_ROSTER_FILE = path.join(WORKSPACES, 'agent.roster.json');
 // CREW = every roster agent other than the one running — the same rows the [ORCHESTRATION] "YOUR TEAM" list renders.
 function crewCountFor(agentId) { let n = 0; for (const aid of agentRoster.keys()) if (aid !== agentId) n++; return n; }
+/* a roster push from a page behind the station, MERGED into the roster as it is (handleRoster, save-latch-kill): `current` the
+   raw rows now (agentRosterRaw), `incoming` the page's whole list, `base` { known: the rows of its last accepted push,
+   changed: the rows it changed since }. A row it changed or added is its own; a row it removed is removed; a row it did not
+   change stays as it is (another window may have changed it); a row another window removed stays removed. */
+function mergeRosterRows(current, incoming, base) {
+  const mine = new Map();
+  for (const a of (Array.isArray(incoming) ? incoming : [])) if (a && typeof a === 'object') mine.set(String(a.agentId || ''), a);
+  const out = [];
+  for (const [id, raw] of current) {
+    if (!mine.has(id)) { if (!base.known.has(id)) out.push(raw); continue; }   // removed here, or another window's row
+    out.push(base.changed.has(id) ? mine.get(id) : raw);
+  }
+  for (const [id, a] of mine) if (!current.has(id) && !base.known.has(id)) out.push(a);   // new here (a known row gone from the roster: removed elsewhere)
+  return out;
+}
 function replaceAgentRoster(list) {
   agentRoster.clear();
   agentRosterRaw.clear();
@@ -18973,36 +18991,49 @@ async function handleRoster(req, res) {
   // OLDER than what we last accepted, refuse — a stale background tab / out-of-sync frontend can no longer legally
   // overwrite a newer roster. 200 { ok:false, stale:true } (NOT an HTTP error: the pusher's data isn't malformed,
   // it's just behind). Backward compatible: a body with no updatedAt (legacy frontend) skips the gate and writes as
-  // today. On accept, the client stamp is recorded into the envelope so the NEXT older push loses too.
+  // today. On accept, the client stamp is recorded into the envelope so the NEXT older push loses too. (Checked after the
+  // revision check below: a push that is merged row by row is not judged by its page clock.)
   const incomingUpdatedAt = Number(body.updatedAt);
   const hasStamp = Number.isFinite(incomingUpdatedAt) && incomingUpdatedAt > 0;
-  if (hasStamp && agentRosterUpdatedAt && incomingUpdatedAt < agentRosterUpdatedAt) {
-    return json(200, { ok: false, stale: true, updatedAt: agentRosterUpdatedAt });
-  }
   // P2.1: DEGRADED — this workspace was stamped by a NEWER StarNet. Refuse a destructive roster overwrite (the
   // route replaces the whole store) rather than corrupt data this code doesn't understand. Reads/runs are untouched.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
   /* THE ROSTER'S REVISION CHECK (save-latch-kill; the roster was a second copy of the crew, last-write-wins on page clocks):
-     a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()) and the window it
-     writes as (saveClient). A push built on an OLDER station revision than the station file holds — another window or a
-     merge wrote since — is refused (behind), unless the station file's head is provably this window's own later save (its
-     ACK not heard yet: savestore head()); and never one older than a roster already taken from a newer station revision.
-     A push without saveRevision (the terminal's awaken, an older page) keeps only the stamp check above. */
+     a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()). A push built on an
+     OLDER station revision than the station file holds — another window or a merge wrote since — would put that window's
+     stale crew list over another window's changes. Such a push is MERGED row by row when the page says what it pushed last
+     (rosterBase { known, changed }: the rows of its last accepted push, and the rows it changed since): only the rows it
+     changed or added are taken, only the rows it removed are removed, and a row another window removed stays removed — the
+     way the station file itself merges a window that fell behind (sidecar/save-merge.js). A push behind the station that
+     cannot be merged is refused (behind). A push without saveRevision (the terminal's awaken, an older page) keeps only the
+     P1.1 stamp check. The newest revision a roster was taken from never sits above the station file's own (a restored
+     older station file would otherwise refuse every page until saves climbed past it, review 10-27). */
   const baseRevision = Number(body.saveRevision);
   const hasBase = Number.isInteger(baseRevision) && baseRevision >= 0;
+  let rosterMerge = null, ceiling = agentRosterSaveRevision;
   if (hasBase) {
     let head = null;
     try { head = saveStore.head('agent'); } catch (_) { head = null; }
-    const own = !!(head && head.client && typeof body.saveClient === 'string' && body.saveClient === head.client);
-    if ((head && !head.absent && baseRevision < head.revision && !own) || baseRevision < agentRosterSaveRevision)
-      return json(200, { ok: false, stale: true, behind: true, revision: head && !head.absent ? head.revision : agentRosterSaveRevision });
+    const headRevision = head && !head.absent ? head.revision : null;
+    if (headRevision != null) ceiling = Math.min(agentRosterSaveRevision, headRevision);
+    if ((headRevision != null && baseRevision < headRevision) || baseRevision < ceiling) {
+      const rb = body.rosterBase;
+      if (!(rb && typeof rb === 'object' && Array.isArray(rb.known) && Array.isArray(rb.changed)))
+        return json(200, { ok: false, stale: true, behind: true, revision: headRevision != null ? headRevision : agentRosterSaveRevision });
+      rosterMerge = { known: new Set(rb.known.map(String)), changed: new Set(rb.changed.map(String)) };
+    }
+  }
+  // the P1.1 stamp check for a push the station takes WHOLE; a merged push applies only that window's own row changes, so
+  // its page clock decides nothing (a window behind the station with a slower clock must still land its change)
+  if (!rosterMerge && hasStamp && agentRosterUpdatedAt && incomingUpdatedAt < agentRosterUpdatedAt) {
+    return json(200, { ok: false, stale: true, updatedAt: agentRosterUpdatedAt });
   }
   const previousRoster = new Map(agentRoster);
   const previousRaw = new Map(agentRosterRaw);
   const previousUpdatedAt = agentRosterUpdatedAt, previousSaveRevision = agentRosterSaveRevision;
-  replaceAgentRoster(body.agents);
-  if (hasBase) agentRosterSaveRevision = Math.max(agentRosterSaveRevision, baseRevision);
-  if (!saveAgentRoster(hasStamp ? incomingUpdatedAt : undefined)) {
+  replaceAgentRoster(rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents);
+  if (hasBase) agentRosterSaveRevision = Math.max(ceiling, baseRevision);
+  if (!saveAgentRoster(hasStamp ? (rosterMerge ? Math.max(incomingUpdatedAt, agentRosterUpdatedAt) : incomingUpdatedAt) : undefined)) {
     // POST /api/roster replaces the whole live roster, so a rejected durable replace must also roll RAM back.
     // Otherwise the route lies with a session-only roster that disappears on restart.
     agentRoster.clear(); for (const [id, agent] of previousRoster) agentRoster.set(id, agent);
@@ -27984,6 +28015,20 @@ async function handleSaveWrite(req, res) {
   // P2.1: DEGRADED — refuse a save write when this workspace was stamped by a NEWER StarNet (writing a newer save
   // envelope shape through older code risks silent field loss). Reads (GET /api/save) still serve; runs continue.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  // A WINDOW ANOTHER WINDOW SAVED PAST (save-latch-kill): it sends its save with what it changed since the station last took
+  // its work (_saveMerge), and the station merges it three-way onto the station file as it is now (sidecar/save-merge.js),
+  // on the file's own revision. Through this route, so the unload beacon's single-use ticket carries a merge too.
+  if (body._saveMerge && typeof body._saveMerge === 'object') {
+    try {
+      const tombs = (typeof sessionTombstones !== 'undefined' && sessionTombstones && typeof sessionTombstones.forgotten === 'function') ? sessionTombstones : null;
+      const out = SaveMerge.write(body, { saveStore, agentId, now: Date.now(), cap: SaveWire.SAVE_BODY_MAX, forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null });
+      if (out.wrote) {
+        try { seedSaveMemos(agentId, out.wrote); } catch (e) { failNote('save.merge.seed-memos', e); }
+        if (agentId === 'agent') observeDeletedSessions(out.wrote);
+      }
+      return json(out.status, out.body);
+    } catch (e) { const failed = SaveWire.writeFailureReply(e); return json(failed.status, failed.body); }
+  }
   // Once a rating is acknowledged, a stale tab without that ledger watermark may not replace the durable
   // projection and temporarily erase XP. The station FOLDS the ratings it lacks into it instead (below).
   const ratingSyncAt = Math.max(0, Number(body.stationStats && body.stationStats.ratingSyncAt) || 0);
@@ -27996,7 +28041,8 @@ async function handleSaveWrite(req, res) {
     // FOLDED, never refused, when the ledger can prove every rating since the save's watermark (growth-fold.js; starnet-
     // releases#4 Blocker 2: one failed page catch-up used to freeze every save and block the update). Not provable: refused.
     let folded = null;
-    try { if (typeof growthRatings.since === 'function') folded = GrowthFold.foldSave(body, growthRatings.since({ since: ratingSyncAt, through: latestRatingAt, epoch: growthEpoch }), XpEngine, latestRatingAt); }
+    // from the save's watermark — or the whole ledger for a save from the old scheme the page itself would replay (foldSince)
+    try { if (typeof growthRatings.since === 'function') folded = GrowthFold.foldSave(body, growthRatings.since({ since: GrowthFold.foldSince ? GrowthFold.foldSince(body, XpEngine) : ratingSyncAt, through: latestRatingAt, epoch: growthEpoch }), XpEngine, latestRatingAt); }
     catch (e) { folded = null; }
     if (!folded) return json(200, { ok: false, stale: true, growthStale: true, latestRatingAt });
     body = folded.doc; growthFolded = folded.applied;

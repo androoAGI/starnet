@@ -50,15 +50,16 @@ function countingFs(reads) {
 // the sidecar side (one process): the real handlers over a real savestore. o.tombstones: the deleted-session ledger;
 // o.fs: an fs facade; o.Date: the handlers' clock; o.clock: the store's clock ({ now }); o.realBody: requests arrive as a
 // byte stream read by the REAL bounded reader (sidecar/http-body.js: its 16 MiB cap, its tooLarge error); o.noMerge: the station
-// REFUSES every merge (POST /api/save/adopt answers ok:false) — a case about a conflict that STANDS (the banner, the restore,
-// the boot offer): since save-latch-kill a refused save is merged in-session, so only a refused merge leaves one standing
+// REFUSES every merge, for good (POST /api/save/adopt answers ok:false, and a merging window's save — POST /api/save with
+// _saveMerge — answers mergeRefused) — a case about a conflict that STANDS (the banner, the restore, the boot offer): since
+// save-latch-kill a window another window saved past merges its saves, so only a refused merge leaves one standing
 function sidecar(root, o) {
   o = o || {};
   const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: o.clock || { now: () => Date.now() } });
   let latestRatingAt = 0;
   const realRead = o.realBody ? require('../sidecar/http-body.js').readBody : null;
   const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: realRead ? ((req, max) => realRead(req, max)) : (async req => req.body), failNote: () => {},
-    observeDeletedSessions: () => [], Date: o.Date || Date, Buffer, SaveWire: require('../sidecar/save-wire.js'),
+    observeDeletedSessions: () => [], Date: o.Date || Date, Buffer, SaveWire: require('../sidecar/save-wire.js'), SaveMerge: require('../sidecar/save-merge.js'),
     require: m => { if (m === './save-restore.js') return require('../sidecar/save-restore.js'); throw new Error('unexpected require ' + m); },
     publicWorkspaceLineage: () => ({ version: 1 }), URL };
   if (o.tombstones) sandbox.sessionTombstones = o.tombstones;
@@ -78,7 +79,9 @@ function sidecar(root, o) {
       const u = String(url);
       if (u.indexOf('/api/save/conflicts/restore') === 0) return call(api.handleSaveConflictRestore, { body: opts.body });
       if (u.indexOf('/api/save/conflicts') === 0) return call(api.serveSaveConflicts, { url: u });
-      if (u.indexOf('/api/save/adopt') === 0) return o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      if (u.indexOf('/api/save/adopt') === 0) return o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, mergeRefused: true, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body });   // a reopening window's unprovable save, merged
+      if (o.noMerge && opts && opts.method === 'POST' && typeof opts.body === 'string' && opts.body.indexOf('"_saveMerge"') >= 0)
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, mergeRefused: true, error: 'merge refused: this case keeps its conflict standing' }) });
       return (opts && opts.method === 'POST') ? call(api.handleSaveWrite, { body: opts.body }) : call(api.serveSaveLoad, { url: u });
     }
   };

@@ -661,6 +661,21 @@
         return preserveCopy(String(agentId), doc);
       },
 
+      /* drop the copy a refused save of window `client` left beside the station (<agent>.save-conflict-<client>.json, and its
+         .bak) once that window's work is IN the station file: an in-session merge that took all of it (save-merge.js). A
+         window falling behind refuses one save before it merges; without this every such window left a copy, and the newest
+         CONFLICT_KEEP pruning then deleted older copies that still held work the station never got (review 10-27). Returns
+         true when a copy was removed. Never touches another window's copy or a kept-<window> copy (those hold what did not land). */
+      discardConflict(agentId, client) {
+        saveFile(agentId);
+        if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(client || '')) || /^kept-/.test(String(client)) || typeof fs.unlinkSync !== 'function') return false;
+        const name = pathMod.join(rootDir, String(agentId) + '.save-conflict-' + client + '.json');
+        let removed = false;
+        try { fs.unlinkSync(name); removed = true; } catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.conflict-discard', e); }
+        try { fs.unlinkSync(name + '.bak'); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.conflict-discard-bak', e); }
+        return removed;
+      },
+
       // a durable copy of the current station file under <agentId>.save-before-<label>.json, taken before a restore
       // rewrites it. Returns the copy's name, or null when there is no station file to copy. Restore backups
       // (label restore-<ms>) keep only the newest RESTORE_BACKUP_KEEP, and never drop the one just written (review 10-23 #7).

@@ -151,8 +151,10 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
   // before when it is not — the watermark never moves past a rating the save does not hold. Behaviour: growth-fold.test.js,
   // roster-cas.http.test.js.
   const save = sidecarFunctionSource('handleSaveWrite');
-  A.ok(/GrowthFold\.foldSave\(body, growthRatings\.since\(\{ since: ratingSyncAt, through: latestRatingAt, epoch: growthEpoch \}\), XpEngine, latestRatingAt\)/.test(save),
-    'the station folds a trailing save from a strict read of the ledger since its watermark');
+  // (review 10-27: since its watermark — or from the start for a save from the old per-acknowledgement scheme, the replay the
+  // page itself makes before it stamps version 2: growth-fold.js foldSince, growth-fold.test.js)
+  A.ok(/GrowthFold\.foldSave\(body, growthRatings\.since\(\{ since: GrowthFold\.foldSince \? GrowthFold\.foldSince\(body, XpEngine\) : ratingSyncAt, through: latestRatingAt, epoch: growthEpoch \}\), XpEngine, latestRatingAt\)/.test(save),
+    'the station folds a trailing save from a strict read of the ledger since its watermark (or from the start, for an old-scheme save)');
   A.ok(/if \(!folded\) return json\(200, \{ ok: false, stale: true, growthStale: true, latestRatingAt \}\);/.test(save),
     'and still refuses one whose fold cannot be proven complete');
   A.report('growth-stale-save-recovery');
