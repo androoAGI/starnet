@@ -991,8 +991,11 @@
          "chat not found", "message is too long", "bot was blocked"). Queued, it failed identically on every flush and,
          sitting at the head of the outbox, stopped every pass before the replies queued behind it; held for an inbox
          replay, it would re-run the message only to fail again. It is parked: said once, never retried. An ABORTED
-         send is our own transport being torn down, not the chat refusing — that one still queues. */
-      const undeliverable = !ok && !!lastFail && lastFail.retryable === false && String(lastFail.error || '') !== 'aborted';
+         send is our own transport being torn down, not the chat refusing — that one still queues. So does a refused
+         CREDENTIAL (auth:true — every transport marks a 401 / revoked token): it is the whole channel failing, not this
+         chat, every chat fails alike until the Commander re-pairs, and the re-paired hub's 'up' flushes the outbox to
+         the same chats. Parking it would drop the one reply the outbox can still save (review of quick win 22). */
+      const undeliverable = !ok && !!lastFail && lastFail.retryable === false && lastFail.auth !== true && String(lastFail.error || '') !== 'aborted';
       // DURABLE OUTBOX: a reply that failed to send used to be recorded (channel.delivery ok:false) and then
       // LOST — the agent did the work and the Commander never saw the result. Queue the undelivered remainder
       // (only the chunks that did NOT go out) in the store's bounded outbox; flushOutbox redelivers it when the

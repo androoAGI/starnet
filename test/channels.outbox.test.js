@@ -437,6 +437,78 @@ function mkHub(store, sendImpl, events) {
     hub.close();
   }
 
+  // ---- H5. a refused CREDENTIAL is the whole channel failing, not the chat: the reply stays queued for the re-pair ----
+  // Review of quick win 22: every transport marks 401-class failures retryable:false, so H4's rule parked a reply that
+  // failed because the bot token was revoked (BotFather /revoke, a rotated Slack token). Before QW22 that reply was
+  // queued and the re-paired hub's 'up' flushed it to the same chat; parked, it was gone. Each transport now marks a
+  // refused credential auth:true, and deliver() queues it. Driven through the REAL transports' send, not a hand-built result.
+  {
+    const res = (status, body, headers) => ({ ok: status >= 200 && status < 300, status, async json() { return body; }, headers: { get: k => (headers || {})[k] } });
+    const { makeTelegramTransport } = require('../sidecar/channels/telegram.transport.js');
+    const { makeDiscordTransport } = require('../sidecar/channels/discord.transport.js');
+    const { makeSlackTransport } = require('../sidecar/channels/slack.transport.js');
+    const { makeMatrixTransport } = require('../sidecar/channels/matrix.transport.js');
+    const { makeSignalTransport } = require('../sidecar/channels/signal.transport.js');
+    const tg = (status, body) => makeTelegramTransport({ token: '1:T', fetch: async () => res(status, body) });
+    // (a) the invariant: every platform's send says auth:true for a refused credential, and never for a one-chat refusal
+    const cases = [
+      ['telegram 401 revoked token', tg(401, { ok: false, error_code: 401, description: 'Unauthorized' }), true],
+      ['telegram 404 bad token', tg(404, { ok: false, error_code: 404, description: 'Not Found' }), true],
+      ['telegram 400 chat not found', tg(400, { ok: false, error_code: 400, description: 'Bad Request: chat not found' }), false],
+      ['telegram 403 blocked', tg(403, { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' }), false],
+      ['discord 401', makeDiscordTransport({ token: 'T', fetch: async () => res(401, { message: '401: Unauthorized' }) }), true],
+      ['discord 403 missing access', makeDiscordTransport({ token: 'T', fetch: async () => res(403, { message: 'Missing Access' }) }), false],
+      ['slack token_revoked', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'token_revoked' }) }), true],
+      ['slack invalid_auth', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'invalid_auth' }) }), true],
+      ['slack not_in_channel', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'not_in_channel' }) }), false],
+      ['matrix 401 M_UNKNOWN_TOKEN', makeMatrixTransport({ token: 'T', homeserver: 'https://hs.test', newId: () => 't1', fetch: async () => res(401, { errcode: 'M_UNKNOWN_TOKEN' }) }), true],
+      ['matrix 403 M_FORBIDDEN', makeMatrixTransport({ token: 'T', homeserver: 'https://hs.test', newId: () => 't1', fetch: async () => res(403, { errcode: 'M_FORBIDDEN' }) }), false],
+      ['signal 401', makeSignalTransport({ endpoint: 'http://127.0.0.1:1', account: '+1', fetch: async () => res(401, { error: 'unauthorized' }) }), true],
+      ['signal 400 bad recipient', makeSignalTransport({ endpoint: 'http://127.0.0.1:1', account: '+1', fetch: async () => res(400, { error: 'invalid recipient' }) }), false]
+    ];
+    for (const [name, t, auth] of cases) {
+      const r = await t.send('42', 'x', {});
+      A.eq([r.ok, r.retryable, r.auth === true], [false, false, auth], name + ': not ok, not retryable, auth=' + auth);
+    }
+    // (b) through the hub: a revoked token keeps the reply queued; the re-paired bot's flush delivers it to the same chat
+    let revoked = true; const wire = [];
+    const t = makeTelegramTransport({ token: '1:T', fetch: async (url, o) => {
+      const body = JSON.parse(o.body || '{}'); wire.push(body.text);
+      return revoked ? res(401, { ok: false, error_code: 401, description: 'Unauthorized' }) : res(200, { ok: true, result: { message_id: 7 } });
+    } });
+    const events = [];
+    const store = mkStore(memFs());
+    const hub = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store, send: (chatId, text, o) => t.send(chatId, text, o),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }),
+      emit: (name, payload) => events.push([name, payload]),
+      newId: () => 'h5', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    const r = await hub._internals.deliver('55', 'the finished answer', 'r-h5', 'done', 'ag');
+    A.eq(r.ok, false, 'the send failed on the revoked token');
+    const q = store.loadOutbox('telegram');
+    A.eq(q.length, 1, 'a refused credential is NOT parked: the reply stays queued for the re-paired bot');
+    A.ok(/the finished answer$/.test(q[0] && q[0].text), 'the queued item is that reply');
+    const del = events.filter(e => e[0] === 'channel.delivery').map(e => e[1].reason);
+    A.eq(del, ['done'], 'and it is not reported as undeliverable');
+    revoked = false;   // the Commander re-pairs
+    await hub._internals.flushOutbox();
+    A.eq(store.loadOutbox('telegram'), [], 'the flush after the re-pair delivers it');
+    A.ok(/the finished answer$/.test(wire[wire.length - 1]), 'to the same chat, the reply itself');
+    hub.close();
+    // a one-chat refusal from the same real transport is still parked (H4's rule stands)
+    const t400 = tg(400, { ok: false, error_code: 400, description: 'Bad Request: chat not found' });
+    const store2 = mkStore(memFs());
+    const hub2 = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store: store2, send: (chatId, text, o) => t400.send(chatId, text, o),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: () => 'h5b', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    await hub2._internals.deliver('56', 'answer', 'r-h5b', 'done', '');
+    A.eq(store2.loadOutbox('telegram'), [], 'a chat-level refusal from the real transport is still parked');
+    hub2.close();
+  }
+
   // ---- I. a STALE recovery snapshot never replays a message that completed while recovery waited ----
   // Live-caught 2026-10-20 (sweep/channels): a follow-up typed while a task was running was steered into it AND
   // run again as its own task afterwards. The follow-up's ack delivery drained the outbox, whose "capacity is back"
