@@ -103,6 +103,7 @@ const HELP = [
   ['/', 'every command as you type — the app\'s too: /goal /queue /loop …'],
   ['@name message', 'talk to another agent (it queues if busy)'],
   ['/model [name]', 'show or switch the shown agent\'s model'],
+  ['/connect [provider]', 'add a provider: the app\'s AI & MODELS list (sign in, link, or a key)'],
   ['/new  /resume', 'a fresh conversation · back to an earlier one'],
   ['y  a  n  v', 'answer the open ask: once, always, no, view'],
   ['1-6 or text', 'answer an open question'],
@@ -437,7 +438,9 @@ function render(model, ui, size, now) {
   let px = g.put(0, promptY, (ui.wake ? 'you' : focusRow ? focusRow.name.toLowerCase() : 'starnet') + ' ', 'dim');   // the awakening: your answers
   px = g.put(px, promptY, '▸ ', 'brand b');
   const room = W - px - 2 - (flashKey ? 8 : 0);
-  const typed = String(ui.input || '').replace(/\n/g, ' ⏎ ');   // a pasted multi-line message shows its breaks as ⏎
+  // a pasted multi-line message shows its breaks as ⏎; a secret (a /connect key) shows only that something is typed
+  const secret = !!(ui.wake && ui.wake.ask && ui.wake.ask.secret);
+  const typed = secret ? '•'.repeat(Math.min(40, [...String(ui.input || '').replace(/\s/g, '')].length)) : String(ui.input || '').replace(/\n/g, ' ⏎ ');
   const inp = width(typed) > room ? '…' + tail(typed, room - 1) : typed;
   px = g.put(px, promptY, inp, 'hi');
   g.put(px, promptY, blink ? '█' : ' ', 'ph');
@@ -445,7 +448,12 @@ function render(model, ui, size, now) {
   if (ui.flash && ui.flash.until > now) g.put(0, hintY, trunc(ui.flash.text, W), ui.flash.style || 'am');
   else if (ui.quitArmed && ui.quitArmed > now) g.put(0, hintY, trunc('ctrl+c again to quit — ' + ui.quitNote, W), 'am b');
   else {
-    const t = wk
+    // /connect is no setup: esc leaves it, and a key or a URL is typed whole (its options are a click)
+    const t = wk && wk.connect
+      ? (wk.ask && (wk.ask.secret || wk.ask.freeText) ? 'type ' + (wk.ask.customLabel || 'it') + ' + enter · esc goes back'
+        : wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type it + enter · ' : '') + 'esc goes back'
+          : 'esc goes back')
+      : wk
       ? (wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type your own + enter · ' : '') + 'ctrl+c pauses setup'
         : wk.typing ? 'any key shows the rest' : 'ctrl+c pauses setup')
       : slash ? 'tab completes /' + slash.items[slash.sel].name + ' · enter runs it · ↑ ↓ pick · esc hides this'
@@ -805,6 +813,12 @@ function drawPicker(g, p, top, bot, x0, x1, blink, hit) {
     const yy = y + i, on = start + i === sel;
     g.put(x0, yy, it.current ? '●' : ' ', 'ph b');
     let xx = x0 + 2;
+    // a grouped list (/connect): the group's name where its rows begin (and atop the window), the app's group heads
+    if (p.groupW) {
+      const wide = x1 - x0 >= 104, prev = list[start + i - 1];
+      const gw = wide ? 25 : 14, label = wide ? it.group : (it.groupShort || it.group);
+      xx = g.put(xx, yy, padR(i === 0 || !prev || prev.group !== it.group ? trunc(String(label || ''), gw - 1) : '', gw), on ? 'hi b' : 'ph b');
+    }
     for (const [t, s] of it.cols) { if (xx > x1) break; xx = g.put(xx, yy, trunc(t, Math.max(0, x1 + 1 - xx)), on ? 'hi b' : s); }
     if (on) { g.put(x0 - 1 < 0 ? x0 : x0 - 1, yy, '▌', 'ph b'); g.hl(yy, x0, x1 + 1, 'sel'); }
     if (hit) hit(x0, x1 + 1, yy, { t: 'pick', i: start + i });   // a click chooses it, as enter does
@@ -903,11 +917,13 @@ function wakeCardLines(ask, cw, now, still) {
   const opts = ask.options || [];
   const lines = [{ kind: 'top', title: ask.waiting ? 'SIGN IN' : opts.length ? 'YOUR CHOICE' : 'YOUR ANSWER' }];
   if (ask.waiting) lines.push({ kind: 'body', segs: [[spin(now, still) + ' ' + ask.waiting, 'am']] });
-  opts.forEach((o, i) => lines.push({ kind: 'body', act: { t: 'wake', i }, segs: [[(i + 1) + '  ', 'am b'], [String(o.label || ''), o.skip ? 'dim' : 'fg']] }));
+  opts.forEach((o, i) => lines.push({ kind: 'body', act: { t: 'wake', i }, segs: [[(ask.secret || ask.freeText ? '·' : i + 1) + '  ', 'am b'], [String(o.label || ''), o.skip ? 'dim' : 'fg']] }));
   if (ask.custom) lines.push({ kind: 'body', segs: [['›  ', 'am'], ['or type ' + (ask.customLabel || 'your own answer') + ' and press enter' + (ask.optional && !opts.some(o => o.skip) ? ' (enter alone skips)' : ''), 'dim']] });
   const keys = [];
-  if (opts.length) keys.push(['[1-' + opts.length + '] PICK', 'am b']);
-  if (ask.custom) keys.push(['[ENTER] SEND WHAT YOU TYPED', 'am b', { t: 'enter' }]);
+  // a key or a URL is typed from its first character (a digit too): its options are a click, or esc goes back
+  if (opts.length && !ask.secret && !ask.freeText) keys.push(['[1-' + opts.length + '] PICK', 'am b']);
+  if (ask.custom) keys.push([ask.secret ? '[ENTER] SAVE' : '[ENTER] SEND WHAT YOU TYPED', 'am b', { t: 'enter' }]);
+  if (ask.secret || ask.freeText) keys.push(['[ESC] GO BACK', 'am b']);
   lines.push({ kind: 'bottom', keys });
   return lines;
 }

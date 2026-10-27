@@ -12351,6 +12351,8 @@ const ROUTES = [
   { m: 'POST', exact: '/api/providers/probe', h: handleProviderProbe },
   { m: 'POST', exact: '/api/providers/validate', h: handleProviderValidate },
   { m: 'POST', exact: '/api/providers/engine-key', h: handleEngineKeySet },   // #89: the page's key, kept for unattended runs
+  { m: 'POST', exact: '/api/providers/connect', h: handleProviderConnect },   // the terminal's /connect: a key saved through the page
+  { m: 'POST', exact: '/api/providers/connect/take', h: handleProviderConnectTake },   // ...which collects it here, once
   // /api/models/openrouter is served by this same prefix (id='openrouter'). handleProviderModels answers 200
   // with {models:[]} + error on any catalog failure, so it never throws into the central guard.
   { m: 'GET', qprefix: '/api/models/', h: handleProviderModels },
@@ -15181,6 +15183,59 @@ async function handleEngineKeySet(req, res) {
   return json(200, Object.assign({ ok: true, provider: id, applied: true, persisted: true, changed: !!r.changed, rev: engineKeys.revOf(id) }, engineKeyPresence(id)));
 }
 function providerLabelOf(id) { const p = getProviderProfile(id); return (p && p.label) || id; }
+
+/* POST /api/providers/connect { provider, key?, baseUrl? } — the terminal's /connect: a provider key typed in `starnet`
+   saved where the APP keeps it, through the app's own ＋ ADD KEY path. The page owns provider keys (the desktop window
+   writes the OS keychain; a browser page its own store and the station's copy), so with a page connected the PAGE does it:
+   station.command provider.key carries only a one-time SLOT, the page collects the key from /api/providers/connect/take
+   (token-gated like every /api/* call, single use, gone after 60 s) — the key never rides the event bus every page and
+   listener hears — then proves it with a live call and keeps it (Harness.validateAndSetKey), exactly as the card does.
+   With no page: the desktop station refuses (only its window can write the keychain); any other station answers
+   { code: 'no-page' } and the terminal proves the key (/api/providers/validate) and hands it over (/api/providers/
+   engine-key), the store unattended runs already read. Never echoes the key. */
+const connectSlots = new Map();   // slot -> { provider, key, baseUrl, at }
+const CONNECT_SLOT_MS = 60000;
+async function handleProviderConnect(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
+  const id = normalizeProviderIdFromRegistry(body.provider, '');
+  if (!id || !getProviderProfile(id)) return json(400, { ok: false, error: 'no provider called "' + String(body.provider || '').slice(0, 40) + '"' });
+  if (id === 'starnet' || id === 'ollama' || id === 'claude-cli' || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json(400, { ok: false, provider: id, error: providerLabelOf(id) + ' does not take an API key' });
+  const key = cleanProviderKey(body.key);
+  const baseUrl = String(body.baseUrl || '').trim().slice(0, 500);
+  if (providerRequiresBaseUrl(id) && !baseUrl) return json(400, { ok: false, provider: id, error: 'a base URL is required' });
+  if (providerRequiresKey(id) && !key) return json(400, { ok: false, provider: id, error: 'no key was given' });
+  if (!pageListening()) {
+    if (DESKTOP_SHELL) return json(409, { ok: false, provider: id, code: 'open-app', error: 'StarNet keeps keys in your OS keychain and its window is not loaded — open StarNet, then try again' });
+    return json(409, { ok: false, provider: id, code: 'no-page' });
+  }
+  for (const [s, v] of connectSlots) if (Date.now() - v.at > CONNECT_SLOT_MS) connectSlots.delete(s);
+  const slot = crypto.randomUUID();
+  connectSlots.set(slot, { provider: id, key, baseUrl, at: Date.now() });
+  let out;
+  try { out = await stationBridge.request('provider.key', { provider: id, slot, desktop: DESKTOP_SHELL }, { timeoutMs: 45000 }); }
+  finally { connectSlots.delete(slot); }
+  if (out && out.ok) {
+    const r = out.result || {};
+    return json(200, { ok: true, provider: id, via: 'page', store: r.store || (DESKTOP_SHELL ? 'keychain' : 'browser'), verified: r.verified !== false,
+      configured: providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')) });
+  }
+  if (out && out.unattended) {
+    if (DESKTOP_SHELL) return json(409, { ok: false, provider: id, code: 'open-app', error: 'the StarNet window did not answer — open StarNet, then try again (nothing was saved)' });
+    return json(409, { ok: false, provider: id, code: 'no-page' });
+  }
+  return json(422, { ok: false, provider: id, error: String((out && out.error) || 'the key was not saved') });
+}
+// POST /api/providers/connect/take { slot } — the page collecting a /connect key: once, then the slot is gone
+async function handleProviderConnectTake(req, res) {
+  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (_) { return json(400, { error: 'bad json' }); }
+  const slot = String(body.slot || '');
+  const v = connectSlots.get(slot);
+  connectSlots.delete(slot);
+  if (!v || Date.now() - v.at > CONNECT_SLOT_MS) return json(404, { error: 'no key waiting under that slot' });
+  return json(200, { provider: v.provider, key: v.key, baseUrl: v.baseUrl });
+}
 // what an unattended run of this provider would use RIGHT NOW — booleans and a source name, never a value
 function engineKeyPresence(id) {
   const saved = engineKeys.get(id) || {};

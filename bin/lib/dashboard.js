@@ -29,6 +29,7 @@ const camfeed = require('./camfeed.js');
 const folderLib = require('./folder.js');
 const mouse = require('./mouse.js');
 const theme = require('./theme.js');
+const connect = require('./connect.js');
 
 function runDashboard(station, opts) {
   const o = opts || {};
@@ -434,6 +435,109 @@ function runDashboard(station, opts) {
     } else flash('the model did not change: ' + ((r.json && r.json.error) || r.error || (r.status === 404 ? 'this station is older than /model' : 'HTTP ' + r.status)), 'bad', 9000);
     loadRoster().then(paint, () => {});
   }
+  /* ---- /connect: the app's SETTINGS › AI & MODELS list (bin/lib/connect.js), in its groups, each row saying what the
+     station proves about it; a pick runs that provider's own way in — a sign-in (the awakening's, in the same view), a
+     link, or a key typed hidden and saved where the app keeps keys. A provider connected here is one /model lists. */
+  let stIO = null;
+  const connectIO = () => stIO || (stIO = require('./station-io.js').makeStationIO(client));
+  async function connectFacts() {
+    const ok = r => !!(r && r.ok && r.status === 200 && r.json);
+    const [pr, cr, cl, ol] = await Promise.all([get('/api/providers', 10000), get('/api/credits?history=0', 20000),
+      get('/api/auth/claude-cli/status', 15000), get('/api/models/ollama', 6000)]);
+    let credits = { state: 'absent' };
+    if (ok(cr) && cr.json.configured) credits = { state: cr.json.linkStatus === 'unavailable' ? 'saved' : 'linked', balanceUsd: typeof cr.json.balanceUsd === 'number' ? cr.json.balanceUsd : null };
+    else { const lk = await get('/api/credits/linkable', 10000); if (ok(lk) && lk.json.available) credits = { state: 'linkable' }; }
+    return {
+      read: ok(pr), error: pr.error || 'HTTP ' + pr.status,
+      configured: new Set(ok(pr) ? (pr.json.providers || []).filter(p => p && p.configured).map(p => p.id) : []),
+      credits, claude: ok(cl) && typeof cl.json.installed === 'boolean' ? cl.json : null,
+      ollama: ok(ol) && Array.isArray(ol.json.models) && ol.json.models.length > 0
+    };
+  }
+  async function openConnectPicker(arg) {
+    const want = String(arg || '').trim();
+    if (want) {
+      const hit = connect.find(want);
+      if (!hit) return sayHere('/connect', ['No provider called ' + want + ' — /connect lists every one.'], false, 'CONNECT');
+      return connectFlow(hit);
+    }
+    const p = {
+      kind: 'connect', title: 'CONNECT · AI & MODELS', note: 'the AI your agents think with', filter: '', sel: 0, items: [], loading: true, groupW: 1,
+      foot: '↑ ↓ pick · enter connects it · esc close · type to filter',
+      onPick: it => connectFlow(it.p)
+    };
+    ui.picker = p; ui.overlay = null; paint();
+    const f = await connectFacts();
+    if (!f.read) p.error = 'the station did not list its providers: ' + f.error;
+    // STARNET MANAGED is drawn only where the app draws it: a station a StarNet account can link (or already has)
+    p.items = connect.ordered().filter(x => x.id !== 'starnet' || f.credits.state !== 'absent').map(x => {
+      const g = connect.groupOf(x.id), st = connect.status(x, f);
+      return { p: x, group: g.label, groupShort: g.short, search: (x.id + ' ' + x.name + ' ' + g.label + ' ' + connect.need(x)).toLowerCase(),
+        cols: [[padTo(x.name, 18), 'fg'], [padTo(connect.need(x), 36), 'dim'], st] };
+    });
+    p.loading = false;
+    paint();
+  }
+  let connecting = null;   // the /connect on screen: { cancelled }
+  async function connectFlow(p) {
+    if (ui.wake) return flash('finish what is on screen first', 'am');
+    const run = { cancelled: false };
+    connecting = run;
+    ui.picker = null;
+    ui.wake = { connect: true, crew: true, log: [], ask: null, stage: { title: 'CONNECT', detail: p.name }, speaker: 'STARNET', feedKey: null, note: '', typing: false, ff: false };
+    paint();
+    let out = { ok: false, msg: '' };
+    try {
+      for (;;) {
+        out = connect.flowOf(p.id) === 'key' || connect.flowOf(p.id) === 'custom' ? await connectKey(p, run) : await connectSignIn(p);
+        if (out.ok || run.cancelled || !out.retry) break;
+        // a sign-in that did not land: its reason stays on screen until you choose
+        const a = await wakeIO.ask({ options: [{ label: 'Try again', value: 'again' }, { label: 'Close', value: 'close', skip: true }] });
+        if (run.cancelled || a.value !== 'again') break;
+      }
+    } catch (e) { out = { ok: false, msg: 'the connection stopped: ' + ((e && e.message) || e) }; }
+    const said = ui.wake ? [...ui.wake.log].reverse().find(e => e.who === 'STARNET') : null;
+    connecting = null; ui.wake = null; ui.input = ''; modelsCache = null;
+    const a = model.state.agents.get(ui.focus);
+    if (out.ok) sayHere('/connect', [out.msg + ' /model picks one of its models' + (a ? ' for ' + a.name : '') + '.'], true, 'CONNECT');
+    else if (run.cancelled) flash('nothing was connected', 'dim', 4000);
+    else sayHere('/connect', [p.name + ' is not connected' + (out.msg ? ': ' + out.msg : said ? ': ' + said.text : '.')], false, 'CONNECT');
+  }
+  async function connectSignIn(p) {
+    const aw = require('./awaken.js').makeAwakening({ st: connectIO(), io: wakeIO, mods: {}, env });
+    const ok = await aw.signIn(connect.brainOf(p.id));
+    return ok ? { ok: true, msg: p.name + ' is connected.' } : { ok: false, retry: true };
+  }
+  async function connectKey(p, run) {
+    const say = t => wakeIO.say([{ text: t, cps: 70 }], { who: 'STARNET' });
+    const back = { label: 'Go back', value: 'back', skip: true };
+    let baseUrl = '';
+    if (p.id === 'custom') {
+      await say('the endpoint’s address — its /v1 base URL, for example http://localhost:1234/v1');
+      for (;;) {
+        const a = await wakeIO.ask({ options: [back], custom: true, freeText: true, customLabel: 'the URL' });
+        if (run.cancelled || a.value === 'back') return { ok: false };
+        const n = connect.normEndpoint(a.value);
+        if (n) { baseUrl = n; break; }
+        await say('that doesn’t look like a URL — for example http://localhost:1234/v1');
+      }
+    }
+    await say((p.id === 'custom' ? 'its API key, if it needs one' : 'paste your ' + p.name + ' key') + ' — it stays hidden here, StarNet checks it with ' + (p.id === 'custom' ? 'the endpoint' : p.name) + ' first, then keeps it where the app keeps keys');
+    for (;;) {
+      const a = await wakeIO.ask({ options: p.id === 'custom' ? [back, { label: 'No key — save the endpoint', value: 'nokey' }] : [back], custom: true, secret: true, customLabel: 'the key' });
+      if (run.cancelled || a.value === 'back') return { ok: false };
+      const key = a.value === 'nokey' ? '' : String(a.value || '').replace(/\s+/g, '');
+      wakeIO.note(key ? 'checking the key with ' + (p.id === 'custom' ? 'the endpoint' : p.name) + '…' : 'saving the endpoint…', 'dim');
+      const r = await connect.saveKey(connectIO(), p.id, key, baseUrl);
+      wakeIO.note('', 'dim');
+      if (run.cancelled) return { ok: false };
+      if (r.ok) {
+        const where = r.store === 'keychain' ? ' in your OS keychain' : r.store === 'browser' ? ' in StarNet' : ' on this station';
+        return { ok: true, msg: p.name + (key ? ' key saved' + where + (r.verified ? ' — ' + (p.id === 'custom' ? 'the endpoint' : p.name) + ' accepted it.' : '.') : ' endpoint saved' + where + '.') };
+      }
+      await say('not saved: ' + r.error + '. paste it again, or go back');
+    }
+  }
   function pickerKey(str, k) {
     const p = ui.picker, list = tui.pickerView(p);
     if (k.name === 'escape') { ui.picker = null; return paint(); }
@@ -472,10 +576,11 @@ function runDashboard(station, opts) {
     { name: 'crew', desc: 'the CREW page: every agent on one line' },
     { name: 'work', desc: 'the WORK page: workflows, routines, the away shift' },
     { name: 'comms', desc: 'back to the conversation' },
+    { name: 'connect', aliases: ['providers'], desc: 'add a provider — the app’s AI & MODELS list: sign in, link, or paste a key', argsHint: '[provider]' },
     { name: 'theme', aliases: ['themes'], desc: 'the terminal colors: ' + theme.NAMES.join(' · '), argsHint: '[' + theme.NAMES.join('|') + ']' },
     { name: 'quit', aliases: ['exit'], desc: 'quit starnet' }
   ].map(c => Object.assign({ source: 'terminal', aliases: [], argsHint: '', here: true }, c));
-  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'comms', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
+  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'comms', 'connect', 'providers', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
     'agents', 'insights', 'memory', 'bundles', 'blueprint', 'reload-mcp', 'reload-skills', 'steer', 'copy', 'compress', 'reasoning', 'fast', 'debug', 'queue', 'background', 'loop', 'save', 'goal', 'subgoal', 'yolo', 'personality'];
   async function loadCatalog() {
     const id = ui.focus || 'agent';
@@ -713,6 +818,7 @@ function runDashboard(station, opts) {
     if (cmd === '/quit' || cmd === '/exit') return quit(true);
     if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms') return openPage(cmd.slice(1));
     if (cmd === '/theme' || cmd === '/themes') return themeCommand(parts[1] || '');
+    if (cmd === '/connect' || cmd === '/providers') return openConnectPicker(parts.slice(1).join(' '));
     // the app's own commands, done here (above: what each does and which station route it uses)
     const rest = text.slice(parts[0].length).trim();
     if (cmd === '/agents' || cmd === '/tasks') return openPage('crew');
@@ -1430,11 +1536,12 @@ function runDashboard(station, opts) {
       for (let i = 0; i < list.length; i++) {
         if (!ui.wake) return;
         const s = list[i];
-        const e = { who, text: String(s.text).replace(/^\s+/, ''), first: i === 0, born: now(), cps: s.cps || 44, full: false };
+        // /connect is not the ceremony: its lines come quickly (a key is waited on, not a story told)
+        const e = { who, text: String(s.text).replace(/^\s+/, ''), first: i === 0, born: now(), cps: w.connect ? Math.max(s.cps || 44, 300) : s.cps || 44, full: false };
         w.log.push(e); w.typing = true; ui.scroll = 0;
         await waitOrSkip(Math.min(9000, e.text.length / e.cps * 1000));
         e.full = true;
-        if (s.hold) await waitOrSkip(Math.min(900, s.hold));
+        if (s.hold && !w.connect) await waitOrSkip(Math.min(900, s.hold));
       }
       if (ui.wake) ui.wake.typing = false;
       paint();
@@ -1446,13 +1553,21 @@ function runDashboard(station, opts) {
     const w = ui.wake, a = w && w.ask;
     if (!a) return;
     w.ask = null;
-    w.log.push({ who: 'YOU', text: ans.custom ? String(ans.value) : String(ans.label || ''), full: true, you: true, skip: !!ans.skip });
+    // a secret (a /connect key) is never written out, not even here: only that one was typed
+    w.log.push({ who: 'YOU', text: ans.custom ? (a.secret ? '•••••••• (hidden)' : String(ans.value)) : String(ans.label || ''), full: true, you: true, skip: !!ans.skip });
     a.resolve(ans);
     paint();
   }
   // a key while the awakening runs; false = the ordinary prompt handles it (typing an answer, backspace, esc)
   function wakeKey(str, k) {
     const w = ui.wake;
+    // /connect: esc leaves it, whatever it is waiting on (a sign-in in flight is cancelled on the station)
+    if (w.connect && k.name === 'escape') {
+      if (connecting) connecting.cancelled = true;
+      ui.input = ''; w.ff = true;
+      if (w.ask) wakeIO.cancelAsk({ value: 'back', skip: true });
+      return true;
+    }
     if (w.typing && !w.ask) { w.ff = true; return true; }
     if (!w.ask) return k.name === 'return' || k.name === 'enter' || k.name === 'tab';
     if (k.name === 'return' || k.name === 'enter') {
@@ -1467,7 +1582,8 @@ function runDashboard(station, opts) {
     }
     if (k.name === 'tab' || k.name === 'up' || k.name === 'down') return true;
     const ch = typeof str === 'string' ? str : '';
-    if (!ui.input && /^[1-9]$/.test(ch) && w.ask.options[Number(ch) - 1]) { wakeAnswer(Object.assign({}, w.ask.options[Number(ch) - 1])); return true; }
+    // a key or a URL is text from its first character on (a key may start with a digit): its options are clicked, or esc
+    if (!ui.input && !w.ask.secret && !w.ask.freeText && /^[1-9]$/.test(ch) && w.ask.options[Number(ch) - 1]) { wakeAnswer(Object.assign({}, w.ask.options[Number(ch) - 1])); return true; }
     if (!ui.input && !w.ask.custom && ch && !/^[\x00-\x1f]$/.test(ch) && k.name !== 'backspace' && k.name !== 'escape' && k.name !== 'pageup' && k.name !== 'pagedown') { flash('pick a number — 1 to ' + w.ask.options.length); return true; }
     return false;
   }
@@ -1551,6 +1667,7 @@ function runDashboard(station, opts) {
       if (!ui.input && ch === 's' && a && a.runs.size) return menuKey('s');
       ui.agentMenu = '';
     }
+    if (k.name === 'escape' && ui.wake && ui.wake.connect) { wakeKey(str, k); return paint(); }
     if (k.name === 'escape') {
       if (tui.slashMenu(ui)) { ui.slashHidden = ui.input; slashReset(); return paint(); }   // esc hides the "/" menu first (what you typed stays)
       ui.input = ''; slashReset(); ui.overlay = null; ui.scroll = 0; ui.page = ''; return paint();

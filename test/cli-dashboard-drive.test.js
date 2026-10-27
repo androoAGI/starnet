@@ -62,7 +62,9 @@ function fakeStation(opts) {
       if (p === '/api/slash/dispatch') return json(res, 200, { ok: true, directive: { type: 'say', title: 'SPEND', lines: ['spend: $0.00 today'] } });
       if (p === '/api/budget/status' || p === '/api/routing/lines/stats') return json(res, 200, {});
       if (p === '/api/line-jobs') return json(res, 200, { jobs: [] });
-      if (p === '/api/providers') return json(res, 200, { providers: [{ id: 'openrouter', configured: true }] });
+      if (p === '/api/providers/connect' && o.connect) { const r = o.connect(b); return json(res, r.status, r.body); }
+      if (p === '/api/auth/claude-cli/status' && o.claude) return json(res, 200, o.claude);
+      if (p === '/api/providers') return json(res, 200, { providers: (o.providers || ['openrouter']).map(id => ({ id, configured: true })) });
       if (p === '/api/models/openrouter') return json(res, 200, { models: [{ id: 'test/m', context_length: 1048576, runWindow: 200000 }] });
       if (p === '/api/insights') return json(res, 200, { totalRuns: 3, totalUsd: 0.05, totalTokens: 900, avgUsdPerRun: 0.0167, successPct: 100, usageMissingRuns: 1, unpricedRuns: 1, spendUnknownRuns: 1,
         byModel: [{ model: 'sub/model', usd: 0, spendLabel: 'subscription / unmetered' }, { model: 'paid/model', usd: 0.05 }] });
@@ -475,6 +477,57 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     A.eq(tui.PALETTE.ph[0], '#ff3b4e', 'theme: /theme red puts the neon red back');
     await d2.done();
     require('fs').rmSync(dir, { recursive: true, force: true });
+  }
+
+  /* 15. /connect: the app's AI & MODELS list in its groups (names, what each needs, what the station proves); a key typed
+     hidden — never on screen, never in ↑ history — is handed to the station once, and a refusal says why and keeps asking;
+     a typed name goes straight to that provider; esc leaves with nothing connected */
+  {
+    const KEY = '9sk-ant-drive-secret-XYZ';   // starts with a digit: a key is text from its first character on
+    let saves = [];
+    const d = await boot({ providers: ['openrouter', 'codex'], claude: { installed: true, loggedIn: false },
+      connect: b => { saves.push(b); return saves.length === 1 ? { status: 422, body: { ok: false, error: 'provider rejected this key (HTTP 401) — nothing was saved' } } : { status: 200, body: { ok: true, provider: b.provider, via: 'page', store: 'keychain', verified: true } }; } });
+    let at = d.mark();
+    await d.keys('/connect\r', 900);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CONNECT · AI & MODELS/.test(said), 'connect: /connect opens the list');
+    A.ok(['A SUBSCRIPTION YOU HAVE', 'AN API KEY', 'YOUR OWN MODELS'].every(g => said.includes(g)) && !said.includes('STARNET MANAGED'), 'connect: the app\'s groups; STARNET MANAGED only where a StarNet account can link');
+    A.ok(['OPENROUTER', 'CHATGPT (CODEX)', 'GROK (XAI)', 'KIMI FOR CODING', 'CLAUDE CODE', 'ANTHROPIC', 'GEMINI', 'CEREBRAS', 'OLLAMA', 'CUSTOM'].every(n => said.includes(n)), 'connect: every provider the app lists, by the app\'s name');
+    A.ok(/OPENROUTER\s+one key · 300\+ models\s+● KEY SAVED/.test(said) && /CHATGPT \(CODEX\)\s+ChatGPT subscription\s+● SIGNED IN/.test(said) && /ANTHROPIC\s+Claude native API\s+○ NO KEY/.test(said) && /CLAUDE CODE\s+your Claude subscription\s+○ NOT SIGNED IN/.test(said),
+      'connect: each row says what it needs and what the station proves: ' + (said.match(/OPENROUTER.{0,80}/) || [''])[0]);
+    at = d.mark();
+    await d.keys('anthropic', 300);
+    await d.keys('\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CONNECT/.test(said) && /ANTHROPIC/.test(said) && /paste your ANTHROPIC key — it stays hidden here/.test(said), 'connect: picking ANTHROPIC asks for its key: ' + said.slice(-240));
+    at = d.mark();
+    await d.keys(KEY, 300);
+    A.ok(!d.raw().includes(KEY) && !d.raw().includes('sk-ant-drive') && d.since(at).includes('•'), 'connect: the key is never drawn — only dots');
+    await d.keys('\r', 1200);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.eq(saves[0], { provider: 'anthropic', key: KEY }, 'connect: the key goes to the station once, whole (a leading digit is part of it)');
+    A.ok(/not saved: provider rejected this key \(HTTP 401\)/.test(said) && /paste it again, or go back/.test(said), 'connect: a refusal says why and asks again');
+    await d.keys(KEY, 200);
+    await d.keys('\r', 1500);
+    said = d.screen().replace(/\s+/g, ' ');
+    A.eq(saves.length, 2, 'connect: the second try is saved');
+    A.ok(/ANTHROPIC key saved in your OS keychain — ANTHROPIC accepted it\. \/model picks one of its models for ULTRON\./.test(said), 'connect: it says where the key went and that it was checked');
+    A.ok(!d.raw().includes(KEY), 'connect: the key never reached the screen');
+    await d.key(UP, 300);
+    A.ok(!d.raw().includes(KEY), 'connect: ↑ history never brings the key back');
+    await d.key(ESC, 700); await d.key(ESC, 700);   // (the first hides the "/" menu the recalled line opened; readline holds a lone esc 500 ms)
+    // a name goes straight there; esc leaves it
+    at = d.mark();
+    await d.keys('/connect groq\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/paste your GROQ key/.test(said), 'connect: /connect groq goes straight to GROQ: ' + said.slice(-400));
+    await d.key(ESC, 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/nothing was connected/.test(said) && saves.length === 2, 'connect: esc leaves, nothing saved');
+    at = d.mark();
+    await d.keys('/connect warp\r', 600);
+    A.ok(/No provider called warp/.test(d.since(at).replace(/\s+/g, ' ')), 'connect: an unknown name says so');
+    await d.done();
   }
 
   global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;

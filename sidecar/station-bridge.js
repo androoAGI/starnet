@@ -33,8 +33,10 @@ function makeStationBridge(opts) {
   const pending = new Map();   // id -> { resolve, timer, verb, at }
 
   /* Ask the page to run a verb. Resolves { ok:true, result } or { ok:false, error } — NEVER throws and never
-     hangs: an unattended station resolves ok:false once the timeout lapses. */
-  function request(verb, args) {
+     hangs: an unattended station resolves ok:false once the timeout lapses. `o.timeoutMs` gives one verb a longer wait
+     (a provider key the page proves with a live call before it keeps it). */
+  function request(verb, args, o) {
+    const waitMs = (o && Number(o.timeoutMs)) || timeoutMs;
     const id = String(newId());
     return new Promise(resolve => {
       const settle = out => {
@@ -49,7 +51,7 @@ function makeStationBridge(opts) {
         error: 'no station page answered — open StarNet to run station commands',
         verb,
         unattended: true
-      }), timeoutMs);
+      }), waitMs);
       // unref so a pending command can never hold the process open at shutdown
       try { if (timer && typeof timer.unref === 'function') timer.unref(); } catch (_) {}
       pending.set(id, { resolve: settle, timer, verb });
