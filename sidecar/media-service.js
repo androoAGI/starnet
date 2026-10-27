@@ -674,6 +674,19 @@ function makeMediaService(options) {
     catch (error) { return { ok: false, reason: (error && error.message) || 'transcribe failed' }; }
   }
 
+  /* A page credential reaches openrouter.ai ONLY when it IS an OpenRouter key. The desk used to send its RUN provider's
+     key (Harness.getKey()) as X-OpenRouter-Key, so a browser-mode OpenAI or Anthropic station shipped that secret to
+     openrouter.ai as a Bearer token on every spoken sentence. The page now names the pair ({key, keyProvider} in a
+     JSON body, X-Speech-Key-Provider beside the raw-bytes header), as the TTS route's keyProvider already does. A
+     legacy page that names no provider is trusted only for an sk-or- key; any other pair is not used at all. */
+  function openRouterPageKey(key, provider) {
+    const k = String(key || '').trim();
+    if (!k) return '';
+    const named = String(provider || '').trim();
+    if (named) return normalizeProviderId(named) === 'openrouter' ? k : '';
+    return /^sk-or-/i.test(k) ? k : '';
+  }
+
   async function handleStt(req, res) {
     const ok = text => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -692,13 +705,13 @@ function makeMediaService(options) {
         const body = JSON.parse(raw.toString('utf8') || '{}');
         audioB64 = String((body && body.audio) || '').replace(/^data:[^,]*,/, '');
         format = String((body && body.format) || '').trim();
-        key = String((body && body.key) || '').trim();
+        key = openRouterPageKey(body && body.key, body && body.keyProvider);
       } else {
         const buf = await readBodyBuffer(req, STT_MAX_BYTES);
         audioB64 = buf.toString('base64');
         const match = requestType.match(/audio\/(?:x-)?([a-z0-9]+)/);
         format = match ? match[1] : '';
-        key = String(req.headers['x-openrouter-key'] || '').trim();
+        key = openRouterPageKey(req.headers['x-openrouter-key'], req.headers['x-speech-key-provider']);
       }
     } catch (error) { return degrade('body: ' + ((error && error.message) || error)); }
     if (!audioB64) return degrade('no audio');

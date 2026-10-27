@@ -1131,6 +1131,33 @@ async function opensWithin(t, ms) {
     A.eq(t.sandbox.__sent.length, 1, 'a successful listen still sends the transcript');
     A.ok(!/unreachable|restarted/i.test(String(t.nodes['chat-status'].textContent || '')), 'and leaves no diagnostic behind');
   }
+  // --- push-to-talk never hands the RUN provider's key to the OpenRouter STT leg ---------------------------------
+  // transcribe() sent Harness.getKey() — the key of whatever provider the page runs on — as X-OpenRouter-Key, and the
+  // sidecar used it as a Bearer token on openrouter.ai. The page now sends only its OpenRouter key, named as one.
+  for (const c of [
+    { name: 'an Anthropic station with no OpenRouter key', keys: { '': 'sk-ant-api03-SECRET', anthropic: 'sk-ant-api03-SECRET' }, want: null },
+    { name: 'an OpenAI station that also holds an OpenRouter key', keys: { '': 'sk-proj-SECRET', openai: 'sk-proj-SECRET', openrouter: 'sk-or-v1-GOOD' }, want: 'sk-or-v1-GOOD' }
+  ]) {
+    const seen = [];
+    const sttSpy = (url, o) => {
+      if (String(url).indexOf('/api/stt') >= 0) seen.push((o && o.headers) || {});
+      return Promise.resolve({ ok: true, headers: { get: () => 'application/json' }, json: () => Promise.resolve({ text: 'words' }), blob: () => Promise.resolve({ size: 1 }) });
+    };
+    const t = boot({ recorder: true, fetch: sttSpy, harness: { getKey: p => c.keys[p || ''] || '' } });
+    t.Voice.startListening(); await tick(30);
+    mrInstances[mrInstances.length - 1].ondataavailable({ data: { size: 1 } });
+    t.Voice.stopListening();
+    await until(() => seen.length === 1, 5000);
+    const h = seen[0] || {};
+    A.eq(seen.length, 1, c.name + ': one /api/stt request');
+    if (c.want) {
+      A.eq(h['X-OpenRouter-Key'], c.want, c.name + ': only the OpenRouter key rides the request');
+      A.eq(h['X-Speech-Key-Provider'], 'openrouter', c.name + ': and it is named as an OpenRouter key');
+    } else {
+      A.ok(!('X-OpenRouter-Key' in h), c.name + ': no key header at all (got ' + JSON.stringify(h) + ')');
+    }
+    A.ok(!JSON.stringify(h).includes('SECRET'), c.name + ': the run provider\'s secret is never sent to the STT route');
+  }
 
   // --- muting the speaker MID-REPLY in hands-free must not wedge the mic shut --------------------
   // stopSpeaking() nulls onReplyDone, and after chat.js's onTurnEnd() has already bailed (audio still

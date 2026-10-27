@@ -272,7 +272,12 @@ const Voice = (() => {
   function noteNeuralOk() { fbStreak = 0; replyFails = 0; neuralColdUntil = 0; neuralColdTerminal = false; if (fbNotified) { fbNotified = ''; fbMsg = ''; reflectToggle(); } }
   // ANY toggle of the speaker button clears all cold-offs and re-probes the neural path fresh (no latch).
   function clearNeuralCold() { neuralColdUntil = 0; neuralColdTerminal = false; fbStreak = 0; if (fbNotified) { fbNotified = ''; fbMsg = ''; } }
-  function apiKey() { return (typeof Harness !== 'undefined' && Harness.getKey) ? (Harness.getKey() || '') : ''; }
+  // The ONE page credential /api/stt may use: the page's OpenRouter key, as an explicit {provider, key} pair (the
+  // sidecar's only page-key STT leg is OpenRouter's audio-in chat model). Never the run provider's key.
+  function sttCred() {
+    const key = (typeof Harness !== 'undefined' && Harness.getKey) ? String(Harness.getKey('openrouter') || '') : '';
+    return key ? { key, provider: 'openrouter' } : { key: '', provider: '' };
+  }
   // Providers whose credential can synthesize the neural voice, in default preference order. The sidecar
   // mirrors this list — Codex (ChatGPT OAuth) is NOT on it because that token has no audio endpoint to call.
   const TTS_PROVIDERS = ['openrouter', 'gemini', 'openai'];
@@ -1481,10 +1486,12 @@ const Voice = (() => {
       if (continuous) { continuous.cancel(); continuous = null; }
       if (takeSttMode === 'native') return transcribeNativePcm();
       const fmt = fmtFromMime(mime || blob.type || '');
-      // desktop: apiKey() is '' (key is in the sidecar env) — send it as a header when we DO have one (browser).
-      const key = apiKey();
+      // desktop: the page holds no key (it is in the sidecar's keychain). In a browser the page sends ONLY its
+      // OpenRouter key, named as one: the sidecar sends a page key to openrouter.ai only when the pair says openrouter.
+      // (It used to send the RUN provider's key here, so an OpenAI or Anthropic secret went to openrouter.ai.)
+      const cred = sttCred();
       const headers = { 'Content-Type': blob.type || ('audio/' + fmt) };
-      if (key) headers['X-OpenRouter-Key'] = key;
+      if (cred.key) { headers['X-OpenRouter-Key'] = cred.key; headers['X-Speech-Key-Provider'] = cred.provider; }
       const r = await fetch('/api/stt', { method: 'POST', headers, body: blob });
       const j = await r.json().catch(() => ({}));
       /* CHECK r.ok. `fetch` RESOLVES on 4xx/5xx, and the route's honest 200-degrade envelope is not the only
