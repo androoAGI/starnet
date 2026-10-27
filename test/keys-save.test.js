@@ -9,7 +9,7 @@
      • the paste is replaced by a placeholder, and the known-value redaction scrubs the value everywhere after
      • key-shaped detection refuses URLs, emails, paths, timestamps, card numbers and plain words */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarSourceFiles } = require('./helpers/source');
 const A = require('./_assert.js');
 const KT = require('../sidecar/tools/builtin/keys.js');
 const K = require('../sidecar/servicekeys.js');
@@ -309,9 +309,12 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
     A.ok(unattended.indexOf('approve it in ' + REAL) >= 0, 'web_request\'s unattended refusal points at the real place: ' + unattended);
     // no shipped string (code, not comments) still sends anyone to a place the app does not show
     const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');
-    const strings = src => src.split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
-    for (const rel of ['sidecar/tools/builtin/keys.js', 'sidecar/tools/builtin/web.js', 'sidecar/index.js'])
-      A.ok(!/TOOLSETS & CONNECTORS/.test(strings(read(rel))), rel + ': no string names TOOLSETS & CONNECTORS');
+    // comments may keep the old name: block comments are blanked to their newlines, comment-led lines are dropped
+    const strings = src => src.replace(/(^|[ \t])\/\*[\s\S]*?\*\//gm, (m, lead) => lead + m.slice(lead.length).replace(/[^\n]/g, ' '))
+      .split('\n').filter(l => !/^\s*(\/\/|\/\*|\*)/.test(l)).join('\n');
+    // EVERY sidecar file (it was keys.js, web.js and index.js), so a string that moves into a new module is still checked
+    const naming = sidecarSourceFiles().filter(f => /TOOLSETS & CONNECTORS/.test(strings(f.text))).map(f => f.rel);
+    A.eq(naming, [], 'every sidecar file: no string names TOOLSETS & CONNECTORS');
     // the page still reads back a placeholder written before R15
     const src = read('frontend/app/chat.js');
     const page = new Function(A.fnBody(src, 'function swappedKeys(') + '\nreturn swappedKeys;')();

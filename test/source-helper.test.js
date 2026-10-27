@@ -13,7 +13,8 @@
    H3 a test that swaps fs.readFileSync for a fake after loading the helper still gets the real source.
    H4 the audit modes return index.js alone / everything else / nothing, and the default is the whole sidecar.
    H5 THE LAW: no test reads sidecar/index.js as text except through the helper — a direct read would bring back
-      the coupling this helper removed. (Spawning index.js as a process is fine; that is not a text read.) */
+      the coupling this helper removed — including a list of paths holding index.js that is read file by file.
+      (Spawning index.js as a process is fine; that is not a text read.) */
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -137,7 +138,58 @@ function directReads(code) {
   while ((m = varRe.exec(code))) {
     if (new RegExp(String.raw`readFile(?:Sync)?\(\s*` + esc(m[1]) + String.raw`\b`).test(code)) found.push('readFileSync(' + m[1] + ') where ' + m[1] + ' is sidecar/index.js');
   }
+  // a LIST of paths holding index.js, read file by file: `[..., 'sidecar/index.js'].map(read)`,
+  // `for (const f of [...]) read(f)`, or `const FILES = [...]` then `FILES.map(read)` / `for (const f of FILES) {...}`
+  // (hooks.wiring, connector-required and keys-save read index.js this way, unseen by the three shapes above)
+  const helpers = [];
+  for (const d of code.matchAll(defRe)) helpers.push(d[1] || d[2]);
+  const reads = text => /readFile/.test(text) || helpers.some(n => new RegExp(String.raw`(?<![\w$.])` + esc(n) + String.raw`\b`).test(text));
+  const arrRe = new RegExp(String.raw`\[[^\[\]]*` + INDEX_PATH + String.raw`[^\[\]]*\]`, 'g');
+  while ((m = arrRe.exec(code))) {
+    const start = m.index, end = start + m[0].length;
+    const before = code.slice(Math.max(0, start - 160), start);
+    const consumers = [];
+    if (/for\s*\(\s*(?:const|let|var)\s+[\w$]+\s+of\s*$/.test(before)) consumers.push(loopBody(code, end));
+    consumers.push(callback(code, end));
+    const held = /(?:const|let|var)\s+([\w$]+)\s*=\s*$/.exec(before);
+    if (held) {
+      const useRe = new RegExp(String.raw`for\s*\(\s*(?:const|let|var)\s+[\w$]+\s+of\s+` + esc(held[1]) + String.raw`\b|(?<![\w$.])` + esc(held[1]) + String.raw`\b`, 'g');
+      for (const u of code.slice(end).matchAll(useRe)) {
+        const at = end + u.index + u[0].length;
+        consumers.push(u[0].startsWith('for') ? loopBody(code, at) : callback(code, at));
+      }
+    }
+    if (consumers.some(text => text && reads(text))) { found.push('a path list holding sidecar/index.js, read file by file'); break; }
+  }
   return found;
+}
+// the bracket closing the one at `open` ('(' or '{'), skipping quoted strings; -1 if none
+function closing(code, open) {
+  const o = code[open], c = o === '(' ? ')' : '}';
+  let depth = 0;
+  for (let i = open; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '"' || ch === "'" || ch === '`') { for (i++; i < code.length && code[i] !== ch; i++) if (code[i] === '\\') i++; continue; }
+    if (ch === o) depth++;
+    else if (ch === c && --depth === 0) return i;
+  }
+  return -1;
+}
+// the callback of an array method called at `at` (`.map(read)`, `.forEach(f => ...)`), or ''
+function callback(code, at) {
+  const m = /^\s*\.(?:map|forEach|flatMap|some|every|filter|find|reduce)\s*\(/.exec(code.slice(at));
+  if (!m) return '';
+  const open = at + m[0].length - 1, close = closing(code, open);
+  return close < 0 ? code.slice(open) : code.slice(open, close + 1);
+}
+// the body of a for-of loop whose iterable ends at `at` (just before the header's closing paren), or ''
+function loopBody(code, at) {
+  const m = /^\s*\)\s*/.exec(code.slice(at));
+  if (!m) return '';
+  const start = at + m[0].length;
+  if (code[start] === '{') { const close = closing(code, start); return close < 0 ? code.slice(start) : code.slice(start, close + 1); }
+  const semi = code.indexOf(';', start);
+  return code.slice(start, semi < 0 ? code.length : semi + 1);
 }
 const offenders = [];
 let scanned = 0;
@@ -156,8 +208,15 @@ A.eq(offenders, [], 'H5: no test reads sidecar/index.js as text except through t
   "const s = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');",
   "const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');\nconst s = read('sidecar/index.js');",
   "function rd(p) { return fs.readFileSync(path.join(ROOT, p), 'utf8'); }\nconst s = rd('sidecar', 'index.js');",
-  "const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');\nconst s = fs.readFileSync(INDEX, 'utf8');"
+  "const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');\nconst s = fs.readFileSync(INDEX, 'utf8');",
+  // path lists read file by file (hooks.wiring's, connector-required's and keys-save's old shapes)
+  "const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');\nconst SITES = ['sidecar/loop.js', 'sidecar/index.js'];\nconst src = SITES.map(read).join('\\n');",
+  "const files = ['sidecar/manual.js', 'sidecar/index.js', 'frontend/app/marketplace.js'];\nconst bad = [];\nfor (const f of files) {\n  const text = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');\n}",
+  "const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');\nfor (const rel of ['sidecar/tools/builtin/keys.js', 'sidecar/index.js'])\n  A.ok(!/X/.test(read(rel)), rel);",
+  "const text = ['sidecar/a.js', 'sidecar/index.js'].map(f => fs.readFileSync(f, 'utf8')).join('');"
 ].forEach((code, i) => A.ok(directReads(code).length > 0, 'H5: the detector catches planted shape ' + (i + 1)));
 A.eq(directReads("const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');\nspawn(process.execPath, [INDEX]);"), [], 'H5: spawning index.js is not a text read');
+A.eq(directReads("const t = fs.readFileSync('x.txt', 'utf8');\nconst child = spawn(process.execPath, ['sidecar/index.js'], { cwd: root });"), [], 'H5: spawning index.js from a path list is not a text read');
+A.eq(directReads("const src = fs.readFileSync('x.txt', 'utf8');\nA.ok(['sidecar/index.js', 'sidecar/b.js'].every(f => writers.has(f)), 'both write');"), [], 'H5: a path list that is only compared, never read, is not a text read');
 
 A.report('source-helper.test');
