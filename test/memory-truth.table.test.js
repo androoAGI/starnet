@@ -85,4 +85,110 @@ const MemTruth = require('../frontend/app/memtruth.js');
   }
 }
 
-A.report('memory-truth.table');
+/* ---------- 3. notebook.write: one active record per subject, the old text in its history ---------- */
+const { makeNotebookTools, supersedeRecords, restoreSuperseded } = require('../sidecar/tools/builtin/notebook.js');
+function notebook(seed) {
+  const data = { 'notebook:agent': seed ? JSON.parse(JSON.stringify(seed)) : undefined };
+  let now = Date.UTC(2026, 9, 27, 12);
+  const receipts = [];
+  const t = makeNotebookTools({ store: { get: k => data[k], set: (k, v) => { data[k] = v; } }, clock: { now: () => (now += 1000) }, onSaved: (aid, runId, item) => receipts.push(item) });
+  const write = (args, ctx) => t.writeTool.run(args, Object.assign({ agentId: 'agent', runId: 'r_' + (receipts.length + 1) }, ctx || {}));
+  const notes = () => data['notebook:agent'] || [];
+  const active = () => notes().map(n => n.body);
+  return { write, notes, active, receipts };
+}
+const NOTE_TABLE = [
+  { name: 'dark/light', first: 'User prefers dark mode', second: 'The user prefers a light theme', one: true },
+  { name: 'tabs/spaces', first: 'User prefers tabs for indentation', second: 'User prefers spaces over tabs for indentation', one: true },
+  { name: 'staging db moved', first: 'The staging database is in Frankfurt', second: 'The staging DB lives in the Virginia region', one: true },
+  { name: 'staging/production db', first: 'The staging database is in Frankfurt', second: 'The production database is in Frankfurt', one: false },
+  { name: 'theme vs indentation', first: 'User prefers dark mode', second: 'User prefers tabs', one: false }
+];
+(async () => {
+  for (const row of NOTE_TABLE) {
+    const nb = notebook();
+    await nb.write({ title: row.name, body: row.first });
+    const r = await nb.write({ title: row.name, body: row.second });
+    if (row.one) {
+      A.eq(nb.active(), [row.second], row.name + ': exactly ONE active record, holding the newer claim');
+      const rec = nb.notes()[0];
+      A.ok(rec.id === 'note_1' && rec.history.length === 1 && rec.history[0].body === row.first, row.name + ': the old text is in its history');
+      A.ok(rec.history[0].supersession && rec.history[0].supersession.by === 'subject' && rec.history[0].snapshot && rec.history[0].snapshot.id === 'note_1', row.name + ': with a supersession receipt and the provenance it had');
+      A.ok(/same subject/.test(r.content) && r.content.indexOf(row.first) >= 0 && /distinct:true/.test(r.content), row.name + ': the tool result names what it retired and how to restore it');
+      const receipt = nb.receipts[nb.receipts.length - 1];
+      A.ok(receipt.revised === true && receipt.superseded[0].id === 'note_1' && receipt.superseded[0].previous === row.first, row.name + ': the COMMS receipt reads as an update (no forget button) and names the retired text');
+    } else {
+      A.eq(nb.active(), [row.first, row.second], row.name + ': two DIFFERENT facts stay two active records');
+      A.ok(/^Saved note/.test(r.content) && !/already remember|Similar notes/.test(r.content), row.name + ': saved outright, no challenge, no "may replace" tail');
+    }
+  }
+  // flip back: the archived text may win again, still one active record
+  {
+    const nb = notebook();
+    await nb.write({ title: 'Indent', body: 'User prefers tabs for indentation' });
+    await nb.write({ title: 'Indent', body: 'User prefers spaces for indentation' });
+    await nb.write({ title: 'Indent', body: 'User prefers tabs for indentation' });
+    A.eq(nb.active(), ['User prefers tabs for indentation'], 'flip back: the earlier claim wins again (an archived text no longer blocks it)');
+    A.eq(nb.notes()[0].history.map(h => h.body), ['User prefers tabs for indentation', 'User prefers spaces for indentation'], 'and both earlier texts stay in history');
+  }
+  // legacy duplicates: two records already on one subject collapse into one
+  {
+    const nb = notebook([
+      { id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: 1, pinned: true },
+      { id: 'note_2', kind: 'note', scope: 'global', title: 'Theme', body: 'User likes the dark theme', createdAt: 2 }
+    ]);
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' });
+    A.eq(nb.active(), ['User prefers light mode'], 'two legacy same-subject records collapse into ONE active record');
+    const rec = nb.notes()[0];
+    A.ok(rec.id === 'note_2' && rec.pinned === true, 'the newest survives under its own id, and a folded copy\'s pin is not dropped');
+    A.eq(rec.history.map(h => h.body).sort(), ['User likes the dark theme', 'User prefers dark mode'], 'every retired text is in its history');
+  }
+  // the Commander's own words: the superseding record carries their authority
+  {
+    const nb = notebook();
+    await nb.write({ title: 'Theme', body: 'User prefers dark mode' });
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { commanderWords: 'Actually I prefer light mode now.' });
+    const rec = nb.notes()[0];
+    A.ok(rec.confirmation === 'user-stated' && rec.statedBy && /light mode/.test(rec.statedBy.quote), 'a supersession in the Commander\'s proven words is recorded as theirs');
+    const nb2 = notebook();
+    await nb2.write({ title: 'Theme', body: 'User prefers dark mode' });
+    await nb2.write({ title: 'Theme', body: 'User prefers light mode' });
+    A.eq(nb2.notes()[0].confirmation, 'inferred', 'an unproven one stays the agent\'s inference ([corrected, unconfirmed] in recall)');
+  }
+  // never on a tainted run, never on distinct:true, never across a project boundary
+  {
+    const nb = notebook();
+    await nb.write({ title: 'Theme', body: 'User prefers dark mode' });
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { connectorAuthority: { taintedBy: () => 'web page https://x.example' } });
+    A.ok(nb.active().indexOf('User prefers dark mode') >= 0 && !(nb.notes()[0].history || []).length, 'a tainted run never retires the Commander\'s memory (it gets the challenge path)');
+    const nb2 = notebook();
+    await nb2.write({ title: 'Theme', body: 'User prefers dark mode' });
+    await nb2.write({ title: 'Theme', body: 'User prefers light mode', distinct: true });
+    A.eq(nb2.active(), ['User prefers dark mode', 'User prefers light mode'], 'distinct:true: the model judged it separate, both stay');
+    const nb3 = notebook([{ id: 'note_1', kind: 'note', scope: 'stream', streamId: 's1', projectRoot: 'C:/Work/A', title: 'Theme', body: 'User prefers dark mode', createdAt: 1 }]);
+    await nb3.write({ title: 'Theme', body: 'User prefers light mode' }, { streamId: 's2', projectRoot: 'C:/Work/B' });
+    A.eq(nb3.active(), ['User prefers dark mode', 'User prefers light mode'], 'a record in another project is never retired from this one');
+  }
+  // UNDO: re-saving a retired text with distinct:true restores it as its own record, with the provenance it had
+  {
+    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'DB', body: 'The staging database is in Frankfurt', createdAt: 5, confirmation: 'user-confirmed', origin: 'commander' }]);
+    await nb.write({ title: 'DB', body: 'The staging DB lives in the Virginia region' });
+    A.eq(nb.active(), ['The staging DB lives in the Virginia region'], '(the move retired the Frankfurt fact)');
+    const r = await nb.write({ title: 'DB', body: 'The staging database is in Frankfurt', distinct: true });
+    A.eq(nb.active(), ['The staging DB lives in the Virginia region', 'The staging database is in Frankfurt'], 'undo: the retired fact is active again, beside the newer one');
+    const back = nb.notes()[1];
+    A.ok(back.confirmation === 'user-confirmed' && back.createdAt === 5 && back.restoredFrom && back.restoredFrom.id === 'note_1', 'restored with the provenance it had (your confirmation, its original date), and where it came from');
+    A.ok(nb.notes()[0].history[0].restoredAs === back.id, 'the history entry it came from says it was restored');
+    A.ok(/Restored as its own active note/.test(r.content), 'the tool result says so');
+    const again = await nb.write({ title: 'DB', body: 'The staging database is in Frankfurt', distinct: true });
+    A.ok(/already remember/.test(again.content) || nb.active().filter(b => b === 'The staging database is in Frankfurt').length === 1, 'a second restore never duplicates it');
+  }
+  // the pure helpers the host's own writer reuses
+  {
+    const list = [{ id: 'note_1', body: 'User prefers dark mode', createdAt: 1 }, { id: 'note_2', body: 'User prefers tabs', createdAt: 2 }];
+    const out = supersedeRecords(list, [list[0]], { body: 'User prefers light mode', runId: 'r9', key: 'user|pref|alt:theme', source: 'test' }, 99);
+    A.ok(out.list.length === 2 && out.record.body === 'User prefers light mode' && out.record.history[0].supersession.runId === 'r9', 'supersedeRecords: pure, one survivor, receipt on the history entry');
+    A.eq(restoreSuperseded(out.list, 'User prefers tabs', 100, 'note_3'), null, 'restoreSuperseded never resurrects text that was not retired by a supersession');
+  }
+  A.report('memory-truth.table');
+})().catch(e => { console.log('FAIL: threw ' + (e && e.stack || e)); process.exit(1); });

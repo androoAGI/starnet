@@ -435,15 +435,23 @@ const dcall = (name, args) => ({ id: 'c', name, args, argsRaw: JSON.stringify(ar
     A.eq(store.get('notebook:ag').length, 2, 'the new belief is stored');
 
     // THE FALSE-POSITIVE CASE the challenge design exists for: two genuinely different facts that share a shape.
-    // Token overlap cannot tell these apart, so a silent block would DESTROY the second fact. It must be
-    // challenged, then admitted on distinct:true.
+    // Token overlap cannot tell these apart, so a silent block would DESTROY the second fact. memory-truth-1027: the
+    // subject key CAN tell them apart (staging vs production database), so the different fact is saved outright.
     const sibling = { title: 'Fact', body: 'the production database lives in the frankfurt region' };
-    const challenged = await reg.dispatch(dcall('notebook.write', sibling), { agentId: 'ag' });
-    A.ok(/already remember/i.test(challenged.content), 'a same-shape different fact is challenged, not silently dropped');
-    A.eq(store.get('notebook:ag').length, 2, 'and is not written on the challenged attempt');
-    const forced = await reg.dispatch(dcall('notebook.write', Object.assign({ distinct: true }, sibling)), { agentId: 'ag' });
+    const kept = await reg.dispatch(dcall('notebook.write', sibling), { agentId: 'ag' });
+    A.ok(/Saved note/.test(kept.content) && !/already remember/i.test(kept.content), 'a same-shape fact about a DIFFERENT subject is saved, never challenged or dropped');
+    A.eq(store.get('notebook:ag').length, 3, 'the distinct fact IS stored, beside the one it resembles');
+    // a same-shape pair the subject key cannot read still gets the challenge, then distinct:true admits it
+    const shape = { title: 'Fact', body: 'the release train leaves the frankfurt office on friday' };
+    await reg.dispatch(dcall('notebook.write', shape), { agentId: 'ag' });
+    const twin = { title: 'Fact', body: 'the release train leaves the berlin office on friday' };
+    const challenged = await reg.dispatch(dcall('notebook.write', twin), { agentId: 'ag' });
+    A.ok(/already remember/i.test(challenged.content), 'an unreadable same-shape pair is still challenged, not silently dropped');
+    A.eq(store.get('notebook:ag').length, 4, 'and is not written on the challenged attempt');
+    const forced = await reg.dispatch(dcall('notebook.write', Object.assign({ distinct: true }, twin)), { agentId: 'ag' });
     A.ok(/Saved note/.test(forced.content), 'distinct:true admits the genuinely different fact — no silent loss');
-    A.eq(store.get('notebook:ag').length, 3, 'the distinct fact IS stored');
+    A.eq(store.get('notebook:ag').length, 5, 'the distinct fact IS stored');
+    store.set('notebook:ag', store.get('notebook:ag').slice(0, 3));   // back to the three beliefs the checks below count
 
     // the challenge must NOT emit — a receipt for a write that did not happen is a false claim
     let emitted = 0;
