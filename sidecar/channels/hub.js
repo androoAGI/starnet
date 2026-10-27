@@ -2521,7 +2521,7 @@
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
                 baseUrl: hopConfig.baseUrl || hopConfig.base_url || '', reasoningEffort: hopConfig.reasoningEffort || hopConfig.reasoning_effort,
                 system: hopConfig.system || personaFor(h.agentId, rec), messages: hist.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: h.text }]),
-                agentId: h.agentId, lineId, isTask: true, emit: hopSink, signal: h.signal, runId: hopRunId, trigger: 'event',
+                agentId: h.agentId, isTask: true, emit: hopSink, signal: h.signal, runId: hopRunId, trigger: 'event',
                 ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
                 streamId: canonicalStreamId || undefined, parallelBranch: !!h.parallel,   // the whole line shares one canonical transcript; a PARALLEL branch hop skips its one-turn-at-a-time queue (chain.js runBatch)
                 resumeSeed: false,   // THIS dock's own history rides `hist` above; never the whole line stream's transcript (runOnceCore seed)

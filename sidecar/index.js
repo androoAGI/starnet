@@ -7283,7 +7283,7 @@ const cronDriver = makeCronDriver({
           key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
           baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
           system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null, isTask: true,
+          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
           ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
           emit: sink, signal: h.signal, runId: hopRunId, streamId: o.streamId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
           resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
@@ -14001,7 +14001,10 @@ async function stepTestRunDock(h) {
     else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
     else if (name === 'agent.run.error') st.err = (p && p.message) || 'run error';
     else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
-    else if (name === 'agent.run.end') { if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd); }
+    else if (name === 'agent.run.end') {
+      if (p && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
+      if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd);
+    }
   };
   let station = null;
   try { station = router.stationFor(h.agentId, h.dockId); } catch (e) { failNote('steptest.station', e); station = null; }
@@ -14027,6 +14030,7 @@ async function stepTestRunDock(h) {
       messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true, emit: sink, signal: h.signal,
       runId, trigger: 'event', streamId: h.streamId,
       resumeSeed: false,   // every step shares one steptest stream: a step (or a NEEDS CHANGES re-run / rewind) must not inherit the others' turns
+      ceilingUsd: h.ceilingUsd,   // what is left of the LINE BUDGET (steptest.js) — lower-only, like every line hop (quick win 28)
       lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId,   // LINE WATCH: the row records the step's line + bay (run.start names its crate)
       initialTaint: h.entry ? null : 'upstream agent output',
       surface: 'autonomous', broadcast: true, reflect: true,   // NO unattendedGrants — the chain-grants law
@@ -14041,7 +14045,7 @@ async function stepTestRunDock(h) {
     if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
     else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
   } catch (e) { failNote('steptest.crate', e); }
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err };
+  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err || (st.stopped ? 'stopped by you' : null) };
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -17030,7 +17034,7 @@ async function handleCronRun(req, res) {
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
                 baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
                 system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null, isTask: true,
+                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
                 ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
                 resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
