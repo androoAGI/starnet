@@ -135,17 +135,22 @@ export function judgeKillRelaunch({ killedPid, afterKill, relaunch }) {
 
 /** CLI-APP-CLOSED verdict. `cli` = { code, stdout, stderr } of the installed `starnet`; `started` = startup.log said the
  *  CLI started it in the background; `maxShells` / `maxStations` = the most seen at once while the CLI ran; `windowSeen` =
- *  a visible StarNet window appeared (null = unknown on this platform); `after` = snapshot once the CLI had exited. */
-export function judgeCliAppClosed({ appRan, cli, started, maxShells, maxStations, windowSeen, after }) {
+ *  a visible StarNet window appeared (null = unknown on this platform); `after` = snapshot once the CLI had exited;
+ *  `stationSaved` = the app's workspace holds a station (agent.save.json or agent.roster.json — bin/starnet.js hasStation,
+ *  the CLI's own condition for starting the app rather than booting a station itself; undefined = not checked).
+ *  The case judges the LIFECYCLE, not the answer: a keyless runner's run may end "no model to run" (exit 3, the CLI's
+ *  EXIT.STATION code for "nothing runnable configured" too) — that is no lifecycle failure; any other exit 3 is. */
+export function judgeCliAppClosed({ appRan, stationSaved, cli, started, maxShells, maxStations, windowSeen, after }) {
   const reasons = [];
   if (!appRan) reasons.push('precondition: the app has never run here (no startup.log) — this case proves the app-closed path');
+  if (stationSaved === false) reasons.push("precondition: the app's workspace holds no station (no agent.save.json / agent.roster.json — bin/starnet.js hasStation), so starnet would boot its own station instead of starting the app");
   if (!cli) reasons.push('the installed starnet did not run');
   else {
     const err = String(cli.stderr || '');
     // the refusals (0.14.0's "open the StarNet app first", "run `starnet` to start it", "app was not found"), never the
     // notice of a start ("StarNet isn't running — starting it in the background")
     if (/isn't running — (?!starting it)|open the StarNet app first|app was not found/i.test(err)) reasons.push(`the installed starnet refused with the app closed: ${err.trim().split(/\r?\n/).slice(-1)[0]}`);
-    if (cli.code === 3) reasons.push('the installed starnet exited 3 (no station)');
+    if (cli.code === 3 && !/no model to run/.test(err)) reasons.push('the installed starnet exited 3 (no station)');
   }
   if (!started) reasons.push('startup.log never said the app was started by starnet (--background) — the CLI did not start it');
   if (maxShells > 1) reasons.push(`${maxShells} StarNet shells ran at once`);
@@ -379,7 +384,9 @@ export async function runCaseKillRelaunch(drivers, ctx) {
   };
 }
 
-/** Precondition: the app is closed and HAS run here (its startup.log exists). Runs the installed `starnet` once. */
+/** Precondition: the app is closed and HAS run here (its startup.log exists) with a station in its workspace — the LAW's
+ *  "a profile where the app HAS run". A fresh runner whose earlier cases never saved a station gets a minimal one seeded
+ *  (only when the workspace holds none; recorded in `observed.seededStation`). Runs the installed `starnet` once. */
 export async function runCaseCliAppClosed(drivers, ctx) {
   const { installDir, waits } = ctx;
   const t0 = drivers.now();
@@ -387,6 +394,13 @@ export async function runCaseCliAppClosed(drivers, ctx) {
   if (pre.shell.length) return { name: 'cli-app-closed', result: 'FAIL', reasons: [`precondition: StarNet already running (pids ${pre.shell.map((p) => p.pid).join(',')})`] };
   const text = await drivers.readStartupLog();
   const appRan = !!String(text || '').trim();
+  let stationSaved = typeof drivers.stationSaved === 'function' ? !!(await drivers.stationSaved()) : undefined;
+  let seededStation = false;
+  if (stationSaved === false && appRan && typeof drivers.seedStation === 'function') {
+    await drivers.seedStation();
+    seededStation = true;
+    stationSaved = !!(await drivers.stationSaved());
+  }
   const mark = logMark(text);
   const run = drivers.startCli(['-p', 'say hello in five words', '--timeout', '90']);
   let finished = null;
@@ -407,10 +421,10 @@ export async function runCaseCliAppClosed(drivers, ctx) {
     const s = await snapshot(drivers, installDir, null);
     return { ok: s.shell.length === 0 && s.sidecar.length === 0, value: s };
   }, { timeoutMs: waits.goneMs, intervalMs: waits.pollMs, sleep: drivers.sleep, now: drivers.now });
-  const verdict = judgeCliAppClosed({ appRan, cli, started, maxShells, maxStations, windowSeen, after: after.value });
+  const verdict = judgeCliAppClosed({ appRan, stationSaved, cli, started, maxShells, maxStations, windowSeen, after: after.value });
   return {
     name: 'cli-app-closed', result: verdict.pass ? 'PASS' : 'FAIL', reasons: verdict.reasons,
-    observed: { exitCode: cli.code, started, maxShells, maxStations, windowSeen, stderrTail: String(cli.stderr || '').trim().split(/\r?\n/).slice(-4) },
+    observed: { exitCode: cli.code, started, stationSaved, seededStation, maxShells, maxStations, windowSeen, stderrTail: String(cli.stderr || '').trim().split(/\r?\n/).slice(-4) },
     timings: { quitAfterCliMs: after.ok ? after.elapsedMs : null, totalMs: drivers.now() - t0 },
     snapshots: { afterCli: after.value },
   };
@@ -609,7 +623,7 @@ export function makeWindowsDrivers({ appDataDir, installDir }) {
       if (!/True/i.test(out)) throw new Error(`PostMessage(WM_CLOSE) to hwnd ${hwnd} returned ${out}`);
     },
     launch(exe) {
-      const child = spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: false });
+      const child = spawn(exe, [], { detached: true, stdio: 'ignore', windowsHide: false, env: childEnvWithoutCredentials(process.env) });
       child.unref();
       return child.pid;
     },
@@ -620,6 +634,8 @@ export function makeWindowsDrivers({ appDataDir, installDir }) {
       finally { clearTimeout(t); }
     },
     readStartupLog() { try { return fs.readFileSync(logPath, 'utf8'); } catch { return ''; } },
+    stationSaved() { return STATION_FILES.some((f) => fs.existsSync(path.join(appDataDir, 'workspaces', f))); },
+    seedStation() { seedMinimalStation(path.join(appDataDir, 'workspaces')); },
     writePrefs(obj) {
       fs.mkdirSync(appDataDir, { recursive: true });
       fs.writeFileSync(prefsPath, JSON.stringify(obj));
@@ -643,13 +659,33 @@ export function makeWindowsDrivers({ appDataDir, installDir }) {
 }
 
 
+/* The files whose presence makes a workspace a station for the CLI (bin/starnet.js hasStation). */
+const STATION_FILES = ['agent.save.json', 'agent.roster.json'];
+/** A minimal one-agent station (what bin/starnet.js bootstrapWorkspace writes), only where none exists — never over one. */
+function seedMinimalStation(ws) {
+  if (STATION_FILES.some((f) => fs.existsSync(path.join(ws, f)))) return;
+  fs.mkdirSync(ws, { recursive: true });
+  const agents = [{ agentId: 'agent', name: 'ULTRON' }];
+  fs.writeFileSync(path.join(ws, 'agent.roster.json'), JSON.stringify({ agents }));
+  fs.writeFileSync(path.join(ws, 'agent.save.json'), JSON.stringify({ version: 1, agents }));
+}
+/* The runner's own environment minus release credentials: the app, its sidecar and an agent run inherit what the
+   installed CLI / app is started with, and a token is no business of theirs (the workflow also scopes GH_TOKEN to the
+   steps that call `gh`). */
+const CREDENTIAL_ENV = /^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|RELEASES_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_ID_TOKEN_REQUEST_TOKEN)$/i;
+export function childEnvWithoutCredentials(env) {
+  const out = {};
+  for (const [k, v] of Object.entries(env || {})) if (!CREDENTIAL_ENV.test(k)) out[k] = v;
+  return out;
+}
+
 /** Run the INSTALLED `starnet` the way a shell does: bin\starnet.cmd (Windows) / bin/starnet (macOS), which runs
  *  bin/starnet.js on the bundled node, the app found beside it. Returns { child, done: Promise<{code,stdout,stderr}> }. */
 function startInstalledCli(installDir, args, platform) {
   const quote = (a) => /[\s"]/.test(a) ? '"' + String(a).replace(/"/g, '\\"') + '"' : String(a);
   const child = platform === 'win32'
-    ? spawn('cmd.exe', ['/d', '/s', '/c', '"' + ['"' + path.join(installDir, 'bin', 'starnet.cmd') + '"'].concat(args.map(quote)).join(' ') + '"'], { windowsVerbatimArguments: true, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
-    : spawn(path.join(installDir, '..', 'Resources', 'bin', 'starnet'), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    ? spawn('cmd.exe', ['/d', '/s', '/c', '"' + ['"' + path.join(installDir, 'bin', 'starnet.cmd') + '"'].concat(args.map(quote)).join(' ') + '"'], { windowsVerbatimArguments: true, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: childEnvWithoutCredentials(process.env) })
+    : spawn(path.join(installDir, '..', 'Resources', 'bin', 'starnet'), args, { stdio: ['ignore', 'pipe', 'pipe'], env: childEnvWithoutCredentials(process.env) });
   let stdout = '', stderr = '';
   child.stdout.on('data', (d) => { stdout += d; });
   child.stderr.on('data', (d) => { stderr += d; });
@@ -679,7 +715,7 @@ export function makeMacDrivers({ appDataDir, installDir, exeName }) {
     listWindows() { return []; },
     closeWindow() { throw new Error('macOS runner cannot close windows (no Accessibility)'); },
     launch(exe) {
-      const child = spawn(exe, [], { detached: true, stdio: 'ignore' });
+      const child = spawn(exe, [], { detached: true, stdio: 'ignore', env: childEnvWithoutCredentials(process.env) });
       child.unref();
       return child.pid;
     },
@@ -690,6 +726,8 @@ export function makeMacDrivers({ appDataDir, installDir, exeName }) {
       finally { clearTimeout(t); }
     },
     readStartupLog() { try { return fs.readFileSync(logPath, 'utf8'); } catch { return ''; } },
+    stationSaved() { return STATION_FILES.some((f) => fs.existsSync(path.join(appDataDir, 'workspaces', f))); },
+    seedStation() { seedMinimalStation(path.join(appDataDir, 'workspaces')); },
     writePrefs() { throw new Error('not used on macOS'); },
     exeVersion() { return ''; },
     async fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); },

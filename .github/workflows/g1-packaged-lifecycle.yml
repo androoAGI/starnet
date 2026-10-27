@@ -103,8 +103,9 @@ jobs:
   lifecycle:
     runs-on: windows-latest
     timeout-minutes: 45
+    # GH_TOKEN is given ONLY to the steps that call `gh`: the matrix runs the installed app, its sidecar and (cli-app-closed)
+    # an agent prompt through the installed CLI, and a job-level token would reach every one of them.
     env:
-      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +116,8 @@ jobs:
 
       - name: Resolve tag (blank = latest published) and whether it IS the published latest
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           $latest = gh release view --repo $env:REPO --json tagName -q .tagName
@@ -128,6 +131,8 @@ jobs:
 
       - name: Download the installer and the tag's own latest.json
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force dist | Out-Null
@@ -197,11 +202,13 @@ jobs:
           path: evidence/
 
   lifecycle-macos:
+    # only when a process-level case was asked for (a dispatch of updater-smoke alone runs no mac job), and only those
+    if: contains(inputs.cases, 'kill-relaunch') || contains(inputs.cases, 'cli-app-closed')
     runs-on: macos-latest
     timeout-minutes: 45
     env:
-      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
+      CASES: ${{ inputs.cases }}
     steps:
       - uses: actions/checkout@v4
 
@@ -211,6 +218,8 @@ jobs:
 
       - name: Resolve tag (blank = latest published)
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           set -euo pipefail
           tag="${{ inputs.tag }}"
@@ -220,6 +229,8 @@ jobs:
 
       - name: Install the tag's own .dmg into /Applications and locate the shell
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -241,7 +252,11 @@ jobs:
       - name: Run the process-level lifecycle cases (fails the job on any case miss)
         shell: bash
         run: |
-          node scripts/qa/packaged-lifecycle.mjs --exe="$EXE" --install-dir="$INSTALL_DIR" --tag="$TAG" --cases=kill-relaunch,cli-app-closed --out=packaged-lifecycle-macos-receipt.json
+          set -euo pipefail
+          # the requested cases a mac can run (kill-relaunch, cli-app-closed), nothing else
+          mac_cases=$(printf '%s' "$CASES" | tr ',' '\n' | tr -d ' ' | grep -xE 'kill-relaunch|cli-app-closed' | paste -sd, - || true)
+          [ -n "$mac_cases" ] || { echo "no process-level case requested"; exit 0; }
+          node scripts/qa/packaged-lifecycle.mjs --exe="$EXE" --install-dir="$INSTALL_DIR" --tag="$TAG" --cases="$mac_cases" --out=packaged-lifecycle-macos-receipt.json
 
       - name: Collect evidence (always)
         if: always()

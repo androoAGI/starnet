@@ -168,9 +168,17 @@ const A = require('./_assert.js');
     A.ok(!two.pass && two.reasons.some((r) => /exactly 1 sidecar after relaunch, saw 2/.test(r)), 'two sidecars after a relaunch FAIL');
     const station = M.stationSidecars({ shell: [{ pid: 100 }], sidecar: [{ pid: 101, ppid: 100 }, { pid: 300, ppid: 77 }] });
     A.eq(station.map((p) => p.pid), [101], 'a station sidecar is one a running shell started (the installed CLI runs on the same node)');
-    const cliOk = { appRan: true, cli: { code: 1, stdout: '', stderr: '· StarNet isn\'t running — starting it in the background\nno model configured' }, started: true, maxShells: 1, maxStations: 1, windowSeen: false, after: snap() };
+    const cliOk = { appRan: true, stationSaved: true, cli: { code: 3, stdout: '', stderr: '· StarNet isn\'t running — starting it in the background\nstarnet: no model to run: agent \"agent\" has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' }, started: true, maxShells: 1, maxStations: 1, windowSeen: false, after: snap() };
     A.eq(M.judgeCliAppClosed(cliOk).pass, true, 'the notice that starnet is STARTING the app is not a refusal — ' + M.judgeCliAppClosed(cliOk).reasons.join('|'));
-    const cliGood = Object.assign({}, cliOk, { cli: { code: 1, stdout: '', stderr: '· starting StarNet\nno model configured' } });
+    const cliGood = Object.assign({}, cliOk, { cli: { code: 3, stdout: '', stderr: '· starting StarNet\nstarnet: no model to run: agent \"agent\" has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' } });
+    // a keyless runner's run ends "no model to run" (exit 3 = EXIT.STATION, which also means "nothing runnable"): the case
+    // judges the lifecycle, so that is a pass — and any OTHER exit 3 is not
+    const owned = M.judgeCliAppClosed(Object.assign({}, cliGood, { cli: { code: 3, stdout: '', stderr: 'starnet: the desktop app owns the default workspace (pid 42) but its port could not be discovered' } }));
+    A.ok(!owned.pass && owned.reasons.some((r) => /exited 3 \(no station\)/.test(r)), 'an exit 3 that is a station refusal FAILS');
+    const noStation = M.judgeCliAppClosed(Object.assign({}, cliGood, { stationSaved: false }));
+    A.ok(!noStation.pass && noStation.reasons.some((r) => /workspace holds no station.*hasStation/.test(r)), 'a profile with no saved station is not the app-closed path (the CLI would boot its own)');
+    const env = M.childEnvWithoutCredentials({ PATH: 'p', GH_TOKEN: 'x', GITHUB_TOKEN: 'y', gh_token: 'z', RELEASES_TOKEN: 'r', HOME: 'h' });
+    A.eq(env, { PATH: 'p', HOME: 'h' }, 'the installed CLI and app start without the runner\'s release credentials');
     A.eq(M.judgeCliAppClosed(cliGood).pass, true, 'cli-app-closed passes: started in the background, one station, no window, quit after — ' + M.judgeCliAppClosed(cliGood).reasons.join('|'));
     const refused = M.judgeCliAppClosed(Object.assign({}, cliGood, { cli: { code: 3, stdout: '', stderr: 'starnet: StarNet isn\'t running — open the StarNet app first (it holds your keys)' }, started: false, maxShells: 0, maxStations: 0 }));
     A.ok(!refused.pass && refused.reasons.some((r) => /refused with the app closed/.test(r)) && refused.reasons.some((r) => /did not start it/.test(r)), 'the 0.14.0 refusal FAILS');
@@ -187,8 +195,9 @@ const A = require('./_assert.js');
   // `world` models the installed app: launch spawns a shell (+ sidecar after a delay, + a window),
   // WM_CLOSE runs the shell's decision with the configured prefs. `zombie` reproduces the 0.10.x
   // escape: the idle close hides the window but never exits.
-  function fakeWorld({ zombie = false, windowlessResident = false, leakyKill = false, cliRefuses = false, cliLingers = false, freshProfile = false } = {}) {
+  function fakeWorld({ zombie = false, windowlessResident = false, leakyKill = false, cliRefuses = false, cliLingers = false, freshProfile = false, noStation = false, noSeed = false } = {}) {
     let t = 0; let nextPid = 100; let log = freshProfile ? '' : 'startup\n';
+    let station = !noStation; let seeded = 0;
     const procs = []; const windows = []; const prefs = { closeToTray: false };
     const killed = []; const launches = []; const tickers = [];
     const spawnApp = (background, terminalPid) => {
@@ -218,6 +227,8 @@ const A = require('./_assert.js');
       launch: async () => spawnApp(false),
       health: async (port) => procs.some((p) => p.name === 'node.exe' && 40000 + p.ppid === port),
       readStartupLog: async () => log,
+      stationSaved: async () => station,
+      seedStation: async () => { seeded++; if (!noSeed) station = true; },
       writePrefs: async (o) => { prefs.closeToTray = !!o.closeToTray; },
       closeWindow: async (hwnd) => {
         const w = windows.find((x) => x.hwnd === hwnd); if (!w) throw new Error('no hwnd');
@@ -260,7 +271,7 @@ const A = require('./_assert.js');
             for (let i = procs.length - 1; i >= 0; i--) if (procs[i].pid === appPid || procs[i].ppid === appPid) procs.splice(i, 1);
             for (let i = windows.length - 1; i >= 0; i--) if (windows[i].pid === appPid) windows.splice(i, 1);
           }
-          resolve({ code: 1, stdout: '', stderr: '· starting StarNet in the background\nno model configured' });
+          resolve({ code: 3, stdout: '', stderr: '· starting StarNet in the background\nstarnet: no model to run: agent \"agent\" has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' });
         });
         return { done };
       },
@@ -275,7 +286,7 @@ const A = require('./_assert.js');
         }
       },
     };
-    return { drivers, state: { procs, windows, killed, launches, prefs } };
+    return { drivers, state: { procs, windows, killed, launches, prefs, seeded: () => seeded } };
   }
   const ctx = (extra) => Object.assign({ exe: EXE, installDir: INSTALL, expectedVersion: '0.10.7', tagFeedUrl: 'https://t/latest.json', publicFeedUrl: 'https://p/latest.json', feedMustMatch: true, meta: { tag: 'v0.10.7' } }, extra || {});
 
@@ -307,6 +318,17 @@ const A = require('./_assert.js');
     const { drivers } = fakeWorld({ cliLingers: true });
     const receipt = await M.runMatrix(drivers, ctx({ cases: ['idle-close', 'cli-app-closed'] }));
     A.eq(receipt.cases[1].result, 'FAIL', 'a StarNet that keeps running after its terminal left FAILS cli-app-closed');
+  }
+  {
+    const { drivers, state } = fakeWorld({ noStation: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['idle-close', 'cli-app-closed'] }));
+    A.eq(receipt.cases[1].result, 'PASS', 'a runner whose app saved no station gets a minimal one seeded, then the case runs — ' + receipt.cases[1].reasons.join('|'));
+    A.eq([receipt.cases[1].observed.seededStation, receipt.cases[1].observed.stationSaved, state.seeded()], [true, true, 1], 'the seeding is on the receipt');
+  }
+  {
+    const { drivers } = fakeWorld({ noStation: true, noSeed: true });
+    const receipt = await M.runMatrix(drivers, ctx({ cases: ['idle-close', 'cli-app-closed'] }));
+    A.ok(receipt.cases[1].result === 'FAIL' && receipt.cases[1].reasons.some((r) => /holds no station/.test(r)), 'a station that cannot be seeded FAILS on the precondition, never for the wrong reason');
   }
   {
     const { drivers } = fakeWorld({ freshProfile: true });
@@ -361,7 +383,18 @@ const A = require('./_assert.js');
     A.ok(/runs-on: macos-latest/.test(yml), 'and a hosted macOS VM');
     const macJob = yml.slice(yml.indexOf('lifecycle-macos:'));
     A.ok(/gh release download[^\n]*--pattern '\*\.dmg'/.test(macJob) && /hdiutil attach/.test(macJob), 'the mac job installs the tag\'s own .dmg');
-    A.ok(/scripts\/qa\/packaged-lifecycle\.mjs/.test(macJob) && /--cases=kill-relaunch,cli-app-closed/.test(macJob), 'the mac job runs the process-level cases through the same runner');
+    A.ok(/scripts\/qa\/packaged-lifecycle\.mjs/.test(macJob) && /--cases="\$mac_cases"/.test(macJob), 'the mac job runs the process-level cases through the same runner');
+    A.ok(/if: contains\(inputs\.cases, 'kill-relaunch'\) \|\| contains\(inputs\.cases, 'cli-app-closed'\)/.test(macJob), 'the mac job runs only when a process-level case was asked for');
+    A.ok(/grep -xE 'kill-relaunch\|cli-app-closed'/.test(macJob) && /CASES: \$\{\{ inputs\.cases \}\}/.test(macJob), 'and only the requested ones (the input reaches bash through the environment)');
+    // the release token only where `gh` runs: never in a job env the app, the sidecar or an agent run inherits
+    for (const job of ['  lifecycle:', '  lifecycle-macos:']) {
+      const body = yml.slice(yml.indexOf(job + '\n'));
+      const head = body.slice(0, body.indexOf('    steps:'));
+      A.ok(!/GH_TOKEN:/.test(head), job.trim() + ' has no job-level GH_TOKEN');
+    }
+    const winRun = yml.split('Run the packaged-lifecycle matrix')[1].split('- name:')[0];
+    const macRun = yml.split('Run the process-level lifecycle cases')[1].split('- name:')[0];
+    A.ok(!/GH_TOKEN/.test(winRun) && !/GH_TOKEN/.test(macRun), 'the steps that run the installed app carry no token');
     A.ok(/kill-relaunch/.test(yml.slice(0, yml.indexOf('lifecycle-macos:'))), 'the Windows job runs kill-relaunch too');
     A.ok(/androoAGI\/starnet-releases/.test(yml), 'pulls the installer from the releases repo');
     A.ok(/gh release download \$env:TAG .*--pattern '\*-setup\.exe'/.test(yml), 'downloads the tag installer');
