@@ -1365,6 +1365,7 @@ test/run-context.compaction.test.js
 test/comms-stop-queue-tips.test.js
 test/consent-timer-hint.test.js
 test/needs-you-one-list.test.js
+test/delegated-needsyou-escape.test.js
 test/needs-you-bell-settle.test.js
 test/org-crew-comms.test.js
 test/internal-run-not-working.test.js

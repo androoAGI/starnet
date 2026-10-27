@@ -41,7 +41,7 @@ const NeedsYou = (() => {
   const answering = new Set();          // promptIds whose answer is on its way: their keys stay disabled through re-renders
   let parked = null;                    // { act, cls, key } of a focused key that went disabled: focus returns when it can
   const has = (o, k) => typeof o !== 'undefined' && o && typeof o[k] === 'function';
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc = s => U.esc(s == null ? '' : s);   // the one complete impl (escapes & < > " ' — the local copy left ' raw, qw36)
 
   // a dismissal is a per-viewer convenience (which failures you have already seen), never station state
   function dismissed() {
