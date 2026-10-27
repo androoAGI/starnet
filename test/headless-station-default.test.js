@@ -16,7 +16,7 @@ const A = require('./_assert.js');
 const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
-const { sidecarFunctionSource } = require('./helpers/source');
+const { sidecarFunctionSource, sidecarTopLevelFunction, readSidecarSource } = require('./helpers/source');
 
 // ---- 1. GET /api/runtime/agent resolves the station default ----
 const route = sidecarFunctionSource('handleRuntimeAgent');
@@ -51,6 +51,31 @@ const signedInChatGPT = id => id === 'codex';
   const modelless = runtimeAgent({ agent: { name: 'NOVA', provider: 'codex' } }, { DEFAULT_MODEL: 'test/model' }, () => false);
   A.eq([modelless.provider, modelless.model], ['openrouter', 'test/model'], 'a hero with no model yet falls back to the env rule');
   A.eq(r.agents.map(a => a.agentId), ['agent'], 'the roster still rides along');
+}
+
+// ---- 1b. an editor run is told where the Commander is, after the roster persona (review of quick win 13) ----
+// The roster persona is the desktop's (COMMS panel, Approve/Deny buttons, FORK rows); a terminal run gets TERMINAL_NOTE after
+// it, and an editor run (client:'editor') gets EDITOR_NOTE. The real composition lines from handleRun run over a fake roster.
+{
+  const hr = sidecarTopLevelFunction('handleRun');
+  const a = hr.indexOf("if (body && typeof body === 'object' && !body.system && body.rosterSystem === true)");
+  const b = hr.indexOf('const { model, system, messages', a);
+  A.ok(a > 0 && b > a, "found handleRun's persona composition");
+  const text = readSidecarSource();
+  const noteAt = text.indexOf('const EDITOR_NOTE = ');
+  A.ok(noteAt > 0, 'EDITOR_NOTE is declared');
+  const noteSrc = noteAt > 0 ? text.slice(noteAt, text.indexOf(';\n', noteAt) + 1) : '';
+  const compose = (body) => new Function('agentRoster', 'TERMINAL_NOTE', 'body', noteSrc + '\n' + hr.slice(a, b) + '\nreturn body;')(
+    new Map([['agent', { system: 'DESKTOP-PERSONA: press Approve in COMMS' }]]), '\n\n[TERMINAL] t', body);
+  const ed = compose({ rosterSystem: true, client: 'editor', agentId: 'agent' }).system;
+  A.ok(ed.indexOf('DESKTOP-PERSONA') === 0 && ed.indexOf('[EDITOR] The Commander is talking to you from their code editor') > 0,
+    'an editor run gets the roster persona, then the [EDITOR] note: ' + ed.slice(0, 160));
+  A.ok(ed.indexOf('no COMMS panel, no buttons') > 0 && ed.indexOf('allow once, allow for the rest of this session, or reject') > 0,
+    "the note says there are no station buttons and names the editor's real three answers");
+  A.ok(ed.indexOf('[TERMINAL]') < 0, 'and never the terminal note');
+  const term = compose({ rosterSystem: true, client: 'terminal', agentId: 'agent' }).system;
+  A.ok(/\[TERMINAL\] t$/.test(term) && term.indexOf('[EDITOR]') < 0, 'a terminal run keeps its own note only');
+  A.eq(compose({ rosterSystem: true, agentId: 'agent' }).system, 'DESKTOP-PERSONA: press Approve in COMMS', 'a run with no client marker is unchanged');
 }
 
 // ---- 2. the ACP bridge sends the roster persona and runs on what the route said ----
@@ -111,6 +136,7 @@ const signedInChatGPT = id => id === 'codex';
     const body = (runs[0] && runs[0].body) || {};
     A.eq(body.rosterSystem, true, 'the bridge asks the station to run the agent as its roster entry defines it');
     A.ok(!body.system, 'and sends no persona of its own');
+    A.eq(body.client, 'editor', 'and says it is an editor, so the station appends the [EDITOR] note after that desktop persona');
     A.eq([body.agentId, body.model, body.provider, body.isTask], ['agent', 'gpt-5.5', 'codex', true], 'on the model and provider the station reported');
   } finally {
     try { bridge.kill(); } catch (_) {}

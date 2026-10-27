@@ -11781,6 +11781,16 @@ const TERMINAL_NOTE = '\n\n[TERMINAL] The Commander is talking to you from the S
   + '/routine, /away, the Commander\'s own commands, and each skill as /<skill> <task> (/skills lists them). Never write a FORK: line — ask in plain words. When something '
   + 'can only be done in the StarNet desktop app (placing props, building the station, connecting accounts or keys), say so '
   + 'plainly. Write for a terminal: plain text and simple markdown (short paragraphs, lists, code blocks), no wide tables.';
+/* THE EDITOR (ACP bridge, sidecar/acp/serve.js, client:'editor'): the same desktop persona reaches a code editor since the
+   bridge asks for rosterSystem, so the same correction follows it. It names only what the bridge really renders: the live
+   tool-call list and the editor's own permission card with acp/core.js permissionOptions' three answers. A constant. */
+const EDITOR_NOTE = '\n\n[EDITOR] The Commander is talking to you from their code editor through StarNet\'s editor bridge, not '
+  + 'the desktop app. There is no station on their screen: no COMMS panel, no buttons, cards, windows, dock or one-tap rows — '
+  + 'anything earlier in these instructions about clicking, tapping, approve/deny buttons, FORK rows or placing props does not '
+  + 'apply here. In their editor your tool calls show in a live list, and an approval shows as the editor\'s own prompt: allow '
+  + 'once, allow for the rest of this session, or reject. Never write a FORK: line; when you need their answer, end your reply '
+  + 'with the question in plain words. When something can only be done in the StarNet desktop app (placing props, building the '
+  + 'station, connecting accounts or keys), say so plainly.';
 const remoteCrypto = require('./remote/crypto.js');
 const remoteDevices = require('./remote/devices.js').makeDevices({
   fs, path, crypto: remoteCrypto, file: path.join(WORKSPACES, '.secrets', 'remote.json'),
@@ -20216,6 +20226,7 @@ async function handleRun(req, res) {
   // rows), so a terminal run is told the truth after it, the REMOTE_NOTE pattern. Exact match, opt-in.
   const terminalClient = !!(body && typeof body === 'object' && body.client === 'terminal');
   if (terminalClient) body.system = String(body.system || '') + TERMINAL_NOTE;
+  else if (body && typeof body === 'object' && body.client === 'editor') body.system = String(body.system || '') + EDITOR_NOTE;
   const { model, system, messages = [], agentId = 'agent', isTask = false, provider, fallbackModels, fallbackProviders } = body || {};
   const recurring = !!(body && body.recurring);   // the browser's mint detector saw this task SHAPE before → salience boost for reflection
   // REASON-ONLY SELF-TALK (retitle / goal-judge / pitch / autopilot): the caller composed a complete strict-format
