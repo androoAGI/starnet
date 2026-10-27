@@ -194,6 +194,42 @@ const NOTE_TABLE = [
     A.ok(rec.id === 'note_2' && rec.pinned === true, 'the newest survives under its own id, and a folded copy\'s pin is not dropped');
     A.eq(rec.history.map(h => h.body).sort(), ['User likes the dark theme', 'User prefers dark mode'], 'every retired text is in its history');
   }
+  // a notebook that already holds BOTH sides (the pre-lane state): restating the newer side retires the older one
+  {
+    const nb = notebook([
+      { id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: 1 },
+      { id: 'note_2', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers light mode', createdAt: 2 }
+    ]);
+    const r = await nb.write({ title: 'Theme', body: 'The user prefers a light theme' });
+    A.eq(nb.active(), ['User prefers light mode'], 'a restatement of the newer side collapses a held contradiction into ONE active record: ' + r.content);
+    A.ok(nb.notes()[0].id === 'note_2' && nb.notes()[0].history[0].body === 'User prefers dark mode' && nb.notes()[0].history[0].supersession, '…the older claim is in its history with a receipt');
+    A.ok(/Already known/.test(r.content) && /note_1/.test(r.content) && /distinct:true/.test(r.content), '…and the result names what it retired and the undo');
+    const plain = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers light mode', createdAt: 1 }]);
+    const again = await plain.write({ title: 'Theme', body: 'The user prefers a light theme' });
+    A.ok(/already remember/.test(again.content) && plain.notes().length === 1 && !plain.notes()[0].history, 'a plain restatement still writes nothing');
+  }
+  // the SURFACE that wrote the newer claim owns it: a routine retiring the Commander's note is a routine's belief now
+  {
+    const nb = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: 1, origin: 'commander' }]);
+    await nb.write({ title: 'Theme', body: 'User prefers light mode' }, { origin: 'schedule' });
+    const rec = nb.notes()[0];
+    A.ok(rec.origin === 'schedule' && rec.history[0].snapshot.origin === 'commander', 'a schedule-origin supersession is labelled schedule; the retired text keeps commander: ' + rec.origin);
+    A.eq(nb.receipts[nb.receipts.length - 1].origin, 'schedule', '…and so is its receipt');
+  }
+  // scope and pin: a supersession always says where the survivor applies; a chat's default write never rewrites a pinned global belief
+  {
+    const pinned = [{ id: 'note_1', kind: 'note', scope: 'global', title: 'Replies', body: 'User prefers concise replies', createdAt: 1, pinned: true }];
+    const nb = notebook(pinned);
+    await nb.write({ title: 'Replies', body: 'User prefers detailed replies' }, { streamId: 'chatY' });
+    A.ok(nb.active().indexOf('User prefers concise replies') >= 0 && !(nb.notes()[0].history || []).length, 'a default (this-conversation) write does not retire a pinned station-wide belief: ' + JSON.stringify(nb.active()));
+    const wide = notebook(pinned);
+    const r = await wide.write({ title: 'Replies', body: 'User prefers detailed replies', scope: 'global' }, { streamId: 'chatY' });
+    A.eq(wide.active(), ['User prefers detailed replies'], 'an explicit global write does');
+    A.ok(/Scope: every conversation\./.test(r.content) && /Pinned:/.test(r.content), '…and its result says where it applies and that it stays pinned: ' + r.content);
+    const plain = notebook([{ id: 'note_1', kind: 'note', scope: 'global', title: 'Theme', body: 'User prefers dark mode', createdAt: 1 }]);
+    const r2 = await plain.write({ title: 'Theme', body: 'User prefers light mode' }, { streamId: 'chatY' });
+    A.ok(/Scope: every conversation\./.test(r2.content) && plain.notes()[0].scope === 'global', 'an unpinned global belief is superseded in place, and the result says it is still station-wide: ' + r2.content);
+  }
   // the Commander's own words: the superseding record carries their authority
   {
     const nb = notebook();
