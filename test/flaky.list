@@ -1,0 +1,10 @@
+# Quarantined flaky steps. Read by scripts/run-test-list.mjs: a step listed here that fails is retried ONCE.
+# A pass on the retry is reported in its own "quarantined flaky steps" section and does not turn the gate red;
+# a second failure is a real failure. A step here must also be on a gate list (test-list-completeness checks it).
+# Add a step only with the evidence that it flakes on an unchanged tree, and name the flaking case.
+#
+# voice.button: the timing-sensitive mic state machine fails intermittently under load and reruns alone green.
+test/voice.button.test.js
+# save-quota-writethrough: case Q3 (queued acknowledgement) fails intermittently under load, on trunk too, and
+# reruns alone green.
+test/save-quota-writethrough.test.js

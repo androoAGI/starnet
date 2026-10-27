@@ -3,71 +3,296 @@
 
    A list is one repository-relative JavaScript path per line; blank lines and # comments are ignored. Optional
    filters select steps by substring. Process isolation and declared order are preserved intentionally because
-   many legacy suites patch globals or own sockets. */
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+   many legacy suites patch globals or own sockets.
+
+   WHAT A GATE RUN GUARANTEES (gate-seams, 2026-10-27):
+   - EVERY step runs. A red step no longer hides the steps after it: the run goes to the end, then names every
+     failure with its step number. Any failure still exits non-zero.
+   - EVERY step is bounded. A step gets STEP_TIMEOUT_MS (120 s); a step declared in test/slow.list gets
+     SLOW_STEP_TIMEOUT_MS (600 s). A hung step has its whole process tree killed, is reported by number and
+     path, and the run moves on. A hang can no longer stall the gate until the outer 50/60 minute wrapper fires.
+   - EVERY step is timed, and the slowest are listed at the end, so test/slow.list can be kept honest.
+   - A step listed in test/flaky.list (a known flake, quarantined) that fails is retried once. A pass on the
+     retry is reported in its own section and does not turn the gate red; a second failure does.
+   - EVERY step runs in a hermetic environment: an allowlist of the variables Windows and POSIX need to spawn
+     processes (PATH, SYSTEMROOT, TEMP, ...) plus a fresh scratch profile. The developer's ambient variables
+     (provider keys, STARNET_/SKYNET_ overrides, NODE_OPTIONS, GIT_DIR, ...) never reach a test.
+
+   The LAST line of a run is the summary: `<label>: OK — N step(s) green` only when every step passed.
+   scripts/release-preflight.mjs and release-ritual.mjs read that line, never the exit code. */
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+export const STEP_TIMEOUT_MS = 120000;
+export const SLOW_STEP_TIMEOUT_MS = 600000;
+export const SLOW_LIST = 'test/slow.list';
+export const FLAKY_LIST = 'test/flaky.list';
+
+/* The variables a step may inherit. Everything else in the parent environment is dropped.
+   - Spawning on Windows needs PATH/PATHEXT/COMSPEC/SYSTEMROOT/WINDIR (node, cmd.exe, taskkill, git, npm.cmd).
+   - TEMP/TMP/TMPDIR keep os.tmpdir() where the machine wants scratch files.
+   - USERPROFILE/HOMEDRIVE/HOMEPATH/HOME (Windows only — on POSIX HOME is the hermetic profile) keep git's global
+     config reachable, which is where a developer box keeps the commit identity git-using tests rely on.
+   - PROGRAMFILES and friends let browser discovery find a machine-wide Chrome; the CI knobs a workflow sets on
+     purpose pass too: CI, GITHUB_ACTIONS, RUNNER_OS, RUNNER_TEMP, SKYNET_CHROME (the CDP tests' Chrome wrapper).
+   - LANG, the LC_ variables and TZ keep locale-sensitive formatting what it was before the allowlist existed. */
+const PASS_ENV = new Set([
+  'PATH', 'PATHEXT', 'COMSPEC', 'SYSTEMROOT', 'WINDIR', 'SYSTEMDRIVE', 'TEMP', 'TMP', 'TMPDIR',
+  'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'USERNAME', 'USERDOMAIN', 'COMPUTERNAME', 'OS',
+  'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_ARCHITEW6432', 'PROCESSOR_IDENTIFIER',
+  'PROCESSOR_LEVEL', 'PROCESSOR_REVISION',
+  'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PROGRAMW6432', 'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)',
+  'COMMONPROGRAMW6432', 'PROGRAMDATA', 'ALLUSERSPROFILE', 'PUBLIC',
+  'USER', 'LOGNAME', 'SHELL', 'LANG', 'LANGUAGE', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'TZ',
+  'DISPLAY', 'XDG_RUNTIME_DIR',
+  'CI', 'GITHUB_ACTIONS', 'RUNNER_OS', 'RUNNER_TEMP', 'SKYNET_CHROME'
+]);
+
+/* HERMETIC PROFILE (2026-08-20): the sidecar's boot-time station auto-recovery scans the real per-user app-data
+   roots for a lost station, and a test's fresh temp workspace looks exactly like one — so on a machine with an
+   installed StarNet station, test-booted sidecars ingested the user's REAL station into their temp workspaces
+   (schema-stamp and sidecar.http broke the day the desktop app was first installed on the dev box). Every step
+   gets its own empty scratch profile so no spawned sidecar can see, or touch, real user data — and no step can
+   plant a station a later step would recover. (test/helpers/sidecar-fixture.js applies the same isolation for
+   directly-invoked fixture tests.) The profile is applied AFTER the allowlist, so it always wins. */
+export function buildStepEnv(parentEnv, profile, platform) {
+  const plat = platform || process.platform;
+  const env = {};
+  for (const [key, value] of Object.entries(parentEnv || {})) {
+    if (value == null) continue;
+    const upper = key.toUpperCase();
+    if (upper === 'HOME' && plat !== 'win32') continue;
+    if (PASS_ENV.has(upper) || (upper === 'HOME' && plat === 'win32')) env[key] = String(value);
+  }
+  env.APPDATA = profile;
+  env.LOCALAPPDATA = profile;
+  env.XDG_DATA_HOME = profile;
+  if (plat !== 'win32') env.HOME = profile;
+  return env;
+}
+
 export function readSteps(listFile) {
   return readFileSync(listFile, 'utf8')
-    .replace(/^\uFEFF/, '')
+    .replace(/^﻿/, '')
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(line => line && !line.startsWith('#'));
 }
 
-export function runList(options) {
+function readOptionalSteps(listFile) {
+  return listFile && existsSync(listFile) ? readSteps(listFile) : [];
+}
+
+/* "2/4" → { index: 2, total: 4 }. Shards are contiguous slices in declared order, so steps that sit next to each
+   other in a list keep running in the same order on the same machine. */
+export function parseShard(text) {
+  const m = /^(\d+)\/(\d+)$/.exec(String(text || '').trim());
+  if (!m) throw new Error('--shard must look like K/N (got "' + text + '")');
+  const index = Number(m[1]), total = Number(m[2]);
+  if (!(total >= 1) || !(index >= 1) || index > total) throw new Error('--shard ' + text + ' is out of range');
+  return { index, total };
+}
+
+export function shardSteps(steps, shard) {
+  if (!shard) return steps.slice();
+  const size = Math.ceil(steps.length / shard.total);
+  return steps.slice((shard.index - 1) * size, shard.index * size);
+}
+
+function seconds(ms) {
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+function clock(ms) {
+  const s = Math.round(ms / 1000);
+  return Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0') + 's';
+}
+
+function killTree(child) {
+  return new Promise(done => {
+    if (!child || !child.pid) return done();
+    if (process.platform === 'win32') {
+      const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      killer.on('error', () => done());
+      killer.on('close', () => done());
+      return;
+    }
+    try { process.kill(-child.pid, 'SIGTERM'); } catch (_) { try { child.kill('SIGTERM'); } catch (_) {} }
+    setTimeout(() => {
+      try { process.kill(-child.pid, 'SIGKILL'); } catch (_) { try { child.kill('SIGKILL'); } catch (_) {} }
+      done();
+    }, 2000).unref();
+  });
+}
+
+let activeChild = null;
+
+/* One attempt at one step: a fresh hermetic profile, a bounded lifetime, and the whole process tree killed if the
+   bound is hit. Resolves { status, signal, timedOut, ms }; never rejects. */
+function runAttempt(step, opts) {
+  const profile = mkdtempSync(join(tmpdir(), 'starnet-gate-profile-'));
+  const started = Date.now();
+  return new Promise(done => {
+    let finished = false, timedOut = false, fallback = null;
+    const child = spawn(process.execPath, (opts.nodeArgs || []).concat([step]), {
+      stdio: 'inherit',
+      cwd: opts.cwd || ROOT,
+      env: buildStepEnv(opts.parentEnv || process.env, profile),
+      // POSIX: the step leads its own process group, so a timeout can kill the sidecars it spawned too.
+      detached: process.platform !== 'win32'
+    });
+    activeChild = child;
+    const finish = (status, signal) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (fallback) clearTimeout(fallback);
+      activeChild = null;
+      try { rmSync(profile, { recursive: true, force: true }); } catch (_) {}
+      done({ status: timedOut ? 124 : status, signal: signal || null, timedOut, ms: Date.now() - started });
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      opts.log(opts.label + ': step ' + opts.position + ' TIMED OUT after ' + seconds(opts.timeoutMs) +
+        ' — killing its process tree: node ' + step);
+      killTree(child).then(() => {
+        // a child that never reports its exit must not hang the gate either
+        fallback = setTimeout(() => finish(124, null), 10000);
+        fallback.unref();
+      });
+    }, opts.timeoutMs);
+    child.on('error', error => {
+      opts.log(opts.label + ': step ' + opts.position + ' could not start: ' + ((error && error.message) || error));
+      finish(127, null);
+    });
+    child.on('exit', (code, signal) => finish(code, signal));
+  });
+}
+
+function describeFailure(r) {
+  if (r.timedOut) return 'timed out after ' + seconds(r.timeoutMs);
+  if (r.status == null) return 'signal ' + r.signal;
+  return 'exit ' + r.status;
+}
+
+/* Runs every selected step and resolves the process exit code: 0 when every step passed, otherwise the first
+   failing step's exit code (124 for a timeout, 1 for a signal). */
+export async function runList(options) {
   const opts = options || {};
   const label = opts.label || 'run-test-list';
-  const listFile = isAbsolute(opts.listFile) ? opts.listFile : join(ROOT, opts.listFile);
+  const log = typeof opts.log === 'function' ? opts.log : (line => console.log(line));
+  const at = p => (isAbsolute(p) ? p : join(ROOT, p));
+  const listFile = at(opts.listFile);
   const all = readSteps(listFile);
   const filters = Array.isArray(opts.filters) ? opts.filters.filter(Boolean) : [];
-  const steps = filters.length ? all.filter(step => filters.some(filter => step.includes(filter))) : all;
-  if (filters.length && !steps.length) {
-    console.error(label + ': no step in ' + listFile + ' matches ' + filters.join(', '));
+  const filtered = filters.length ? all.filter(step => filters.some(filter => step.includes(filter))) : all;
+  if (filters.length && !filtered.length) {
+    log(label + ': no step in ' + listFile + ' matches ' + filters.join(', '));
     return 1;
   }
-  for (let index = 0; index < steps.length; index++) {
-    const step = steps[index];
-    // HERMETIC PROFILE (2026-08-20): the sidecar's boot-time station auto-recovery scans the real
-    // per-user app-data roots for a lost station, and a test's fresh temp workspace looks exactly
-    // like one — so on a machine with an installed StarNet station, test-booted sidecars ingested
-    // the user's REAL station into their temp workspaces (schema-stamp and sidecar.http broke the
-    // day the desktop app was first installed on the dev box). Every step gets its own empty
-    // scratch profile so no spawned sidecar can see, or touch, real user data — and no step can
-    // plant a station a later step would recover. (test/helpers/sidecar-fixture.js applies the
-    // same isolation for directly-invoked fixture tests.)
-    const profile = mkdtempSync(join(tmpdir(), 'starnet-gate-profile-'));
-    const hermetic = { APPDATA: profile, LOCALAPPDATA: profile, XDG_DATA_HOME: profile };
-    if (process.platform !== 'win32') hermetic.HOME = profile;
-    const result = spawnSync(process.execPath, [step], {
-      stdio: 'inherit',
-      cwd: ROOT,
-      env: Object.assign({}, process.env, hermetic)
-    });
-    try { rmSync(profile, { recursive: true, force: true }); } catch (_) {}
-    if (result.status !== 0) {
-      console.error(label + ': FAILED at step ' + (index + 1) + '/' + steps.length + ': node ' + step +
-        ' (exit ' + (result.status == null ? 'signal ' + result.signal : result.status) + ')');
-      return result.status == null ? 1 : result.status;
+  const steps = shardSteps(filtered, opts.shard || null);
+  if (opts.shard) log(label + ': shard ' + opts.shard.index + '/' + opts.shard.total + ' — ' + steps.length + ' of ' + filtered.length + ' step(s)');
+  const slow = new Set(readOptionalSteps(opts.slowList === undefined ? at(SLOW_LIST) : (opts.slowList && at(opts.slowList))));
+  const flaky = new Set(readOptionalSteps(opts.flakyList === undefined ? at(FLAKY_LIST) : (opts.flakyList && at(opts.flakyList))));
+  const stepTimeout = Number(opts.stepTimeoutMs) > 0 ? Number(opts.stepTimeoutMs) : STEP_TIMEOUT_MS;
+  const slowTimeout = Number(opts.slowTimeoutMs) > 0 ? Number(opts.slowTimeoutMs) : SLOW_STEP_TIMEOUT_MS;
+
+  const results = [];
+  const failures = [];
+  const flakyNotes = [];
+  const runStarted = Date.now();
+  let interrupted = null;
+  const onSignal = signal => {
+    interrupted = signal;
+    log(label + ': interrupted by ' + signal + ' — stopping the current step and the run');
+    if (activeChild) killTree(activeChild).then(() => process.exit(130));
+    else process.exit(130);
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+  try {
+    for (let index = 0; index < steps.length && !interrupted; index++) {
+      const step = steps[index];
+      const position = (index + 1) + '/' + steps.length;
+      const timeoutMs = slow.has(step) ? slowTimeout : stepTimeout;
+      const attemptOpts = { label, position, timeoutMs, log, nodeArgs: opts.nodeArgs, parentEnv: opts.parentEnv, cwd: opts.cwd };
+      let r = Object.assign(await runAttempt(step, attemptOpts), { timeoutMs });
+      const attempts = [r];
+      if (r.status !== 0 && flaky.has(step)) {
+        log(label + ': step ' + position + ' failed (' + describeFailure(r) + ') — a quarantined flaky step (test/flaky.list), retrying once: node ' + step);
+        r = Object.assign(await runAttempt(step, attemptOpts), { timeoutMs });
+        attempts.push(r);
+        flakyNotes.push({ step, position, attempts });
+      }
+      const ms = attempts.reduce((sum, a) => sum + a.ms, 0);
+      const ok = r.status === 0;
+      const row = { step, position, ok, ms, status: r.status, signal: r.signal, timedOut: r.timedOut, timeoutMs, attempts: attempts.length };
+      results.push(row);
+      if (!ok) failures.push(Object.assign({ index }, row, { why: describeFailure(r) }));
+      log(label + ': step ' + position + ' ' + (ok ? 'ok' : 'FAILED (' + describeFailure(r) + ')') + ' ' + seconds(ms) + ' — node ' + step);
+      if (typeof opts.onStepResult === 'function') opts.onStepResult(row);
+    }
+  } finally {
+    process.removeListener('SIGINT', onSignal);
+    process.removeListener('SIGTERM', onSignal);
+  }
+
+  if (opts.timingsFile) {
+    try { writeFileSync(at(opts.timingsFile), JSON.stringify({ label, list: opts.listFile, steps: results }, null, 2) + '\n'); }
+    catch (error) { log(label + ': could not write timings to ' + opts.timingsFile + ': ' + error.message); }
+  }
+
+  log(label + ': ran ' + results.length + ' step(s) in ' + clock(Date.now() - runStarted));
+  const slowest = results.slice().sort((a, b) => b.ms - a.ms).slice(0, 10);
+  if (slowest.length) {
+    log(label + ': slowest steps:');
+    for (const r of slowest) log('  ' + seconds(r.ms).padStart(7) + '  ' + r.step + (slow.has(r.step) ? '  (slow.list)' : ''));
+  }
+  if (flakyNotes.length) {
+    log(label + ': quarantined flaky steps that failed at least once (test/flaky.list):');
+    for (const note of flakyNotes) {
+      const final = note.attempts[note.attempts.length - 1];
+      log('  step ' + note.position + ' node ' + note.step + ' — first attempt ' + describeFailure(note.attempts[0]) +
+        (final.status === 0 ? ', passed on retry' : ', retry ' + describeFailure(final) + ' (counted as a failure)'));
     }
   }
-  console.log(label + ': OK — ' + steps.length + ' step(s) green');
+  for (const f of failures) log(label + ': FAILED at step ' + f.position + ': node ' + f.step + ' (' + f.why + ')');
+  if (failures.length) {
+    log(label + ': FAILED — ' + failures.length + ' of ' + steps.length + ' step(s) failed');
+    const first = failures[0];
+    return first.timedOut ? 124 : (first.status == null || first.status === 0 ? 1 : first.status);
+  }
+  log(label + ': OK — ' + steps.length + ' step(s) green');
   return 0;
 }
 
-export function main(argv) {
-  const args = Array.isArray(argv) ? argv.slice() : process.argv.slice(2);
-  const listFile = args.shift();
-  if (!listFile) {
-    console.error('usage: node scripts/run-test-list.mjs <list-file> [substring filters...]');
-    return 1;
+export function parseArgs(argv) {
+  const args = Array.isArray(argv) ? argv.slice() : [];
+  const out = { listFile: null, filters: [], shard: null, timingsFile: null };
+  for (const arg of args) {
+    if (arg.startsWith('--shard=')) out.shard = parseShard(arg.slice('--shard='.length));
+    else if (arg.startsWith('--timings=')) out.timingsFile = arg.slice('--timings='.length);
+    else if (arg.startsWith('--')) throw new Error('unknown option ' + arg);
+    else if (!out.listFile) out.listFile = arg;
+    else out.filters.push(arg);
   }
-  return runList({ listFile, filters: args });
+  return out;
 }
 
-if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) process.exit(main());
+export async function main(argv) {
+  let parsed;
+  try { parsed = parseArgs(Array.isArray(argv) ? argv : process.argv.slice(2)); }
+  catch (error) { console.error(error.message); parsed = null; }
+  if (!parsed || !parsed.listFile) {
+    console.error('usage: node scripts/run-test-list.mjs <list-file> [--shard=K/N] [--timings=<file.json>] [substring filters...]');
+    return 1;
+  }
+  return runList(parsed);
+}
+
+if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) process.exit(await main());

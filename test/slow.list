@@ -1,0 +1,4 @@
+# Declared slow steps. Read by scripts/run-test-list.mjs: a step listed here gets 600 s instead of the 120 s every
+# other step gets. A step here must also be on a gate list (test-list-completeness checks it).
+# Keep it honest: add a step with its measured time from a full run (`--timings=<file>` writes them), and say why
+# it is slow. A step that hangs is a bug to fix, not a step to list here.
