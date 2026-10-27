@@ -17,3 +17,29 @@ test/website-app-sync.test.js
 test/ledger-reconcile.test.js
 # browser: the browser automation contract suite — 42.6 s.
 test/browser.test.js
+#
+# Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
+# taint-lineage.e2e: two sidecar boots and a restart, silent until the end — cut off at 120 s twice, 148 s standalone.
+test/taint-lineage.e2e.test.js
+# cli-app-launch.e2e: starts the app in the background for the CLI — 61.7 s alone, cut off at 120 s under load.
+test/cli-app-launch.e2e.test.js
+# routing.sample.e2e — 114.1 s.
+test/routing.sample.e2e.test.js
+# questrefresh.e2e — 77.5 s.
+test/questrefresh.e2e.test.js
+# loops.e2e — 72.8 s.
+test/loops.e2e.test.js
+# e2e.overseer — 62.7 s.
+test/e2e.overseer.test.js
+# e2e.dispatch-session — 43.6 s in the gate, 59.6 s rerun.
+test/e2e.dispatch-session.test.js
+# connector-storage-start-fresh.http — 53.7 s.
+test/connector-storage-start-fresh.http.test.js
+# verdictpackets.http — 50.9 s.
+test/verdictpackets.http.test.js
+# memory-learning-boundary.http — 46.2 s.
+test/memory-learning-boundary.http.test.js
+# station-builder.e2e — 45.8 s.
+test/station-builder.e2e.test.mjs
+# spend-authority.http — 42.7 s.
+test/spend-authority.http.test.js
