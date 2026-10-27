@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "282014bf7c1085493c7a60ae9bd36b3ccd0274d1",
-    "pathSetSha256": "93a6809cb616abda08e0ace8ac71308a79d2a668935dd6695ca7e0ddac84df17",
+    "sourceCommit": "65a7787afe35d44ff3d4f6cd74cddcf0dbc4810b",
+    "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
         "path": "INSTALL.md",
@@ -697,6 +697,11 @@
         "sha256": "559bc8a6e5569e73cb8e9a02fb3e664367224b39018a9c469acf3bfab775e7a1"
       },
       {
+        "path": "frontend/app/memtruth.js",
+        "bytes": 18718,
+        "sha256": "32e60bdc6d9e5d19e73b2d23300c8193cb57d0abe699fe66b270f21eccf04549"
+      },
+      {
         "path": "frontend/app/mint.js",
         "bytes": 12343,
         "sha256": "9f21ff0e708423025301b63fad1b2d8871a9a57ab63e6fa5fc1825a31abbab6c"
@@ -1203,8 +1208,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 968181,
-        "sha256": "1bf9386906408f1c4cf6889822876d9766b9e2738350bd0ae679375212dc3ed9"
+        "bytes": 969464,
+        "sha256": "a823eb90f9a3ed8103b06fcf9a3d7dcfd322dd71d09c22e04974b0f80f71f409"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1213,8 +1218,8 @@
       },
       {
         "path": "frontend/app/study.js",
-        "bytes": 22584,
-        "sha256": "0254f3a25bfbccc30e0813db8371fc6feb121bf05913c2f34fcbd7ae4358d338"
+        "bytes": 22273,
+        "sha256": "cae26b162862f54bbd0e032ce02217e92734f4cd0a8fede3527795bfe52c1ee5"
       },
       {
         "path": "frontend/app/studystore.js",
@@ -1833,8 +1838,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 99596,
-        "sha256": "b42541b23d5766d55f805cdf7731790716d3b820f72ce5bed137d26bbc3d2bf1"
+        "bytes": 99765,
+        "sha256": "791aefc78d0be7c1835d979ba5c984982e0c7b24efedbcaba8f7555985037e1c"
       },
       {
         "path": "frontend/js/arcade.js",
