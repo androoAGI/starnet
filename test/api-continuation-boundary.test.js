@@ -2,6 +2,7 @@
    Transport/DNS/native execution are disabled; index snippets are evaluated without starting the application.
    This is a regression control, not live run-loop or customer recovery proof. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +13,7 @@ const responseProvenance = require('../sidecar/tools/response-provenance.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeRunExecutionState } = require('../sidecar/run-execution-state.js');
 const root = path.resolve(__dirname, '..');
-const idx = fs.readFileSync(path.join(root, 'sidecar/index.js'), 'utf8');
+const idx = readSidecarSource();
 function between(start, end) {
   const a = idx.indexOf(start), b = idx.indexOf(end, a + start.length);
   if (a < 0 || b <= a || idx.indexOf(start, a + start.length) >= 0) throw Error('Missing/ambiguous index seam: ' + start);

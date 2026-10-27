@@ -7,6 +7,7 @@
      · the desktop wiring: module, managed state, commands, the tray's HUD Mode / Open StarNet paths,
        and the HUD's restore floor mirroring the main window's builder. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -79,7 +80,7 @@ const T0 = 1_800_000_000_000;
     A.ok(!isDragRegion([key, h3]), 'a header key stays a click (the h3 is not deep)');
     A.eq(h3Attr, '', 'the h3 keeps the bare (self-only) attribute');
   }
-  const side = fs.readFileSync(path.join(ROOT, 'sidecar/index.js'), 'utf8');
+  const side = readSidecarSource();
   A.ok(side.includes('row.stoppable = runs.has(runId);') && side.includes("source: 'host', stoppable: runs.has(runId) }"), 'the snapshot says which runs /api/cancel can reach (additive)');
   const world = fs.readFileSync(path.join(ROOT, 'frontend/app/world.js'), 'utf8');
   A.ok(world.includes('function cameraState()') && world.includes('function restoreCamera(st)') && world.includes('cameraState, restoreCamera,'), 'the world hands a borrowed camera back exactly');
@@ -319,7 +320,7 @@ A.eq([H.fmtAgo(10_000), H.fmtAgo(5 * 60_000), H.fmtAgo(2 * 3_600_000)], ['just n
     A.ok(glass.includes(':is(#chat-status, #chat-elapsed) { display: none !important; }'), 'the HUD header never squeezes its keys out of the window');
     A.ok(js.includes("el('button', 'btn', 'AGENT CAM')") && !js.includes("'btn', 'SMALL')"), 'the key that shrinks the HUD says where it goes: AGENT CAM (Andrew 09-30: not SMALL)');
   }
-  const side = read('sidecar/index.js');
+  const side = readSidecarSource();
   A.ok(has(side, "source: 'interactive', streamId: streamId || '', internal: internal }", 'if (meta && meta.internal) row.internal = true;') && has(js, 'r.internal || workerRuns.has'),
     'live self-talk is marked by the sidecar and never shown as the Commander\'s work');
 }

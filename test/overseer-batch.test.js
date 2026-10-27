@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/overseer-batch.test.js — ONE REPORT PER HAND-OFF (2026-10-11, version B).
    GENUINE: sidecar/overseer.js freshReviews groups the workers one lead run sent out and reviews them together once
    they have all settled; a straggler past the ceiling gets the finished part reported and one follow-up of its own;
@@ -118,7 +119,7 @@ try {
     A.eq(m.snapshot().reviews.length, 1, 'a worker with no lead run is its own hand-off');
   }
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const tick = idx.slice(idx.indexOf('async function tickOverseer'), idx.indexOf('const overseerTimer'));
     A.ok(/overseer\.membersOf\(r\)/.test(tick) && /const instruction = delegatedReportPrompt\(members, waiting, review\.followUp === true\)/.test(tick), 'the tick reviews every worker of the hand-off in one run');
     const prompt = idx.slice(idx.indexOf('function delegatedReportPrompt'), idx.indexOf('async function tickOverseer'));

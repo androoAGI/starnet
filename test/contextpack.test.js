@@ -8,6 +8,7 @@
      · REDACTION — a secret in a chat body never reaches the pack (redact injected, applied to first-lines).
      · EVIDENCE POOL — activityLines carries the real run/chat/goal/landed lines (the veto's extended pool) + is bounded. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const CP = require('../sidecar/contextpack.js');
 
@@ -147,7 +148,7 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
 // Exercise the real host projection, then the real pure pack: a source regex cannot prove that private
 // provenance survives filtering or that a completed brief actually belongs to a clean owner's directive.
 {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+  const src = readSidecarSource();
   const fn = A.fnBody(src, 'function nightshiftContextPack(evidence)');
   A.ok(fn.startsWith('function nightshiftContextPack(evidence)') && fn.length < 10000 && /return pack;\s*}$/.test(fn),
     'extract exactly the host context-pack function, not neighbouring code');

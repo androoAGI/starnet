@@ -12,6 +12,7 @@
 
    The upstream LLM is mocked via SKYNET_OPENROUTER_BASE (no real key, no network). Modeled on e2e.run.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { userWords } = require('./helpers/host-notes.js');   // the caller's own words: the run-context note leads the newest user message on this wire
 const http = require('http');
@@ -207,7 +208,7 @@ async function drain(res) {
   // #96 follow-up: tools ride /v1, but a model the catalog KNOWS is tool-less still answers in text (pre-#96), never refused
   {
     const compat = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'openai-compat.js'), 'utf8');
-    const core = fs.readFileSync(INDEX, 'utf8');
+    const core = readSidecarSource();
     A.ok(/isTask: !o\.outputOnly, toolsOptional: true/.test(compat), '/v1 runs are tasks with tools OPTIONAL');
     A.ok(/if \(isTask && o\.toolsOptional && provider\.supportsTools\(model\) === false\) isTask = false;/.test(core), 'a tools-optional run on a known tool-less model drops to text instead of the "can\'t run tasks" refusal');
     A.ok(core.indexOf('o.toolsOptional && provider.supportsTools(model) === false') < core.indexOf('fallbackChain.promoteToolCapable('), 'the text downgrade happens before any fallback promotion (the caller named its model)');

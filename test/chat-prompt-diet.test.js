@@ -9,11 +9,12 @@
    test/chat-prompt-diet.e2e.test.js proves the bytes the model receives; this lock keeps the gates from
    quietly regressing in an auto-merge. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const once = (needle, label) => { A.eq(src.split(needle).length - 1, 1, label + ' (exactly one occurrence)'); };
 
 // 600ab235c hoisted a project-conversation lookup behind the same gate, so the crew>0 briefing is now the else-branch

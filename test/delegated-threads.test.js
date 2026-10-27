@@ -15,6 +15,7 @@
    OUT OF HEADLESS SCOPE (proven live on a scripted-model station, dev/delegation-preview.cjs): the card in COMMS, See
    work unfolding a real receipt, Stop, a worker approval answered from its row. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -365,7 +366,7 @@ const roster = new Map([['researcher', { system: 'R', name: 'MIRA' }], ['writer'
 /* ---- 4. wiring ---- */
 {
   const src = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-  const app = src('frontend/app/app.js'), chat = src('frontend/app/chat.js'), html = src('frontend/index.html'), idx = src('sidecar/index.js'), ov = src('frontend/app/overseer.js');
+  const app = src('frontend/app/app.js'), chat = src('frontend/app/chat.js'), html = src('frontend/index.html'), idx = readSidecarSource(), ov = src('frontend/app/overseer.js');
   const dg = src('frontend/app/delegated.js'), sc = src('frontend/app/stationcommands.js'), rs = src('frontend/app/returnstore.js');
   A.ok(!/nestRows|railKidsChip|ws-child/.test(app), 'SESSIONS never folds or counts workers\' threads (they are not sessions)');
   A.ok(/const home = Workstreams\.homeOf \? Workstreams\.homeOf\(id\) : id;\s*\n\s*if \(home !== id\) \{ switchWorkstream\(home\); if \(typeof Delegated !== 'undefined' && Delegated\.reveal\) Delegated\.reveal\(id\); return; \}/.test(app),

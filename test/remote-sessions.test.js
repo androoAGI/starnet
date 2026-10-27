@@ -2,6 +2,7 @@
    A conversation held from a phone must become a desk session, show busy only while the station says its run is
    live, and reload the open session when a phone turn lands in it — and never resurrect a deleted session. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 
 const sessions = new Map();
@@ -105,7 +106,7 @@ const I = RemoteSessions._internals;
   // stream, and the question card listens the way the approval card does
   {
     const rd = p => require('fs').readFileSync(require('path').join(__dirname, '..', p), 'utf8');
-    const idx = rd('sidecar/index.js'), chat = rd('frontend/app/chat.js');
+    const idx = readSidecarSource(), chat = rd('frontend/app/chat.js');
     A.ok(/const viaRemote = \(d\) => \{ orig\(d\); const decision = typeof d === 'string' \? [^;]+: \(d && d\.__clarify \? 'once' : null\);/.test(idx), 'a phone reply to a question emits permission.response on the desk run');
     const clar = chat.slice(chat.indexOf('function clarifyRow('), chat.indexOf('function permissionRow('));
     A.ok(/U\.bus\.on\('permission\.response', onElsewhere\)/.test(clar) && /'✓ answered' \+ settledWhere\(resp\)/.test(clar) && /resp\.via \? '' : ' from your phone'/.test(chat) &&/Channels\.clearPending\(ws\.id, Date\.now\(\), p\.promptId\)/.test(clar), 'the question card settles to "answered from your phone" and clears only its own prompt');

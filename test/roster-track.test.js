@@ -15,6 +15,7 @@
    (the briefing is built deep inside a 6.5k-line request path, the same reason beat-coordination.test guards
    chat.js at the source). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -80,7 +81,7 @@ runEnd('done', 'tail');
 A.eq(agent.stats.xp, xpFromRatings, 'a completed run still mints NO XP — S3 changed nothing about the XP law');
 
 /* ---------- 3: the sidecar renders it, and stays silent when there is nothing to say ---------- */
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const iTeam = src.indexOf("teamNote = '\\n\\n[ORCHESTRATION]");
 A.ok(iTeam > 0, 'sidecar/index.js still builds the [ORCHESTRATION] dispatch briefing');
 const teamEnd = src.indexOf('let skillBlock', iTeam);

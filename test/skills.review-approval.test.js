@@ -2,6 +2,7 @@
    The evaluator implementation has its own suite. Here a host-issued receipt verifier is
    injected so persistence, races and every mutation frontdoor can be exercised deterministically. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeSkillStore } = require('../sidecar/skillstore.js');
 const { makeSkillGate, digestOf } = require('../sidecar/skills/gate.js');
@@ -504,7 +505,7 @@ for (const change of ['body', 'files', 'summary', 'baseline', 'pin']) {
 // approveCandidate. An archive carries the live sibling's bytes, so a refused archive (heir not approved yet) left a
 // withheld sibling's bytes approved. The route must ask the store's promotionBlocker BEFORE that precommit.
 {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const at = src.indexOf("if (action === 'approve-candidate') {");
   const branch = at >= 0 ? src.slice(at, src.indexOf("if (action !== 'evaluate-candidate')", at)) : '';
   const blocker = branch.indexOf('skillStore.promotionBlocker(agentId, candidate.candidateId)');

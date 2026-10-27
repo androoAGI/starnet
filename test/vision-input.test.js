@@ -16,6 +16,7 @@
         remembers it, so the next request to that model goes without the image instead of failing again.
      5. The Commander's copy on BOTH friendlyerror paths (browser mirror and node) names the fix: a vision model. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -242,7 +243,7 @@ async function drain(p, req) {
       A.eq(posts, ['vendor/sees'], 'studio vision: an explicit args.model is still the model asked');
     }
     // the run host wires it, and the session-model rescue names a fix that works on every route
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const aux = idx.slice(idx.indexOf('const auxVisionCall = async (req) => {'), idx.indexOf('const imageTools = makeImageTools('));
     const wire = idx.slice(idx.indexOf('const imageTools = makeImageTools('), idx.indexOf('const imageTools = makeImageTools(') + 2600);
     A.ok(wire.includes("runModelSeesImages: (m) => ((studioModelProvider && typeof studioModelProvider.supportsImages === 'function') ? studioModelProvider.supportsImages(m) : null)"),

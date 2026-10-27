@@ -13,6 +13,7 @@
    Pinned through the REAL adapters (managed openai-compatible + direct OpenRouter), on both friendlyerror paths
    (browser = loaded without require), on the pure fail-review predicate, and on the gate that consumes it. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -162,7 +163,7 @@ const REJECTED = /rejected the API key/i;
 
   // ...and the run-end gate consumes it (index.js cannot be required: it boots a sidecar)
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const at = src.indexOf('const _gateFailReview = ');
     A.ok(at > 0, 'the fail-review gate exists');
     const gate = src.slice(at, src.indexOf(';\n', at));

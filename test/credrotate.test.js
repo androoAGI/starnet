@@ -4,6 +4,7 @@
    the loop rotates to the next key, the run completes, the failed key is reported to onFallback and cooled in
    credpool so it isn't tried first next run. No real keys / no network. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const events = require('../shared/events.js');
 const { makeEmitter } = require('../shared/emitter.js');
@@ -182,7 +183,7 @@ function okProvider(text) {
   // the same pattern channels.sse.test.js uses for handleChannelEvents)
   {
     const fs = require('fs'); const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const at = src.indexOf('let rotationFallbacks = []');
     A.ok(at > 0, 'index.js owns the rotation-fallback build');
     const seg = src.slice(at, at + 2600);

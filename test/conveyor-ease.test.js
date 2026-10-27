@@ -11,12 +11,13 @@
      · THE OUTBOX IS TOLD — the panel promised "the result lands in the OUTBOX"; a clean delivered job is now folded into the
        OUTBOX's ledger (only COMMS' INBOX card did that before). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('node:vm');
 const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8').replace(/\r\n/g, '\n');
-const panel = read('frontend/app/workflowpanel.js'), build = read('frontend/app/build.js'), css = read('frontend/css/workflow-panel.css'), sidecar = read('sidecar/index.js');
+const panel = read('frontend/app/workflowpanel.js'), build = read('frontend/app/build.js'), css = read('frontend/css/workflow-panel.css'), sidecar = readSidecarSource().replace(/\r\n/g, '\n');
 const at = (src, from, to) => { const a = src.indexOf(from); return a < 0 ? '' : src.slice(a, to ? src.indexOf(to, a) : a + 4000); };
 
 /* ---------- a step's instructions are ADDED to the agent's own purpose ---------- */

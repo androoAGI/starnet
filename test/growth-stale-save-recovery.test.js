@@ -13,6 +13,7 @@
         catch-up that keeps failing stays a failed save (one request per attempt, no loop, no OK stamp).
      C. the sidecar's growthStale refusal itself is untouched. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -145,7 +146,7 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
   A.eq(posts.filter(p => p.stationStats.ratingSyncAt < ledgerLatest).every(p => p.stationStats.ratingSyncAt !== 1000), true, 'cloudsave never rewrote a watermark itself');
 
   // ================= C. the protection stays =================
-  const sidecar = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const sidecar = readSidecarSource();
   A.ok(/if \(latestRatingAt > ratingSyncAt\) return json\(200, \{ ok: false, stale: true, growthStale: true, latestRatingAt \}\);/.test(sidecar),
     'the sidecar still refuses a save whose rating watermark trails the ledger');
   A.report('growth-stale-save-recovery');

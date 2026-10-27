@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/set-key-body.test.js — POST /api/key (the desktop shell's provider-config push) never treats a body it could
    not read as an empty key (delta review 10-15).
 
@@ -15,7 +16,7 @@ const http = require('http');
 const { EventEmitter } = require('events');
 const { readBody } = require('../sidecar/http-body.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const body = A.fnBody(src, 'async function handleSetKey(req, res) {');
 A.ok(body.length > 200 && body.length < 6000, 'sidecar/index.js has one bounded handleSetKey');
 

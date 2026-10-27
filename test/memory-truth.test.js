@@ -13,6 +13,7 @@
      8. an "unhelpful" rating trust cannot absorb becomes bounded distrust that really demotes the memory
    (6 = the dossier seed and 9 = backup import live in test/dossier.test.js and test/notebookrestore.test.js.) */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -212,7 +213,7 @@ function harness(at, extra) {
   }
   {
     // source locks: the host wires the seams (idiom of beat-coordination.test)
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/memcore\.receiptBatchFor\(proposalsByRun, latestProposalRun, agent, runId\)/.test(idx), 'serveProposals resolves a run\'s batch through receiptBatchFor');
     A.ok(!/const lr = latestProposalRun\.get\(agent\); batch = lr/.test(idx), 'the cross-run fallback is gone');
     A.ok(/onSaved: recordRunReceipt/.test(idx), 'notebook.write reports its saves as this run\'s receipts');

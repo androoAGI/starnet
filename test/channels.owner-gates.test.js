@@ -14,6 +14,7 @@
      5. wireChannel names the owner from the adapter's paired id (Discord/Slack/Matrix/Signal)
      6. relay ingress binds the claimed sender to the live adapter's own admission and strips host verdicts */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -183,7 +184,7 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
   }
   {
     // production seam guard: runOnceCore reads Full Power ONLY through the withheld-aware helpers
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/const hostPowerWithheld = hostPowerWithheldFor\(o\);/.test(idx), 'runOnceCore computes the run-origin verdict');
     A.ok(/const agentFullAccessNow = \(\) => !hostPowerWithheld && /.test(idx), 'per-agent Full Access is withheld from non-owner channel runs');
     A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\);/.test(idx), 'the station master bypass is withheld too');
@@ -250,7 +251,7 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
     const relayed = admitRelayMessage({ chatId: '-100', userId: 'member', text: '/model model-b', chatType: 'group' }, paired);
     await t.hub.onInbound(relayed.message);
     A.eq(t.models.length, 0, 'a relayed group member cannot change the model');
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/const admitted = admitRelayMessage\(body\.message \|\| body, live\.adapter\);/.test(idx), 'the webhook route admits through the live adapter');
     A.ok(!/live\.hub\.onInbound\(Object\.assign\(\{\}, msg/.test(idx), 'the route no longer spreads the raw body into the hub');
   }

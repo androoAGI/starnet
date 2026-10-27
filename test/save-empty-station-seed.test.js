@@ -24,6 +24,7 @@
         window's copy was saved back first, never that the station file is newer; a NEWER copy that lost the race is
         told the same, and a conflict inside the re-seeded line stays the ordinary one. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -34,7 +35,7 @@ const { makeSaveStore } = require('../sidecar/savestore.js');
 
 const repo = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8');
-const indexSrc = read('sidecar/index.js');
+const indexSrc = readSidecarSource();
 const handlers = ['function crewLooksOf(save)', 'function seedSaveMemos(agentId, doc)', 'function serveSaveLoad(req, res)', 'async function handleSaveWrite(req, res)',
   'function serveSaveConflicts(req, res)', 'async function handleSaveConflictRestore(req, res)',
   'function keepStationGrowth(doc, station)', 'function keepTerminalApprovals(doc, station)', 'async function handleSaveAdopt(req, res)']

@@ -8,12 +8,13 @@
    that boots a sidecar) and evaluates the table with every free identifier stubbed by name, so the WHOLE table is
    walked in its real order and the test names whichever handler wins. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const { fnBody } = require('./_fnbody.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource({ except: ['sidecar/tools/builtin/routines.js'] });   // routines.js declares a ROUTES table of its own
 const rStart = src.indexOf('const ROUTES = [');
 const rEnd = src.indexOf('\n];\n', rStart);
 A.ok(rStart > 0 && rEnd > rStart, 'the ROUTES table is found in sidecar/index.js');

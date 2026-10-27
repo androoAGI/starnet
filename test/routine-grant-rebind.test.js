@@ -5,6 +5,7 @@
    The routine fired ~1 minute later with its standing shell grant intact. The grant belongs to the prompt
    the Commander approved; an agent edit of that prompt now drops it. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -33,7 +34,7 @@ A.eq(cronStore.grantsRevokedByAgentEdit(null, { prompt: 'x' }), [], 'a missing j
 
 // ---- 3. the host wires the rule into the AGENT path only ----
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const at = src.indexOf('updateRoutine: async (id, patch) => {');
   A.ok(at > 0, 'routine.manage store verb located');
   const body = src.slice(at, at + 4000);

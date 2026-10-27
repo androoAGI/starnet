@@ -7,6 +7,7 @@
       (transport toggle, stdio fields, headers, timeout, edit, reload), and the Spotify card must
       stay intact. Mirrors the provider-connections-ui source-guard style. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const vm = require('node:vm');
@@ -217,7 +218,7 @@ function fakeStack(tools) {
   A.ok(/openSignIn\(/.test(station) && /window\.open\(/.test(stationCore), 'sign-in opens the provider consent in a popup (via the shared openSignIn helper)');
   A.ok(/ccPending/.test(station), 'sign-in has a per-connector in-flight guard (no duplicate popups / concurrent pollers)');
   A.ok(/e\.authType === 'oauth'/.test(station), 'the UI gates on the authType tier from the catalog');
-  const sidecar = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const sidecar = readSidecarSource();
   A.ok(/resolveConnectorOauthTarget\([^\n]+connectorCatalog, connectorConfigs\)/.test(sidecar),
     'OAuth start resolves both catalog and durably saved custom connector ids');
   A.ok(/connectorOauthPublicUrl[\s\S]{0,500}assertResolvedSafe/.test(sidecar) && /fetchImpl: connectorOauthFetch/.test(sidecar)

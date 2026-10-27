@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 // provider-connections-ui.test.js - source guard for additive provider credentials in Settings.
 // ChatGPT/Codex OAuth and OpenRouter BYOK must coexist: signing into Codex must not erase,
 // hide, or leak the OpenRouter key path.
@@ -50,7 +51,7 @@ ok(/return\s*\{[\s\S]*hasStoredCredential[\s\S]*\}/.test(harness), 'hasStoredCre
 ok(/DEVMODE\s*&&\s*DEV\s*&&\s*DEV\.hasKey\s*===\s*true\s*&&\s*normalizeProviderId\(DEV\.prov\)\s*===\s*p/.test(harness), 'DEV seed only backs the seeded provider (DEV.prov), not all providers');
 // …and only when the host SAYS it holds one. A seeded station with no key still boots in DEV mode, and
 // assuming the key existed rendered "● KEY SAVED" over nothing — the badge an agent reads as proof it can run.
-ok(/hasKey:\s*!!runtimeKey/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')),
+ok(/hasKey:\s*!!runtimeKey/.test(readSidecarSource()),
   'the DEV boot payload carries the honest hasKey (no secret, just the boolean)');
 ok(/const\s+set\s*=\s*h\.hasStoredCredential\s*\?\s*h\.hasStoredCredential\(provider\)/.test(station), 'Settings credential list gates rows on hasStoredCredential, not the DEVMODE-fabricated configured()');
 ok(/stored:\s*!!set/.test(station), 'credential rows preserve the stored-key fact when desktop keychain values are intentionally unreadable');

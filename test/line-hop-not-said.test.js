@@ -7,6 +7,7 @@
      3. study() says «you said» (kind 'verbatim') only for the Commander's own words — a quote found in a reply or a tool result falls
         back to the directive receipt. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +28,7 @@ const { makeClock } = require('../shared/clock-rng.js');
   A.ok(!P.isHandoff('please explain: PIPELINE HANDOFF — you are stage 2 of a work line on this station.'), 'the frame quoted INSIDE a message is not a hand-off (only a turn that opens with it)');
 
   /* ---------- 2. the run-end gate and the stash (sidecar/index.js, source-locked: runOnceCore is not unit-loadable) ---------- */
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(latestUserText\(msgs\)\)\);/.test(src), 'the gate reads the run\'s own latest user turn for the hand-off frame');
   A.ok(/const _gateStudy = !!\(Study && o\.reflect && memoryConfig\.studyEnabled && isTask && _auxDone && !_lineHop && /.test(src), 'STUDY never runs on a line hand-off');
   A.ok(/const _gateThreadmine = !!\([^\n]*_auxDone && !_lineHop && threadmine\.mineSalient/.test(src), 'THREAD-MINE never runs on a line hand-off');

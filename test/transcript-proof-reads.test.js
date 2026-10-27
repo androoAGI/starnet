@@ -12,6 +12,7 @@
    proof:true) sees the real rows, that every ordinary read still forgets them, and that the host's recovery read and
    both delivery readers ask for a proof read. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -113,7 +114,7 @@ function world(label, makeIo) {
 
   // ---------------- 3. the host asks for proof reads (static) ----------------
   {
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const tail = idx.slice(idx.indexOf('function transcriptRecoveryTail('), idx.indexOf('function transcriptRecoveryTail(') + 900);
     A.ok(/transcriptStore\.history\(streamId, \{ sourceRunId: src, limit: 5000, proof: true \}\)/.test(tail), 'transcriptRecoveryTail reads its source rows with a proof read');
     const dd = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'dispatch-delivery.js'), 'utf8');

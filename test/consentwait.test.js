@@ -11,6 +11,7 @@
    (active consent card OR the new background toast + rail marker). No ack ⇒ the old 120s deny is
    byte-identical, so unattended surfaces are untouched. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeConsentWait } = require('../sidecar/consentwait.js');
 
@@ -237,7 +238,7 @@ async function settled(p) { let v, done = false; p.then(x => { v = x; done = tru
     const r = await reg.dispatch({ name: 'fs_write', args: {}, id: 'c9' }, { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', consent: async () => broker.grant('cancelled', { name: 'fs_write' }, { scope: 'write', capability: 'cabinet' }) });
     A.ok(!ran && /^approval withdrawn for fs_write: the request ended before anyone answered it, so it was NOT run\. Nobody said no/.test(r.content) && !/declined|said no on/.test(r.content), 'the model reads "withdrawn", never a No: ' + r.content);
     A.eq(r.summary, 'cancelled', 'a terminal non-run (loop terminalHumanDecision), not counted as a denial');
-    const host = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const host = readSidecarSource();
     A.ok(/\{ timeoutDecision: 'timeout', abortDecision: 'cancelled' \}\);/.test(host) && /timeoutDecision: opts && opts\.timeoutDecision, abortDecision: opts && opts\.abortDecision,/.test(host), 'the capability consent asks with the withdrawn word');
     A.ok(/try \{ f\(\(f && f\.abortDecision\) \|\| 'deny'\); \}/.test(host), 'the run teardown answers each open ask with its own withdrawn word');
     A.ok(/=== 'cancelled'\) \{\s*return \{ ok: false, isError: true, summary: 'cancelled',/.test(host), 'and a withdrawn post-taint confirmation never reads as the taint lock');

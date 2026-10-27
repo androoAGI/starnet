@@ -8,12 +8,14 @@
    cron.run-now.e2e proves one runner on the wire; this source lock pins EVERY runner in the fast gate, so deleting one
    opt-out (or the guard that reads it) goes red before merge. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
 const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
-const idx = read('sidecar/index.js');
+// the host's runners wherever they live; the hub's own opt-out is counted on its own below
+const idx = readSidecarSource({ except: ['sidecar/channels/hub.js'] });
 const hub = read('sidecar/channels/hub.js');
 const count = (s, needle) => s.split(needle).length - 1;
 

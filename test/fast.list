@@ -92,6 +92,7 @@ test/readbody.test.js
 test/set-key-body.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
+test/source-helper.test.js
 test/runroute.test.js
 test/run-streams.test.js
 test/run-stream-pool.test.js

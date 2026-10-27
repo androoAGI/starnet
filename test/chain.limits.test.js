@@ -3,6 +3,7 @@
    refuses with a reason off a DURABLE ledger, and a seed with no limits runs on exactly the old defaults.
    Pure: fake floor, fake harness, injected clock, in-memory "disk" for the day ledger. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const { makeChainRunner, effectiveLimits, MAX_HOPS, MAX_CHAIN_USD } = require('../sidecar/routing/chain.js');
@@ -52,7 +53,8 @@ let T = 0; const clock = () => (T += 10);
     A.ok(Math.abs(seen[0][1] - 1.25) < 1e-9, 'the first hop may spend only what the entry left (got ' + seen[0][1] + ')');
     A.ok(Math.abs(seen[1][1] - 0.75) < 1e-9, 'the next hop only what is left after that (got ' + seen[1][1] + ')');
     A.ok(Math.abs(seen[2][1] - 0.25) < 1e-9, 'and the last one only the final quarter (got ' + seen[2][1] + ')');
-    const idx = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    // the hub's own hop runner (sidecar/channels/hub.js) also passes h.ceilingUsd; the count is the host's two cron runners
+    const idx = readSidecarSource({ except: ['sidecar/channels/hub.js'] });
     A.ok(idx.includes("!(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);") && idx.split('ceilingUsd: h.ceilingUsd').length - 1 === 2,
       'runOnce lowers its cap to the ceiling (never raises it), and both cron hop runners pass it');
     const hub = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');

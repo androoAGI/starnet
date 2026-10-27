@@ -1,5 +1,6 @@
 /* node test/workspace-safety.test.js — DEV/QA roots can never alias canonical StarNet user data. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const win = require('node:path').win32;
 const posix = require('node:path').posix;
@@ -42,7 +43,7 @@ const duplicateBases = workspaceCandidates({
 A.eq(new Set(duplicateBases.map(row => row.toLowerCase())).size, duplicateBases.length,
   'duplicate environment bases never duplicate recovery evidence');
 
-const index = require('node:fs').readFileSync(require('node:path').join(__dirname, '../sidecar/index.js'), 'utf8');
+const index = readSidecarSource();
 A.ok(/process\.platform === 'darwin'[\s\S]{0,500}?Library'[\s\S]{0,200}?'Application Support'[\s\S]{0,200}?'ai\.skynet\.harness'/.test(index),
   'manual sidecar defaults to the same macOS bundle-id workspace as the desktop shell');
 

@@ -19,6 +19,7 @@
    Source-locks are used where the subject is DOM-flow or load-order wiring (not node-loadable); everything else
    is exercised against the real module. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -269,7 +270,7 @@ A.ok(/App\.openRecipeLaunch\(c\.id, 'routine'\)/.test(proposeBody), 'accept deep
    8. THE NIGHT SHIFT CONSULTS THE DECLINED INDEX
    ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const DeclinedIndex = require('../sidecar/declinedindex.js');
-const sidecarSrc = read('sidecar/index.js');
+const sidecarSrc = readSidecarSource();
 A.ok(/function nightshiftUndeclined\(agentId, candidates\)/.test(sidecarSrc), 'the sidecar has one night-shift declined filter');
 A.eq((sidecarSrc.match(/nightshiftUndeclined\(agentId, Autopilot\.parseCandidates\(/g) || []).length, 2,
   'BOTH night-shift propose paths (draft beat + act shift) run candidates through it');

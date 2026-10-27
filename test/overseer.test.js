@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -46,7 +47,7 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
       'the saved-history fallback labels the step too; a delegated brief (m.from) keeps its own speaker; hidden turns stay out');
     assert.equal(sent, GL.continuationPrompt(GL.create('ship the landing page', { now: 1 })), 'what the goal loop sends the model for its own continuation is unchanged');
     // and overseerStation's read_session is wired through it (sidecar/index.js is never required here: it boots a sidecar)
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const at = idx.indexOf("if (verb === 'station.read_session') {");
     const block = at >= 0 ? idx.slice(at, idx.indexOf('return stationBridge.request(verb, args);', at)) : '';
     assert.ok(/readSessionTurns\(\s*transcriptStore\.history\(w\.id, \{[^}]*\}\), w\.history\)/.test(block) && !/speaker: m\.role/.test(block),
@@ -210,7 +211,7 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
     // (sliced from the source, never required: requiring index.js boots a sidecar) against a counted save, so the
     // saving reaches the place workers are actually filed.
     {
-      const src = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+      const src = readSidecarSource();
       const at = src.indexOf('childThread: ');
       assert.ok(at > 0, 'index.js still files workers through childThread');
       const body = require('./_assert.js').fnBody(src.slice(at, at + 4000), '(a) => {');

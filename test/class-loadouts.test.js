@@ -14,6 +14,7 @@
      3. SOURCE-LEVEL invariants for the browser-only summon path (app.js / build.js are IIFEs over live DOM, so —
         like kitout.test.js — we lock the honesty-critical wiring by reading the source): NO per-agent placement. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -367,7 +368,7 @@ A.ok(tight.indexOf('P1') >= 0, 'under a tight budget the agent package composes 
 A.eq(tight.indexOf('G1'), -1, 'the global extra (G1) is the one truncated, not the class package');
 
 /* ---------- 2b. sidecar roster passthrough (source-level: additive fields carried + persisted) ---------- */
-const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const idx = readSidecarSource();
 const repl = idx.slice(idx.indexOf('function replaceAgentRoster('), idx.indexOf('function loadAgentRoster('));
 A.ok(/skills:\s*Array\.isArray\(a && a\.skills\)/.test(repl), 'replaceAgentRoster passes through per-agent skills[]');
 A.ok(/reasoningEffort:\s*\(a && a\.reasoningEffort\)/.test(repl), 'replaceAgentRoster passes through reasoningEffort');

@@ -9,6 +9,7 @@
    The real-sidecar proof (a real disconnect mid-approval, and STOP getting no such line) is
    test/e2e.approval-lifecycle.test.js; this pins the pure pieces and the host wiring. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -77,7 +78,7 @@ const row = (id, role, content, ts) => ({ streamId: 'ws_a', agentId: 'agent', ro
 
 // ---- host wiring (sidecar/index.js; never require()d — it boots a real sidecar) ----
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const close = /res\.on\('close', \(\) => \{\s*if \(!leadOver && !ac\.signal\.aborted && !internal\) \{ try \{ notePageClosed\(runId, pending\); \}/.test(src);
   // ...registered before the disconnect law's own close listener (which aborts the signal), so it reads the signal first
   const np = src.indexOf('try { notePageClosed(runId, pending); }');

@@ -3,6 +3,7 @@
    identity, threads the parent signal + per-worker cost cap, forwards ONLY lifecycle/cost to the lead bus,
    rejects self/unknown targets without a run, null-guards a refused child, and is capability-gated. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -844,7 +845,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 // the host's own posture thunk must be wired at the call site (the tool cannot read the roster itself)
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/approvalPosture: \(\) => \(!hostPowerWithheldFor\(o\) && \(FULL_ACCESS \|\| \(\(agentRoster\.get\(agentId\) \|\| \{\}\)\.approvalMode === 'full'\)\)\) \? 'full' : 'ask'/.test(src),
     'the run host wires the EFFECTIVE (lead) approval posture into makeOrchestrationTools');
 }
@@ -998,7 +999,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 // the host must wire the gate's live free capacity (the tool cannot see the gate itself)
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/freeSlots: \(\) => \{ const m = concurrencyGate\.max\(\); return m > 0 \? Math\.max\(0, m - concurrencyGate\.active\(\)\) : null; \}/.test(src),
     'the run host wires concurrencyGate free capacity into makeOrchestrationTools');
   A.ok(/now: \(\) => Date\.now\(\)/.test(src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')))),
@@ -1170,7 +1171,7 @@ for (const reason of ['done', 'budget', 'max_iters', 'aborted']) {
 
 // the run host wires the bridge in (the tool cannot reach the page by itself)
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const block = src.slice(src.indexOf('makeOrchestrationTools({'), src.indexOf('}).register(registry);', src.indexOf('makeOrchestrationTools({')));
   A.ok(/station: require\('\.\/overseer.js'\)\.isCoordinatorRun\([\s\S]*?\? overseerStation\(o.streamId, runId\) : stationBridge/.test(block), 'only coordinator runs receive durable session operations; other leads retain the visual bridge');
 }

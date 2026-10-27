@@ -5,6 +5,7 @@
    and told the Commander to DM the bot. Lock both halves of the repair: connect returns the one-time local code,
    and the panel renders the unpaired poller as blocked rather than operational. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -12,7 +13,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const ui = fs.readFileSync(path.join(root, 'frontend', 'app', 'windows', 'messaging.js'), 'utf8');
-const sidecar = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+const sidecar = readSidecarSource();
 
 A.ok(ui.includes('POLLING — DMs BLOCKED: PAIR OWNER'),
   'an up Telegram poller without an owner is rendered as blocked, never CONNECTED');

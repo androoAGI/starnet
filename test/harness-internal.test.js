@@ -9,13 +9,14 @@
    beat-coordination source guard — we lock the invariant by reading the source. The two CALL sites are asserted in
    pitchstore.test.js / suggeststore.test.js (call.internal === true); this locks the harness half. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '../frontend/app/harness.js'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
-const sidecar = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const sidecar = readSidecarSource();
 
 // chat() accepts the `internal` flag the callers pass.
 A.ok(/function chat\(\{[^}]*\binternal\b[^}]*\}\)/.test(src), 'Harness.chat accepts an `internal` flag');

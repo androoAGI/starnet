@@ -9,6 +9,7 @@
      • the paste is replaced by a placeholder, and the known-value redaction scrubs the value everywhere after
      • key-shaped detection refuses URLs, emails, paths, timestamps, card numbers and plain words */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const KT = require('../sidecar/tools/builtin/keys.js');
 const K = require('../sidecar/servicekeys.js');
@@ -281,7 +282,7 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
 
     // SOURCE LOCKS: the host wires the shared predicate, and the real callers still carry the flags it reads
     const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');
-    const index = read('sidecar/index.js');
+    const index = readSidecarSource();
     A.ok(/const keyOwnerRun = KeyTools\.ownerRun\([\s\S]{0,200}eligible: TrustedLearning\.eligible, isHandoff: Pipeline\.isHandoff, latestText: latestUserText\(messages\)/.test(index), 'index.js decides keyOwnerRun with the shared TrustedLearning.eligible + Pipeline.isHandoff');
     A.ok(/keyOwnerTexts = \(\) => keyOwnerRun \? recentUserTexts\(messages, KeyTools\.OWNER_TURNS\) : null/.test(index) && KT.OWNER_TURNS === 1, 'owner texts = this run\'s directive only');
     A.ok(/surface: 'interactive', lead: [^\n]*groupTools: tools/.test(index), 'the group run still passes groupTools');
@@ -316,7 +317,7 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
     const page = new Function(A.fnBody(src, 'function swappedKeys(') + '\nreturn swappedKeys;')();
     A.eq(page('k ' + PASTE, 'k [X_API_KEY saved in KEYS]'), [{ value: PASTE, placeholder: '[X_API_KEY saved in KEYS]' }], 'an older "[X saved in KEYS]" placeholder still reads back');
     // R11: the chat path replaces a key through the removal writer, and its revert does too (source lock; live in keys-save.http)
-    const index = read('sidecar/index.js');
+    const index = readSidecarSource();
     A.ok(/const replacesKey = !!\(prev && prev\.key && prev\.key !== key\);\s*if \(!\(replacesKey \? saveServiceKeyRemoval\(serviceKeys\) : saveServiceKeys\(\)\)\)/.test(index), 'a replaced key is written with saveServiceKeyRemoval (main AND .bak), as the panel does');
     A.ok(/serviceKeys = before;\s*applyServiceKeysEnv\(\);[\s\S]{0,200}if \(!saveServiceKeyRemoval\(serviceKeys\)\)/.test(index), 'the revert of a failed save is a removal write too');
   }

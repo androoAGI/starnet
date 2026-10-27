@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 // genesis-starnet-link.test.js — source guard for the STARNET MANAGED path on the first-run connect screen.
 // The subscription flow must be reachable at genesis (buy on the site → link in one confirmed code — no API
 // key anywhere), and it must stay HONEST: the chip is hidden until the sidecar reports a real cloud seam,
@@ -10,7 +11,7 @@ const path = require('path');
 const index = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
 const stationui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
-const host = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const host = readSidecarSource();
 const link = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'credits-link.js'), 'utf8');
 
 let n = 0;

@@ -1,10 +1,11 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const S = require('../sidecar/loopjob-store.js');
 const { makeLoopDriver } = require('../sidecar/loopjob-driver.js');
-const source = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const source = readSidecarSource();
 const code = source.slice(source.indexOf('async function modelControlLoop('), source.indexOf('async function modelVerdictLoop('));
 const flush = () => new Promise(resolve => setImmediate(resolve));
 (async () => {

@@ -1,11 +1,12 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* Lane C5 — the checkpoint rollback net is ON by default. STARNET_CHECKPOINTS=0 / SKYNET_CHECKPOINTS=0 opts
    out; fail-open semantics are untouched. The env parser is lifted VERBATIM out of sidecar/index.js so this
    asserts the shipped function, and the dispatch hook is checked structurally for fs.write coverage. */
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 
 const m = /function checkpointsEnabledFromEnv\(raw\) \{[\s\S]*?\n\}\n/.exec(src);
 A.ok(m, 'index.js defines checkpointsEnabledFromEnv');

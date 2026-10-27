@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const {AutonomyStore: S} = require('../frontend/app/autonomystore.js');
 global.Autonomy = require('../frontend/app/autonomy.js');
@@ -70,7 +71,7 @@ global.fetch=async(url,opts)=>{
   assert.deepEqual(notes,[['E-STOP LIFT SAVED: the rest of the pause could not be checked — see RESUME AUTOMATION in the top bar','good']],'unknown halt picture → no RESUMED headline');
   global.fetch=plain;delete global.StationUI;
   // the route's haltLifted is TRUE only when this write cleared a standing halt (nightshift halted, or liftCronHalt() lifted one)
-  const idx=require('fs').readFileSync(require('path').join(__dirname,'..','sidecar','index.js'),'utf8');
+  const idx=readSidecarSource();
   assert.match(idx,/if \(resumeRequested && nightshift\.isHalted\(nightshiftState\)\) \{ saveNightshiftState\(nightshift\.clearHalt\(nightshiftState, Date\.now\(\)\)\); haltLifted = true; \}/,'nightshift lift sets haltLifted after the save');
   assert.match(idx,/if \(resumeRequested && liftCronHalt\(\)\) haltLifted = true;/,'cron lift sets haltLifted only when liftCronHalt lifted one');
   assert.match(idx,/resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed,/,'the posture route reports haltLifted + the halt picture after the write + cronArmed (additive)');

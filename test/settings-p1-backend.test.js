@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* settings-p1-backend.test.js — source-lock that the P1 settings rows are wired in the SIDECAR to the REAL code
    paths they claim to control (the honesty law — a knob that does nothing is a bug). Grep-guards over
    sidecar/index.js covering the endpoints + the precedence + the live seams:
@@ -8,7 +9,7 @@
      P1-10 the reflect gate reads the live memoryConfig (on/off + cooldown) + the /api/memory/config routes */
 const assert = require('assert');
 const fs = require('fs'); const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource({ except: ['sidecar/tools/builtin/station-control.js'] });   // the host; station-control.js names the same routes as a client
 const importStart = src.indexOf('async function handleConfigImport');
 const importEnd = src.indexOf('/* POST /api/config/reset', importStart);
 const importBody = importStart >= 0 && importEnd > importStart ? src.slice(importStart, importEnd) : '';

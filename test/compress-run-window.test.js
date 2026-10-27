@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/compress-run-window.test.js — context-cost-1023: /compress measures against the window a run works in.
 
    0.14.0 stops a run's working window at the model's long-context price tier (prices.js promptTierCeiling: Gemini Pro
@@ -22,7 +23,7 @@ function region(source, marker, closing) {
   if (start < 0 || end < start) throw Error('Production function not found: ' + marker);
   return source.slice(start, end + closing.length);
 }
-const backend = read('sidecar/index.js');
+const backend = readSidecarSource();
 const harness = read('frontend/app/harness.js');
 const chat = read('frontend/app/chat.js');
 

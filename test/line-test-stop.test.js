@@ -10,13 +10,14 @@
       agent.run.start now carries streamId (additive), and the crew row names such a run LINE TEST with a tip saying where
       it shows and how it stops. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { killAll } = require('../sidecar/halt.js');
 const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const sidecar = read('sidecar/index.js'), build = read('frontend/app/build.js'), panel = read('frontend/app/workflowpanel.js'), station = read('frontend/app/stationui.js');
+const sidecar = readSidecarSource(), build = read('frontend/app/build.js'), panel = read('frontend/app/workflowpanel.js'), station = read('frontend/app/stationui.js');
 // a function's source, from its head to the closing brace at the head's own indent (top-level or inside an IIFE)
 function fnBody(src, head) {
   const i = src.indexOf(head);

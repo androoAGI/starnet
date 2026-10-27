@@ -9,6 +9,7 @@
    (2. EMPTY-STORE FAIL-LOUD is a boot-level property — see test/cron.degraded.e2e.test.js.)
    Pure: fake clock, fake runOnce, in-memory store. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeClock } = require('../shared/clock-rng.js');
 const cron = require('../sidecar/cron.js');
@@ -197,7 +198,7 @@ const failRun = (o) => { o.emit('agent.run.error', { agentId: 'a', runId: o.runI
     A.ok(/LAST LINE\n\[exit -1/.test(c), 'the tail (the part that explains the failure) is kept');
     A.ok(c.length <= head.length + 1 + 4000, 'and the 64KB body is clipped to 4000 chars (' + c.length + ')');
     A.eq(clipScriptError('short failure'), 'short failure', 'a short message passes through untouched');
-    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const fn = src.slice(src.indexOf('async function executeCronScript('), src.indexOf('async function executeCronScript(') + 1500);
     A.ok(/catch \(e\)[\s\S]*clipScriptError\(/.test(fn), 'executeCronScript routes a thrown script failure through clipScriptError');
   }

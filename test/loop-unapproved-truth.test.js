@@ -9,6 +9,7 @@
      RECORD    — the job record keeps `unapproved`; the route, hub, trigger and station.test_line carry it.
    Fake harness, fake clock — no provider. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -183,7 +184,7 @@ async function publisherRun(script) {
     A.ok(/if \(line\.unapproved\) lo\.unapproved = String\(line\.unapproved\);/.test(hub), 'hub: the line outcome carries unapproved');
     const trg = read('sidecar/routing/trigger-runner.js');
     A.ok(/if \(completed && lo && lo\.unapproved\) outcome\.unapproved = String\(lo\.unapproved\)/.test(trg), 'trigger runner: a fire’s outcome says it went on unapproved');
-    const idx = read('sidecar/index.js');
+    const idx = readSidecarSource();
     A.ok(/const unapproved = \(sampleLineOutcome && sampleLineOutcome\.unapproved\) \? String\(sampleLineOutcome\.unapproved\) : '';/.test(idx), 'sample route reads unapproved from the line outcome');
     A.ok(/unapproved: completed \? unapproved : ''/.test(idx), 'the job record keeps it');
     A.ok(/\(shipped === false && unapproved\) \? \{ shippedWhy: 'unapproved' \} : shippedWhy \? \{ shippedWhy \} : null/.test(idx), 'the route says why it is not in SHIPPED');

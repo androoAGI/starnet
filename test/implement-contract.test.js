@@ -10,6 +10,7 @@
    Also locks the `planOnly` declaration the card reads to decide whether Implement means "land the files" or
    "build what this describes". */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const AP = require('../frontend/app/autopilot.js');
 const fs = require('node:fs');
@@ -97,7 +98,7 @@ const selected = { title: 'Add a retry to the uploader', grounds: 'they said upl
    `built` even when the on-disk loop guard was absent (or the manifest was truncated), and even when no durable
    backlog registration existed. The source plan could then be retired despite there being no reviewable build. */
 (function implementCommitIsDurableAndOrdered() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const start = src.indexOf('async function runImplementBuild(');
   const end = src.indexOf('\n/* ---- the WORKSHOP SHIFT ROUTINE', start);
   const body = src.slice(start, end);

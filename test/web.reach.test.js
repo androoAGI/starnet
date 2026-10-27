@@ -9,6 +9,7 @@
    that one character was the field's endless "mojeek: 0 results".
    Offline + deterministic: driver and fetch are injected. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
 const { makeWebReader } = require('../sidecar/tools/builtin/webreader.js');
@@ -278,7 +279,7 @@ function stubFetch(routes) {
   {
     /* S: the reader never reads ambient time (lint-determinism): the station's ONE reader gets the real clock from the
        composition root, so its launch cooldown really ends in production; with no clock injected it never measures as over. */
-    const host = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const host = readSidecarSource();
     A.ok(/const stationWebReader = makeWebReader\(\{ env: process\.env, now: \(\) => Date\.now\(\) \}\);/.test(host), 'S: the host injects the real clock into the station web reader');
     const r = makeWebReader({ makeDriver: () => ({ navigate: async () => { throw new Error('browser unavailable: could not attach to Chromium'); },
       lastResponse: () => null, evalPublic: async () => ({ value: [] }), getText: async () => '', close: async () => {} }), idleMs: 3600000 });

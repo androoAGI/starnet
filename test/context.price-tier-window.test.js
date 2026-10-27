@@ -19,6 +19,7 @@
      G. the voice-slot planner measures "fits without a fold" against the same capped window the voice run works in.
    test/context.price-tier.e2e.test.js proves the index.js wiring through a booted sidecar. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -127,7 +128,7 @@ const { makeCostEngine } = require('../sidecar/cost.js');
 
   // ---- D. index.js builds the run's context manager with the live ceiling (the run site boots a sidecar: source lock) ----
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/const \{ promptTierCeiling \} = require\('\.\/providers\/prices\.js'\);/.test(src), 'index.js imports promptTierCeiling');
     A.ok(src.indexOf('const runWindowCeiling = () => promptTierCeiling(activeProviderId, model, providerUnmetered);') > 0,
       'the ceiling reads the run\'s live route, model and unmetered flag (all swapped by onFallback)');
@@ -247,7 +248,7 @@ const { makeCostEngine } = require('../sidecar/cost.js');
   // ---- G. the voice-slot planner sizes "fits without a fold" with the same ceiling the voice run will work in ----
   {
     const route = require('../sidecar/voice-chat-route.js');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const at = src.indexOf('async function applyVoiceTurnRoute(');
     const apply = at > 0 ? src.slice(at, src.indexOf('\n}\n', at)) : '';
     A.ok(/const tierCeiling = promptTierCeiling\(tProvider, setting\.model, !!\(getProviderProfile\(tProvider\) \|\| \{\}\)\.unmetered\);/.test(apply),

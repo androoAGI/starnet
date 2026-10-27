@@ -1,6 +1,7 @@
 /* node test/google-relay-guard.test.js — restricted-tier Google data never rides the StarNet relay
    (sidecar/mcp/google-relay-guard.js + its index.js wiring). Offline + deterministic. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const google = require('../sidecar/mcp/google-client.js');
 const { TOOLS, ENDPOINTS } = require('../sidecar/mcp/transport.google.js');
@@ -66,7 +67,7 @@ A.eq(wrapped.priceOf(), 1, 'other provider methods pass through');
   A.eq(guard.scrub(history).withheld, 0, 'removing Gmail stops withholding its (now unknown) tool names');
 
   /* E. wiring: index.js routes EVERY provider build through the guard, and filters connector projection */
-  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../sidecar/index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/selectProvider: selectProviderRaw,/.test(src), 'the factory import is the raw builder');
   A.ok(/normalizeProvider\(opts\.provider\) === 'starnet' \? googleRelayGuard\(\)\.guardProvider\(built\) : built/.test(src), 'StarNet Managed providers are wrapped');
   A.eq((src.match(/selectProviderRaw\(/g) || []).length, 1, 'nothing else builds a provider around the guard');

@@ -4,10 +4,11 @@
    (interrupt, cancelChildren) and it reads steering from its own buffer — a desk STEER by its id answered "Sent" and was
    never read, and a desk STOP bypassed the manager. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
 const fn = idx.slice(idx.indexOf('async function runOnceTracked(o) {'), idx.indexOf('async function runOnceTrackedBelt(o) {'));
 A.ok(fn.length > 0, 'runOnceTracked exists ahead of its belt');
 A.ok(fn.includes("const delegated = !!(o && (o.parentRunId || typeof o.steer === 'function'));"), 'a run with a parent or its own steer is a delegated worker');

@@ -6,6 +6,7 @@
       writes, and a corrupt/negative persisted value silently falls back to env (never grants headroom).
    3) SOURCE GUARD: the frontend Budget panel + the /api/budget/caps endpoint + status fields actually exist. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -97,7 +98,7 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
 
 // ---------- 4. SOURCE GUARD: endpoint + status fields wired in the host ----------
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/\/api\/budget\/caps/.test(idx) && /handleBudgetCaps/.test(idx), 'POST /api/budget/caps route + handler present');
   A.ok(/require\('\.\/budgetcaps\.js'\)/.test(idx), 'host uses the pure budgetcaps helper (single source of logic)');
   A.ok(/const budgetStore = makeDomainStore/.test(idx) && /budgetStore\.load\(\)\.value/.test(idx) && /budgetStore\.save\(budgetOverrides\)/.test(idx), 'caps persist via the normalized domain store (durable + .bak + read-back proof)');
@@ -172,7 +173,7 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
   A.eq(bc.managedRunCapUsd(0, null, D), 0, 'a null (never reported) wallet -> 0, the same as unknown');
   A.eq(bc.managedRunCapUsd(0, 10, 0), 10, 'an operator default of 0 restores the old wallet-is-the-ceiling behaviour');
   // the host really uses it (a pure helper nobody calls fixes nothing — injected-deps-hide-wiring-bugs)
-  const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/runCapUsd = budgetCaps\.managedRunCapUsd\(\(runCapUsd > 0 && isFinite\(runCapUsd\)\) \? runCapUsd : 0, avail, MANAGED_PER_RUN_DEFAULT\)/.test(idx), 'managed admission reserves through managedRunCapUsd, a chosen cap included');
   // Number(null) is 0: a failed refresh (null balance) must never be read as a reported $0 wallet
   A.ok(/const avail = \(snap && typeof snap\.balanceUsd === 'number' && isFinite\(snap\.balanceUsd\)\) \? snap\.balanceUsd : NaN;/.test(idx), 'admission reads only a REPORTED balance; null stays unknown');

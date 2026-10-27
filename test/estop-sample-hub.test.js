@@ -5,12 +5,13 @@
    hub inflight maps — and the sample hub was missing from both, so an E-STOP left a running sample spending.
    Locks: both kill sites include the sample hub's inflight map, and killAll really aborts a hub-shaped record. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const { killAll } = require('../sidecar/halt.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 function body(name) {
   const i = src.indexOf('\nfunction ' + name + '(');
   A.ok(i >= 0, name + ' exists');
