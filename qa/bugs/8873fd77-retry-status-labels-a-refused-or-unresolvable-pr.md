@@ -31,3 +31,7 @@ Source: `sidecar/providers/errorClass.js:388` `if (/ETIMEDOUT|ECONNRESET|ECONNRE
 ## Verdict
 
 _Filled in when the bug leaves the backlog: what was true, and why it is closed._
+
+## Notes
+
+Still open. Reconciled 2026-10-27 (reliability wave 1, quick win 37): `e1b3dfffd` (an ancestor of trunk, first released in v0.14.0) relabels the retry line "(unreachable)" for ECONNREFUSED / ENOTFOUND / EAI_AGAIN (`sidecar/loop.js` retryReasonOf; test/loop.retry-events.test.js). The unreachable error class itself (no failover, an honest sentence per host, one DNS retry, "retry 1/1") is `54bd1ab19` on agent/provider-conformance-suite, not merged. Close this record when that lands.

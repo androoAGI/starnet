@@ -4,10 +4,10 @@ slug: a-first-task-that-fails-at-the-provider-consumes
 title: A first task that fails at the provider consumes the hand-off with no retry
 surface: onboarding
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/onboarding
-fix:
+fix: d4d64e972
 origin: audit
 ---
 
@@ -31,4 +31,4 @@ Code: `frontend/app/pitchstore.js` `startHandoff` sets `state.handoffPending = f
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `d4d64e972` (2026-10-23; an ancestor of trunk, first released in v0.14.0) for the harm the record names: the first task that YOUR FIRST TASK sends goes into the composer's own ArrowUp recall (PitchStore.startHandoff -> Chat.rememberSent), so a first run that fails at the provider is retried with ArrowUp and Enter, never retyped; a launch that did not go out still puts the task back in the composer. Not changed: the YOUR FIRST TASK panel does not come back after a failed run, and the error row gains no new retry key. Regression: test/first-task-recall.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

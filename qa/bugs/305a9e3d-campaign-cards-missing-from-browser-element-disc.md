@@ -43,6 +43,8 @@ Discovery-cost check: `.dogfood/browser-discovery-cost.json` records a real Chro
 
 Open pending exact customer correlation. Source improvement `dcbc2b941` fixes the reproduced discovery gap. Final validation: `npm run test:fast` passed all 771 steps; `npm run test:http` passed all 113 steps, including the 105-assertion browser gauntlet. Syntax checks, diff whitespace checks and bug-register validation passed. An earlier fast invocation hit the unrelated MCP restart/token-rediscovery test; it passed in isolation and in the subsequent complete 771-step run. No MCP code was changed. Neither a rebuilt installer nor customer recovery is claimed; this lane was not merged or released.
 
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): `dcbc2b941` is an ancestor of trunk and first released in v0.12.0, so "this lane was not merged or released" no longer holds for the source. The installer and recovery fields are unchanged: no installed-build verification and no customer recovery are claimed.
+
 ## Regression
 
 ### 0.12.0 preparation reconciliation — 2026-09-16

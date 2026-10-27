@@ -4,10 +4,10 @@ slug: internal-title-and-goal-self-talk-is-stored-as-c
 title: Internal title and goal self-talk is stored as Commander dialogue in the global transcript and recalled as such
 surface: sessions
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/sessions
-fix:
+fix: 284b20ed0
 origin: audit
 ---
 
@@ -45,6 +45,10 @@ Sources: `sidecar/index.js:20096` (`const internal = !!o.internal || !!o.outputO
 gates only the reads. The writes go through `makeRunTranscript` (`sidecar/index.js:21841`) and the run-end append
 with no `internal` check. `nightshiftContextPack` already treats internal run titles as exclusion markers, but the
 recall tool reads the rows directly.
+
+## Verdict
+
+Fixed in `284b20ed0`, with review follow-ups `5a7ac3900` and `d76f3ca0c` (2026-10-23; all ancestors of trunk, first released in v0.14.0). A streamless internal run's rows are stamped dispatchState 'internal' on both transcript writers; search, scroll and the browse preview skip them, and also the shapes a 0.13.5 station already filed in global (title and goal-judge prompts and their replies, learned by run id). Nothing is deleted. recall_conversation no longer quotes the station's self-talk as the Commander's words. Regression: test/transcript-selftalk.test.js and test/selftalk-transcript.http.test.js (both pass on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).
 
 ## Notes
 
