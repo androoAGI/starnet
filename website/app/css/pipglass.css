@@ -862,7 +862,7 @@ body.glass-demo .con-rail-item.con-toptab .con-rail-glyph.has-ico { width: 16px;
    NAME on top in its own colour (as on its CREW card) with the time, the session title under it (two lines at
    most). The latest message is the row's hover tip (app.js
    railRowTip), never a sentence under the name. Rows rest quiet on hairlines; only the selected one is a
-   card. The lamp is the station's session lamp (round since 10-27, glass-demo.css), every state kept; a row that needs
+   card. The lamp stays the station's square glass lamp with every state glyph; a row that needs
    you says "Approval needed" / "Reply needed" in gold where the time sits.
    The list keeps glass-demo.css's 6px row gap and 6px ends: from 10-03 to 10-21 this comment had lost its opener, so the
    browser threw away the 1px-gap rule that stood here and the rows Andrew has looked at since were spaced by glass-demo.css.
@@ -918,9 +918,9 @@ body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="older"] > .ws-agent { display: none; }
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row[data-runs="older"] .ws-title { font-size: 16px !important; -webkit-line-clamp: 1; }
 
-/* the lamp is the station's session lamp (glass-demo.css). Andrew 10-03 kept the square glass lamp here; 10-27 the
-   square read as a checkbox on every row ("the indicator for the session … looks insanely cheap"), so every session row
-   now wears the CREW card's housed round lamp, each state by colour and rhythm. This block only seats it on the agent's line. */
+/* the lamp is the station's own SQUARE glass lamp (glass-demo.css: empty when read, lit core when unread, the
+   scan / reply strokes / approval mark / failure X inside it). Andrew 10-03: the one thing he did not want
+   changed. This block only seats it on the agent's line. */
 body.glass-demo.rows-inbox:not(.hud-mode) #left #workstreams .ws-row > .ws-dot { justify-self: start; align-self: center; margin: 0; }
 
 /* line 2: the session's title, full width, two lines at most */
@@ -2183,46 +2183,57 @@ body.glass-demo:not(.hud-mode) #terms code { font-family: inherit; }
 body.glass-demo:not(.hud-mode) #terms .ch-steps code { color: var(--ph-bright); }
 
 /* ============================================================
-   COMPACT SESSION ROWS (Andrew 10-27, on his purple rail: "the sessions are insanely ugly … the text is ugly, the
-   ultron, cypher, it just looks hideous like that … it looks insanely cheap until you click on it"). The compact rail was
-   bare saturated text and a checkbox per row, its group names a gold headline over a title that started under the lamp.
-   Now a quiet list in the INBOX rows' language: rows rest on hairlines and only the open one is a card; every row opens
-   on lamp · title · pin · time, a group's names on the line under its title; read titles are calm, unread / open / waiting
-   ones bright; the time is a quiet 15px; the pin a drawn bookmark. The round lamp is glass-demo.css's.
+   COMPACT SESSION ROWS (Andrew 10-27, on his purple compact rail: "it looks so good when its highlighted on a session …
+   when ur looking at each other session that isnt highlighted it looks like shit"; "leave the squares as is, its more
+   about the text"). Every row is now the open row's card, turned down: a quiet glass face and a faint edge at rest, a
+   brighter one on hover, and the open row keeps its lit card. Read titles are soft near-white, not saturated phosphor;
+   something new, the open row and a wait are bright. The time is a quiet 15px. A group row opens on its title like every
+   other row, its crew on the line under it: their faces (app.js railAgentFaces), then their names. The square glass
+   lamps are glass-demo.css's, untouched.
    ============================================================ */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams { gap: 0; }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row {
-  position: relative; min-height: 0; margin-block: 0; padding: 8px 10px; gap: 10px;
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams { gap: 5px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row { min-height: 0; margin-block: 0; padding: 8px 10px; gap: 10px; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn) {
+  background: linear-gradient(120deg, rgba(var(--ph-rgb), .075), rgba(var(--ph-rgb), .02));
+  border: 1px solid rgba(var(--ph-rgb), .16); border-radius: 8px; box-shadow: none;
 }
-/* a hairline between resting rows, from the title's edge; it steps aside around a lit row */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row + .ws-row::before {
-  content: ''; position: absolute; left: 28px; right: 10px; top: 0; height: 1px; background: rgba(var(--ph-rgb), .09); pointer-events: none;
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:not(.sel):not(.attn):is(:hover, :focus-visible) {
+  background: linear-gradient(120deg, rgba(var(--ph-rgb), .13), rgba(var(--ph-rgb), .04)); border-color: rgba(var(--ph-rgb), .32);
 }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.sel, .attn, :hover, :focus-visible)::before,
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.sel, .attn, :hover, :focus-visible) + .ws-row::before { opacity: 0; }
 /* lamp · title · runs · pin · time: the pin ends the title, as on every grid row */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > :is(.ws-title, .ws-rename) { order: 1; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > .ws-runs { order: 2; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > .ws-pin { order: 3; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row > :is(.ws-meta, .ws-kebab) { order: 4; }
-/* a group row and a waiting row are grids: the same lamp column and gap, so every title starts on one edge */
+/* a group row and a waiting row are grids: the square lamp's column and the row's gap, so every title starts on one edge */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row:is(.attn, :has(> .ws-agent-group)) {
-  grid-template-columns: 8px minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 2px;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 4px;
 }
-/* type: a read title is calm text; something new, the open row and a wait are bright */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { color: color-mix(in srgb, var(--text) 80%, var(--panel2)); letter-spacing: .3px; }
+/* type */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-title { color: color-mix(in srgb, var(--ph-bright) 80%, var(--panel2)); letter-spacing: .3px; }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row:is(.sel, .unread, .attn) .ws-title { color: var(--ph-bright); }
-/* the time: quiet, a step under the title; gold when it is new, bright while it runs */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row > .ws-meta {
-  --sn-type-meta: 15px; letter-spacing: .3px; color: var(--cg-mute); opacity: 1; text-shadow: none;
+  --sn-type-meta: 15px; letter-spacing: .3px; color: color-mix(in srgb, var(--text) 70%, var(--panel2)); opacity: 1; text-shadow: none;
 }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-dot.unseen ~ .ws-meta { color: var(--gold); }
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-row.busy > .ws-meta { color: var(--ph-bright); }
-/* a group's members: a quiet line under its title (the names keep the 14px floor; the lead's colour stays on its CREW card) */
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent.ws-agent-group { letter-spacing: .6px; text-shadow: none; }
-body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent-group > :is(.ws-agent-names, .ws-agent-more) { color: var(--cg-mute); }
+/* the crew line: faces, then names in soft near-white (not the lead's colour: the faces carry who is who) */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent.ws-agent-group { align-items: center; gap: 8px; letter-spacing: .8px; text-shadow: none; }
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-agent-group > :is(.ws-agent-names, .ws-agent-more) { color: color-mix(in srgb, var(--text) 82%, var(--panel2)); }
 /* the pin: a drawn gold bookmark, not a fallback-font star */
 body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams .ws-pin {
   width: 7px; height: 10px; overflow: hidden; color: transparent; font-size: 0; text-shadow: none;
   background: var(--gold); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); opacity: .85;
+}
+/* the faces: each member's skin thumb in a small housed well, overlapped like a crew photo (both row layouts) */
+body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces { display: inline-flex; align-items: center; flex: 0 0 auto; vertical-align: middle; }
+body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces > .ws-face {
+  border-radius: 4px; background: rgba(0, 0, 0, .35); box-shadow: 0 0 0 1px rgba(var(--ph-rgb), .35), 0 0 0 2px rgba(0, 0, 0, .6);
+}
+body.glass-demo:not(.hud-mode) #screen-game #left #workstreams .ws-faces > .ws-face + .ws-face { margin-left: -5px; }
+body.glass-demo.rows-inbox:not(.hud-mode) #screen-game #left #workstreams .ws-agent-group > .ws-faces { margin-right: 8px; }
+/* a row that waits on you is the same card in gold (the NEEDS YOU strip's colour); selected, it keeps its lit gold card */
+body.glass-demo:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row.attn:not(.sel) {
+  background: linear-gradient(120deg, rgba(var(--gold-rgb), .12), rgba(var(--gold-rgb), .035));
+  border: 1px solid rgba(var(--gold-rgb), .34); border-radius: 8px; box-shadow: none;
 }

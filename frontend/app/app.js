@@ -4256,6 +4256,15 @@ const App = (() => {
     const more = ids.length - 2;
     return '<span class="ws-agent-names">' + U.esc(names) + '</span>' + (more > 0 ? '<span class="ws-agent-more">+' + more + '</span>' : '');
   }
+  /* A GROUP SHOWS ITS CREW (Andrew 10-27: the names alone, "ULTRON, CYPHER", read as a line of text, not a group). The
+     first three members' own skin thumbs, lead first — the same portraits their CREW cards show — ahead of the names
+     line; the names and the +N stay as they are. '' for a one-on-one row or an unknown membership. */
+  function railAgentFaces(w) {
+    const members = w.conversationMode === 'group' && typeof GroupChat !== 'undefined' && GroupChat.membersOf ? GroupChat.membersOf(w.id) : null;
+    if (!members || members.length < 2 || typeof AgentPortraits === 'undefined' || !AgentPortraits.thumbHTML) return '';
+    const ids = [w.agentId].concat(members.filter(id => id !== w.agentId)).filter(id => members.includes(id)).slice(0, 3);
+    return '<span class="ws-faces" aria-hidden="true">' + ids.map(id => AgentPortraits.thumbHTML(agents.get(id) || null, 20, 24, 'ws-face')).join('') + '</span>';
+  }
   /* WHOLE NAMES (walk 10-14 #6): the row gives the names line its whole first line (app.css / pipglass.css), and this
      picks the reading that fits it — "ULTRON, CYPHER +3", else "ULTRON +4" — so a name is never cut mid-word
      ("ULTRON, CYP… +3", "ULTR… +3"). The full reading rides data-full, so a wider rail or the COMPACT/INBOX switch
@@ -4430,7 +4439,7 @@ const App = (() => {
       return '<li class="' + rowClass(w, st, activeId) + '" data-id="' + U.esc(w.id) + '"' + runAttr + ' tabindex="' + (w.id === railFocusId ? '0' : '-1') + '" role="option" aria-selected="' + (w.id === activeId ? 'true' : 'false') + '" aria-posinset="' + (i + 1) + '" aria-setsize="' + rows.length + '" aria-label="' + U.esc(railRowLabel(w, st)) + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + st.dot + '" aria-hidden="true"></span>' +
         (w.pinned ? '<span class="ws-pin" aria-hidden="true">★</span>' : '') +
-        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentLine(w) + '</span>' +
+        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentFaces(w) + railAgentLine(w) + '</span>' +
         '<span class="ws-title">' + U.esc(title) + '</span>' + runsKey +
         '<span class="ws-meta">' + U.esc(st.meta) + '</span>' +
         '<span class="ws-receipt" aria-hidden="true">' + U.esc(railReceipt(w)) + '</span>' +

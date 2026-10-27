@@ -134,6 +134,21 @@ A.ok(!context.railRowTip(savedA, row(savedA), true).includes('right-click'), 'pr
     A.ok(context.railRowLabel(crew, row(crew)).includes(question ? 'waiting for your answer' : 'awaiting your approval'), 'the full crew label retains the truthful pending request');
     A.eq(context.railAgentLine(crew), '<span class="ws-agent-names">ULTRON, CYPHER</span><span class="ws-agent-more">+3</span>', 'attention does not replace or shorten the crew identity');
   }
+  // A GROUP SHOWS ITS CREW (Andrew 10-27): the first three members' own skin thumbs, lead first, ahead of the names line
+  {
+    const faces = A.fnBody(app, 'function railAgentFaces(w)');
+    A.ok(faces.length > 80 && faces.length < 1500, 'railAgentFaces located');
+    const drawn = [];
+    context.AgentPortraits = { thumbHTML: (a, w, h, cls) => { drawn.push([a && a.name, w, h, cls]); return '<i>' + (a ? a.name : '?') + '</i>'; } };
+    vm.runInContext(faces, context);
+    A.eq(context.railAgentFaces(crew), '<span class="ws-faces" aria-hidden="true"><i>ULTRON</i><i>CYPHER</i><i>MIRA</i></span>', 'a five-member group shows three faces, lead first');
+    A.eq(drawn.map(d => d.join(' ')), ['ULTRON 20 24 ws-face', 'CYPHER 20 24 ws-face', 'MIRA 20 24 ws-face'], 'each face is the member\'s own 20x24 skin thumb');
+    A.eq(context.railAgentFaces({ ...pair, conversationMode: 'direct' }), '', 'a one-on-one row shows no faces');
+    A.eq(context.railAgentFaces({ ...pair, id: 'unknown' }), '', 'unknown membership shows no faces (never an invented crew)');
+    delete context.AgentPortraits;
+    A.eq(context.railAgentFaces(crew), '', 'no portrait painter: no faces, the names line still says who is in it');
+    A.ok(/railAgentColorAttr\(w\) \+ '>' \+ railAgentFaces\(w\) \+ railAgentLine\(w\) \+ '<\/span>'/.test(A.fnBody(app, 'function renderRail()')), 'the rail draws the faces ahead of the names, inside the crew line');
+  }
   members.crew = ['ultron', 'vex']; delete groupState.crew;
   A.eq(context.railAgentLine(crew), '<span class="ws-agent-names">ULTRON, VEX</span>', 'membership shrink removes the stale overflow count');
   context.agents.set('ultron', { name: 'UL<&"\'' });
