@@ -104,6 +104,7 @@ const HELP = [
   ['@name message', 'talk to another agent (it queues if busy)'],
   ['/model [name]', 'show or switch the shown agent\'s model'],
   ['/connect [provider]', 'add a provider: the app\'s AI & MODELS list (sign in, link, or a key)'],
+  ['/split <agent> …', 'talk to more agents at once: a pane each, side by side (/split close · /split off)'],
   ['/new  /resume', 'a fresh conversation · back to an earlier one'],
   ['y  a  n  v', 'answer the open ask: once, always, no, view'],
   ['1-6 or text', 'answer an open question'],
@@ -332,17 +333,20 @@ function render(model, ui, size, now) {
   // THE PAGES (Andrew 10-22, with the mouse): STAT · CREW · COMMS · WORK · SKILLS on the tab rule, each one the whole of this
   // frame. COMMS is the conversation; SKILLS is the skills list (/skills); the awakening has none of them.
   const page = wk ? '' : PAGES.indexOf(ui.page) >= 0 ? ui.page : '';
+  // THE SPLIT: the agents COMMS shows side by side (drawSplit), named where COMMS is named
+  const splitIds = !wk && ui.panes ? ui.panes.filter(id => rows.some(r => r.id === id)) : [];
+  const splitName = splitIds.length > 1 ? splitIds.map(id => rows.find(r => r.id === id).name).join(' · ') : '';
   frame(g, cx0, top, cx1, bot, 'rule');
   // with the tab rule above, the frames carry no titles of their own (the rule says each place once)
   if (tabsRow < 0) {
     if (wk) edgeL(g, cx0 + 2, top, [[wk.stage.title || 'THE AWAKENING', 'ph b']].concat(wk.stage.detail ? [[' · ' + wk.stage.detail, 'dim']] : []));
     else if (page) edgeL(g, cx0 + 2, top, [[page.toUpperCase(), 'ph b']]);
-    else edgeL(g, cx0 + 2, top, focusRow ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [focusRow.name, 'hi b']] : [['COMMS', 'ph b']]);
+    else edgeL(g, cx0 + 2, top, splitName ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [splitName, 'hi b']] : focusRow ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [focusRow.name, 'hi b']] : [['COMMS', 'ph b']]);
   }
   const right = [];
   const showModel = !page && focusRow && focusRow.model && cx1 - cx0 > 60;
   if (showModel) right.push([focusRow.model, 'dim']);
-  if (!page && ui.scroll > 0) right.push([(right.length ? '  ' : '') + '↑ ' + ui.scroll, 'am']);
+  if (!page && ui.scroll > 0 && !splitName) right.push([(right.length ? '  ' : '') + '↑ ' + ui.scroll, 'am']);
   if (!page && !side && focusRow && !ui.wake) right.push([(right.length ? '  ' : '') + (rows.indexOf(focusRow) + 1) + '/' + rows.length, 'dim']);
   if (right.length) {
     edgeR(g, cx1 - 1, top, right);
@@ -373,6 +377,7 @@ function render(model, ui, size, now) {
   else if (page === 'floor') floorAt = drawFloorPage(g, rows, ui, iy0, paneBot, ix0, ix1, hit);
   else if (wk) drawWake(g, wk, iy0, paneBot, ix0, ix1, ui, now);
   else if (!focusRow) g.put(ix0, iy0, trunc(head.feed === 'connecting' ? 'connecting to the station…' : 'no agents on this station yet', ix1 - ix0 + 1), 'dim');
+  else if (splitName) areas.panes = drawSplit(g, model, rows, ui, iy0, paneBot, ix0, ix1, now, hit);
   else drawPane(g, focusRow ? model.logOf(focusRow.id) : [], focusRow, iy0, paneBot, ix0, ix1, ui, now, hit);
   if (card.length) drawCard(g, card, cardTop, ix0, cw, blink, hit);
   areas.comms = { x0: cx0, x1: cx1 + 1, y0: top, y1: bot + 1 };
@@ -384,7 +389,7 @@ function render(model, ui, size, now) {
     const skillsOpen = !!(ui.picker && ui.picker.kind === 'skills');
     const hereId = wk || (ui.overlay && !ui.picker) ? 'comms' : skillsOpen ? 'skills' : page || 'comms';
     const hereText = ui.overlay && !ui.picker ? ui.overlay.title : wk ? wk.stage.title || 'THE AWAKENING'
-      : hereId === 'comms' ? (focusRow ? 'COMMS ▸ ' + focusRow.name : 'COMMS') : hereId.toUpperCase();
+      : hereId === 'comms' ? (splitName ? 'COMMS ▸ ' + splitName : focusRow ? 'COMMS ▸ ' + focusRow.name : 'COMMS') : hereId.toUpperCase();
     const detail = wk ? wk.stage.detail || '' : '';
     const all = wk ? (side ? [['crew', 'CREW', ' ' + rows.length]] : []).concat([['comms', 'COMMS', '']])
       : [['stat', 'STAT', ''], ['crew', 'CREW', ' ' + rows.length], ['floor', 'FLOOR', ''], ['comms', 'COMMS', ''], ['work', 'WORK', flows.length ? ' ' + flows.length : ''], ['skills', 'SKILLS', '']];
@@ -840,6 +845,51 @@ function drawPane(g, log, focusRow, top, bot, x0, x1, ui, now, hit) {
     if (r.file && hit && focusRow) hit(x0 + L, x, yy, Object.assign({ t: 'file', path: r.file, runId: r.runId, agentId: focusRow.id }, typeof r.root === 'string' ? { root: r.root } : {}));
   });
 }
+/* THE SPLIT (/split, Andrew 10-27: "talk to multiple agents at once … see both sessions on the screen … as many as they
+   want … each session separately scrollable"): COMMS holds one pane per agent in ui.panes, side by side while each keeps
+   SPLIT_MIN_W cells, then in more rows. Each pane is that agent's own conversation with its own scroll (the one you type
+   to: ui.scroll; the rest: ui.scrolls[id]); its head names it and says what it is doing, the one you type to marked and
+   filled. A click on a head picks the pane you type to; the dashboard scrolls the pane under the wheel (out.panes). */
+const SPLIT_MIN_W = 36;
+function splitLayout(n, x0, x1, top, bot) {
+  const w = x1 - x0 + 1;
+  const cols = Math.max(1, Math.min(n, Math.floor((w + 1) / (SPLIT_MIN_W + 1))));
+  const rowsN = Math.ceil(n / cols), h = bot - top;
+  const cells = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols), inRow = Math.min(cols, n - r * cols), c = i % cols;
+    const cw = Math.floor((w - (inRow - 1)) / inRow);
+    const cx0 = x0 + c * (cw + 1), cx1 = c === inRow - 1 ? x1 : cx0 + cw - 1;
+    const ch = Math.floor((h - (rowsN - 1)) / rowsN);
+    const cy0 = top + r * (ch + 1), cy1 = r === rowsN - 1 ? bot : cy0 + ch;
+    cells.push({ x0: cx0, x1: cx1, top: cy0, bot: cy1 });
+  }
+  return { cols, rows: rowsN, cells };
+}
+function drawSplit(g, model, rows, ui, top, bot, x0, x1, now, hit) {
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const ids = (ui.panes || []).filter(id => byId.has(id));
+  const L = splitLayout(ids.length, x0, x1, top, bot);
+  const out = [];
+  ids.forEach((id, i) => {
+    const c = L.cells[i], r = byId.get(id), mine = id === ui.focus;
+    // the rules between panes
+    if (c.x1 < x1) for (let y = c.top; y < c.bot; y++) g.put(c.x1 + 1, y, '│', 'rule');
+    if (c.bot < bot) { for (let x = c.x0; x <= c.x1; x++) g.put(x, c.bot, '─', 'rule'); if (c.x1 < x1) g.put(c.x1 + 1, c.bot, '┴', 'rule'); }
+    const [word, wc] = stateWords(r.status, now, ui.still);
+    const scroll = mine ? ui.scroll : (ui.scrolls && ui.scrolls[id]) || 0;
+    let x = g.put(c.x0, c.top, mine ? '▌' : ' ', mine ? 'ph b' : '');
+    x = g.put(x, c.top, trunc(r.name, Math.max(4, c.x1 - x - 12)), mine ? 'ink b hifill' : 'hi b');
+    x = g.put(x, c.top, ' ' + trunc(word, Math.max(0, c.x1 - x - 6)), wc);
+    if (scroll > 0) g.putR(c.x1 + 1, c.top, '↑ ' + scroll, 'am');
+    if (hit) hit(c.x0, c.x1 + 1, c.top, { t: 'pane', id });
+    const pu = { scroll, still: ui.still };
+    drawPane(g, model.logOf(id), r, c.top + 1, c.bot, c.x0 + 1, c.x1, pu, now, hit);
+    if (mine) ui.scroll = pu.scroll; else if (ui.scrolls) ui.scrolls[id] = pu.scroll;
+    out.push({ id, x0: c.x0, x1: c.x1 + 1, y0: c.top, y1: c.bot });
+  });
+  return out;
+}
 /* A PICKER (/model, /resume): a filterable list inside the COMMS frame. p: { title, note, filter, sel, items: [{ cols:
    [[text, style]…], search, current }], loading, error, foot }. The selected row sits on the highlight bar, the current one is
    marked ●, the window scrolls to keep the selection in view. Pure: it only reads p (sel is clamped by the caller's keys). */
@@ -1085,4 +1135,4 @@ function colorLevel(env, isTTY) {
   return 2;
 }
 
-module.exports = { PALETTE, BG, render, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, PAGES, slashMatches, slashMenu, slashCommandOf };
+module.exports = { PALETTE, BG, render, splitLayout, SPLIT_MIN_W, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, PAGES, slashMatches, slashMenu, slashCommandOf };

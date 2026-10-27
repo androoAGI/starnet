@@ -46,6 +46,7 @@ function runDashboard(station, opts) {
   let themeName = theme.apply(theme.load(env, themeFile), themeTargets);
   const ui = {
     focus: '', input: '', overlay: null, picker: null, streams: {}, history: [], histAt: null, histDraft: '', pasting: false, flash: null, scroll: 0, keyFlash: null, quitArmed: 0, quitNote: '',
+    panes: [], scrolls: {},   // THE SPLIT (/split): the agents COMMS shows side by side (the one you type to is ui.focus), each pane's own scroll
     // which station this is, in words: the desktop app's own, a private one this terminal booted, or one at an address
     stationLabel: station.mode === 'spawned' ? 'private station · port ' + client.base.replace(/^.*:/, '')
       : station.workspace ? 'desktop station · port ' + client.base.replace(/^.*:/, '')
@@ -626,12 +627,13 @@ function runDashboard(station, opts) {
     { name: 'work', desc: 'the WORK page: workflows, routines, the away shift' },
     { name: 'floor', desc: 'the FLOOR: the whole crew in one room, handoffs flying desk to desk' },
     { name: 'comms', desc: 'back to the conversation' },
+    { name: 'split', desc: 'talk to more agents at once — a pane each, side by side, each scrolling on its own (/split close · /split off)', argsHint: '<agent> …' },
     { name: 'usage', desc: 'how much is left on each connected provider — each sign-in’s limits, as the provider last said them' },
     { name: 'connect', aliases: ['providers'], desc: 'add a provider — the app’s AI & MODELS list: sign in, link, or paste a key', argsHint: '[provider]' },
     { name: 'theme', aliases: ['themes'], desc: 'the terminal colors: ' + theme.NAMES.join(' · '), argsHint: '[' + theme.NAMES.join('|') + ']' },
     { name: 'quit', aliases: ['exit'], desc: 'quit starnet' }
   ].map(c => Object.assign({ source: 'terminal', aliases: [], argsHint: '', here: true }, c));
-  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'usage', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
+  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'usage', 'split', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
     'agents', 'insights', 'memory', 'bundles', 'blueprint', 'reload-mcp', 'reload-skills', 'steer', 'copy', 'compress', 'reasoning', 'fast', 'debug', 'queue', 'background', 'loop', 'save', 'goal', 'subgoal', 'yolo', 'personality'];
   async function loadCatalog() {
     const id = ui.focus || 'agent';
@@ -706,10 +708,51 @@ function runDashboard(station, opts) {
     paint();
     loadPage().then(paint, () => {});
   }
+  // the agent you type to: with a split, each pane keeps its own scroll as you move between them, and an agent opened that
+  // has no pane takes the one you were in
+  const splitOn = () => ui.panes.filter(id => model.state.agents.has(id)).length > 1;
+  function setFocus(id) {
+    if (ui.focus === id) return;
+    if (splitOn()) {
+      ui.scrolls[ui.focus] = ui.scroll;
+      if (ui.panes.indexOf(id) < 0) { const i = ui.panes.indexOf(ui.focus); if (i >= 0) ui.panes[i] = id; else ui.panes.push(id); }
+      ui.focus = id; ui.scroll = ui.scrolls[id] || 0;
+    } else { ui.focus = id; ui.scroll = 0; }
+  }
+  // /split <agent> … · /split close · /split off: talk to more agents at once (tui.js THE SPLIT)
+  function split(arg) {
+    const words = String(arg || '').trim();
+    const names = () => model.state.order.map(id => model.state.agents.get(id)).filter(Boolean).map(a => a.name).join(', ');
+    if (!words) return sayHere('/split', ['/split <agent> puts another agent beside this one — a pane each, each scrolling on its own; type to the one marked ▌ (click a pane, or tab). /split close closes the pane you are in, /split off goes back to one.', 'Your crew: ' + names() + '.'], true, 'SPLIT');
+    if (/^(off|none|one)$/i.test(words)) { ui.panes = []; ui.scrolls = {}; ui.page = ''; return paint(); }
+    if (/^close$/i.test(words)) {
+      if (!splitOn()) return flash('nothing is split', 'dim');
+      const i = ui.panes.indexOf(ui.focus);
+      ui.panes.splice(i, 1);
+      const next = ui.panes[Math.max(0, i - 1)];
+      delete ui.scrolls[ui.focus];
+      ui.focus = next; ui.scroll = ui.scrolls[next] || 0;
+      if (ui.panes.length < 2) { ui.panes = []; ui.scrolls = {}; }
+      ui.page = '';
+      return paint();
+    }
+    const want = words.split(/[\s,]+/).filter(Boolean);
+    const all = model.state.order.map(id => model.state.agents.get(id)).filter(Boolean);
+    const found = [], missing = [];
+    for (const w of want) { const a = all.find(x => x.name.toLowerCase() === w.toLowerCase() || x.id === w) || all.find(x => x.name.toLowerCase().indexOf(w.toLowerCase()) === 0); if (a) found.push(a.id); else missing.push(w); }
+    if (missing.length) return sayHere('/split', ['No agent called ' + missing.join(', ') + ' — your crew: ' + names() + '.'], false, 'SPLIT');
+    if (!splitOn()) ui.panes = [ui.focus].filter(Boolean);
+    ui.scrolls[ui.focus] = ui.scroll;
+    for (const id of found) if (ui.panes.indexOf(id) < 0) ui.panes.push(id);
+    const last = found[found.length - 1];
+    ui.focus = last; ui.scroll = ui.scrolls[last] || 0;   // the one you just added is the one you type to
+    ui.page = ''; ui.overlay = null; ui.picker = null; ui.agentMenu = '';
+    paint();
+  }
   // a chat opened from anywhere: the agent's conversation in COMMS
   function openChat(id) {
     if (!model.state.agents.has(id)) return;
-    if (ui.focus !== id) { ui.focus = id; ui.scroll = 0; }
+    setFocus(id);
     ui.page = ''; ui.agentMenu = ''; ui.overlay = null; ui.picker = null;
     paint();
   }
@@ -776,8 +819,10 @@ function runDashboard(station, opts) {
       const d = ev.dir === 'up' ? 1 : -1;
       if (ui.picker) { const n = tui.pickerView(ui.picker).length; ui.picker.sel = Math.max(0, Math.min(n - 1, (ui.picker.sel | 0) - d)); return paint(); }
       if (!inArea(lastAreas.comms, ev.x, ev.y)) return;
+      const pane = !ui.overlay && !ui.page && (lastAreas.panes || []).find(p => inArea(p, ev.x, ev.y));
       if (ui.overlay) ui.overlay.scroll = Math.max(0, (ui.overlay.scroll | 0) - 3 * d);
       else if (ui.page) ui.pageScroll = Math.max(0, (ui.pageScroll | 0) - 3 * d);
+      else if (pane && pane.id !== ui.focus) ui.scrolls[pane.id] = Math.max(0, (ui.scrolls[pane.id] | 0) + 3 * d);   // a pane you are not typing to scrolls on its own
       else ui.scroll = Math.max(0, ui.scroll + 3 * d);
       return paint();
     }
@@ -796,7 +841,9 @@ function runDashboard(station, opts) {
     if (ev.button !== 'left') return;
     if (!act) {
       // a click anywhere off a list laid over COMMS closes it, as any key does
-      if (ui.overlay) { ui.overlay = null; paint(); }
+      if (ui.overlay) { ui.overlay = null; paint(); return; }
+      const pane = (lastAreas.panes || []).find(p => inArea(p, ev.x, ev.y));   // a click in a pane: that is the one you type to
+      if (pane && pane.id !== ui.focus) { setFocus(pane.id); paint(); }
       return;
     }
     if (ui.overlay && act.t !== 'tab') { ui.overlay = null; paint(); return; }
@@ -807,6 +854,7 @@ function runDashboard(station, opts) {
         // the agent already in COMMS (on COMMS): its menu; any other, its chat
         if (!ui.page && act.id === ui.focus && !ui.picker && !ui.wake) return openMenu(act.id);
         return ui.wake ? undefined : openChat(act.id);
+      case 'pane': setFocus(act.id); return paint();
       case 'needs': { const q = model.front(); if (q) openChat(q.agentId); return; }
       case 'model': return openModelPicker('');
       case 'menu': return menuKey(act.key);
@@ -854,7 +902,7 @@ function runDashboard(station, opts) {
     if (m) {
       const a = model.findAgent(m[1]);
       if (!a) return flash('no agent named ' + m[1] + ' · ' + model.state.order.map(id => '@' + model.state.agents.get(id).name.toLowerCase()).join(' '));
-      ui.focus = a.id; target = a.id; body = m[2].trim();
+      setFocus(a.id); target = a.id; body = m[2].trim();
       if (!body) return paint();
     }
     if (!target) return flash('no agent to talk to');
@@ -871,6 +919,7 @@ function runDashboard(station, opts) {
     if (cmd === '/theme' || cmd === '/themes') return themeCommand(parts[1] || '');
     if (cmd === '/connect' || cmd === '/providers') return openConnectPicker(parts.slice(1).join(' '));
     if (cmd === '/usage') return showUsage();
+    if (cmd === '/split') return split(parts.slice(1).join(' '));
     // the app's own commands, done here (above: what each does and which station route it uses)
     const rest = text.slice(parts[0].length).trim();
     if (cmd === '/agents' || cmd === '/tasks') return openPage('crew');
@@ -1685,11 +1734,11 @@ function runDashboard(station, opts) {
     return true;
   }
   function focusStep(d) {
-    const ids = model.state.order;
+    const ids = splitOn() ? ui.panes.filter(id => model.state.agents.has(id)) : model.state.order;
     if (!ids.length) return;
     const i = Math.max(0, ids.indexOf(ui.focus));
-    ui.focus = ids[(i + d + ids.length) % ids.length];
-    ui.scroll = 0; ui.overlay = null;
+    setFocus(ids[(i + d + ids.length) % ids.length]);
+    ui.overlay = null;
   }
   function quit(force) {
     const live = [...mine.values()].filter(x => x.kind === 'run').length;
