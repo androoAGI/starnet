@@ -160,7 +160,9 @@
          registry: "the obvious prompt-injection exfiltration target"), and this lane is the strictest one that still
          lets the Commander send: a watched run asks an exact per-call confirmation and ANY yes covers that one send only
          (no "always" grant is ever recorded); a delegated worker and an unattended ASK run are never offered it; a
-         tainted run loses it; Full Access keeps it. external-credentialed (web_request's class) was tried in quick win 8
+         tainted run loses it; Full Access keeps it. Declared, it is also refused on a dispatch that carries no run
+         authority at all (registry.js reads a declared external-unknown; every run context carries one, index.js dctx).
+         external-credentialed (web_request's class) was tried in quick win 8
          and rejected in review: it made one "Always" a station-wide comms:execute grant, offered it to delegated workers
          under a watched lead, and offered it to unattended runs whose exec lockout refuses every call. Moving it to a
          class that stores grants waits for Andrew's security sign-off. */
