@@ -280,6 +280,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
+const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
@@ -13444,12 +13445,15 @@ async function runSampleJob(readArgs) {
     // NO RUN ROW, BUT A REASON (trigger-runner's pattern): an entry refused before it could run (the line's daily cap, reached
     // at admission) records no row — the hub's ⚠ reply is the only witness of why, and it is what the job record says
     const firstWarn = (sampleReplies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
+    // WHY IT DID NOT DELIVER, in words — the line's own stop reason before the generic sentence (routing/sample-verdict.js)
+    const problem = completed ? null : sampleProblem({ stoppedByUser: !!sampleInFlight.stopRequested, stopCause: sampleInFlight.stopCause, onLine, line, partial, runs,
+      lineStopped: sampleLineOutcome && sampleLineOutcome.stopped, refusedSaid, firstWarn });
     if (jobId) {
       const stoppedJob = !!sampleInFlight.stopRequested;
       // (wave 2 repair) the station's own fault containment stopped it (stopCause 'fault'): said as that, never "you stopped this job"
       lineJobsSet(LineJobs.finish(lineJobs, jobId, { at: Date.now(), usd: totalUsd, output: sampleReplies.join(''), runs, unapproved: completed ? unapproved : '',
         status: completed ? 'delivered' : stoppedJob ? 'stopped' : runs.length ? 'problem' : 'failed',
-        error: completed ? '' : stoppedJob ? (sampleInFlight.stopCause === 'fault' ? 'the station hit an internal fault and stopped this job' : 'you stopped this job') :!onLine ? 'the job did not enter through this line' : (partial && runs.every(r => r.reason === 'done')) ? 'the joiner sent on without every branch (' + partial + ')' : runs.length ? 'a step did not finish cleanly' : (refusedSaid || firstWarn || 'no step ran') }));
+        error: completed ? '' : problem.jobError }));
       sampleInFlight.jobId = null;
     }
     const recordedJob = jobId ? LineJobs.get(lineJobs, jobId) : null;
@@ -13470,10 +13474,7 @@ async function runSampleJob(readArgs) {
       // A job the Commander STOPPED (POST /api/routing/sample/stop) is named as a stop — never as a line that failed.
       const stopped = !!sampleInFlight.stopRequested;
       return json(502, Object.assign({
-        ok: false, sample: true, error: stopped ? 'stopped — you stopped this job before it reached the OUTBOX'
-          : !onLine ? 'sample job did not enter through line "' + line + '"'
-          : (partial && runs.length && runs.every(r => r.reason === 'done')) ? 'sample job came out of its joiner partial (' + partial + ')'
-          : runs.length ? 'sample job did not complete cleanly' : (refusedSaid || firstWarn || 'sample job produced no durable run outcome'),
+        ok: false, sample: true, error: problem.routeError,
         chatId: SAMPLE_CHAT, streamId: streamId, agentId: agentId || null, isTask: isTask,
         workitemId: workitemId || null, replies: sampleReplies.slice(), runs: runs, delivered: null, totalUsd: totalUsd
       }, line ? { line: line } : null, stopped ? { stopped: true } : null, jobId ? { jobId } : null, onward,

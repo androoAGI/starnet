@@ -724,6 +724,7 @@ test/mint-ledger.test.js
 test/cron.dispatch.test.js
 test/cron.delivery-backlog.test.js
 test/cron.chain.test.js
+test/sample-verdict.test.js
 test/cron.tick.test.js
 test/cron.hardening.test.js
 test/cron.reliability-ramp.test.js
