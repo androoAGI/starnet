@@ -40,7 +40,7 @@ function fakeStation(opts) {
   const live = new Map();     // runId -> { body, res }
   const hits = [];            // every request: { method, path, body }
   const ended = [];           // every run that ended (GET /api/runs lists them: the /resume picker reads conversations there)
-  const roster = { agents: [{ agentId: 'agent', name: 'ULTRON', model: 'test/m', provider: 'openrouter', reasoningEffort: o.effort === undefined ? null : o.effort, approvalMode: 'ask', personaId: null }] };
+  const roster = { agents: [{ agentId: 'agent', name: 'ULTRON', model: 'test/m', provider: 'openrouter', reasoningEffort: o.effort === undefined ? null : o.effort, approvalMode: 'ask', personaId: null }].concat(o.agents || []) };
   let feed = null, evId = 0, seq = 0;
   const emit = (name, payload) => { if (feed) feed.write('id: ' + (++evId) + '\ndata: ' + JSON.stringify({ name, payload }) + '\n\n'); };
   const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
@@ -601,7 +601,35 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     await d.done();
   }
 
-  global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;
+  /* 18. /split: more agents on the screen at once — a pane each; what you type goes to the pane marked (the one just added,
+     then tab moves through the panes); /split close closes the one you are in, /split off goes back to one; a name that
+     is no agent says so */
+  {
+    const d = await boot({ agents: [{ agentId: 'scout', name: 'SCOUT', model: 'test/m', provider: 'openrouter' }, { agentId: 'forge', name: 'FORGE', model: 'test/m', provider: 'openrouter' }] });
+    let at = d.mark();
+    await d.keys('/split scout forge\r', 700);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ ULTRON · SCOUT · FORGE/.test(said), 'split: COMMS shows ULTRON, SCOUT and FORGE at once');
+    await d.keys('hello forge\r', 600);
+    A.eq(d.userRuns().map(r => r.body.agentId), ['forge'], 'split: what you type goes to the pane just added');
+    await d.key('\t', 300);
+    await d.keys('hello ultron\r', 600);
+    A.eq(d.userRuns().map(r => r.body.agentId), ['forge', 'agent'], 'split: tab moves to the next pane, and the message goes there');
+    at = d.mark();
+    await d.keys('/split close\r', 600);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ SCOUT · FORGE/.test(said), 'split: /split close closes the pane you were in: ' + (said.match(/COMMS ▸[^│╮]{0,40}/) || [''])[0]);
+    at = d.mark();
+    await d.keys('/split off\r', 600);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ (SCOUT|FORGE)\b(?! ·)/.test(said) && !/COMMS ▸ SCOUT · FORGE/.test(said), 'split: /split off — one agent again');
+    at = d.mark();
+    await d.keys('/split warp\r', 600);
+    A.ok(/No agent called warp — your crew: ULTRON, SCOUT, FORGE/.test(d.since(at).replace(/\s+/g, ' ')), 'split: a name that is no agent says so, and names the crew');
+    await d.done();
+  }
+
+global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;
   A.report('cli-dashboard-drive.test');
   process.exit(process.exitCode || 0);
 })().catch(e => { console.error(e); process.exit(1); });
