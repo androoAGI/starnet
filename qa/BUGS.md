@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**40** open (open+claimed) of 379 total — 0 P0 · 0 P1 · 40 P2
+**40** open (open+claimed) of 380 total — 0 P0 · 0 P1 · 40 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **115** · source fixed: **98** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **109**.
+User/owner reports: **116** · source fixed: **99** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **110**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -110,6 +110,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | session-status-presentation | fixed | unverified | unconfirmed |
 | [Files dropped onto chat do not attach in the desktop app](bugs/b48aa05d-files-dropped-onto-chat-do-not-attach-in-the-des.md) | message-attachments | fixed | unverified | unconfirmed |
 | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | session-starters | fixed | unverified | unconfirmed |
+| [Removed skill support files reappear during hydration](bugs/3e79b690-removed-skill-support-files-reappear-during-hydr.md) | skill-package-removal | fixed | unverified | unconfirmed |
 | [Agent look-back flicker and waypoint stutter](bugs/e356ce13-agent-look-back-flicker-and-waypoint-stutter.md) | movement-continuity | fixed | unverified | unconfirmed |
 | [Centered room lighting leaves sides dark and creates hotspots](bugs/741832d8-centered-room-lighting-leaves-sides-dark-and-cre.md) | room-lighting | fixed | unverified | unconfirmed |
 | [Chat numbered lists have excessive vertical spacing](bugs/a9862eb0-chat-numbered-lists-have-excessive-vertical-spac.md) | chat-markdown-spacing | fixed | unverified | unconfirmed |
@@ -449,6 +450,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Worker recovery rebuilds an unrelated conversation and loses reader state](bugs/abb287e8-worker-recovery-reader-state.md) | thread-ux-review-1011 | a69664135e4983fe624ec11bea6b2bd4666ee651 |
 | P2 | fixed | sessions | [Workshop Keep accepts an empty decision acknowledgement](bugs/9bc0b751-workshop-keep-accepts-an-empty-decision-acknowle.md) | agent/system-polish-0920 | 4a2028759 |
 | P2 | fixed | skills | [Design references assert requested image properties as observed](bugs/436ab17d-design-references-assert-requested-image-propert.md) | agent/provider-triage-1011 | 2e9c7ffb4 |
+| P2 | fixed | skills | [Removed skill support files reappear during hydration](bugs/3e79b690-removed-skill-support-files-reappear-during-hydr.md) | contribution/skills | 0a86ee8f |
 | P2 | fixed | skills | [Rolling back an installed skill overrides its pin without an explicit force](bugs/29043870-rolling-back-an-installed-skill-overrides-its-pi.md) | sweep/skills | bd449b81b |
 | P2 | fixed | skills | [Skill hydrate has no file-count or byte limit, so 10k files on disk reach the provider in one request](bugs/4ab22e0e-skill-hydrate-has-no-file-count-or-byte-limit-so.md) | sweep/skills | bd449b81b |
 | P2 | fixed | voice | [A keyed voice provider slower than the desk's 30s synth ceiling is paid twice for one sentence, which then plays after a minute of silence](bugs/df610df1-a-keyed-voice-provider-slower-than-the-desk-s-30.md) | sweep/voice | 22c36eed6 |
