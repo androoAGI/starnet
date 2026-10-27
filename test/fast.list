@@ -754,6 +754,7 @@ test/loop-tools.test.js
 test/loopgit.test.js
 test/cron.oneshot.test.js
 test/cron.run-now.test.js
+test/routine-identity.test.js
 test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js

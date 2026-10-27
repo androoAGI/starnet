@@ -281,6 +281,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
+const { routineRunIdentity, runsAsCommand } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
 const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
@@ -7176,7 +7177,7 @@ const cronDriver = makeCronDriver({
     // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
     // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
     // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
-    if (first && first.charAt(0) === '/' && !opts.cronScript) {
+    if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
       // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
       // agent.run.start, and this early return skipped the runsMeta registration below — the one autonomous
       // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
@@ -16871,13 +16872,15 @@ async function handleCronRun(req, res) {
   // routine whose prompt is "/usage" would model-run here and command-run on schedule — the same routine
   // doing two different things depending on who started it. Placed AFTER the credential gate above so both
   // paths gate identically (see runSlashRoutine's note on that shared limit).
-  if (assembledPrompt.charAt(0) === '/') {
+  // (quick win 31) the SAME rule as the scheduled wrapper: a routine carrying a pre-check SCRIPT is a model run, never redirected
+  const firedAt = Date.now();   // this press's fire time: cron.fire's scheduledFor and the run's idempotency scope
+  if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
     cronDriver.leases.set(job.id, { runId: runIdC, startedAt: Date.now(), heartbeatAt: Date.now(), ac: new AbortController(), isOnce: false });
     const busC = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
     const emitC = wrapEmitDiag(makeEmitter(busC, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
-    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: Date.now() }); } catch (_) {}
+    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: firedAt }); } catch (_) {}
     let out;
     try { out = await runSlashRoutine(assembledPrompt, { agentId: job.agentId, runId: runIdC, emit: emitC }); }
     catch (e) { out = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
@@ -16925,7 +16928,7 @@ async function handleCronRun(req, res) {
     // the chain's $ ceiling below, so a Run-Now line is bounded exactly like the scheduled fire.
     else if (name === 'agent.run.end') { state.reason = p.reason; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd, p.usd); }
   };
-  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: Date.now() }); } catch (_) {}
+  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: firedAt }); } catch (_) {}
   // NS-0: a manual Run Now is still a cron FIRE decision — record it in the autonomy ledger (binding:'run-now'
   // distinguishes it from a scheduled fire). The scheduled tick path records via cronEmitNotify; this route uses
   // the raw cronEmit, so record explicitly here so BOTH fire paths land in the durable decision trail.
@@ -16949,8 +16952,10 @@ async function handleCronRun(req, res) {
       // identical cron.fire/cron.result events, can fetch the real output via /api/transcript?stream=cron-<runId>.
       // Per-run id keeps the seed empty (index.js reconstructs a stream only when messages<=1) — no behavior drift.
       runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: true,
-      // the routine identity the scheduled fire carries (cron-driver.js): its run-history row and routine.notepad key off it
-      cronJobId: job.id, cronJobName: job.name || '',
+      // the routine identity the scheduled fire carries (cron-driver.js, one helper: routine-identity.js): its run-history row and
+      // routine.notepad key off cronJobId; recipeId keeps a recipe routine's provenance; the idempotency scope (job + this press's
+      // fire time) keeps a retried/resumed Run Now from re-sending a connector write it already made (quick win 31)
+      ...routineRunIdentity(job, firedAt),
       // "Follow station default": same effort rule as the scheduled fire (cron-driver.js) — an unpinned agent with
       // no explicit routine model runs on the Overseer's effort along with its model.
       reasoningEffort: (() => { const ri = !(job.model && String(job.model).trim()) ? cronIdentityFor(job.agentId) : null; return ri && ri.followsStation ? ri.reasoningEffort : undefined; })(),

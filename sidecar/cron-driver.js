@@ -67,6 +67,9 @@
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   // plain words for an unclean end ("the model sent back an empty reply…"), the machine reason kept in brackets
   const incompleteRunMessage = (typeof require === 'function') ? require('./stop-reason.js').incompleteRunMessage : (r) => 'run ended without completion: ' + (r || 'missing terminal outcome');
+  // WHO a routine run is (routine id + name, recipe, fire-time idempotency scope) — one definition for this tick and Run Now
+  const routineRunIdentity = (typeof require === 'function') ? require('./routine-identity.js').routineRunIdentity
+    : function (job, at) { return { cronJobId: job.id, cronJobName: job.name || '', idempotencyScope: 'cron:' + job.id + ':' + String(at == null ? '' : at), recipeId: (job.meta && job.meta.recipeId) || undefined }; };
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   // what a finished work line leaves on the fire: its answer + stop note, its spend, its stop facts (routing/line-fire.js)
   const foldLineIntoFire = (typeof require === 'function') ? require('./routing/line-fire.js').foldLineIntoFire
@@ -548,14 +551,13 @@
           // model leaves this undefined, so the run's own roster effort applies unchanged.
           reasoningEffort: (!(job.model && String(job.model).trim()) && ident.followsStation) ? ident.reasoningEffort : undefined,
           // Host-minted recovery identity. The active-run journal can now tie an interrupted headless run back
-          // to the routine that launched it without trusting model text or guessing from the stream id.
-          cronJobId: job.id, cronJobName: job.name || '',
+          // to the routine that launched it without trusting model text or guessing from the stream id. Same helper as
+          // Run Now (routine-identity.js): cronJobId/cronJobName, the recipe's provenance (recipeId), and the IDEMPOTENCY
+          // SCOPE — the same tick retried/resumed must not re-send a connector write, the NEXT tick may (job + fire time).
+          ...routineRunIdentity(job, scheduledFor),
           // SOP recipes: a routine minted from a recipe with acceptance rows carries the typed postconditions
           // contract in its meta bag; the host evaluates it at run end exactly as for an interactive launch.
           postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
-          // IDEMPOTENCY SCOPE: the same scheduled tick retried/resumed must not re-send a connector write, but the
-          // NEXT tick of the same routine legitimately may — so the scope is job + scheduled fire time.
-          idempotencyScope: 'cron:' + job.id + ':' + String(scheduledFor == null ? '' : scheduledFor),
           // a scheduled run does real work; what it learns is durable memory, not scratch. Bounded downstream by
           // the aux budget + per-agent reflection cooldown, and stamped origin:'schedule' (see index.js /api/run).
           reflect: true,
@@ -573,9 +575,6 @@
           workdir: job.workdir || null,
           enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null,
           initialTaint: !!(job.contextFrom && job.contextFrom.length),
-          // provenance spine (R3 meta bag → durable run row): a routine minted from a recipe carries its recipeId,
-          // so scheduled recipe runs are attributable exactly like hand-launched ones. undefined for plain routines.
-          recipeId: (job.meta && job.meta.recipeId) || undefined,
           // per-bay capability isolation (B5): a bay-docked agent's routine runs with ITS room's objects,
           // never the default office — same contract as a routed channel message. undefined -> office.
           station: (resolveStation ? (job.dockId ? resolveStation(job.agentId, job.dockId) : resolveStation(job.agentId)) : null) || undefined
