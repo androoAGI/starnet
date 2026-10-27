@@ -122,6 +122,7 @@ const CloudSave = (() => {
   let journalKey = null;          // set by openJournal(); null = never opened (the legacy key, as before)
   let otherJournals = [];         // dead windows' journals this page did not continue: settled once the station is read
   const heardClaims = new Set();  // journals other pages said they write (their boot's claim)
+  let journalAt = 0;              // when this page picked its journal (a claim race: the first to pick keeps it)
   function cacheKey() { return journalKey || ((typeof Save !== 'undefined' && Save && typeof Save.key === 'function') ? Save.key() : LEGACY_KEY); }
   function useJournal(k) {
     journalKey = k;
@@ -139,19 +140,21 @@ const CloudSave = (() => {
         const m = e && e.data;
         // the journal this page writes (null while it is still booting: it owns none yet)
         if (m && m.ping && m.from !== clientId && !retired) { try { pagesChannel.postMessage({ pong: m.ping, from: clientId, journal: journalKey }); } catch (_) {} }
-        // two pages that booted at the same moment can pick the same dead journal: the lower page id keeps it, the other
-        // moves to a journal of its own (carrying the save it already holds), so no two live pages ever share one key. A claim
-        // heard while this page is still booting marks that journal as taken (openJournal)
+        // two pages that opened their journals at about the same moment can pick the same dead one: the page that picked it
+        // FIRST keeps it (a page that was already running always wins over one still booting; a tie goes to the lower page id),
+        // the other moves to a journal of its own (carrying the save it already holds), so no two live pages ever share one
+        // key. A claim heard while this page is still booting marks that journal as taken (openJournal)
         if (m && m.claim && m.from !== clientId) heardClaims.add(String(m.claim));
         if (m && m.claim && m.from !== clientId && journalKey && m.claim === journalKey && !retired) {
-          if (String(m.from) < clientId) {
+          const theirs = num(m.at), first = theirs < journalAt || (theirs === journalAt && String(m.from) < clientId);
+          if (first) {
             const old = journalKey, fresh = JOURNAL_PREFIX + clientId;
             useJournal(fresh);
             try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, fresh); } catch (_) {}
             try { const raw = localStorage.getItem(old); if (raw != null) localStorage.setItem(fresh, raw); } catch (_) {}
           } else {
             // this page keeps it: say so, so the other page (which may not have heard this page's own claim) moves
-            try { pagesChannel.postMessage({ claim: journalKey, from: clientId }); } catch (_) {}
+            try { pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
           }
         }
       });
@@ -602,7 +605,8 @@ const CloudSave = (() => {
     if (!ownKey) for (const j of dead) if (isSave(j.doc) && (!mine || num(j.doc.updatedAt) > num(mine.doc.updatedAt))) mine = j;
     useJournal(ownKey || (mine ? mine.key : (live.journals.has(LEGACY_KEY) ? JOURNAL_PREFIX + clientId : LEGACY_KEY)));
     try { if (typeof sessionStorage !== 'undefined' && sessionStorage) sessionStorage.setItem(JOURNAL_NOTE_KEY, journalKey); } catch (_) {}
-    try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId }); } catch (_) {}
+    journalAt = now();
+    try { if (pagesChannel) pagesChannel.postMessage({ claim: journalKey, from: clientId, at: journalAt }); } catch (_) {}
     otherJournals = dead.filter(j => j.key !== journalKey);
     // the other dead windows' unsent work, into the station first
     for (const j of otherJournals) {

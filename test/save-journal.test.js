@@ -43,7 +43,7 @@ function page(b, host, o) {
   o = o || {};
   const session = o.session || new Map();
   const ctx = { console: quiet, module: { exports: {} }, require: () => require('../frontend/app/cloudsavecore.js'), setTimeout, clearTimeout, AbortController,
-    localStorage: b.ls, BroadcastChannel: b.Channel, crypto: { randomUUID: () => 'page' + (++ids) },
+    localStorage: b.ls, BroadcastChannel: b.Channel, crypto: { randomUUID: () => o.id || ('page' + (++ids)) },
     sessionStorage: { getItem: k => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)), removeItem: k => session.delete(k) },
     location: { reload() {} }, fetch: (u, init) => host.fetch(u, init) };
   vm.createContext(ctx);
@@ -86,6 +86,24 @@ const turn = K.turn;
       A.eq(await again.cs.openJournal(), k2, 'b: a reloaded tab continues ITS OWN journal');
       A.ok(again.Save.load() && JSON.stringify(again.Save.load()).includes('second tab work'), 'b: and reads its own save from it');
       A.eq(first.cs.journalKey(), 'starnet.save', 'b: the live first tab kept its journal throughout');
+    }
+    {
+      // a booting tab that did not hear a BUSY running tab answer in time picks that tab's journal: the running tab keeps it
+      // (it picked first), and the booting one moves to its own — even with the lower page id
+      const root = K.workspace(); const host = K.sidecar(root);
+      host.saveStore.save('agent', station(), { compareRevision: true });
+      const b = browser();
+      const running = page(b, host, { id: 'zz-running' });
+      await running.cs.openJournal();
+      running.Save.write(Object.assign(station(), { _saveDirty: false }));
+      const ch = running.channel(); ch.open = false;   // busy: it does not answer the ping
+      const booting = page(b, host, { id: 'aa-booting' });
+      const opening = booting.cs.openJournal();
+      setTimeout(() => { ch.open = true; }, 100);   // it hears again before the booting tab's claim
+      A.eq(await opening, 'starnet.save', 'b: (the booting tab, hearing nothing, took the running tab’s journal)');
+      for (let i = 0; i < 6; i++) await settle();
+      A.eq(running.cs.journalKey(), 'starnet.save', 'b: the running tab keeps its journal (it picked first)');
+      A.ok(/^starnet\.save\.w\.aa-booting$/.test(booting.cs.journalKey()), 'b: the booting tab moved to a journal of its own, despite its lower id (' + booting.cs.journalKey() + ')');
     }
 
     // ---- c. another dead window's journal: merged into the station, then removed (unless it changed) ----
