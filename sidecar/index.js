@@ -2878,6 +2878,24 @@ function providerHasCredential(provider, key, baseUrl) {
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
   return true;
 }
+// A subscription whose primary sign-in is STORED but recorded dead (a relogin-class refresh failure) and no extra account
+// is live: the one state where "connect first" is false. The Commander signed in; it expired and needs a reconnect.
+function providerSignInExpired(provider) {
+  const id = normalizeProvider(provider);
+  if (!registryProviderUsesCodex(id) && !registryProviderUsesDeviceOAuth(id)) return false;
+  const p = oauthPrimaryStatus(id);
+  return !!(p.tokens && p.tokens.access_token) && !accountLive(id, '') && !anyExtraAccountLive(id);
+}
+// The credential as STORED, before the liveness verdict: what boot channel auto-start reads. A saved channel bot on a
+// sign-in recorded dead still starts, answers each message with the expired-sign-in error, and works again the moment
+// the Commander reconnects (handleCodexPoll clears the marker and restarts nothing, so a bot skipped at boot stayed
+// offline until a restart).
+function providerHasStoredCredential(provider, key, baseUrl) {
+  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider);
+}
+// ...and what such a bot says to a message while the sign-in is dead: the hub answers sec.error before its generic
+// "No provider/model is configured yet" line, which would be false for a sign-in that only expired.
+function expiredSignInNote(provider) { return providerSignInExpired(provider) ? providerCredentialError(provider) : ''; }
 
 // subscription stacking: an extra connected sign-in also makes an OAuth subscription runnable (before the account
 // keeper has initialised at boot, nothing is stacked yet — the TDZ throw reads as "none").
@@ -2946,6 +2964,13 @@ function providerCredentialError(provider) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const label = (profile && profile.label) || id;
+  // A sign-in recorded dead EXISTS: it expired, so the remedy is a reconnect, never "connect first" (the page classifies
+  // this text as oauth, not signed out: "Your ChatGPT sign-in expired — reconnect it" beside ⏼ RECONNECT, friendlyerror.js).
+  if (providerSignInExpired(id)) {
+    return registryProviderUsesCodex(id)
+      ? 'your ChatGPT sign-in expired - sign in with ChatGPT again (RECONNECT on the ChatGPT card in SETTINGS -> AI & MODELS)'
+      : 'your ' + label + ' sign-in expired - reconnect it under SETTINGS -> AI & MODELS';
+  }
   if (registryProviderUsesCodex(id)) return 'connect ChatGPT first - a signed-in ChatGPT account + model are required';
   if (registryProviderUsesDeviceOAuth(id)) return 'sign in to ' + label + ' first - a signed-in subscription + model are required';
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
@@ -10633,7 +10658,7 @@ function startTelegram(token, key, model, agentCfg) {
       const provider = normalizeProvider(t.provider);
       const key = providerRuntimeKey(provider, t.key || '');
       const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '');
-      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
+      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
     },
     persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
@@ -11046,7 +11071,7 @@ function startDiscord(token, key, model, agentCfg) {
         const provider = normalizeProvider(d.provider);
         const k = providerRuntimeKey(provider, d.key || '');
         const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '');
-        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
+        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
       },
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -11339,7 +11364,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
         const p = normalizeProvider(r.provider);
         const k = providerRuntimeKey(p, r.key || '');
         const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '');
-        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
+        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
       },
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
@@ -12774,7 +12799,9 @@ server.listen(PORT, '127.0.0.1', () => {
     const tgTok = channelToken('telegram', '', t);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (t.enabled && tgTok && t.model && providerHasCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
+    // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
+    if (t.enabled && tgTok && t.model && providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
     else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
@@ -12791,7 +12818,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && d.model && providerHasCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    if (d.enabled && dcTok && d.model && providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
     else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
@@ -12803,7 +12830,7 @@ server.listen(PORT, '127.0.0.1', () => {
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && r.model && providerHasCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
+      if (r.enabled && authOk && r.model && providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
