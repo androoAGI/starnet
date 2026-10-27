@@ -96,11 +96,15 @@ function httpLeg(engine, status, body, headers, detail) {
   });
 }
 
-const NET_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH',
-  'ENETUNREACH', 'ENETDOWN', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+const NET_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EPIPE', 'EHOSTUNREACH',
+  'ENETUNREACH', 'ENETDOWN', 'EPROTO', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+// A TLS failure (a TLS-intercepting proxy's certificate, an expired or self-signed chain, a protocol mismatch): the
+// connection was refused on the way to the provider — never a bug in the station's own handler.
+const TLS_CODE = /^(?:CERT_|ERR_TLS_|ERR_SSL_|SELF_SIGNED_CERT|UNABLE_TO_(?:VERIFY|GET)_|DEPTH_ZERO_SELF_SIGNED|HOSTNAME_MISMATCH|INVALID_CA)/;
 
 /* A THROWN failure: a coded error (edgetts.js sets err.speechCode) keeps its code; an abort the CALLER caused is
-   'cancelled'; a timeout or connection failure is transient; anything else threw from our own code: internal_error. */
+   'cancelled'; a timeout or connection (socket or TLS) failure is transient; anything else threw from our own code:
+   internal_error. */
 function errorLeg(engine, err, ctx) {
   const e = err || {};
   const msg = clip((e && e.message) || e, 300);
@@ -108,7 +112,7 @@ function errorLeg(engine, err, ctx) {
   if (ctx && ctx.cancelled) return leg(engine, 'cancelled', { detail: msg });
   const code = String(e.code || (e.cause && e.cause.code) || '');
   if (/^UND_ERR_.*TIMEOUT$/.test(code) || e.name === 'TimeoutError' || e.name === 'AbortError' || /\btime(?:d)?[ -]?out\b/i.test(msg)) return leg(engine, 'timeout', { detail: msg });
-  if (NET_CODES.has(code) || /fetch failed|socket|network|ECONN|ENOTFOUND|EAI_AGAIN/i.test(msg)) return leg(engine, 'network', { detail: msg });
+  if (NET_CODES.has(code) || TLS_CODE.test(code) || /fetch failed|socket|network|ECONN|ENOTFOUND|EAI_AGAIN|certificate|\bSSL\b|\bTLS\b/i.test(msg)) return leg(engine, 'network', { detail: msg });
   return leg(engine, 'internal_error', { detail: msg });
 }
 

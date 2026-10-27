@@ -35,6 +35,13 @@ server.on('upgrade', (rq, socket) => {
     socket.end();
   };
   if (mode === 'checkToken' && q.get('Sec-MS-GEC') !== edge.secMsGec(SERVER_NOW)) return refuse(403, SERVER_NOW);
+  // a SLOW skewed-clock 403 (700 ms), then a right-window retry that never answers: the retry may only spend what
+  // is left of the leg's cap
+  if (mode === 'slowSkew') {
+    if (q.get('Sec-MS-GEC') !== edge.secMsGec(SERVER_NOW)) { setTimeout(() => refuse(403, SERVER_NOW), 700); return; }
+    socket.on('error', () => {});
+    return;   // hang: no 101, no answer
+  }
   if (mode === 'alwaysRefuse') return refuse(403, SERVER_NOW);
   if (mode === 'rateLimited') return refuse(429, SERVER_NOW);
   if (mode === 'overloaded') return refuse(503, SERVER_NOW);
@@ -111,6 +118,32 @@ server.on('upgrade', (rq, socket) => {
     A.ok(Date.now() - t0 < 1500, 'at once, not at the 3 s cap (' + (Date.now() - t0) + ' ms)');
     const noClock = await edge.synth('x', {}).then(() => ({}), e => e);
     A.eq(noClock.speechCode, 'internal_error', 'a caller that forgot the injected clock is a bug, coded internal_error');
+
+    // ---- the skew retry spends what is LEFT of the leg's cap, never a fresh one ----
+    edge._resetClockSkew();
+    mode = 'slowSkew'; requests = [];
+    const tw = Date.now();
+    const capped = await attempt(SERVER_NOW - 3600 * 1000, { timeoutMs: 1000 });
+    const took = Date.now() - tw;
+    A.eq(requests.length, 2, 'slow skew: the 403 at 700 ms still earns its one retry from the server\'s clock');
+    A.eq(capped.speechCode, 'timeout', 'slow skew: the retry that outlives the leg\'s cap is a timeout: ' + capped.message);
+    A.ok(took < 1400, 'slow skew: the whole leg ends at its 1000 ms cap, not 700 ms + a fresh 1000 ms (' + took + ' ms)');
+    A.ok(Math.abs(edge.clockSkew() - 3600 * 1000) < 2000, 'slow skew: the offset is learned anyway, so the next sentence starts right');
+
+    // ---- a TLS failure on the way to Edge is the network, never the station's own bug ----
+    edge._resetClockSkew();
+    mode = 'checkToken';
+    // https to a plain-HTTP listener: node's TLS layer rejects the reply (wrong version number) — the same raw,
+    // uncoded error class a TLS-intercepting proxy's untrusted certificate raises
+    const tls = await attempt(SERVER_NOW, { insecure: false });
+    A.eq(tls.ok, false, 'tls: a TLS failure rejects');
+    A.eq(tls.speechCode, 'network', 'tls: coded network ("could not be reached"), not left for the outcome to call internal_error: ' + tls.message);
+    const SO = require('../sidecar/speech-outcome.js');
+    for (const c of ['SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'ERR_TLS_CERT_ALTNAME_INVALID', 'EPROTO', 'ERR_SSL_WRONG_VERSION_NUMBER']) {
+      const l = SO.errorLeg('openrouter', Object.assign(new Error('a ' + c + ' failure'), { code: c }));
+      A.eq([l.code, SO.isTerminalCode(l.code)], ['network', false], 'tls: an uncoded ' + c + ' from any leg is network, never internal_error');
+    }
+    A.eq(SO.errorLeg('station', new TypeError('x is not a function')).code, 'internal_error', 'a real bug in our own code is still internal_error');
   } finally {
     edge._resetClockSkew();
     try { server.closeAllConnections && server.closeAllConnections(); } catch (_) { /* teardown */ }
