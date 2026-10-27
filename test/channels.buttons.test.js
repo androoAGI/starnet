@@ -269,7 +269,9 @@ async function run() {
 
   // A fake host consent channel with the SAME contract index.js provides — and the REAL consentwait module, so
   // the fail-closed timing under test is production's, not a stand-in.
-  function makeHostConsent(timeoutMs) {
+  // `production: true` builds the waiter EXACTLY as index.js channelAskConsent does: timeoutDecision 'timeout' plus the
+  // hub's onTimeout — an expiry then settles 'timeout', not 'deny' (review of quick win 24: 5H(b) exercised the deny branch).
+  function makeHostConsent(timeoutMs, production) {
     const byRun = new Map();
     return {
       byRun,
@@ -277,11 +279,15 @@ async function run() {
         let pend = byRun.get(String(o.runId));
         if (!pend) { pend = new Map(); byRun.set(String(o.runId), pend); }
         const fields = { tool: (o.call && o.call.name) || 'tool', scope: (o.tool && o.tool.scope) || 'write', argsSummary: 'path=notes.md' };
-        return makeConsentWait({
+        const prod = production ? {
+          timeoutDecision: 'timeout',
+          onTimeout: (promptId) => { if (typeof o.onTimeout === 'function') { try { o.onTimeout(promptId, fields); } catch (_) {} } }
+        } : {};
+        return makeConsentWait(Object.assign({
           pending: pend, signal: o.signal, timeoutMs: timeoutMs || 50, extendMs: 100,
           uuid: idGen('prompt'),
           emitPrompt: (promptId) => { try { o.onPrompt(promptId, fields); } catch (_) {} }
-        }).ask();
+        }, prod)).ask();
       },
       resolve(runId, promptId, decision) {
         const pend = byRun.get(String(runId));
@@ -580,6 +586,31 @@ async function run() {
     for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
     A.eq(edits.length, 1, 'an expired ask is stamped when it expires — not left live-looking until a tap');
     A.ok(edits[0] && /DENIED|did not run/.test(edits[0].text.split('\n').pop()), 'the stamp says the action did not run: ' + (edits[0] && edits[0].text.split('\n').pop()));
+  }
+  {
+    // (b2) the SAME expiry with the waiter built the way production builds it (timeoutDecision 'timeout' + onTimeout): the
+    // stamp names the timeout — never a bare "DENIED" a Commander would read as somebody saying no — strips the buttons, and
+    // the chat is also told once (notifyConsentTimeout). Without the settle stamp the keyboard stayed live-looking here.
+    const sends = [], edits = []; const store = fakeStore({ 555: { agentId: 'tg_555', approvals: true } });
+    const host = makeHostConsent(20, true);
+    let decision = null;
+    const runOnce = async (o) => { decision = await o.prompt({ name: 'fs.write', args: {} }, { scope: 'write' }); o.emit('agent.run.end', { reason: 'done' }); };
+    const hub = makeChannelHub({
+      isOwner: () => true, runOnce, store, prompts: makePromptRegistry({ newId: idGen('tok') }),
+      send: (c, t, opts) => { sends.push({ c, t, opts }); return Promise.resolve({ ok: true, messageId: 'kb2p' }); },
+      answerCallback: () => Promise.resolve({ ok: true }),
+      editMessage: (c, mid, text, opts) => { edits.push({ c, mid, text, opts }); return Promise.resolve({ ok: true }); },
+      askConsent: host.ask, resolveConsent: host.resolve,
+      secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen('run')
+    });
+    await hub.onInbound(dm('write it'));
+    for (let i = 0; i < 20; i++) await new Promise(r => setTimeout(r, 0));
+    A.eq(decision, 'timeout', 'fixture: the production-shaped waiter settles an expiry as timeout');
+    A.eq(edits.length, 1, 'the expired keyboard is stamped once, at the expiry');
+    A.eq(edits[0] && edits[0].mid, 'kb2p', 'on the keyboard message itself');
+    A.eq(edits[0] && edits[0].text.split('\n').pop(), '▸ ⌛ no answer in time — DENIED, the action did not run', 'the stamp names the timeout');
+    A.ok(edits[0] && !(edits[0].opts && edits[0].opts.reply_markup), 'and strips the spent buttons');
+    A.eq(sends.filter(s => /No answer in time — fs\.write was NOT run/.test(s.t)).length, 1, 'the chat is told once that the approval expired');
   }
   {
     // (c) a tap that wins: the message is still stamped exactly ONCE (by the settle), with the button that granted it
