@@ -5282,9 +5282,9 @@ const browserHandoffs = makeHandoffHost({
       const ident = agentRoster.get(v.agentId);
       const line = handoffNudgeLine(v, ident && ident.name);
       for (const c of chats) {
-        const ch = liveChannelFor(c.channel);
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // a live handle is not a heartbeat (channels/reach.js)
+        if (!reach.ok) { console.warn('[step-in] nudge not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[step-in] nudge failed:', r.error); })
           .catch(e => console.warn('[step-in] nudge failed:', (e && e.message) || e));
       }
@@ -6823,8 +6823,10 @@ function channelLiveHealth(channel) {
   if (!channel || channel === 'telegram') return telegramStatus || { connected: false, state: 'down' };
   return genericStatus[channel] || { connected: false, state: 'down' };
 }
-/* channelReach(channel) -> { ok, live, error } — handle AND proven health (channels/reach.js). Every send outside a hub's own
-   reply path asks it: the notifier, a routine's chat delivery, channel.send / its upload, and channel.targets. */
+/* channelReach(channel, opts?) -> { ok, live, proven?, error } — handle AND health (channels/reach.js). Every send outside a hub's
+   own reply path asks it with { attempt: true } (a just-started 'connecting' channel may be tried; 'error'/'down' never are): the
+   notifier, a routine's chat delivery, channel.send / its upload, a sign-in hand-off's nudge and a loop's stop notice. A CLAIM
+   asks it bare (proven 'up' only): channel.targets' connected bit and the routine preflight. */
 const channelReach = makeChannelReach({ liveChannelFor: (c) => liveChannelFor(c), channelLiveHealth: (c) => channelLiveHealth(c) }).reach;
 /* channel.send / its file upload take the TARGET KEY (the chat map key: '<botId>|<chatId>' on a bound bot) and resolve it
    back to its record, so the tool never knows about the namespacing. An unknown key or an unreachable channel answers
@@ -6834,7 +6836,7 @@ function commsTargetReach(target) {
   try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
   if (!rec) return { ok: false, error: 'unknown chat target' };
   const channel = String(rec.channel || 'telegram');
-  const reach = channelReach(channel);
+  const reach = channelReach(channel, { attempt: true });
   if (!reach.ok) return { ok: false, error: reach.error };
   return { ok: true, channel: channel, adapter: reach.live.adapter, chatId: String(rec.chatId || target) };
 }
@@ -6851,7 +6853,7 @@ function commsSendMediaTo(target, item) {
 }
 const autoNotifier = makeAutoNotifier({
   send: (chatId, text, channel) => {
-    const reach = channelReach(channel);   // handle AND proven health: an errored channel is not pinged (quick win 22)
+    const reach = channelReach(channel, { attempt: true });   // handle AND health: an errored channel is not pinged (quick win 22)
     const p = reach.ok ? reach.live.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: reach.error });
     // DELIVERY HONESTY (2026-07-15 audit): transports NEVER throw — a failure is a resolved { ok:false,
     // error } SendResult. Normalize that to a rejection so the notifier's per-send outcome reporting
@@ -7096,7 +7098,7 @@ async function deliverCronResult(job, result) {
     if (deliveredTargets.has(target)) continue;
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }
-    const channel = String(rec.channel || 'telegram'), reach = channelReach(channel), live = reach.live;
+    const channel = String(rec.channel || 'telegram'), reach = channelReach(channel, { attempt: true }), live = reach.live;
     if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }   // a live handle is not a heartbeat (channels/reach.js)
     const chatId = String(rec.chatId || target), route = rec.threadId ? { threadId: rec.threadId } : undefined;
     await cronChatTurn(channel + '\u0001' + chatId + '\u0001' + String(rec.threadId || ''), async () => {
@@ -9673,11 +9675,9 @@ const loopDriver = makeLoopDriver({
         : loop.state === 'dormant' ? (name + ' stopped — ' + (loop.stopReason || 'nothing left to do') + '.')
         : (name + ' paused — ' + (loop.stopReason || 'needs your attention') + '.');
       for (const c of chats) {
-        const ch = (c.channel === 'discord') ? discord
-          : (typeof c.channel === 'string' && c.channel.indexOf('telegram:') === 0) ? telegramBots.get(c.channel.slice('telegram:'.length))
-          : (!c.channel || c.channel === 'telegram') ? telegram : genericChannels[c.channel];
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // the ONE resolver + health gate (channels/reach.js)
+        if (!reach.ok) { console.warn('[loops] notify not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[loops] notify failed:', r.error); })
           .catch(e => console.warn('[loops] notify failed:', (e && e.message) || e));
       }
