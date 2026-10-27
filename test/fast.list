@@ -394,6 +394,7 @@ test/autonomy-ledger.test.js
 test/artifacts.test.js
 test/deliverable-store.test.js
 test/idempotency-ledger.test.js
+test/idempotency-continuation-scope.test.js
 test/deliverable-provenance.test.js
 test/deliverable-note.test.js
 test/deliverables-ui.test.js

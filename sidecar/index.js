@@ -24078,7 +24078,8 @@ async function runOnceCore(o) {
         cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '',
         cronJobName: trigger === 'schedule' ? String(o.cronJobName || '').slice(0, 200) : '',
         initialTaint: execution.taintedBy() || '',   // additive: a continuation of this run restores it (replayedTaint)
-        untrustedEntry: untrustedEntryRun === true   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        untrustedEntry: untrustedEntryRun === true,   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        idempotencyScope: idempotencyScope || ''   // additive: a continuation dedupes connector writes under the SAME work item (consumeRunRecoveryContinuation)
       });
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
@@ -28629,7 +28630,10 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   } catch (e) { return { ok: false, code: 409, error: String((e && e.message) || e) }; }
   activeRunContinuations.add(String(continuedRunId));
   try { syncInterruptedRunHistory(markRunRecoveryForensic(started)); } catch (e) { failNote('run-history.interrupted-sync', e); }   // -> recovering
-  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }) };
+  // the work item the SOURCE ran under (its journaled idempotency scope — a routine's is 'cron:<job>:<fire>'): the continuation
+  // dedupes its connector writes against the source's, not against 'run:<source>' it never wrote under (idempotency-ledger scopeFor)
+  const idempotencyScope = String((current.meta && current.meta.idempotencyScope) || '');
+  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }, idempotencyScope ? { idempotencyScope } : {}) };
 }
 
 // Settles the SOURCE journal after its continuation run returned. Ordering mirrors finishAndRetire: the continued
