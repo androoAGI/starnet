@@ -264,7 +264,7 @@ const { hostPowerWithheldFor, entryUntrusted, standingWorkEscalates } = require(
 const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bounded token→meaning map behind inline keyboards
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const StopReason = require('./stop-reason.js');   // plain-English stop sentences shared by channels/routines/loops
-const { makeChannelRegistry, wireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { makeChannelRegistry, wireChannel, unwireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
@@ -11113,7 +11113,7 @@ function startDiscord(token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopDiscord() {
-  if (discord && discord.adapter) { try { discord.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(discord);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   discord = null;
   discordStatus = { connected: false, state: 'down', detail: '' };
 }
@@ -11368,8 +11368,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopGenericChannel(id) {
-  const w = genericChannels[id];
-  if (w && w.adapter) { try { w.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   delete genericChannels[id];
   genericStatus[id] = { connected: false, state: 'down', detail: '' };
 }
