@@ -330,11 +330,16 @@
      an overflow: a destructive fold and a wrong failureCode. So the live size only speaks for a 400 whose text names
      no specific cause of its own (NAMED_CAUSE_RE); a 400 that says what is wrong with the request is believed. */
   const NAMED_CAUSE_RE = /base64|image|media[ _]?type|mime|schema|json|parse|invalid[_ ]type|tool_use|tool_result|tool_call|function|parameter|argument|field|property|enum|encoding|utf-?8|unsupported|not supported|role|messages?\.\d|content\.\d/;
+  /* A NAMED CAUSE BEATS BOTH SIZES (quick win 16, 2026-10-27; email E28, the base64-summarizer credit burn). The run-
+     start size used to be checked first and unconditionally, so a run whose OPENING prompt was already over 0.4·window
+     (a big pasted document, a screenshot-heavy conversation) read EVERY later 400 as an overflow — "invalid image data"
+     too: a destructive fold (a paid summarization call) and a retry of the same bad image, then the run died on the
+     same 400. A 400 that says what is wrong with the request is believed, whichever size is large. */
   function overRatio(low, ctx) {
     const limit = Number(ctx && ctx.contextLimit) || 0;
     if (!(limit > 0)) return false;
-    if ((Number(ctx.approxTokens) || 0) > 0.4 * limit) return true;
-    return (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit && !NAMED_CAUSE_RE.test(low);
+    if (NAMED_CAUSE_RE.test(low)) return false;
+    return (Number(ctx.approxTokens) || 0) > 0.4 * limit || (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit;
   }
 
   /* A 429 is not always "wait a few seconds". A ChatGPT-subscription user who has burned their WEEKLY quota
@@ -492,5 +497,5 @@
   }
 
   return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError } };
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio } };
 });
