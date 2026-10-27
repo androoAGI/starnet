@@ -179,11 +179,11 @@ assert.equal(L.quotedTurns(null), false);
   const start = src.indexOf('async function captureTrustedLearning('), end = src.indexOf('async function appendDeclined(', start);
   assert.ok(start > 0 && end > start, 'extract the actual capture and writer');
   const context = require('../sidecar/context.js'), reflect = require('../sidecar/reflect.js'), memcore = require('../sidecar/memcore.js');
-  const { reviseRecord } = require('../sidecar/tools/builtin/notebook.js');
+  const { reviseRecord, supersedeRecords, supersessionTargets } = require('../sidecar/tools/builtin/notebook.js');
   function station() {
     const stores = {}, events = [], receipts = [], queued = [], status = {};
     let clock = Date.parse('2026-10-01T12:00:00Z');
-    const sandbox = { TrustedLearning: L, highStakes: reflect.highStakes, redact: context.redact, recordFromProposal: reflect.recordFromProposal, reviseRecord, memcore,
+    const sandbox = { TrustedLearning: L, highStakes: reflect.highStakes, redact: context.redact, recordFromProposal: reflect.recordFromProposal, reviseRecord, supersedeRecords, supersessionTargets, memcore,
       personalizationStore: { read: () => ({ enabled: true }) }, memoryConfig: { reflectEnabled: true }, buildDeclinedIndex: () => ({ has: () => false }),
       notebookStore: { update: async (key, fn) => { const next = fn(stores[key]); if (next !== undefined) stores[key] = next; } },
       recordRunReceipt: (a, r, item) => receipts.push(item), stashProposals: () => {}, queuePending: async (a, r, items) => { queued.push(...items); },
@@ -229,12 +229,18 @@ assert.equal(L.quotedTurns(null), false);
   assert.deepEqual([s.notes()[0].confirmation, s.notes()[0].standing, s.receipt('r-tabs').reason], ['user-stated', true, 'owner_preference_saved']);
   const reflected = await s.api.writeMemoryRecord('nova', { kind: 'note', content: 'Deploys use ' + token }, { runId: 'r-reflect', source: 'reflection' });
   assert.ok(reflected.ok && !JSON.stringify(s.notes()).includes(token), 'the write boundary scrubs secrets for every caller');
-  // Restatement: tabs (day 1), spaces (day 2), tabs again (day 3) -> tabs is the newer memory, no duplicate.
+  // Restatement: tabs (day 1), spaces (day 2), tabs again (day 3) -> tabs is the newer memory, no duplicate. Since
+  // memory-truth-1027 the change of mind on day 2 RETIRES tabs (one active record per subject) and day 3 retires spaces.
   s.tick(DAY); await s.say('From now on, use spaces for indentation.', 'r-spaces');
+  const spacesAt = s.notes().find(r => r.content === 'From now on, use spaces for indentation.').updatedAt;
+  assert.equal(s.notes().filter(r => /indentation/.test(r.content)).length, 1, 'the change of mind retires the old preference instead of adding a contradicting record');
+  assert.ok(s.receipts.some(p => p.revised === true && p.superseded && p.superseded[0].previous === 'From now on, use tabs for indentation.'), 'its receipt reads as an update that names the retired text (no one-tap forget)');
   s.tick(DAY); await s.say('From now on, use tabs for indentation.', 'r-tabs-again');
-  const tabs = s.notes().filter(r => r.content === 'From now on, use tabs for indentation.'), spaces = s.notes().find(r => r.content === 'From now on, use spaces for indentation.');
+  const tabs = s.notes().filter(r => r.content === 'From now on, use tabs for indentation.');
   assert.equal(tabs.length, 1, 'a restatement re-dates the same record instead of duplicating it');
-  assert.ok(tabs[0].updatedAt > spaces.createdAt && tabs[0].statedBy.runId === 'r-tabs-again', 'the restated preference is the newer memory again');
+  assert.ok(tabs[0].updatedAt > spacesAt && tabs[0].statedBy.runId === 'r-tabs-again', 'the restated preference is the newer memory again');
+  assert.equal(s.notes().filter(r => /indentation/.test(r.content)).length, 1, 'still ONE active indentation record');
+  assert.deepEqual(tabs[0].history.map(h => h.body), ['From now on, use tabs for indentation.', 'From now on, use spaces for indentation.'], 'with every earlier text in its history');
   assert.equal(context.isStandingMemory(tabs[0]), true);
   assert.equal(s.receipt('r-tabs-again').reason, 'owner_preference_saved', 'the restatement is not reported as no preference');
   const again = await s.api.writeMemoryRecord('nova', { kind: 'profile', content: 'From now on, use tabs for indentation.', scope: 'global' }, { runId: 'r-model', source: 'reflection' });
@@ -247,7 +253,8 @@ assert.equal(L.quotedTurns(null), false);
   c.tick(DAY); await c.say('From now on, use tabs for indentation.', 'c-2');
   const restated = c.notes().find(r => r.content === 'From now on, use tabs for indentation.');
   assert.ok(restated && restated.statedBy.runId === 'c-2', 'a superseded preference stated again becomes an active record');
-  assert.deepEqual(Array.from(context.activeMemoryRecords(c.notes()), r => r.content).sort(), ['From now on, use spaces for indentation.', 'From now on, use tabs for indentation.'], 'the restatement is not retired by the old correction');
+  // memory-truth-1027: stating it again retires the correction that replaced it — one active record, not two
+  assert.deepEqual(Array.from(context.activeMemoryRecords(c.notes()), r => r.content).sort(), ['From now on, use tabs for indentation.'], 'the restatement is not retired by the old correction, and retires the belief that replaced it');
   // (2026-10-12, round two) A restatement never downgrades a record the Commander kept through the deck, and leaves no
   // receipt whose one-tap veto would delete (and permanently decline) that original.
   const k = station();

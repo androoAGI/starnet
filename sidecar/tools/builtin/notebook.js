@@ -65,7 +65,7 @@
   function supersedeRecords(list, targets, change, now) {
     const ordered = targets.slice().sort((a, b) => (writtenAt(b) - writtenAt(a)) || (list.indexOf(b) - list.indexOf(a)));
     const survivor = ordered[0], folded = ordered.slice(1);
-    const meta = { by: 'subject', key: change.key || null, runId: change.runId || null, source: change.source || null, at: now };
+    const meta = { by: 'subject', key: change.key || MemTruth.subjectKey(change.body) || null, runId: change.runId || null, source: change.source || null, at: now };
     const rec = reviseRecord(survivor, Object.assign({}, change, { previousBody: bodyOf(survivor), supersession: meta }), now);
     for (const f of folded) {
       rec.history = rec.history.concat(Array.isArray(f.history) ? f.history : [], [archiveEntry(f, now, Object.assign({}, meta, { folded: true }))]);
@@ -73,6 +73,18 @@
     }
     const out = list.filter(n => folded.indexOf(n) < 0).map(n => (n === survivor ? rec : n));
     return { list: out, record: rec, retired: ordered.map(n => ({ id: n.id, body: bodyOf(n) })) };
+  }
+
+  /* The active records a write of `body` retires: inside the write's project boundary (`boundary` = {scope,
+     projectRoot}), never the Commander's rating records (feedbackmemory owns those), and holding the same subject with
+     a different claim. opts.restatements adds the same claim in OTHER words — only for the Commander's own exact words,
+     which outrank a paraphrase of them. An identical text is never a target (that is a restatement, not a change). */
+  function supersessionTargets(list, body, boundary, opts) {
+    const want = retrieval.memoryProjectKey(boundary || {});
+    const verdicts = opts && opts.restatements ? ['supersede', 'dupe'] : ['supersede'];
+    const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+    return (Array.isArray(list) ? list : []).filter(r => r && r.origin !== 'feedback' && retrieval.memoryProjectKey(r) === want &&
+      norm(bodyOf(r)) !== norm(body) && verdicts.indexOf(MemTruth.relate(bodyOf(r), body)) >= 0);
   }
 
   /* UNDO a supersession: a text that a supersession retired comes back as its OWN active record, with the provenance
@@ -356,7 +368,7 @@
           const relations = candidates.map(n => ({ n, r: MemTruth.relate(bodyOf(n), body) }));
           const known = relations.find(x => x.r === 'dupe');
           if (known && !overridden) { dupe = known.n; return undefined; }
-          const same = relations.filter(x => x.r === 'supersede').map(x => x.n);
+          const same = supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot });   // the host's writer uses the same rule
           if (same.length && !overridden && !taintedBy) {
             const prior = same.slice().sort((a, b) => writtenAt(b) - writtenAt(a))[0];
             const confirmation = statedBy ? (prior.confirmation === 'user-confirmed' ? 'user-confirmed' : 'user-stated') : 'inferred';
@@ -603,5 +615,5 @@
     };
   }
 
-  return { makeNotebookTools, reviseRecord, supersedeRecords, restoreSuperseded };
+  return { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets, restoreSuperseded };
 });

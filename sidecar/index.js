@@ -87,7 +87,7 @@ const docExtract = require('./tools/builtin/docextract.js').makeDocExtract({ inf
 // ...and the same idea for pixels: ONE sniffer shared by every producer that can hand the driving model an
 // image, so the `images` channel has more than a single caller (a channel with one caller is a special case).
 const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
-const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
+const { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
 const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
@@ -29093,7 +29093,10 @@ async function captureTrustedLearning(o) {
         const w = await writeMemoryRecord(o.agentId, prop, { runId: o.runId, source: 'owner-statement', origin: 'commander', trustedInput: o.input });
         // A restatement re-dated a record that already existed: there is no new memory to undo, and the receipt's one-tap
         // veto would delete (and permanently decline) the ORIGINAL the Commander kept. Only a new record gets a receipt.
-        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true }); }
+        // A supersession is an UPDATE of an older belief: its receipt reads "updated:" and offers no forget (✕ would delete
+        // the record, old text and all), and it names what it retired (memory-truth-1027).
+        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true,
+          ...(w.superseded ? { key: w.id + '@superseded', revised: true, superseded: w.superseded.map(s => ({ id: s.id, previous: s.body })) } : {}) }); }
       } catch (e) { status.reason = 'write_failed'; failNote('learning.capture', e); }
     }
     if (held.length) {
@@ -29137,7 +29140,7 @@ async function writeMemoryRecord(agentId, prop, opts) {
   const scrubbed = redact(content);
   // P1: write the notebook record under the per-agent lock, RE-READING the list so the id (positional) is minted
   // against the current notebook and a concurrent run's memory.write isn't clobbered by this whole-array set.
-  let writtenId = null, rec = null, refreshed = false;
+  let writtenId = null, rec = null, refreshed = false, superseded = null;
   await notebookStore.update('notebook:' + agentId, (stored) => {
     const list = Array.isArray(stored) ? stored : [];
     if (prop && prop.replaceId) {
@@ -29154,8 +29157,12 @@ async function writeMemoryRecord(agentId, prop, opts) {
     // only the Commander's exact words (nothing scrubbed) prove the statement is theirs
     const stated = !!opts.trustedInput && scrubbed === content && TrustedLearning.preferences(opts.trustedInput, prop.projectRoot).some(p => p.content === content);
     const stamp = r => Object.assign(r, { confirmation: 'user-stated', standing: true, statedBy: { runId, quote: scrubbed, source: opts.trustedInput.source } });
+    const keep = opts.userConfirmed === true;
+    let onlyBySupersession = false;
     if (list.some(r => r && (sameText(bodyOf(r)) || (Array.isArray(r.history) && r.history.some(h => h && sameText(h.body)))))) {
-      if (!stated) return undefined;
+      // a Keep may bring an archived text back, but only by retiring the belief that replaced it (below), never as a copy
+      if (!stated && !(keep && !list.some(r => r && sameText(bodyOf(r))))) return undefined;
+      onlyBySupersession = !stated;
       /* THE COMMANDER SAID IT AGAIN (2026-10-12). Dropping a restatement left an older contradicting record as the
          newer memory, and recall resolves a conflict by "the newer one wins". The same clean record in the same
          scope is re-dated and re-stamped as stated now; a copy that only survives in a corrected record's history,
@@ -29173,6 +29180,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
         return list;
       }
     }
+    /* SUPERSESSION AT WRITE TIME (memory-truth-1027). The Commander's own statement, or their Keep, on the SAME SUBJECT
+       as an active belief retires that belief into this record's history (notebook.js supersedeRecords: one active
+       record per subject, the old text and its provenance kept for undo) instead of adding a second, contradicting
+       record. A model's silent save never retires anything here: reflection sends a same-subject claim to the review
+       deck as a replacement (reflect.js). */
+    if (stated || keep) {
+      const targets = supersessionTargets(list, scrubbed, { scope: prop.scope || 'global', projectRoot: prop.projectRoot || null }, { restatements: stated });
+      if (targets.length) {
+        const out = supersedeRecords(list, targets, { body: scrubbed, runId, userConfirmed: keep, source: opts.source || null }, Date.now());
+        rec = out.record;
+        if (stated) stamp(rec);
+        Object.assign(rec, { scope: prop.scope || 'global', streamId: prop.streamId || null, projectRoot: prop.projectRoot ? String(prop.projectRoot) : null, origin: String(opts.origin || rec.origin || 'commander') });
+        delete rec.taintedBy;   // the Commander's words / approval replace whatever text was there
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id; superseded = out.retired;
+        return out.list;
+      }
+    }
+    if (onlyBySupersession) return undefined;
     writtenId = memcore.nextNoteId(list);   // collision-proof (positional length reuses a slot freed by forget)
     rec = recordFromProposal(prop || {}, { now: Date.now(), runId: runId || (prop && prop.sourceRunId), id: writtenId, content: scrubbed, origin: opts.origin, userConfirmed: opts.userConfirmed === true });
     if (stated) stamp(rec);
@@ -29197,7 +29223,7 @@ async function writeMemoryRecord(agentId, prop, opts) {
       questStore.completeByContract('fact', _fk, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
     }
   } catch (_) {}
-  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}) };
+  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}), ...(superseded ? { superseded } : {}) };
 }
 
 // §5.6 "discard/veto = never again": append the rejected belief text to the permanent per-agent declined list

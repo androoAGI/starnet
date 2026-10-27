@@ -113,6 +113,7 @@
   }
 
   const textOf = r => (r && (r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || '')))) || '';
+  const bodyText = r => String((r && (r.content != null ? r.content : r.body)) || '');   // the belief alone (no title) — what a subject key reads
 
   // near-duplicate guard (parity with the reference harness' Jaccard — the ONE similarity, frontend/app/memtruth.js):
   // exact-text dedup misses PARAPHRASES ("prefers npm start" vs "the user prefers running npm start"), which would
@@ -166,12 +167,25 @@
       if (lowValue(content)) continue;            // drop trivia / run-specific narration (the value floor)
       let replacement = cand.replaceId ? existing.find(r => r && r.id === cand.replaceId) : null;
       if (cand.replaceId && !replacement) continue;
+      /* THE SUBJECT FIRST (memory-truth-1027, the shared MemTruth.relate every writer uses). The same claim in other
+         words is a restatement (dropped, like an exact dupe — declined texts included, so a rejected belief stays
+         rejected). A DIFFERENT claim on the same subject ("prefers light mode" after "prefers dark mode") used to be
+         dropped as a near-duplicate when it shared enough words, or proposed as a second active belief when it did not;
+         it is now a replacement of the newest record holding that subject, reviewed before it replaces anything. */
+      const verdicts = existing.map(r => ({ r, v: r ? MemTruth.relate(bodyText(r), content) : 'unknown' }));
+      if (!replacement && verdicts.some(x => x.v === 'dupe')) continue;
+      if (!replacement) {
+        const same = verdicts.filter(x => x.v === 'supersede' && x.r.id).map(x => x.r).sort((a, b) => (b.updatedAt || b.createdAt || b.ts || 0) - (a.updatedAt || a.createdAt || a.ts || 0));
+        if (same.length) replacement = same[0];
+      }
       // Negation can invert a preference while preserving almost every word. Route
       // that ambiguity to review, never silently discard or auto-overwrite it.
       const negated = t => /\b(?:not|no|never|without|avoid|dislikes?|don['’]t|doesn['’]t)\b/i.test(t);
       if (!replacement) replacement = existing.find(r => r && r.id && jaccard(textOf(r), content) >= SIM_THRESHOLD && negated(textOf(r)) !== negated(content));
+      // a near-duplicate by word overlap — unless the subject key says it is a DIFFERENT fact of the same shape
+      // ("the staging db is in frankfurt" vs "the production db is in frankfurt"), which is proposed, never dropped
       let near = false;
-      for (const pt of priorTexts) { if (jaccard(pt, content) >= SIM_THRESHOLD) { near = true; break; } }
+      for (const pt of priorTexts) { if (jaccard(pt, content) >= SIM_THRESHOLD && MemTruth.relate(pt, content) !== 'distinct') { near = true; break; } }
       if (near && !replacement) continue;
       seen[key] = 1; priorTexts.push(content);
       proposals.push({
