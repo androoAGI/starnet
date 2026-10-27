@@ -9,7 +9,7 @@
    beat-coordination source guard — we lock the invariant by reading the source. The two CALL sites are asserted in
    pitchstore.test.js / suggeststore.test.js (call.internal === true); this locks the harness half. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -81,7 +81,8 @@ A.ok(/Inspect before editing with fs_search\/fs_list\/fs_read/.test(sidecar), 'w
 // is routed to the file tools, and that rule comes BEFORE the shell cwd rule (it used to open the block)
 A.ok(/Read, list and search files with fs_read \/ fs_list \/ fs_search, full paths the Commander names included/.test(sidecar), 'work discipline routes file reads to the file tools, full paths included');
 A.ok(/not shell_exec \(dir, type, cat, Get-Content, Select-String\): the shell is for running tests, builds, git and scripts/.test(sidecar), 'work discipline keeps the shell for running things');
-A.ok(sidecar.indexOf('Read, list and search files with fs_read') >= 0 && sidecar.indexOf('Read, list and search files with fs_read') < sidecar.indexOf('anchor shell_exec.cwd to that exact folder'), 'the file-tools rule comes before the shell cwd rule');
+const runCore = sidecarTopLevelFunction('runOnceCore');   // ordering inside the prompt runOnceCore builds, never across files
+A.ok(runCore.indexOf('Read, list and search files with fs_read') >= 0 && runCore.indexOf('Read, list and search files with fs_read') < runCore.indexOf('anchor shell_exec.cwd to that exact folder'), 'the file-tools rule comes before the shell cwd rule');
 A.ok(/anchor shell_exec\.cwd to that exact folder as given \(never a guessed Bash-style \/c path\)/.test(sidecar), 'the cwd rule still forbids guessed Bash-style /c paths');
 A.ok(/c\.name === 'shell\.exec' && fromWire\.has\('fs_read'\)\) dctx = Object\.assign\(\{\}, dctx, \{ fileToolsOnWire: true \}\)/.test(sidecar), 'the host tells shell.exec when this run carries the file tools');
 A.ok(/prefer fs_patch for multi-line edits/.test(sidecar), 'work discipline prefers structured patch edits for source changes');

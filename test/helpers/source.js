@@ -19,6 +19,12 @@
    - A NEGATIVE assertion (doesNotMatch / !includes / indexOf < 0) now covers every sidecar file, so it fails if
      ANY module contains the pattern. That is stricter, and loud.
    - Counting assertions ("defined exactly once") count across every file.
+   - An ORDERING or DISTANCE assertion (indexOf(a) < indexOf(b), |a - b| < N) compares offsets in the joined text.
+     Once either anchor leaves index.js it compares file sort order instead — an anchor in a later file sorts after
+     every index.js offset — and the lock goes vacuously true (or false). Slice the function both anchors live in
+     first (sidecarTopLevelFunction / sidecarFunctionSource), require both anchors in the slice, then compare.
+   - A conjunction (A && B) is only as strict as each half: one half matching index.js-only text does not stop the
+     other half from being satisfied by a different file. Check each half on its own when you review a lock.
    readSidecarIndex() is the exact file, for a test that deliberately pins index.js's own structure (its
    'use strict', its module scope). Use it only for that, and say why at the call site.
 
@@ -188,6 +194,24 @@ function functionSourceAt(text, start, name) {
   return end < 0 ? text.slice(start) : text.slice(start, end + 1);
 }
 
+/** The source of one TOP-LEVEL sidecar function (declared at column 0, `function NAME(` / `async function NAME(`),
+    from its declaration through the first later line that starts with `}`, in whichever sidecar file declares it
+    (index.js first). '' when no sidecar file declares it at column 0. It scans no brackets, so a quote inside a
+    regex literal cannot make it run long — sidecarFunctionSource('runOnceCore') overruns to the end of index.js
+    that way — and relies instead on the house layout: inside a top-level function no line starts with `}` until
+    its own closing brace. Use it to slice a big host function (runOnceCore, runScoutCycle) before an ordering or
+    distance assertion. */
+function sidecarTopLevelFunction(name) {
+  const re = new RegExp('^(?:async[ \\t]+)?function[ \\t]*\\*?[ \\t]*' + escapeRe(name) + '[ \\t]*\\(', 'm');
+  for (const file of sidecarSourceFiles()) {
+    const m = re.exec(file.text);
+    if (!m) continue;
+    const close = /\n\}/.exec(file.text.slice(m.index));
+    return close ? file.text.slice(m.index, m.index + close.index + 2) : '';
+  }
+  return '';
+}
+
 /** Which sidecar file contains a string or matches a regex (the first, index.js first), or null. For messages. */
 function sidecarFileContaining(needle) {
   for (const file of sidecarSourceFiles()) {
@@ -201,6 +225,7 @@ module.exports = {
   readSidecarIndex,
   sidecarSourceFiles,
   sidecarFunctionSource,
+  sidecarTopLevelFunction,
   functionSourceIn,
   locateSidecarFunction,
   sidecarFileContaining,

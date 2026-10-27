@@ -8,7 +8,8 @@
    H1 the concatenation: index.js first and byte-identical, then every other sidecar .js file in sorted order,
       each behind a marker naming it; nothing outside sidecar/.
    H2 the function locator: declarations of every supported shape, a parameter list holding braces, a string holding
-      a brace, a function that lives in a module rather than index.js, and '' for a name nobody declares.
+      a brace, a function that lives in a module rather than index.js, and '' for a name nobody declares; and the
+      column-0 slicer (sidecarTopLevelFunction) that ordering locks use on runOnceCore.
    H3 a test that swaps fs.readFileSync for a fake after loading the helper still gets the real source.
    H4 the audit modes return index.js alone / everything else / nothing, and the default is the whole sidecar.
    H5 THE LAW: no test reads sidecar/index.js as text except through the helper — a direct read would bring back
@@ -71,6 +72,13 @@ A.ok(/^function makeBudget\(/.test(body) && body.length < files.find(f => f.rel 
 A.eq(S.sidecarFunctionSource('noSuchSidecarFunctionAnywhere'), '', 'H2: a name no sidecar file declares gives an empty string');
 A.eq(S.sidecarFileContaining('function gracefulShutdown('), 'sidecar/index.js', 'H2: sidecarFileContaining names the file');
 A.eq(S.sidecarFileContaining(/function makeBudget\(/g), elsewhere.rel, 'H2: a global regex is fine too');
+// the column-0 slicer, for host functions too big or too regex-heavy for the bracket scanner
+const core = S.sidecarTopLevelFunction('runOnceCore');
+A.ok(core.startsWith('async function runOnceCore(') && core.endsWith('\n}') && core.length > 100000 && core.length < indexText.length / 3,
+  'H2: sidecarTopLevelFunction slices runOnceCore to its own closing brace (' + core.length + ' chars)');
+A.ok(core.includes('const _lineHop =') && !core.includes('async function handleConsent('), 'H2: the slice holds the body and stops before the next top-level function');
+A.eq(S.sidecarTopLevelFunction('runScoutCycle'), S.sidecarFunctionSource('runScoutCycle'), 'H2: where the bracket scanner works, both slicers agree');
+A.eq(S.sidecarTopLevelFunction('noSuchSidecarFunctionAnywhere'), '', 'H2: sidecarTopLevelFunction gives an empty string for an undeclared name');
 
 // H3
 {
