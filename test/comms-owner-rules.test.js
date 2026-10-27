@@ -7,8 +7,9 @@
        tour (the quick tour)     — yields a session pick through its own way out; holds a turn and an ask;
        offer (anything mid-game) — yields all three, unanswered.
    This executes every cell with the REAL dialogue.js on a small COMMS column, then proves the callers route through it:
-   chat.js's one step-aside goes to Dialogue.preempt, and every tour beat in tutorial.js opens as the tour and ends quietly when
-   the Commander puts another conversation on screen. */
+   chat.js's one step-aside goes to Dialogue.preempt, app.js's pick paths ask it even when the pick lands on the conversation
+   already on screen, and every tour beat in tutorial.js opens as the tour and ends quietly when the Commander puts another
+   conversation on screen. */
 'use strict';
 const A = require('./_assert.js');
 const vm = require('node:vm');
@@ -106,8 +107,65 @@ const EXPECT = { ceremony: { session: 'hold', turn: 'hold', ask: 'hold' }, tour:
     A.eq(c.stepOfferAside('session'), true, 'stepOfferAside asks the arbiter');
     A.eq(c.stepOfferAside('turn'), false, 'and answers what the arbiter answers');
     A.eq(calls, ['session', 'turn'], 'never the offer-only stepAside when the arbiter is there');
-    for (const [why, site] of [['ask', /function noteAskLanding\(\) \{ return stepOfferAside\('ask'\); \}/], ['turn', /stepOfferAside\('turn'\);/], ['session', /stepOfferAside\('session'\);/]])
-      A.ok(site.test(chat), 'chat.js raises \'' + why + '\' through it');
+    // each raise, sliced from the function it belongs to (never a match anywhere in the joined file)
+    const ask = A.fnBody(chat, '  function noteAskLanding() {');
+    const send = A.fnBody(chat, '  async function send(text, opts) {');
+    const load = A.fnBody(chat, '  function load(ws) {');
+    A.ok(ask.length > 0 && ask.length < 200 && send.length > 1000 && send.length < chat.length / 2 && load.length > 200 && load.length < 20000, 'noteAskLanding, send and load sliced');
+    A.ok(/return stepOfferAside\('ask'\);/.test(ask), 'chat.js raises \'ask\' through it (noteAskLanding)');
+    A.ok(/\n    stepOfferAside\('turn'\);/.test(send), 'chat.js raises \'turn\' through it (send: the Commander\'s own turn)');
+    A.ok(/stepOfferAside\('session'\);/.test(load), 'chat.js raises \'session\' through it (load: another conversation on screen)');
+  }
+
+  /* ---------- 3b. app.js: a pick that lands on the conversation already on screen asks the arbiter too (review 10-27) ---------- */
+  {
+    const app = read('frontend/app/app.js');
+    const helper = A.fnBody(app, '  function yieldCommsToPick() {');
+    A.ok(helper.length > 0 && helper.length < 400, 'app.js yieldCommsToPick sliced');
+    if (helper) {
+      const asked = [];
+      const c = vm.createContext({ Dialogue: { preempt: w => { asked.push(w); return true; } } });
+      vm.runInContext(helper + '\nthis.f = yieldCommsToPick;', c);
+      c.f();
+      A.eq(asked, ['session'], 'yieldCommsToPick raises the arbiter\'s \'session\' action');
+    }
+    const picks = [];
+    const base = () => ({ picks, yieldCommsToPick: () => picks.push('yield'), Chat: { load: ws => picks.push('load:' + ws.id) }, SFX: { click() {}, open() {} },
+      refreshUsage() {}, renderRail() {}, persist() {}, focusAgent() {}, railAgentFilter: null, railView: 'sessions', agents: new Map([['finn', { name: 'FINN' }]]), isGroupWs: () => false });
+    // switchWorkstream: re-picking the row already on screen
+    {
+      const fn = A.fnBody(app, '  function switchWorkstream(id) {');
+      A.ok(fn.length > 200 && fn.length < 4000, 'app.js switchWorkstream sliced');
+      const c = vm.createContext(Object.assign(base(), { Workstreams: { homeOf: x => x, activeId: () => 'cur', switch: () => null } }));
+      vm.runInContext(fn + '\nthis.f = switchWorkstream;', c);
+      picks.length = 0; c.f('cur');
+      A.eq(picks, ['yield'], 'a click on the session already on screen steps the panel over it aside (it used to return with nothing)');
+      picks.length = 0; c.f('other');
+      A.eq(picks, [], 'a different session is left to Chat.load (its own step-aside), never asked twice here');
+    }
+    // newWorkstream: + NEW over an untouched blank returns the session on screen
+    {
+      const fn = A.fnBody(app, '  function newWorkstream() {');
+      A.ok(fn.length > 100 && fn.length < 2000, 'app.js newWorkstream sliced');
+      const c = vm.createContext(Object.assign(base(), { Workstreams: { startSession: () => ({ id: 'cur' }), generalId: () => 'gen' } }));
+      vm.runInContext(fn + '\nthis.f = newWorkstream;', c);
+      picks.length = 0; c.f();
+      A.eq(picks, ['yield', 'load:cur'], '+ NEW that reuses the blank on screen still steps the panel aside, before the load');
+    }
+    // selectAgent: the crew member whose session is already open
+    {
+      const fn = A.fnBody(app, '  function selectAgent(agentId) {');
+      A.ok(fn.length > 200 && fn.length < 5000, 'app.js selectAgent sliced');
+      const cur = { id: 'cur', agentId: 'finn', history: [{ role: 'user', content: 'hi' }] };
+      const c = vm.createContext(Object.assign(base(), { Workstreams: { active: () => cur, generalId: () => 'gen', list: () => [cur], activeId: () => 'cur', setAgent: () => false, create: () => null },
+        switchWorkstream: id => picks.push('switch:' + id) }));
+      vm.runInContext(fn + '\nthis.f = selectAgent;', c);
+      picks.length = 0;
+      A.eq(c.f('finn'), 'cur', 'picking the crew member already on screen stays on its session');
+      A.eq(picks, ['yield', 'load:cur'], 'and still steps the panel over COMMS aside');
+      picks.length = 0; c.f('nobody');
+      A.eq(picks, [], 'an unknown agent is no pick at all');
+    }
   }
 
   /* ---------- 4. tutorial.js: every tour beat is tour-owned and ends quietly when preempted ---------- */

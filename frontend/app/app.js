@@ -4552,6 +4552,11 @@ const App = (() => {
       if (game && game.classList.contains('active')) renderRail();
     });
   }
+  /* THE COMMANDER PICKED A CONVERSATION (gh#158, review 10-27). Chat.load steps an offer over COMMS aside when ANOTHER conversation
+     goes on screen; a pick that lands on the one already there (its rail row, + NEW over an untouched blank, the crew member whose
+     session is open) is the same explicit act, so it asks the arbiter too (Dialogue.preempt: an offer steps aside, the quick tour
+     yields, the awakening holds). Called only from the Commander's pick paths below, never from Chat.load's re-syncs. */
+  function yieldCommsToPick() { try { if (typeof Dialogue !== 'undefined' && Dialogue.preempt) Dialogue.preempt('session'); } catch (_) {} }
   // switching mid-run is fine now: each workstream keeps its own run-state in Channels (channels.js) and
   // Chat.load re-renders the in-flight stream on switch — the run you left keeps streaming in the background.
   function switchWorkstream(id) {
@@ -4561,7 +4566,7 @@ const App = (() => {
     const home = Workstreams.homeOf ? Workstreams.homeOf(id) : id;
     if (home !== id) { switchWorkstream(home); if (typeof Delegated !== 'undefined' && Delegated.reveal) Delegated.reveal(id); return; }
     if (typeof ProjectHome !== 'undefined') ProjectHome.onSession(id);
-    if (id === Workstreams.activeId()) return;
+    if (id === Workstreams.activeId()) { yieldCommsToPick(); return; }   // re-picked the one on screen: the panel over it steps aside
     const ws = Workstreams.switch(id); if (!ws) return;
     // opened from elsewhere (a notification, the COMMS picker, the HUD) onto a session the narrowed rail
     // doesn't list: show every session again, so the open one is never missing from the rail
@@ -4575,6 +4580,7 @@ const App = (() => {
   }
   function openWorkstream(id) { switchWorkstream(id); }
   function newWorkstream() {
+    yieldCommsToPick();   // + NEW over an untouched blank reuses the session on screen (startSession): still the Commander's pick
     let ws = Workstreams.startSession();
     // + NEW while the rail shows one agent's sessions starts a session WITH that agent: a blank line is
     // rebound (no transcript to corrupt); the General home stream never is, so that case mints a fresh one.
@@ -4645,6 +4651,7 @@ const App = (() => {
   function selectAgent(agentId) {
     const id = String(agentId || '');
     const a = agents.get(id); if (!a) return null;
+    yieldCommsToPick();   // an agent pick can land on the session already on screen (rebind, "already here"): still a pick
     // A BRAND-NEW empty session is a blank line the Commander just opened: picking an agent puts THAT agent
     // on THIS line instead of teleporting to the agent's latest old stream (the Commander keeps the freedom
     // to start a fresh chat with anyone). Rebinding a blank stream corrupts no transcript — the no-rebind
