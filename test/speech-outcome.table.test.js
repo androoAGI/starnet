@@ -212,6 +212,10 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       { name: 'OpenRouter 401', setup: async () => tts(await sidecar({ keys: OR, edge: false, fetch: provider(401, '{"error":{"message":"No auth credentials found"}}') })),
         code: 'auth', engine: 'openrouter', http: 401, terminal: true, reason: /^openrouter 401 — .*; edge floor disabled$/,
         tooltip: /real voice failed — OpenRouter rejected the key \(HTTP 401\)/, note: /couldn’t be spoken — OpenRouter rejected the key \(HTTP 401\)\./ },
+      // a keyed 403 is not proof of a bad key (OpenRouter: moderation flagged the input): name the refusal, not a cause
+      { name: 'OpenRouter 403 (moderation flagged the input)', setup: async () => tts(await sidecar({ keys: OR, edge: false, fetch: provider(403, '{"error":{"code":403,"message":"Your chosen model requires moderation and your input was flagged"}}') })),
+        code: 'refused', engine: 'openrouter', http: 403, terminal: true, reason: /^openrouter 403 — .*; edge floor disabled$/,
+        tooltip: /real voice failed — OpenRouter refused the request \(HTTP 403\)/, note: /couldn’t be spoken — OpenRouter refused the request \(HTTP 403\)\./ },
       { name: 'OpenRouter 402', setup: async () => tts(await sidecar({ keys: OR, edge: false, fetch: provider(402, '{"error":{"message":"Insufficient credits"}}') })),
         code: 'billing', engine: 'openrouter', http: 402, terminal: true, reason: /^openrouter 402 — /,
         tooltip: /real voice offline — OpenRouter is out of credits/, note: /couldn’t be spoken — OpenRouter is out of credits\./ },

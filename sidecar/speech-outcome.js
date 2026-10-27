@@ -32,8 +32,8 @@ const CODES = Object.freeze({
   local_failed: false,          // the built-in engine failed this clip (it may load or recover)
   no_key: true,                 // the keyed tier holds no credential
   disabled: true,               // the engine is switched off on this station (SKYNET_EDGE_TTS=0)
-  refused: true,                // the engine refused the request itself (Edge's 403: a token it will not accept)
-  auth: true,                   // HTTP 401/403 from a keyed provider: the key is wrong or revoked
+  refused: true,                // the engine refused the request itself (Edge's 403: a token it will not accept; a keyed 403)
+  auth: true,                   // HTTP 401 from a keyed provider: the key is wrong or revoked
   billing: true,                // HTTP 402 or an insufficient-credits/quota body
   bad_request: true,            // another HTTP 4xx
   bad_response: true,           // a 2xx with no usable audio (bad JSON, unexpected content type)
@@ -77,11 +77,15 @@ function retryAfterMsOf(headers, body) {
   return m ? Math.round(Number(m[1] || m[2]) * 1000) : 0;
 }
 
-// An HTTP failure from a keyed provider, read ONCE: status first, then the body for an empty wallet.
+/* An HTTP failure from a keyed provider, read ONCE: status first, then the body for an empty wallet. Only 401 says the
+   KEY was rejected. A 403 has other causes the harness cannot tell apart (OpenRouter: moderation flagged the input;
+   OpenAI: an unsupported region), so it is 'refused' — "<provider> refused the request (HTTP 403)" — never a claim
+   about the key. */
 function httpCode(status, body) {
   const s = Number(status) || 0;
   if (s === 402 || BILLING_BODY.test(String(body || ''))) return 'billing';
-  if (s === 401 || s === 403) return 'auth';
+  if (s === 401) return 'auth';
+  if (s === 403) return 'refused';
   if (s === 429) return 'rate_limited';
   if (s === 408 || s === 504) return 'timeout';
   if (s >= 500) return 'upstream_unavailable';
