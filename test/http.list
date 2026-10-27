@@ -244,6 +244,7 @@ test/checkpoint-stale-lock.e2e.test.js
 test/crew-call.http.test.js
 test/legacy-spend-provenance.http.test.js
 test/ledger-damaged-line.http.test.js
+test/ledger-aux-receipt.http.test.js
 
 test/connector-recovery-reconnect.http.test.js
 
