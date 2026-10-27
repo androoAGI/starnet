@@ -42,7 +42,10 @@ const Dialogue = (() => {
      The actions: 'session' (the Commander puts another conversation on screen), 'turn' (a turn is sent from COMMS), 'ask' (an
      approval or question reaches the Commander). An explicit Commander action preempts every owner except the awakening. The tour
      holds a 'turn' (it covers the message box, so a send under it is its own lesson's file example) and an 'ask' (its file example
-     closes the panel before it runs). test/comms-owner-rules.test.js executes every cell. */
+     closes the panel before it runs). test/comms-owner-rules.test.js executes every cell.
+     One older door stays outside the table, on purpose: the INBOX click (chat.js sampleCard) calls yieldTour() with no reason, and
+     that answers a quick-tour PAGE (tour:true) only — never a kit-out beat, never an offer (an offer's "not now" is a real answer
+     the Commander gives, so the INBOX card posts under it and says where it went). */
   const OWNER_RULES = Object.freeze({
     ceremony: Object.freeze({ session: 'hold', turn: 'hold', ask: 'hold' }),
     tour: Object.freeze({ session: 'yield', turn: 'hold', ask: 'hold' }),
@@ -539,6 +542,9 @@ const Dialogue = (() => {
      ends the tour quietly instead of re-offering the first task over the conversation they chose. */
   function yieldTour(why) {
     if (!open || !panel || owner !== 'tour' || !pendingPick || !pendingPick.cfg) return false;
+    // no reason = the INBOX door: its old scope, a quick-tour page only. The kit-out beats are tour-owned for the arbiter (a
+    // session pick ends them quietly), but an INBOX click never picks their skip key for the Commander (review 10-27).
+    if (!why && !panel.classList.contains('fnv-tour')) return false;
     const opts = Array.isArray(pendingPick.cfg.options) ? pendingPick.cfg.options : [];
     const out = opts.find(o => o && o.skip) || opts.find(o => o && o.yield);
     if (!out) return false;

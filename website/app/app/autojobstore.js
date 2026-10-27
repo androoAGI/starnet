@@ -100,6 +100,7 @@ const AutoJobStore = (() => {
     if (!ready()) return { go: false, reason: 'not-ready' };
     if (firing) return { go: false, reason: 'firing' };
     if (state.proposed) return { go: false, reason: 'already-proposed' };
+    if (asideThisSession) return { go: false, reason: 'stepped-aside' };   // moved past once this session: never a per-run-end nag
     p = p || {};
     if (p.reason !== 'done') return { go: false, reason: 'not-done' };
     if ((p.agentId || 'agent') !== 'agent') return { go: false, reason: 'not-hero' };
@@ -126,19 +127,30 @@ const AutoJobStore = (() => {
   /* THE ROUTINE PROPOSALS ARE AN OFFER (comms-owner arbiter, wave 1). The panel opened with no offer and covered the whole of COMMS,
      message box included, for the model call and every proposal. Now it ends above the message box and steps aside, unanswered,
      when the Commander picks a conversation, sends a turn or an ask reaches them: the model call is aborted, the proposal on screen
-     is deferred, and the proactive offer is not spent unless something was scheduled (a later run end offers it again). Esc is
-     the panel's own "leave it — not now" (a dismiss, as before). */
+     is left as it was shown (no answer is recorded for the Commander), and the proactive offer is not spent unless the Commander
+     answered at least one proposal. Esc is the panel's own "leave it — not now" (a dismiss, as before).
+     NEVER A NAG LOOP (review 10-27): a proactive offer that stepped aside (or was Esc'd before any proposal) is not offered again
+     this session (asideThisSession), so it costs at most one model call per session until it is answered. And the honest
+     done-line still reaches the Commander: Esc consumes only its own "not now" (the line after it is read like any other), and a
+     step-aside with routines already scheduled leaves that line in the transcript (Chat.localLine) instead of saying nothing. */
   const JOBS_ASIDE = { aside: true }, JOBS_NOT_NOW = { notNow: true };
+  let asideThisSession = false;
   async function propose(opts) {
     opts = opts || {};
     if (firing || !ready()) return { scheduled: 0 };
     if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return { scheduled: 0 };
     firing = true;
-    let scheduled = 0;
-    let leave = null, ctl = null;
-    const left = new Promise(resolve => { leave = resolve; });
+    let scheduled = 0, answered = 0;
+    let leave = null, left = null, ctl = null;
+    const arm = () => { left = new Promise(resolve => { leave = resolve; }); };   // re-armed once an Esc is consumed
+    arm();
     const until = q => Promise.race([q, left]);
-    const standDown = () => { try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
+    const standDown = () => { asideThisSession = true; try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
+    // the honest done-line, left in the transcript when the panel that would have said it stepped aside
+    const leaveDoneLine = async () => {
+      if (scheduled <= 0 || typeof Chat === 'undefined' || !Chat.localLine) return;
+      try { Chat.localLine(AutoJobs.doneLine(scheduled, await schedulerArmed())); } catch (_) {}
+    };
     try {
       let existing = [];
       try { existing = deps.getExistingJobs ? (await deps.getExistingJobs()) || [] : []; } catch (_) { existing = []; }
@@ -179,6 +191,7 @@ const AutoJobStore = (() => {
 
       const intro = await until(Dialogue.say(AutoJobs.introLine(proposals.length)));
       if (intro === JOBS_ASIDE) { standDown(); return { scheduled: 0 }; }   // stepped aside before any proposal was shown
+      if (intro === JOBS_NOT_NOW) arm();   // that Esc is spent: the line after it waits to be read
       // W6: the live routine names, re-read once here, so an approve for a name that already exists is skipped
       // (the server would reject it anyway — this keeps the count honest and avoids a doomed POST).
       const live = await liveJobNames();
@@ -194,23 +207,30 @@ const AutoJobStore = (() => {
            carried one file over, same fix: rationale/text. Both ledgerPosts in this file (here and pinProposals). */
         ledgerPost({ id: rid, surface: 'routine', kind: 'routine', title: pr.title, target: nameFp(pr.title), traits: ['routine', 'cadence:' + (pr.cadenceId || 'unknown')], evidence: [{ id: 'routine-grounds', type: 'rationale', text: pr.grounds || pr.why || '' }], readiness: { ready: true, reasons: [] }, modelVersion: 'autojobs-v2' });
         const picked = await until(Dialogue.node({ lines: AutoJobs.proposalLines(pr), options: AutoJobs.approveChoices(), dismissable: true, dismissLabel: 'leave it — not now' }));
-        if (picked === JOBS_ASIDE) { ledgerPost({ id: rid, state: 'deferred', reason: 'wrong_time' }); steppedAside = true; break; }   // unanswered: deferred, never declined
+        // unanswered: the row stays 'shown' (the ledger's unanswered state, left to expire) — 'deferred' is an ANSWER the
+        // ledger keeps as the Commander's, and they gave none (the goal path's arc records nothing for the same step-aside)
+        if (picked === JOBS_ASIDE) { steppedAside = true; break; }
+        if (picked === JOBS_NOT_NOW) arm();   // that Esc is spent: the done-line after it waits to be read
         const choice = picked === JOBS_NOT_NOW ? { value: '', skip: true, dismissed: true } : picked;   // Esc = "leave it — not now"
         if (choice && choice.dismissed) { ledgerPost({ id: rid, state: 'deferred', reason: 'wrong_time' }); break; }
+        if (choice) answered++;
         if (choice && choice.value === 'yes' && deps.scheduleJob) {
           try { const r = await deps.scheduleJob(AutoJobs.toCronBody(pr)); if (r && r.ok === true && !r.duplicate) { scheduled++; live.push(pr.title); ledgerPost({ id: rid, state: 'completed', reason: 'completed' }); } } catch (_) {}
         } else if (choice) ledgerPost({ id: rid, state: 'declined', reason: 'wrong_thing' });
       }
       if (steppedAside) {
-        standDown();   // the Commander moved on: no done-line over what they went to
-        if (opts.proactive && scheduled > 0) { state.proposed = true; save(); }   // spent only if something real was scheduled
+        standDown();   // the Commander moved on: the panel closes over nothing they went to…
+        await leaveDoneLine();   // …but what was already scheduled (and whether it will run) is still said, in the transcript
+        // an offer the Commander already answered in part was delivered: spent, so a declined proposal is not offered again
+        if (opts.proactive && answered > 0) { state.proposed = true; save(); }
         return { scheduled };
       }
       if (Dialogue.isOpen()) {
         // HONEST done-line: if we actually scheduled something, name whether the scheduler that fires it is armed
         // (so we never promise a run the disarmed scheduler won't make). undefined armed-state → neutral copy.
         const armed = scheduled > 0 ? await schedulerArmed() : undefined;
-        await until(Dialogue.say(AutoJobs.doneLine(scheduled, armed)));
+        const heardDone = await until(Dialogue.say(AutoJobs.doneLine(scheduled, armed)));
+        if (heardDone === JOBS_ASIDE) { standDown(); await leaveDoneLine(); }   // cut off mid-line: the transcript keeps it
         if (Dialogue.isOpen()) Dialogue.close();
       }
       if (opts.proactive) { state.proposed = true; save(); }   // the one-time proactive offer is spent (delivered)
@@ -280,7 +300,7 @@ const AutoJobStore = (() => {
   }
 
   // S2: a brand-new hero re-earns the proactive offer (own key, like the other proactive stores).
-  function reset() { state = { v: 1, proposed: false, pending: [] }; firing = false; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { state = { v: 1, proposed: false, pending: [] }; firing = false; asideThisSession = false; try { localStorage.removeItem(KEY); } catch (_) {} }
 
   // has the one-time proactive offer already happened? (read by the ROUTINES button to label itself).
   function proposed() { return !!(state && state.proposed); }
