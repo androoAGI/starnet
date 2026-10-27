@@ -1033,6 +1033,7 @@ const App = (() => {
     if (typeof Systems !== 'undefined') Systems.opened(startTab === 'recipes' ? 'mywork' : 'recruit');   // door law (RECIPES is a MY WORK tab)
     SFX.click();
     Marketplace.open({
+      intent: (startTab === 'recipes') ? 'recipes' : 'respec',   // the door's intent (Marketplace BAY_INTENTS, gh#117)
       mode: 'deploy',
       tab: (startTab === 'recipes') ? 'recipes' : 'agents',   // the bay opens on this tab (RECIPES = the mission library)
       agentName: agent.name,
@@ -1055,6 +1056,7 @@ const App = (() => {
     if (typeof Marketplace === 'undefined' || !agent || !recipeId) return;
     SFX.click();
     Marketplace.open({
+      intent: 'recipe-launch',
       mode: 'deploy',
       tab: 'recipes',
       agentName: agent.name,
@@ -1342,6 +1344,7 @@ const App = (() => {
     if (typeof Systems !== 'undefined') Systems.opened('recruit');   // door law: whoever opened the bay, RECRUIT is online
     SFX.click();
     const go = () => Marketplace.open({
+      intent: 'recruit',   // the door's intent: this bay RECRUITS (RE-SPEC … INSTEAD is its second verb) — gh#117
       mode: 'pick', summon: true, concurrentCap: concurrentCap,
       classSeed: classSeed || null,   // one-shot: the bay focuses this class's dossier on open (maybeConsumeClassSeed)
       notify: (typeof StationUI !== 'undefined') ? StationUI.notify : null,
@@ -1416,6 +1419,7 @@ const App = (() => {
     if (typeof Marketplace === 'undefined' || !agent || !proposal) return;
     SFX.click();
     Marketplace.open({
+      intent: 'recipe-mint',
       mode: 'deploy',
       tab: 'recipes',
       recipeMint: proposal,                 // ← the R2 editor opens pre-filled from this draft (additive ctx seed)
