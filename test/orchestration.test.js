@@ -10,6 +10,7 @@ const os = require('os');
 const path = require('path');
 const { getEventListeners } = require('events');
 const { makeOrchestrationTools } = require('../sidecar/tools/builtin/orchestration.js');
+const RunPaths = require('../sidecar/run-paths.js');
 const { makeSubagentManager } = require('../sidecar/subagents.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeCapCtx } = require('../sidecar/capability/capGate.js');
@@ -37,12 +38,14 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   const signal = { aborted: false };
   const emitted = [];
   const leadBroker = { _isLeadConsent: true };   // stand-in for the lead's consent broker (ctx.consent)
-  const ctx = { agentId: 'agent', projectRoot: '/selected/project', projectCwd: '/selected/project/package', signal, emit: (name, p) => emitted.push({ name, p }), consent: leadBroker };
+  // the lead's scope rides its host-minted run path object (sidecar/run-paths.js ctx.paths), never a loose ctx field
+  const leadPaths = RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root: path.resolve('orch-ws') }), { agentId: 'agent', projectRoot: '/selected/project', workdir: '/selected/project/package' });
+  const ctx = { agentId: 'agent', projectRoot: '/selected/project', paths: leadPaths, signal, emit: (name, p) => emitted.push({ name, p }), consent: leadBroker };
   const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'find X' }, { agentId: 'analyst', prompt: 'analyze Y' }] }, ctx);
 
   A.eq(ro.calls.length, 2, 'two child runs dispatched (one per worker)');
   A.eq(ro.calls[0].projectRoot, ctx.projectRoot, 'worker inherits the host-selected project for file tools');
-  A.eq(ro.calls[0].workdir, ctx.projectCwd, 'worker inherits the execution cwd');
+  A.eq(ro.calls[0].workdir, '/selected/project/package', 'worker inherits the execution cwd');
   A.eq(ro.calls[0].agentId, 'researcher', 'first child is the researcher');
   A.eq(ro.calls[0].system, 'R-SYS', "child runs with the worker's composed system prompt");
   A.eq(ro.calls[0].model, 'm1', 'child uses the worker model when set');

@@ -207,14 +207,18 @@ function makeOutputArtifacts(deps) {
    jail and is named relative to it (.output/…). In a project-scoped session a relative fs/shell path resolves
    against the PROJECT, so that pointer dangled and the model burned ~12 minutes hunting its own file. There the
    model is handed the absolute path instead — path trust already serves an agent's own workspace by absolute
-   path, so this grants nothing new. Outside a project session the relative pointer is unchanged. */
+   path, so this grants nothing new. Outside a project session the relative pointer is unchanged.
+   The rule itself is the run's path object's (sidecar/run-paths.js placeJail); every run reads it from ctx.paths. This
+   wrapper keeps the narrow .output/<file> form for a caller holding only loose facts, and adds no second copy. */
 function visibleOutputPath(rel, o) {
   o = o || {};
   rel = String(rel == null ? '' : rel);
   const projectRoot = typeof o.projectRoot === 'string' ? o.projectRoot.trim() : '';
   const aid = String(o.agentId || 'agent');
   if (!projectRoot || !o.root || !o.pathMod || !/^\.output\/[^\\/]+$/.test(rel) || !/^[A-Za-z0-9_-]{1,40}$/.test(aid)) return rel;
-  return o.pathMod.join(String(o.root), aid, rel);
+  const RunPaths = require('./run-paths.js');
+  try { return RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: o.pathMod, root: String(o.root) }), { agentId: aid, projectRoot }).placeJail(rel); }
+  catch (e) { failNote('output.visible-path', e); return rel; }   // a station-reserved id owns no workspace to point into
 }
 
 module.exports = { makeOutputArtifacts, visibleOutputPath };

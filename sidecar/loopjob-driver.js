@@ -418,12 +418,19 @@
       function launch(snapshotText) {
       const currentLease = leases.get(loop.id);
       if (!currentLease || currentLease.runId !== runId || (ac.signal && ac.signal.aborted)) return false;
+      /* THE TOOLS WORK WHERE THE AGENT IS TOLD IT WORKS (run-paths lane). The project line below tells the agent this
+         loop works in its folder, but the run was never given that folder, so fs.* and shell.* resolved relative
+         paths in the private workspace. The folder rides as projectRoot exactly when the host's projectLine names it
+         (the host re-proves the approval at launch), so a folder whose approval lapsed is never handed to the tools. */
+      const folderLine = projectLine ? String(projectLine(fresh) || '') : '';
+      const folder = fresh.workdir && (!projectLine || folderLine) ? String(fresh.workdir) : '';
       const opts = {
         key: key,
         model: fresh.model || ident.model || deps.defaultModel,
         provider: provider,
         // the persona, plus the project-folder anchor when this loop works in a real folder
-        system: (ident.system || personaOf()) + (projectLine ? String(projectLine(fresh) || '') : ''),
+        system: (ident.system || personaOf()) + folderLine,
+        projectRoot: folder || undefined,
         stationEvidence: true,   // the station's observed evidence rides the run context, so this persona is the same every iteration
         messages: buildMessages(fresh, snapshotText),
         agentId: fresh.agentId,

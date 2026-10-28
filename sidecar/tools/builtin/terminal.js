@@ -2,7 +2,7 @@
 'use strict';
 
 const Shell = require('./shell.js');
-const { visibleOutputPath } = require('../../output-artifacts.js');
+const RunPaths = require('../../run-paths.js');
 
 function makeTerminalTools(deps) {
   deps = deps || {};
@@ -18,16 +18,28 @@ function makeTerminalTools(deps) {
 
   function aid(ctx) { return Shell.safeAgentId((ctx && ctx.agentId) || 'agent'); }
   function remoteOwner(ctx) { return Shell.unrestrictedHost(ctx); }
+  // the run's path object (sidecar/run-paths.js): ctx.paths in a real run, minted from these deps in a rig
+  let pathsResolver = null;
+  function runPaths(ctx, agentId) {
+    if (!pathsResolver) pathsResolver = RunPaths.makeResolver({ pathMod: P, root: ROOT, environment });
+    return RunPaths.pathsFor(ctx, pathsResolver, agentId);
+  }
   function resolveCwd(args, ctx, agentId) {
     const jailRoot = environment.ensureWorkspace(agentId);
-    let cwd = environment.getCwd(agentId);
-    // A routine/project cwd is host-validated before it enters run context. User/model args remain inside the
-    // per-agent jail unless a separately minted remote-owner authority exists.
-    if (ctx && ctx.projectCwd) {
-      cwd = Shell.resolveShellCwd({ pathMod: P, fs, requested: ctx.projectCwd, current: cwd, jailRoot, root: ROOT, isWin, allowExternal: true });
-    }
+    const paths = runPaths(ctx, agentId);
+    // The terminal opens where THIS run's next shell command would (Shell.runShellCwd): the run's project root
+    // (host-minted, re-validated before it entered the run) or the private workspace, then the run's own `cd`. It
+    // read the run's projectCwd field alone, so a project conversation's terminal opened in the private workspace
+    // while its shell and fs.* worked in the project. A PTY runs on the host only, so the backend here is always local.
+    let cwd = Shell.runShellCwd({ paths, environment, backendId: 'local', agentId, jailRoot, pathMod: P, fs, root: ROOT, isWin, remoteOwner: remoteOwner(ctx) });
+    // User/model args stay inside the private workspace, or inside the run's own project root — the folder this
+    // run's shell and fs.* already work in — unless a separately minted remote-owner authority exists.
     if (args && args.cwd != null) {
-      cwd = Shell.resolveShellCwd({ pathMod: P, fs, requested: args.cwd, current: cwd, jailRoot, root: ROOT, isWin, allowExternal: remoteOwner(ctx), allowProtected: remoteOwner(ctx) });
+      const wanted = String(args.cwd).trim();
+      const norm = Shell.normalizeWinCwd(P, wanted, isWin);
+      const lexical = P.isAbsolute(norm) || /^[A-Za-z]:[\\/]/.test(norm) ? P.resolve(norm) : P.resolve(cwd, norm);
+      const inRoot = !!paths.root && !/^\\\\/.test(wanted) && Shell.withinJail(P, lexical, paths.root);
+      cwd = Shell.resolveShellCwd({ pathMod: P, fs, requested: args.cwd, current: cwd, jailRoot, root: ROOT, isWin, allowExternal: remoteOwner(ctx) || inRoot, allowProtected: remoteOwner(ctx) });
     }
     return { cwd, jailRoot };
   }
@@ -127,7 +139,7 @@ function makeTerminalTools(deps) {
     run: function (args, ctx) {
       const r = fail(manager.read(aid(ctx), sessionRef(args), { offset: args.offset, maxChars: args.maxChars }));
       const saved = r.session.outputSpillVerified
-        ? '; full ' + r.session.outputBytes + '-byte output saved once at ' + visibleOutputPath(r.session.outputPath, { projectRoot: ctx && ctx.projectRoot, agentId: aid(ctx), root: ROOT, pathMod: P }) + ' (page with fs.read)'
+        ? '; full ' + r.session.outputBytes + '-byte output saved once at ' + runPaths(ctx, aid(ctx)).placeJail(r.session.outputPath) + ' (page with fs.read)'
         : (r.session.outputSpillError ? '; durable output spill failed: ' + r.session.outputSpillError : '');
       const note = '[offset ' + r.offset + '→' + r.nextOffset + ' of ' + r.endOffset
         + (r.truncatedStart ? '; earlier output left the bounded scrollback' : '') + saved

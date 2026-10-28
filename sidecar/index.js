@@ -60,7 +60,8 @@ const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
-const { makeOutputArtifacts, visibleOutputPath } = require('./output-artifacts.js');
+const { makeOutputArtifacts } = require('./output-artifacts.js');
+const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
 const { makeWebTools, makePoliteScheduler } = require('./tools/builtin/web.js');
 const { makeWebReader } = require('./tools/builtin/webreader.js');
 const { makeBrowserTools, _internals: browserInternals } = require('./tools/builtin/browser.js');
@@ -20895,7 +20896,15 @@ async function handleRun(req, res) {
     // rest of the conversation. Host-computed from the messages, never from request metadata.
     const quotedOwnerInput = TrustedLearning.quotedInLearningTail(messages);
     let runMessages = messages;
-    try { runMessages = await attachments.expandUserAttachments(messages, agentId); } catch (_) { runMessages = messages; }
+    // A binary attachment's note names its path the way this run's tools resolve it (run-paths placeJail, the rule
+    // runOnce's ctx.paths applies): in a project conversation a relative path means the PROJECT, so it is absolute there.
+    let attachPlace;
+    if (projectBlessed) {
+      try { attachPlace = RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root: WORKSPACES }), { agentId, projectRoot: projectRootRaw }).placeJail; }
+      catch (e) { failNote('run.attachments.place', e); }
+    }
+    try { runMessages = await attachments.expandUserAttachments(messages, agentId, attachPlace ? { place: attachPlace } : undefined); }
+    catch (e) { failNote('run.attachments.expand', e); runMessages = messages; }
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
@@ -21940,6 +21949,16 @@ async function runOnceCore(o) {
     fullAccess: unrestrictedHostNow() || executionProfile.filesystemScope === 'host-paths-except-hard-floor',
     unrestrictedHost: unrestrictedHostNow()
   });
+  /* ONE PATH OBJECT PER RUN (run-paths lane, sidecar/run-paths.js). Every tool reads ctx.paths, so a relative path means
+     the same folder to fs.*, shell, terminal, verify, media and browser.upload, and every receipt names a path the next
+     tool can open. Its root is the project this run was normalized to above (handleRun's still-blessed root, or the
+     routine/line/thread folder re-proven by cronCanonicalWorkdir); its `cd` lives here, so it never crosses runs.
+     A bad agent id cannot mint one: the run's tools then refuse that id themselves, exactly as before. */
+  let runPaths = null;
+  try {
+    runPaths = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WORKSPACES, environment: executionEnvironment, pathTrust: runPathTrust }),
+      { agentId: agentId || 'agent', projectRoot: o.projectRoot || '', workdir: o.workdir || '' });
+  } catch (e) { failNote('runpaths.mint', e); }
   makeFsTools({ fsp, pathMod: path, root: WORKSPACES, environment: executionEnvironment, limits: { writeBytes: 1 << 20, readReturn: 24000 }, redact, pathTrust: runPathTrust, docExtract, imageWire, editDiagnostics: lspManager, spawn: childSpawn }).register(registry);   // redact: scrub secrets out of surfaced fs.search lines (§5.6); baseline-before-edit LSP feedback; spawn: lets fs.search use `rg` when the machine has it
   makeNotebookTools({ store: notebookStore, clock: { now: () => Date.now() }, redact, rank, nextTrust: memcore.nextTrust, findSimilar: memcore.findSimilar, similarity: memcore.tokenJaccard, onSaved: recordRunReceipt, sharedStanding: () => (tasteWithheld || !personalizationStore.read().enabled) ? [] : FeedbackMemory.stationStanding(notebookStore.get('notebook:' + agentId), otherAgentNotebooks(agentId)).filter(r => r.foreign) }).register(registry);   // §5.6: scrub secrets at the write boundary; rank: explicit read shares auto-recall's relevance order; nextTrust: notebook.feedback rating fold; findSimilar: near-dupe guard so the same belief can't accumulate in N phrasings; similarity: the same-subject listing; onSaved: this run's COMMS receipt
   widgetTools.register(registry);   // WIDGET RAILS Phase 2: widget.set — agent-fed rail readouts (memory capability: sandboxed local write, no consent, no network)
@@ -22786,10 +22805,11 @@ async function runOnceCore(o) {
     // capability, schema and consent gates — so a hook can only ever remove a permission, never add one.
     hooks: hookSpine,
     cwd: WORKSPACES,
-    projectCwd: o.workdir || null,
-    // A normal project-scoped session carries its still-blessed root separately from scheduled workdir. Native
-    // fs.* uses it as the relative base (while re-running path trust per target), and shell.* uses it as the
-    // run-scoped default cwd. Unblessed roots were erased by handleRun before runOnce, so this is host-minted.
+    // THE RUN'S PATH OBJECT (minted above with the tools): the ONE answer to "what does a relative path mean here" for
+    // every tool — fs.* resolve against it (path trust re-run per target), shell/terminal/verify start in it and keep
+    // this run's `cd` on it, receipts are placed by it. Unblessed roots were erased by handleRun before runOnce.
+    paths: runPaths || undefined,
+    // the same root as a plain fact, for the project-SCOPED stores (notebook, skills, worker threads), never for a path
     projectRoot: o.projectRoot || null,
     // PRECISE CHECKPOINT ROOT. fs.* invokes this after path-trust has resolved the actual base but before bytes
     // change; shell/verify invoke it after their real cwd is resolved but before spawning. This closes the gap
@@ -22844,9 +22864,9 @@ async function runOnceCore(o) {
           || revokedByTaint.isSource({ name: String((meta && meta.tool) || ''), capability: String((meta && meta.capability) || '') }, { args: {} }));
         const stem = (untrusted ? taintPolicy.UNTRUSTED_PARK_PREFIX : '') + safeTool + '-' + String(runId || 'run').replace(/[^A-Za-z0-9_-]/g, '') + '-' + (parkSeq++);
         const parked = await outputArtifacts.park(agentId || 'agent', stem, content);
-        // In a project session a relative pointer resolves against the project, not this jail: hand the model the
-        // absolute path (see visibleOutputPath). Every note, receipt and worker spill reads parked.path.
-        if (parked && parked.path && o.projectRoot) parked.path = visibleOutputPath(parked.path, { projectRoot: o.projectRoot, agentId: agentId || 'agent', root: WORKSPACES, pathMod: path });
+        // In a project session a relative pointer resolves against the project, not this jail: the run's path object
+        // hands the model the absolute path (run-paths placeJail). Every note, receipt and worker spill reads parked.path.
+        if (parked && parked.path && runPaths) parked.path = runPaths.placeJail(parked.path);
         return parked;
       } catch (_) { return null; }
     },
@@ -24498,9 +24518,12 @@ async function runOnceCore(o) {
     // surface it was launched from. Observe-only: a hook cannot refuse a run the Commander started.
     try { await hookSpine.invoke('on_session_start', { session_id: runId, cwd: WORKSPACES, extra: { agent_id: agentId, model, platform: surface, trigger: o.trigger || 'directive' } }); } catch (_) {}
     // TYPED POSTCONDITIONS READER — one host reader for both the mid-run acceptance probe and the end-of-run
-    // verdict: every artifact predicate resolves through the workspace jail, reads are bounded, digests streamed.
+    // verdict: every artifact predicate resolves through the RUN's path object (the folder this run's fs.write wrote
+    // into: the project in a project run, the private workspace otherwise), reads are bounded, digests streamed.
+    // Postcondition paths are relative-only (task-postconditions.js), so this reads, and never asks about, a folder.
     const readPostconditionArtifact = async requirement => {
-      const resolved = await fsJail.resolveInside(agentId, requirement.path, { scope: 'read' });
+      const resolved = runPaths ? await runPaths.resolve(requirement.path, { scope: 'read' })
+        : await fsJail.resolveInside(agentId, requirement.path, { scope: 'read' });
       const stat = await fsp.stat(resolved.abs);
       if (!stat.isFile()) return { exists: true, isFile: false };
       const observed = { exists: true, isFile: true, bytes: stat.size };

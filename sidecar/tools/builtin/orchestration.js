@@ -165,6 +165,7 @@
   const AGG_DEFAULT_BUDGET = 80000;   // tools/registry.js OUTPUT_MAX's default: the budget when no host figure arrives
   const AGG_SHORT_ROOM = 200;         // below this much kept text a shortened row carries the SHORT marker
   const { note: failNote } = (typeof require === 'function') ? require('../../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  const RunPaths = (typeof require === 'function') ? require('../../run-paths.js') : null;
   function aggregateBudget(ctx) {
     const n = Number(ctx && ctx.outputMax);
     return (Number.isFinite(n) && n > 0) ? Math.floor(n) : AGG_DEFAULT_BUDGET;
@@ -367,9 +368,13 @@
 
   // Only host context or a durable host-created worker record supplies project scope.
   // Tool arguments cannot choose a new filesystem root.
+  // A live lead's scope comes from its run's path object (ctx.paths, sidecar/run-paths.js): the same root its fs.* and
+  // shell resolve against, so a worker inherits exactly the folder the lead works in.
   function projectOptions(ctx, record) {
-    const source = record && Object.prototype.hasOwnProperty.call(record, 'projectRoot') ? record : (ctx || {});
-    return { projectRoot: source.projectRoot || undefined, workdir: source.workdir || source.projectCwd || undefined };
+    const runPaths = RunPaths && ctx && RunPaths.isRunPaths(ctx.paths) ? ctx.paths : null;
+    const source = record && Object.prototype.hasOwnProperty.call(record, 'projectRoot') ? record
+      : runPaths ? { projectRoot: runPaths.root, workdir: runPaths.workdir } : (ctx || {});
+    return { projectRoot: source.projectRoot || undefined, workdir: source.workdir || undefined };
   }
 
   // the host-minted restrictions a worker starts under, saved on its durable record (subagents originLimits)

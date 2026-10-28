@@ -118,7 +118,10 @@ module.exports = function makeAttachments(deps) {
   // Expand each user message's attachment references into provider content blocks, just before the model call.
   // Bounded by IMAGE_BUDGET so a long photo history can't blow the request/token size. Messages without
   // attachments pass untouched (byte-identical), so this is a no-op for every existing caller.
-  async function expandUserAttachments(messages, agentId) {
+  // opts.place(rel) (run-paths lane): names a saved attachment the way THIS run's file/shell tools resolve it — the
+  // jail-relative path outside a project, the absolute path in a project run (where a relative path means the project).
+  async function expandUserAttachments(messages, agentId, opts) {
+    const place = opts && typeof opts.place === 'function' ? opts.place : (rel => rel);
     if (!Array.isArray(messages)) return messages;
     if (!messages.some(m => m && m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length)) return messages;
     let imageBudget = IMAGE_BUDGET;
@@ -153,7 +156,7 @@ module.exports = function makeAttachments(deps) {
           const what = /^video\//.test(mime) ? 'a video — you cannot watch it directly, but the file is real'
             : /^audio\//.test(mime) ? 'an audio file — you cannot listen to it directly, but the file is real'
             : 'a file type you cannot view directly';
-          blocks.push({ type: 'text', text: '\n[Attached file: ' + name + ' (' + (mime || 'binary') + ') — ' + what + '; it is saved in your workspace at ' + rel + ' and your file/shell tools can operate on it]' });
+          blocks.push({ type: 'text', text: '\n[Attached file: ' + name + ' (' + (mime || 'binary') + ') — ' + what + '; it is saved in your workspace at ' + place(rel) + ' and your file/shell tools can operate on it]' });
         }
       }
       const clone = Object.assign({}, m, { content: blocks.length ? blocks : '' });

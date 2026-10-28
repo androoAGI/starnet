@@ -214,7 +214,7 @@ const SYNC_BASELINE = {
   'tools/builtin/notebook.js': 1,
   'tools/builtin/orchestration.js': 8,
   'tools/builtin/quests.js': 1,
-  'tools/builtin/shell.js': 12,
+  'tools/builtin/shell.js': 10,
   'tools/builtin/skills.js': 4,
   'tools/builtin/spotify.js': 1,
   'tools/builtin/terminal.js': 2,

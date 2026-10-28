@@ -26,6 +26,7 @@
   const runCommand = shell.runCommand, escapesWorkspace = shell.escapesWorkspace,
     commandSafetyRisk = shell.commandSafetyRisk, safeAgentId = shell.safeAgentId, resolveShellCwd = shell.resolveShellCwd;
   const interpret = verifyCore.interpret;
+  const RunPaths = typeof require === 'function' ? require('../../run-paths.js') : null;
   const WIN = (typeof process !== 'undefined' && process.platform) === 'win32';
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
 
@@ -41,6 +42,7 @@
     const MAX_BYTES = L.maxBytes || 64000;
     const DEFAULT_MS = L.defaultTimeoutMs || 120000;   // a test suite/build is slower than a shell one-liner
     const MAX_MS = L.maxTimeoutMs || 600000;
+    let pathsResolver = null;   // names this run's paths when a rig passes no ctx.paths (sidecar/run-paths.js)
 
     const verifyTool = {
       name: 'verify.run', capability: 'workbench', impact: 'workspace-process', scope: 'execute', requiresConsent: true,
@@ -57,9 +59,12 @@
         const environmentBackendId = environment
           ? (typeof environment.backendIdFor === 'function' ? environment.backendIdFor(aid) : environment.backendId)
           : null;
-        let cwd = environment ? environment.getCwd(aid) : P.join(ROOT, aid);
-        const runProjectCwd = String(ctx.projectCwd || ctx.projectRoot || '').trim();
-        if (runProjectCwd) cwd = resolveShellCwd({ pathMod: P, fs: fs, requested: runProjectCwd, current: cwd, jailRoot: environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid), root: ROOT, isWin: isWin, allowExternal: environmentBackendId === 'local' });
+        // the check runs where THIS run's next shell command would (shell.js runShellCwd over the run's path object):
+        // its project root or private workspace, then the run's own `cd` — the folder shell.exec and fs.* agree on
+        const jailRoot = environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid);
+        if (!pathsResolver) pathsResolver = RunPaths.makeResolver({ pathMod: P, root: ROOT, environment });
+        const cwd = shell.runShellCwd({ paths: RunPaths.pathsFor(ctx, pathsResolver, aid), environment: environment, backendId: environmentBackendId,
+          agentId: aid, jailRoot: jailRoot, pathMod: P, fs: fs, root: ROOT, isWin: isWin, remoteOwner: shell.unrestrictedHost(ctx) });
         // Local execution may be inside a nested project after shell.cd. Inspect the
         // exact directory that will execute; only mapped backends need the host root.
         const hostCwd = environment && environmentBackendId !== 'local' && typeof environment.workspaceRoot === 'function'

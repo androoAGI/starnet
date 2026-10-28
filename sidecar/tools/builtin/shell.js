@@ -28,7 +28,8 @@
   // foreground receipts for the boot orphan sweep (procledger.js trackChild); inert when no ledger is injected
   const trackChild = (typeof require === 'function') ? require('../../procledger.js').trackChild : function () { return { exited: function () {}, done: function () {} }; };
   const shellFailNote = (typeof require === 'function') ? require('../../failopen.js').note : function () {};
-  const visibleOutputPath = (typeof require === 'function') ? require('../../output-artifacts.js').visibleOutputPath : function (p) { return p; };
+  // the run's ONE path decision (project root, private workspace, receipt placement, this run's `cd`): sidecar/run-paths.js
+  const RunPaths = (typeof require === 'function') ? require('../../run-paths.js') : null;
   // fullOut is bounded (head + tail, output-capture.js): an unbounded `+=` crashed the station at V8's max string length
   const makeFullCapture = (typeof require === 'function') ? require('../../output-capture.js').makeFullCapture
     : function () { let s = ''; return { push: function (t) { s += t; }, value: function () { return s; }, elided: function () { return 0; } }; };
@@ -674,6 +675,26 @@
     }
     return abs;
   }
+  /* WHERE THIS RUN'S NEXT COMMAND STARTS (run-paths lane, 2026-10-28). shell.exec, verify.run and terminal.start all ask
+     this one function: the run's project root when it has one (ctx.paths root, host-minted), else the private
+     workspace, then THIS run's remembered `cd` (paths.shellCwd), re-proven on every read. It used to be three hand
+     copies: the shell read the run's projectCwd field, else its projectRoot; terminal.start read projectCwd only (a
+     project chat's terminal opened in the private workspace), verify.run ignored a `cd`, and an unscoped `cd` was kept per
+     AGENT (environment.rememberCwd), so a `cd` in one chat moved every other chat of that agent. A sandbox backend
+     keeps its own container cwd (validated by the backend), exactly as before.
+     o: { paths, environment, backendId, agentId, jailRoot, pathMod, fs, root, isWin, remoteOwner } */
+  function runShellCwd(o) {
+    const P = o.pathMod, paths = o.paths, local = o.backendId === 'local';
+    let cwd = o.environment && !local ? o.environment.getCwd(o.agentId) : o.jailRoot;
+    if (paths.root) cwd = resolveShellCwd({ pathMod: P, fs: o.fs, requested: paths.root, current: cwd, jailRoot: o.jailRoot, root: o.root, isWin: o.isWin, allowExternal: local });
+    const kept = paths.shellCwd();
+    if (kept) {
+      try { cwd = resolveShellCwd({ pathMod: P, fs: o.fs, requested: kept, current: cwd, jailRoot: o.jailRoot, root: o.root, isWin: o.isWin, allowExternal: o.remoteOwner || local, allowProtected: o.remoteOwner }); }
+      catch (e) { shellFailNote('shell.cwd.kept', e); }   // a folder deleted since the `cd`: start from the base instead
+      if (!o.environment && (o.remoteOwner || withinJail(P, kept, o.jailRoot)) && (!o.fs || !o.fs.existsSync || o.fs.existsSync(kept))) cwd = kept;
+    }
+    return cwd;
+  }
 
   /* best-effort tree-kill: on Windows taskkill must inspect the live shell root to discover `/T` descendants.
      POSIX (macOS/Linux): `group` is true when the shell was spawned detached, i.e. as the leader of its OWN
@@ -822,9 +843,16 @@
     const environment = deps.environment || null;
     const spawn = deps.spawn, fs = deps.fs || null, P = deps.pathMod || (typeof require === 'function' ? require('node:path') : null), ROOT = deps.root || '';
     const bg = deps.bg || null;   // H2.2: the singleton background-process manager (shellbg.js); null -> bg disabled
+    // THE RUN'S PATH OBJECT (sidecar/run-paths.js): its project root, private workspace, receipt placement and THIS
+    // run's `cd`. ctx.paths in a real run; a rig without one gets the same object minted from these deps.
+    let pathsResolver = null;
+    const runPaths = (ctx, aid) => {
+      if (!pathsResolver) pathsResolver = RunPaths.makeResolver({ pathMod: P, root: ROOT, environment });
+      return RunPaths.pathsFor(ctx, pathsResolver, aid);
+    };
     // A spill lives in the agent's jail (.output/…); a project session resolves relative paths in the project, so
-    // the pointer the model reads must be absolute there (output-artifacts.js visibleOutputPath).
-    const spillPath = (rel, ctx) => visibleOutputPath(rel, { projectRoot: ctx && ctx.projectRoot, agentId: safeAgentId((ctx && ctx.agentId) || 'agent'), root: ROOT, pathMod: P });
+    // the pointer the model reads must be absolute there (run-paths placeJail).
+    const spillPath = (rel, ctx) => runPaths(ctx, safeAgentId((ctx && ctx.agentId) || 'agent')).placeJail(rel);
     // procledger.js: foreground children are receipted while they run (the environment path does the same in
     // environment.js runProcess — that is the production route; this covers the direct runCommand route)
     const ledger = (deps.ledger && typeof deps.ledger.record === 'function') ? deps.ledger : null;
@@ -843,7 +871,6 @@
        the reference harness. Still bounded by config (limits.maxTimeoutMs), still killed at the deadline, and
        the registry backstop below stays ABOVE it so the child-kill always runs first. */
     const MAX_MS = L.maxTimeoutMs || 600000;
-    const sessions = new Map();   // H2.1: unscoped aid or run-scoped project key -> { cwd }
 
     const execTool = {
       name: 'shell.exec', capability: 'workbench', impact: 'workspace-process', scope: 'execute', requiresConsent: true,
@@ -888,24 +915,15 @@
             + (environmentBackendId === 'local' ? '; to run a command there, pass that folder as cwd' : '')
           : ''));
         const jailRoot = environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid);
-        // A project root is host-minted from the session's still-live blessing. Keep its shell cwd run-scoped:
-        // two concurrent projects owned by the same agent must never inherit one another's `cd` state.
-        const runProjectCwd = String(ctx.projectCwd || ctx.projectRoot || '').trim();
-        const sessionKey = runProjectCwd ? (aid + '\0project:' + String(ctx.runId || runProjectCwd)) : aid;
-        // H2.1: start in this scope's persisted cwd (default = project root or jail root). Defensive: only
-        // honor a stored cwd that still resolves under the allowed local envelope and still exists.
-        const sess = sessions.get(sessionKey);
-        let cwd = environment ? environment.getCwd(aid) : jailRoot;
-        if (runProjectCwd) cwd = resolveShellCwd({ pathMod: P, fs: fs, requested: runProjectCwd, current: cwd, jailRoot: jailRoot, root: ROOT, isWin: isWin, allowExternal: environmentBackendId === 'local' });
-        if (sess && sess.cwd) {
-          try { cwd = resolveShellCwd({ pathMod: P, fs: fs, requested: sess.cwd, current: cwd, jailRoot: jailRoot, root: ROOT, isWin: isWin, allowExternal: remoteOwner || environmentBackendId === 'local', allowProtected: remoteOwner }); }
-          catch (_) {}
-        }
-        if (!environment && sess && sess.cwd && (remoteOwner || withinJail(P, sess.cwd, jailRoot)) && (!fs.existsSync || fs.existsSync(sess.cwd))) cwd = sess.cwd;
+        // H2.1 + run-paths: start where THIS run's next command starts (runShellCwd: the run's project root or the
+        // private workspace, then this run's own `cd`). The `cd` lives on the run's path object, so two runs of one
+        // agent (two chats, two projects, a routine beside a chat) never inherit one another's working directory.
+        const paths = runPaths(ctx, aid);
+        let cwd = runShellCwd({ paths: paths, environment: environment, backendId: environmentBackendId, agentId: aid, jailRoot: jailRoot, pathMod: P, fs: fs, root: ROOT, isWin: isWin, remoteOwner: remoteOwner });
         if (args && args.cwd != null) {
           if (environment && environmentBackendId !== 'local' && !remoteOwner) throw new Error('cwd is only supported on the local execution backend; use cd inside the container workspace instead');
           cwd = resolveShellCwd({ pathMod: P, fs: fs, requested: args.cwd, current: cwd, jailRoot: jailRoot, root: ROOT, isWin: isWin, allowExternal: remoteOwner || environmentBackendId === 'local', allowProtected: remoteOwner });
-          sessions.set(sessionKey, { cwd: cwd });
+          paths.setShellCwd(cwd);
         }
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
@@ -955,12 +973,15 @@
           // recover the final cwd + the REAL exit code from the marker; persist the cwd only if it stayed in-jail.
           const pm = parseMarker(res.fullOut || res.out);
           const preview = parseMarker(res.out);
+          // a sandbox's container cwd stays the backend's own (it validates it against the container root); a local
+          // `cd` is kept on THIS run's path object — never per agent, where it moved every other chat's shell
           if (environment && pm.cwd && environmentBackendId !== 'local') environment.rememberCwd(aid, pm.cwd);
-          else if (environment && pm.cwd && withinJail(P, pm.cwd, jailRoot)) environment.rememberCwd(aid, pm.cwd);
+          else if (environment && pm.cwd && withinJail(P, pm.cwd, jailRoot)) paths.setShellCwd(pm.cwd);
           else if (environment && pm.cwd && environmentBackendId === 'local') {
-            try { sessions.set(sessionKey, { cwd: resolveShellCwd({ pathMod: P, fs: fs, requested: pm.cwd, current: cwd, jailRoot: jailRoot, root: ROOT, isWin: isWin, allowExternal: true, allowProtected: remoteOwner }) }); } catch (_) {}
+            try { paths.setShellCwd(resolveShellCwd({ pathMod: P, fs: fs, requested: pm.cwd, current: cwd, jailRoot: jailRoot, root: ROOT, isWin: isWin, allowExternal: true, allowProtected: remoteOwner })); }
+            catch (e) { shellFailNote('shell.cwd.remember', e); }   // the command left the allowed envelope: the next call starts from the run's base
           }
-          else if (pm.cwd && (remoteOwner || withinJail(P, pm.cwd, jailRoot))) sessions.set(sessionKey, { cwd: pm.cwd });
+          else if (pm.cwd && (remoteOwner || withinJail(P, pm.cwd, jailRoot))) paths.setShellCwd(pm.cwd);
           const exitCode = (pm.ec != null && !res.timedOut && !res.aborted) ? pm.ec : res.exitCode;
           const note = res.timedOut ? ' — KILLED (timed out after ' + timeoutMs + 'ms)' : res.aborted ? ' — KILLED (aborted)' : '';
           const body = redact((res.truncated ? preview.cleanOut : pm.cleanOut) || '(no output)');
@@ -1228,5 +1249,5 @@
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
 });

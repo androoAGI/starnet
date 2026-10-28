@@ -20,6 +20,7 @@
   const CP = require('../../child-env.js').guardChildProcess(require('node:child_process'));   // Chrome never inherits station secrets
   const NET = require('node:net');
   const { swallow, note: failNote } = require('../../failopen.js');
+  const RunPaths = require('../../run-paths.js');   // the run's one path decision: receipts name paths the next tool opens
   const Challenge = require('./browserchallenge.js');
   const { deriveReadClient } = require('./browser-workflow.js');
   const Orphans = require('./browser-orphans.js');   // #61: end only the station's OWN orphaned Chromium
@@ -2037,8 +2038,10 @@
       return { x: node.x + Math.max(1, Math.floor(node.w / 2)), y: node.y + Math.max(1, Math.floor(node.h / 2)) };
     }
     // Every input action below runs on a pinTab() channel: the tab it started on, or a refusal (see pinTab).
-    async function click(node) { return clickOn(await pinTab(), node); }
-    async function clickOn(c, node) {
+    async function click(node, opts) { return clickOn(await pinTab(), node, opts); }
+    async function clickOn(c, node, opts) {
+      // opts.place (the tool layer's run path object): names the saved download so THIS run's fs.read opens it
+      const place = opts && typeof opts.place === 'function' ? opts.place : null;
       const downloadCursor = downloads ? downloads.cursor() : 0;
       const tabsBefore = new Set(pageSessions.keys());
       const x = node.x + Math.max(1, Math.floor(node.w / 2));
@@ -2053,13 +2056,17 @@
       if (downloads && downloads.startedAfter(downloadCursor)) {
         const receipt = await downloads.waitAfter(downloadCursor, downloadWaitMs);
         if (receipt && receipt.status === 'completed') {
-          const metadata = fenceExternal('Saved path: ' + receipt.relative + '\nSize: ' + receipt.bytes + ' bytes', 'download filename and metadata reported by the controlled browser');
+          // the saved path as THIS run's fs.read resolves it: jail-relative outside a project, absolute inside one
+          const savedPath = place ? place(receipt.absolute) : receipt.relative;
+          const metadata = fenceExternal('Saved path: ' + savedPath + '\nSize: ' + receipt.bytes + ' bytes', 'download filename and metadata reported by the controlled browser');
           return 'clicked\nDownload completed and the host verified the saved file.\n' + metadata
             + '\nRead it with fs.read using the saved path above; Word (.docx) files are extracted automatically.';
         }
         if (receipt && receipt.status === 'canceled') return 'clicked\nDownload canceled. No saved path was claimed.';
         if (receipt && receipt.status === 'unverified') return 'clicked\nChromium reported the download complete, but the host could not verify a readable saved file. Do not claim it was saved.';
-        return 'clicked\nDownload started but did not complete within the browser action budget. No saved path was claimed. Use fs.list on downloads/ later to check for a completed file.';
+        const listDir = place && downloadDir ? place(P.resolve(downloadDir)) : 'downloads';
+        return 'clicked\nDownload started but did not complete within the browser action budget. No saved path was claimed. Use fs.list on '
+          + (/^(?:[A-Za-z]:|[\\/])/.test(listDir) ? listDir : listDir + '/') + ' later to check for a completed file.';
       }
       /* A popup the page opened (window.open: a checkout, SSO, a PDF viewer) is adopted as a NEW tab, and switching is
          never implicit - so "clicked" alone left the agent reading the old page, unaware the result was elsewhere. */
@@ -3299,7 +3306,7 @@
       // would turn a structured answer into "[object Object]...". Carry the disclosure as a field instead.
       return (out && typeof out === 'object') ? Object.assign({}, out, { recovered: true }) : String(out) + note;
     }
-    async function click(ref) { const d = ensureDriver(); return actOnRef(ref, n => d.click(n)); }
+    async function click(ref, opts) { const d = ensureDriver(); return actOnRef(ref, n => d.click(n, opts)); }
     async function type(ref, text) { const d = ensureDriver(); return actOnRef(ref, n => d.type(n, text)); }
     async function press(key) { const d = ensureDriver(); requireReadTab('browser.press'); return d.press(key); }
     // A driver that predates one of these (an injected fake) says so plainly instead of throwing a
@@ -3734,6 +3741,13 @@
     // Upload reads share fs.read authority; screenshot/PDF outputs retain their private workspace shelf.
     const uploadJail = canSaveShots ? require('./fs.js').makeFsTools({ fsp: shotFsp, pathMod: shotPath, root: shotRoot,
       pathTrust: typeof deps.pathTrust === 'function' ? deps.pathTrust : undefined })._internals : null;
+    /* THE RECEIPT NAMES A PATH THE NEXT TOOL CAN OPEN (run-paths lane). A frame, a PDF or a download is saved on the
+       private shelf and named relative to it. In a project run a relative path means the PROJECT, so fs.read of
+       "shots/x.png" looked there and failed. The run's path object places the name: unchanged outside a project, the
+       absolute private-workspace path inside one (path trust serves an agent's own workspace by absolute path). */
+    const shelfPaths = canSaveShots ? RunPaths.makeResolver({ fsp: shotFsp, pathMod: shotPath, root: shotRoot }) : null;
+    const runPathsOf = (ctx) => (shelfPaths ? RunPaths.pathsFor(ctx, shelfPaths, (ctx && ctx.agentId) || 'agent') : null);
+    const placeShelf = (ctx, rel) => { const p = runPathsOf(ctx); return p ? p.placeJail(rel) : rel; };
     async function saveShot(ctx, b64) {
       if (!canSaveShots) return null;
       const aid = (ctx && ctx.agentId) || 'agent';
@@ -3751,7 +3765,7 @@
         if (ctx.room) d.room = ctx.room;
         ctx.emit('deliverable', d);
       }
-      return { rel, bytes: buffer.length, viewer: '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel) };
+      return { rel, shown: placeShelf(ctx, rel), bytes: buffer.length, viewer: '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel) };
     }
     // Same jail, same content-addressing, same deliverable event as saveShot — but kind:'file' (a PDF
     // is a document the user opens, not pixels the chat inlines) and its own pdf/ shelf.
@@ -3770,7 +3784,7 @@
         if (ctx.room) d.room = ctx.room;
         ctx.emit('deliverable', d);
       }
-      return { rel, bytes: buffer.length, viewer: '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel) };
+      return { rel, shown: placeShelf(ctx, rel), bytes: buffer.length, viewer: '/api/file?agent=' + encodeURIComponent(aid) + '&path=' + encodeURIComponent(rel) };
     }
     const navProps = { url: { type: 'string' } };
     if (allowVisible) navProps.visible = { type: 'boolean' };
@@ -3919,8 +3933,9 @@
           return { content: 'TIMED OUT after ' + (r && r.ms) + 'ms: ' + what + ' never ' + (a.gone === true ? 'went away' : 'appeared') + '. The page may have failed, or the condition may be wrong — browser.get_text and browser.network will say which.', summary: 'timed out' };
         }),
       exec('browser.click', 'Click a visible element by ref from the latest browser.snapshot. If the click downloads a file, the result waits for Chromium and verifies the saved file under downloads/; pass that exact path to fs.read (Word .docx files are extracted automatically).', { type: 'object', required: ['ref'], properties: { ref: { type: 'string' } } },
-        async a => {
-          const content = await session.click(a.ref);
+        async (a, ctx) => {
+          const runPaths = runPathsOf(ctx);
+          const content = await session.click(a.ref, runPaths ? { place: abs => runPaths.place(abs) } : undefined);
           // the new-tab note names browser.tab_select / browser.tabs, which are deferred: the hint must make them callable
           if (/opened a NEW tab/.test(content)) return { content, summary: 'clicked, opened a new tab', control: { revealTools: ['browser.tab_select', 'browser.tabs'] } };
           return { content, summary: /Download completed/.test(content) ? 'download completed' : 'clicked' };
@@ -4117,7 +4132,7 @@
           // against the actual pixels, and on failure so the capture is not simply thrown away.
           let shot = null;
           try { shot = await saveShot(ctx, r && r.image); } catch (_) { shot = null; }
-          const saved = shot ? '\n\nScreenshot saved to ' + shot.rel + '\nView: ' + shot.viewer : '';
+          const saved = shot ? '\n\nScreenshot saved to ' + shot.shown + '\nView: ' + shot.viewer : '';
           if (r && r.ok) {
             // the vision answer DESCRIBES attacker-controlled pixels, so it inherits the page's trust level.
             // `saved` stays OUTSIDE the fence: it is host-authored provenance about where we wrote the
@@ -4139,7 +4154,7 @@
             return { content: 'Captured ' + bytes + ' bytes but this run has no workspace to save into, so the image was discarded.', summary: 'not saved' };
           }
           return {
-            content: 'Screenshot saved to ' + shot.rel + ' (' + (shot.bytes / 1024).toFixed(0) + ' KB).\nView: ' + shot.viewer,
+            content: 'Screenshot saved to ' + shot.shown + ' (' + (shot.bytes / 1024).toFixed(0) + ' KB).\nView: ' + shot.viewer,
             summary: 'shot → ' + shot.rel,
             // THE PIXELS THEMSELVES. Until this rode along, "screenshot" meant the model got a FILE PATH and
             // never saw the screen — it could prove a page to the Commander and remained blind to it itself.
@@ -4162,7 +4177,7 @@
             const bytes = Math.round(String(data).length * 3 / 4);
             return { content: 'Rendered ' + bytes + ' bytes of PDF but this run has no workspace to save into, so it was discarded.', summary: 'not saved' };
           }
-          return { content: 'PDF saved to ' + doc.rel + ' (' + (doc.bytes / 1024).toFixed(0) + ' KB).\nView: ' + doc.viewer, summary: 'pdf → ' + doc.rel };
+          return { content: 'PDF saved to ' + doc.shown + ' (' + (doc.bytes / 1024).toFixed(0) + ' KB).\nView: ' + doc.viewer, summary: 'pdf → ' + doc.rel };
         }),
       exec('browser.intercept', 'Block heavy resource types (image, media, font, stylesheet) in the station browser to make text research faster and cheaper — pages load without downloading what you were never going to read. Pass kinds:[] to turn blocking off. Blocked requests appear in browser.network as ERR_BLOCKED_BY_CLIENT, so nothing is hidden. Blocking "stylesheet" can change layout and hide elements — use it only for pure text scraping. Refused while attached to the Commander\'s own Chrome.', { type: 'object', required: ['kinds'], properties: { kinds: { type: 'array', items: { type: 'string', enum: ['image', 'media', 'font', 'stylesheet'] } } } },
         async a => {
