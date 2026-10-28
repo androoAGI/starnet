@@ -22,6 +22,8 @@ test/compress-run-window.test.js
 test/redact.known-values.test.js
 test/redact.masked-keys.test.js
 test/prompt-scrub.test.js
+test/prompt-scrub.projectors.test.js
+test/prompt-scrub.provider.test.js
 test/redact.linear.test.js
 test/redact.known-cache.test.js
 test/runtimeinfo.test.js

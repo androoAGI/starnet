@@ -155,7 +155,8 @@ const {
   providerRequiresBaseUrl,
   attachRateLimits,
   attachSubUsage,
-  attachCatalogCache
+  attachCatalogCache,
+  attachRequestScrub
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -194,6 +195,12 @@ attachRateLimits(rateLimits);
    fresh adapter re-fetched the list on its first stream. One process-wide cache (10-minute TTL, per provider + base
    URL + credential fingerprint; reported windows per endpoint), attached at the same seam as the quota tracker. */
 attachCatalogCache(makeCatalogCache({ clock: { now: () => Date.now() } }));
+/* SECRETS AT THE PROVIDER BOUNDARY (prompt-scrub.js, context-key-redact 2026-10-28). Every adapter the factory builds
+   sends a copy of each request with the secret values the station holds (API KEYS, connector tokens, provider keys)
+   removed from its text — the last line behind the projectors that scrub stored text before it reaches a prompt.
+   Vendor-SHAPED keys are left to those projectors: an unsaved key in the live turn stays readable for keys.save. */
+const PromptScrub = require('./prompt-scrub.js');
+attachRequestScrub(PromptScrub.guardRequest);
 const { DEFAULT_MODEL: CODEX_DEFAULT_MODEL, liveDefaultModel: codexLiveDefaultModel, memoLiveModelIds: codexMemoLiveModelIds } = require('./providers/codex.js');
 const codexAuth = require('./providers/codex-auth.js');
 const codexTokenStore = require('./providers/codex-token-store.js');
@@ -2832,6 +2839,10 @@ function dossierWithGoals() {
   let goal = null; try { goal = commanderGoals.get() || null; } catch (e) { failNote('persona.goal', e); }
   return CommanderContext.compose({ dossier: commanderDossier.get(), goal });
 }
+/* promptDossier() — the dossier as an aux directive quotes it (study, scout, quest refresh): scrubbed of keys the same
+   way compose() scrubs it on the persona path (prompt-scrub). A directive and its grounding veto read this SAME string,
+   or a candidate that honestly cites the dossier would fail the veto. */
+function promptDossier() { return PromptScrub.scrubStored(commanderDossier.get()); }
 // The per-run half: the same bounded, provenance-labelled evidence block commanderEvidenceContext composes, minus the
 // dossier and goal the persona already carries. '' when the station has observed nothing (never an empty header).
 function stationEvidenceNote() {
@@ -3758,7 +3769,7 @@ async function runStudy(o) {
     return spend.stream(provider, req, cost);
   };
   try {
-    const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? commanderDossier.get() : '';
+    const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? promptDossier() : '';
     const out = await Study.study({ agentId, runId, directive, messages }, {
       propose, redact, clock: { now: () => Date.now() },
       // declined = the browser's permanent studyDeclined denylist, mirrored here on every /api/study/resolve —
@@ -7873,10 +7884,10 @@ function scoutDirectionBlock() {
   } catch (_) {}
   try {
     const eff = QuestRefresh.normalize(questRefreshState).northStar; // confirmed/adopted only; pending direction never steers recruiting
-    if (eff && eff.text) lines.push('NORTH STAR: ' + String(eff.text).slice(0, 200));
+    if (eff && eff.text) lines.push('NORTH STAR: ' + PromptScrub.scrubStored(String(eff.text)).slice(0, 200));   // scrub, then cut
   } catch (_) {}
   try {
-    const open = (questStore.list() || []).filter(q => q && q.status === 'open').slice(0, 8).map(q => '• ' + String(q.title || '')).filter(t => t.length > 2);
+    const open = (questStore.list() || []).filter(q => q && q.status === 'open').slice(0, 8).map(q => '• ' + PromptScrub.scrubStored(String(q.title || ''))).filter(t => t.length > 2);
     if (open.length) { lines.push('OPEN QUESTS (the Commander\'s committed next steps — advance one, never duplicate one):'); for (const o of open) lines.push(o); }
   } catch (_) {}
   return lines.join('\n');
@@ -7940,9 +7951,10 @@ async function runScoutCycle(o) {
       const interestsBlock = Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 8 });
       const activityBlock = activity.slice(0, 8).map(a => '• ' + a).join('\n');
       const directionBlock = scoutDirectionBlock();   // the Commander's open quests + north star (flagship cross-wire)
+      const dossierBlock = promptDossier();   // ONE scrubbed copy: the directive and its grounding veto read the same text
       const directive = Scout.buildRecipeDirective({
         interestsBlock: interestsBlock,
-        dossierBlock: commanderDossier.get(),
+        dossierBlock: dossierBlock,
         activityBlock: activityBlock,
         directionBlock: directionBlock,
         existingRecipes: existing, gearKeys: SCOUT_CAP_KEYS,
@@ -7954,7 +7966,7 @@ async function runScoutCycle(o) {
       // direction block is part of that evidence, so a WHY that cites an open quest / the north star is grounded —
       // and so is the DOSSIER (it rides the directive at dossierBlock; excluding it here silently killed any WHY
       // that honestly cited the Commander's own stated pain/ambition — the exact grounding a cold-start mint has).
-      const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, commanderDossier.get()].filter(Boolean).join('\n') });
+      const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, dossierBlock].filter(Boolean).join('\n') });
       scoutState = Scout.stampAttempt(scoutState, 'recipe', { now: Date.now(), coldStart: !!d.coldStart });
       if (parsed && parsed.none) scoutNote({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
       else if (!parsed) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
@@ -7992,10 +8004,11 @@ async function runScoutCycle(o) {
       try { skillSlugs = skillsCatalog.catalog(skillLibrary(), { overrides: skillPrefs.overrides(), placedTypes: SCOUT_CAP_KEYS }).map(s => s.slug).filter(Boolean); } catch (_) { skillSlugs = []; }
       const cx = scoutState.context || {};
       const directive = ProspectGen.buildDirective({
-        dossierBlock: commanderDossier.get(),
+        dossierBlock: promptDossier(),
         // fold the Commander's direction (open quests + north star) into the observed-workflow signal, so a drafted
         // specialist SERVES what they're chasing (flagship cross-wire) — same additive shape as the interests block.
-        worksignalSummary: [cx.worksignalSummary, Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 6 }), scoutDirectionBlock()].filter(Boolean).join('\n'),
+        // The page-synced worksignal is stored text like any other: scrubbed with the rest (prompt-scrub).
+        worksignalSummary: PromptScrub.scrubStored([cx.worksignalSummary, Interests.topicsBlock(interestsState, { trustedOnly: true, now: Date.now(), limit: 6 }), scoutDirectionBlock()].filter(Boolean).join('\n')),
         rosterClasses: [...agentRoster].map(([, a]) => ({ name: (a && a.name) || '' })).filter(c => c.name),
         catalogSummary: existing.map(c => ({ id: c.name, tagline: c.tagline })),
         capabilityKeys: SCOUT_CAP_KEYS, skillSlugs: skillSlugs,
@@ -8509,12 +8522,13 @@ function nightshiftDecideLearn(agentId, runId, useful) {
 }
 
 // build the { dim:[texts] } grounding map from the synced read-only beliefs snapshot (commanderPosture.beliefs()).
+// Scrubbed once here (prompt-scrub): the night directive, its grounding veto and the context pack read this one copy.
 function nightshiftBeliefMap() {
   const snap = commanderPosture.beliefs();
   const out = {};
   const src = (snap && snap.beliefs && typeof snap.beliefs === 'object') ? snap.beliefs : {};
   for (const k of ['goals', 'pain', 'ambition', 'stack', 'standing_orders', 'style', 'people', 'schedule']) {
-    const arr = (src[k] || []).map(b => b && b.text).filter(Boolean);
+    const arr = (src[k] || []).map(b => b && b.text).filter(Boolean).map(PromptScrub.scrubStored);
     if (arr.length) out[k] = arr;
   }
   return out;
@@ -8582,10 +8596,12 @@ function nightshiftContextPack(evidence) {
   // TRACK RECORD (outcome learning): what this station's runs actually produce — the night shift builds with
   // the shapes that finish. Same pause authority as the preference tallies (a paused station learns nothing).
   const trackRecord = stationTrackRecordLines();
-  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, redact }, { now });
+  // No redact is passed: the pack scrubs every stored line itself (contextpack's default prompt-scrub resolver), so the
+  // prompt text, the activity pool and the grounding veto all read one identically scrubbed copy.
+  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord }, { now });
   // A legacy run's absent taintedBy is not positive owner provenance. Persisted interests may learn only
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
-  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats, redact }, { now }).activityLines || [];
+  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats }, { now }).activityLines || [];
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -8677,7 +8693,7 @@ function stationEpoch() {
    function of the projected runs and `now` ALONE (internal heads only filter chats), so assembling just those runs
    yields the identical number from one bounded 60-row read. */
 function nightshiftUserRunCount() {
-  const pack = contextpack.assemble({ runs: nightshiftRecentRuns(), redact }, { now: Date.now() });
+  const pack = contextpack.assemble({ runs: nightshiftRecentRuns() }, { now: Date.now() });
   return (pack.counts && pack.counts.runs) || 0;
 }
 
@@ -10380,7 +10396,9 @@ async function runQuestRefreshCycle(why) {
     // step along the same path (and their titles join the dedup set — done work is never re-proposed).
     const completed = rec.quests.filter(q => q.status === 'done')
       .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)).slice(0, 5);
-    const goalNote = commanderGoals.note();
+    // the goal note and the dossier are Commander-authored stored text: scrubbed (prompt-scrub), and the directive and
+    // the grounding veto below read these same strings
+    const goalNote = PromptScrub.scrubStored(commanderGoals.note());
     // V3 §6: a dossier the shared readiness gate has JUDGED not-ready (a synced verdict with ok:false —
     // e.g. a blitzed onboarding whose only beliefs are seeds) is INADMISSIBLE as quest evidence: it neither
     // satisfies hasEvidence nor reaches the directive. A save with NO verdict (server-only boot, legacy
@@ -10388,10 +10406,10 @@ async function runQuestRefreshCycle(why) {
     // own evidence floor + grounding veto. Explicit direction (goal note / north star) is untouched.
     const rdSnap = commanderPosture.beliefs();
     const dossierNotReady = !!(rdSnap && rdSnap.ready && rdSnap.ready.ok === false);
-    const dossierBlock = dossierNotReady ? '' : commanderDossier.get();
+    const dossierBlock = dossierNotReady ? '' : promptDossier();
     const evidenceCtx = {
       goalNote: goalNote,
-      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? capturedGoal.next : '',
+      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? PromptScrub.scrubStored(String(capturedGoal.next)) : '',
       progress: questProgressContext(),
       // ground on the EFFECTIVE star: a pending (unconfirmed) inference still steers the directive so the cycle
       // isn't rudderless while awaiting the Commander's verdict — the UI is what labels it unconfirmed, not here.
@@ -24070,7 +24088,9 @@ async function runOnceCore(o) {
     ? (String(system || '') + evidenceBlock)
     : stablePrefix ? taskSystem
       : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
-  const runContext = stablePrefix ? runContextNote(withQuests(perRunBlocks, questsBlock)) : '';
+  // The whole per-run note is stored text the host composed (brief, evidence, quests, away briefing, skills, domain
+  // task): scrubbed once more as one text (prompt-scrub), so a per-run block added later cannot skip the projectors' rule.
+  const runContext = stablePrefix ? runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock))) : '';
   // H1.2: bulletproof resume — if this run arrives with NO prior history (a fresh restart whose browser save was
   // wiped, or any caller that only sent the new directive) AND it names an explicit workstream, seed the
   // conversation from the durable server transcript so the agent remembers the dialogue. Never overrides real
@@ -24662,8 +24682,10 @@ async function runOnceCore(o) {
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
-      // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept
-      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys());
+      // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
+      // Then every other key is scrubbed (prompt-scrub) BEFORE runstore cuts the title at 120 chars: the title is
+      // what later runs quote as RECENT ACTIVITY. Naming first, so a saved key keeps its "[NAME saved in API KEYS]".
+      const title = PromptScrub.scrubStored(KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys()));
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {

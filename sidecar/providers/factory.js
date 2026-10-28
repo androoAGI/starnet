@@ -75,19 +75,30 @@
     return Number.isFinite(declared) && declared > 0 ? declared : 0;
   }
 
+  /* REQUEST SCRUB (prompt-scrub.js guardRequest, context-key-redact 2026-10-28). The last line before a prompt leaves
+     the process: every adapter this factory builds — runs, fallbacks, extra accounts, aux one-shots, compaction,
+     vision, probes — streams through the attached guard, which removes the secret values the station holds from the
+     request's text. One seam for the same reason as the rate-limit tracker: a seventh adapter never remembers.
+     Attached once at boot; absent = every adapter behaves byte-identically to before. */
+  let requestScrub = null;
+  function attachRequestScrub(fn) { requestScrub = typeof fn === 'function' ? fn : null; return requestScrub; }
+  function guarded(provider) { return requestScrub ? requestScrub(provider) : provider; }
+
   function selectProvider(opts) {
     opts = opts || {};
     // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
     // Cache a successful activation for this run. Failed activation stays retryable, and a
     // cancelled caller never starts refresh/inference. No credential is shared across wrappers.
+    // The deferred wrapper is the one thing guarded: its metadata and live adapters are built unguarded, so a request
+    // is scrubbed exactly once, against one held-list snapshot.
     if (typeof opts.tokenProvider === 'function') {
       const base = Object.assign({}, opts); delete base.tokenProvider;
-      const metadata = selectProvider(base);
+      const metadata = buildAdapter(base);
       let active = null, live = null;
       const activate = () => {
         if (!active) {
           active = Promise.resolve().then(() => opts.tokenProvider()).then(token => {
-            live = selectProvider(Object.assign({}, base, { token, headers: typeof opts.headersProvider === 'function' ? opts.headersProvider() : base.headers }));
+            live = buildAdapter(Object.assign({}, base, { token, headers: typeof opts.headersProvider === 'function' ? opts.headersProvider() : base.headers }));
             return live;
           });
           active.catch(() => { active = null; });
@@ -121,8 +132,13 @@
         if (req && req.signal && req.signal.aborted) return;
         yield* provider.stream(req);
       };
-      return deferred;
+      return guarded(deferred);
     }
+    return guarded(buildAdapter(opts));
+  }
+
+  // the concrete adapter for one provider profile (unguarded: selectProvider is the only caller)
+  function buildAdapter(opts) {
     const id = registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID);
     const profile = registry.getProviderProfile(id);
     if (!profile) throw new Error('unknown provider: ' + (opts.provider || ''));
@@ -262,6 +278,7 @@
     providerRequiresBaseUrl: registry.providerRequiresBaseUrl,
     attachRateLimits: attachRateLimits,
     attachSubUsage: attachSubUsage,
-    attachCatalogCache: attachCatalogCache
+    attachCatalogCache: attachCatalogCache,
+    attachRequestScrub: attachRequestScrub
   };
 });

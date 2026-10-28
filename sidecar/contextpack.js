@@ -37,10 +37,14 @@
    deterministic given (inputs, now). A pathological history can never bloat the prompt or leak an unbounded blob. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // SECRETS (context-key-redact, 2026-10-28): under node the pack scrubs every stored line through prompt-scrub by
+  // DEFAULT, not by caller injection — run titles, goals and landed titles used to pass raw while only briefs and chats
+  // got the caller's redact, so a key typed once rode every later RECENT ACTIVITY line.
+  const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
+  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null);
+  if (node) module.exports = api;
   else { (root.SK = root.SK || {}).contextpack = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (defaultScrub) {
   'use strict';
 
   const DAY_MS = 86400000;
@@ -103,24 +107,32 @@
        inputs.beliefs  : { goals:[t], pain:[t], ... }        (nightshiftBeliefMap(): the stable dossier base layer)
        inputs.learn    : { archetype:{up,down} }             (the LEARN store; summarized to one line)
        inputs.trackRecord : [string]                         (outcomes.js lines(); pre-composed literal-count lines)
-       inputs.redact   : fn(string)->string                  (secret scrubber; applied to chat first-lines as a backstop)
-     opts: { now, windowDays, maxChars } */
+       inputs.redact   : fn(string)->string                  (an EXTRA scrubber, applied before the default one)
+     opts: { now, windowDays, maxChars }
+     Every stored string (run titles, internal heads, briefs, chats, goal, landed titles, beliefs, track record) is
+     scrubbed BEFORE oneLine clips it: prompt-scrub's scrubStored by default, after inputs.redact when one is given —
+     an injected scrubber can add to the default, never weaken it. */
   function assemble(inputs, opts) {
     inputs = inputs || {}; opts = opts || {};
     const now = num(opts.now);
     const windowMs = (num(opts.windowDays) || DEFAULT_WINDOW_DAYS) * DAY_MS;
     const maxChars = num(opts.maxChars) || DEFAULT_MAX_CHARS;
-    const redact = (typeof inputs.redact === 'function') ? inputs.redact : (s) => s;
+    const injected = (typeof inputs.redact === 'function') ? inputs.redact : null;
+    const redact = (s) => {
+      const t = injected ? injected(s) : s;
+      return typeof defaultScrub === 'function' ? defaultScrub(str(t)) : str(t);
+    };
     const withinWindow = (ts) => { const t = num(ts); return !now || !t || (now - t) <= windowMs; };
     /* THE STATION'S OWN SELF-TALK IS NOT THE COMMANDER'S ACTIVITY (USER-STUDY LOOP, 2026-09-28). A reason-only
        internal call (goal decomposition, the first-meeting prompts, session recommendations…) is recorded as a run
        flagged `internal`, AND its directive lands in the transcript as a 'user' row on the Commander's own stream —
        so it read as "what they asked recently" and the planners studied the station instead of the person. The run
        flag is the authority: its directive head identifies the matching transcript row. */
-    const headOf = s => oneLine(s, 400).replace(/…$/, '').slice(0, 48).toLowerCase();
+    // both sides scrubbed: a title holding a key still matches the (redacted-on-write) transcript row it came from
+    const headOf = s => oneLine(redact(s), 400).replace(/…$/, '').slice(0, 48).toLowerCase();
     const internalHeads = (Array.isArray(inputs.runs) ? inputs.runs : [])
       .filter(r => r && r.internal).map(r => headOf(r.title)).filter(h => h.length >= 12);
-    const isSelfTalk = text => { const h = headOf(text); return h.length >= 12 && internalHeads.some(x => h.indexOf(x) === 0 || x.indexOf(h) === 0); };
+    const isSelfTalk = text => { if (!internalHeads.length) return false; const h = headOf(text); return h.length >= 12 && internalHeads.some(x => h.indexOf(x) === 0 || x.indexOf(h) === 0); };
 
     const sections = [];
     const activityLines = [];
@@ -136,7 +148,7 @@
       const seen = {};
       for (const r of rows) {
         if (runLines.length >= MAX_RUNS) break;
-        const title = oneLine(r.title, LINE_MAX);
+        const title = oneLine(redact(r.title), LINE_MAX);
         const key = title.toLowerCase();
         if (!title || seen[key]) continue;         // a repeated run title is one thing they're working on, not N
         seen[key] = 1;
@@ -195,10 +207,10 @@
     {
       const g = inputs.goal;
       if (g && str(g.text).trim()) {
-        let line = oneLine(g.text, LINE_MAX);
+        let line = oneLine(redact(g.text), LINE_MAX);
         const done = num(g.done), total = num(g.total);
         if (total > 0) line += ' (' + done + '/' + total + ' done)';
-        if (str(g.next).trim()) line += ' — next: ' + oneLine(g.next, 80);
+        if (str(g.next).trim()) line += ' — next: ' + oneLine(redact(g.next), 80);
         sections.push({ label: 'Their current goal', lines: [line] });
         activityLines.push(line);
       }
@@ -215,7 +227,7 @@
         if (landedLines.length >= MAX_LANDED) break;
         const kept = (str(d.verdict) === 'kept');
         const mark = kept ? '✓ kept' : '✗ discarded';
-        landedLines.push(oneLine(d.title, LINE_MAX) + ' — ' + mark);
+        landedLines.push(oneLine(redact(d.title), LINE_MAX) + ' — ' + mark);
       }
     }
     counts.landed = landedLines.length;
@@ -226,7 +238,7 @@
     const beliefLines = [];
     {
       const b = (inputs.beliefs && typeof inputs.beliefs === 'object') ? inputs.beliefs : {};
-      const dim = (key, label) => { const arr = Array.isArray(b[key]) ? b[key].filter(Boolean) : []; if (arr.length) beliefLines.push(label + ': ' + oneLine(arr.join(' | '), LINE_MAX)); };
+      const dim = (key, label) => { const arr = Array.isArray(b[key]) ? b[key].filter(Boolean) : []; if (arr.length) beliefLines.push(label + ': ' + oneLine(arr.map(redact).join(' | '), LINE_MAX)); };
       dim('goals', 'Goals'); dim('pain', 'Pain'); dim('ambition', 'Ambition'); dim('stack', 'Stack'); dim('standing_orders', 'Standing orders'); dim('style', 'Style'); dim('people', 'People / audience'); dim('schedule', 'Schedule');
     }
     counts.beliefs = beliefLines.length;
@@ -252,7 +264,7 @@
     //    bounds and labels them. NOT added to the activity pool: a statistic is context, never grounding a
     //    candidate may cite as the Commander's own activity.
     {
-      const track = (Array.isArray(inputs.trackRecord) ? inputs.trackRecord : []).map(l => oneLine(l, LINE_MAX)).filter(Boolean).slice(0, 4);
+      const track = (Array.isArray(inputs.trackRecord) ? inputs.trackRecord : []).map(l => oneLine(redact(l), LINE_MAX)).filter(Boolean).slice(0, 4);
       if (track.length) sections.push({ label: 'What keeps working vs failing here', lines: track });
     }
 
