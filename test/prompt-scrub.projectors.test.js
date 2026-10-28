@@ -392,6 +392,23 @@ const SEED = {
     A.ok(/attachResultScrub\(PromptScrub\.scrubStored\)/.test(S.readSidecarSource()), 'P11: boot attaches the stored-text scrub to the registry');
   }
 
+  // ---- P12: an INTERNAL run's page-composed directive quotes stored beliefs/goals: scrubbed at runOnceCore's intake ----
+  {
+    const AutoJobs = require('../frontend/app/autojobs.js');
+    const Goals = require('../frontend/app/goals.js');
+    const beliefs = { goals: ['Ship outreach v2 this quarter'], stack: ['Every model call goes through OpenRouter with key ' + K.OPENROUTER.value] };
+    const aj = [{ role: 'user', content: AutoJobs.buildProposalDirective({ beliefs, existingJobs: ['Morning digest'] }) }];
+    const gd = [{ role: 'system', content: 'x' }, { role: 'user', content: [{ type: 'text', text: Goals.buildDirective('Ship outreach v2 with the openai key ' + K.OPENAI.value + ' wired in') }] }];
+    A.ok(leaks(JSON.stringify(aj)) !== '' && leaks(JSON.stringify(gd)) !== '', 'P12: (the page\'s real directive builders quote the stored keys raw)');
+    const ajOut = PS.scrubStoredMessages(aj), gdOut = PS.scrubStoredMessages(gd);
+    A.eq(leaks(JSON.stringify(ajOut) + JSON.stringify(gdOut)), '', 'P12: scrubStoredMessages leaves no key or window in the autojobs and goal-decomposition directives (string and text-part content)');
+    A.ok(/OpenRouter with key \[redacted-key\]/.test(ajOut[0].content) && gdOut[0] === gd[0] && aj[0].content.indexOf(K.OPENROUTER.value) >= 0, 'P12: words kept, clean messages kept by identity, the input never mutated');
+    const tidy = [{ role: 'user', content: 'Recommend the next step' }];
+    A.ok(PS.scrubStoredMessages(tidy) === tidy, 'P12: a clean conversation is the same array (no prompt-cache change)');
+    const core = S.sidecarTopLevelFunction('runOnceCore');
+    A.ok(/if \(o && o\.internal && Array\.isArray\(o\.messages\)\) \{ const m = PromptScrub\.scrubStoredMessages\(o\.messages\);/.test(core.slice(0, 1200)), 'P12: runOnceCore scrubs an internal run\'s messages before anything reads them');
+  }
+
   PS.setHeldSource(null);
   A.report('prompt-scrub.projectors.test');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -21131,6 +21131,12 @@ async function runOnceCoreCounted(o) {
   finally { coreRunsLive--; }
 }
 async function runOnceCore(o) {
+  /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
+     decomposition, pitch, suggestions and the page autopilot quote STORED beliefs, goals and titles into its user turn.
+     The persona system is scrubbed at intake below; these messages are scrubbed here the same way (prompt-scrub), so a
+     key in a stored belief never reaches the provider whole. Nothing on an internal run reads a raw key: keys.save rides
+     only a task run on the Commander's own turns. A clean conversation comes back as the same array (review r2). */
+  if (o && o.internal && Array.isArray(o.messages)) { const m = PromptScrub.scrubStoredMessages(o.messages); if (m !== o.messages) o = Object.assign({}, o, { messages: m }); }
   if (updatePreparation.isFrozen()) {
     throw Object.assign(new Error('StarNet is frozen at a verified pre-update recovery point.'), { code: 'UPDATE_MUTATIONS_FROZEN' });
   }

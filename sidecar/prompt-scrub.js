@@ -279,6 +279,37 @@ function scrubDeep(x, depth) {
   return copy || x;
 }
 
+/* scrubStoredMessages(messages) — scrubStored over every message's text (a string content or its text parts), for a
+   conversation that is HOST- or PAGE-COMPOSED from stored text rather than typed live: an internal run's directive
+   (autojobs, goal decomposition, pitch, suggestions, the page autopilot quote stored beliefs and titles). Copy-on-write:
+   the SAME array comes back when nothing changed. */
+function scrubStoredMessages(messages) {
+  if (!Array.isArray(messages)) return messages;
+  let copy = null;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m || typeof m !== 'object') continue;
+    let next = m;
+    if (typeof m.content === 'string') {
+      const c = scrubStored(m.content);
+      if (c !== m.content) next = Object.assign({}, m, { content: c });
+    } else if (Array.isArray(m.content)) {
+      let parts = null;
+      for (let j = 0; j < m.content.length; j++) {
+        const p = m.content[j];
+        if (!p || typeof p !== 'object' || typeof p.text !== 'string' || SKIP_PART.has(p.type)) continue;
+        const t = scrubStored(p.text);
+        if (t === p.text) continue;
+        if (!parts) parts = m.content.slice();
+        parts[j] = Object.assign({}, p, { text: t });
+      }
+      if (parts) next = Object.assign({}, m, { content: parts });
+    }
+    if (next !== m) { if (!copy) copy = messages.slice(); copy[i] = next; }
+  }
+  return copy || messages;
+}
+
 // thinking / reasoning parts are signed or replayed verbatim by their provider: never rewritten
 const SKIP_PART = new Set(['thinking', 'redacted_thinking', 'reasoning', 'image_url', 'image', 'input_image']);
 /* The memo keeps a long run from re-scanning its history every loop turn, but a loop can rewrite a message IN PLACE
@@ -377,4 +408,4 @@ function guardRequest(provider) {
   });
 }
 
-module.exports = { setHeldSource, currentHeld, scrubStored, scrubHeld, scrubDeep, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN };
+module.exports = { setHeldSource, currentHeld, scrubStored, scrubHeld, scrubDeep, scrubStoredMessages, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN };
