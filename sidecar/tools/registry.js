@@ -145,13 +145,18 @@
      scrubStored: vendor shapes, held credentials, cut keys) — before the output clamp, which would cut a key in two.
      Not for WORKSPACE content the model edits or replays byte-exact (files, shell/terminal/verify output, app and
      plugin sources, code runs, desktop) or a connector's own data (mcp:*): those are not station stores, and fs/shell/
-     verify redact their own output. Unattached = byte-identical to before (tests, the browser copy). */
+     verify redact their own output. Unattached = byte-identical to before (tests, the browser copy).
+     A HOST tool can also opt out by name (tool.resultScrub === false, review r3): one whose result holds no stored text
+     at all — keys.save names only public vendor heads ("sk-p…") and the saved key's NAME, and the masked-key rule read
+     each head as a key, so its refusal told the model to pick a key by its first characters while showing none. The
+     default stays fail-closed: a tool scrubs unless it says otherwise, and a connector registration cannot opt out. */
   let resultScrub = null;
   function attachResultScrub(fn) { resultScrub = typeof fn === 'function' ? fn : null; return resultScrub; }
   const WORKSPACE_CAPS = new Set(['cabinet', 'workbench', 'apps', 'pluginauthor', 'code', 'compute', 'physical-input', 'visible-desktop']);
   function resultScrubFor(tool) {
     const cap = String((tool && tool.capability) || '');
     if (!resultScrub || WORKSPACE_CAPS.has(cap) || /^mcp:/.test(cap)) return null;
+    if (tool && tool.resultScrub === false && tool.provenance !== 'connector') return null;
     const fn = resultScrub;
     return (text) => {
       if (typeof text !== 'string' || !text) return text;

@@ -436,6 +436,31 @@ const SEED = {
     void events;
   }
 
+  // ---- P11c (review r3): a host tool whose result holds no stored text opts out by name (resultScrub: false). keys.save's
+  //      crowded refusal named the candidates' first 4 chars ("sk-p…") and the masked-key rule turned every one into
+  //      [redacted-key]. A connector registration cannot opt out; a store reader still scrubs. ----
+  {
+    const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+    const { makeKeyTools } = require('../sidecar/tools/builtin/keys.js');
+    const three = [K.OPENAI, K.GITHUB, K.GOOGLE];
+    const msg = 'Here are my keys: ' + three.map(k => k.value).join(' and ');
+    const reg = makeRegistry();
+    makeKeyTools({ ownerTexts: () => [msg], save: ({ name }) => ({ ok: true, record: { name, envVar: name.toUpperCase() + '_API_KEY', autonomous: false, unattendedSupported: true }, existed: false, sameValue: false, saved: true }) }).register(reg);
+    const echo = 'stored note: the candidates start "' + three.map(k => k.value.slice(0, 4)).join('…", "') + '…"';
+    reg.register({ name: 'station.note', capability: 'orchestrator', scope: 'read', requiresConsent: false, resultScrub: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: echo }) }, { provenance: 'connector' });
+    reg.register({ name: 'station.note2', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: echo }) });
+    attachResultScrub(PS.scrubStored);
+    try {
+      const crowded = await reg.dispatch({ id: 'k1', name: 'keys.save', args: { service: 'Saleshandy' } }, {});
+      A.ok(crowded.isError && three.every(k => crowded.content.indexOf('"' + k.value.slice(0, 4) + '…"') >= 0), 'P11c: keys.save\'s crowded refusal keeps every candidate\'s first 4 chars through the attached scrub: ' + crowded.content.slice(0, 200));
+      A.eq(leaks(crowded.content), '', 'P11c: …and holds no key or window');
+      const wrong = await reg.dispatch({ id: 'k2', name: 'keys.save', args: { service: 'Saleshandy', starts_with: K.VAULT.value } }, {});
+      A.ok(wrong.isError && wrong.content.indexOf('"' + K.VAULT.value.slice(0, 8) + '…"') >= 0 && leaks(wrong.content) === '', 'P11c: a whole key passed as starts_with is echoed by its first 8 chars only: ' + wrong.content.slice(0, 160));
+      A.ok((await reg.dispatch({ id: 'n1', name: 'station.note', args: {} }, {})).content.indexOf('[redacted-key]') >= 0, 'P11c: a CONNECTOR registration cannot opt out of the scrub');
+      A.ok((await reg.dispatch({ id: 'n2', name: 'station.note2', args: {} }, {})).content.indexOf('[redacted-key]') >= 0, 'P11c: a store reader that does not opt out still scrubs (fail closed by default)');
+    } finally { attachResultScrub(null); }
+  }
+
   // ---- P12: an INTERNAL run's page-composed directive quotes stored beliefs/goals: scrubbed at runOnceCore's intake ----
   {
     const AutoJobs = require('../frontend/app/autojobs.js');
