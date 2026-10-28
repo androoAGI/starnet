@@ -104,12 +104,13 @@ try {
   }
   console.log(JSON.stringify(receipt.results.map(r => ({scenario:r.scenario,text:r.transport.text,error:r.transport.error || null,endReason:r.transport.endReason,finishReason:r.transport.finishReason,delivered:r.delivered.length,history:r.history})), null, 2));
 } finally {
-  writeFileSync(resolve(out, 'boot.log'), log);
-  if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
-  if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
-  await scratch.dispose();
-  // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
-  if (app.exitCode === null && app.signalCode === null) {
-    spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
-  }
+  try {
+    writeFileSync(resolve(out, 'boot.log'), log);
+    if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
+    if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
+    // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
+    if (app.exitCode === null && app.signalCode === null) {
+      spawn('taskkill', ['/PID', String(app.pid), '/T', '/F'], {stdio:'ignore',windowsHide:true});
+    }
+  } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the profile
 }

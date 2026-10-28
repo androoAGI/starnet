@@ -162,10 +162,11 @@ try {
   assert.deepEqual(result.restart.history, result.history, 'full conversation survives process restart');
   console.log('session-reliability: PASS (delayed restore, context, durable save, process restart)');
 } finally {
-  writeFileSync(resolve(out, 'boot.log'), log);
-  if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
-  if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
-  await stop();
-  if (installed) await installed.dispose();
-  await scratch.dispose();
+  try {
+    writeFileSync(resolve(out, 'boot.log'), log);
+    if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
+    if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
+    await stop();
+    if (installed) await installed.dispose();
+  } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the scratch dirs
 }

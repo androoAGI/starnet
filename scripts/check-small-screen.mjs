@@ -92,7 +92,8 @@ try {
   if(!beforeWorks||!afterWorks)throw Error('Review comparison toggle failed');
   console.log('Interactive review: initialized; before/after toggles PASS');
 } finally {
-  if(cdp) { await cdp.send('Browser.close').catch(()=>{}); cdp.ws.close(); }
-  if(proc.exitCode===null) { const exit=once(proc,'exit'); proc.kill(); await exit; }
-  await scratch.dispose();
+  try {
+    if(cdp) { await cdp.send('Browser.close').catch(()=>{}); cdp.ws.close(); }
+    if(proc.exitCode===null) { const exit=once(proc,'exit'); proc.kill(); await exit; }
+  } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the profile
 }
