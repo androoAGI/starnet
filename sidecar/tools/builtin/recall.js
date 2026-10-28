@@ -81,14 +81,14 @@
 
     const recallTool = {
       name: 'recall_conversation', capability: 'memory', scope: 'read', requiresConsent: false,
-      description: 'Search your OWN earlier dialogue by keyword (not saved notebook facts). query ranks current and earlier workstreams; scope:"stream" stays local. anchor or around reads surrounding turns; no arguments lists workstreams with topic previews.',
+      description: 'Search your OWN earlier dialogue by keyword (not saved notebook facts). query ranks current and earlier workstreams; scope:stream stays local. anchor or around reads surrounding turns; no arguments lists workstreams with topic previews.',
       schema: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'words or a phrase to find in your earlier dialogue' },
           scope: { type: 'string', enum: ['stream', 'all'], description: 'stream searches only THIS workstream; default/all combines every workstream' },
           anchor: { type: 'string', description: 'a stable id=tx-N anchor from a search result (preferred when timestamps collide)' },
-          around: { type: 'integer', description: 'a t= stamp from an earlier result — returns the turns surrounding it' },
+          around: { type: 'integer', description: 'a t= stamp from an earlier result; returns the turns around it' },
           stream: { type: 'string', description: 'workstream id for `around` (defaults to the active one)' },
           limit: { type: 'integer', description: 'max matches to return (default 5)' }
         }

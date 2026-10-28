@@ -3881,7 +3881,7 @@
           parts.push(clean ? 'The next browser call starts a fresh browser.' : 'The browser may still be stuck: the Commander can use Settings > BROWSER > RESET STATION BROWSER, or restart StarNet.');
           return { content: parts.join(' '), summary: clean ? 'browser reset' : 'browser reset incomplete' };
         }, false),
-      read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer this over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements, while this scans up to 200 and returns only what matches. It does not scan below the fold or inside closed menus; scroll or open the menu and try again. Refs from earlier snapshots expire, same as after any snapshot.',
+      read('browser.find', 'Find visible elements in the current viewport by text and/or role, and get refs you can click or type into. Prefer it over browser.snapshot on a busy viewport: snapshot lists the first 80 interactive elements; this scans up to 200 and returns only matches. It does not scan below the fold or inside closed menus (scroll or open the menu and retry). Refs from earlier snapshots expire, as after any snapshot.',
         { type: 'object', properties: { text: { type: 'string' }, role: { type: 'string' }, limit: { type: 'number' } } },
         async a => {
           const r = await session.find({ text: a.text, role: a.role }, a.limit);
@@ -3903,7 +3903,7 @@
       /* browser.wait is READ scope and needs no consent: it changes nothing, it only looks. Its whole
          purpose is to replace the guessed sleep, which is the single biggest source of flaky agent
          browsing — and a tool the agent must pay a consent prompt for is a tool it will skip. */
-      read('browser.wait', 'Wait until something is true on the page, instead of guessing a delay: an element matching a CSS selector becomes visible, some text appears, or the URL contains a string. Set gone:true to wait for it to DISAPPEAR (a spinner, a "Saving..." banner). Every other browser action already waits for the page to settle by itself — reach for this when you are waiting on a specific thing, like search results loading or a redirect landing. It reports honestly whether the condition actually became true.',
+      read('browser.wait', 'Wait until something is true on the page instead of guessing a delay: an element matching a CSS selector becomes visible, some text appears, or the URL contains a string. gone:true waits for it to DISAPPEAR (a spinner, a "Saving..." banner). Every other browser action already waits for the page to settle; use this for a specific thing, like search results loading or a redirect landing. It reports honestly whether the condition became true.',
         { type: 'object', properties: { selector: { type: 'string' }, text: { type: 'string' }, urlContains: { type: 'string' }, gone: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
         async a => {
           const r = await session.wait({ selector: a.selector, text: a.text, urlContains: a.urlContains, gone: a.gone === true }, a.timeoutMs);

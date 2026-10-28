@@ -911,7 +911,7 @@
       name: 'web_search', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
       resultScrub: false,   // external content, not a station store (registry.js resultScrubFor; review r3)
       description: 'Search the web and get a list of results (title, url, snippet). Use this to find current information and pages to read. ' +
-        'If every engine is throttled the result says so — that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
+        'If every engine is throttled the result says so: that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
       schema: { type: 'object', required: ['query'], properties: { query: { type: 'string' } } },
       run: async (args, ctx) => {
         // visible tool activity is the loop's frozen agent.tool_call / agent.tool_result events
@@ -963,7 +963,7 @@
       timeoutMs: FETCH_TIMEOUT_MS + 20000 + (reader ? 45000 : 0),   // the reader rung needs Chrome boot + nav + settle
       description: 'Fetch a web page by URL and return its main text content (cleaned). Use after web_search to read a result. ' +
         'Bot-blocked and JavaScript-only pages are automatically retried through the station\'s own browser, so one call is enough. ' +
-        'If a page still cannot be read (dead link, site outage, verification wall) the result says so — that is information about the site, not a tool failure; use a different source rather than retrying the same URL.',
+        'If a page still cannot be read (dead link, site outage, verification wall) the result says so: that is information about the site, not a tool failure; use a different source rather than retrying the same URL.',
       schema: { type: 'object', required: ['url'], properties: { url: { type: 'string' } } },
       run: async (args, ctx) => {
         let out;
@@ -1164,8 +1164,8 @@
       name: 'web_request', capability: 'web', scope: 'write', impact: 'external-credentialed',
       requiresConsent: true, network: true, timeoutMs: FETCH_TIMEOUT_MS + 20000,
       description:
-        'Call a third-party REST API (Printify, Etsy, Stripe, any service with an HTTP API) and return the response. ' +
-        'To authenticate, reference a stored key by its environment-variable NAME inside a header value using ${NAME} — ' +
+        'Call a third-party REST API (Printify, Etsy, Stripe, any HTTP API) and return the response. ' +
+        'To authenticate, put a stored key\'s environment-variable NAME in a header value as ${NAME}, ' +
         'e.g. headers {"Authorization": "Bearer ${PRINTIFY_API_KEY}"}. The host substitutes the real value at send time; ' +
         'you never see it; save a key pasted in chat with keys.save. Placeholders work in headers only, never in the url.',
       schema: {
@@ -1177,12 +1177,12 @@
             description: 'JSON field paths to return from the WHOLE response; [] walks arrays: ["id","variants[].id"] or ["[].id"].'
           },
           method: { type: 'string', description: 'GET (default), HEAD, POST, PUT, PATCH or DELETE.' },
-          headers: { type: 'object', description: 'Request headers. Use ${KEY_NAME} to reference a stored key.' },
+          headers: { type: 'object', description: 'Request headers; ${KEY_NAME} placeholders allowed.' },
           body: {
             type: 'string',
-            description: 'Request body for POST/PUT/PATCH (send JSON as a string). Write ${file:relative/path} where ' +
-              'a file\'s base64 belongs and the host reads + encodes the workspace file at send time — e.g. Printify: ' +
-              '{"file_name":"mockup.png","contents":"${file:mockups/mockup.png}"}. Never base64 a file yourself.'
+            description: 'Request body for POST/PUT/PATCH (JSON as a string). Put ${file:relative/path} where a file\'s ' +
+              'base64 belongs; the host encodes that workspace file at send time, e.g. ' +
+              '{"contents":"${file:mockups/mockup.png}"}. Never base64 a file yourself.'
           },
           multipart: {
             type: 'array',
@@ -1190,19 +1190,19 @@
               type: 'object', required: ['name'],
               properties: {
                 name: { type: 'string', description: 'Form field name.' },
-                file: { type: 'string', description: 'Workspace-relative path to attach as this part (curl -F style).' },
-                value: { type: 'string', description: 'Literal text value for a plain field. Give file OR value, not both.' },
+                file: { type: 'string', description: 'Workspace-relative file to attach (curl -F style).' },
+                value: { type: 'string', description: 'Text of a plain field; give file OR value, not both.' },
                 filename: { type: 'string', description: 'Filename to present (defaults to the file\'s own name).' },
                 contentType: { type: 'string', description: 'Part content-type (defaults from the file extension).' }
               }
             },
-            description: 'Send multipart/form-data instead of body — for endpoints that take file uploads as form ' +
-              'fields. Example: [{"name":"file","file":"mockups/a.png"},{"name":"title","value":"Mockup A"}].'
+            description: 'multipart/form-data instead of body, for file-upload endpoints, ' +
+              'e.g. [{"name":"file","file":"mockups/a.png"},{"name":"title","value":"Mockup A"}].'
           },
           auth: {
             type: 'object',
-            description: 'For APIs that want the key as a query parameter instead of a header: ' +
-              '{"key":"SOME_API_KEY","in":"query","name":"api_key"}. The host appends it at send time, so the ' +
+            description: 'For an API that wants the key as a query parameter: ' +
+              '{"key":"SOME_API_KEY","in":"query","name":"api_key"}; the host appends it at send time, so the ' +
               'secret never appears in the url you write. "in":"header" also works (optional "prefix", e.g. "Bearer ").'
           }
         }
