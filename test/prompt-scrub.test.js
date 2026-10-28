@@ -275,6 +275,24 @@ context.setKnownSecretSource(null);
   for (const keep of ['headers {"Authorization": "Bearer ${INSTANTLY_API_KEY}"}', 'api_key=${INSTANTLY_API_KEY}', 'Authorization: Bearer <token>',
     '"password": "{{ secrets.DB_PASSWORD }}"', 'set api_key=%OPENAI_API_KEY% first', '"api_key": "[redacted-secret]"'])
     A.eq(context.redact(keep), keep, 'a field holding a placeholder is left alone: ' + keep);
+  // r3: a placeholder counts only as the WHOLE value — a real credential that merely BEGINS like one is redacted, as base did
+  const tail = FK.stream('c-ph-tail', 14, ALNUM);
+  for (const [text, want] of [['password=<Tr0ub4dor&3xq', 'password=[redacted-secret]&3xq'], ['password: <' + tail + '!', 'password: [redacted-secret]'],
+    ['"password": "<' + tail + '"', '"password": "[redacted-secret]"'], ['client_secret={{x}}' + tail, 'client_secret=[redacted-secret]'],
+    ['api_key=${HOME}' + tail, 'api_key=[redacted-secret]'], ['password=%C3%A9' + tail, 'password=[redacted-secret]'],
+    ['access_token=%TOKEN%' + tail, 'access_token=[redacted-secret]'], ['Authorization: Token <' + tail, 'Authorization: Token [redacted-secret]'],
+    ['Authorization: Bearer <script>' + tail, 'Authorization: Bearer [redacted-secret]']]) {
+    A.eq(context.redact(text), want, 'r3: a value that only begins like a placeholder is redacted: ' + JSON.stringify(text));
+    const out = PS.scrubStored(text);
+    A.ok(out.indexOf(tail) < 0 && out.indexOf('Tr0ub4dor') < 0, 'r3: scrubStored hides it too: ' + JSON.stringify(text) + ' -> ' + JSON.stringify(out));
+  }
+  // …and a whole placeholder stays, at the end of a sentence, inside a quote, a JSON escape or a closing bracket
+  for (const keep of ['Set api_key=${INSTANTLY_API_KEY}.', 'f(api_key={{ api_key }})', '"password": "<your password here>"', 'x={"api_key":"${KEY}\\"}',
+    'api_key=[INSTANTLY_API_KEY saved in API KEYS] (saved)', 'export PASSWORD=%DB_PASSWORD%&& run'])
+    A.eq(context.redact(keep), keep, 'r3: a whole placeholder is left alone: ' + keep);
+  PS.setHeldSource(() => [{ value: by.VAULT.value, as: '[INSTANTLY_API_KEY saved in API KEYS]' }]);
+  A.eq(PS.scrubStored('api_key=' + by.VAULT.value + ' for the campaigns'), 'api_key=[INSTANTLY_API_KEY saved in API KEYS] for the campaigns', 'r3: a held key under a field name keeps its saved NAME (the field rule does not eat it)');
+  PS.setHeldSource(null);
   const basic = 'Basic ' + Buffer.from('admin:' + FK.stream('c-basic', 14, ALNUM)).toString('base64');
   A.eq(context.redact('Authorization: ' + basic), 'Authorization: Basic [redacted-secret]', 'Authorization: Basic <credential> -> the credential is redacted, the scheme kept');
   A.eq(context.redact('curl -H "Authorization: Bearer api_key: ' + FK.stream('c-ak', 22, ALNUM) + '"'), 'curl -H "Authorization: [redacted-secret] api_key: [redacted-secret]"', 'a scheme followed by another field name is two assignments, both redacted');

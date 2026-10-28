@@ -282,12 +282,27 @@
     + '|(?=[A-Za-z0-9_\\-]{20})(?:(?=[A-Za-z0-9_]{20})|' + SK_HUMPS
     + '|(?=[^A-Z]{0,19}[A-Z])(?=[^a-z]{0,19}[a-z])(?=[^0-9]{0,19}[0-9]))[A-Za-z0-9_\\-]{16,}))', 'g');
   /* A FIELD ASSIGNMENT (api_key=…, "client_secret": "…", Authorization: …). FIELD_VALUE is the rule; see its comment in
-     SECRET_PATTERNS. A scheme is never followed by another field name ("Bearer api_key: …" is two assignments). */
-  const FIELD_NAMES = 'api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization';
-  const AUTH_SCHEME = '(?:Bearer|Basic|Token|Bot)\\s+(?!(?:' + FIELD_NAMES + ')\\b)';
+     SECRET_PATTERNS. A scheme is never followed by another field name ("Bearer api_key: …" is two assignments).
+     A PLACEHOLDER is exempt only as the WHOLE value (review r3, 2026-10-28): the r2 exemption read only how a value
+     STARTED, so a real password that begins with '<', '{{', '${' or '%NAME%' ('password=<Tr0ub4dor&3xq', a generator's
+     '{{x}}9fQ2…') was left whole where base hid it. A placeholder now counts when the value ends right after it (a blank,
+     & , ; a quote, a backslash — the JSON escape of a quote or a line break —, a closing bracket, a sentence's full stop
+     or the end). An earlier scrub's own [redacted-…] tag still exempts the value it starts, as in base (a vendor key in a
+     URL's password slot keeps its tag before the '@'). Its case matters ($OPENAI_API_KEY is a reference, $Summer2024 a password), so the rule spells its
+     field and scheme names in both cases (ci) instead of taking the i flag. */
+  const ci = src => src.replace(/[a-z]/g, c => '[' + c + c.toUpperCase() + ']');
+  const FIELD_NAMES = ci('api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization');
+  const AUTH_SCHEME = '(?:' + ci('bearer|basic|token|bot') + ')\\s+(?!(?:' + FIELD_NAMES + ')\\b)';
+  const PLACEHOLDER = '(?:\\[[A-Z][A-Z0-9_]* saved in API KEYS\\]'   // a saved key's NAME (keys.js keyPlaceholder, prompt-scrub's held form)
+    + '|\\$\\{\\{[^{}\\n]{1,80}\\}\\}'                     // ${{ secrets.NAME }}
+    + '|\\$\\{[A-Za-z_][A-Za-z0-9_.:-]{0,80}\\}'          // ${NAME}, ${env:NAME}, ${NAME:-x}
+    + '|\\{\\{[^{}\\n]{1,80}\\}\\}'                       // {{name}}, {{ .Values.key }}
+    + '|<[A-Za-z_][A-Za-z0-9_ .-]{0,60}>'               // <token>, <your api key>
+    + '|%[A-Za-z_][A-Za-z0-9_]{0,80}%)';                 // %NAME%
+  const VALUE_END = '[)\\]}]*(?=$|[\\s&,;"\'\\\\]|\\.(?:\\s|$))';
   const FIELD_VALUE = new RegExp('\\b(' + FIELD_NAMES + ')\\b(["\']?\\s*[=:]\\s*["\']?)'
-    + '(?!(?:' + AUTH_SCHEME + ')?(?:\\[redacted-|\\$\\{|\\{\\{|<[A-Za-z_]|%[A-Za-z_][A-Za-z0-9_]*%))'
-    + '((?:' + AUTH_SCHEME + ')?)[^\\s&,;"\']{4,}', 'gi');
+    + '(?!(?:' + AUTH_SCHEME + ')?(?:\\[redacted-|' + PLACEHOLDER + VALUE_END + '))'
+    + '((?:' + AUTH_SCHEME + ')?)[^\\s&,;"\']{4,}', 'g');
   // Key/token shapes scrubbed before anything is logged, streamed, or persisted. Each pattern is
   // distinctive enough (vendor prefix + a length floor) that it does not eat ordinary prose. This is
   // ALWAYS-ON — there is deliberately no toggle the model could flip off. Most-specific vendor prefixes
@@ -341,7 +356,8 @@
     // opening the value, used to stop this rule cold — so `cat codex/tokens.json` reached the model verbatim.
     // An auth SCHEME (Bearer / Basic / Token / Bot) is kept and the credential after it is the value: base turned
     // 'Authorization: Basic dXNlcjpwYXNz' into '[redacted-secret] dXNlcjpwYXNz' (the scheme eaten, the credential kept).
-    // A PLACEHOLDER is not a credential and is left alone (${NAME}, {{name}}, <token>, %NAME%, an earlier [redacted-…]):
+    // A PLACEHOLDER that is the whole value is not a credential and is left alone (${NAME}, {{name}}, <token>, %NAME%, an
+    // earlier [redacted-…] or [NAME saved in API KEYS]; see PLACEHOLDER above):
     // the host's own instruction '"Authorization": "Bearer ${INSTANTLY_API_KEY}"' used to reach the model as
     // '"Authorization": "[redacted-secret] ${INSTANTLY_API_KEY}"', teaching it a broken header (review r2, 2026-10-28).
     [FIELD_VALUE, '$1$2$3[redacted-secret]'],
