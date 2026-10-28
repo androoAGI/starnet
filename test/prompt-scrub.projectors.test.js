@@ -19,7 +19,7 @@
 const A = require('./_assert.js');
 const crypto = require('node:crypto');
 const path = require('node:path');
-const context = require('../sidecar/context.js');
+const PS = require('../sidecar/prompt-scrub.js');
 const CommanderContext = require('../sidecar/commander-context.js');
 const contextpack = require('../sidecar/contextpack.js');
 const Interests = require('../sidecar/interests.js');
@@ -30,7 +30,7 @@ const { list, by } = FK.make('prompt-scrub-projectors');
 
 const leaks = s => list.map(k => FK.leak(s, k) && (k.id + ':' + FK.leak(s, k))).filter(Boolean).join(', ');
 // the station HOLDS the vault value (saved through KEYS after it was typed)
-context.setKnownSecretSource(() => [by.VAULT.value]);
+PS.setHeldSource(() => [by.VAULT.value]);   // the host's credential source (index.js setHeldSource)
 // a key cut by a clip: `n` chars of padding put the clip boundary 20 chars into the key's secret part
 const cutAt = (n, k) => 'x'.repeat(Math.max(0, n - k.prefix.length - 21)) + ' ' + k.value;
 const K = by;

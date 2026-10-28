@@ -268,10 +268,11 @@
     [/\bAC[a-f0-9]{32}\b/g, '[redacted-key]'],                          // Twilio account SID
     [/\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}/g, '[redacted-jwt]', jwtDriver], // JWT
     [/\b\d{8,10}:[A-Za-z0-9_\-]{30,}\b/g, '[redacted-token]'],          // Telegram bot token (this app uses these)
-    // generic OpenAI-style (broad — keep last). The lookbehind keeps it off hyphenated words: without it 'task-management-
-    // dashboard' read 'ta[redacted-key]' and 'desk-assignment-overseer-lane' read 'de[redacted-key]' in every prompt that
-    // carries a run title. A key glued to a quote, '=', ':' or '_' is still caught; one glued to a letter or digit is not.
-    [/(?<![A-Za-z0-9])sk-[A-Za-z0-9_\-]{16,}/g, '[redacted-key]'],
+    // generic OpenAI-style (broad — keep last). Not right after a letter or digit, so a hyphenated word stays whole:
+    // without that 'task-management-dashboard' read 'ta[redacted-key]' and 'desk-assignment-overseer-lane' read
+    // 'de[redacted-key]' in every prompt that carries a run title. Still caught: a key after an escape in JSON or URL
+    // text (\nsk-…, %3Dsk-…), and a key glued to a word when it looks like one (a 20+ unbroken run holding a digit).
+    [/(?:(?<![A-Za-z0-9])|(?<=\\[nrt])|(?<=%[0-9A-Fa-f]{2}))sk-[A-Za-z0-9_\-]{16,}|(?<=[A-Za-z0-9])sk-(?=[A-Za-z]*[0-9])(?=[A-Za-z0-9]{20})[A-Za-z0-9_\-]{16,}/g, '[redacted-key]'],
     [/\bBearer\s+[A-Za-z0-9._\-]{12,}/g, 'Bearer [redacted-key]'],      // Authorization: Bearer <token>
     // The password in a URL's `user:pass@host` part (git remotes, proxies, database URLs). The user name and host stay
     // readable; the password runs to the LAST '@' of the authority, because a password may itself hold an '@'. A vendor
@@ -322,8 +323,7 @@
       if (t.length >= KNOWN_MIN && t.indexOf('[redacted-') < 0) seen.add(t);
     }
     // longest first: a key that contains another known key is scrubbed whole, never left as a partial tail
-    // frozen: heldSecrets() hands this same array out read-only (its identity is the held list's revision)
-    const list = seen.size ? Object.freeze(Array.from(seen).sort((a, b) => b.length - a.length)) : null;
+    const list = seen.size ? Array.from(seen).sort((a, b) => b.length - a.length) : null;
     knownCache = { raw: vals, list: list };
     return list;
   }
@@ -349,10 +349,8 @@
     return x;
   }
   function redact(x) { return redactWith(x, knownSecrets()); }
-  /* heldSecrets() — the exact secret values the station holds right now (the known-value layer above), longest first,
-     or null. Read-only: the array is frozen, and the SAME array comes back until the held set changes, so a caller may
-     key a derived index on its identity (prompt-scrub.js does). */
-  function heldSecrets() { return knownSecrets(); }
+  // redactWith(x, known) is exported too: prompt-scrub.js runs the vendor SHAPES with its own (credential-only) held
+  // list, because the known-value list here also sweeps every connector header/env string for transcript redaction.
 
   // ---- recalled-memory fence (Cortex): surface the agent's own memory in-prompt without it having to call a
   //      read tool. Pure + deterministic + char-capped. renderRecall returns {text:'',count:0,chars:0} when there
@@ -1070,5 +1068,5 @@
   const _internals = { secretPatterns: () => SECRET_RULES.map(r => ({ re: new RegExp(r[0].source, r[0].flags), rep: r[1], driven: !!r[2], run: r[2] })),
     // the lexical primitives, so a test can rebuild the naive single-pass ranking from the module's CURRENT rules
     tokenize, recordText, lexicalForm, lexicalStem, LEXICAL_GROUPS: LEXICAL_GROUPS.map(g => g.slice()) };
-  return { _internals, makeContext, redact, setKnownSecretSource, heldSecrets, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
+  return { _internals, makeContext, redact, redactWith, setKnownSecretSource, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
 });

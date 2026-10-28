@@ -11,10 +11,14 @@
      W5 a request with nothing held in it reaches the adapter as the SAME object (clean station = byte-identical)
      W6 the held list is SNAPSHOT at an adapter's first request (no mid-run prefix churn); a new adapter sees a new value
      W7 the tokenProvider (deferred OAuth) path is wrapped exactly once
-     W8 perf: a 512 KB request with 100 held values scrubs in < 30 ms cold and < 2 ms when its history is memoized */
+     W8 perf: a 512 KB request with 100 held values scrubs in < 30 ms cold and < 2 ms when its history is memoized
+     W9 the memo never serves a stale copy: a message the loop rewrites IN PLACE is re-scrubbed from its new content
+     W10 a saved SERVICE KEY reaches the wire as its name ('[INSTANTLY_API_KEY saved in API KEYS]'); a held credential
+         with no digit (a Gmail app password) is scrubbed; a connector's ordinary env/header values (an email, a
+         project id) are not credentials, so the Commander's live turn naming them is byte-identical */
 'use strict';
 const A = require('./_assert.js');
-const context = require('../sidecar/context.js');
+const { collectSecretValues } = require('../sidecar/secret-values.js');
 const factory = require('../sidecar/providers/factory.js');
 const PS = require('../sidecar/prompt-scrub.js');
 const FK = require('./helpers/fake-keys.js');
@@ -22,7 +26,7 @@ const { by } = FK.make('prompt-scrub-provider');
 
 const VAULT = by.VAULT.value, HELD2 = 'Zt9' + FK.stream('held2', 33, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789');
 let held = [VAULT];
-context.setKnownSecretSource(() => held);
+PS.setHeldSource(() => held);
 
 const OPENAI_SSE = 'data: ' + JSON.stringify({ choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }) + '\n\ndata: [DONE]\n\n';
 const ANTHROPIC_SSE = [
@@ -159,5 +163,46 @@ function request(model) {
     held = [VAULT];
   }
 
+  // ---- W9: a message rewritten in place after its first scrub is re-scrubbed (never a stale memo copy) ----
+  {
+    held = [VAULT];
+    const seen = [];
+    const g = PS.guardRequest({ stream: async function* (req) { seen.push(req); } });
+    const first = { role: 'assistant', content: 'part one with ' + VAULT };
+    const msgs = [{ role: 'user', content: 'go' }, first, { role: 'user', content: 'continue' }];
+    for await (const _ of g.stream({ model: 'm', messages: msgs })) { /* drain */ }
+    first.content = 'part one with ' + VAULT + ' and part two';   // loop.js collapseContinuation rewrites first.content
+    for await (const _ of g.stream({ model: 'm', messages: msgs })) { /* drain */ }
+    const sent = seen[1] && seen[1].messages[1] && seen[1].messages[1].content;
+    A.eq(sent, 'part one with [redacted-secret] and part two', 'W9: the in-place rewrite reaches the wire, scrubbed (not the stale first copy)');
+    const parts = { role: 'user', content: [{ type: 'text', text: 'clean' }] };
+    for await (const _ of g.stream({ model: 'm', messages: [parts] })) { /* drain */ }
+    parts.content[0].text = 'now ' + VAULT;   // a clean message mutated to hold a value later
+    for await (const _ of g.stream({ model: 'm', messages: [parts] })) { /* drain */ }
+    A.ok(JSON.stringify(seen[3]).indexOf(VAULT) < 0, 'W9: a message memoized clean, then mutated to hold a value, is scrubbed');
+  }
+
+  // ---- W10: named service keys, a no-digit credential, ordinary connector values ----
+  {
+    const GMAIL = FK.stream('gmail-pw', 16, 'abcdefghijklmnopqrstuvwxyz');
+    const cfg = [{ id: 'c1', env: { NOTIFY_EMAIL: 'andrew.sims2@gmail.com', GCP_PROJECT: 'my-project-123456', NODE_ENV: 'production' }, headers: { 'Content-Type': 'application/json' } }];
+    held = [{ value: VAULT, as: '[INSTANTLY_API_KEY saved in API KEYS]' }, GMAIL].concat(collectSecretValues([{ keyed: cfg, credentialUnder: ['headers', 'env'] }]));
+    const c = capture(OPENAI_SSE);
+    const p = factory.selectProvider({ provider: 'openrouter', key: 'k', baseUrl: 'http://127.0.0.1:9/api/v1', fetch: c.fetchImpl });
+    const liveTurn = 'email it to andrew.sims2@gmail.com and deploy to my-project-123456 in production';
+    await drain(p, { model: 'openai/gpt-5.5', messages: [
+      { role: 'user', content: 'routine: pull campaigns with ' + VAULT + ' and log in with ' + GMAIL },
+      { role: 'assistant', content: 'ok' },
+      { role: 'user', content: liveTurn }
+    ] });
+    const wire = c.bodies[0] || {};
+    const m = wire.messages || [];
+    A.ok(m[0] && JSON.stringify(m[0]).indexOf('pull campaigns with [INSTANTLY_API_KEY saved in API KEYS] and log in') >= 0, 'W10: a saved service key reaches the wire as its NAME');
+    A.ok(JSON.stringify(wire).indexOf(GMAIL) < 0, 'W10: a held credential with no digit (Gmail app password) is scrubbed');
+    A.eq(m[m.length - 1] && m[m.length - 1].content, liveTurn, 'W10: ordinary connector env values in the live turn are byte-identical (not credentials)');
+    held = [VAULT];
+  }
+
+  PS.setHeldSource(null);
   A.report('prompt-scrub.provider.test');
 })().catch(e => { console.error(e); process.exit(1); });

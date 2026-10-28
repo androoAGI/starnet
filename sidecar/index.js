@@ -6258,7 +6258,7 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
    exact values the sidecar holds RIGHT NOW (read live, so a rotated/added key is covered on the next call).
    The per-launch API/IPC tokens are deliberately NOT listed: a few local surfaces still carry the API token in a
    URL the frontend must open, and scrubbing it there would break them (that is the token-in-URL lane's to fix). */
-function stationSecretValues() { return collectSecretValues([
+function stationSecretValues(connectorSweep) { return collectSecretValues([
   { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
   { values: Object.values(runtimeKeys) },
   { values: Object.values(runtimeKeyPools) },
@@ -6268,7 +6268,8 @@ function stationSecretValues() { return collectSecretValues([
   { keyed: codexTokens },
   { keyed: Object.values(oauthProviders).map(p => p && p.tokens) },
   { keyed: connectorOauth },
-  { keyed: connectorConfigs, allUnder: ['headers', 'env'] },
+  // every header/env string of a custom connector is held for redaction; prompt-scrub asks for the credentials only
+  Object.assign({ keyed: connectorConfigs }, connectorSweep || { allUnder: ['headers', 'env'] }),
   // the Gmail app password ALONE (its token is 'address:password'; the whole token is listed above)
   { values: (connectorConfigs || []).map(gmailImapTransport.passwordOf) },
   { keyed: liveServiceKeys() }   // a value read from 1Password is held only in the live list
@@ -6276,6 +6277,17 @@ function stationSecretValues() { return collectSecretValues([
 setKnownSecretSource(stationSecretValues);
 // Helper processes: strip the same held values, plus every name the sidecar itself exported (service keys).
 setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), values: stationSecretValues });
+/* PROMPT CREDENTIALS (prompt-scrub.js, context-key-redact review 2026-10-28). What every projector of stored text and
+   the provider boundary scrub out of a prompt: the same held values MINUS the connector header/env strings that are not
+   credentials (NODE_ENV=production, Content-Type: application/json, an email) — those stay in the redaction list above
+   but must never be cut out of the Commander's own words. A saved service key is replaced by its NAME, the placeholder
+   COMMS and keys.save already use, so a routine or a history that carried it still says which ${NAME} to spend. */
+function stationCredentialValues() { return stationSecretValues({ credentialUnder: ['headers', 'env'] }); }
+PromptScrub.setHeldSource(() => {
+  const named = [];
+  for (const r of liveServiceKeys() || []) if (r && typeof r.key === 'string' && r.key.trim() && r.envVar) named.push({ value: r.key.trim(), as: KeyTools.keyPlaceholder(r.envVar) });
+  return named.concat(stationCredentialValues());
+});
 // Verified persist (secret-durability law): ok ONLY when a read-back proves the write reached disk. On
 // ok:false the in-memory list stays live but the route reports the failure — never a false "saved".
 function saveServiceKeys() {
