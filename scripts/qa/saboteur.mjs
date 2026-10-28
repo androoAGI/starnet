@@ -166,15 +166,15 @@ async function main() {
     process.exitCode = 2; return;
   }
   materializeSeedWorkspace(scratch);
-  const logs = [];
-  const child = bootSeededSidecar({ port, scratchDir: scratch });
-  if (child.stdout) child.stdout.on('data', d => logs.push(d.toString()));
-  if (child.stderr) child.stderr.on('data', d => logs.push(d.toString()));
+  // The sidecar's own output goes to the run's evidence dir: a boot that never turns healthy must leave a trace.
+  const sidecarLogPath = join(outDir, 'sidecar.log');
+  const child = bootSeededSidecar({ port, scratchDir: scratch, logFile: sidecarLogPath });
   const base = 'http://127.0.0.1:' + port;
   const results = [];
   let blocked = '';
   try {
-    if (!await waitUp(base, 30)) throw new Error('sidecar did not become healthy');
+    // 60 tries x 500ms: a cold sidecar on a loaded gate machine can take well over the old 15s to answer /health.
+    if (!await waitUp(base, 60)) throw new Error('sidecar did not become healthy within 30s (see sidecar.log)');
     const token = await tokenFromIndex(base);
     if (!token) throw new Error('served page did not carry a launch token');
     for (const attack of attacks) {
@@ -187,13 +187,19 @@ async function main() {
     }
   } catch (e) { blocked = String(e && e.stack || e); }
   finally {
-    try { child.kill(); } catch (_) {}
+    if (child.exitCode === null && child.signalCode === null) {
+      const gone = new Promise(r => child.once('exit', r));
+      try { child.kill(); } catch (_) {}
+      await Promise.race([gone, new Promise(r => setTimeout(r, 3000))]);   // let it flush its last lines into sidecar.log
+    }
   }
+  let sidecarLog = '';
+  try { sidecarLog = readFileSync(sidecarLogPath, 'utf8').slice(-12000); } catch (_) {}
   const failures = results.filter(r => !r.verdict.ok);
   const report = {
     schema: 1, generatedAt: new Date().toISOString(), seed, only, routeCount: routes.length,
     attackCount: attacks.length, passed: results.length - failures.length, failed: failures.length,
-    blocked, failures, results, sidecarLog: logs.join('').slice(-12000)
+    blocked, failures, results, sidecarLog
   };
   const reportPath = join(outDir, 'report.json');
   writeFileSync(reportPath, JSON.stringify(report, null, 2));
