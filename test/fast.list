@@ -271,6 +271,7 @@ test/release-assemble-manifest.test.js
 test/verify-update-host.test.js
 test/replacement-sweep.test.js
 test/lint-evidence-secrets.test.js
+test/qa-scratch-hygiene.test.js
 scripts/lint-evidence-secrets.mjs
 test/environment.test.js
 test/servicekeys.test.js

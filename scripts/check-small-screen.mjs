@@ -3,10 +3,13 @@ import { createRequire } from 'node:module';
 import { once } from 'node:events';
 import { launchChrome, connectCDP, evalJS, capture, sleep } from './lib/cdp.mjs';
 import { waitDevReady } from './lib/seed.mjs';
+import { createScratch } from './lib/scratch.mjs';
 const require = createRequire(import.meta.url);
 const { SYNTHETIC_INPUT_BOOTSTRAP } = require('../sidecar/tools/builtin/browser.js')._internals;
 const out = '.dogfood/small-screen'; mkdirSync(out, { recursive: true });
-const { proc } = launchChrome({ cdpPort: 9367, win: '1366,768', profileDir: out + '/profile-' + Date.now() });
+// The Chrome profile is scratch, not evidence: os.tmpdir(), removed in finally (scripts/lib/scratch.mjs says why).
+const scratch = createScratch('small-screen');
+const { proc } = launchChrome({ cdpPort: 9367, win: '1366,768', profileDir: scratch.dir('profile') });
 let cdp;
 const results = [];
 try {
@@ -91,4 +94,5 @@ try {
 } finally {
   if(cdp) { await cdp.send('Browser.close').catch(()=>{}); cdp.ws.close(); }
   if(proc.exitCode===null) { const exit=once(proc,'exit'); proc.kill(); await exit; }
+  await scratch.dispose();
 }
