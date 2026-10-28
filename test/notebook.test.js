@@ -435,15 +435,23 @@ const dcall = (name, args) => ({ id: 'c', name, args, argsRaw: JSON.stringify(ar
     A.eq(store.get('notebook:ag').length, 2, 'the new belief is stored');
 
     // THE FALSE-POSITIVE CASE the challenge design exists for: two genuinely different facts that share a shape.
-    // Token overlap cannot tell these apart, so a silent block would DESTROY the second fact. It must be
-    // challenged, then admitted on distinct:true.
+    // Token overlap cannot tell these apart, so a silent block would DESTROY the second fact. memory-truth-1027: the
+    // subject key CAN tell them apart (staging vs production database), so the different fact is saved outright.
     const sibling = { title: 'Fact', body: 'the production database lives in the frankfurt region' };
-    const challenged = await reg.dispatch(dcall('notebook.write', sibling), { agentId: 'ag' });
-    A.ok(/already remember/i.test(challenged.content), 'a same-shape different fact is challenged, not silently dropped');
-    A.eq(store.get('notebook:ag').length, 2, 'and is not written on the challenged attempt');
-    const forced = await reg.dispatch(dcall('notebook.write', Object.assign({ distinct: true }, sibling)), { agentId: 'ag' });
+    const kept = await reg.dispatch(dcall('notebook.write', sibling), { agentId: 'ag' });
+    A.ok(/Saved note/.test(kept.content) && !/already remember/i.test(kept.content), 'a same-shape fact about a DIFFERENT subject is saved, never challenged or dropped');
+    A.eq(store.get('notebook:ag').length, 3, 'the distinct fact IS stored, beside the one it resembles');
+    // a same-shape pair the subject key cannot read still gets the challenge, then distinct:true admits it
+    const shape = { title: 'Fact', body: 'the release train leaves the frankfurt office on friday' };
+    await reg.dispatch(dcall('notebook.write', shape), { agentId: 'ag' });
+    const twin = { title: 'Fact', body: 'the release train leaves the berlin office on friday' };
+    const challenged = await reg.dispatch(dcall('notebook.write', twin), { agentId: 'ag' });
+    A.ok(/already remember/i.test(challenged.content), 'an unreadable same-shape pair is still challenged, not silently dropped');
+    A.eq(store.get('notebook:ag').length, 4, 'and is not written on the challenged attempt');
+    const forced = await reg.dispatch(dcall('notebook.write', Object.assign({ distinct: true }, twin)), { agentId: 'ag' });
     A.ok(/Saved note/.test(forced.content), 'distinct:true admits the genuinely different fact — no silent loss');
-    A.eq(store.get('notebook:ag').length, 3, 'the distinct fact IS stored');
+    A.eq(store.get('notebook:ag').length, 5, 'the distinct fact IS stored');
+    store.set('notebook:ag', store.get('notebook:ag').slice(0, 3));   // back to the three beliefs the checks below count
 
     // the challenge must NOT emit — a receipt for a write that did not happen is a false claim
     let emitted = 0;
@@ -569,7 +577,13 @@ const dcall = (name, args) => ({ id: 'c', name, args, argsRaw: JSON.stringify(ar
     // the host's post-run passes (reflection / failure-review / study / threadmine / skill-review) turn a transcript into
     // durable notes and skills — a tainted run's transcript never feeds them, and auto-recall latches a tainted note
     const idx = readSidecarSource();
-    A.ok(idx.includes("['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])") && idx.includes('LearningEvidence.buildLearningEvidence(o, redact).eligible'),
+    // memory-truth-1027: reflection / failure-review / study / threadmine read taint through the ONE learning predicate
+    // (learning-eligibility.js); the skill review is still withheld unless separately attributed evidence exists
+    const LE = require('../sidecar/learning-eligibility.js');
+    const taintedRun = LE.passes(LE.runOutcome({ reason: 'done', tainted: true, reflect: true, task: true }));
+    A.ok(!taintedRun.reflection && !taintedRun.study && !taintedRun.threadmine && !LE.passes(LE.runOutcome({ reason: 'error', tainted: true, reflect: true, task: true }))['failure-review'] &&
+      idx.includes('tainted: !!execution.taintedBy(), quoted: quotedLearning') &&
+      idx.includes("for (const pass of noTrustedEvidence ? ['skill-review'] : [])") && idx.includes('LearningEvidence.buildLearningEvidence(o, redact).eligible'),
       'tainted transcripts cannot feed memory writers; skill review requires separately attributed evidence');
     A.ok(/latchRunTaint\('recalled memory saved by a run that read '/.test(idx), 'auto-recall of a tainted note latches the reading run');
     A.ok(/r\.pinned && !tasteIds\.has\(r\.id\) && !\(tasteWithheld && r\.origin === FeedbackMemory\.ORIGIN\) && !r\.taintedBy/.test(idx),

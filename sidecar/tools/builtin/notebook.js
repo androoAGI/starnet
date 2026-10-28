@@ -9,10 +9,11 @@
    At call time, ctx supplies agentId / room / emit (the validated emitter) / consent. */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('../../context.js') : (root.SK && root.SK.context));
+  const node = typeof require === 'function';
+  const api = factory(node ? require('../../context.js') : (root.SK && root.SK.context), node ? require('../../../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).notebook = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval, MemTruth) {
   'use strict';
 
   // Compare against the version the caller actually read. A later edit must never be
@@ -24,10 +25,7 @@
     if (typeof change.previousBody !== 'string' || change.previousBody !== previous) {
       throw new Error('memory changed since it was read — read it again and retry the correction with its current previousBody');
     }
-    const history = (Array.isArray(record.history) ? record.history : []).concat([{
-      title: record.title || '', body: previous, sourceRunId: record.updatedSourceRunId || record.sourceRunId || null,
-      revision: record.revision || 0, replacedAt: now
-    }]);
+    const history = (Array.isArray(record.history) ? record.history : []).concat([archiveEntry(record, now, change.supersession)]);
     const confirmation = change.confirmation || (change.userConfirmed ? 'user-confirmed' : 'inferred');
     const out = Object.assign({}, record, {
       title: change.title == null ? record.title : change.title,
@@ -40,6 +38,112 @@
     delete out.statedBy; delete out.distrust;
     if (change.statedBy) out.statedBy = change.statedBy;
     return out;
+  }
+
+  const bodyOf = r => String(r && r.content != null ? r.content : (r && r.body) || '');
+  const writtenAt = r => Number(r && (r.updatedAt || r.createdAt || r.ts)) || 0;
+  /* one archived text in a record's history. A text retired by a SUPERSESSION also keeps the provenance it carried
+     (whose words, which surface, its pin and scope) so restoring it later gives back the record it was, not a fresh
+     unproven note. Additive fields only: an ordinary correction's entry is unchanged. */
+  function archiveEntry(record, now, supersession) {
+    const e = { title: record.title || '', body: bodyOf(record), sourceRunId: record.updatedSourceRunId || record.sourceRunId || null,
+      revision: record.revision || 0, replacedAt: now };
+    if (supersession) {
+      e.supersession = Object.assign({}, supersession, record.id && supersession.folded ? { folded: record.id } : {});
+      e.snapshot = { id: record.id || null, kind: record.kind || 'note', createdAt: record.createdAt || record.ts || 0, origin: record.origin || 'commander',
+        confirmation: record.confirmation || null, statedBy: record.statedBy || null, scope: record.scope || 'global', streamId: record.streamId || null,
+        projectRoot: record.projectRoot || null, pinned: !!record.pinned, taintedBy: record.taintedBy || null, content: record.content != null };
+    }
+    return e;
+  }
+
+  /* SUPERSESSION AT WRITE TIME (memory-truth-1027). A write with the SAME SUBJECT and a different claim
+     (MemTruth.relate === 'supersede') retires the records holding the older claim: the newest of them survives under
+     its own id with the new text, every older text — the survivor's and any other same-subject copy's — goes into its
+     history with a supersession receipt, and the copies leave the active list. One active belief per subject, nothing
+     lost: restoreSuperseded() gives a retired text back as its own record. `targets` are records of `list`.
+     change.survivor (one of `targets`) names the record that survives instead of the newest — a reviewed replacement
+     (replaceId) revises the record the Commander approved, checked against change.previousBody like any correction. */
+  function supersedeRecords(list, targets, change, now) {
+    const ordered = targets.slice().sort((a, b) => (writtenAt(b) - writtenAt(a)) || (list.indexOf(b) - list.indexOf(a)));
+    const forced = change.survivor && targets.indexOf(change.survivor) >= 0 ? change.survivor : null;
+    const survivor = forced || ordered[0], folded = ordered.filter(n => n !== survivor);
+    const meta = { by: 'subject', key: change.key || MemTruth.subjectKey(change.body) || null, runId: change.runId || null, source: change.source || null, at: now };
+    const rec = reviseRecord(survivor, Object.assign({}, change, { previousBody: forced ? change.previousBody : bodyOf(survivor), supersession: meta }), now);
+    foldInto(rec, folded, meta, now, change);
+    const out = list.filter(n => folded.indexOf(n) < 0).map(n => (n === survivor ? rec : n));
+    return { list: out, record: rec, retired: [survivor].concat(folded).map(n => ({ id: n.id, body: bodyOf(n) })) };
+  }
+  // retire `folded` records into `rec`'s history (mutates rec): their own history first, then each one's text with a
+  // supersession receipt. A folded copy's pin is never silently dropped (unless the write set the pin explicitly).
+  function foldInto(rec, folded, meta, now, change) {
+    for (const f of folded) {
+      rec.history = (Array.isArray(rec.history) ? rec.history : []).concat(Array.isArray(f.history) ? f.history : [], [archiveEntry(f, now, Object.assign({}, meta, { folded: true }))]);
+      if (f.pinned && !(change && typeof change.pinned === 'boolean')) rec.pinned = true;
+    }
+    return rec;
+  }
+  /* A RESTATEMENT OF THE NEWER SIDE of a contradiction the notebook already holds (two active records on one subject —
+     the pre-lane f97e73fb state): `survivor` already says what the write says, so its text is unchanged, and `stale`
+     (the older, contradicting claims) are retired into its history. One active belief per subject. */
+  function retireStale(list, survivor, stale, change, now) {
+    const meta = { by: 'subject', key: change.key || MemTruth.subjectKey(change.body) || null, runId: change.runId || null, source: change.source || null, at: now };
+    const rec = foldInto(Object.assign({}, survivor, { history: Array.isArray(survivor.history) ? survivor.history.slice() : [], updatedAt: now }), stale, meta, now, change);
+    const out = list.filter(n => stale.indexOf(n) < 0).map(n => (n === survivor ? rec : n));
+    return { list: out, record: rec, retired: stale.map(n => ({ id: n.id, body: bodyOf(n) })) };
+  }
+
+  /* The active records a write of `body` retires: inside the write's project boundary (`boundary` = {scope,
+     projectRoot}), never the Commander's rating records (feedbackmemory owns those), and holding the same subject with
+     a different claim. opts.restatements adds the same claim in OTHER words — only for the Commander's own exact words,
+     which outrank a paraphrase of them. An identical text is never a target (that is a restatement, not a change).
+     opts.title: the write's title — a held note whose title names a DIFFERENT thing ("Editor theme" vs "Slides theme")
+     is never retired by a body that reads as the same subject (MemTruth.titlesConflict). */
+  function supersessionTargets(list, body, boundary, opts) {
+    const want = retrieval.memoryProjectKey(boundary || {});
+    const verdicts = opts && opts.restatements ? ['supersede', 'dupe'] : ['supersede'];
+    const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+    const title = opts && typeof opts.title === 'string' ? opts.title : null;
+    return (Array.isArray(list) ? list : []).filter(r => r && r.origin !== 'feedback' && retrieval.memoryProjectKey(r) === want &&
+      norm(bodyOf(r)) !== norm(body) && verdicts.indexOf(MemTruth.relate(bodyOf(r), body)) >= 0 &&
+      !(title != null && MemTruth.titlesConflict(String(r.title || ''), bodyOf(r), title, body)));
+  }
+
+  /* UNDO a supersession: a text that a supersession retired comes back as its OWN active record, with the provenance
+     it had (snapshot), and the history entry it came from is marked restoredAs. Returns null when `body` is not a
+     retired-by-supersession text of any record (an ordinary correction's archive is never resurrected this way).
+     opts.boundary {scope, projectRoot}: the WRITE's project boundary — only a text retired inside it comes back, into it
+     (a run in project B never resurrects project A's belief, and the tool never says "this project" of another one).
+     opts.taintedBy: the run read outside content, so the record comes back stamped with that taint, unpinned, and
+     without the Commander's authority (a tainted run's note is never pinned or theirs — 2026-10-10). */
+  function restoreSuperseded(list, body, now, newId, runId, opts) {
+    const same = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+    const o = opts || {};
+    const want = o.boundary ? retrieval.memoryProjectKey(o.boundary) : null;
+    const inBoundary = (r, s) => want == null || (retrieval.memoryProjectKey(r) === want && retrieval.memoryProjectKey(s) === want);
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      const hist = Array.isArray(r && r.history) ? r.history : [];
+      const at = hist.findIndex(h => h && h.supersession && h.snapshot && !h.restoredAs && same(h.body) === same(body) && inBoundary(r, h.snapshot));
+      if (at < 0) continue;
+      const h = hist[at], s = h.snapshot;
+      const back = { id: newId, kind: s.kind || 'note', title: h.title || '', body: h.body, scope: s.scope || 'global', streamId: s.streamId || null,
+        projectRoot: s.projectRoot || null, sourceRunId: h.sourceRunId || null, origin: s.origin || 'commander', createdAt: s.createdAt || h.replacedAt || now,
+        ts: s.createdAt || h.replacedAt || now, lastUsedAt: null, useCount: 0, trust: 0, pinned: !!s.pinned,
+        restoredFrom: { id: r.id, revision: h.revision || 0, at: now, runId: runId || null } };
+      if (s.content) back.content = h.body;
+      if (s.confirmation) back.confirmation = s.confirmation;
+      if (s.statedBy) back.statedBy = s.statedBy;
+      if (s.taintedBy) back.taintedBy = s.taintedBy;
+      if (o.taintedBy) {
+        back.taintedBy = String(o.taintedBy).slice(0, 200); back.pinned = false; delete back.statedBy;
+        if (back.confirmation === 'user-stated' || back.confirmation === 'user-confirmed') delete back.confirmation;
+      }
+      const marked =Object.assign({}, r, { history: hist.map((e, j) => (j === at ? Object.assign({}, e, { restoredAs: newId, restoredAt: now }) : e)) });
+      const out = list.slice(); out[i] = marked; out.push(back);
+      return { list: out, record: back, from: marked };
+    }
+    return null;
   }
 
   /* PROVENANCE PROVEN, NOT CLAIMED (memory-truth lane, 2026-10-11). A user's correction saved by the agent used to
@@ -140,23 +244,11 @@
     // and let it decide: a restatement stops there; a genuinely distinct fact is re-sent with distinct:true and
     // saved. Nothing is ever silently lost, and the common case costs one refused call instead of a permanent
     // duplicate. Threshold matches reflection's — one definition of "near-dupe" across the whole memory system.
-    const DUPE_THRESHOLD = 0.6;
-    // inline Jaccard fallback (mirrors memcore.tokenJaccard) so this UMD tool stays dependency-free in the browser
-    // build + standalone tests. Kept in sync with memcore — that is the canonical copy.
-    const jaccard = typeof deps.similarity === 'function' ? deps.similarity : (a, b) => {
-      const STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they').split(/\s+/));
-      const toks = s => { const set = new Set(); for (const t of String(s == null ? '' : s).toLowerCase().split(/[^a-z0-9]+/)) if (t.length >= 3 && !STOP.has(t)) set.add(t); return set; };
-      const A = toks(a), B = toks(b);
-      if (!A.size || !B.size) return 0;
-      let inter = 0; for (const t of A) if (B.has(t)) inter++;
-      return inter / (A.size + B.size - inter);
-    };
+    const DUPE_THRESHOLD = MemTruth.SIM_THRESHOLD;
+    // the ONE similarity every memory writer shares (frontend/app/memtruth.js); a host may still inject its own
+    const jaccard = typeof deps.similarity === 'function' ? deps.similarity : MemTruth.similarity;
     const textOf = r => (r.content != null ? r.content : ((r.title || '') + ' ' + (r.body || '')));
-    const findSimilar = typeof deps.findSimilar === 'function' ? deps.findSimilar : (records, text, o) => {
-      const threshold = (o && typeof o.threshold === 'number') ? o.threshold : 0.6;
-      for (const r of (Array.isArray(records) ? records : [])) if (r && jaccard(textOf(r), text) >= threshold) return r;
-      return null;
-    };
+    const findSimilar = typeof deps.findSimilar === 'function' ? deps.findSimilar : MemTruth.findSimilar;
     /* SAME SUBJECT, DIFFERENT CLAIM (memory-truth lane, 2026-10-11). "User prefers tabs" vs "User prefers spaces"
        overlap 0.5 — under the near-dupe bar — so the new note was saved beside the old one and BOTH stayed active
        forever: a contradiction recall served side by side. A write that overlaps an existing note in [0.3, 0.6) is
@@ -257,7 +349,7 @@
         const writeProject = retrieval.memoryProjectKey({ scope: scope, projectRoot: projectRoot });
         // §5.2 record minted INSIDE the lock against the re-read list, so the id is collision-proof even if a
         // concurrent run/UI write changed the notebook since this run started (P1).
-        let note = null, dupe = null, folded = null, similar = [];
+        let note = null, dupe = null, folded = null, similar = [], superseded = null, restored = null, retiredRows = [], restated = false;
         const overridden = !!(args && args.distinct);   // the agent SAW the near-dupe and judged this fact different
         await updateNotes(aid, (list) => {
           if (args.replaceId) {
@@ -298,11 +390,60 @@
           // A belief in another project cannot stand in for this write or nominate its correction.
           // Compare boundaries, not stream ids: a project's notes already span its conversations.
           const candidates = list.filter(n => retrieval.memoryProjectKey(n) === writeProject);
-          dupe = candidates.find(n => Array.isArray(n.history) && n.history.some(h => h && String(h.body).trim() === String(args.body).trim())) ||
-            (overridden ? null : findSimilar(candidates, text, { threshold: DUPE_THRESHOLD }));
+          /* THE SUBJECT DECIDES FIRST (memory-truth-1027). relate() reads both beliefs' subject and claim: a restatement
+             is already known; a different claim on the same subject SUPERSEDES the old belief (it moves into this
+             record's history, reversibly); a confidently different subject is a separate fact and skips the near-dupe
+             challenge it used to trip. Only an 'unknown' pair falls through to the similarity paths below. Never on a
+             tainted run (outside content must not retire the Commander's memory — it gets the challenge path), and
+             never on distinct:true (the model judged it a separate fact). */
+          const body = String(args.body);
+          const relations = candidates.map(n => ({ n, r: MemTruth.relate(bodyOf(n), body) }));
+          const known = relations.find(x => x.r === 'dupe');
+          // the host's writer uses the same rule. An UNPROVEN write never retires the Commander's own words on its own (a
+          // user-stated or user-confirmed record): a model's inversion of what they said must not become the active belief
+          // behind their back (ecd03ee7 class). That pair keeps the challenge path; an explicit replaceId still corrects it.
+          const ownWords = n => n.confirmation === 'user-stated' || n.confirmation === 'user-confirmed';
+          // nor does a default-scoped write from inside ONE conversation quietly rewrite a PINNED station-wide belief (it
+          // would turn one chat's inference into every prompt's): an explicit scope, their words or replaceId still do
+          const narrower = n => !args.scope && !widen && scope === 'stream' && n.scope === 'global' && !!n.pinned;
+          const same = (overridden || taintedBy) ? [] : supersessionTargets(list, body, { scope: scope, projectRoot: projectRoot }, { title: String(args.title) })
+            .filter(n => statedBy || (!ownWords(n) && !narrower(n)));
+          if (known && !overridden) {
+            // a restatement of a belief already held — unless the notebook ALSO still holds an older, contradicting claim on
+            // that subject (two active records: the pre-lane f97e73fb state). Then the restated one is the newer claim, and
+            // the contradicting ones retire into its history; its own text is unchanged.
+            const stale = same.filter(n => n !== known.n);
+            if (!stale.length) { dupe = known.n; return undefined; }
+            const out = retireStale(list, known.n, stale, { body: body, runId, key: MemTruth.subjectKey(body), source: 'notebook.write' }, now);
+            note = out.record; superseded = out.retired; retiredRows = stale; restated = true;
+            return out.list;
+          }
+          if (same.length) {
+            const prior = same.slice().sort((a, b) => writtenAt(b) - writtenAt(a))[0];
+            const confirmation = statedBy ? (prior.confirmation === 'user-confirmed' ? 'user-confirmed' : 'user-stated') : 'inferred';
+            const out = supersedeRecords(list, same, { title: redact(String(args.title)), body: redact(body), runId, confirmation, statedBy,
+              key: MemTruth.subjectKey(body), source: 'notebook.write', pinned: args.pinned }, now);
+            note = out.record; superseded = out.retired; retiredRows = same;
+            if (args.scope || widen) { note.scope = scope; note.streamId = scope === 'stream' ? streamId : null; note.projectRoot = scope === 'stream' ? projectRoot : null; }
+            if (typeof args.pinned === 'boolean') note.pinned = args.pinned;
+            // the new text came from THIS run's surface: a routine retiring the Commander's note is a routine's belief now
+            // (the retired text keeps its own origin in its snapshot) — the host's writer does the same
+            note.origin = (ctx && ctx.origin) ? String(ctx.origin) : 'commander';
+            delete note.taintedBy;
+            return out.list;
+          }
+          // UNDO: distinct:true with a text a supersession retired restores that record, with the provenance it had
+          if (overridden) {
+            const back = restoreSuperseded(list, body, now, nextId(list), runId, { boundary: { scope: scope, projectRoot: projectRoot }, taintedBy: taintedBy });
+            if (back) { note = back.record; restored = back.from; return back.list; }
+          }
+          const apart = new Set(relations.filter(x => x.r === 'distinct').map(x => x.n));
+          const open = candidates.filter(n => !apart.has(n));
+          dupe = open.find(n => Array.isArray(n.history) && n.history.some(h => h && String(h.body).trim() === body.trim())) ||
+            (overridden ? null : findSimilar(open, text, { threshold: DUPE_THRESHOLD }));
           if (dupe) return undefined;   // nothing to write — skip the store write entirely
           // same subject, different claim: collected against the list BEFORE the new note joins it
-          similar = candidates.map((n, i) => ({ n, i, s: n ? jaccard(textOf(n), text) : 0 }))
+          similar = open.map((n, i) => ({ n, i, s: n ? jaccard(textOf(n), text) : 0 }))
             .filter(x => x.s >= SIMILAR_FLOOR && x.s < DUPE_THRESHOLD)
             .sort((a, b) => (b.s - a.s) || (b.i - a.i)).slice(0, SIMILAR_MAX).map(x => x.n);
           note = {
@@ -340,9 +481,11 @@
         }
         // the receipt for THIS run, registered before memory.write tells COMMS to fetch it
         if (onSaved && runId) onSaved(aid, runId, {
-          id: note.id, key: note.id + '@' + (note.revision || 0), kind: 'note', content: String(note.body), scope: note.scope,
+          id: note.id, key: note.id + '@' + (note.revision || 0) + (restated ? '+retired' : ''), kind: 'note', content: String(note.body), scope: note.scope,
           projectRoot: note.projectRoot || null, origin: note.origin || 'commander', saved: true, source: 'notebook.write',
-          revised: !!args.replaceId, folded: folded ? folded.id : null, confirmation: note.confirmation || null
+          revised: !!(args.replaceId || superseded), folded: folded ? folded.id : null, confirmation: note.confirmation || null,
+          ...(superseded ? { superseded: superseded.map(s => ({ id: s.id, previous: s.body })) } : {}),
+          ...(restored ? { restoredFrom: restored.id } : {})
         });
         if (ctx && typeof ctx.emit === 'function') {
           // memory.write — the durable-memory rung (feeds useCount/trust + the dossier's archivist track). The
@@ -361,13 +504,27 @@
         }
         // the result says what was really recorded: where the note applies, and — when the host proved it — that it
         // carries the Commander's own words (a model may only claim that because the tool says so)
-        const where = (!args.replaceId || args.scope || widen)
+        // a supersession always says where the surviving belief applies and whether it is pinned: it keeps the retired
+        // record's scope and pin unless this write set them, which may be wider than this conversation (review 10-27)
+        const where = (!(args.replaceId || superseded) || args.scope || widen || superseded)
           ? ' Scope: ' + (note.scope === 'global' ? 'every conversation' : note.projectRoot ? 'this project' : 'this conversation only') +
-            (widen && !args.scope && note.scope === 'global' ? ' (a standing instruction in the Commander\'s own words)' : '') + '.'
+            (widen && !args.scope && note.scope === 'global' ? ' (a standing instruction in the Commander\'s own words)' : '') + '.' +
+            (superseded && note.pinned ? ' Pinned: it stays in context within that scope.' : '')
           : '';
         const proof = note.confirmation === 'user-stated' || (statedBy && note.confirmation === 'user-confirmed') ? ' Recorded as the Commander\'s own words.' : '';
         let tail = '';
         if (folded) tail = ' Folded ' + folded.id + ' (saved earlier this run with the same text) into it.';
+        // the SUPERSESSION receipt: what was retired, where it lives now, and how to undo it if it was a separate fact
+        if (superseded) {
+          const lead = restated
+            ? 'Already known as note "' + note.title + '" (' + note.id + '), the newer claim on its subject, so the older contradicting note is retired. '
+            : 'Updated note "' + note.title + '" (' + note.id + '): this is the same subject as what you held, so the newer claim replaces it. ';
+          return Object.assign({ content: lead +
+            'Retired (archived in ' + note.id + '\'s history, no longer active recall): ' + superseded.map(s => '[' + s.id + '] ' + s.body.replace(/\s+/g, ' ').slice(0, 200)).join('; ') + '.' +
+            where + proof + ' If a retired note was a SEPARATE fact rather than the same one, restore it: call notebook.write with its exact text and distinct:true.',
+          summary: 'superseded ' + superseded.map(s => s.id).join(', ') }, echoTaint(retiredRows));
+        }
+        if (restored) tail = ' Restored as its own active note: this text had been retired from ' + restored.id + ' as the same subject; both are active now.';
         if (similar.length) {
           tail = '\n\nSimilar notes you already hold:\n' + similar.map(n => '[' + n.id + '] ' + String(n.title || '') + ': ' +
             String(n.content != null ? n.content : (n.body != null ? n.body : ''))).join('\n') +
@@ -516,5 +673,5 @@
     };
   }
 
-  return { makeNotebookTools, reviseRecord };
+  return { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets, restoreSuperseded };
 });

@@ -25,16 +25,17 @@
    array (input never mutated), so this file is headless-testable like cron-store.js / reflect.js. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === 'function' ? require('../frontend/app/memtruth.js') : root.MemTruth);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { (root.SK = root.SK || {}).mintLedger = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (MemTruth) {
   'use strict';
 
   const LEDGER_CAP = 100;                 // FIFO ceiling — a long-lived station keeps the last N mints, not forever
-  const SIM_THRESHOLD = 0.6;              // near-dup cutoff — SAME value as reflect.js so behavior matches memory dedup
-  // stopwords for token-jaccard — mirrors reflect.js SIM_STOP so a paraphrased routine name is caught the same way.
-  const SIM_STOP = new Set(('a an the of to in on for and or but is are was were be been it its this that with as at by from your you i we they daily every each').split(/\s+/));
+  const SIM_THRESHOLD = MemTruth.SIM_THRESHOLD;   // near-dup cutoff — the SAME shared value memory dedup uses (memtruth.js)
+  // stopwords for token-jaccard: the shared memory stoplist plus the cadence words a routine NAME carries ("daily",
+  // "every", "each") — passed to the one similarity function as this ledger's own stoplist.
+  const SIM_STOP = new Set(MemTruth.SIM_STOP_WORDS.split(/\s+/).concat(['daily', 'every', 'each']));
 
   // normalize a routine/quest NAME to a stable exact-match fingerprint: lowercase, strip non-alphanumerics to
   // single spaces, collapse+trim whitespace. "ULTRON daily operating loop" and "  Ultron  Daily Operating Loop "
@@ -43,19 +44,9 @@
     return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  // token set for the Jaccard near-dup arm (>= 3 chars, drop stopwords) — inlined from reflect.js so this file
-  // stays standalone (reflect owns memory dedup; this owns creation dedup; same math, no shared import needed).
-  function simTokens(s) {
-    const set = new Set();
-    for (const t of normName(s).split(' ')) if (t.length >= 3 && !SIM_STOP.has(t)) set.add(t);
-    return set;
-  }
-  function jaccard(a, b) {
-    const A = simTokens(a), B = simTokens(b);
-    if (!A.size || !B.size) return 0;
-    let inter = 0; for (const t of A) if (B.has(t)) inter++;
-    return inter / (A.size + B.size - inter);
-  }
+  // the Jaccard near-dup arm (>= 3-char tokens of the normalized name, this ledger's stoplist dropped) — the ONE
+  // similarity function memory dedup uses too (frontend/app/memtruth.js), with the stoplist as a parameter.
+  function jaccard(a, b) { return MemTruth.similarity(a, b, { stop: SIM_STOP, normalize: normName }); }
 
   // is `name` a duplicate of `otherName`? EXACT normalized-name match OR Jaccard >= threshold. Empty names never
   // match (a nameless routine isn't a dup of another nameless one — the gate only fires on real, named overlap).

@@ -100,7 +100,8 @@ function note(id, body, extra = {}) {
     assert.match(result.content, /^Saved note/);
     assert.doesNotMatch(result.content, /note_1|prefers tabs|Similar notes/);
     const local = fixture([pref]);
-    assert.match((await local.write({ title: 'Preference', body: 'User prefers spaces' }, againA)).content, /Similar notes[\s\S]*note_1/);
+    // inside its own project the same subject is retired at write time (memory-truth-1027); across the boundary, never
+    assert.match((await local.write({ title: 'Preference', body: 'User prefers spaces' }, againA)).content, /same subject[\s\S]*note_1/);
   }
 
   // List-all, singleton and multi-match reads must agree with or without an injected ranker.

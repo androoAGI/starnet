@@ -456,6 +456,9 @@
     for (const r of list) {
       if (r.taintedBy || (r.confirmation !== 'user-stated' && r.confirmation !== 'user-confirmed')) continue;
       for (const h of (Array.isArray(r.history) ? r.history : [])) {
+        // a retired text that was RESTORED as its own record (notebook.js restoreSuperseded) is active again: its history
+        // entry no longer retires that record, whatever its original date (memory-truth-1027 undo)
+        if (h && h.restoredAs) continue;
         const at = Number(h && h.replacedAt) || 0;
         const text = textKey(h || {});
         if (at > 0 && text && text !== textKey(r)) {

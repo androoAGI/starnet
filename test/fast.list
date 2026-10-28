@@ -45,6 +45,8 @@ test/reflect.test.js
 test/memory-corrections.test.js
 test/project-memory-boundary.test.js
 test/memory-truth.test.js
+test/memory-truth.table.test.js
+test/learning-eligibility.matrix.test.js
 test/memory-rank.tokenize-once.test.js
 test/memcore.test.js
 test/cost.test.js

@@ -87,7 +87,7 @@ const docExtract = require('./tools/builtin/docextract.js').makeDocExtract({ inf
 // ...and the same idea for pixels: ONE sniffer shared by every producer that can hand the driving model an
 // image, so the `images` channel has more than a single caller (a channel with one caller is a special case).
 const imageWire = require('./tools/builtin/imagewire.js').makeImageWire({});
-const { makeNotebookTools, reviseRecord } = require('./tools/builtin/notebook.js');
+const { makeNotebookTools, reviseRecord, supersedeRecords, supersessionTargets } = require('./tools/builtin/notebook.js');
 const { makeRecallTool } = require('./tools/builtin/recall.js');
 const { makeToolSearchTool, planConnectorDeferral, connectorIndexLine } = require('./tools/builtin/toolsearch.js');   // tool.search: reach a granted-but-unadvertised (deferred) tool
 const { unavailableTools, unavailableLine } = require('./capability/effective-toolsets.js');
@@ -232,6 +232,7 @@ const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor,
 const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TASTE: verdicts + corrections -> durable like/dislike memory
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
+const LearningEligibility = require('./learning-eligibility.js');   // memory-truth-1027: the ONE rule for which runs may teach which learning pass
 const Embed = require('./embed.js');              // memory-compound: the embedding lane of hybrid recall (BM25 + vectors over a configured provider)
 const { swallow, note: failNote, summary: failopenSummary, setClock: failopenSetClock } = require('./failopen.js');    // tagged fail-open: a swallowed error stays visible (throttled warn + counter + diagnostics summary)
 const { makeProcessFaultHandler } = require('./process-fault.js');   // fail-loud-but-safe uncaughtException policy (degrade health, release locks, exit(1) for the shell watchdog)
@@ -2634,7 +2635,7 @@ const commanderDossier = {
   _block: '',
   get() { return this._block; },
   set(block) {
-    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend caps it ~800; this is a hard safety ceiling
+    this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend composes it under dossier.js BLOCK_CHARS (1600); this is a hard safety ceiling
     try {
       fs.mkdirSync(WORKSPACES, { recursive: true });
       saveResilient(DOSSIER_FILE, { block: this._block });   // fsync-durable + .bak last-known-good
@@ -3536,7 +3537,8 @@ async function runReflection(o) {
     // never re-proposes a belief the Commander already rejected (stored as plain text → wrapped so textOf reads it).
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
-    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), clock: { now: () => Date.now() }, max: 5 });
+    // projectRoot: a held belief in ANOTHER project is never this run's replacement target (reflect.js reachable)
+    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
     // the Commander paused (or forgot) learning while the model was answering: remember nothing from this pass
     if (!learningUnchangedSince(pz)) return;
     let proposals = (out && out.proposals) || [];
@@ -3567,9 +3569,9 @@ async function runReflection(o) {
       }
       // stash ONE batch (mixed: saved receipts carry saved:true + a real record id; high-stakes carry the pending
       // prop_N id). The frontend fetches it via /api/memory/proposals — renders a passive receipt for saved:true
-      // items and the Keep/Edit/Discard confirm deck for the rest. A single stash per runId (a second stashProposals
-      // for the same runId would OVERWRITE the first — so merge here).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin,
+      // items and the Keep/Edit/Discard confirm deck for the rest. A run's batch MERGES (putRunBatch → memcore.mergeReceipts,
+      // keyed by key||id): the saves recordRunReceipt already registered above and any mid-run notebook.write receipts stay.
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: origin, outcome: 'done',
         ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody, streamId: p.streamId || null } : {}) }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
@@ -3648,9 +3650,9 @@ async function runFailureReview(o) {
           if (w.ok) { saved.push({ id: w.id, kind: w.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, saved: true }); recordRunReceipt(agentId, runId, saved[saved.length - 1]); }
         } catch (_) {}   // one failed write never sinks the batch
       }
-      // ONE stash per runId (a failed run never reflected, so this slot is free) + the durable pending queue for
-      // the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
-      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN }));
+      // the run's batch MERGES (putRunBatch: trusted capture may already have stashed a held statement for this run) + the
+      // durable pending queue for the high-stakes half; only those emit memory.proposed (existing event — no new event minted).
+      const pending = highStakesProps.map(p => ({ id: p.id, kind: p.kind, content: p.content, scope: p.scope || 'global', projectRoot: p.projectRoot || null, origin: Failreview.ORIGIN, outcome: 'failed' }));
       const combined = saved.concat(pending);
       if (combined.length) stashProposals(agentId, runId, combined);
       if (pending.length) await queuePending(agentId, runId, pending);
@@ -24707,11 +24709,22 @@ async function runOnceCore(o) {
   const quotedLearning = o.quotedOwnerInput === true || replayedQuoted;
   const learningTaint = execution.taintedBy() || (quotedLearning ? 'quoted user material' : null);
   const learningEvidence = TrustedLearning.evidence({ runId, trigger: o.trigger, tainted: execution.taintedBy(), trustedOnly: quotedLearning, trustedInput: trustedLearningInput, completion: finalCompletionEvidence, loadedSkills });
-  if ((_auxDone || _auxFail) && o.reflect && isTask && !internal) {
-    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence });
+  /* ONE LEARNING ELIGIBILITY RULE (memory-truth-1027; releases#7, quick win 19). The run is classified once —
+     done · failed · denied · cancelled · unfinished, plus denied / tainted / quoted / line hop — and every learning pass
+     below reads its verdict from the same predicate (learning-eligibility.js) instead of its own copy of the guards: a
+     FINISHED run whose approval was refused (reflect.js refusedAction) teaches reflection, study and thread mining nothing
+     (a failed one is still failure-reviewed, as before; failreview.js never banks routing around an approval), a line hand-off
+     reaches no pass at all, outside or quoted material withholds every transcript pass, and trusted capture (the
+     Commander's captured directive) still counts on a failed or refused run. _learn.kind rides the proposals a pass
+     raises, so MEMORY > Awaiting your decision can say "from a failed run". */
+  const _learn = LearningEligibility.passes(LearningEligibility.runOutcome({
+    reason: result && result.reason, aborted: signal.aborted, recovery: !!o.recovery, truncated: _truncated, clarifying: !!taskQuestionAsked,
+    denied: refusedAction(execution.toolTraceList()), tainted: !!execution.taintedBy(), quoted: quotedLearning, lineHop: _lineHop,
+    reflect: !!o.reflect, task: !!isTask, internal: !!internal }));
+  if (_learn['trusted-capture']) {
+    await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence, outcome: _learn.kind });
   }
-  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _auxDone && !_lineHop && reflectSalient(result.messages, o.recurring)
-      && !refusedAction(execution.toolTraceList())   // a run whose approval was not given proposes no memories (reflect.js refusedAction)
+  const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
       && !reflectingNow.has(agentId) && (Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
@@ -24719,14 +24732,14 @@ async function runOnceCore(o) {
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
   // call or ≥2 turns: an instant stub teaches nothing), the in-flight guard, and its own per-agent cooldown. A run the
   // PROVIDER refused (Failreview.providerRefused) is never reviewed on it: same content, same refusal (xai-403-1023).
-  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _auxFail
+  const _gateFailReview = !!(o.reflect && memoryConfig.failureReviewEnabled && _learn['failure-review']
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
       && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
-  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _auxDone && !_lineHop && Study.studySalient(result.messages, o.recurring)
+  const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
       && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
-  const _gateThreadmine = !!(process.env.SKYNET_THREAD_MINE !== '0' && o.reflect && isTask && _auxDone && !_lineHop && threadmine.mineSalient(result.messages)
+  const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
@@ -24761,13 +24774,14 @@ async function runOnceCore(o) {
   let _capReached = !!(result && result.reason === 'budget');
   if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
   if (_capReached) _auxCandidates.length = 0;
-  // External transcript text never enters a durable learning pass. The skill reviewer may still use the
-  // separately captured owner directive and host checks; its structured packet discards all external bytes.
+  // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining
+  // read that through _learn above (tainted / quoted). The skill reviewer may still use the separately captured owner
+  // directive and host checks; its structured packet discards all external bytes, so only a run with neither skips it.
   // Quoted material (learningTaint's quotedLearning half: typed, or replayed from an earlier turn) skips the same
   // passes, but latches no taint: tools, standing grants, workers and later turns keep the owner's authority.
   if (learningTaint) {
     const noTrustedEvidence = !learningEvidence.trustedUserMessages.length && !learningEvidence.checks.length;
-    for (const pass of ['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])) {
+    for (const pass of noTrustedEvidence ? ['skill-review'] : []) {
       const at = _auxCandidates.indexOf(pass);
       if (at >= 0) _auxCandidates.splice(at, 1);
     }
@@ -29238,7 +29252,7 @@ async function captureTrustedLearning(o) {
   // material (evidence.trustedOnly) reads true here as well; `quoted` says that was the reason, while the run row's
   // taintedBy stays empty because the run itself never latched outside content.
   const status = { runId: o.runId, at: Date.now(), tainted: !!(o.learningEvidence.tainted || o.learningEvidence.trustedOnly), saved: 0, held: 0,
-    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}),
+    ...(o.learningEvidence.trustedOnly ? { quoted: true } : {}), ...(o.outcome ? { outcome: o.outcome } : {}),
     trustedDirectives: o.learningEvidence.trustedUserMessages.length, verifiedChecks: o.learningEvidence.checks.filter(c => c.status === 'passed').length,
     reason: 'no_explicit_standing_preference' };
   if (!personalizationStore.read().enabled || !memoryConfig.reflectEnabled) status.reason = 'learning_paused';
@@ -29251,14 +29265,17 @@ async function captureTrustedLearning(o) {
       const content = redact(prop.content);
       if (declined.has(prop.content) || declined.has(content)) continue;
       if (content !== prop.content || TrustedLearning.needsReview(content, highStakes)) {
-        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander' });
+        held.push({ id: 'owner_' + (held.length + 1), kind: prop.kind, content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', ...(o.outcome ? { outcome: o.outcome } : {}) });
         continue;
       }
       try {
         const w = await writeMemoryRecord(o.agentId, prop, { runId: o.runId, source: 'owner-statement', origin: 'commander', trustedInput: o.input });
         // A restatement re-dated a record that already existed: there is no new memory to undo, and the receipt's one-tap
         // veto would delete (and permanently decline) the ORIGINAL the Commander kept. Only a new record gets a receipt.
-        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true }); }
+        // A supersession is an UPDATE of an older belief: its receipt reads "updated:" and offers no forget (✕ would delete
+        // the record, old text and all), and it names what it retired (memory-truth-1027).
+        if (w.ok) { status.saved++; if (!w.refreshed) recordRunReceipt(o.agentId, o.runId, { id: w.id, kind: w.kind, content: prop.content, scope: prop.scope, projectRoot: prop.projectRoot, origin: 'commander', saved: true,
+          ...(w.superseded ? { key: w.id + '@superseded', revised: true, superseded: w.superseded.map(s => ({ id: s.id, previous: s.body })) } : {}) }); }
       } catch (e) { status.reason = 'write_failed'; failNote('learning.capture', e); }
     }
     if (held.length) {
@@ -29302,13 +29319,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
   const scrubbed = redact(content);
   // P1: write the notebook record under the per-agent lock, RE-READING the list so the id (positional) is minted
   // against the current notebook and a concurrent run's memory.write isn't clobbered by this whole-array set.
-  let writtenId = null, rec = null, refreshed = false;
+  let writtenId = null, rec = null, refreshed = false, superseded = null;
   await notebookStore.update('notebook:' + agentId, (stored) => {
     const list = Array.isArray(stored) ? stored : [];
     if (prop && prop.replaceId) {
       if (!opts.userConfirmed) throw new Error('a proposed memory correction must be reviewed before replacing the existing belief');
       const at = list.findIndex(r => r.id === prop.replaceId);
-      rec = reviseRecord(list[at], { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
+      /* ONE ACTIVE RECORD PER SUBJECT through the reviewed path too (memory-truth-1027). reflect() names the newest record on
+         the subject; any OTHER active record in its boundary that holds an older claim on the same subject (a legacy pair)
+         folds into the record the Commander approved, instead of staying active beside it. */
+      const prior = list[at];
+      const others = prior ? supersessionTargets(list, redact(content), { scope: prior.scope || 'global', projectRoot: prior.projectRoot || null }).filter(r => r !== prior) : [];
+      if (others.length) {
+        const out = supersedeRecords(list, [prior].concat(others), { survivor: prior, previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true, source: opts.source || null }, Date.now());
+        rec = out.record; superseded = out.retired;
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id;
+        return out.list;
+      }
+      rec = reviseRecord(prior, { previousBody: prop.previousBody, body: redact(content), runId, userConfirmed: true }, Date.now());
       if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
       list[at] = rec;
       writtenId = rec.id;
@@ -29319,8 +29348,12 @@ async function writeMemoryRecord(agentId, prop, opts) {
     // only the Commander's exact words (nothing scrubbed) prove the statement is theirs
     const stated = !!opts.trustedInput && scrubbed === content && TrustedLearning.preferences(opts.trustedInput, prop.projectRoot).some(p => p.content === content);
     const stamp = r => Object.assign(r, { confirmation: 'user-stated', standing: true, statedBy: { runId, quote: scrubbed, source: opts.trustedInput.source } });
+    const keep = opts.userConfirmed === true;
+    let onlyBySupersession = false;
     if (list.some(r => r && (sameText(bodyOf(r)) || (Array.isArray(r.history) && r.history.some(h => h && sameText(h.body)))))) {
-      if (!stated) return undefined;
+      // a Keep may bring an archived text back, but only by retiring the belief that replaced it (below), never as a copy
+      if (!stated && !(keep && !list.some(r => r && sameText(bodyOf(r))))) return undefined;
+      onlyBySupersession = !stated;
       /* THE COMMANDER SAID IT AGAIN (2026-10-12). Dropping a restatement left an older contradicting record as the
          newer memory, and recall resolves a conflict by "the newer one wins". The same clean record in the same
          scope is re-dated and re-stamped as stated now; a copy that only survives in a corrected record's history,
@@ -29338,6 +29371,25 @@ async function writeMemoryRecord(agentId, prop, opts) {
         return list;
       }
     }
+    /* SUPERSESSION AT WRITE TIME (memory-truth-1027). The Commander's own statement, or their Keep, on the SAME SUBJECT
+       as an active belief retires that belief into this record's history (notebook.js supersedeRecords: one active
+       record per subject, the old text and its provenance kept for undo) instead of adding a second, contradicting
+       record. A model's silent save never retires anything here: reflection sends a same-subject claim to the review
+       deck as a replacement (reflect.js). */
+    if (stated || keep) {
+      const targets = supersessionTargets(list, scrubbed, { scope: prop.scope || 'global', projectRoot: prop.projectRoot || null }, { restatements: stated });
+      if (targets.length) {
+        const out = supersedeRecords(list, targets, { body: scrubbed, runId, userConfirmed: keep, source: opts.source || null }, Date.now());
+        rec = out.record;
+        if (stated) stamp(rec);
+        Object.assign(rec, { scope: prop.scope || 'global', streamId: prop.streamId || null, projectRoot: prop.projectRoot ? String(prop.projectRoot) : null, origin: String(opts.origin || rec.origin || 'commander') });
+        delete rec.taintedBy;   // the Commander's words / approval replace whatever text was there
+        if (trustDelta) rec.trust = memcore.nextTrust(rec.trust, trustDelta);
+        writtenId = rec.id; superseded = out.retired;
+        return out.list;
+      }
+    }
+    if (onlyBySupersession) return undefined;
     writtenId = memcore.nextNoteId(list);   // collision-proof (positional length reuses a slot freed by forget)
     rec = recordFromProposal(prop || {}, { now: Date.now(), runId: runId || (prop && prop.sourceRunId), id: writtenId, content: scrubbed, origin: opts.origin, userConfirmed: opts.userConfirmed === true });
     if (stated) stamp(rec);
@@ -29362,7 +29414,7 @@ async function writeMemoryRecord(agentId, prop, opts) {
       questStore.completeByContract('fact', _fk, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
     }
   } catch (_) {}
-  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}) };
+  return { ok: true, id: writtenId, kind: rec.kind, ...(refreshed ? { refreshed: true } : {}), ...(superseded ? { superseded } : {}) };
 }
 
 // §5.6 "discard/veto = never again": append the rejected belief text to the permanent per-agent declined list
@@ -29518,7 +29570,8 @@ function servePending(req, res) {
       runId: p.runId || '', id: p.id || '', kind: p.kind || 'note',
       content: String(p.content || ''), scope: p.scope || 'global', projectRoot: p.projectRoot || null,
       origin: p.origin || 'commander', createdAt: p.createdAt || 0,
-      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {})
+      ...(p.replaceId ? { replaceId: p.replaceId, previousBody: p.previousBody } : {}),
+      ...(p.outcome ? { outcome: p.outcome } : {})   // the run's outcome (memory-truth-1027): the deck marks a failed run's proposal
     }));
     json(200, { agentId: agent, pending: rows });
   } catch (e) { json(500, readRouteFailure('memory.pending', e)); }   // an un-answered high-stakes deck must not vanish behind a 200-empty
