@@ -73,7 +73,8 @@ A.ok(!events.validate('agent.run.start', { agentId: 'a' }).ok, 'missing required
 // The full trigger vocabulary the sidecar actually emits must VALIDATE: 'loop' (loopjob-driver) and
 // 'nightshift' were real emitted triggers outside the enum, so every validating emitter silently dropped
 // those runs' start events — the floor saw a loop run's middle and end but never its beginning.
-for (const trig of ['directive', 'schedule', 'event', 'loop', 'nightshift']) {
+// 'manual' (Run Now) joins them so a hand-started routine run stops borrowing 'schedule'.
+for (const trig of ['directive', 'schedule', 'event', 'loop', 'nightshift', 'manual']) {
   A.ok(events.validate('agent.run.start', { agentId: 'a', runId: 'r', trigger: trig, model: 'm' }).ok, "trigger '" + trig + "' validates");
 }
 A.ok(!events.validate('definitely.unknown', {}).ok, 'unknown event name rejected');

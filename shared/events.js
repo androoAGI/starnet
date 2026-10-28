@@ -27,7 +27,10 @@
       // validating emitter (cronEmit tee, /api/nightshift/beat NDJSON) silently DROPPED those runs'
       // start events, so the floor saw a loop iteration's middle and end but never its beginning (no work
       // pose, no product crate). Enum values only added, never renamed/removed.
-      agentId: str, runId: str, trigger: { enum: ['directive', 'schedule', 'event', 'loop', 'nightshift'] }, model: str
+      // ADDITIVE WIDENING (2026-10-28, reliability wave 2): 'manual' is a run the Commander started by hand
+      // (Run Now) on a routine's unattended path. Until it validated, Run Now had to borrow 'schedule', so a
+      // pressed run read as one the clock fired.
+      agentId: str, runId: str, trigger: { enum: ['directive', 'schedule', 'event', 'loop', 'nightshift', 'manual'] }, model: str
     }),
     'agent.reasoning': obj(['agentId', 'runId', 'on'], { agentId: str, runId: str, on: bool }),
     'agent.token': obj(['agentId', 'runId', 'delta'], { agentId: str, runId: str, delta: str }),
