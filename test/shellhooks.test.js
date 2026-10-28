@@ -142,12 +142,33 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       await run(fakeChild(null), 50);
       dt = Date.now() - t0;
       A.ok(dt >= 500 && dt < 2000, 'a child that never exits is waited for 500ms at most (' + dt + 'ms)');
+      // The close path is checked by ORDER, not by a wall-clock bound a RAM-starved gate box could overrun: it must
+      // settle before a sentinel set just under the kill-settle wait fires.
       const quick = fakeChild(null);
-      t0 = Date.now();
+      let sentinelFired = false;
+      const sentinel = setTimeout(() => { sentinelFired = true; }, _internals.KILL_SETTLE_MS - 20);
       setTimeout(() => { quick.stdout.emit('data', Buffer.from('{"ok":1}')); quick.emit('exit', 0); quick.emit('close'); }, 20);
       A.eq(JSON.stringify(await run(quick, 5000)), '{"ok":1}', 'the ordinary close path returns the verdict');
-      dt = Date.now() - t0;
-      A.ok(dt < 400, 'and settles at once, with no kill wait (' + dt + 'ms)');
+      clearTimeout(sentinel);
+      A.ok(!sentinelFired, 'and settles at once, with no kill wait (before the ' + (_internals.KILL_SETTLE_MS - 20) + 'ms sentinel)');
+
+      // ---- 7c. THE SAME WAIT HOLDS THROUGH THE SPINE, which is how every production hook runs ----
+      // The spine bounds each handler with its own timer, started before runScript. If that bound were the hook's
+      // timeoutMs it would always win, invoke() would return null at once, and the caller would rm the cwd while
+      // the killed child still held it. invoke() must not resolve before the killed child has exited.
+      await fsp.rm(ALLOW, { force: true });
+      await writeHooks([{ event: 'pre_tool_call', command: 'fake-hook', name: 'fake' }]);
+      let exitedAt = 0;
+      const slowDie = fakeChild(300);
+      slowDie.once('exit', () => { exitedAt = Date.now(); });
+      const spine = makeHooks();
+      const sh = mk({ spawn: () => slowDie, timeoutMs: 50, onError: () => {} });
+      await sh.install(spine, { accept: true });
+      const vSpine = await spine.invoke('pre_tool_call', {});
+      const resolvedAt = Date.now();
+      A.eq(vSpine.blocked, false, 'a timed-out hook through the spine does not block');
+      A.ok(exitedAt > 0 && exitedAt <= resolvedAt, 'spine.invoke() resolves only after the killed child has exited (exited ' + (exitedAt ? resolvedAt - exitedAt + 'ms before resolve' : 'never') + ')');
+      A.ok(sh._internals.spineBoundMs > 50 + _internals.KILL_SETTLE_MS, 'the spine bound covers timeout + kill-settle (' + sh._internals.spineBoundMs + 'ms)');
     }
 
     // ---- 8. ONE BAD ENTRY MUST NOT DISABLE THE REST OF THE FILE ----

@@ -37,6 +37,7 @@
   const MAX_HOOKS = 32;              // a hooks file is hand-written; this is a runaway guard, not a product limit
   const MAX_STDOUT_BYTES = 64000;    // a hook answers with a small verdict; anything more is a misconfiguration
   const KILL_SETTLE_MS = 500;        // how long a timed-out, killed hook may take to actually exit before we settle anyway
+  const SPINE_SLACK_MS = 250;        // the spine's backstop bound sits this far past our own timeout + settle
   const DEFAULT_TIMEOUT_MS = 5000;
 
   /* Split a command line into argv the way a POSIX shell would for the SIMPLE cases, and no further: double
@@ -78,6 +79,7 @@
     const cwd = deps.cwd || '.';
     const onError = (typeof deps.onError === 'function') ? deps.onError : (() => {});
     const timeoutMs = Number(deps.timeoutMs) > 0 ? Number(deps.timeoutMs) : DEFAULT_TIMEOUT_MS;
+    const spineBoundMs = timeoutMs + KILL_SETTLE_MS + SPINE_SLACK_MS;
 
     async function readJson(file, fallback) {
       if (!file) return fallback;
@@ -226,15 +228,19 @@
           await allow(h.event, h.command);
         }
         try {
-          hookSpine.register(h.event, (payload) => runScript(h, payload), { name: h.name, timeoutMs });
+          /* The spine bounds every handler with its OWN timer. If that bound equalled ours it would always fire first
+             (it starts before runScript does), and invoke() would return while the killed child still held its cwd:
+             the EBUSY this module's kill-settle wait exists to prevent. So the spine's bound covers our whole
+             timeout + kill + settle path, and ours is the one that decides. */
+          hookSpine.register(h.event, (payload) => runScript(h, payload), { name: h.name, timeoutMs: spineBoundMs });
           installed.push(h);
         } catch (e) { errors.push('cannot register ' + h.name + ' on ' + h.event + ': ' + ((e && e.message) || e)); }
       }
       return { installed, pending, errors };
     }
 
-    return { load, install, allow, revoke, create, remove, listPending, _internals: { splitArgs, keyOf, runScript } };
+    return { load, install, allow, revoke, create, remove, listPending, _internals: { splitArgs, keyOf, runScript, spineBoundMs, KILL_SETTLE_MS } };
   }
 
-  return { makeShellHooks, _internals: { splitArgs, keyOf } };
+  return { makeShellHooks, _internals: { splitArgs, keyOf, KILL_SETTLE_MS } };
 });
