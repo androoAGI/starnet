@@ -464,6 +464,7 @@ test/session-tombstones.test.js
 test/transcript-selftalk.test.js
 test/transcript-proof-reads.test.js
 test/fs.jail.test.js
+test/run-paths.test.js
 test/fs.search-gitignore.test.js
 test/fs.search-budget.test.js
 test/fs.large-output.test.js

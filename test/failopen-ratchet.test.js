@@ -210,7 +210,7 @@ const SYNC_BASELINE = {
   'tools/builtin/code.js': 3,
   'tools/builtin/comms.js': 2,
   'tools/builtin/connectors.js': 2,
-  'tools/builtin/fs.js': 3,
+  'tools/builtin/fs.js': 2,
   'tools/builtin/notebook.js': 1,
   'tools/builtin/orchestration.js': 8,
   'tools/builtin/quests.js': 1,

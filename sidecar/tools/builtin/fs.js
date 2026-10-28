@@ -22,6 +22,7 @@ const { note: failNote } = require('../../failopen');
   const { fuzzyFindAndReplace } = require('./fuzzymatch.js');
   const crypto = require('node:crypto');
   const { assertWorkspaceId } = require('../../workspace-reserved.js');
+  const RunPaths = require('../../run-paths.js');
 
   /* ONE WRITER PER FILE, PROCESS-WIDE (2026-10-20, lost-update fix). Every fs mutation is read -> (await the LSP
      baseline, up to ~10 s) -> writeFile of a whole file computed from that read. makeFsTools is built PER RUN
@@ -133,7 +134,7 @@ const { note: failNote } = require('../../failopen');
     function locationLine(rel, abs, ctx) {
       const r = String(rel == null ? '' : rel);
       if (P.win32.isAbsolute(r) || P.posix.isAbsolute(r) || /^[A-Za-z]:/.test(r)) return '';
-      const scoped = !!(ctx && typeof ctx.projectRoot === 'string' && ctx.projectRoot.trim());
+      const scoped = !!RunPaths.rootOf(ctx);   // the run's own path decision (ctx.paths), never a second reading of ctx
       // the private case names the way into a project, like outputPlacement (#77): the bare fact left the agent stuck
       return '\n[location: ' + abs + (scoped ? '' : ' (your private workspace, not a project folder; a shell working in a project '
         + 'will not find it here. To write into a project folder, give "path" as an absolute path inside it, or work from a '
@@ -215,89 +216,22 @@ const { note: failNote } = require('../../failopen');
       }
     }
 
-    async function workspaceRoot(agentId) {
-      if (environment && typeof environment.ensureWorkspace === 'function') return environment.ensureWorkspace(safeAgentId(agentId || 'agent'));
-      const dir = P.join(ROOT, safeAgentId(agentId || 'agent'));
-      await fsp.mkdir(dir, { recursive: true });
-      return dir;
-    }
-    function pathInside(abs, base) {
-      let a = P.resolve(abs), b = P.resolve(base);
-      if (P.sep === '\\') { a = a.toLowerCase(); b = b.toLowerCase(); }
-      return a === b || a.indexOf(b + P.sep) === 0;
-    }
+    /* ONE RESOLVER (run-paths lane, 2026-10-28). The containment proof lives in sidecar/run-paths.js, unchanged, and a
+       relative path is decided by the RUN's path object (ctx.paths) — the same object every other tool reads — so fs.*,
+       shell, terminal, verify, media and browser.upload cannot disagree about which folder a relative path means. A
+       resolver built WITHOUT the trust guard (the /api/file jail helper, the one-off route registry, tests) never
+       borrows a run's authority: it stays on the legacy jail, where an absolute or project path is refused as before. */
+    const resolver = RunPaths.makeResolver({ fsp, pathMod: P, root: ROOT, environment, pathTrust });
+    const workspaceRoot = resolver.workspaceRoot, pathInside = resolver.pathInside;
     async function realpathOrSelf(p) {
       try { return await fsp.realpath(p); } catch (_) { return p; }
     }
-    async function realpathExisting(p) {
-      try { return await fsp.realpath(p); }
-      catch (e) { throw new Error('cannot resolve filesystem path (possibly a dangling symlink): ' + p + ': ' + ((e && e.message) || e)); }
-    }
-    async function deepestExisting(abs, base) {
-      let cur = abs;
-      for (;;) {
-        try { await fsp.lstat(cur); return cur; }
-        catch (e) {
-          // ENOTDIR = a path THROUGH a file (docs/guide.md/inner) on macOS/Linux; Windows says ENOENT. Both mean "not
-          // there": walk up to the real ancestor, so the caller's own missing-path answer runs (fs.search's "(no such path)").
-          if (!e || (e.code !== 'ENOENT' && e.code !== 'ENOTDIR')) throw e;
-          const parent = P.dirname(cur);
-          if (!parent || parent === cur) return base;
-          cur = parent;
-        }
-      }
-    }
-    async function checkpointResolvedRoot(base, opts) {
-      const ctx = opts && opts.ctx;
-      if (!ctx || typeof ctx.checkpointMutation !== 'function' || (opts && opts.scope) !== 'write') return;
-      try { await ctx.checkpointMutation(base, 'fs mutation', { resolvedRoot: true }); } catch (_) {}
-    }
-    // Resolve a path and PROVE it is reachable. A relative path in a host-validated project session is rooted
-    // at that exact project, not at the agent's private deliverables workspace. It still passes through the
-    // same path-trust guard as an absolute project path and gets a second symlink-containment proof, so a
-    // model cannot manufacture ctx.projectRoot or escape it through a link. Unscoped relative paths retain the
-    // historic per-agent jail. Absolute paths always use pathTrust. opts.scope ('read' | 'write') is threaded
+    // Resolve a path and PROVE it is reachable (run-paths.js resolveFor). opts.scope ('read' | 'write') is threaded
     // to the guard so writes can stay consent-gated; opts.ctx is passed through.
     async function resolveInside(agentId, rel, opts) {
       opts = opts || {};
-      rel = String(rel == null ? '' : rel);
-      if (rel.indexOf('\0') >= 0) throw new Error('illegal path: ' + rel);
-      // Absolute on EITHER platform: posix "/abs", win32 "C:\..." AND UNC "\\server\share" (host
-      // P.isAbsolute alone misses UNC when running on Linux). Routed to path-trust when wired, else illegal.
-      const isAbs = P.win32.isAbsolute(rel) || P.posix.isAbsolute(rel) || /^[A-Za-z]:/.test(rel);
-      if (isAbs) {
-        if (!pathTrust) throw new Error('illegal path: ' + rel);
-        const resolved = await pathTrust(rel, { scope: opts.scope === 'write' ? 'write' : 'read', agentId: agentId, ctx: opts.ctx });
-        await checkpointResolvedRoot(resolved && resolved.base, opts);
-        return resolved;
-      }
-      if (/(^|[\\/])\.\.([\\/]|$)/.test(rel)) throw new Error('illegal path: ' + rel);
-      const projectRoot = opts.ctx && typeof opts.ctx.projectRoot === 'string'
-        ? String(opts.ctx.projectRoot).trim() : '';
-      if (projectRoot) {
-        if (!pathTrust) throw new Error('project-relative path requires the project trust guard');
-        const base = P.resolve(projectRoot);
-        const abs = P.resolve(base, rel || '.');
-        if (!pathInside(abs, base)) throw new Error('path escapes project root');
-        // Selecting a relative base is not authority: re-run the station grant and protected-file floor for
-        // every resolved target, just as an explicit absolute path would.
-        await pathTrust(abs, { scope: opts.scope === 'write' ? 'write' : 'read', agentId: agentId, ctx: opts.ctx });
-        const baseReal = await realpathExisting(base);
-        const existing = await deepestExisting(abs, base);
-        const existingReal = await realpathExisting(existing);
-        if (!pathInside(existingReal, baseReal)) throw new Error('path escapes project root via symlink');
-        await checkpointResolvedRoot(base, opts);
-        return { base, abs };
-      }
-      const base = await workspaceRoot(agentId);
-      const abs = P.resolve(base, rel || '.');
-      if (!pathInside(abs, base)) throw new Error('path escapes workspace');
-      const baseReal = await realpathExisting(base);
-      const existing = await deepestExisting(abs, base);
-      const existingReal = await realpathExisting(existing);
-      if (!pathInside(existingReal, baseReal)) throw new Error('path escapes workspace via symlink');
-      await checkpointResolvedRoot(base, opts);
-      return { base, abs };
+      if (!pathTrust) return resolver.resolveFor(agentId, rel, Object.assign({}, opts, { projectRoot: RunPaths.rootOf(opts.ctx) }));
+      return RunPaths.pathsFor(opts.ctx, resolver, agentId || 'agent').resolve(rel, opts);
     }
 
     async function beginEditDiagnostics(aid, files, ctx) {
