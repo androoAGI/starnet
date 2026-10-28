@@ -10,7 +10,7 @@
        { keyed: obj|array, allUnder? }    walk the tree; a string under a SECRET_KEY field is a secret, and every
                                           string anywhere beneath a field named in allUnder (e.g. headers, env) is too
        { keyed, credentialUnder? }        the same walk, but beneath a field named in credentialUnder only the
-                                          CREDENTIALS count: an entry whose name says so (CREDENTIAL_NAME: X-Api-Key,
+                                          CREDENTIALS count: an entry whose name says so (isCredentialName: X-Api-Key,
                                           Authorization, OPENAI_API_KEY, DB_PASSWORD …) or a value shaped like a token
                                           (a 20+ letter/digit run holding both). prompt-scrub.js reads this narrower list:
                                           a connector's NODE_ENV=production or Content-Type: application/json is not a
@@ -22,7 +22,35 @@
 const { note: failNote } = require('./failopen.js');
 
 const SECRET_KEY = /^(?:key|apikey|api[_-]?key|token|access[_-]?token|refresh[_-]?token|id[_-]?token|bot[_-]?token|app[_-]?token|device[_-]?token|client[_-]?secret|signing[_-]?secret|webhook[_-]?secret|secret|password|passwd|bearer|authorization)$/i;
-const CREDENTIAL_NAME = /key|token|secret|pass|auth|bearer|credential|cookie|session|signature|private/i;
+/* CREDENTIAL NAMES (review r2, 2026-10-28). A header/env name is a credential by its WHOLE SEGMENTS (split on _ - . and
+   camelCase), never a substring: the old /key|token|secret|pass|auth|…/ held KEYCLOAK_REALM, MONKEY_*, TOKENIZER,
+   COMPASS_PROJECT and OAUTH_REDIRECT_URI values (and cut 'production' out of the Commander's own words), yet missed
+   MYSQL_PWD, DB_PW, ADMIN_PIN, X-Admin-Pin, HMAC_SALT, X-Api-Sig, SENTRY_DSN, LICENSE and HUBSPOT_PAT, whose values
+   then rode every prompt raw. A name is a credential when:
+     · two segments say so together (access code, auth code, session id, connection string), or
+     · its LAST segment is not a plainly public attribute (url, domain, realm, id, region, host, user, email, path …)
+       and any segment is a credential word, or ends in one (pgpassword, mysqlpwd, clientsecret, authtoken). */
+const CRED_WORDS = new Set(['key', 'apikey', 'token', 'secret', 'secrets', 'pass', 'password', 'passwd', 'passphrase', 'pwd', 'pw', 'pin',
+  'pat', 'auth', 'authorization', 'bearer', 'credential', 'credentials', 'cred', 'creds', 'cookie', 'cookies', 'session', 'sessionid',
+  'signature', 'sig', 'signing', 'private', 'privatekey', 'salt', 'hmac', 'dsn', 'license', 'licence', 'otp', 'totp', 'hotp', 'mfa', 'seed',
+  'connectionstring', 'connstr', 'connstring']);
+const CRED_SUFFIX = /(?:password|passwd|passphrase|pwd|secret|token|apikey|accesskey|secretkey|privatekey|signingkey|authkey|licensekey|cookie|credentials?)$/;
+const CRED_PAIRS = [['access', 'code'], ['auth', 'code'], ['verification', 'code'], ['session', 'id'], ['connection', 'string'], ['conn', 'string']];
+const PUBLIC_TAIL = new Set(['url', 'uri', 'domain', 'realm', 'id', 'ids', 'scope', 'scopes', 'endpoint', 'region', 'mode', 'type', 'host',
+  'hostname', 'port', 'name', 'user', 'username', 'login', 'email', 'path', 'dir', 'file', 'version', 'level', 'timeout', 'ttl', 'count',
+  'size', 'format', 'enabled', 'algorithm', 'alg', 'prefix']);
+function nameSegments(name) {
+  return String(name == null ? '' : name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+function isCredentialName(name) {
+  const seg = nameSegments(name);
+  if (!seg.length) return false;
+  for (const [a, b] of CRED_PAIRS) { const i = seg.indexOf(a); if (i >= 0 && seg[i + 1] === b) return true; }
+  if (PUBLIC_TAIL.has(seg[seg.length - 1])) return false;
+  return seg.some(s => CRED_WORDS.has(s) || CRED_SUFFIX.test(s));
+}
+const CREDENTIAL_NAME = { test: isCredentialName };   // the old export's .test(name) interface
 const TOKEN_LIKE = /[A-Za-z0-9]{20,}/;
 const MAX_DEPTH = 8;
 const MAX_VALUES = 2000;
@@ -52,7 +80,7 @@ function collectSecretValues(sources) {
       return;
     }
     if (Array.isArray(v)) { for (const x of v) addCredentials(x, depth + 1, named); return; }
-    if (typeof v === 'object') for (const k of Object.keys(v)) addCredentials(v[k], depth + 1, named || CREDENTIAL_NAME.test(k));
+    if (typeof v === 'object') for (const k of Object.keys(v)) addCredentials(v[k], depth + 1, named || isCredentialName(k));
   }
   function walk(v, depth, allUnder, credUnder) {
     if (depth > MAX_DEPTH || v == null || typeof v !== 'object') return;
@@ -76,4 +104,4 @@ function collectSecretValues(sources) {
   return Array.from(out);
 }
 
-module.exports = { collectSecretValues, SECRET_KEY, CREDENTIAL_NAME };
+module.exports = { collectSecretValues, SECRET_KEY, CREDENTIAL_NAME, isCredentialName };

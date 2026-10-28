@@ -226,6 +226,21 @@ context.setKnownSecretSource(null);
     A.ok(cred.indexOf(secret) >= 0, 'credentialUnder keeps a credential: ' + secret.slice(0, 12) + '…');
   const all = collectSecretValues([{ keyed: cfg, allUnder: ['headers', 'env'] }]);
   A.ok(all.indexOf('production') >= 0 && all.indexOf('application/json') >= 0, 'allUnder (transcript redaction) still sweeps every header/env string');
+  // names are read by WHOLE segments (review r2): a password-shaped value under a credential name is held; a public
+  // value under a name that merely CONTAINS key/token/pass/auth/session is not
+  const PW = 'Tr0ub4dor&3!xq#Z';
+  const heldUnder = (name, value) => collectSecretValues([{ keyed: [{ env: { [name]: value } }], credentialUnder: ['env'] }]).indexOf(value) >= 0;
+  for (const name of ['MYSQL_PWD', 'SMTP_PWD', 'DB_PW', 'REDIS_PW', 'ADMIN_PIN', 'X-Admin-Pin', 'HMAC_SALT', 'X-Api-Sig', 'LICENSE', 'SENTRY_DSN', 'X-Db-Pwd',
+    'CONNECTION_STRING', 'X-Access-Code', 'OTP_SEED', 'WEBHOOK_SIGNING', 'HUBSPOT_PAT', 'PGPASSWORD', 'TOTP_SECRET', 'ENCRYPTION_KEY', 'apiKey', 'clientSecret',
+    'X-Api-Key', 'Authorization', 'DB_PASSWORD', 'SESSION_ID', 'Cookie', 'AWS_SECRET_ACCESS_KEY'])
+    A.ok(heldUnder(name, PW), 'a credential NAME holds its value: ' + name);
+  for (const [name, value] of [['KEYCLOAK_REALM', 'production'], ['MONKEY_NAME', 'production-mon'], ['OAUTH_REDIRECT_URI', 'http://localhost:3000/callback'],
+    ['COMPASS_PROJECT', 'marketing-site'], ['TOKENIZER', 'cl100k_base'], ['SESSION_REGION', 'us-east-1'], ['AUTH0_DOMAIN', 'tenant.us.auth0.com'],
+    ['PASSPORT_STRATEGY', 'google-oauth'], ['AWS_ACCESS_KEY_ID', 'AKIAEXAMPLEEXAMPLE'], ['KEY_FILE', '/home/me/keys/sa.json'], ['NODE_ENV', 'production']])
+    A.ok(!heldUnder(name, value), 'a public value under a name that only CONTAINS a credential word is not held: ' + name);
+  PS.setHeldSource(() => collectSecretValues([{ keyed: [{ env: { KEYCLOAK_REALM: 'production', OAUTH_REDIRECT_URI: 'http://localhost:3000/callback', COMPASS_PROJECT: 'marketing-site', TOKENIZER: 'cl100k_base' } }], credentialUnder: ['env'] }]));
+  const turn = 'Deploy marketing-site to production; redirect is http://localhost:3000/callback (tokenizer cl100k_base)';
+  A.ok(PS.scrubHeld(turn) === turn, 'the live turn naming those public values is byte-identical');
   PS.setHeldSource(() => cred);
   const words = 'email it to andrew.sims2@gmail.com, deploy my-project-123456 to us-east-1-prod-cluster in production as application/json';
   A.ok(PS.scrubHeld(words) === words && PS.scrubStored(words) === words, 'the Commander\'s ordinary words survive both rules byte-identically');
