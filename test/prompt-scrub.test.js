@@ -290,6 +290,23 @@ context.setKnownSecretSource(null);
   for (const keep of ['Set api_key=${INSTANTLY_API_KEY}.', 'f(api_key={{ api_key }})', '"password": "<your password here>"', 'x={"api_key":"${KEY}\\"}',
     'api_key=[INSTANTLY_API_KEY saved in API KEYS] (saved)', 'export PASSWORD=%DB_PASSWORD%&& run'])
     A.eq(context.redact(keep), keep, 'r3: a whole placeholder is left alone: ' + keep);
+  // r3: SERIALIZED text stays serialized — a field value never eats the '\' of an escaped quote, and a URL password never
+  // runs across a closing quote into the next field (the registry scrubs JSON tool results; loop.js parses them)
+  const pw = FK.stream('c-json-pw', 16, ALNUM), bearer = FK.stream('c-json-bearer', 24, ALNUM);
+  for (const obj of [{ objective: 'run curl -s -H "Authorization: Bearer ' + bearer + '" "https://api.example.com/v2" hourly' },
+    { note: 'set password: "' + pw + '" in the form', n: 'password=' + pw + '"x' }, { note: 'use -H "Authorization: Basic ' + pw + '" for legacy', p: 'password: ' + pw + '\\' },
+    { a: 'api_key=' + pw + '\\"q', b: 'line1\npassword=' + pw + '\nline3' }, { url: 'http://localhost:8080', owner: 'me@example.com' },
+    { url: 'https://u:' + pw + '@git.example.com/r.git', next: 'a@b' }, { inner: JSON.stringify({ password: pw, api_key: pw + 'x' }) }]) {
+    const json = JSON.stringify(obj), out = PS.scrubStored(json);
+    let parsed = null; try { parsed = JSON.parse(out); } catch (_) { parsed = null; }
+    A.ok(parsed !== null, 'r3: a scrubbed JSON text stays JSON: ' + json.slice(0, 60) + ' -> ' + out.slice(0, 120));
+    A.ok(out.indexOf(pw) < 0 && out.indexOf(bearer) < 0, 'r3: …and its credential is gone: ' + out.slice(0, 120));
+    let viaRedact = null; try { viaRedact = JSON.parse(context.redact(json)); } catch (_) { viaRedact = null; }
+    A.ok(viaRedact !== null, 'r3: context.redact keeps it JSON too: ' + json.slice(0, 60));
+  }
+  A.eq(PS.scrubStored(JSON.stringify({ url: 'http://localhost:8080', owner: 'me@example.com' })), JSON.stringify({ url: 'http://localhost:8080', owner: 'me@example.com' }), 'r3: a URL port before another field\'s @ is not a password');
+  A.eq(context.redact('password: ' + pw + '\\" next'), 'password: [redacted-secret]\\" next', 'r3: the value stops before an escaped quote, keeping its backslash');
+  A.eq(context.redact('password=' + pw + '\\\\" next'), 'password=[redacted-secret]" next', 'r3: an escaped backslash is read with the value as one pair');
   // r3: an auth scheme with nothing after it on its line does not take the NEXT line as its credential
   A.eq(context.redact('Authorization: Basic\r\nHost: api.example.com'), 'Authorization: [redacted-secret]\r\nHost: api.example.com', 'r3: an empty Basic header keeps the next header name (as base)');
   A.eq(context.redact('authorization: token\n  X-Trace: 1234'), 'authorization: [redacted-secret]\n  X-Trace: 1234', 'r3: an empty token header keeps the next header name');

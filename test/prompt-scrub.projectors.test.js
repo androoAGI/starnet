@@ -392,6 +392,50 @@ const SEED = {
     A.ok(/attachResultScrub\(PromptScrub\.scrubStored\)/.test(S.readSidecarSource()), 'P11: boot attaches the stored-text scrub to the registry');
   }
 
+  // ---- P11b (review r3): a scrubbed JSON result STAYS JSON, and a clean station's env-var instructions keep their bytes.
+  //      The field rule ate the '\' of an escaped quote ('Bearer [redacted-secret]" …'), so loop.js could not parse a
+  //      team.configure receipt and a real Dossier save read as unverified. ----
+  {
+    const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+    const { makeLoopTools } = require('../sidecar/tools/builtin/loops.js');
+    const events = require('../shared/events.js');
+    const { makeEmitter } = require('../shared/emitter.js');
+    const { makeCostEngine } = require('../sidecar/cost.js');
+    const { runAgentLoop } = require('../sidecar/loop.js');
+    const D = '$';
+    const manual = 'Call the leads API with curl -H "Authorization: Bearer ' + D + 'INSTANTLY_API_KEY" and use -H "Authorization: Basic ' + D + 'B64CREDS" on the legacy one.\nThe staging password: "' + K.VAULT.value.slice(4, 20) + 'Zq" is rotated weekly.'
+      + '\nThe old header was "Authorization: Token ' + K.VAULT.value.slice(20, 30) + '" (retired).';
+    const reg = makeRegistry();
+    reg.register({ name: 'team.configure', capability: 'orchestrator', scope: 'write', requiresConsent: false, schema: { type: 'object', properties: {} },
+      run: async () => ({ content: JSON.stringify({ agentId: 'worker', field: 'manual', text: manual, durable: true, applies: 'next run' }) }) });
+    const cleanLoop = { id: 'loop_c', name: 'Leads', objective: 'Every hour run curl -s -H "Authorization: Bearer ' + D + 'INSTANTLY_API_KEY" "https://api.instantly.ai/api/v2/emails"', agentId: 'agent', state: 'paused', enabled: false, iterationCount: 0, maxIterations: 5, recent: [] };
+    makeLoopTools({ listState: () => ({ loops: [cleanLoop] }) }).register(reg);
+    const unscrubbedList = (await reg.dispatch({ id: 'l0', name: 'loop.list', args: {} }, {})).content;
+    attachResultScrub(PS.scrubStored);
+    let receipt;
+    try {
+      receipt = await reg.dispatch({ id: 'c1', name: 'team.configure', args: {} }, {});
+      A.eq((await reg.dispatch({ id: 'l1', name: 'loop.list', args: {} }, {})).content, unscrubbedList, 'P11b: a clean loop objective teaching Bearer $NAME reaches the model byte-identical');
+    } finally { attachResultScrub(null); }
+    let saved = null; try { saved = JSON.parse(receipt.content); } catch (_) { saved = null; }
+    A.ok(saved && saved.durable === true && saved.agentId === 'worker' && saved.field === 'manual', 'P11b: the scrubbed team.configure receipt is still JSON loop.js can read: ' + receipt.content.slice(0, 160));
+    A.ok(saved && saved.text.indexOf('Bearer ' + D + 'INSTANTLY_API_KEY') >= 0 && saved.text.indexOf('Basic ' + D + 'B64CREDS') >= 0 && saved.text.indexOf(K.VAULT.value.slice(4, 20)) < 0 && saved.text.indexOf(K.VAULT.value.slice(20, 30)) < 0, 'P11b: env-var references kept, the quoted password and the Token credential hidden');
+    // the loop itself: the scrubbed receipt counts as the Dossier save, so "I've updated the agent's instructions." ends the run done
+    const textTurn = (t) => [{ type: 'text', delta: t }, { type: 'usage', usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }, { type: 'done', finishReason: 'stop' }];
+    const cfgTurn = [{ type: 'tool_start', index: 0, id: 'cfg', name: 'team_configure' }, { type: 'tool_args', index: 0, chunk: '{}' },
+      { type: 'usage', usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }, { type: 'done', finishReason: 'tool_calls' }];
+    let n = 0;
+    const turns = [cfgTurn, textTurn("I've updated the agent's instructions.")];
+    const provider = { async *stream() { const t = turns[Math.min(n, turns.length - 1)]; n++; for (const ev of t) yield ev; }, priceOf: () => ({ prompt: '0', completion: '0' }), contextLimit: () => 8000 };
+    const bus = A.makeBus();
+    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'update the worker manual' }], provider, emit: makeEmitter(bus, () => {}),
+      cost: makeCostEngine({ priceOf: provider.priceOf }), model: 'replay/model', agentId: 'a', runId: 'r-p11b',
+      tools: [{ name: 'team_configure', schema: { type: 'object' } }, { name: 'notebook_write', schema: { type: 'object' } }],
+      dispatch: async () => ({ ok: true, isError: false, content: receipt.content }), capCtx: { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office' } });
+    A.eq([res.reason, n], ['done', 2], 'P11b: loop.js counts the scrubbed receipt as a configuration write (no memory_receipt nudge)');
+    void events;
+  }
+
   // ---- P12: an INTERNAL run's page-composed directive quotes stored beliefs/goals: scrubbed at runOnceCore's intake ----
   {
     const AutoJobs = require('../frontend/app/autojobs.js');

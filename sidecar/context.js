@@ -307,9 +307,18 @@
     + '|process\\.env(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\])'
     + '|os\\.(?:environ\\[\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\]|(?:environ\\.get|getenv)\\(\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\)))';
   const VALUE_END = '[)\\]}]*(?=$|[\\s&,;"\'\\\\]|\\.(?:\\s|$))';
-  const FIELD_VALUE = new RegExp('\\b(' + FIELD_NAMES + ')\\b(["\']?\\s*[=:]\\s*["\']?)'
+  /* THE VALUE (review r3): base's class [^\s&,;"'] takes a backslash, so in SERIALIZED text (a JSON tool result, which
+     the registry now scrubs) a value right before an escaped quote ate the quote's '\' and left a bare '"': the result
+     stopped being JSON ('Authorization: Bearer [redacted-secret]" …'), and loop.js could no longer read a team.configure
+     receipt. The value now reads a backslash together with the char it escapes, and stops before an escaped quote (the
+     serialized form of the quote that ends it in plain text). The length floor is base's own: 4 chars of base's class. */
+  const FIELD_BODY = '(?=[^\\s&,;"\']{4})(?:[^\\s&,;"\'\\\\]|\\\\[^\\s"\'])+';
+  // in serialized text a field also starts right after an escape (JSON '\npassword=…') and is quoted with escaped
+  // quotes ('\"password\": \"…\"'): the name is the literal first, then a lookbehind for its start (as keyRule does)
+  const FIELD_VALUE = new RegExp('(' + FIELD_NAMES + ')(?<=(?:^|[^A-Za-z0-9_]|' + ESCAPE_ALTS + ')(?:' + FIELD_NAMES + '))\\b'
+    + '((?:\\\\?["\'])?\\s*[=:]\\s*(?:\\\\?["\'])?)'
     + '(?!(?:' + AUTH_SCHEME + ')?(?:\\[redacted-|' + PLACEHOLDER + VALUE_END + '))'
-    + '((?:' + AUTH_SCHEME + ')?)[^\\s&,;"\']{4,}', 'g');
+    + '((?:' + AUTH_SCHEME + ')?)' + FIELD_BODY, 'g');
   // Key/token shapes scrubbed before anything is logged, streamed, or persisted. Each pattern is
   // distinctive enough (vendor prefix + a length floor) that it does not eat ordinary prose. This is
   // ALWAYS-ON — there is deliberately no toggle the model could flip off. Most-specific vendor prefixes
@@ -355,7 +364,10 @@
     // The password in a URL's `user:pass@host` part (git remotes, proxies, database URLs). The user name and host stay
     // readable; the password runs to the LAST '@' of the authority, because a password may itself hold an '@'. A vendor
     // key or known secret already scrubbed in that slot keeps its own tag. A port (`host:8080/…`) is never touched.
-    [/\b([a-z][a-z0-9+.-]*:\/\/[^\s:\/?#@]*:)(?!\[redacted-)[^\s\/?#]+(?=@)/gi, '$1[redacted-secret]', urlPasswordDriver],
+    // The password never runs past a '"' or a '\' (neither may stand raw in a URL, review r3): in a compact JSON result
+    // ('{"url":"http://localhost:8080","owner":"me@x.com"}') it ran across the closing quote to the next field's '@',
+    // ate the port and broke the JSON.
+    [/\b([a-z][a-z0-9+.-]*:\/\/[^\s:\/?#@]*:)(?!\[redacted-)[^\s\/?#"\\]+(?=@)/gi, '$1[redacted-secret]', urlPasswordDriver],
     // Synthetic/local connectors frequently use ordinary canaries rather than vendor-shaped tokens. Scrub
     // explicit credential assignments too, including URL query strings, so upstream diagnostics cannot turn a
     // `password=...` or `client_secret: ...` value into a credential disclosure.
