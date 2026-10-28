@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "31063db55965ac993d1738966f6827b388f29a2c",
+    "sourceCommit": "6d345fd2ecfc464fef85da9775e4bd82bc7f0a28",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -523,8 +523,8 @@
       },
       {
         "path": "frontend/app/friendlyerror.js",
-        "bytes": 85342,
-        "sha256": "65d4b3426a96deb42a13bd77de39d4a1db669d4e4b8f53641455879f96bb7673"
+        "bytes": 87207,
+        "sha256": "b7b920f959b9b877c51434340967fab849db5a779c4b90de9db9e7144c774e6d"
       },
       {
         "path": "frontend/app/fullscreen.js",
@@ -1153,8 +1153,8 @@
       },
       {
         "path": "frontend/app/slaglog.js",
-        "bytes": 9326,
-        "sha256": "9fa29d9b54904a66c7d708722617ae7efa6aa52d0f44aee0571000f50bded37e"
+        "bytes": 9464,
+        "sha256": "67d9752b036e8db2818c839cbca9ca1845bcde061f02e30833e4f0bce82990a5"
       },
       {
         "path": "frontend/app/spacebg.js",
