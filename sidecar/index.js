@@ -26045,16 +26045,74 @@ function handleRunSteerStatus(req, res) {
 //   it spawns the sidecar (one-line follow-up for the src-tauri owner — NOT edited here). `appSource` is additive:
 //   it names WHERE app came from ('env' | 'conf' | 'unknown') so diagnostics never reports a silent blank as fact.
 //   The response keeps the existing {harness, app, node} shape byte-compatible (chat.js versionCommand reads those).
-//   GIT IS ASKED THREE WAYS, ONE 10s BUDGET (guardian triage 2026-10-28): the old single 2s `--dirty` call lost to a
-//   loaded machine, fell to the placeholder and cached 'pkg' for the whole process. `--dirty` may fail or be slow on
-//   its own (it refreshes the index), so `describe --always --tags` and then `rev-parse --short HEAD` still name the
-//   commit — with buildDirty left null, because only `--dirty` can prove clean. A 'pkg' answer that a git TIMEOUT
-//   caused is not cached for good: it is re-asked once VERSION_RETRY_MS has passed.
-let _versionCache = null, _versionRetryAt = 0;
-const VERSION_GIT_BUDGET_MS = 10000, VERSION_RETRY_MS = 60000;
+//   GIT IS ASKED THREE WAYS, AND NEVER LONG ON THE EVENT LOOP (guardian triage 2026-10-28): the old single 2s
+//   `--dirty` call lost to a loaded machine, fell to the placeholder and cached 'pkg' for the whole process.
+//   `--dirty` may be slow or hang on its own (it refreshes the index), so each probe has its OWN cap inside a shared
+//   budget and a hung `--dirty` still leaves time for `describe --always --tags` and then `rev-parse --short HEAD`
+//   — with buildDirty left null, because only `--dirty` can prove clean. The FIRST call is synchronous (boot needs
+//   an answer) and its whole git work, `rev-parse HEAD` included, fits VERSION_SYNC_BUDGET_MS: no worse than the old
+//   2s + 2s. A 'pkg' answer that a git TIMEOUT caused is never re-asked synchronously: the cached answer is served
+//   and git is asked again in the BACKGROUND (async execFile, patient caps), at once and then backing off
+//   (VERSION_RETRY_BACKOFF_MS), so a persistently slow git costs child processes, never a stalled request.
+let _versionCache = null, _versionRetryAt = 0, _versionRetries = 0, _versionRefreshing = false;
+const VERSION_PROBES = [
+  { args: ['describe', '--always', '--dirty', '--tags'], dirty: true },
+  { args: ['describe', '--always', '--tags'], dirty: false },
+  { args: ['rev-parse', '--short', 'HEAD'], dirty: false }
+];
+const VERSION_SYNC_BUDGET_MS = 4000, VERSION_SYNC_CAPS_MS = [2000, 1000, 1000], VERSION_SYNC_SHA_CAP_MS = 1000;
+const VERSION_ASYNC_CAPS_MS = [6000, 3000, 2000], VERSION_ASYNC_SHA_CAP_MS = 2000;
+const VERSION_RETRY_BACKOFF_MS = [60000, 300000, 900000, 3600000];
+const versionGitTimedOut = (e) => !!(e && (e.code === 'ETIMEDOUT' || e.killed || e.signal));   // a timeout is not final; ENOENT / not-a-repo is
+function versionGitSync(args, timeout) {
+  const { execSync } = stationChildProcess;
+  return String(execSync('git ' + args.join(' '), {
+    cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout
+  }) || '').trim();
+}
+function versionGitAsync(args, timeout) {
+  return new Promise((resolve, reject) => {
+    stationChildProcess.execFile('git', args, { cwd: path.resolve(__dirname, '..'), timeout, windowsHide: true },
+      (e, stdout) => (e ? reject(e) : resolve(String(stdout || '').trim())));
+  });
+}
+// The background re-ask: only from a timeout-caused 'pkg', one at a time, merged into the cache when git answers.
+async function refreshVersionFromGit() {
+  _versionRefreshing = true;
+  let timedOut = false, found = null;
+  try {
+    for (let i = 0; i < VERSION_PROBES.length && !found; i++) {
+      try {
+        const desc = await versionGitAsync(VERSION_PROBES[i].args, VERSION_ASYNC_CAPS_MS[i]);
+        if (desc) found = { harness: desc, dirtyKnown: VERSION_PROBES[i].dirty };
+      } catch (e) { if (versionGitTimedOut(e)) timedOut = true; }
+    }
+    if (found) {
+      _versionRetryAt = 0;
+      if (!_versionCache || _versionCache.harnessSource !== 'pkg') return;
+      const next = Object.assign({}, _versionCache, { harness: found.harness, harnessSource: 'git' });
+      if (!next.buildSha) {
+        try {
+          const sha = await versionGitAsync(['rev-parse', 'HEAD'], VERSION_ASYNC_SHA_CAP_MS);
+          if (/^[0-9a-f]{40}$/i.test(sha)) next.buildSha = sha.toLowerCase();
+          if (found.dirtyKnown && next.buildDirty === null) next.buildDirty = /-dirty$/.test(next.harness);
+        } catch (e) { failNote('version.refresh.sha', e); }   // the commit name stands without its full sha
+      }
+      _versionCache = next;
+    } else if (timedOut) {
+      _versionRetryAt = Date.now() + VERSION_RETRY_BACKOFF_MS[Math.min(_versionRetries, VERSION_RETRY_BACKOFF_MS.length - 1)];
+      _versionRetries++;
+    } else _versionRetryAt = 0;   // git answered "no" outright: the pkg answer is final
+  } finally { _versionRefreshing = false; }
+}
+function kickVersionRefresh() {
+  if (_versionRefreshing || !_versionRetryAt || Date.now() < _versionRetryAt) return;
+  if (!stationChildProcess || typeof stationChildProcess.execFile !== 'function') { _versionRetryAt = 0; return; }
+  refreshVersionFromGit().catch(() => { _versionRefreshing = false; _versionRetryAt = 0; });   // backstop: it catches its own
+}
 function computeVersionSurface() {
-  if (_versionCache && (!_versionRetryAt || Date.now() < _versionRetryAt)) return _versionCache;
-  const gitDeadline = Date.now() + VERSION_GIT_BUDGET_MS;
+  if (_versionCache) { kickVersionRefresh(); return _versionCache; }   // after the first answer, git is never asked on this path
+  const gitDeadline = Date.now() + VERSION_SYNC_BUDGET_MS;
   let gitTimedOut = false, dirtyKnown = false;
   const out = {
     harness: '', app: '', node: process.version, appSource: 'unknown', harnessSource: 'unknown',
@@ -26063,16 +26121,13 @@ function computeVersionSurface() {
   const envHarness = String(ENV('BUILD_DESCRIBE') || '').trim();   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
   if (envHarness) { out.harness = envHarness; out.harnessSource = 'env'; }
   else {
-    for (const probe of ['git describe --always --dirty --tags', 'git describe --always --tags', 'git rev-parse --short HEAD']) {
-      const left = gitDeadline - Date.now();
+    for (let i = 0; i < VERSION_PROBES.length; i++) {
+      const left = Math.min(VERSION_SYNC_CAPS_MS[i], gitDeadline - Date.now());
       if (left <= 0) { gitTimedOut = true; break; }
       try {
-        const { execSync } = stationChildProcess;
-        const desc = String(execSync(probe, {
-          cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: left
-        }) || '').trim();
-        if (desc) { out.harness = desc; out.harnessSource = 'git'; dirtyKnown = /--dirty/.test(probe); break; }
-      } catch (e) { if (e && (e.code === 'ETIMEDOUT' || e.signal)) gitTimedOut = true; }   // a non-repo / no-git failure is final, a timeout is not
+        const desc = versionGitSync(VERSION_PROBES[i].args, left);
+        if (desc) { out.harness = desc; out.harnessSource = 'git'; dirtyKnown = VERSION_PROBES[i].dirty; break; }
+      } catch (e) { if (versionGitTimedOut(e)) gitTimedOut = true; }
     }
     if (!out.harness) {   // no env stamp, no git (packaged app has neither) — fall back to the package.json version
       try { out.harness = String(require('../package.json').version || ''); out.harnessSource = 'pkg'; } catch (_) {}
@@ -26082,12 +26137,10 @@ function computeVersionSurface() {
   const envBuildDirty = String(ENV('BUILD_DIRTY') || '').trim();
   if (/^[0-9a-f]{40}$/i.test(envBuildSha)) out.buildSha = envBuildSha.toLowerCase();
   if (envBuildDirty === '0' || envBuildDirty === '1') out.buildDirty = envBuildDirty === '1';
-  if (!out.buildSha && out.harnessSource === 'git') {
+  const shaLeft = Math.min(VERSION_SYNC_SHA_CAP_MS, gitDeadline - Date.now());
+  if (!out.buildSha && out.harnessSource === 'git' && shaLeft > 0) {   // a spent budget skips it: the commit name stands
     try {
-      const { execSync } = stationChildProcess;
-      const sha = String(execSync('git rev-parse HEAD', {
-        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: Math.max(1000, gitDeadline - Date.now())
-      }) || '').trim();
+      const sha = versionGitSync(['rev-parse', 'HEAD'], shaLeft);
       if (/^[0-9a-f]{40}$/i.test(sha)) out.buildSha = sha.toLowerCase();
       if (dirtyKnown) out.buildDirty = /-dirty$/.test(out.harness);
     } catch (_) {}
@@ -26102,7 +26155,8 @@ function computeVersionSurface() {
     } catch (_) {}
   }
   _versionCache = out;
-  _versionRetryAt = out.harnessSource === 'pkg' && gitTimedOut ? Date.now() + VERSION_RETRY_MS : 0;
+  _versionRetryAt = out.harnessSource === 'pkg' && gitTimedOut ? Date.now() : 0;   // due now: the first re-ask starts at once
+  kickVersionRefresh();
   return out;
 }
 function handleVersion(req, res) {

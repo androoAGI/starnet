@@ -1,18 +1,25 @@
 'use strict';
-/* node test/version-source.test.js — GET /api/version names a git build id whenever git can give one.
+/* node test/version-source.test.js — GET /api/version names a git build id whenever git can give one, and asking
+   git never stalls the sidecar's event loop for long.
 
    THE HOLE THIS CLOSES (guardian triage, 2026-10-28): computeVersionSurface ran ONE `git describe --always --dirty
    --tags` with a 2s timeout. On a loaded machine it lost, the surface fell to the package.json '0.0.0' placeholder
    (harnessSource 'pkg'), and that answer was cached for the life of the process — so test/sidecar.http.test.js's
-   "harnessSource is git in a checkout" went red with no product change.
+   "harnessSource is git in a checkout" went red with no product change. The first repair gave `--dirty` the whole
+   10s budget, synchronously, and re-ran it every 60s: a hung `--dirty` still starved the fallbacks, and a slow git
+   froze every request for ~10s once a minute.
 
-   Laws (run on the real function, extracted through test/helpers/source.js, with a scripted execSync):
-     V1 git gets a 10s budget, not 2s;
-     V2 when --dirty fails, `describe --always --tags` and then `rev-parse --short HEAD` still name the commit, and
+   Laws (run on the real function, extracted through test/helpers/source.js, with a scripted execSync/execFile; a
+   scripted TIMEOUT advances the fake clock by the timeout it was given, so a hang costs what a real one costs):
+     V1 the synchronous path is bounded: every probe stays inside its own cap and the whole synchronous git work,
+        rev-parse HEAD included, stays inside VERSION_SYNC_BUDGET_MS (4s, the old 2s + 2s worst case);
+     V2 a HUNG --dirty still leaves time for `describe --always --tags`, then `rev-parse --short HEAD`, and
         buildDirty stays null (only --dirty can prove a clean tree);
-     V3 a 'pkg' answer caused by a git TIMEOUT is not cached for good: a later call asks git again;
-     V4 a 'pkg' answer with no git at all (the packaged app) is cached, so git is not re-spawned on every call;
-     V5 the happy path is unchanged: one --dirty call, harnessSource 'git', buildDirty from the suffix. */
+     V3 a 'pkg' answer caused by a git TIMEOUT is re-asked in the BACKGROUND (async execFile), at once, and the cache
+        becomes git when git answers; git is never run synchronously again after the first answer;
+     V4 a background re-ask that times out again backs off (60s, then 5m), so a slow machine is not hammered;
+     V5 a 'pkg' answer with no git at all (the packaged app) is cached for good: no re-ask, sync or async;
+     V6 the happy path is unchanged: one --dirty call, harnessSource 'git', buildDirty from the suffix. */
 const vm = require('node:vm');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -23,90 +30,149 @@ A.ok(at, 'computeVersionSurface exists in the sidecar');
 const fileText = sidecarSourceFiles().find(f => f.rel === at.rel).text;
 const stateAt = fileText.lastIndexOf('let _versionCache', at.index);
 A.ok(stateAt >= 0, 'its cache state is declared just above it');
-const program = fileText.slice(stateAt, at.index) + sidecarFunctionSource('computeVersionSurface') + '\nthis.computeVersionSurface = computeVersionSurface;';
+const program = fileText.slice(stateAt, at.index) + sidecarFunctionSource('computeVersionSurface') +
+  '\nthis.computeVersionSurface = computeVersionSurface; this.SYNC_BUDGET = VERSION_SYNC_BUDGET_MS;';
 
 const SHA = 'abcdef0123456789abcdef0123456789abcdef01';
-const timeoutErr = () => Object.assign(new Error('spawnSync git ETIMEDOUT'), { code: 'ETIMEDOUT', signal: 'SIGTERM' });
+const TIMEOUT = Symbol('timeout'), NOGIT = Symbol('nogit');
 const noGitErr = () => Object.assign(new Error('spawnSync git ENOENT'), { code: 'ENOENT' });
+const flush = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 
+// script(cmd) -> a string answer, TIMEOUT (a real hang: the clock moves by the timeout given) or NOGIT (fails fast).
 function load(script, clock) {
-  const calls = [];
+  const sync = [], async_ = [];
   const execSync = (cmd, opts) => {
-    calls.push({ cmd, timeout: opts && opts.timeout });
-    const r = script(cmd, calls.length);
-    if (r instanceof Error) throw r;
+    const timeout = opts && opts.timeout;
+    sync.push({ cmd, timeout, at: clock.t });
+    const r = script(cmd);
+    if (r === TIMEOUT) { clock.t += timeout; throw Object.assign(new Error('spawnSync git ETIMEDOUT'), { code: 'ETIMEDOUT', signal: 'SIGTERM' }); }
+    if (r === NOGIT) throw noGitErr();
     return Buffer.from(r + '\n');
   };
+  const execFile = (file, args, opts, cb) => {
+    const cmd = file + ' ' + args.join(' ');
+    async_.push({ cmd, timeout: opts && opts.timeout });
+    const r = script(cmd);
+    setImmediate(() => {
+      if (r === TIMEOUT) { clock.t += opts.timeout; return cb(Object.assign(new Error('git timed out'), { killed: true, signal: 'SIGTERM', code: null }), '', ''); }
+      if (r === NOGIT) return cb(noGitErr(), '', '');
+      cb(null, r + '\n', '');
+    });
+  };
   const sandbox = {
-    stationChildProcess: { execSync }, path, __dirname: path.join(path.resolve(__dirname, '..'), 'sidecar'),
-    ENV: () => '', process: { version: process.version },
+    stationChildProcess: { execSync, execFile }, path, __dirname: path.join(path.resolve(__dirname, '..'), 'sidecar'),
+    ENV: () => '', failNote: () => {}, process: { version: process.version },
     require: (m) => { if (/package\.json$/.test(m)) return { version: '0.0.0' }; throw noGitErr(); },
     Date: { now: () => clock.t }
   };
   vm.createContext(sandbox);
   vm.runInContext(program, sandbox);
-  return { fn: sandbox.computeVersionSurface, calls };
+  return { fn: sandbox.computeVersionSurface, sync, async: async_, budget: sandbox.SYNC_BUDGET, t0: clock.t };
 }
 
-// V5 + V1
-{
-  const clock = { t: 1e6 };
-  const { fn, calls } = load(cmd => cmd === 'git rev-parse HEAD' ? SHA : 'v0.9.0-4-gabc1234-dirty', clock);
-  const v = fn();
-  A.eq(v.harnessSource, 'git', 'happy path: git');
-  A.eq(v.harness, 'v0.9.0-4-gabc1234-dirty', 'harness is the --dirty describe');
-  A.eq(v.buildDirty, true, 'buildDirty from the -dirty suffix');
-  A.eq(v.buildSha, SHA, 'buildSha from rev-parse HEAD');
-  A.eq(calls[0].cmd, 'git describe --always --dirty --tags', 'asks --dirty first');
-  A.ok(calls[0].timeout >= 10000, 'with a 10s budget, not 2s (got ' + calls[0].timeout + ')');
-  A.eq(calls.length, 2, 'one describe + one rev-parse');
-  fn();
-  A.eq(calls.length, 2, 'and the git answer is cached');
+// V1: checked on every scenario's synchronous calls. The worst case is every call running to its own timeout, so
+// each call's deadline (when it started + the timeout it was given) must fall inside the budget from the first call.
+function syncBounded(h, label) {
+  const worst = Math.max(0, ...h.sync.map(c => c.at + c.timeout - h.t0));
+  A.ok(h.budget > 0 && h.budget <= 4000, label + ': the sync budget is no worse than the old 2s + 2s (' + h.budget + 'ms)');
+  A.ok(worst <= h.budget, label + ': all synchronous git work fits the sync budget (worst case ' + worst + 'ms of ' + h.budget + 'ms)');
+  A.ok(h.sync.every(c => c.timeout > 0), label + ': every synchronous probe gets a positive timeout');
+  const dirty = h.sync.find(c => /--dirty/.test(c.cmd));
+  if (dirty) A.ok(dirty.timeout < h.budget, label + ': --dirty never gets the whole budget (' + dirty.timeout + 'ms)');
 }
 
-// V2
-{
-  const clock = { t: 1e6 };
-  const { fn, calls } = load(cmd => cmd === 'git describe --always --dirty --tags' ? timeoutErr()
-    : cmd === 'git rev-parse HEAD' ? SHA : 'v0.9.0-4-gabc1234', clock);
-  const v = fn();
-  A.eq(v.harnessSource, 'git', '--dirty timing out still resolves via git');
-  A.eq(v.harness, 'v0.9.0-4-gabc1234', 'from describe --always --tags');
-  A.eq(calls[1].cmd, 'git describe --always --tags', 'second probe');
-  A.eq(v.buildDirty, null, 'buildDirty is unknown, not a claimed clean tree');
-}
-{
-  const clock = { t: 1e6 };
-  const { fn } = load(cmd => /^git describe/.test(cmd) ? noGitErr() : cmd === 'git rev-parse --short HEAD' ? 'abc1234' : SHA, clock);
-  const v = fn();
-  A.eq(v.harness, 'abc1234', 'describe failing entirely falls to rev-parse --short HEAD');
-  A.eq(v.harnessSource, 'git', 'still git');
-}
+(async () => {
+  // V6 + V1
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => cmd === 'git rev-parse HEAD' ? SHA : 'v0.9.0-4-gabc1234-dirty', clock);
+    const v = h.fn();
+    A.eq(v.harnessSource, 'git', 'happy path: git');
+    A.eq(v.harness, 'v0.9.0-4-gabc1234-dirty', 'harness is the --dirty describe');
+    A.eq(v.buildDirty, true, 'buildDirty from the -dirty suffix');
+    A.eq(v.buildSha, SHA, 'buildSha from rev-parse HEAD');
+    A.eq(h.sync[0].cmd, 'git describe --always --dirty --tags', 'asks --dirty first');
+    A.eq(h.sync.length, 2, 'one describe + one rev-parse');
+    syncBounded(h, 'happy path');
+    h.fn(); await flush();
+    A.eq(h.sync.length + h.async.length, 2, 'and the git answer is cached: no more git');
+  }
 
-// V3
-{
-  const clock = { t: 1e6 };
-  let slow = true;
-  const { fn, calls } = load(cmd => slow ? timeoutErr() : cmd === 'git rev-parse HEAD' ? SHA : 'v1.0.0', clock);
-  A.eq(fn().harnessSource, 'pkg', 'every git probe timing out falls to pkg');
-  const n = calls.length;
-  fn();
-  A.eq(calls.length, n, 'within the retry window the answer is served from cache (no git storm)');
-  slow = false; clock.t += 61000;
-  const v = fn();
-  A.eq(v.harnessSource, 'git', 'a timeout-caused pkg is re-asked later and becomes git');
-  A.eq(v.harness, 'v1.0.0', 'with the real describe');
-}
+  // V2 — --dirty HANGS (the clock moves by its whole cap)
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => cmd === 'git describe --always --dirty --tags' ? TIMEOUT
+      : cmd === 'git rev-parse HEAD' ? SHA : 'v0.9.0-4-gabc1234', clock);
+    const v = h.fn();
+    A.eq(v.harnessSource, 'git', 'a hung --dirty still resolves via git');
+    A.eq(v.harness, 'v0.9.0-4-gabc1234', 'from describe --always --tags');
+    A.eq(h.sync[1] && h.sync[1].cmd, 'git describe --always --tags', 'the second probe ran');
+    A.eq(v.buildDirty, null, 'buildDirty is unknown, not a claimed clean tree');
+    syncBounded(h, 'hung --dirty');
+  }
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => /^git describe/.test(cmd) ? TIMEOUT : cmd === 'git rev-parse --short HEAD' ? 'abc1234' : SHA, clock);
+    const v = h.fn();
+    A.eq(v.harness, 'abc1234', 'both describes hanging still leaves time for rev-parse --short HEAD');
+    A.eq(v.harnessSource, 'git', 'still git');
+    syncBounded(h, 'both describes hung');
+  }
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => /^git describe/.test(cmd) ? NOGIT : cmd === 'git rev-parse --short HEAD' ? 'abc1234' : SHA, clock);
+    A.eq(h.fn().harness, 'abc1234', 'describe failing fast falls to rev-parse --short HEAD');
+  }
 
-// V4
-{
-  const clock = { t: 1e6 };
-  const { fn, calls } = load(() => noGitErr(), clock);
-  A.eq(fn().harnessSource, 'pkg', 'no git at all -> pkg');
-  const n = calls.length;
-  clock.t += 3600000;
-  fn();
-  A.eq(calls.length, n, 'a no-git pkg answer is cached for good');
-}
+  // V3 — every sync probe hangs; git comes back in the background
+  {
+    const clock = { t: 1e6 };
+    let slow = true;
+    const h = load(cmd => slow ? TIMEOUT : cmd === 'git rev-parse HEAD' ? SHA : 'v1.0.0', clock);
+    A.eq(h.fn().harnessSource, 'pkg', 'every git probe timing out falls to pkg');
+    syncBounded(h, 'all hung');
+    const nSync = h.sync.length;
+    A.ok(h.async.length >= 1, 'a timeout-caused pkg is re-asked in the background at once');
+    slow = false;
+    await flush();
+    const v = h.fn();
+    A.eq(v.harnessSource, 'git', 'the background answer turns the cache into git');
+    A.eq(v.harness, 'v1.0.0', 'with the real describe');
+    A.eq(v.buildSha, SHA, 'and the full sha');
+    clock.t += 3600000; h.fn(); await flush();
+    A.eq(h.sync.length, nSync, 'git never runs synchronously after the first answer');
+  }
 
-A.report('version-source.test');
+  // V4 — the background re-ask backs off while git stays slow
+  {
+    const clock = { t: 1e6 };
+    const h = load(() => TIMEOUT, clock);
+    h.fn(); await flush();
+    const nSync = h.sync.length, first = h.async.length;
+    A.ok(first >= 1, 'first background re-ask ran');
+    clock.t += 30000; h.fn(); await flush();
+    A.eq(h.async.length, first, 'no re-ask inside the first 60s');
+    clock.t += 31000; h.fn(); await flush();
+    const second = h.async.length;
+    A.ok(second > first, 'a re-ask after 60s');
+    clock.t += 120000; h.fn(); await flush();
+    A.eq(h.async.length, second, 'then it backs off: none 2 minutes later');
+    clock.t += 300000; h.fn(); await flush();
+    A.ok(h.async.length > second, 'and re-asks once 5 minutes have passed');
+    A.eq(h.sync.length, nSync, 'none of it on the synchronous path');
+  }
+
+  // V5
+  {
+    const clock = { t: 1e6 };
+    const h = load(() => NOGIT, clock);
+    A.eq(h.fn().harnessSource, 'pkg', 'no git at all -> pkg');
+    const n = h.sync.length;
+    clock.t += 3600000;
+    h.fn(); await flush();
+    A.eq(h.sync.length, n, 'a no-git pkg answer is cached for good');
+    A.eq(h.async.length, 0, 'and never re-asked in the background');
+  }
+
+  A.report('version-source.test');
+})().catch(e => { console.log('FAIL: version-source.test threw -- ' + (e && e.stack || e)); process.exit(1); });
