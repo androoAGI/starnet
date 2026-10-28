@@ -909,6 +909,7 @@
       + 5000;
     const searchTool = {
       name: 'web_search', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
+      resultScrub: false,   // external content, not a station store (registry.js resultScrubFor; review r3)
       description: 'Search the web and get a list of results (title, url, snippet). Use this to find current information and pages to read. ' +
         'If every engine is throttled the result says so — that is temporary web weather, not a malfunction; change strategy instead of repeating the search.',
       schema: { type: 'object', required: ['query'], properties: { query: { type: 'string' } } },
@@ -952,6 +953,9 @@
 
     const fetchTool = {
       name: 'web_fetch', capability: 'web', scope: 'read', requiresConsent: false,
+      // a page's own text, not a station store: the registry's stored-text scrub turned a Firebase web apiKey or a docs
+      // example the task had to copy into [redacted-…] (registry.js resultScrubFor; review r3)
+      resultScrub: false,
       timeoutMs: FETCH_TIMEOUT_MS + 20000 + (reader ? 45000 : 0),   // the reader rung needs Chrome boot + nav + settle
       description: 'Fetch a web page by URL and return its main text content (cleaned). Use after web_search to read a result. ' +
         'Bot-blocked and JavaScript-only pages are automatically retried through the station\'s own browser, so one call is enough. ' +

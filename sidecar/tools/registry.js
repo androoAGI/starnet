@@ -149,7 +149,12 @@
      A HOST tool can also opt out by name (tool.resultScrub === false, review r3): one whose result holds no stored text
      at all — keys.save names only public vendor heads ("sk-p…") and the saved key's NAME, and the masked-key rule read
      each head as a key, so its refusal told the model to pick a key by its first characters while showing none. The
-     default stays fail-closed: a tool scrubs unless it says otherwise, and a connector registration cannot opt out. */
+     default stays fail-closed: a tool scrubs unless it says otherwise, and a connector registration cannot opt out.
+     EXTERNAL CONTENT opts out too, the same call as mcp:*: web_fetch, web_search and the browser's page readers and
+     actions (text, snapshot, eval, console, network) return a third party's page, not a station store, and a task that
+     copies a Firebase web apiKey or a docs example from it got [redacted-…] instead. web_request keeps the scrub (it
+     redacted its own output at base too). A credential the station HOLDS is still scrubbed out of every request at the
+     provider boundary (prompt-scrub guardRequest), whatever tool result carried it. */
   let resultScrub = null;
   function attachResultScrub(fn) { resultScrub = typeof fn === 'function' ? fn : null; return resultScrub; }
   const WORKSPACE_CAPS = new Set(['cabinet', 'workbench', 'apps', 'pluginauthor', 'code', 'compute', 'physical-input', 'visible-desktop']);

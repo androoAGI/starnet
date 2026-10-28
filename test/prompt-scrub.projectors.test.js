@@ -461,6 +461,34 @@ const SEED = {
     } finally { attachResultScrub(null); }
   }
 
+  // ---- P11d (review r3): EXTERNAL CONTENT is not a station store. web_fetch / web_search and the browser's page tools opt
+  //      out of the registry scrub (a Firebase web apiKey, a docs example, are the task's material); a credential the
+  //      station HOLDS is still taken out of the request at the provider boundary. ----
+  {
+    const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+    const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+    const { makeBrowserTools } = require('../sidecar/tools/builtin/browser.js');
+    const D = '$';
+    const firebase = 'AIza' + 'SyFAKE' + K.GOOGLE.value.slice(10, 39);
+    const page = '<html><body><main><h1>Setup</h1><pre>const firebaseConfig = { apiKey: "' + firebase + '", authDomain: "demo-app.firebaseapp.com" };\n'
+      + 'curl https://api.example.com/v1 -H "Authorization: Bearer ' + D + 'EXAMPLE_API_KEY"\nleaked: ' + K.VAULT.value + '</pre></main></body></html>';
+    const reg = makeRegistry();
+    makeWebTools({ fetchImpl: async () => new Response(page, { status: 200, headers: { 'content-type': 'text/html' } }), lookup: null, politeWait: async () => {}, politeMinGapMs: 0 }).register(reg);
+    makeBrowserTools({ session: {} }).register(reg);
+    A.eq(['web_fetch', 'web_search', 'web_request'].map(n => reg.get(n).resultScrub), [false, false, true], 'P11d: web_fetch and web_search opt out; web_request keeps the scrub');
+    const pageTools = reg.list().filter(t => t.impact === 'synthetic-browser' && t.capability === 'web');
+    const scrubbed = pageTools.filter(t => t.resultScrub !== false).map(t => t.name);
+    A.ok(pageTools.length > 20 && scrubbed.every(n => n === 'browser.login' || n === 'browser.need_human') && reg.get('browser.get_text') && reg.get('browser.get_text').resultScrub === false,
+      'P11d: every browser page tool opts out (' + pageTools.length + '; still scrubbed: ' + scrubbed.join(', ') + ')');
+    attachResultScrub(PS.scrubStored);
+    let r;
+    try { r = await reg.dispatch({ id: 'w1', name: 'web_fetch', args: { url: 'https://docs.example.com/setup' } }, {}); } finally { attachResultScrub(null); }
+    A.ok(r.ok && r.content.indexOf('apiKey: "' + firebase + '"') >= 0 && r.content.indexOf('Bearer ' + D + 'EXAMPLE_API_KEY') >= 0, 'P11d: the fetched page reaches the run as the page said it: ' + r.content.slice(0, 260));
+    const req = PS.scrubRequest({ messages: [{ role: 'tool', tool_call_id: 'w1', content: r.content }] }, PS.currentHeld());
+    A.ok(r.content.indexOf(K.VAULT.value) >= 0 && req.messages[0].content.indexOf(K.VAULT.value) < 0 && req.messages[0].content.indexOf(firebase) >= 0,
+      'P11d: a HELD credential on the page is still taken out at the provider boundary (L3); the public config stays');
+  }
+
   // ---- P12: an INTERNAL run's page-composed directive quotes stored beliefs/goals: scrubbed at runOnceCore's intake ----
   {
     const AutoJobs = require('../frontend/app/autojobs.js');
