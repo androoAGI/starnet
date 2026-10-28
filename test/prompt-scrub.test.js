@@ -18,6 +18,8 @@
      6. the held list is the station's CREDENTIALS (secret-values credentialUnder): a connector's NODE_ENV=production,
         Content-Type: application/json, an email or a project id is never cut out of the Commander's words
      7. the head rule is linear: a 30 000-char '...' run with a held key scrubs in milliseconds (it was seconds)
+     7b. (review r3) the vendor-cut pass is linear too ('ask-ask-…!', ' SG.SG.…!', eyJ_ chains: 2.2 s for 64 KB, an 11 s
+        frozen event loop through the registry seam) and returns exactly what its plain global scan returns (fuzz)
    Fake keys only (test/helpers/fake-keys.js builds them at runtime from a seed). */
 'use strict';
 const A = require('./_assert.js');
@@ -378,5 +380,51 @@ context.setKnownSecretSource(null);
   A.ok(worst < 100, 'a 30 000-char run of cut points with a held key scrubs in < 100 ms (' + worst.toFixed(1) + ' ms)');
 }
 
-PS.setHeldSource(null);
-A.report('prompt-scrub.test');
+// ---- 7b. (review r3) the VENDOR-CUT pass is linear and returns exactly what its plain global scan returns ----
+(async () => {
+  PS.setHeldSource(null);
+  const { vendorCuts, vendorCutsPlain } = PS._internals;
+  let seed = 0x5eed3;
+  const rnd = n => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) % n; };
+  const pick = a => a[rnd(a.length)];
+  const make = (pieces, max) => { let s = ''; const n = 1 + rnd(max); for (let i = 0; i < n; i++) s += pick(pieces); return s; };
+  const PIECES = ['sk-', 'sk-', 'ask-', 'task-', 'sk_live_', 'sk_test_', 'AIza', 'ya29.', 'ghp_', 'gho_', 'github_pat_', 'glpat-', 'xoxb-', 'xapp-1-', 'syt_', 'gsk_', 'pplx-',
+    'ntn_', 'lin_api_', 'SG.', 'SG.', 'whk_', 'hf_', 'xai-', 'eyJ', 'eyJ', 'AKIA', 'ASIA', '12345678:', '1234567890:', '20261028:',
+    'a', 'Z', '9', 'Ab3', 'xY7q', 'Qm9fQ2mZ', 'abcdefgh', 'ABCD1234', '-', '_', '.', '..', '...', '....', '…', '"', '\\"', '\\n', '\\r', '\\t',
+    ' ', '  ', '\t', '\n', '\r\n', '!', 'é', '%3D', '\\u0041', '=3D', ':', '=', '/', ',', 'x'];
+  let bad = 0, hits = 0, n = 0;
+  const check = (s, why) => {
+    n++;
+    const want = vendorCutsPlain(s), got = vendorCuts(s);
+    if (want !== s) hits++;
+    if (got !== want) { bad++; if (bad <= 6) A.eq(got, want, 'r3: the vendor-cut driver differs from the plain scan on ' + JSON.stringify(s) + ' (' + why + ')'); }
+  };
+  for (let i = 0; i < 30000; i++) check(make(PIECES, 30), 'random #' + i);
+  for (let i = 0; i < 600; i++) { const unit = make(PIECES, 4), filler = unit.repeat(1 + rnd(60)); check(filler + make(PIECES, 12) + filler.slice(rnd(filler.length + 1)), 'dense #' + i); }
+  A.eq(bad, 0, 'r3: the vendor-cut driver matches the plain scan on all ' + n + ' inputs (' + hits + ' it changed)');
+  A.ok(hits > 2000, 'r3: the fuzz really exercised cuts (' + hits + ')');
+  // the review's crafted chains: 2.2 s for 64 KB through the plain scan; now linear
+  const time = (fn) => { const t0 = process.hrtime.bigint(); fn(); return Number(process.hrtime.bigint() - t0) / 1e6; };
+  const chains = { 'ask-': n => 'ask-'.repeat(n) + '!', ' SG.': n => ' SG.'.repeat(n) + '!', 'eyJ_': n => ' eyJ' + '_eyJ'.repeat(n) + '!', 'x-sk-': n => 'x-sk-'.repeat(n) + '!',
+    'Telegram': n => ' ' + '1234567890:'.repeat(n) + '!', 'SG...': n => ' SG.' + 'Ab3...'.repeat(n) + '!' };
+  for (const [label, build] of Object.entries(chains)) {
+    const small = build(4000), big = build(64000);
+    const ts = Math.min(time(() => PS.scrubStored(small)), time(() => PS.scrubStored(small))), tb = Math.min(time(() => PS.scrubStored(big)), time(() => PS.scrubStored(big)));
+    A.ok(tb < 250, 'r3: a ' + big.length + '-char "' + label + '" chain scrubs in < 250 ms (' + tb.toFixed(1) + ' ms)');
+    A.ok(tb < Math.max(40, ts * 40), 'r3: …and 16x the input costs < 40x the time (' + ts.toFixed(1) + ' -> ' + tb.toFixed(1) + ' ms): linear, not quadratic');
+  }
+  // through the registry seam boot wires (attachResultScrub(scrubStored)) on a 128 KB tool result, before its clamp
+  const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+  const reg = makeRegistry();
+  const crafted = '{"comment":"' + 'ask-'.repeat(32000) + '!"}';
+  reg.register({ name: 'station.crafted', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: crafted }) });
+  attachResultScrub(PS.scrubStored);
+  try {
+    const t0 = Date.now();
+    const r = await reg.dispatch({ id: 'c1', name: 'station.crafted', args: {} }, {});
+    const ms = Date.now() - t0;
+    A.ok(r.ok && ms < 1000, 'r3: a 128 KB crafted result dispatches through the scrub in < 1 s (' + ms + ' ms; the plain scan blocked the loop for 11 s)');
+  } finally { attachResultScrub(null); }
+  PS.setHeldSource(null);
+  A.report('prompt-scrub.test');
+})().catch(e => { console.error(e); process.exit(1); });

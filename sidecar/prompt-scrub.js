@@ -197,10 +197,25 @@ const VENDOR_CUT_SOURCES = [
   ['\\d{8,10}:', '[A-Za-z0-9_\\-]', 8],         // Telegram bot token (8+: a compact 'yyyymmdd:hhmm' stays a time)
   ['sk-', '[A-Za-z0-9_\\-]', 4, 'glued']        // the generic sk- key glued to a word (see START)
 ];
+/* Each rule is ONE regex, `re` (prefix, start condition, body run, cut point). vendorCuts does not run it as a global scan
+   (review r3): three body classes hold their own prefix's chars ('sk-' glued after a vowel, 'SG.', 'eyJ' with '.' / '_'),
+   so on a chain with no cut point ('ask-ask-…!', ' SG.SG.…!') every prefix inside the run scanned to the run's end and
+   backtracked through it — quadratic, 2.2 s for 64 KB, on a tool result the registry scrubs before its clamp (one result
+   froze the event loop, E-STOP included). The driver below returns exactly what the scan returns (vendorCutsPlain, kept
+   for the equivalence test) in linear time: `head` finds a prefix where its start condition holds, `run` measures the
+   body run once, and the body ends at the LAST cut point in reach — the run's end, or (a class holding '.') the last
+   '...' inside it — as the greedy regex's backtracking would choose. A prefix inside a run that already failed fails
+   the same way (same run end, fewer chars), so the search resumes PLEN chars before the run's end (a prefix holding a
+   char outside the class can start there and cross it), never at the next prefix inside the run. */
+const PLEN = 12;   // longer than any prefix here ('\d{8,10}:' is 11)
 const VENDOR_CUTS = VENDOR_CUT_SOURCES.map(([p, cls, min, mode]) => ({
   re: new RegExp('(' + p + ')' + START(p, mode === 'glued') + '(' + cls + '{' + (min || 4) + ',})' + CUT_AHEAD, 'gm'),
+  head: new RegExp('(?:' + p + ')' + START(p, mode === 'glued'), 'gm'),
+  run: new RegExp(cls + '*', 'y'),
+  dots: new RegExp(cls).test('.'),
   min: min || 4, mode: mode || ''
 }));
+const CUT_AT = new RegExp(CUT_AHEAD, 'ym');
 // a cut body that looks random, not like a word: a digit, or upper- AND lower-case letters past its first char
 // ('digit': a digit is required; 'glued': a digit AND both cases, or at 16+ chars GLUED_LONG — see START)
 const GLUED_LONG = /^(?:[A-Za-z0-9_]{16}|(?:svcacct|admin|None|proj|lf)-[A-Za-z0-9_\-]*?(?:[0-9]|[A-Za-z0-9_][A-Z])|[A-Za-z0-9_\-]*?[a-z][A-Z][A-Za-z0-9_\-]*?[a-z][A-Z])/;
@@ -211,21 +226,47 @@ function randomish(body, mode) {
   return mode !== 'digit' && mixed;
 }
 const VENDOR_HINT = /sk[-_]|AIza|ya29|gh[pousr]_|github_pat_|glpat-|xox|xapp-|syt_|gsk_|pplx-|ntn_|lin_api_|SG\.|whk_|hf_|xai-|eyJ|A[KSGIRN][A-Z]A|\d{8}:/;
-function vendorCuts(s) {
+// one match of a rule (its prefix at `at`, `plen` chars, the body up to `end`) -> a hit when the body reads as a cut key
+function cutHit(s, v, at, plen, end, hits) {
+  let body = s.slice(at + plen, end);
+  const dots = /\.{3,}$/.exec(body);           // a class holding '.' (SG., eyJ) swallowed the ellipsis: give it back
+  if (dots) body = body.slice(0, dots.index);
+  const len = plen + body.length;
+  if (body.length >= v.min && len >= CUT_MIN && randomish(body, v.mode)) hits.push([at, at + len]);
+}
+// the linear driver (see VENDOR_CUTS): every match the global scan of v.re finds, in order
+function ruleCuts(s, v, hits) {
+  const head = v.head, run = v.run;
+  head.lastIndex = 0;
+  let m;
+  while ((m = head.exec(s))) {
+    const at = m.index, b = at + m[0].length;
+    run.lastIndex = b;
+    run.exec(s);
+    const r = run.lastIndex;
+    let end = -1;
+    if (r - b >= v.min) {
+      CUT_AT.lastIndex = r;
+      if (CUT_AT.test(s)) end = r;
+      else if (v.dots) for (let i = r - 3; i >= b + v.min; i--) if (s.charCodeAt(i) === 46 && s.charCodeAt(i + 1) === 46 && s.charCodeAt(i + 2) === 46) { end = i; break; }
+    }
+    if (end >= 0) { cutHit(s, v, at, m[0].length, end, hits); head.lastIndex = end; }
+    else head.lastIndex = Math.max(at + 1, r - PLEN);
+  }
+}
+// the plain global scan the driver replaces (the reference for test/prompt-scrub.test.js's equivalence fuzz)
+function ruleCutsPlain(s, v, hits) {
+  v.re.lastIndex = 0;
+  let m;
+  while ((m = v.re.exec(s))) {
+    cutHit(s, v, m.index, m[1].length, m.index + m[0].length, hits);
+    if (m[0].length === 0) v.re.lastIndex++;
+  }
+}
+function vendorCuts(s, plain) {
   if (!VENDOR_HINT.test(s)) return s;
   const hits = [];
-  for (const v of VENDOR_CUTS) {
-    v.re.lastIndex = 0;
-    let m;
-    while ((m = v.re.exec(s))) {
-      let body = m[2];
-      const dots = /\.{3,}$/.exec(body);           // a class holding '.' (SG., eyJ) swallowed the ellipsis: give it back
-      if (dots) body = body.slice(0, dots.index);
-      const len = m[1].length + body.length;
-      if (body.length >= v.min && len >= CUT_MIN && randomish(body, v.mode)) hits.push([m.index, m.index + len]);
-      if (m[0].length === 0) v.re.lastIndex++;
-    }
-  }
+  for (const v of VENDOR_CUTS) (plain ? ruleCutsPlain : ruleCuts)(s, v, hits);
   if (!hits.length) return s;
   hits.sort((a, b) => b[0] - a[0]);
   let out = s, lastStart = Infinity;
@@ -466,4 +507,5 @@ function guardRequest(provider) {
   });
 }
 
-module.exports = { setHeldSource, currentHeld, withHeld, scrubStored, scrubHeld, scrubDeep, scrubStoredMessages, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN };
+module.exports = { setHeldSource, currentHeld, withHeld, scrubStored, scrubHeld, scrubDeep, scrubStoredMessages, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN,
+  _internals: { vendorCuts: s => vendorCuts(s), vendorCutsPlain: s => vendorCuts(s, true) } };
