@@ -5,8 +5,7 @@
    (ledger.js makeAuxMeter) and the family invariant over sidecar/index.js: no aux booking is gated on dollars, every aux
    row is tagged, and the run counters count runs, not aux rows. Source pins only for index.js: requiring it boots a sidecar. */
 'use strict';
-const fs = require('fs');
-const path = require('path');
+const { readSidecarIndex } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeLedger, makeAuxMeter } = require('../sidecar/ledger.js');
 
@@ -120,7 +119,9 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
 
   // ---- the family invariant over the composition root ----
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    // index.js alone, on purpose (through the source helper: test/source-helper.test.js H5): the whole sidecar would
+    // also scan the process ledgers (procledger, shellbg, lsp, mcp, browser), whose ledger.record( is not a spend row
+    const src = readSidecarIndex();
     const body = name => { const at = src.indexOf('async function ' + name + '('); return at < 0 ? '' : src.slice(at, src.indexOf('\n}\n', at)); };
     const passes = [['runReflection', 'reflection'], ['runFailureReview', 'failure-review'], ['runStudy', 'study'], ['runThreadMine', 'threadmine'],
       ['runScoutCycle', 'scout'], ['runQuestRefreshCycle', 'quest-refresh'], ['hybridVectors', 'embed']];
