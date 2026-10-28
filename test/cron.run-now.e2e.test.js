@@ -198,7 +198,7 @@ async function readNdjson(res) {
     A.ok(mock.requests.length >= 1, 'mock provider was called');
 
     await sse.waitFor(events => events.some(e => e.name === 'workitem.placed' && e.payload && e.payload.agentId === 'research-agent' && e.payload.kind === 'cron'), 5000, 'cron workitem');
-    await sse.waitFor(events => events.some(e => e.name === 'agent.run.start' && e.payload && e.payload.agentId === 'research-agent' && e.payload.trigger === 'schedule'), 5000, 'SSE run start');
+    await sse.waitFor(events => events.some(e => e.name === 'agent.run.start' && e.payload && e.payload.agentId === 'research-agent' && e.payload.trigger === 'manual'), 5000, 'SSE run start (Run Now says it was pressed: trigger manual)');
     await sse.waitFor(events => events.some(e => e.name === 'agent.run.end' && e.payload && e.payload.agentId === 'research-agent'), 5000, 'SSE run end');
 
     /* RUN NOW MUST FIRE THE WHOLE WORK LINE, exactly like the scheduled fire. This route calls runOnce

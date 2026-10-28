@@ -33,7 +33,7 @@ function sourceOf(run) {
   if (/^cli-/.test(String(r.streamId || ''))) return 'terminal';
   if (r.lineId || r.dockId) return 'flow';
   const t = String(r.trigger || ''), s = String(r.surface || r.source || '');
-  if (t === 'schedule' || t === 'loop') return 'routine';
+  if (t === 'schedule' || t === 'manual' || t === 'loop') return 'routine';   // 'manual': a routine's Run Now
   if (t === 'nightshift' || s === 'nightshift') return 'autonomy';
   if (s === 'interactive' || t === 'directive') return 'desktop';
   if (t === 'event') return 'trigger';

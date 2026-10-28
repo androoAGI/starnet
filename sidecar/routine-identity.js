@@ -10,7 +10,11 @@
    One definition each, so the two paths cannot drift again.
 
      routineRunIdentity(job, firedAt) -> { cronJobId, cronJobName, recipeId?, idempotencyScope }
-     runsAsCommand(promptText, script) -> bool */
+     runsAsCommand(promptText, script) -> bool
+     isRoutineTrigger(trigger) -> bool — a run the routine fired: 'schedule' (the clock) or 'manual' (Run Now, pressed by hand).
+       Run Now labels its runs 'manual' (agent.run.start, the run row) but runs the scheduled fire's real unattended path, so
+       every routine-only rule (routine.notepad, the widget publish grant, the images refusal hint, the routine history row)
+       asks this, never trigger === 'schedule'. */
 'use strict';
 
 function routineRunIdentity(job, firedAt) {
@@ -32,4 +36,8 @@ function runsAsCommand(promptText, script) {
   return String(promptText == null ? '' : promptText).charAt(0) === '/' && !script;
 }
 
-module.exports = { routineRunIdentity, runsAsCommand };
+function isRoutineTrigger(trigger) {
+  return trigger === 'schedule' || trigger === 'manual';
+}
+
+module.exports = { routineRunIdentity, runsAsCommand, isRoutineTrigger };

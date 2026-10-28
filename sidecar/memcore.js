@@ -65,7 +65,7 @@
     if (src === 'api') return 'api';                 // the local OpenAI-compatible endpoint
     if (src) return 'channel:' + src.slice(0, ORIGIN_MAX);   // telegram / discord / … — the channel names itself
     if (trigger === 'nightshift') return 'nightshift';
-    if (trigger === 'schedule') return 'schedule';   // cron fire, Run Now, and the away-workshop shift
+    if (trigger === 'schedule' || trigger === 'manual') return 'schedule';   // cron fire, Run Now ('manual': pressed by hand), and the away-workshop shift
     return 'commander';
   }
 

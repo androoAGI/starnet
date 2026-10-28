@@ -298,7 +298,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
-const { routineRunIdentity, runsAsCommand } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
+const { routineRunIdentity, runsAsCommand, isRoutineTrigger } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
 const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
 const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
@@ -17246,7 +17246,8 @@ function cronPreviewOf(scheduleStr, tzIn) {
 
 /* POST /api/cron/run — run a routine NOW, streamed as NDJSON exactly like /api/run (strictly better than the reference harness,
    whose `cron run` only nudges next_run_at). The manual fire uses the SAME autonomous posture the scheduled fire
-   will (surface:'autonomous', trigger:'schedule') so "test it now" exercises the real unattended path, and it
+   will (surface:'autonomous'; trigger 'manual', which every routine rule reads as a routine run — isRoutineTrigger) so
+   "test it now" exercises the real unattended path while its run says it was pressed, not clocked, and it
    records the outcome into the job's last-run record + emits cron.fire/cron.result to the HUD. body: { id } */
 async function handleCronRun(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
@@ -17316,7 +17317,7 @@ async function handleCronRun(req, res) {
     const emitC = wrapEmitDiag(makeEmitter(busC, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
     try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: firedAt }); } catch (_) {}
     let out;
-    try { out = await runSlashRoutine(assembledPrompt, { agentId: job.agentId, runId: runIdC, emit: emitC }); }
+    try { out = await runSlashRoutine(assembledPrompt, { agentId: job.agentId, runId: runIdC, emit: emitC, trigger: 'manual' }); }
     catch (e) { out = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
     cronDriver.settleRun(job.id, runIdC, { reason: out.ok ? 'done' : 'error', errMsg: out.ok ? null : out.text, buf: out.text || '' }, null);
     lines.end();
@@ -17385,7 +17386,9 @@ async function handleCronRun(req, res) {
       // under the SAME per-run stream so the frontend cron-session (autosessions.js), which forms off the
       // identical cron.fire/cron.result events, can fetch the real output via /api/transcript?stream=cron-<runId>.
       // Per-run id keeps the seed empty (index.js reconstructs a stream only when messages<=1) — no behavior drift.
-      runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: true,
+      // trigger 'manual': the Commander pressed it (the contract's word for Run Now) — every routine rule still applies
+      // (isRoutineTrigger: routine.notepad, the widget grant, the history row), so this IS the unattended path, labelled true
+      runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'manual', provider: provider, broadcast: true,
       // the routine identity the scheduled fire carries (cron-driver.js, one helper: routine-identity.js): its run-history row and
       // routine.notepad key off cronJobId; recipeId keeps a recipe routine's provenance; the idempotency scope (job + this press's
       // fire time) keeps a retried/resumed Run Now from re-sending a connector write it already made (quick win 31)
@@ -17480,7 +17483,7 @@ async function handleCronRun(req, res) {
                 ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
                 resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
-                surface: 'autonomous', trigger: 'schedule', broadcast: true, reflect: true,
+                surface: 'autonomous', trigger: 'manual', broadcast: true, reflect: true,   // a hop of a line Run Now started
                 station: router.stationFor(h.agentId, h.dockId) || undefined,   // the hop's OWN bay room (multi-bay)
                 lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || undefined,   // LINE WATCH: the hop's line + bay on its run row (+ its crate on run.start)
                 /* GRANTS NEVER FLOW DOWN A LINE (2026-08-04): the unattended grant was approved for the
@@ -20029,7 +20032,8 @@ async function runSlashRoutine(line, opts) {
   const agentId = String(opts.agentId || 'agent');
   const runId = String(opts.runId || '');
   const emit = (typeof opts.emit === 'function') ? opts.emit : () => {};
-  try { emit('agent.run.start', { agentId: agentId, runId: runId, trigger: 'schedule', model: '' }); } catch (_) {}
+  // Run Now presses this by hand (trigger 'manual'); the scheduled wrapper's opts carry 'schedule'
+  try { emit('agent.run.start', { agentId: agentId, runId: runId, trigger: opts.trigger === 'manual' ? 'manual' : 'schedule', model: '' }); } catch (_) {}
   let r;
   try { r = await runSlashForChannel(line, { agentId: agentId }); }
   catch (e) { r = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
@@ -22703,7 +22707,7 @@ async function runOnceCore(o) {
      read and publish ITS OWN widget only (widgetScope on the tool ctx below; widgets.js refuses any other id). */
   let widgetScope = '';
   {
-    const widgetJob = (trigger === 'schedule' && o.cronJobId) ? cronJobs.find(j => j && j.id === String(o.cronJobId)) : null;
+    const widgetJob = (isRoutineTrigger(trigger) && o.cronJobId) ? cronJobs.find(j => j && j.id === String(o.cronJobId)) : null;
     widgetScope = widgetTools.updateRunOf({ streamId: o.streamId, widgetId: widgetJob && widgetJob.meta && widgetJob.meta.widgetId }) || '';
     if (widgetScope) {
       const grants = (CAP_REGISTRY.notebook || []).filter(g => g && /^widget\./.test(g.tool));
@@ -22723,7 +22727,7 @@ async function runOnceCore(o) {
     const kept = new Set(resolved.tools);
     const stripped = enforceEnabledToolsets({ tools: preAuthorityTools.filter(n => !kept.has(n)) }, registry, unrestrictedHostNow() ? null : o.enabledToolsets).tools;
     resolved.withheld = withheldCommandTools(stripped, { impactOf: n => impactOfTool(registry.get(n)),
-      opts: { delegatedBy: o.delegatedBy || '', routine: surface === 'autonomous' && trigger === 'schedule' } });
+      opts: { delegatedBy: o.delegatedBy || '', routine: surface === 'autonomous' && isRoutineTrigger(trigger) } });
   } catch (e) { failNote('tools.withheld', e); resolved.withheld = {}; }
   const agentModelBlocker = ImageTask.agentModelBlocker(providerId, model);
   if (agentModelBlocker) {
@@ -22842,7 +22846,7 @@ async function runOnceCore(o) {
         spotifyConnected,
         ptyRuntime: terminalSessions.available(),                  // node-pty loads once at boot
         // the SAME predicate capCtx.cronJobId is minted from below; routine.notepad refuses without it
-        routineRun: !!(surface === 'autonomous' && trigger === 'schedule' && String(o.cronJobId || ''))
+        routineRun: !!(surface === 'autonomous' && isRoutineTrigger(trigger) && String(o.cronJobId || ''))
       }, granted);
     }
     const extra = connectorDeferral.deferred.concat(Object.keys(unavailable.byTool), crewless ? CrewDiet.CREW_KIT_DEFERRED : []);
@@ -22923,7 +22927,7 @@ async function runOnceCore(o) {
     // the refusal names the switch that exists, so the model stops inventing one ("pre-authorize image generation on
     // this routine"). Only a routine's own run gets it; every other autonomous caller keeps the plain refusal.
     studioRefusal: () => {
-      if (askedBy.getStore() || !(trigger === 'schedule' && String(o.cronJobId || ''))) return null;
+      if (askedBy.getStore() || !(isRoutineTrigger(trigger) && String(o.cronJobId || ''))) return null;
       if (unattendedGrants.indexOf('studio') >= 0 && execution.taintedBy()) {
         return 'this routine may make images, but that was switched off for the rest of THIS run because it read content from outside StarNet (' +
           String(execution.taintedBy()).slice(0, 120) + '). No image was made. Do NOT retry it; finish without the picture.';
@@ -22958,7 +22962,7 @@ async function runOnceCore(o) {
     emit, consent, summon, timeoutMs: CAPS.toolTimeoutMs, runId, streamId, signal: signal, ownerTrusted, commanderWords,
     // Host-minted routine identity for routine.notepad. Interactive/model-authored runs cannot name another
     // job: only the autonomous schedule path receives this context field.
-    cronJobId: (surface === 'autonomous' && trigger === 'schedule') ? String(o.cronJobId || '') : '',
+    cronJobId: (surface === 'autonomous' && isRoutineTrigger(trigger)) ? String(o.cronJobId || '') : '',
     // Host-minted: a widget's own update run (its conversation or routine) reads and publishes that widget id only.
     widgetScope,
     // tool.search explains what the direct-domain policy keeps off this run (resolved.deferred already excludes it)
@@ -24635,8 +24639,8 @@ async function runOnceCore(o) {
         provider: activeProviderId, surface, parentRunId: o.parentRunId || '',   // additive: lets an interrupted-run history row name them truthfully
         recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '',
         userTitle: o.syntheticTrigger ? '' : latestUserText(msgs), startedAt: Date.now(),
-        cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '',
-        cronJobName: trigger === 'schedule' ? String(o.cronJobName || '').slice(0, 200) : '',
+        cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '',
+        cronJobName: isRoutineTrigger(trigger) ? String(o.cronJobName || '').slice(0, 200) : '',
         initialTaint: execution.taintedBy() || '',   // additive: a continuation of this run restores it (replayedTaint)
         untrustedEntry: untrustedEntryRun === true,   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
         idempotencyScope: idempotencyScope || ''   // additive: a continuation dedupes connector writes under the SAME work item (consumeRunRecoveryContinuation)
@@ -25038,7 +25042,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -28953,7 +28957,7 @@ function syncInterruptedRunHistory(r) {
   const endedAt = Math.max(startedAt, Number(r.lastTs || 0) || 0);   // the last durable journal record = last proof of life
   // A ROUTINE RUN THAT DIED BETWEEN FIRE AND SETTLEMENT (sweep/autonomy 2026-10-20): the row carries the journal's
   // cronJobId so the routine's own history lists it, and the routine record stops reporting the previous run's ok.
-  const cronJobId = String(meta.trigger === 'schedule' && meta.cronJobId || '').slice(0, 100);
+  const cronJobId = String(isRoutineTrigger(meta.trigger) && meta.cronJobId || '').slice(0, 100);
   if (cronJobId) {
     const j = cronStore.getJob(cronJobs, cronJobId);
     if (j && cronStore.markInterrupted([j], cronJobId, { runId: r.runId, startedAt })[0] !== j) {
