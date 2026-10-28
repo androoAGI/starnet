@@ -1445,8 +1445,24 @@ const VoiceLive = (() => {
     return lines.join('\n\n');
   }
 
+  /* THE INSTRUCTIONS LEAVE THE BROWSER FOR THE PROVIDER DIRECTLY (the oai-events data channel), past every sidecar scrub,
+     and they quote STORED text: the agent's composed persona (the Commander's dossier is baked into it) and the session
+     titles. So they go through the station's stored-text prompt rule first (POST /api/prompt/scrub, prompt-scrub on the
+     sidecar, which knows the held keys). If the station cannot scrub them, nothing is sent: the call keeps the generic
+     instructions the sidecar set when it created the call. A newer push supersedes an older one still in flight. */
+  let contextPushSeq = 0;
+  function scrubbedInstructions(text) {
+    return fetch('/api/prompt/scrub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts: [text] }), cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => (j && Array.isArray(j.texts) && typeof j.texts[0] === 'string' ? j.texts[0] : null))
+      .catch(() => null);
+  }
   function pushSessionContext() {
-    return sendEvent({ type: 'session.update', session: { type: 'realtime', instructions: voiceInstructions() } });
+    const seq = ++contextPushSeq;
+    return scrubbedInstructions(voiceInstructions()).then(instructions => {
+      if (instructions == null || seq !== contextPushSeq) return false;
+      return sendEvent({ type: 'session.update', session: { type: 'realtime', instructions } });
+    });
   }
 
   /* THE CONVERSATION IS A SESSION, NOT A SEPARATE LAYER.

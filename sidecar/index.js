@@ -1859,6 +1859,13 @@ const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, fi
 const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
+/* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
+   (prompt-scrub scrubStored: vendor shapes, held credentials named, cut keys). Live voice sends its instructions from the
+   browser straight to the provider (voice-live.js session.update over WebRTC), past runOnceCore's persona scrub and the
+   provider-boundary guard, and those instructions quote the agent's composed persona (the dossier baked in) and the
+   session titles (review r2, 2026-10-28). Same handler as the transcript route: returns only what it was sent, minus
+   secrets, and a scrub that throws answers 500 (the raw text is never handed back as if scrubbed). */
+const handlePromptScrub = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => PromptScrub.scrubStored(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
@@ -12755,6 +12762,7 @@ const ROUTES = [
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
+  { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
   { m: 'POST', prefix: '/api/channels/webhook/', h: handleChannelWebhook },
   { m: 'GET', prefix: '/api/memory/proposals', h: serveProposals },

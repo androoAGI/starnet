@@ -409,6 +409,48 @@ const SEED = {
     A.ok(/if \(o && o\.internal && Array\.isArray\(o\.messages\)\) \{ const m = PromptScrub\.scrubStoredMessages\(o\.messages\);/.test(core.slice(0, 1200)), 'P12: runOnceCore scrubs an internal run\'s messages before anything reads them');
   }
 
+  // ---- P13: LIVE VOICE sends its instructions browser -> provider: they go through POST /api/prompt/scrub first ----
+  {
+    const { Readable } = require('node:stream');
+    const fs = require('node:fs');
+    const { readBody } = require('../sidecar/http-body.js');
+    const { json } = require('../sidecar/respond.js');
+    const { makeTranscriptRedactRoute } = require('../sidecar/transcript-redact.js');
+    const route = makeTranscriptRedactRoute({ redact: (t) => PS.scrubStored(t), readBody, json });   // index.js wires exactly this
+    let routeUp = true;
+    const pageFetch = async (url, init) => {
+      if (url !== '/api/prompt/scrub' || !routeUp) throw new TypeError('Failed to fetch');
+      const req = Readable.from([Buffer.from(String(init.body), 'utf8')]);
+      const res = { headersSent: false, status: 0, out: '', writeHead(c) { this.status = c; this.headersSent = true; }, end(s) { this.out = String(s == null ? '' : s); } };
+      await route(req, res);
+      return { ok: res.status >= 200 && res.status < 300, status: res.status, json: async () => JSON.parse(res.out) };
+    };
+    const voice = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice-live.js'), 'utf8');
+    const body = (head) => { const i = voice.indexOf(head); A.ok(i >= 0, 'P13: voice-live.js has ' + head); const j = voice.indexOf('\n  }\n', i); return voice.slice(i, j + 4); };
+    const seqLine = (/\n  let contextPushSeq = 0;\n/.exec(voice) || [''])[0];
+    const src = seqLine + body('function voiceInstructions() {') + body('function scrubbedInstructions(text) {') + body('function pushSessionContext() {');
+    const sent = [];
+    const agent = { name: 'Hero', systemPrompt: 'You are Hero.\n\nCOMMANDER DOSSIER\nRuns an outreach agency. Our OpenRouter key: ' + K.OPENROUTER.value };
+    const ctx = { agent, crew: [], streams: [{ id: 's1', title: 'pull campaigns with ' + K.VAULT.value }], activeWs: null };
+    const api = new Function('fetch', 'sendEvent', 'stationContext', 'sessionName', 'Personas', src + '; return { pushSessionContext, voiceInstructions };')(
+      pageFetch, (e) => { sent.push(e); return true; }, () => ctx, (ws) => ws.title, undefined);
+    A.ok(leaks(api.voiceInstructions()) !== '', 'P13: (the composed voice instructions quote the dossier key and a held session title raw)');
+    await api.pushSessionContext();
+    A.eq(sent.length, 1, 'P13: one session.update went to the provider channel');
+    const sentText = sent[0] && sent[0].session && sent[0].session.instructions;
+    A.eq(leaks(sentText), '', 'P13: the instructions that leave the browser hold no key or window');
+    A.ok(/Our OpenRouter key: \[redacted-key\]/.test(sentText) && /Open sessions: pull campaigns with \[redacted-secret\]\./.test(sentText), 'P13: the persona and session words survive around the placeholders');
+    routeUp = false;
+    await api.pushSessionContext();
+    A.eq(sent.length, 1, 'P13: when the station cannot scrub them, nothing is sent (the call keeps its generic instructions)');
+    routeUp = true;
+    const p1 = api.pushSessionContext(), p2 = api.pushSessionContext();
+    await Promise.all([p1, p2]);
+    A.eq(sent.length, 2, 'P13: a newer push supersedes one still in flight (one update, not two)');
+    const idx = S.readSidecarSource();
+    A.ok(/makeTranscriptRedactRoute\(\{ redact: \(t\) => PromptScrub\.scrubStored\(t\), readBody, json: respondJson \}\)/.test(idx) && /exact: '\/api\/prompt\/scrub', h: handlePromptScrub/.test(idx), 'P13: index.js serves /api/prompt/scrub with prompt-scrub\'s stored-text rule');
+  }
+
   PS.setHeldSource(null);
   A.report('prompt-scrub.projectors.test');
 })().catch(e => { console.error(e); process.exit(1); });
