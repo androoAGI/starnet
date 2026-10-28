@@ -72,9 +72,12 @@ async function collect(provider, req) { const out = []; for await (const e of pr
       'leading system lifted — block form, carrying the cache breakpoint');
     // an UNSPLIT system prompt keeps the system anchor over the tools (the TOOL ANCHOR rides only a split, task-run system)
     A.eq(captured.body.tools[0], { name: 'web', description: 'd', input_schema: { type: 'object' } }, 'OpenAI tool -> Anthropic tool');
-    A.eq(captured.body.messages[0].content[1], { type: 'tool_use', id: 'call_7', name: 'web', input: { q: 1 }, cache_control: { type: 'ephemeral' } },
+    // the transcript opens on an assistant turn: the request gets a fenced user boundary first (provider.js projectRoles —
+    // the API refuses a first message that is not a user turn)
+    A.eq([captured.body.messages[0].role, /^<host_turn>/.test(captured.body.messages[0].content[0].text)], ['user', true], 'a <host_turn> user boundary opens the request');
+    A.eq(captured.body.messages[1].content[1], { type: 'tool_use', id: 'call_7', name: 'web', input: { q: 1 }, cache_control: { type: 'ephemeral' } },
       'assistant tool_call -> tool_use block (inside the last-3 sliding window, so it carries an anchor)');
-    A.eq(captured.body.messages[1].content[0], { type: 'tool_result', tool_use_id: 'call_7', content: 'result text', cache_control: { type: 'ephemeral' } },
+    A.eq(captured.body.messages[2].content[0], { type: 'tool_result', tool_use_id: 'call_7', content: 'result text', cache_control: { type: 'ephemeral' } },
       'tool result -> tool_result block (last block of the last turn carries the conversation breakpoint)');
   }
 

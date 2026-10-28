@@ -256,7 +256,9 @@ const text = v => JSON.stringify(v);
       { role: 'assistant', content: '', tool_calls: [call('toolu_01A', 'web', { q: 1 }), call('call_2', 'web', { q: 2 })] },
       { role: 'tool', tool_call_id: 'call_2', content: 'two' },
       { role: 'tool', tool_call_id: 'toolu_01A', content: 'one' },
-      { role: 'assistant', content: 'done' }
+      { role: 'assistant', content: 'done' },
+      // a request ends on a user turn (provider.js projectRoles: a chat wire never ends on an assistant prefill)
+      { role: 'user', content: 'thanks' }
     ];
     for (const target of ['chat', 'codex', 'gemini', 'anthropic']) {
       A.ok(provider.prepareWireMessages(healthy, target) === healthy, target + ': a well-formed transcript returns by identity');

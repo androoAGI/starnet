@@ -163,8 +163,17 @@ const anthropicBody = (status, message) => Object.assign(new Error('api error'),
   // a bare/unrecognizable 400 on a grown run is still recognized by the live ratio
   A.eq(R(httpErr(400, 'invalid request'), live).reason, 'context_overflow', 'a cause-less 400 on a grown run -> context_overflow (live ratio)');
   A.eq(R(httpErr(400, 'invalid request'), { approxTokens: 2000, liveApproxTokens: 50000, contextLimit: 200000 }).reason, 'format_error', 'under 0.4 live -> format_error');
-  // the run-start ratio behaves exactly as before
-  A.eq(R(httpErr(400, 'invalid base64'), { approxTokens: 90000, contextLimit: 200000 }).reason, 'context_overflow', 'run-start ratio unchanged');
+  // QUICK WIN 16 (email E28, the base64-summarizer credit burn): a named cause beats the RUN-START size too. A run that
+  // opened over 0.4 of the window read "invalid image data" as an overflow: a paid fold, the same bad image resent, and
+  // the run died on the same 400 anyway.
+  const bigStart = { approxTokens: 90000, contextLimit: 200000 };
+  A.eq(R(httpErr(400, 'invalid base64'), bigStart).reason, 'format_error', 'run-start ratio: a named cause (invalid base64) is believed');
+  A.eq(R(httpErr(400, 'invalid image data'), bigStart).reason, 'format_error', 'run-start ratio: invalid image data stays format_error');
+  A.eq(R(httpErr(400, 'invalid image data'), bigStart).shouldCompress, false, 'run-start ratio: no destructive fold for a named cause');
+  A.eq(R(httpErr(400, 'messages.4.content.1.image.source: invalid image data'), { approxTokens: 90000, liveApproxTokens: 95000, contextLimit: 200000 }).reason, 'format_error', 'both sizes large: the named cause still wins');
+  // ...and a cause-less 400 on a run that STARTED large is still recognized by the run-start ratio
+  A.eq(R(httpErr(400, 'invalid request'), bigStart).reason, 'context_overflow', 'run-start ratio: a cause-less 400 -> context_overflow');
+  A.eq(R(Object.assign(new Error('bad request body'), {}), bigStart).reason, 'context_overflow', 'run-start ratio: a statusless cause-less error -> context_overflow');
   A.eq(R(httpErr(400, 'invalid request'), { approxTokens: 2000, liveApproxTokens: 999999, contextLimit: 0 }).reason, 'format_error', 'cold catalog: live size never fires the ratio');
 }
 

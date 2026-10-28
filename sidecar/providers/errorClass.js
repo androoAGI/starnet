@@ -9,7 +9,8 @@
 
    Reasons: auth · billing · rate_limit · quota_exhausted · overloaded · server_error · timeout ·
             context_overflow · output_cap · model_not_found · content_policy_blocked · format_error ·
-            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · unknown.
+            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · template_refusal ·
+            unreachable · unknown.
 
    Priority pipeline: content/policy -> HTTP status (code+message consulted inside the ambiguous 400 branch)
    -> structured error-code (for errors with no HTTP status) -> message patterns -> transport -> a
@@ -74,6 +75,21 @@
        repeats it, and the adapter's own sentence (which server, which card speaks to it) is the fix. No fallback
        either: a failover would finish every run on another model and the misconfiguration would never be shown. */
     endpoint_mismatch:      { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
+    /* The model's CHAT TEMPLATE refused the conversation's shape (#102: Ollama /v1 answered HTTP 500 "Jinja Exception:
+       System message must be at the beginning"; Gemma's "System role not supported"; "Conversation roles must
+       alternate"). It is not the server having a bad moment: the same body is refused identically, so the 500 was
+       resent as server_error for nothing and the Commander read "try again". The adapter resends ONCE in the strictest
+       shape (provider.projectRoles 'chat-nosystem') and remembers it for that endpoint + model; this class is what is
+       left after that. Another model has another template, so a configured fallback is still worth taking. */
+    template_refusal:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
+    /* NOTHING ANSWERED at the provider's address (bug 8873fd77, GH#111): the connection was refused (ECONNREFUSED — the
+       server is not running, e.g. Ollama or LM Studio not started) or the name did not resolve (ENOTFOUND / EAI_AGAIN).
+       These used to ride `timeout` through the whole ~106 s ladder, the retry line said "(timeout)" and the end read a
+       bare "fetch failed". ONE retry covers a blip (`retryBudget`, read by the adapters' pre-stream ladders and by
+       recovery-policy), then the turn ends naming the host and what to check. No fallback, exactly as `timeout` before
+       it (review 2026-10-27): a local server that is simply not started must not send the conversation to a cloud
+       fallback, nor to another model on the same dead server; whether it should is Andrew's call. */
+    unreachable:            { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false, retryBudget: 1 },
     unknown:                { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false }
   };
 
@@ -330,12 +346,105 @@
      an overflow: a destructive fold and a wrong failureCode. So the live size only speaks for a 400 whose text names
      no specific cause of its own (NAMED_CAUSE_RE); a 400 that says what is wrong with the request is believed. */
   const NAMED_CAUSE_RE = /base64|image|media[ _]?type|mime|schema|json|parse|invalid[_ ]type|tool_use|tool_result|tool_call|function|parameter|argument|field|property|enum|encoding|utf-?8|unsupported|not supported|role|messages?\.\d|content\.\d/;
+  /* A NAMED CAUSE BEATS BOTH SIZES (quick win 16, 2026-10-27; email E28, the base64-summarizer credit burn). The run-
+     start size used to be checked first and unconditionally, so a run whose OPENING prompt was already over 0.4·window
+     (a big pasted document, a screenshot-heavy conversation) read EVERY later 400 as an overflow — "invalid image data"
+     too: a destructive fold (a paid summarization call) and a retry of the same bad image, then the run died on the
+     same 400. A 400 that says what is wrong with the request is believed, whichever size is large. */
   function overRatio(low, ctx) {
     const limit = Number(ctx && ctx.contextLimit) || 0;
     if (!(limit > 0)) return false;
-    if ((Number(ctx.approxTokens) || 0) > 0.4 * limit) return true;
-    return (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit && !NAMED_CAUSE_RE.test(low);
+    if (NAMED_CAUSE_RE.test(low)) return false;
+    return (Number(ctx.approxTokens) || 0) > 0.4 * limit || (Number(ctx.liveApproxTokens) || 0) > 0.4 * limit;
   }
+
+  /* A CHAT-TEMPLATE REFUSAL (REASONS.template_refusal): a model's CHAT TEMPLATE refused the conversation's ROLE SHAPE.
+     Narrowed on review (2026-10-27) to what proves both halves — a role-shape wording AND a template behind it:
+       · the role wordings only chat templates raise: Qwen-family Jinja ("System message must be at the beginning"),
+         Gemma ("System role not supported"), the Hugging Face Llama-2 / Mistral / Gemma templates ("Conversation roles
+         must alternate user/assistant/…", "After the optional system message, conversation roles must alternate");
+       · any role-order wording when the text also names the template engine: LM Studio ("Error rendering prompt with
+         jinja template: …"), llama.cpp ("Jinja Exception: …"), raise_exception.
+     NOT a template, so NOT this class: a hosted API's own role validator — Anthropic ("messages: roles must alternate
+     between "user" and "assistant""), Mistral / mistral_common ("Unexpected role 'user' after role 'tool'", "Expected
+     last role User or Tool") — which keeps format_error, its own words first and no chat-template advice; and a template
+     ENGINE failure that names no role shape ("default chat template is no longer allowed", "Unknown StringValue filter:
+     safe", "chat template does not support tool calls"), which is not StarNet's conversation shape and keeps the class
+     it had. */
+  const TEMPLATE_ROLE_RE = /system message must be at the beginning|system role (?:is )?not supported|conversation roles must alternate/;
+  const ROLE_ORDER_RE = /roles must alternate|unexpected role '?(?:system|user|assistant|tool)'? after role|expected last role/;
+  const TEMPLATE_ENGINE_RE = /jinja|chat template|raise_exception|(?:render|rendering|apply|applying) (?:the )?(?:prompt with (?:the )?)?(?:jinja |chat )?template/;
+  function templateRefusalLow(low) { return TEMPLATE_ROLE_RE.test(low) || (ROLE_ORDER_RE.test(low) && TEMPLATE_ENGINE_RE.test(low)); }
+  function isTemplateRefusal(text) { return templateRefusalLow(String(text || '').toLowerCase()); }
+  /* NAME THE TEMPLATE (#102) — and name it FIRST. The customer's diagnostics clamp each error to 300 characters
+     (diagnostics.js MSG_MAX) and Ollama's Jinja exception arrives as a ~350-character JSON blob ("While executing
+     CallExpression at line 106 …"), so a note appended after it never reached the report the Commander pastes. The
+     sentence keeps the adapter's "<label> http <status>" lead (what the page routes on), then says whose template, on
+     which host, refused what, with the template's own words; the full provider text rides last, in brackets. With no
+     role words to quote (TEMPLATE_SAID_RE found none) the provider's own text leads instead, so the 300 characters a
+     report keeps always hold the evidence. Updating the model is advice only for a server on this computer or this
+     network; a hosted endpoint's template is its operator's. */
+  const TEMPLATE_SAID_RE = /(system message must be at the beginning|(?:after the optional system message, )?conversation roles must alternate[^"'\\\n.]{0,60}|roles must alternate[^"'\\\n.]{0,60}|system role (?:is )?not supported|unexpected role '?[a-z]+'? after role '?[a-z]+'?|expected last role[^"'\\\n.]{0,60})/i;
+  function templateRefusalText(text, low, err, ctx) {
+    const original = String(text == null ? '' : text);
+    const lead = (/^(.{1,80}?\bhttp \d{3})\b\s*[-—:]?\s*/i.exec(original) || [])[1] || '';
+    const said = ((TEMPLATE_SAID_RE.exec(original) || [])[1] || '').trim();
+    const model = String((ctx && ctx.model) || '').trim();
+    const host = refusalHost(err);
+    const naming = 'the chat template of ' + (model ? 'the model ' + model : 'this model') + (host ? ' on ' + host : '') + ' refused the conversation StarNet sent';
+    const why = ' — StarNet sends one system message first, then user and assistant turns in turn, ending on a user turn'
+      + (err && err.templateRetried ? ', and the same conversation with no system message at all was refused too' : '');
+    const scope = hostScope(host);
+    const fix = '. That template is stricter than the model\'s own chat format: '
+      + (scope === 'loopback' || scope === 'private' ? 'update the model on that server (a newer build usually fixes its template), or pick' : 'pick')
+      + ' another model in the COMMS model dock.';
+    if (!said) return original + ' — ' + naming + why + fix;
+    return (lead ? lead + ' — ' : '') + naming + ' ("' + said + '")' + why + fix + ' [' + original + ']';
+  }
+  // the host a refusal came from: the hostname the adapter stamped (provider.js stampRequestHost — never a URL)
+  function refusalHost(err) { return (err && typeof err.requestHost === 'string' && err.requestHost) || ''; }
+  /* WHERE A HOST IS, from its name alone: 'loopback' (this computer), 'private' (this network: an RFC 1918 / link-local /
+     CGNAT / ULA address, a .local / .lan / .internal / .home name, or a bare name with no dot — a LAN machine or a
+     container service), 'public' for anything else, '' when there is no host. Only what the name proves: a public
+     name that resolves to a LAN address still reads 'public'. */
+  function hostScope(host) {
+    const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/:\d+$/, '');
+    if (!h) return '';
+    if (h === 'localhost' || /\.localhost$/.test(h) || /^127(?:\.\d+){3}$/.test(h) || h === '::1' || h === '0.0.0.0' || h === '::') return 'loopback';
+    if (/^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(h) || /^169\.254\./.test(h)
+      || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h) || /^f[cd][0-9a-f]{0,2}:/.test(h) || /^fe80:/.test(h)
+      || /\.(?:local|lan|internal|home|home\.arpa)$/.test(h) || (h.indexOf('.') < 0 && h.indexOf(':') < 0)) return 'private';
+    return 'public';
+  }
+  /* REASONS.unreachable — what nothing answering at that address means, in words the Commander can act on, and only
+     what the harness can prove (review 2026-10-27). The host and port come from the transport cause (undici:
+     cause.hostname for a name that did not resolve, cause.address + cause.port for a refused connection), else the
+     hostname the adapter stamped. A refused connection on THIS computer means nothing is listening on that port; on
+     this network the server there is not running or refused it; anywhere else a firewall, proxy or VPN can refuse a
+     connection as well as a stopped server can, so it says "refused" and points at the network, never "start Ollama". */
+  function unreachableNote(err) {
+    const code = String(transportCode(err) || '').toUpperCase();
+    const cause = (err && err.cause) || {};
+    const name = String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+    let host = name;
+    const port = Number(cause.port) > 0 ? String(cause.port) : '';
+    if (host && port && host.indexOf(':') < 0) host += ':' + port;
+    const where = host || 'the provider\'s address';
+    if (code === 'ECONNREFUSED') {
+      const scope = hostScope(name);
+      if (scope === 'loopback') return 'nothing is listening at ' + where + ' on this computer (the connection was refused) — start the server that should answer there (Ollama, LM Studio …) or correct its address in SETTINGS → AI & MODELS, then send again';
+      if (scope === 'private') return 'the connection to ' + where + ' was refused — the server there is not running or not accepting connections: start it, or correct its address in SETTINGS → AI & MODELS, then send again';
+      return 'the connection to ' + where + ' was refused — a firewall, proxy or VPN on this network can do that as well as a stopped server: check this computer\'s network and the address in SETTINGS → AI & MODELS, then send again';
+    }
+    if (code === 'EAI_AGAIN') return 'the name ' + (host || 'of the provider\'s server') + ' could not be looked up just now (EAI_AGAIN, a temporary DNS failure) — check this computer\'s network, then send again';
+    return 'the name ' + (host || 'of the provider\'s server') + ' did not resolve (' + code + ') — check the address in SETTINGS → AI & MODELS and this computer\'s network, then send again';
+  }
+  /* ONE RETRY, BUT NOT A HASTY ONE, FOR A NAME LOOKUP (review 2026-10-27). unreachable makes one retry (retryBudget). A
+     refused connection retries at the ladder's first rung; a name that did not resolve — what a Wi-Fi drop, a VPN
+     reconnect or a DNS hiccup looks like for a second or two (Windows reports an offline lookup as ENOTFOUND) — waits
+     this long first, so that one retry outlasts a blip instead of landing inside it. Read by every adapter's pre-stream
+     ladder and by recovery-policy (provider.runtime.retryDelay, the classification's retryDelayMs). */
+  const DNS_RETRY_DELAY_MS = 4000;
 
   /* A 429 is not always "wait a few seconds". A ChatGPT-subscription user who has burned their WEEKLY quota
      gets a 429 whose body says exactly that and whose reset is days away — so the honest class is a spent
@@ -378,6 +487,10 @@
     // 1b. OUTPUT cap — BEFORE the overflow patterns, whose `maximum.*tokens` matches this refusal's wording and
     //     used to fold history for nothing, retry the identical max_tokens, and kill the run.
     if ((!status || status === 400 || status === 422) && parseOutputCap(low) > 0) return 'output_cap';
+    // 1c. the model's chat template refused the conversation's shape — whatever status carried it: Ollama's /v1 sends
+    //     its Jinja exception as a 500 (#102), LM Studio as a 400. Never our credential (401/403) and never a busy
+    //     moment (429). A hosted API's own role validator is not a template (templateRefusalLow): it stays format_error.
+    if (status !== 401 && status !== 403 && status !== 429 && templateRefusalLow(low)) return 'template_refusal';
     // 2. HTTP status
     if (status) {
       // a 403 the UPSTREAM gave for this region (OpenAI behind OpenRouter: unsupported_country_region_territory) is the
@@ -438,7 +551,9 @@
     if (/no endpoints|model not found|not a valid model|unknown model|no allowed providers/.test(low)) return 'model_not_found';
     if (/unauthorized|invalid api key|no auth credentials|authentication/.test(low)) return 'auth';
     if (/timed out|timeout/.test(low)) return 'timeout';
-    // 5. transport
+    // 5. transport — nothing answering at the address (refused, or a name that did not resolve) is `unreachable`;
+    //    a connection that was made and then dropped or stalled stays `timeout`
+    if (/^(?:ECONNREFUSED|ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || ''))) return 'unreachable';
     if (/ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|EPIPE|ECONNABORTED|UND_ERR/i.test(transportCode(err))) return 'timeout';
     // 6. ratio heuristic (only with a known limit)
     if (overRatio(low, ctx)) return 'context_overflow';
@@ -469,6 +584,10 @@
     } else if (reason === 'model_not_found' && IMAGE_INPUT_REFUSED_RE.test(low)) {
       // the provider's words stay first (the UI routes on the adapter label + status); the fix rides after them
       text += IMAGE_INPUT_FIX;
+    } else if (reason === 'template_refusal') {
+      text = templateRefusalText(text, low, err, ctx);
+    } else if (reason === 'unreachable') {
+      text += ' — ' + unreachableNote(err);
     }
     return {
       reason,
@@ -484,6 +603,11 @@
       // model_not_found only: the model cannot take a PART of this request (image input, tool use, a parameter) —
       // a request without that part still reaches it (UNSUPPORTED_PART_RE). False for every other verdict.
       unsupportedPart: reason === 'model_not_found' && UNSUPPORTED_PART_RE.test(low),
+      // the most re-sends this class is worth, when it is fewer than a ladder's (unreachable: 1); null = the ladder's own
+      retryBudget: typeof f.retryBudget === 'number' ? f.retryBudget : null,
+      // unreachable only: a name that did not resolve waits DNS_RETRY_DELAY_MS before its one retry (a blip outlasted);
+      // null = the ladder's own rung
+      retryDelayMs: reason === 'unreachable' && /^(?:ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || '')) ? DNS_RETRY_DELAY_MS : null,
       // `reason` above was already picked from the RAW message, so annotating here cannot move the verdict — it
       // only makes the text a human can act on ("fetch failed" -> "fetch failed (ENOTFOUND api.openai.com)").
       // This is the message the loop emits as agent.run.error, which is what lands in the diagnostics ring.
@@ -491,6 +615,6 @@
     };
   }
 
-  return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError } };
+  return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal, isTemplateRefusal,
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote, hostScope, templateRefusalText } };
 });

@@ -20,7 +20,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 // the run-context note is the leading text of the newest user message on a non-Claude chat wire: match the Commander's own words
-const { userWords } = require('./helpers/host-notes.js');
+const { userWords, loopNotes } = require('./helpers/host-notes.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -228,7 +228,7 @@ async function waitUntil(fn, ms, label) { const deadline = Date.now() + ms; whil
     });
     const probeResult = () => forwardedRequests().flatMap(r => r.messages || []).find(m => m && m.role === 'tool' && m.tool_call_id === 'atlas_taint_probe');
     await waitUntil(() => !!probeResult(), 12000, 'the forwarded run returns its taint refusal to the provider');
-    A.ok(!forwardedRequests().some(r => r.messages.some(m => m && m.role === 'system' && /<steering_note>/.test(String(m.content || '')) && String(m.content).includes(FORWARDED_TASK))), 'forwarded content reaches a new user turn, never an owner system steering note');
+    A.ok(!forwardedRequests().some(r => loopNotes(r.messages, 'steering_note').some(n => n.includes(FORWARDED_TASK))), 'forwarded content reaches a new user turn, never an owner steering note');
     A.ok(/BLOCKED: "shell[._]exec" is no longer available on this run/.test(String(probeResult().content)), 'the harmless shell probe is refused by the real content trust boundary');
     A.ok(/started with outside content.*forwarded message/.test(String(probeResult().content)), 'the provider sees the real forwarded-message taint provenance');
     await waitUntil(() => chatReplies().some(s => String(s.text || '').includes(FORWARDED_ANSWER)), 8000, 'the forwarded replacement answer is delivered');

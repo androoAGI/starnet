@@ -43,42 +43,15 @@
     return String(baseUrl || '').replace(/\/+$/, '').replace(/\/v1$/i, '');
   }
 
-  // #102: strict Ollama templates accept one SYSTEM message, at the beginning only. The loop
-  // legitimately appends host steering/continuation/compaction instructions later. Project ONLY
-  // existing system messages into that slot, in their original relative order: never demote host
-  // policy to a user turn, or promote user/tool content into policy. Non-system turns (including
-  // tool-call/result pairs) keep their order and identity; the durable transcript is not mutated.
-  // This is applied by the adapter before sizing/sending, including its compatible-wire fallback.
-  // HOST NOTES (lean-prompt review, 2026-10-12): the per-run <run_context> note, <recalled-memory> and the
-  // <conversation_summary> are NOT merged into that slot — they change on every message, and merging them made system[0]
-  // differ per message (no prefix reuse). They become the fenced leading text of the newest user message instead
-  // (provider.userSideHostNotes, the same projection every generic Chat Completions route gets), so system[0] stays
-  // byte-stable across a conversation's messages.
+  // #102: strict Ollama templates accept one SYSTEM message, at the beginning only. This is applied by the adapter before
+  // sizing/sending, including its compatible-wire fallback, and it is the SAME projection every generic Chat Completions
+  // route gets (provider.projectRoles 'chat', provider-conformance-suite 2026-10-27): one leading system message, the host
+  // notes and the loop's mid-run host messages (steering, continuation and verify nudges, all fenced by their own tags) as
+  // user-side text, alternating roles, the request ending on a user or tool turn. It used to merge those mid-run messages
+  // INTO system[0], so system[0] changed on every nudge and Ollama re-read the whole prompt (no KV-cache reuse) — a local
+  // model's slowest step, on every continuation. The durable transcript is never mutated.
   function leadingSystemMessages(messages) {
-    if (!Array.isArray(messages)) return messages;
-    if (provider && typeof provider.userSideHostNotes === 'function') messages = provider.userSideHostNotes(messages);
-    const systems = messages.filter(m => m && m.role === 'system');
-    if (!systems.length || (systems.length === 1 && messages[0] === systems[0])) return messages;
-    let content;
-    if (systems.some(m => Array.isArray(m.content))) {
-      content = [];
-      for (const m of systems) {
-        if (content.length) content.push({ type: 'text', text: '\n\n' });
-        if (Array.isArray(m.content)) content.push(...m.content);
-        else if (m.content != null) content.push({ type: 'text', text: String(m.content) });
-      }
-    } else content = systems.map(m => m.content == null ? '' : String(m.content)).join('\n\n');
-    const system = systems.length === 1 ? systems[0] : Object.assign({}, systems[0], { content });
-    const out = [system, ...messages.filter(m => !(m && m.role === 'system'))];
-    // A trailing host nudge after assistant prose would leave the wire ending on that prose: an assistant prefill the
-    // template continues (or a strict server refuses). Open a fresh turn with a neutral user boundary that carries no
-    // policy; the instruction itself keeps its SYSTEM authority above.
-    const last = messages[messages.length - 1];
-    const tail = out[out.length - 1];
-    if (last && last.role === 'system' && tail && tail.role === 'assistant' && !(Array.isArray(tail.tool_calls) && tail.tool_calls.length)) {
-      out.push({ role: 'user', content: '<host_turn>Respond to the latest host instruction above.</host_turn>' });
-    }
-    return out;
+    return provider.projectRoles(messages, 'chat');
   }
 
   function textOfParts(content) {

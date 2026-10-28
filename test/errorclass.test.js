@@ -93,10 +93,11 @@ const R = (err, ctx) => classifyApiError(err, ctx || {});
   A.eq(R(new Error('request blocked by moderation')).reason, 'content_policy_blocked', 'moderation message -> content_policy_blocked');
 }
 
-// ---- E. transport / network codes -> timeout (retryable) ----
+// ---- E. transport / network codes -> timeout (retryable); nothing answering at the address -> unreachable ----
 {
   A.eq(R(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })).reason, 'timeout', 'ECONNRESET -> timeout');
-  A.eq(R(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })).reason, 'timeout', 'node fetch cause.code -> timeout');
+  // quick win 15 (bug 8873fd77): a name that did not resolve is not a slow provider (test/errorclass.unreachable.test.js)
+  A.eq(R(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })).reason, 'unreachable', 'node fetch cause.code ENOTFOUND -> unreachable');
   A.eq(R(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })).retryable, true, 'transport timeout retryable');
 }
 

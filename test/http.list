@@ -259,6 +259,7 @@ test/skills.candidate-lifecycle.http.test.js
 test/skills.evaluation-spend.http.test.js
 test/lean-prompt.e2e.test.js
 test/host-notes.strict-template.e2e.test.js
+test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js

@@ -1277,6 +1277,8 @@ test/provider.wire-sanitize.test.js
 test/provider.toolschema.keys.test.js
 test/provider.moonshot-schema.test.js
 test/provider.error-body.test.js
+test/provider.conformance.test.js
+test/errorclass.unreachable.test.js
 test/transcript-torn-tail-append.test.js
 test/logbound-torn-tail-append.test.js
 test/loop.fatal-keeps-partial.test.js
