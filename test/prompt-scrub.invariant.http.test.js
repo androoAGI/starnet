@@ -11,18 +11,23 @@
    mock that records every request body, tagged with the phase that sent it. Fake keys only (helpers/fake-keys.js).
      Phase A  legacy raw rows written to disk BEFORE boot (what older builds left): run titles holding a key whole,
               cut at a 120-char title boundary mid-key, and a vault value whole and cut; interest evidence quotes
-              holding the vault value and a cut Google key.
-     Phase B  live seeding through real routes: a dossier holding a key, one /api/run per vendor family (each in its
-              own conversation), a shapeless value typed while unheld, then POST /api/servicekeys — now the station
-              HOLDS it.
-     Phase C  later lanes whose typed words hold no key (except ASK1): an interactive run, the DEV channel, a routine
-              fire, a night-shift beat, ASK1 (types a key; the model asks one question) and ASK2 (the answer, a LATER
-              run continuing that Task Brief).
+              holding the vault value and a cut Google key; an open thread whose title and spec hold keys (a turn-in
+              edit stores them raw).
+     Phase B  live seeding through real routes: a dossier holding a key (and the roster persona embedding that dossier,
+              as the page bakes it into every agent's system prompt), a GOAL holding a key whole plus one the 280-char
+              store cut leaves mid-key, a JOURNEY goal whose text and success condition hold keys, a QUEST whose title
+              holds one, one /api/run per vendor family (each in its own conversation), a shapeless value typed while
+              unheld, then POST /api/servicekeys — now the station HOLDS it.
+     Phase C  later lanes whose typed words hold no key (except ASK1): an interactive run (with the page persona), the
+              DEV channel, a routine fire, a night-shift beat (TONIGHT'S FOCUS), a quest refresh, an internal
+              evidence:true run, ASK1 (types a key; the model asks one question) and ASK2 (the answer, a LATER run
+              continuing that Task Brief).
    Asserts:
      I1 no captured request carries a key, whole or as ANY 12-char window of its secret part, unless that request's
         own phase typed it (the shapeless vault value is exempt only BEFORE the station held it: no shape, no vault)
      I2 evidence still flows: RECENT ACTIVITY and TOPIC lines with placeholders reach later runs; ASK2 still carries
-        its ORIGINAL REQUEST
+        its ORIGINAL REQUEST; the night directive leads with TONIGHT'S FOCUS; the quest refresh carries its goal
+        progress; the internal evidence run carries the evidence pack; the persona keeps its dossier words
      I3 the live turn is untouched: ASK1's own request carries its key raw (keys.save reads it); every chat request
         ends on a user turn
      I4 at rest: new run titles hold no key; the legacy rows are still raw on disk (read-side scrub, no migration) */
@@ -106,6 +111,16 @@ const interests = { v: 1, state: { v: 1, topics: {}, lastPassAt: NOW, runsSinceP
   'legacy-maps': { label: 'legacy maps', w: 2.5, n: 2, lastAt: NOW - HOUR, ev: [{ q: cutTitle('geocode with', K.GOOGLE, 18), at: NOW - HOUR }] }
 } } };
 fs.writeFileSync(path.join(WS, 'scout.interests.json'), JSON.stringify(interests));
+// an open thread edited raw at turn-in (threads-store keeps title + spec as typed)
+fs.writeFileSync(path.join(WS, 'threads.json'), JSON.stringify({ threads: [{ id: 'th_legacy', state: 'open', createdAt: NOW - HOUR, updatedAt: NOW - HOUR,
+  title: 'LEGACY-T rotate the deploy key ' + K.GITHUB.value, spec: ('he said ' + 'z'.repeat(150) + ' ' + K.ANTHROPIC.value).slice(0, 180) }], declined: [] }));
+
+// the page persona: the page bakes the Commander's dossier into every agent's stored systemPrompt (frontend/app/app.js)
+const DOSSIER = 'Runs an outreach agency. Our OpenRouter key: ' + K.OPENROUTER.value;
+const PAGE_SYSTEM = 'You are Hero, the station lead. Answer briefly.\n\nCOMMANDER DOSSIER\n' + DOSSIER;
+// the goal: a key whole, and a second the 280-char store cut leaves mid-key (AIza + 16 body chars survive the cut)
+const GOAL_HEAD = 'Ship outreach v2 using openai ' + K.OPENAI.value + ' ';
+const GOAL_TEXT = GOAL_HEAD + 'outreach plan detail '.repeat(20).slice(0, 259 - GOAL_HEAD.length) + ' ' + K.GOOGLE.value + ' and finish';
 
 // ---------- the sidecar ----------
 let child = null, base = '', headers = null, log = '';
@@ -160,7 +175,8 @@ async function idle(ms, max) { const t0 = Date.now(); while (Date.now() - lastHi
 async function run(label, text, o) {
   o = o || {};
   phase = label;
-  const body = { agentId: 'agent', key: PROVIDER_KEY, model: 'test/model', isTask: true, placed: ['dish'], streamId: o.streamId || ('inv' + label), messages: o.messages || [{ role: 'user', content: text }] };
+  // the page sends its composed persona (dossier baked in) as `system` on every interactive run
+  const body = Object.assign({ agentId: 'agent', key: PROVIDER_KEY, model: 'test/model', isTask: true, placed: ['dish'], system: PAGE_SYSTEM, streamId: o.streamId || ('inv' + label), messages: o.messages || [{ role: 'user', content: text }] }, o.extra || {});
   const r = await fetch(base + '/api/run', { method: 'POST', headers, body: JSON.stringify(body) });
   const events = (await r.text()).split('\n').filter(Boolean).map(s => { try { return JSON.parse(s); } catch (_) { return null; } }).filter(Boolean);
   const end = events.filter(e => e.name === 'agent.run.end').pop();
@@ -175,9 +191,19 @@ const TYPED = {};   // phase -> the key ids its own words typed
   try {
     await boot(mock.address().port);
     phase = 'setup';
-    A.eq((await api('POST', '/api/roster', { agents: [{ agentId: 'agent', name: 'Hero', model: 'test/model', provider: 'openrouter' }] })).status, 200, 'setup: roster saved');
+    A.eq((await api('POST', '/api/roster', { agents: [{ agentId: 'agent', name: 'Hero', model: 'test/model', provider: 'openrouter', system: PAGE_SYSTEM }] })).status, 200, 'setup: roster saved (its persona embeds the dossier, as the page does)');
     // ---- Phase B: live seeding ----
-    A.eq((await api('POST', '/api/dossier', { block: 'Runs an outreach agency. Our OpenRouter key: ' + K.OPENROUTER.value })).status, 200, 'setup: a dossier holding a key is saved');
+    A.eq((await api('POST', '/api/dossier', { block: DOSSIER })).status, 200, 'setup: a dossier holding a key is saved');
+    phase = 'GOAL';
+    const goal = await api('POST', '/api/goals', { goal: { id: 'g1', text: GOAL_TEXT, done: 0, total: 2, pct: 0, next: 'rotate ' + K.SLACK.value + ' tonight', milestoneId: 'm1', milestones: [{ id: 'm1', text: 'step one' }, { id: 'm2', text: 'step two' }] } });
+    A.ok(goal.status === 200 && goal.json && goal.json.goal && goal.json.goal.text.length === 280 && goal.json.goal.text.indexOf(K.GOOGLE.value) < 0, 'phase B: the goal is stored, its second key cut mid-key at 280');
+    phase = 'JOURNEY';
+    const jr = await api('POST', '/api/journey', { op: 'goal.register', epoch: 1, id: 'g1', text: 'Grow outreach with github ' + K.GITHUB.value, successCondition: 'done when anthropic ' + K.ANTHROPIC.value + ' is rotated' });
+    A.ok(jr.status === 200 && jr.json && jr.json.ok !== false, 'phase B: the journey goal is registered');
+    phase = 'QUEST';
+    const qm = await api('POST', '/api/quests/mint', { title: 'Rotate ' + K.OPENROUTER.value, contract: { type: 'attest', key: '' }, createdBy: 'commander' });
+    A.ok(qm.status === 200, 'phase B: a quest whose title holds a key is minted');
+    await idle(1000);
     const FAMILY = [['P8', 'VAULT', 'instantly', 'pull my campaigns'], ['P1', 'OPENROUTER', 'openrouter', 'check my credits please'], ['P2', 'OPENAI', 'openai', 'list my models'],
       ['P3', 'ANTHROPIC', 'anthropic', 'check my usage'], ['P4', 'GOOGLE', 'google maps', 'geocode our office'], ['P5', 'GITHUB', 'github', 'list my repos'], ['P6', 'SLACK', 'slack', 'post the standup']];
     for (const [label, id, service, ask] of FAMILY) {
@@ -203,6 +229,10 @@ const TYPED = {};   // phase -> the key ids its own words typed
     phase = 'NIGHT';
     const night = await fetch(base + '/api/nightshift/beat', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent' }) });
     await night.text(); await idle(1500);
+    phase = 'QREF';
+    await api('POST', '/api/quests/refresh/run', {});
+    await idle(2500, 60000);
+    A.eq(await run('INT', '', { extra: { internal: true, evidence: true, isTask: false, system: 'You recommend the Commander\'s next step. Reply with ONE line.' }, messages: [{ role: 'user', content: 'INV-INT what should the Commander do next?' }] }), 'done', 'phase C: an internal evidence:true run completed');
     TYPED.ASK1 = ['ASKKEY'];
     A.eq(await run('ASK1', 'INV-ASK1 open an issue on my tracker with openai key ' + K.ASKKEY.value + ' for the triage bot', { streamId: 'invASK' }), 'clarifying', 'phase C: ASK1 ends asking its question');
     phase = 'ASK2';
@@ -240,6 +270,10 @@ const TYPED = {};   // phase -> the key ids its own words typed
   A.ok(later.filter(c => c.phase === 'NIGHT').length >= 1, 'I2: the night-shift beat asked the model');
   const ask2 = later.filter(c => c.phase === 'ASK2');
   A.ok(ask2.some(c => /ORIGINAL REQUEST: INV-ASK1 open an issue on my tracker with openai key \[redacted-key\]/.test(text(c))), 'I2: ASK2 continues the brief: its ORIGINAL REQUEST keeps the words, key replaced');
+  A.ok(later.some(c => c.phase === 'NIGHT' && /TONIGHT'S FOCUS: [^"\\]*\[redacted-(?:key|secret)\]/.test(text(c))), 'I2: the night directive leads with TONIGHT\'S FOCUS, its stored key replaced');
+  A.ok(later.some(c => c.phase === 'QREF' && /GOAL PROGRESS AND COMMANDER FEEDBACK/.test(text(c)) && /\[redacted-key\]/.test(text(c))), 'I2: the quest refresh still carries its goal progress, keys replaced');
+  A.ok(later.some(c => c.phase === 'INT' && /RECENT ACTIVITY|<commander_evidence|<active_goal/.test(text(c))), 'I2: the internal evidence:true run still carries the evidence pack');
+  A.ok(later.some(c => c.phase === 'W1' && /COMMANDER DOSSIER\\nRuns an outreach agency\. Our OpenRouter key: \[redacted-key\]/.test(text(c))), 'I2: the page persona keeps its dossier words, key replaced');
   // I3
   const ask1 = chat.filter(c => c.phase === 'ASK1');
   A.ok(ask1.some(c => { const m = c.body.messages || []; const u = m[m.length - 1]; return u && u.role === 'user' && ownWords(flat(u.content)).indexOf(K.ASKKEY.value) >= 0; }), 'I3: the live turn is untouched: ASK1 sends its own key raw (keys.save reads it there)');

@@ -16,11 +16,36 @@
    makeStationTools({ station }) — station: the bridge ({ request(verb, args) }); absent → honest unavailable. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  // under node, session.peek scrubs the other session's turns through prompt-scrub (see peekTool)
+  const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
+  const api = factory(node ? require('../../prompt-scrub.js').scrubStored : null);
+  if (node) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).station = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored) {
   'use strict';
+  const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
+  /* SECRETS (context-key-redact, 2026-10-28): another session's turns are stored text (the page's raw desk history, or
+     the overseer's transcript rows) arriving in THIS run's tool result. Each turn's text is scrubbed as its own field —
+     the page cuts it at 600 chars, so a key cut there ends the field, where the cut-key rules can see it. Unchanged
+     turns keep their object (a clean peek is byte-identical). */
+  function scrubPeek(r) {
+    if (!r || typeof r !== 'object') return r;
+    let turns = r.turns;
+    if (Array.isArray(turns)) {
+      let copy = null;
+      for (let i = 0; i < turns.length; i++) {
+        const t = turns[i];
+        if (!t || typeof t.text !== 'string') continue;
+        const text = scrub(t.text);
+        if (text === t.text) continue;
+        if (!copy) copy = turns.slice();
+        copy[i] = Object.assign({}, t, { text });
+      }
+      if (copy) turns = copy;
+    }
+    const title = typeof r.title === 'string' ? scrub(r.title) : r.title;
+    return (turns === r.turns && title === r.title) ? r : Object.assign({}, r, { title, turns });
+  }
 
   /* the approval card's words for a station.build call: the plan's own summary and each step's instructions, as
      station.plan_line returned them (memo: planId -> { summary, steps }) — never text the model supplied. */
@@ -114,7 +139,7 @@
         const limit = Math.max(1, Math.min(30, Number(args && args.limit) || 12));
         const out = await ask('station.read_session', { session: ref, limit });
         if (!out.ok) return refuse(out.error);
-        const r = out.result || {};
+        const r = scrubPeek(out.result || {});
         return { content: JSON.stringify(r), summary: '"' + (r.title || ref) + '": ' + ((r.turns || []).length) + ' recent turn(s)' + (r.busy ? ' — still working' : '') };
       }
     };

@@ -2694,8 +2694,10 @@ const commanderGoals = {
   },
   load() { const o = loadResilient(GOALS_FILE, 'goals'); if (o && o.goal && typeof o.goal === 'object') this._goal = this._fold(o.goal); },
   // the one-line note folded into a cron persona: "Current goal: X (2/5 milestones done). Next: Y." '' when none.
+  // Prompt-bound: each stored field is scrubbed (prompt-scrub) BEFORE the suffix follows it — the store cuts text at
+  // 280 and next at 200, so a key cut there ends its field, the only place the cut-key rules can see it.
   note() {
-    const g = this._goal;
+    const g = promptGoal();
     if (!g || !g.text) return '';
     let s = 'Current goal: ' + g.text + ' (' + g.done + '/' + g.total + ' milestones done).';
     if (g.next) s += ' Next step: ' + g.next + '.';
@@ -2843,6 +2845,15 @@ function dossierWithGoals() {
    way compose() scrubs it on the persona path (prompt-scrub). A directive and its grounding veto read this SAME string,
    or a candidate that honestly cites the dossier would fail the veto. */
 function promptDossier() { return PromptScrub.scrubStored(commanderDossier.get()); }
+/* promptGoal() — the Commander's goal as a PROMPT reads it: text and next step scrubbed field by field (prompt-scrub),
+   before any projector clips them or appends to them (the night focus, the goal note, the quest step). The goal
+   object itself — ids, counts, milestones — is unchanged; null when there is none. */
+function promptGoal() {
+  let g = null; try { g = commanderGoals.get() || null; } catch (_) { g = null; }
+  if (!g) return null;
+  const text = PromptScrub.scrubStored(g.text), next = PromptScrub.scrubStored(g.next);
+  return (text === g.text && next === g.next) ? g : Object.assign({}, g, { text, next });
+}
 // The per-run half: the same bounded, provenance-labelled evidence block commanderEvidenceContext composes, minus the
 // dossier and goal the persona already carries. '' when the station has observed nothing (never an empty header).
 function stationEvidenceNote() {
@@ -7026,7 +7037,7 @@ function cronContextFor(job, jobs) {
     const src = cronStore.getJob(jobs, id);
     if (!src) throw new Error('upstream routine ' + id + ' does not exist');
     if (src.lastStatus !== 'ok' || !String(src.lastOutput || '').trim() || String(src.lastOutput).trim() === '[SILENT]') throw new Error('upstream routine ' + (src.name || id) + ' has no successful output');
-    const body = String(src.lastOutput).slice(0, Math.min(8000, budget)); budget -= body.length;
+    const body = PromptScrub.scrubStored(String(src.lastOutput)).slice(0, Math.min(8000, budget)); budget -= body.length;   // scrub, then cut
     blocks.push('### ' + String(src.name || id).slice(0, 120) + ' [' + id + ']\n' + body);
     if (budget <= 0) break;
   }
@@ -7498,14 +7509,16 @@ function nightFocusInputs() {
       // strengthen the focus's why with what the code itself says — deliberately NOT a score term (the topic-
       // boost law: evidence may explain a choice the recency ranking already made, never re-rank it).
       let findings = [];
-      try { findings = Discovery.findingsForRoot(discoveryState, root); } catch (_) { findings = []; }
+      try { findings = PromptScrub.scrubDeep(Discovery.findingsForRoot(discoveryState, root)); } catch (_) { findings = []; }
       return { root, displayPath: m.displayPath || root, lastTouchedAt: m.lastTouchedAt || 0, isGitRepo: !!m.isGitRepo, mentionCount, findings };
     });
   } catch (_) { projects = []; }
   let threads = [];
-  try { threads = threadsStore.list({ state: 'open', limit: 8 }).map(t => ({ id: t.id, title: t.title, spec: t.spec, updatedAt: t.updatedAt })); } catch (_) { threads = []; }
+  // PROMPT-BOUND (prompt-scrub): the resolver quotes these into TONIGHT'S FOCUS, the header of both night directives,
+  // and clips them as it goes — so each stored field is scrubbed here, whole, before any slice.
+  try { threads = threadsStore.list({ state: 'open', limit: 8 }).map(t => ({ id: t.id, title: PromptScrub.scrubStored(t.title), spec: PromptScrub.scrubStored(t.spec), updatedAt: t.updatedAt })); } catch (_) { threads = []; }
   let goal = null;
-  try { goal = commanderGoals.get() || null; } catch (_) { goal = null; }
+  try { goal = promptGoal(); } catch (_) { goal = null; }
   // FLAGSHIP CROSS-WIRE: the Commander's open ledger quests + the quest engine's CONFIRMED north star are evidence
   // the resolver ranks alongside projects/threads/goal, so a night beat serves the direction the user is actually
   // chasing instead of a project the quests already superseded. Bounded + fail-open like every field above.
@@ -7513,14 +7526,14 @@ function nightFocusInputs() {
   try {
     quests = (questStore.list() || [])
       .filter(q => q && q.status === 'open')
-      .map(q => ({ id: q.id, title: q.title, contractType: (q.contract && q.contract.type) || '', createdAt: q.createdAt || 0 }))
+      .map(q => ({ id: q.id, title: PromptScrub.scrubStored(q.title), contractType: (q.contract && q.contract.type) || '', createdAt: q.createdAt || 0 }))
       .slice(0, 12);
   } catch (_) { quests = []; }
   // northStarEvidence is the PURE consent + no-double-count gate: it returns null for an UNCONFIRMED proposal
   // (never steer autonomous work) and for a goal-sourced/goal-matching star (the `goal` input already ranks it).
   // Pass the ADOPTED slot, NOT effectiveNorthStar (which would surface the pending proposal).
   let northStar = null;
-  try { northStar = nightfocus.northStarEvidence(QuestRefresh.normalize(questRefreshState).northStar, goal); } catch (_) { northStar = null; }
+  try { northStar = nightfocus.northStarEvidence(PromptScrub.scrubDeep(QuestRefresh.normalize(questRefreshState).northStar), goal); } catch (_) { northStar = null; }   // scrubbed whole, before its 140-char cut (and compared with the scrubbed goal)
   // LEARNED TOPICS (2026-07-28): the interest histogram the scout lane already maintains, handed to the resolver as
   // a CAPPED tie-break (nightfocus.TOPIC_BOOST_MAX) so a night lands on the subject the Commander keeps working on
   // when two candidates are otherwise close on recency. Only WARM topics can move anything (TopicMatch's anchor
@@ -7533,6 +7546,12 @@ function nightFocusInputs() {
   const workflows = nightFocusWorkflows();
   return { projects, threads, goal, quests, northStar, topics, workflows, now };
 }
+// TONIGHT'S FOCUS as a directive quotes it: the label and each why line scrubbed (prompt-scrub). The inputs above are
+// scrubbed before the resolver clips them; this catches a focus PERSISTED earlier today (or before a value was held).
+function nightFocusLine(focus) {
+  if (!focus) return '';
+  return nightfocus.focusLine(Object.assign({}, focus, { label: PromptScrub.scrubStored(focus.label), why: Array.isArray(focus.why) ? focus.why.map(w => PromptScrub.scrubStored(w)) : focus.why }));
+}
 // the workflow-takeover evidence the focus resolver ranks, mapped to its compact input shape. Only a Commander
 // "never" blocks one here (offer counts / defers are about the routine CARD, not about whether the work is wanted).
 // Cached ~60s: status polls reconcile a workflow focus against this list, and the read walks run history.
@@ -7543,8 +7562,8 @@ function nightFocusWorkflows() {
   let list = [];
   try {
     list = (workflowTakeoverCandidates(true) || []).map(c => ({
-      id: c.id, name: c.name, count: c.count, lastAt: c.lastAt,
-      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => String((e && e.quote) || '')).filter(Boolean).slice(-3)
+      id: c.id, name: PromptScrub.scrubStored(c.name), count: c.count, lastAt: c.lastAt,
+      quotes: (Array.isArray(c.evidence) ? c.evidence : []).map(e => PromptScrub.scrubStored(String((e && e.quote) || ''))).filter(Boolean).slice(-3)
     }));
   } catch (_) { list = []; }
   nightFocusWorkflowsCache = { at: now, list };
@@ -7755,7 +7774,9 @@ async function nightshiftChat(o) {
     await runOnce({
       key: key, model: model, provider: provider,
       system: (o && o.system) || (ident.system && String(ident.system)) || cronSystemFor(agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-      messages: o.messages, agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
+      // every night directive is host-composed from stored text (focus, beliefs, activity, threads): scrubbed whole
+      messages: (Array.isArray(o.messages) ? o.messages : []).map(m => (m && typeof m.content === 'string') ? Object.assign({}, m, { content: PromptScrub.scrubStored(m.content) }) : m),
+      agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
       runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast)
     });
   } catch (e) { return { error: (e && e.message) || 'run failed' }; }
@@ -8609,11 +8630,12 @@ function nightshiftContextPack(evidence) {
   // the shapes that finish. Same pause authority as the preference tallies (a paused station learns nothing).
   const trackRecord = stationTrackRecordLines();
   // No redact is passed: the pack scrubs every stored line itself (contextpack's default prompt-scrub resolver), so the
-  // prompt text, the activity pool and the grounding veto all read one identically scrubbed copy.
-  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord }, { now });
+  // prompt text, the activity pool and the grounding veto all read one identically scrubbed copy. matchRedact is the
+  // transcript's own redaction, used ONLY to join a self-talk run title to its redacted-on-write transcript row.
+  const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, matchRedact: redact }, { now });
   // A legacy run's absent taintedBy is not positive owner provenance. Persisted interests may learn only
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
-  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats }, { now }).activityLines || [];
+  pack.trustedActivityLines = contextpack.assemble({ runs: runs.filter(r => r.internal), briefs, chats, matchRedact: redact }, { now }).activityLines || [];
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -8817,7 +8839,7 @@ async function runNightshiftBeat(opts) {
   // NS-5b: declare/keep the NIGHT'S FOCUS (single priority) and lead the directive with it, so beats compound on ONE
   // needle-moving thread instead of scattering. A cited focus is truthful telemetry; a null focus → honest improv.
   const foc = resolveNightFocus();
-  const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
+  const focusHeader = foc.focus ? nightFocusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
   // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
@@ -8956,7 +8978,7 @@ async function runNightshiftActShift(opts) {
   // harness scan — the beat then patches the REAL repo state instead of guessing. The scan consults blessedRoots()
   // directly and NEVER blesses a new root; a non-blessed / non-project focus simply yields no snapshot.
   const foc = resolveNightFocus();
-  const focusHeader = foc.focus ? nightfocus.focusLine(foc.focus) : '';
+  const focusHeader = foc.focus ? nightFocusLine(foc.focus) : '';
   ledgerNightFocus(agentId, foc);
   const priorTonight = nightFocusPriorTonight();
   // PRIOR WORK (audit item 1): earlier nights' builds for this focus — shown to the model AND enforced by the veto.
@@ -10410,7 +10432,7 @@ async function runQuestRefreshCycle(why) {
       .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)).slice(0, 5);
     // the goal note and the dossier are Commander-authored stored text: scrubbed (prompt-scrub), and the directive and
     // the grounding veto below read these same strings
-    const goalNote = PromptScrub.scrubStored(commanderGoals.note());
+    const goalNote = commanderGoals.note();
     // V3 §6: a dossier the shared readiness gate has JUDGED not-ready (a synced verdict with ok:false —
     // e.g. a blitzed onboarding whose only beliefs are seeds) is INADMISSIBLE as quest evidence: it neither
     // satisfies hasEvidence nor reaches the directive. A save with NO verdict (server-only boot, legacy
@@ -10419,9 +10441,11 @@ async function runQuestRefreshCycle(why) {
     const rdSnap = commanderPosture.beliefs();
     const dossierNotReady = !!(rdSnap && rdSnap.ready && rdSnap.ready.ok === false);
     const dossierBlock = dossierNotReady ? '' : promptDossier();
-    const evidenceCtx = {
+    // EVERY stored string below is scrubbed field by field (prompt-scrub scrubDeep: goal/journey text, success condition,
+    // outcome evidence, decline notes, quest titles, the north star) — and the grounding veto reads this same object.
+    const evidenceCtx = PromptScrub.scrubDeep({
       goalNote: goalNote,
-      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? PromptScrub.scrubStored(String(capturedGoal.next)) : '',
+      nextStep: (capturedGoal && capturedGoal.milestoneId && capturedGoal.next) ? String(capturedGoal.next) : '',
       progress: questProgressContext(),
       // ground on the EFFECTIVE star: a pending (unconfirmed) inference still steers the directive so the cycle
       // isn't rudderless while awaiting the Commander's verdict — the UI is what labels it unconfirmed, not here.
@@ -10433,7 +10457,7 @@ async function runQuestRefreshCycle(why) {
       completedQuests: completed.map(q => ({ title: q.title })),
       deniedTitles: rec.deniedTitles,
       propKeys: QUESTREFRESH_PROP_KEYS
-    };
+    });
     // COLD-STATE HONESTY: a station that knows nothing yet has nothing to ground a quest in. Skip the model
     // call entirely and say so — a paid guess would be exactly the ungrounded busywork the doctrine forbids.
     if (!QuestRefresh.hasEvidence(evidenceCtx)) {
@@ -10476,10 +10500,12 @@ async function runQuestRefreshCycle(why) {
       questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
       return;
     }
-    const grounding = [goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
+    const grounding = [evidenceCtx.goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
+    // dedupe against the titles the model was SHOWN (scrubbed) as well as the stored ones: more dedupe is never less safe
+    const shownTitles = evidenceCtx.openQuests.concat(evidenceCtx.completedQuests).map(q => q.title);
     const parsed = QuestRefresh.parse(out, {
-      openTitles: open.map(q => q.title).concat(completed.map(q => q.title)),   // done work is never re-proposed
-      deniedTitles: rec.deniedTitles, propKeys: QUESTREFRESH_PROP_KEYS, grounding: grounding
+      openTitles: open.map(q => q.title).concat(completed.map(q => q.title), shownTitles),   // done work is never re-proposed
+      deniedTitles: (rec.deniedTitles || []).concat(evidenceCtx.deniedTitles || []), propKeys: QUESTREFRESH_PROP_KEYS, grounding: grounding
     });
 
     // NORTH STAR: the Commander's own active goal ALWAYS outranks an inference and is adopted silently (a goal
@@ -21138,7 +21164,11 @@ async function runOnceCore(o) {
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
   if (o.streamId) runStartExtra.streamId = String(o.streamId);
   const runStartedAt = Date.now();
-  let system = rawSystem;
+  /* The persona system prompt is STORED text (the page bakes the Commander's dossier into every agent's systemPrompt;
+     a routine, night beat or line hop reads the roster copy) — never the live turn. Scrubbed once here (prompt-scrub),
+     so the copy compose() dedupes against is the scrubbed one and no raw dossier key rides any run's system. A clean
+     persona comes back as the identical string (no prompt-cache change). */
+  let system = PromptScrub.scrubStored(rawSystem);
   if (o.workdir) {
     const cronRoot = cronCanonicalWorkdir(o.workdir); // re-check at every fire; revocation is immediate
     let rules = '';
@@ -24093,13 +24123,13 @@ async function runOnceCore(o) {
   const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
     ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
-    : FinishLine.append(cacheSystemPrefix + stationEvidenceBlock + runtimeSkillBlock
+    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
-      + deliverableNote + crewCallNote + runtimeBlock, { isTask, internal, tools: resolved.tools });
+      + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
   const sys = internal
     ? (String(system || '') + evidenceBlock)
     : stablePrefix ? taskSystem
-      : withQuests(taskSystem, questsBlock);   // ground-truth caps + task-context doctrine share the one final prompt seam
+      : withQuests(taskSystem, PromptScrub.scrubStored(questsBlock));   // ground-truth caps + task-context doctrine share the one final prompt seam
   // The whole per-run note is stored text the host composed (brief, evidence, quests, away briefing, skills, domain
   // task): scrubbed once more as one text (prompt-scrub), so a per-run block added later cannot skip the projectors' rule.
   const runContext = stablePrefix ? runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock))) : '';
@@ -24697,7 +24727,7 @@ async function runOnceCore(o) {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
       // Then every other key is scrubbed (prompt-scrub) BEFORE runstore cuts the title at 120 chars: the title is
       // what later runs quote as RECENT ACTIVITY. Naming first, so a saved key keeps its "[NAME saved in API KEYS]".
-      const title = PromptScrub.scrubStored(KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys()));
+      const title = PromptScrub.scrubStored(KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys()), { whole: true });
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -24931,12 +24961,15 @@ async function runOnceCore(o) {
     } catch (_) {}
   }
 
+  // The aux passes below resend this run's messages through the run's adapter, whose held list was snapshot at the
+  // run's FIRST request: a key keys.save stored mid-run would ride them raw. Re-guarded here = a fresh snapshot.
+  const auxProvider = PromptScrub.guardRequest(provider);
   // Fire ONLY the granted passes — each keeps its exact prior spend semantics + in-flight guard. A deferred pass
   // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run* only on a surviving beat),
   // so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    runReflection({ agentId, runId, messages: result.messages.slice(), provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    runReflection({ agentId, runId, messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
@@ -24945,25 +24978,25 @@ async function runOnceCore(o) {
       failureStage: execution.failureStage(), failureCode: execution.failureCode(),
       toolTrace: execution.toolTraceList(), recoveryAttempts: execution.recoveryAttempts(),
       uncertainMutations: execution.uncertainMutations(),
-      provider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
+      provider: auxProvider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
     }).catch(swallow('aux.failreview.envelope')).finally(() => { failReviewingNow.delete(agentId); });
   }
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = latestUserText(result.messages);   // study the turn that actually ran, attachment or not
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    runScoutCycle({ runId, agentId, provider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    runScoutCycle({ runId, agentId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
@@ -24972,7 +25005,7 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
+    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));

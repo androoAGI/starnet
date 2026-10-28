@@ -14,7 +14,15 @@
         an injected redact still applies on top.
      P4 Interests.summary / topicsBlock scrub a stored evidence quote (a legacy raw q, a value held after the fold).
      P5 threads-store openThreads scrubs title + spec; list() stays raw (the store is not rewritten).
-     P6 source locks on the host wiring (read through test/helpers/source.js). */
+     P6 source locks on the host wiring (read through test/helpers/source.js).
+     P7 Outcomes.fold scrubs a recipe run's title BEFORE its 80-char label clip (a legacy title cut mid-key rides
+        TRACK RECORD as '"<label>" (recipe) — …', where no later rule could see the fragment).
+     P8 session.peek scrubs another session's turns field by field (the page cuts each at 600 chars, mid-key).
+     P9 the night focus and the quest-refresh directive (the review's blockers): the pure resolvers fed the way the
+        host now feeds them (scrubbed fields, before any slice / suffix) quote no key, and a focus persisted raw is
+        scrubbed at use; the goal note scrubs each field before its suffix.
+     P10 the persona system prompt is scrubbed at runOnceCore's intake: compose() sees the scrubbed dossier copy in it
+        and still does not repeat the dossier. */
 'use strict';
 const A = require('./_assert.js');
 const crypto = require('node:crypto');
@@ -23,14 +31,18 @@ const PS = require('../sidecar/prompt-scrub.js');
 const CommanderContext = require('../sidecar/commander-context.js');
 const contextpack = require('../sidecar/contextpack.js');
 const Interests = require('../sidecar/interests.js');
+const Outcomes = require('../sidecar/outcomes.js');
+const nightfocus = require('../sidecar/nightfocus.js');
+const QuestRefresh = require('../sidecar/questrefresh.js');
+const { makeStationTools } = require('../sidecar/tools/builtin/station.js');
 const { makeThreadsStore } = require('../sidecar/threads-store.js');
 const S = require('./helpers/source.js');
 const FK = require('./helpers/fake-keys.js');
 const { list, by } = FK.make('prompt-scrub-projectors');
 
 const leaks = s => list.map(k => FK.leak(s, k) && (k.id + ':' + FK.leak(s, k))).filter(Boolean).join(', ');
-// the station HOLDS the vault value (saved through KEYS after it was typed)
-PS.setHeldSource(() => [by.VAULT.value]);   // the host's credential source (index.js setHeldSource)
+// the station HOLDS the vault value (saved through KEYS after it was typed) — the host's credential source
+PS.setHeldSource(() => [by.VAULT.value]);
 // a key cut by a clip: `n` chars of padding put the clip boundary 20 chars into the key's secret part
 const cutAt = (n, k) => 'x'.repeat(Math.max(0, n - k.prefix.length - 21)) + ' ' + k.value;
 const K = by;
@@ -152,6 +164,13 @@ const SEED = {
   A.ok(extra.activityLines[0] === 'deploy the [x] build [redacted-key] (today)', 'P3: an injected redact applies on top of the default (never instead): ' + JSON.stringify(extra.activityLines[0]));
   const clean = contextpack.assemble({ runs: [{ title: 'Build the task-management-dashboard', ts, streamId: 'a' }] }, { now });
   A.eq(clean.activityLines, ['Build the task-management-dashboard (today)'], 'P3: a clean title is unchanged (the hyphenated slug survives)');
+  // the transcript redacts MORE than the prompt resolver (every connector header/env string, e.g. 'production'): the
+  // self-talk join compares through matchRedact, so station self-talk never resurfaces as the Commander's activity
+  const fullRedact = s => String(s).split('production').join('[redacted-secret]');
+  const selfTalk = { runs: [{ title: 'Plan the production rollout for the outreach push', ts, streamId: 'f', internal: true }],
+    chats: [{ role: 'user', content: 'Plan the [redacted-secret] rollout for the outreach push', ts, streamId: 'f' }] };
+  A.ok(!contextpack.assemble(Object.assign({ matchRedact: fullRedact }, selfTalk), { now }).activityLines.some(l => /rollout/.test(l)), 'P3: matchRedact joins a self-talk title to its (more) redacted transcript row');
+  A.ok(contextpack.assemble(selfTalk, { now }).activityLines.some(l => /rollout/.test(l)), 'P3: (without it the row would read as the Commander\'s own activity)');
 }
 
 // ---- P4: Interests.summary / topicsBlock ----
@@ -188,7 +207,8 @@ const SEED = {
   const all = S.readSidecarSource();
   A.ok(all.indexOf('attachRequestScrub(PromptScrub.guardRequest)') >= 0, 'P6: boot attaches the provider-boundary scrub to the factory');
   const nsp = S.sidecarFunctionSource('nightshiftContextPack');
-  A.ok(nsp.indexOf('contextpack.assemble(') >= 0 && !/contextpack\.assemble\(\{[^}]*\bredact\b/.test(nsp), 'P6: nightshiftContextPack relies on the pack\'s default resolver (no bare context redact)');
+  A.ok(nsp.indexOf('contextpack.assemble(') >= 0 && !/contextpack\.assemble\(\{[^}]*[{,]\s*redact\s*[,}]/.test(nsp), 'P6: nightshiftContextPack relies on the pack\'s default resolver (no bare context redact as the scrubber)');
+  A.eq((nsp.match(/matchRedact: redact/g) || []).length, 2, 'P6: both packs join self-talk through the transcript\'s own redaction');
   const core = S.sidecarTopLevelFunction('runOnceCore');
   A.ok(core.indexOf('runContextNote(PromptScrub.scrubStored(withQuests(perRunBlocks, questsBlock)))') >= 0, 'P6: the whole <run_context> body goes through scrubStored');
   A.ok(core.indexOf('PromptScrub.scrubStored(KeyTools.nameSavedKeys(') >= 0, 'P6: the run title is scrubbed AFTER nameSavedKeys names a saved key');
@@ -198,7 +218,121 @@ const SEED = {
   }
   const scout = S.sidecarFunctionSource('runScoutCycle');
   A.ok(/grounding: \[interestsBlock, activityBlock, directionBlock, dossierBlock\]/.test(scout), 'P6: the scout recipe veto grounds in the SAME scrubbed dossier its directive showed');
-  A.ok(/const grounding = \[goalNote, dossierBlock,/.test(S.sidecarFunctionSource('runQuestRefreshCycle')), 'P6: the quest-refresh veto reads the same scrubbed goal note + dossier');
+  const qref = S.sidecarFunctionSource('runQuestRefreshCycle');
+  A.ok(/const evidenceCtx = PromptScrub\.scrubDeep\(\{/.test(qref), 'P6: the quest-refresh evidence (progress JSON, quest titles, north star, step) is scrubbed field by field');
+  A.ok(/const grounding = \[evidenceCtx\.goalNote, dossierBlock,/.test(qref) && qref.indexOf('JSON.stringify(evidenceCtx.progress)') >= 0, 'P6: the quest-refresh veto reads the SAME scrubbed evidence object');
+  A.ok(/PromptScrub\.setHeldSource\(/.test(all) && /stationSecretValues\(\{ credentialUnder: \['headers', 'env'\] \}\)/.test(all), 'P6: the prompt held list is the CREDENTIAL list (connector header/env values only when they are credentials)');
+  A.ok(/let system = PromptScrub\.scrubStored\(rawSystem\);/.test(core), 'P6: the persona system prompt is scrubbed at runOnceCore\'s intake (the page bakes the raw dossier into it)');
+  A.ok(/cacheSystemPrefix \+ PromptScrub\.scrubStored\(stationEvidenceBlock \+/.test(core) && /withQuests\(taskSystem, PromptScrub\.scrubStored\(questsBlock\)\)/.test(core), 'P6: STABLE_PREFIX=0 gets the same belt over its per-run blocks');
+  A.ok(core.indexOf("liveServiceKeys()), { whole: true })") >= 0, 'P6: the run title (uncut there) skips the cut-key pass');
+  A.ok(/const auxProvider = PromptScrub\.guardRequest\(provider\);/.test(core) && !/runReflection\(\{[^}]*\bprovider,/.test(core) && (core.match(/provider: auxProvider/g) || []).length >= 7, 'P6: post-run aux passes resend the run\'s messages through a FRESH held snapshot');
+  A.ok(/PromptScrub\.scrubStored\(m\.content\)/.test(S.sidecarFunctionSource('nightshiftChat')), 'P6: every night directive is scrubbed whole as a belt');
+  A.ok(/PromptScrub\.scrubStored\(String\(src\.lastOutput\)\)\.slice\(0,/.test(S.sidecarFunctionSource('cronContextFor')), 'P6: an upstream routine\'s stored output is scrubbed before its cut');
+  for (const fn of ['runNightshiftBeatV2', 'runNightshiftBeat']) {
+    const body = S.sidecarFunctionSource(fn);
+    if (body) A.ok(body.indexOf('nightfocus.focusLine(') < 0, 'P6: ' + fn + ' builds TONIGHT\'S FOCUS through nightFocusLine (never the raw persisted focus)');
+  }
+  A.ok((all.match(/const focusHeader = foc\.focus \? nightFocusLine\(foc\.focus\) : '';/g) || []).length === 2, 'P6: both night directives lead with the scrubbed focus line');
 
+  // ---- P7: Outcomes.fold scrubs a recipe title before the 80-char label clip ----
+  {
+    const now = 1761600000000;
+    const rows = [];
+    for (const k of [K.GOOGLE, K.VAULT, K.GITHUB]) {
+      const title = ('Daily lead pull for the outreach campaign, run with our vendor key ' + k.value + ' every morning').slice(0, 120);
+      const legacyCut = ('Pull the leads via ' + k.value).slice(0, 19 + k.prefix.length + 30);   // a title stored cut mid-key
+      for (let i = 0; i < 4; i++) rows.push({ runId: k.id + i, recipeId: 'r-' + k.id, title: i % 2 ? title : legacyCut, reason: 'done', ts: now - 3600000 * (i + 1), streamId: 'a', model: 'm' });
+    }
+    const rec = Outcomes.fold(rows, { now });
+    const lines = Outcomes.lines(rec).join('\n');
+    A.ok(/\(recipe\)/.test(lines), 'P7: the recipe track-record lines exist');
+    A.eq(leaks(lines + JSON.stringify(rec)), '', 'P7: TRACK RECORD labels hold no key or 12-char window (scrubbed before the 80-char clip)');
+  }
+
+  // ---- P8: session.peek scrubs another session's turns field by field ----
+  {
+    const v = K.VAULT.value, g = K.GITHUB.value;
+    const turns = [
+      { speaker: 'commander', sys: false, text: ('x'.repeat(580) + ' ' + v).slice(0, 600) },          // a held value cut at the page's 600
+      { speaker: 'commander', sys: false, text: ('y'.repeat(585) + ' ' + g).slice(0, 600) },          // a vendor key cut at 600
+      { speaker: 'agent', sys: false, text: 'saved ' + K.OPENAI.value + ' for you' },
+      { speaker: 'agent', sys: false, text: 'nothing secret here' }
+    ];
+    const tools = makeStationTools({ station: { request: async () => ({ ok: true, result: { id: 's1', title: 'Research ' + K.SLACK.value, agentId: 'agent', busy: false, runCount: 2, turns } }) } });
+    const out = await tools.peekTool.run({ session: 'Research' });
+    A.eq(leaks(out.content), '', 'P8: session.peek\'s tool result holds no key or window (each turn scrubbed before it rides the JSON)');
+    A.ok(JSON.parse(out.content).turns[3].text === 'nothing secret here', 'P8: a clean turn is unchanged');
+    const cleanTools = makeStationTools({ station: { request: async () => ({ ok: true, result: { id: 's1', title: 'Research', turns: [{ speaker: 'agent', text: 'hi' }] } }) } });
+    A.eq((await cleanTools.peekTool.run({ session: 'Research' })).content, JSON.stringify({ id: 's1', title: 'Research', turns: [{ speaker: 'agent', text: 'hi' }] }), 'P8: a clean peek is byte-identical');
+  }
+
+  // ---- P9: the night focus (the host's own nightFocusInputs / nightFocusLine / promptGoal, run in a vm sandbox) ----
+  {
+    const vm = require('node:vm');
+    const now = Date.now();
+    const goalText = ('Ship outreach v2 using openai ' + K.OPENAI.value + ' ' + 'outreach plan detail '.repeat(12)).slice(0, 255) + ' ' + K.GOOGLE.value;
+    const goal = { id: 'g1', text: goalText.slice(0, 280), next: 'rotate ' + K.SLACK.value + ' tonight', done: 0, total: 2, milestoneId: 'm1' };
+    const sandbox = {
+      PromptScrub: PS, nightfocus, QuestRefresh, Interests, contextpack, Date, String, Array, Object, Number, Math, JSON,
+      threadsStore: { list: () => [{ id: 't1', title: 'rotate the deploy key ' + K.GITHUB.value, spec: ('he said ' + 'z'.repeat(150) + ' ' + K.ANTHROPIC.value).slice(0, 180), updatedAt: now - 1000 }] },
+      commanderGoals: { get: () => goal },
+      questStore: { list: () => [{ id: 'q1', status: 'open', title: 'Rotate ' + K.OPENROUTER.value, contract: { type: 'run' }, createdAt: now - 2000 }] },
+      questRefreshState: { northStar: { text: 'Own the outbound stack with ' + K.VAULT.value, status: 'adopted', source: 'model', groundedIn: 'you said ' + K.OPENAI.value } },
+      personalizationStore: { read: () => ({ enabled: true }) }, interestsState: Interests.fresh ? Interests.fresh() : null,
+      projectsStore: { snapshot: () => ({ projects: [] }) }, runStore: { list: () => [] }, sessionRunForgotten: () => false,
+      blessedRoots: () => [], Discovery: { findingsForRoot: () => [] }, discoveryState: null,
+      nightFocusWorkflowsCache: { at: 0, list: [] },
+      workflowTakeoverCandidates: () => [{ id: 'w1', name: 'pull campaigns with ' + K.SLACK.value, count: 4, lastAt: now - 5000, evidence: [{ quote: 'pull my campaigns with ' + K.ANTHROPIC.value }, { quote: ('again, key ' + K.GOOGLE.value).slice(0, 30) }] }]
+    };
+    vm.createContext(sandbox);
+    const src = ['promptGoal', 'nightFocusWorkflows', 'nightFocusInputs', 'nightFocusLine'].map(n => S.sidecarFunctionSource(n)).join('\n');
+    A.ok(src.indexOf('function nightFocusInputs') >= 0 && src.indexOf('function nightFocusLine') >= 0, 'P9: the host focus functions were extracted');
+    vm.runInContext(src.replace(/^let nightFocusWorkflowsCache[^\n]*\n/m, '') + '\nthis.__inp = nightFocusInputs(); this.__pg = promptGoal();', sandbox);
+    const inp = sandbox.__inp;
+    A.ok(inp && inp.threads.length === 1 && inp.quests.length === 1 && inp.goal && inp.northStar && inp.workflows.length === 1, 'P9: every focus input kind is present');
+    A.eq(leaks(JSON.stringify(inp)), '', 'P9: nightFocusInputs hands the resolver no key and no window (goal cut at 280 included)');
+    for (const only of ['threads', 'quests', 'goal', 'northStar', 'workflows']) {
+      const sub = { projects: [], threads: [], quests: [], goal: null, northStar: null, workflows: [], topics: [], now };
+      sub[only] = inp[only];
+      const f = nightfocus.resolveFocus(sub, { now });
+      A.ok(f && /^TONIGHT'S FOCUS: /.test(nightfocus.focusLine(f)) && leaks(nightfocus.focusLine(f)) === '', 'P9: TONIGHT\'S FOCUS from the ' + only + ' input quotes no key: ' + (f ? nightfocus.focusLine(f).slice(0, 90) : 'none'));
+    }
+    // a focus PERSISTED raw earlier today (before the fix, or before a value was held) is scrubbed at use
+    const raw = { kind: 'goal', ref: 'goal', label: goal.text.slice(0, 140), why: ['your active goal arc: "' + goal.text.slice(0, 140) + '" (0/2 done)', 'next step: ' + goal.next.slice(0, 100)] };
+    sandbox.__raw = raw;
+    const line = vm.runInContext('nightFocusLine(__raw)', sandbox);
+    A.ok(/^TONIGHT'S FOCUS: /.test(line) && leaks(line) === '', 'P9: nightFocusLine scrubs a persisted raw focus: ' + line.slice(0, 100));
+    // the goal note: each field scrubbed BEFORE its suffix (the store cut AIza at 280 now sits mid-note)
+    const pg = sandbox.__pg;
+    const note = 'Current goal: ' + pg.text + ' (' + pg.done + '/' + pg.total + ' milestones done). Next step: ' + pg.next + '.';
+    A.eq(leaks(note), '', 'P9: the goal note built from promptGoal() holds no key or window');
+    const unsafe = 'Current goal: ' + goal.text + ' (0/2 milestones done).';
+    A.ok(leaks(PS.scrubStored(unsafe)) !== '', 'P9: (why field order matters: scrubbing the composed note leaves the store-cut fragment)');
+    A.ok(/note\(\) \{\s*const g = promptGoal\(\);/.test(all), 'P9: commanderGoals.note() reads promptGoal()');
+    // the quest-refresh directive over the scrubbed evidence object
+    const ctx = PS.scrubDeep({
+      goalNote: note, nextStep: goal.next, northStar: sandbox.questRefreshState.northStar,
+      progress: QuestRefresh.progressContext({ goals: [{ id: 'g1', text: 'Grow outreach with github ' + K.GITHUB.value, successCondition: 'done when anthropic ' + K.ANTHROPIC.value + ' is rotated', status: 'active' }], outcomes: [{ goalId: 'g1', title: 'rotated ' + K.SLACK.value, evidence: 'see ' + K.OPENAI.value }] },
+        [{ title: 'Rotate ' + K.OPENROUTER.value, disposition: 'later', declineNote: 'not with ' + K.VAULT.value }], { id: 'g1' }),
+      openQuests: [{ title: 'Rotate ' + K.OPENROUTER.value }], completedQuests: [{ title: 'Moved ' + K.GOOGLE.value }], deniedTitles: ['Never ' + K.GITHUB.value]
+    });
+    const dir = QuestRefresh.buildDirective(ctx);
+    A.ok(/GOAL PROGRESS AND COMMANDER FEEDBACK/.test(dir) && /QUESTS ALREADY OPEN/.test(dir), 'P9: the quest-refresh directive carries its evidence sections');
+    A.eq(leaks(dir), '', 'P9: the quest-refresh directive (progress JSON, quest titles, denied titles, north star) holds no key');
+  }
+
+  // ---- P10: the persona system prompt is scrubbed at intake; compose() dedupes against that scrubbed copy ----
+  {
+    const dossier = 'Runs an outreach agency. Our OpenRouter key: ' + K.OPENROUTER.value + '. Vault: ' + K.VAULT.value;
+    const pageSystem = 'You are Hero, the station lead.\n\nCOMMANDER DOSSIER\n' + dossier + '\n\nBe brief.';
+    const system = PS.scrubStored(pageSystem);
+    A.eq(leaks(system), '', 'P10: the scrubbed persona system holds no dossier key');
+    A.ok(/You are Hero, the station lead\./.test(system) && /Be brief\.$/.test(system), 'P10: the persona keeps its words');
+    const block = CommanderContext.compose({ dossier, existingSystem: system });
+    A.ok(block.indexOf('<commander_context') < 0, 'P10: compose() recognises the scrubbed dossier already in the system prompt (not repeated)');
+    A.ok(PS.scrubStored('You are Hero.\n\nBe brief.') === 'You are Hero.\n\nBe brief.', 'P10: a clean persona is the identical string (no prompt-cache change)');
+  }
+
+  PS.setHeldSource(null);
   A.report('prompt-scrub.projectors.test');
 })().catch(e => { console.error(e); process.exit(1); });

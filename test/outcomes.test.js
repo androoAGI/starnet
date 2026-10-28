@@ -135,8 +135,9 @@ A.eq(O.successPrior(null, 'x'), null, '…and leans nothing');
     'the shared read exists and the personalization PAUSE returns null before any fold');
   A.ok(/const trackRecord = stationTrackRecordLines\(\);/.test(A.fnBody(idx, 'function commanderEvidenceInputs(evidence)')),
     'the evidence composer consumes the shared read (every evidence:true generator now sees the record)');
-  // (context-key-redact, 2026-10-28: the pack scrubs with its own default resolver now, so no `redact` is passed)
-  A.ok(/learn, trackRecord \}, \{ now \}\);/.test(idx),
+  // (context-key-redact, 2026-10-28: the pack scrubs with its own default resolver now; `redact` rides only as the
+  // self-talk join's matchRedact)
+  A.ok(/learn, trackRecord, matchRedact: redact \}, \{ now \}\);/.test(idx),
     'the night-shift context pack consumes the SAME read');
   A.ok(/success: q\.contract && q\.contract\.type === 'attest' \? 0\.55 : \(autoPrior != null \? autoPrior : 0\.8\)/.test(idx),
     'the quest ranker\'s success feature reads the measured autonomous-lane prior, guess only under support');

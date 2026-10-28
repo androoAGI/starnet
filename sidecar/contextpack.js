@@ -108,6 +108,7 @@
        inputs.learn    : { archetype:{up,down} }             (the LEARN store; summarized to one line)
        inputs.trackRecord : [string]                         (outcomes.js lines(); pre-composed literal-count lines)
        inputs.redact   : fn(string)->string                  (an EXTRA scrubber, applied before the default one)
+       inputs.matchRedact : fn(string)->string               (the transcript's redaction: only for the self-talk join)
      opts: { now, windowDays, maxChars }
      Every stored string (run titles, internal heads, briefs, chats, goal, landed titles, beliefs, track record) is
      scrubbed BEFORE oneLine clips it: prompt-scrub's scrubStored by default, after inputs.redact when one is given —
@@ -128,8 +129,11 @@
        flagged `internal`, AND its directive lands in the transcript as a 'user' row on the Commander's own stream —
        so it read as "what they asked recently" and the planners studied the station instead of the person. The run
        flag is the authority: its directive head identifies the matching transcript row. */
-    // both sides scrubbed: a title holding a key still matches the (redacted-on-write) transcript row it came from
-    const headOf = s => oneLine(redact(s), 400).replace(/…$/, '').slice(0, 48).toLowerCase();
+    // both sides scrubbed: a title holding a key still matches the (redacted-on-write) transcript row it came from.
+    // inputs.matchRedact = the transcript's OWN redaction (the host's context.redact): it scrubs more than the prompt
+    // resolver (every connector header/env string), so a title is put through it too before the heads are compared.
+    const matchRedact = (typeof inputs.matchRedact === 'function') ? inputs.matchRedact : null;
+    const headOf = s => oneLine(redact(matchRedact ? matchRedact(str(s)) : s), 400).replace(/…$/, '').slice(0, 48).toLowerCase();
     const internalHeads = (Array.isArray(inputs.runs) ? inputs.runs : [])
       .filter(r => r && r.internal).map(r => headOf(r.title)).filter(h => h.length >= 12);
     const isSelfTalk = text => { if (!internalHeads.length) return false; const h = headOf(text); return h.length >= 12 && internalHeads.some(x => h.indexOf(x) === 0 || x.indexOf(h) === 0); };
