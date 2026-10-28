@@ -59,7 +59,7 @@ const { makeUpdatePreparation } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
-const { makeRegistry, outputBudgetFor, outputWindowFor } = require('./tools/registry.js');
+const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, visibleOutputPath } = require('./output-artifacts.js');
 const { makeWebTools, makePoliteScheduler } = require('./tools/builtin/web.js');
 const { makeWebReader } = require('./tools/builtin/webreader.js');
@@ -201,6 +201,9 @@ attachCatalogCache(makeCatalogCache({ clock: { now: () => Date.now() } }));
    Vendor-SHAPED keys are left to those projectors: an unsaved key in the live turn stays readable for keys.save. */
 const PromptScrub = require('./prompt-scrub.js');
 attachRequestScrub(PromptScrub.guardRequest);
+// ...and every station tool that reads a store (loop.list, team.subagents, session.list, team.config …) hands the model
+// its result through the same stored-text rule, at the registry seam every result passes (tools/registry.js resultScrubFor).
+attachResultScrub(PromptScrub.scrubStored);
 const { DEFAULT_MODEL: CODEX_DEFAULT_MODEL, liveDefaultModel: codexLiveDefaultModel, memoLiveModelIds: codexMemoLiveModelIds } = require('./providers/codex.js');
 const codexAuth = require('./providers/codex-auth.js');
 const codexTokenStore = require('./providers/codex-token-store.js');

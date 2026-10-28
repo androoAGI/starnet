@@ -358,6 +358,40 @@ const SEED = {
     A.ok(PS.scrubStored('You are Hero.\n\nBe brief.') === 'You are Hero.\n\nBe brief.', 'P10: a clean persona is the identical string (no prompt-cache change)');
   }
 
+  // ---- P11: a TOOL RESULT that reads a store goes through the registry's result scrub (review r2) ----
+  {
+    const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+    const { makeLoopTools } = require('../sidecar/tools/builtin/loops.js');
+    const seededLoop = { id: 'loop_rig', name: 'Standup poster', objective: 'Post the daily standup to Slack with bot token ' + K.SLACK.value + ' until it shows',
+      agentId: 'agent', state: 'paused', enabled: false, iterationCount: 0, maxIterations: 5, lastError: 'auth failed for ' + K.VAULT.value, recent: [{ note: 'tried ' + K.GITHUB.value }] };
+    const reg = makeRegistry();
+    makeLoopTools({ listState: () => ({ loops: [seededLoop] }) }).register(reg);
+    // the team.subagents shape: an orchestrator read that returns persisted records (lead-authored prompt, handoff context)
+    reg.register({ name: 'team.subagents', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
+      run: async () => ({ content: JSON.stringify([{ id: 'sa_rig', prompt: 'Call the billing API with key ' + K.OPENAI.value, context: 'The Commander said: the Anthropic key is ' + K.ANTHROPIC.value, result: 'ok' }]), summary: '1' }) });
+    reg.register({ name: 'loop.boom', capability: 'orchestrator', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} },
+      run: async () => { throw new Error('stored objective ' + K.OPENROUTER.value + ' is invalid'); } });
+    const raw = 'OPENAI_API_KEY=' + K.OPENAI.value + '\n';
+    reg.register({ name: 'fs.read', capability: 'cabinet', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
+    reg.register({ name: 'mcp.notes.get', capability: 'mcp:notes', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => ({ content: raw }) });
+    const call = name => reg.dispatch({ id: 'c1', name, args: {} }, {});
+    const before = await call('loop.list');
+    A.ok(before.content.indexOf(K.SLACK.value) >= 0, 'P11: (unattached, a store-reading tool result carries the stored key: the bug)');
+    attachResultScrub(PS.scrubStored);
+    try {
+      const lr = await call('loop.list'), sa = await call('team.subagents'), boom = await call('loop.boom');
+      A.eq(leaks(lr.content + '\n' + sa.content + '\n' + boom.content), '', 'P11: loop.list, team.subagents and a thrown store error reach the model with no key or window');
+      A.ok(/"objective":"Post the daily standup to Slack with bot token \[redacted-key\] until it shows"/.test(lr.content) && /\[redacted-secret\]/.test(lr.content), 'P11: the loop row keeps its words and stays JSON');
+      A.ok(JSON.parse(sa.content)[0].prompt === 'Call the billing API with key [redacted-key]', 'P11: the subagent record keeps its words');
+      A.ok(boom.isError && /stored objective \[redacted-key\] is invalid/.test(boom.content), 'P11: an error result is scrubbed too');
+      A.eq((await call('fs.read')).content, raw, 'P11: a workspace file read stays byte-exact (fs/shell/verify redact their own output; edits replay it)');
+      A.eq((await call('mcp.notes.get')).content, raw, 'P11: a connector\'s own data is not a station store (unchanged)');
+      attachResultScrub(() => { throw new Error('scrub broke'); });
+      A.ok((await call('loop.list')).content.indexOf(K.SLACK.value) < 0, 'P11: a scrubber that throws withholds the result (fail closed)');
+    } finally { attachResultScrub(null); }
+    A.ok(/attachResultScrub\(PromptScrub\.scrubStored\)/.test(S.readSidecarSource()), 'P11: boot attaches the stored-text scrub to the registry');
+  }
+
   PS.setHeldSource(null);
   A.report('prompt-scrub.projectors.test');
 })().catch(e => { console.error(e); process.exit(1); });
