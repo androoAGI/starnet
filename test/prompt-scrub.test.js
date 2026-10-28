@@ -359,6 +359,13 @@ context.setKnownSecretSource(null);
     ['COMPASS_PROJECT', 'marketing-site'], ['TOKENIZER', 'cl100k_base'], ['SESSION_REGION', 'us-east-1'], ['AUTH0_DOMAIN', 'tenant.us.auth0.com'],
     ['PASSPORT_STRATEGY', 'google-oauth'], ['AWS_ACCESS_KEY_ID', 'AKIAEXAMPLEEXAMPLE'], ['KEY_FILE', '/home/me/keys/sa.json'], ['NODE_ENV', 'production']])
     A.ok(!heldUnder(name, value), 'a public value under a name that only CONTAINS a credential word is not held: ' + name);
+  // r3: a GLUED compound ending in key / pass (or starting secretkey) is a credential name again, as round 1 held it
+  for (const name of ['MASTERKEY', 'MEILI_MASTERKEY', 'APPKEY', 'DEPLOYKEY', 'ENCRYPTIONKEY', 'HMACKEY', 'PASSKEY', 'SERVERKEY', 'CLIENTKEY', 'USERKEY',
+    'SUBSCRIPTIONKEY', 'CONSUMERKEY', 'SECRETKEYBASE', 'DBPASS', 'SMTPPASS', 'X-Masterkey', 'meiliMasterkey'])
+    A.ok(heldUnder(name, PW), 'r3: a glued credential NAME holds its value: ' + name);
+  for (const [name, value] of [['MONKEY_PATCH', 'enabled-everywhere'], ['HOTKEY_TOGGLE', 'ctrl+shift+k'], ['WHISKEY_BRAND', 'lagavulin-sixteen'], ['BYPASS_CACHE', 'true'],
+    ['PUBLICKEY', 'ssh-ed25519 AAAAC3Nza'], ['PARTITIONKEY', 'tenantId'], ['TURKEY_DAY', 'november'], ['COMPASS_HEADING', 'north-north-east']])
+    A.ok(!heldUnder(name, value), 'r3: an ordinary word or public key name ending in key / pass is not held: ' + name);
   PS.setHeldSource(() => collectSecretValues([{ keyed: [{ env: { KEYCLOAK_REALM: 'production', OAUTH_REDIRECT_URI: 'http://localhost:3000/callback', COMPASS_PROJECT: 'marketing-site', TOKENIZER: 'cl100k_base' } }], credentialUnder: ['env'] }]));
   const turn = 'Deploy marketing-site to production; redirect is http://localhost:3000/callback (tokenizer cl100k_base)';
   A.ok(PS.scrubHeld(turn) === turn, 'the live turn naming those public values is byte-identical');

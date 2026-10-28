@@ -43,12 +43,24 @@ function nameSegments(name) {
   return String(name == null ? '' : name).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 }
+/* GLUED COMPOUNDS (review r3): a name written as one word ending in 'key' or 'pass' is a credential too — MASTERKEY,
+   MEILI_MASTERKEY, APPKEY, DEPLOYKEY, ENCRYPTIONKEY, HMACKEY, PASSKEY, CLIENTKEY, SUBSCRIPTIONKEY, CONSUMERKEY, DBPASS,
+   SMTPPASS — minus the ordinary words and public keys that end the same way (monkey, hotkey, publickey, partitionkey,
+   bypass, compass). So is a segment that STARTS secretkey (Rails' SECRETKEYBASE). Round 1's substring rule held these;
+   r2's whole-segment rule dropped them from the prompt held list. */
+const GLUED_KEY = /^[a-z]{2,}key$/, GLUED_PASS = /^[a-z]{2,}pass$/;
+const NOT_KEY = new Set(['monkey', 'donkey', 'turkey', 'whiskey', 'jockey', 'hockey', 'lackey', 'malarkey', 'hotkey', 'turnkey', 'shortcutkey',
+  'publickey', 'pubkey', 'sortkey', 'partitionkey', 'rangekey', 'hashkey', 'cachekey', 'foreignkey']);
+const NOT_PASS = new Set(['bypass', 'compass', 'overpass', 'underpass', 'surpass', 'trespass', 'encompass', 'impass', 'firstpass', 'multipass']);
+function gluedCredential(s) {
+  return (GLUED_KEY.test(s) && !NOT_KEY.has(s)) || (GLUED_PASS.test(s) && !NOT_PASS.has(s)) || s.startsWith('secretkey');
+}
 function isCredentialName(name) {
   const seg = nameSegments(name);
   if (!seg.length) return false;
   for (const [a, b] of CRED_PAIRS) { const i = seg.indexOf(a); if (i >= 0 && seg[i + 1] === b) return true; }
   if (PUBLIC_TAIL.has(seg[seg.length - 1])) return false;
-  return seg.some(s => CRED_WORDS.has(s) || CRED_SUFFIX.test(s));
+  return seg.some(s => CRED_WORDS.has(s) || CRED_SUFFIX.test(s) || gluedCredential(s));
 }
 const CREDENTIAL_NAME = { test: isCredentialName };   // the old export's .test(name) interface
 const TOKEN_LIKE = /[A-Za-z0-9]{20,}/;
