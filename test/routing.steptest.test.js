@@ -322,6 +322,61 @@ const settle = async (R, id) => { for (let i = 0; i < 50; i++) { await R.st.sett
     A.eq(s.hops.length, 3, 'nothing ran past the cap');
   }
 
+  /* ---- (quick win 28) every step is handed what is LEFT of the line budget as its own $ ceiling ----
+     The pre-run check alone let one own-key step spend far past the LINE BUDGET (the executor passes ceilingUsd on every
+     hop since QA 2026-10-02; the step test never did). */
+  {
+    const R = rig(twoDock(), { research: { text: 'r', usd: 0.4 }, writer: { text: 'w', usd: 0.4 } }, { limits: { maxUsdPerMessage: 1 } });
+    const r = R.st.start({ line: R.lineId, text: 'go', pause: 'none' });
+    await settle(R, r.session.id);
+    A.ok(R.calls.length >= 2, 'fixture: two steps ran');
+    A.eq(R.calls[0].ceilingUsd, 1, 'the first step may spend the whole line budget');
+    A.ok(Math.abs(R.calls[1].ceilingUsd - 0.6) < 1e-9, 'the second step only what is left of it (' + R.calls[1].ceilingUsd + ')');
+  }
+  /* ...and the HOST passes it on to the run, and treats a CANCELLED run as stopped, never as a finished step ---- */
+  {
+    const { sidecarTopLevelFunction } = require('./helpers/source.js');
+    const body = sidecarTopLevelFunction('stepTestRunDock');
+    A.ok(body.length > 500, 'fixture: stepTestRunDock is sliced');
+    A.ok(/ceilingUsd: h\.ceilingUsd/.test(body), 'stepTestRunDock hands the step\'s ceiling to runOnce (lower-only $ cap)');
+    A.ok(/p\.reason === 'cancelled'/.test(body) && /st\.stopped \? 'stopped by you'/.test(body), 'a cancelled step run is reported as stopped, never handed on as its half answer');
+  }
+  /* ...and every line hop's runOnce names its lineId ONCE: a second `lineId` key in the same object literal silently overrode
+     the first (the hub's hop, the scheduled seam's hop and Run Now's hop each carried two) — quick win 28 ---- */
+  {
+    const { readSidecarSource, sidecarSourceFiles, sidecarTopLevelFunction } = require('./helpers/source.js');
+    // the object literal opened at `open` ('{'), skipping strings and comments
+    const literalAt = (text, open) => {
+      let depth = 0;
+      for (let i = open; i < text.length; i++) {
+        const ch = text[i], nx = text[i + 1];
+        if (ch === '/' && nx === '/') { i = text.indexOf('\n', i); if (i < 0) break; continue; }
+        if (ch === '/' && nx === '*') { i = text.indexOf('*/', i + 2) + 1; if (i <= 0) break; continue; }
+        if (ch === '"' || ch === "'" || ch === '`') { for (i++; i < text.length; i++) { if (text[i] === '\\') { i++; continue; } if (text[i] === ch) break; } continue; }
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) return text.slice(open, i + 1); }
+      }
+      return '';
+    };
+    const hopRunOnce = (text, anchor) => {
+      const at = text.indexOf(anchor);
+      const call = at < 0 ? -1 : text.indexOf('await runOnce({', at);
+      return call < 0 ? '' : literalAt(text, call + 'await runOnce('.length);
+    };
+    // a KEY is `lineId` right after `{` or `,` (comments between them stripped first); `h.lineId` / `: lineId ||` are values
+    const lineIdKeys = (lit) => (lit.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '').match(/[{,]\s*lineId\s*[:,}]/g) || []).length;
+    const hub = sidecarSourceFiles().find(f => f.rel === 'sidecar/channels/hub.js').text;
+    const sites = {
+      'the channel hub\'s line hop': hopRunOnce(hub, 'runAgent: async function (h) {'),
+      'the scheduled seam\'s line hop': hopRunOnce(readSidecarSource(), 'advanceChain: (o) => chainRunner.advance({'),
+      'Run Now\'s line hop': hopRunOnce(sidecarTopLevelFunction('handleCronRun'), 'runAgent: async (h) => {')
+    };
+    for (const name of Object.keys(sites)) {
+      A.ok(sites[name].length > 200, name + ': its runOnce options are sliced');
+      A.eq(lineIdKeys(sites[name]), 1, name + ' names lineId exactly once');
+    }
+  }
+
   /* ---- a failing dock -> failed with an honest error; RE-RUN recovers ---- */
   {
     let n = 0;

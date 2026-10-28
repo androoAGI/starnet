@@ -350,7 +350,9 @@ function mkHub(store, sendImpl, events) {
     });
     await hub._internals.flushOutbox();
     const stored = store.loadOutbox('telegram')[0];
-    A.eq(stored.text, parts.raw.slice(1).join(''), 'the remainder is the RAW tail of the original text — no synthetic fences baked in');
+    // chunk 1 begins INSIDE the code block: the remainder is the RAW tail under ONE real opener (remainderOf), never the decorated tail
+    A.eq(stored.text, '```\n' + parts.raw.slice(1).join(''), 'the remainder is the RAW tail of the original text under its real opening fence — no synthetic close/reopen pairs baked in');
+    A.eq((stored.text.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'the stored remainder has balanced fences — its code renders as code, its closing fence closes');
     A.eq(stored.tries, 0, 'a pass that delivered a real chunk is progress, never a counted failure');
     while (store.loadOutbox('telegram').length && calls < 40) await hub._internals.flushOutbox();
     A.eq(store.loadOutbox('telegram'), [], 'the item completes across retries');
@@ -358,6 +360,159 @@ function mkHub(store, sendImpl, events) {
     const perfectLines = (chunkTextParts(fencedText, 24).send.join('\n') + '\n' + chunkTextParts(parts.raw.slice(1).join(''), 24).send.join('\n')).match(/^[ \t]{0,3}```/gm).length;
     A.ok(fenceLines <= perfectLines, 'no fence duplication accumulates across retries (' + fenceLines + ' <= ' + perfectLines + ')');
     hub.close();
+  }
+
+  // ---- H3. deliver()'s OWN remainder (the outbox text and heldText) is rebuilt from RAW splits too ----
+  // H2 fixed the flush pass; deliver() itself still joined the fence-doctored send chunks, so the FIRST queueing of a
+  // long code reply baked reopenFences's synthetic ``` markers into the stored text (and into heldText, which the
+  // inbox replay sends verbatim) — the redelivery then re-fenced them (qw-channels-lines quick win 20).
+  {
+    const { chunkTextParts } = require('../sidecar/channels/hub.js');
+    const fencedText = 'intro line\n```\ncode a\ncode b\ncode c\ncode d\n```\nclosing prose';
+    const parts = chunkTextParts(fencedText, 24);
+    A.ok(parts.send.slice(1).join('') !== parts.raw.slice(1).join(''), 'fixture: the decorated tail differs from the raw tail');
+    const mk = (store, sendImpl) => makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store, send: sendImpl,
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: (() => { let n = 0; return () => 'h3run-' + (++n); })(),
+      sleep: () => Promise.resolve(), outboxRetryMs: 1e9, maxMessageLength: 24
+    });
+    // (a) the outbox item queued by deliver() carries the RAW tail under the delayed-reply header
+    const store = mkStore(memFs());
+    let calls = 0;
+    const hub = mk(store, async () => { calls++; return calls === 1 ? { ok: true, messageId: 'm1' } : { ok: false, error: 'blip', retryable: true }; });
+    const r = await hub._internals.deliver('h3', fencedText, 'r-h3', 'done', '');
+    A.eq(r.ok, false, 'fixture: the second chunk failed');
+    const queued = store.loadOutbox('telegram')[0];
+    A.ok(!!queued, 'the undelivered remainder is queued');
+    const queuedBody = queued.text.replace(/^⌛[^\n]*\n/, '');
+    A.eq(queuedBody, '```\n' + parts.raw.slice(1).join(''), 'the queued remainder is the RAW tail under its real opening fence — no synthetic fences baked in');
+    A.eq((queuedBody.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'the queued remainder has balanced fences: the redelivered code is code, not prose with a dangling fence');
+    // and redelivered whole it splits into chunks that each render: an even fence count in every one
+    for (const c of chunkTextParts(queued.text, 24).send) A.eq((c.match(/^[ \t]{0,3}```/gm) || []).length % 2, 0, 'a redelivered chunk is balanced: ' + JSON.stringify(c));
+    hub.close();
+    // (b) heldText (the outbox refused the remainder) is the RAW tail as well
+    const full = mkStore(memFs());
+    full.pushOutbox = () => { throw new Error('channel outbox is full'); };
+    let calls2 = 0;
+    const hub2 = mk(full, async () => { calls2++; return calls2 === 1 ? { ok: true, messageId: 'm1' } : { ok: false, error: 'blip', retryable: true }; });
+    let held = null;
+    try { await hub2._internals.deliver('h3b', fencedText, 'r-h3b', 'done', ''); } catch (e) { held = e && e.heldText; }
+    A.eq(held, '```\n' + parts.raw.slice(1).join(''), 'heldText is the RAW tail under its real opening fence — the replay sends it verbatim');
+    hub2.close();
+  }
+
+  // ---- H4. a NON-RETRYABLE send failure is parked as undeliverable, never queued to retry forever ----
+  // The transport says retryable:false for a 4xx (chat not found, message too long, forbidden): the same send fails
+  // identically every pass. Queued anyway, it sat at the head of the outbox and every flush pass broke on it — the
+  // replies queued BEHIND it never went out (quick win 22). It is said ONCE, as one channel.delivery event.
+  {
+    const events = [];
+    const store = mkStore(memFs());
+    const hub = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store,
+      send: async (chatId) => (chatId === 'gone' ? { ok: false, error: 'Bad Request: chat not found', retryable: false }
+        : chatId === 'abort' ? { ok: false, error: 'aborted', retryable: false } : { ok: true, messageId: 'm' }),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }),
+      emit: (name, payload) => events.push([name, payload]),
+      newId: (() => { let n = 0; return () => 'h4run-' + (++n); })(),
+      sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    const r = await hub._internals.deliver('gone', 'the finished answer', 'r-h4', 'done', 'ag');
+    A.eq(r.ok, false, 'the send failed');
+    A.eq(store.loadOutbox('telegram'), [], 'a non-retryable failure is NOT queued for redelivery');
+    const dels = events.filter(e => e[0] === 'channel.delivery');
+    A.eq(dels.length, 1, 'exactly one channel.delivery event');
+    A.eq([dels[0][1].ok, dels[0][1].reason], [false, 'undeliverable'], 'it says the reply is undeliverable');
+    // the outbox refusing would have thrown (heldText) — an undeliverable reply must not keep its inbox receipt alive either
+    const full = mkStore(memFs());
+    full.pushOutbox = () => { throw new Error('channel outbox is full'); };
+    const hub2 = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store: full,
+      send: async () => ({ ok: false, error: 'Forbidden: bot was blocked by the user', retryable: false }),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: () => 'x', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    let threw = null;
+    try { await hub2._internals.deliver('c', 'answer', 'r', 'done', ''); } catch (e) { threw = e; }
+    A.eq(threw, null, 'an undeliverable reply never throws for a replay: replaying would fail identically');
+    hub2.close();
+    // an ABORTED send is the transport being torn down, not the chat refusing: it still queues
+    await hub._internals.deliver('abort', 'answer two', 'r-h4b', 'done', 'ag');
+    A.eq(store.loadOutbox('telegram').length, 1, 'an aborted send is still queued for redelivery');
+    hub.close();
+  }
+
+  // ---- H5. a refused CREDENTIAL is the whole channel failing, not the chat: the reply stays queued for the re-pair ----
+  // Review of quick win 22: every transport marks 401-class failures retryable:false, so H4's rule parked a reply that
+  // failed because the bot token was revoked (BotFather /revoke, a rotated Slack token). Before QW22 that reply was
+  // queued and the re-paired hub's 'up' flushed it to the same chat; parked, it was gone. Each transport now marks a
+  // refused credential auth:true, and deliver() queues it. Driven through the REAL transports' send, not a hand-built result.
+  {
+    const res = (status, body, headers) => ({ ok: status >= 200 && status < 300, status, async json() { return body; }, headers: { get: k => (headers || {})[k] } });
+    const { makeTelegramTransport } = require('../sidecar/channels/telegram.transport.js');
+    const { makeDiscordTransport } = require('../sidecar/channels/discord.transport.js');
+    const { makeSlackTransport } = require('../sidecar/channels/slack.transport.js');
+    const { makeMatrixTransport } = require('../sidecar/channels/matrix.transport.js');
+    const { makeSignalTransport } = require('../sidecar/channels/signal.transport.js');
+    const tg = (status, body) => makeTelegramTransport({ token: '1:T', fetch: async () => res(status, body) });
+    // (a) the invariant: every platform's send says auth:true for a refused credential, and never for a one-chat refusal
+    const cases = [
+      ['telegram 401 revoked token', tg(401, { ok: false, error_code: 401, description: 'Unauthorized' }), true],
+      ['telegram 404 bad token', tg(404, { ok: false, error_code: 404, description: 'Not Found' }), true],
+      ['telegram 400 chat not found', tg(400, { ok: false, error_code: 400, description: 'Bad Request: chat not found' }), false],
+      ['telegram 403 blocked', tg(403, { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' }), false],
+      ['discord 401', makeDiscordTransport({ token: 'T', fetch: async () => res(401, { message: '401: Unauthorized' }) }), true],
+      ['discord 403 missing access', makeDiscordTransport({ token: 'T', fetch: async () => res(403, { message: 'Missing Access' }) }), false],
+      ['slack token_revoked', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'token_revoked' }) }), true],
+      ['slack invalid_auth', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'invalid_auth' }) }), true],
+      ['slack not_in_channel', makeSlackTransport({ botToken: 'xoxb-1', appToken: 'xapp-2', WebSocketImpl: function () {}, fetch: async () => res(200, { ok: false, error: 'not_in_channel' }) }), false],
+      ['matrix 401 M_UNKNOWN_TOKEN', makeMatrixTransport({ token: 'T', homeserver: 'https://hs.test', newId: () => 't1', fetch: async () => res(401, { errcode: 'M_UNKNOWN_TOKEN' }) }), true],
+      ['matrix 403 M_FORBIDDEN', makeMatrixTransport({ token: 'T', homeserver: 'https://hs.test', newId: () => 't1', fetch: async () => res(403, { errcode: 'M_FORBIDDEN' }) }), false],
+      ['signal 401', makeSignalTransport({ endpoint: 'http://127.0.0.1:1', account: '+1', fetch: async () => res(401, { error: 'unauthorized' }) }), true],
+      ['signal 400 bad recipient', makeSignalTransport({ endpoint: 'http://127.0.0.1:1', account: '+1', fetch: async () => res(400, { error: 'invalid recipient' }) }), false]
+    ];
+    for (const [name, t, auth] of cases) {
+      const r = await t.send('42', 'x', {});
+      A.eq([r.ok, r.retryable, r.auth === true], [false, false, auth], name + ': not ok, not retryable, auth=' + auth);
+    }
+    // (b) through the hub: a revoked token keeps the reply queued; the re-paired bot's flush delivers it to the same chat
+    let revoked = true; const wire = [];
+    const t = makeTelegramTransport({ token: '1:T', fetch: async (url, o) => {
+      const body = JSON.parse(o.body || '{}'); wire.push(body.text);
+      return revoked ? res(401, { ok: false, error_code: 401, description: 'Unauthorized' }) : res(200, { ok: true, result: { message_id: 7 } });
+    } });
+    const events = [];
+    const store = mkStore(memFs());
+    const hub = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store, send: (chatId, text, o) => t.send(chatId, text, o),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }),
+      emit: (name, payload) => events.push([name, payload]),
+      newId: () => 'h5', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    const r = await hub._internals.deliver('55', 'the finished answer', 'r-h5', 'done', 'ag');
+    A.eq(r.ok, false, 'the send failed on the revoked token');
+    const q = store.loadOutbox('telegram');
+    A.eq(q.length, 1, 'a refused credential is NOT parked: the reply stays queued for the re-paired bot');
+    A.ok(/the finished answer$/.test(q[0] && q[0].text), 'the queued item is that reply');
+    const del = events.filter(e => e[0] === 'channel.delivery').map(e => e[1].reason);
+    A.eq(del, ['done'], 'and it is not reported as undeliverable');
+    revoked = false;   // the Commander re-pairs
+    await hub._internals.flushOutbox();
+    A.eq(store.loadOutbox('telegram'), [], 'the flush after the re-pair delivers it');
+    A.ok(/the finished answer$/.test(wire[wire.length - 1]), 'to the same chat, the reply itself');
+    hub.close();
+    // a one-chat refusal from the same real transport is still parked (H4's rule stands)
+    const t400 = tg(400, { ok: false, error_code: 400, description: 'Bad Request: chat not found' });
+    const store2 = mkStore(memFs());
+    const hub2 = makeChannelHub({
+      channel: 'telegram', runOnce: async () => {}, store: store2, send: (chatId, text, o) => t400.send(chatId, text, o),
+      secrets: () => ({ key: 'k', model: 'm', configured: true }), emit: () => {},
+      newId: () => 'h5b', sleep: () => Promise.resolve(), outboxRetryMs: 1e9
+    });
+    await hub2._internals.deliver('56', 'answer', 'r-h5b', 'done', '');
+    A.eq(store2.loadOutbox('telegram'), [], 'a chat-level refusal from the real transport is still parked');
+    hub2.close();
   }
 
   // ---- I. a STALE recovery snapshot never replays a message that completed while recovery waited ----

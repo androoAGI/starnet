@@ -103,5 +103,80 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
     await adapter.disconnect();
   }
 
+  // ---- D. (quick win 21) wireChannel forwards onMembership + onDelivery, every platform adapter passes them on,
+  //      and unwireChannel closes the hub before it drops the adapter ----
+  // Only the station Telegram bot (bespoke wiring in index.js) heard "you were blocked/kicked" and the per-send
+  // delivery outcome: wireChannel built every Discord/Slack/Matrix/Signal adapter without them, and the four
+  // platform factories dropped both on the way to makeChannelAdapter. And stopDiscord / stopGenericChannel dropped
+  // the adapter without closing the hub, so the dead hub's outbox timer kept redelivering beside its replacement.
+  {
+    const { makeChannelAdapter } = require('../sidecar/channels/adapter.js');
+    const { unwireChannel } = require('../sidecar/channels/registry.js');
+    const reg = makeChannelRegistry();
+    // a generic adapter whose transport yields ONE membership notice: "this chat removed the bot"
+    let fed = false;
+    reg.register({ id: 'memb', label: 'Memb', maxMessageLength: 100, makeAdapter: (o) => makeChannelAdapter(Object.assign({}, o, {
+      name: 'memb', clock: { now: () => 5 }, sleep: () => Promise.resolve(), pollTimeoutSec: 1,
+      transport: {
+        getUpdates: async () => { if (fed) { await new Promise(r => setTimeout(r, 5)); return []; } fed = true; return [{ id: 1 }]; },
+        send: async () => ({ ok: false, error: 'blocked', retryable: false })
+      },
+      normalize: () => ({ offset: 2, membership: { chatId: 'gone-1', chatType: 'dm', status: 'kicked' } })
+    })) });
+    const records = new Map();
+    const store = Object.assign(fakeStore(), {
+      getChatRecord: (c) => records.get(String(c)) || null,
+      saveChatRecord: (c, patch) => { const m = Object.assign({}, records.get(String(c)), patch); records.set(String(c), m); return m; }
+    });
+    const deliveries = [];
+    const wired = wireChannel(reg.get('memb'), {
+      hub: { runOnce: async () => {}, store, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: ids() },
+      adapter: { onDelivery: (d) => deliveries.push(d) }
+    });
+    wired.adapter.connect();
+    for (let i = 0; i < 50 && !(records.get('gone-1') || {}).unreachable; i++) await tick();
+    A.ok(!!(records.get('gone-1') || {}).unreachable, 'a membership notice reaches the wired hub: the chat is marked unreachable');
+    await wired.adapter.send('c1', 'hello');
+    A.eq(deliveries.length, 1, 'the caller\'s onDelivery hears the send outcome through wireChannel');
+    A.eq(deliveries[0].ok, false, 'and it carries the real outcome');
+    // unwireChannel: the hub closes BEFORE the adapter disconnects
+    const order = [];
+    unwireChannel({ hub: { close: () => order.push('hub.close') }, adapter: { disconnect: () => order.push('adapter.disconnect') } });
+    A.eq(order, ['hub.close', 'adapter.disconnect'], 'unwireChannel closes the hub, then disconnects the adapter');
+    A.eq(unwireChannel(null), false, 'unwiring nothing is a safe no-op');
+    unwireChannel(wired);
+    // every platform factory forwards both callbacks to the generic adapter
+    const { makeSlackAdapter } = require('../sidecar/channels/slack.js');
+    const { makeMatrixAdapter } = require('../sidecar/channels/matrix.js');
+    const { makeSignalAdapter } = require('../sidecar/channels/signal.js');
+    const factories = { discord: makeDiscordAdapter, slack: makeSlackAdapter, matrix: makeMatrixAdapter, signal: makeSignalAdapter };
+    for (const name of Object.keys(factories)) {
+      const seen = [];
+      const ad = factories[name]({
+        clock: { now: () => 1 }, sleep: () => Promise.resolve(),
+        transport: { getUpdates: async () => [], send: async () => ({ ok: true, messageId: 'x' }) },
+        onDelivery: (d) => seen.push(d)
+      });
+      await ad.send('c1', 'hi');
+      A.eq(seen.length, 1, name + ' adapter forwards onDelivery to the generic adapter');
+      A.eq(seen[0] && seen[0].ok, true, name + ' adapter reports the real send outcome');
+    }
+    const { sidecarSourceFiles } = require('./helpers/source.js');
+    for (const name of Object.keys(factories)) {
+      const f = sidecarSourceFiles().find(x => x.rel === 'sidecar/channels/' + name + '.js');
+      A.ok(!!f && /onMembership: o\.onMembership/.test(f.text), name + ' factory passes onMembership on (a transport that learns it can report it)');
+    }
+  }
+
+  // ---- E. (quick win 21) the host's Discord + generic teardown close the hub (sliced, never the whole sidecar text) ----
+  {
+    const { sidecarTopLevelFunction } = require('./helpers/source.js');
+    for (const fn of ['stopDiscord', 'stopGenericChannel']) {
+      const body = sidecarTopLevelFunction(fn);
+      A.ok(body.length > 0 && body.length < 2000, fn + ' is found and sliced');
+      A.ok(/unwireChannel\(/.test(body), fn + ' tears its channel down through unwireChannel (hub.close, then disconnect)');
+    }
+  }
+
   A.report('channels.registry.test');
 })().catch(e => { console.error(e); process.exit(1); });

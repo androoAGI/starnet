@@ -147,6 +147,7 @@
       lastStatus: job.lastStatus,
       lastError: job.lastError || (job.blockedConfig && job.blockedConfig.reason) || null,
       lastReason: job.lastReason || null,
+      lastLine: job.lastLine || null,   // the work line stopped short / came out partial / unapproved on its last fire (quick win 25)
       deliver: job.deliver || 'local',
       completedRuns: job.repeat && job.repeat.completed || 0,
       provider: job.provider || null,

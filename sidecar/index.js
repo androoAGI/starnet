@@ -270,7 +270,9 @@ const { hostPowerWithheldFor, entryUntrusted, standingWorkEscalates } = require(
 const { makePromptRegistry } = require('./channels/prompts.js');   // C6: the bounded token→meaning map behind inline keyboards
 const { makeOpenAiCompat } = require('./openai-compat.js');   // /v1/* OpenAI-compatible surface (external harness ingress)
 const StopReason = require('./stop-reason.js');   // plain-English stop sentences shared by channels/routines/loops
-const { makeChannelRegistry, wireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { makeChannelRegistry, wireChannel, unwireChannel } = require('./channels/registry.js');   // H6.2: channel descriptors + generic wire-up
+const { perFireStore } = require('./channels/fire-store.js');   // a one-job hub's turn history belongs to that job (quick win 27)
+const { makeChannelReach } = require('./channels/reach.js');   // the ONE "can a message go out on this channel now?" gate (quick win 22)
 const { parseSlackTokens } = require('./channels/slack.js');                       // slack stores its two tokens as ONE secret string
 const engineCredential = require('./engine-credential.js');                      // #89: the page's provider key, kept for unattended runs + the ONE no-credential sentence
 const channelSecretsMod = require('./channels/secrets.js');                        // T1.4: token-vs-config split + keychain migration
@@ -284,6 +286,9 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
+const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
+const { routineRunIdentity, runsAsCommand } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
+const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
@@ -5335,9 +5340,9 @@ const browserHandoffs = makeHandoffHost({
       const ident = agentRoster.get(v.agentId);
       const line = handoffNudgeLine(v, ident && ident.name);
       for (const c of chats) {
-        const ch = liveChannelFor(c.channel);
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // a live handle is not a heartbeat (channels/reach.js)
+        if (!reach.ok) { console.warn('[step-in] nudge not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[step-in] nudge failed:', r.error); })
           .catch(e => console.warn('[step-in] nudge failed:', (e && e.message) || e));
       }
@@ -6876,10 +6881,38 @@ function channelLiveHealth(channel) {
   if (!channel || channel === 'telegram') return telegramStatus || { connected: false, state: 'down' };
   return genericStatus[channel] || { connected: false, state: 'down' };
 }
+/* channelReach(channel, opts?) -> { ok, live, proven?, error } — handle AND health (channels/reach.js). Every send outside a hub's
+   own reply path asks it with { attempt: true } (a just-started 'connecting' channel may be tried; 'error'/'down' never are): the
+   notifier, a routine's chat delivery, channel.send / its upload, a sign-in hand-off's nudge and a loop's stop notice. A CLAIM
+   asks it bare (proven 'up' only): channel.targets' connected bit and the routine preflight. */
+const channelReach = makeChannelReach({ liveChannelFor: (c) => liveChannelFor(c), channelLiveHealth: (c) => channelLiveHealth(c) }).reach;
+/* channel.send / its file upload take the TARGET KEY (the chat map key: '<botId>|<chatId>' on a bound bot) and resolve it
+   back to its record, so the tool never knows about the namespacing. An unknown key or an unreachable channel answers
+   ok:false rather than throwing — the tool reports partial delivery honestly and transports never throw by contract. */
+function commsTargetReach(target) {
+  let rec = null;
+  try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
+  if (!rec) return { ok: false, error: 'unknown chat target' };
+  const channel = String(rec.channel || 'telegram');
+  const reach = channelReach(channel, { attempt: true });
+  if (!reach.ok) return { ok: false, error: reach.error };
+  return { ok: true, channel: channel, adapter: reach.live.adapter, chatId: String(rec.chatId || target) };
+}
+function commsSendTo(target, text) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  return Promise.resolve(t.adapter.send(t.chatId, text)).catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
+}
+function commsSendMediaTo(target, item) {
+  const t = commsTargetReach(target);
+  if (!t.ok) return Promise.resolve({ ok: false, error: t.error });
+  if (typeof t.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: t.channel + ' cannot carry files' });
+  return Promise.resolve(t.adapter.sendMedia(t.chatId, item)).catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
+}
 const autoNotifier = makeAutoNotifier({
   send: (chatId, text, channel) => {
-    const ch = liveChannelFor(channel);
-    const p = (ch && ch.adapter) ? ch.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: 'channel not connected' });
+    const reach = channelReach(channel, { attempt: true });   // handle AND health: an errored channel is not pinged (quick win 22)
+    const p = reach.ok ? reach.live.adapter.send(chatId, redact(text)) : Promise.resolve({ ok: false, error: reach.error });
     // DELIVERY HONESTY (2026-07-15 audit): transports NEVER throw — a failure is a resolved { ok:false,
     // error } SendResult. Normalize that to a rejection so the notifier's per-send outcome reporting
     // (onDelivery below) sees a failed ping as a failure instead of a phantom success.
@@ -7029,8 +7062,7 @@ function cronPreflightConfig(job) {
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) return { ok: false, code: 'missing-target', reason: 'delivery target "' + target + '" no longer exists; re-save or remove it' };
     const channel = String(rec.channel || 'telegram');
-    const live = liveChannelFor(channel), health = channelLiveHealth(channel);
-    if (!(live && live.adapter && health && health.connected && health.state === 'up')) {
+    if (!channelReach(channel).ok) {
       return { ok: false, code: 'channel-unavailable', reason: 'delivery channel "' + channel + '" is not connected and healthy; reconnect it or choose local delivery' };
     }
   }
@@ -7124,8 +7156,8 @@ async function deliverCronResult(job, result) {
     if (deliveredTargets.has(target)) continue;
     const rec = target === '@origin' ? job.origin : channelStore.getChatRecord(target);
     if (!rec) { failed++; firstError = firstError || 'unknown chat target ' + target; continue; }
-    const channel = String(rec.channel || 'telegram'), live = liveChannelFor(channel);
-    if (!(live && live.adapter)) { failed++; firstError = firstError || channel + ' is not connected'; continue; }
+    const channel = String(rec.channel || 'telegram'), reach = channelReach(channel, { attempt: true }), live = reach.live;
+    if (!reach.ok) { failed++; firstError = firstError || reach.error; continue; }   // a live handle is not a heartbeat (channels/reach.js)
     const chatId = String(rec.chatId || target), route = rec.threadId ? { threadId: rec.threadId } : undefined;
     await cronChatTurn(channel + '\u0001' + chatId + '\u0001' + String(rec.threadId || ''), async () => {
       try {
@@ -7205,7 +7237,7 @@ const cronDriver = makeCronDriver({
     // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
     // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
     // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
-    if (first && first.charAt(0) === '/' && !opts.cronScript) {
+    if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
       // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
       // agent.run.start, and this early return skipped the runsMeta registration below — the one autonomous
       // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
@@ -7312,7 +7344,7 @@ const cronDriver = makeCronDriver({
           key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
           baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
           system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null, isTask: true,
+          messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
           ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
           emit: sink, signal: h.signal, runId: hopRunId, streamId: o.streamId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
           resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
@@ -9694,11 +9726,9 @@ const loopDriver = makeLoopDriver({
         : loop.state === 'dormant' ? (name + ' stopped — ' + (loop.stopReason || 'nothing left to do') + '.')
         : (name + ' paused — ' + (loop.stopReason || 'needs your attention') + '.');
       for (const c of chats) {
-        const ch = (c.channel === 'discord') ? discord
-          : (typeof c.channel === 'string' && c.channel.indexOf('telegram:') === 0) ? telegramBots.get(c.channel.slice('telegram:'.length))
-          : (!c.channel || c.channel === 'telegram') ? telegram : genericChannels[c.channel];
-        if (!(ch && ch.adapter)) continue;
-        Promise.resolve(ch.adapter.send(c.chatId, redact(line)))
+        const reach = channelReach(c.channel, { attempt: true });   // the ONE resolver + health gate (channels/reach.js)
+        if (!reach.ok) { console.warn('[loops] notify not sent:', reach.error); continue; }
+        Promise.resolve(reach.live.adapter.send(c.chatId, redact(line)))
           .then(r => { if (r && r.ok === false) console.warn('[loops] notify failed:', r.error); })
           .catch(e => console.warn('[loops] notify failed:', (e && e.message) || e));
       }
@@ -11158,7 +11188,7 @@ function startDiscord(token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopDiscord() {
-  if (discord && discord.adapter) { try { discord.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(discord);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   discord = null;
   discordStatus = { connected: false, state: 'down', detail: '' };
 }
@@ -11413,8 +11443,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
   return { secretsPersisted };
 }
 function stopGenericChannel(id) {
-  const w = genericChannels[id];
-  if (w && w.adapter) { try { w.adapter.disconnect(); } catch (_) {} }
+  unwireChannel(genericChannels[id]);   // hub.close() FIRST (its outbox timer), then the adapter — quick win 21
   delete genericChannels[id];
   genericStatus[id] = { connected: false, state: 'down', detail: '' };
 }
@@ -11988,6 +12017,8 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
       mime: MIME[ext] || 'application/octet-stream', active: isActiveDeliverable(abs), name: safeDownloadName(abs), data: buf.subarray(0, n).toString('base64') };
   },
   routines: () => cronStateSnapshot(Date.now()).jobs,
+  // the scheduler's own state: with scheduling OFF or the E-STOP engaged no routine fires, whatever its switch says (quick win 30)
+  scheduler: () => { const s = cronStateSnapshot(Date.now()); return { enabled: s.enabled === true, halted: s.halted === true }; },
   setRoutine: async (jobId, enabled) => {
     if (!cronStore.getJob(cronJobs, jobId)) return { ok: false, error: 'no such routine' };
     try {
@@ -13310,7 +13341,9 @@ function getSampleHub() {
   sampleHub = makeChannelHub({
     channel: 'sample', maxMessageLength: 4000, agentPrefix: 'smp_', textBatchWaitMs: 0,
     ownerSurface: true,   // the Commander's own sample-crate route behind the launch token
-    runOnce: runOnce, store: channelStore,
+    // PER-JOB TURN HISTORY (quick win 27): chat 'sample' + the line + the dock is the same hop key on every test job, so over
+    // the real store each job's hops replayed every earlier job's hand-offs. The job's own map (sampleInFlight.turns) holds them.
+    runOnce: runOnce, store: perFireStore(channelStore, (agentId) => { const f = sampleInFlight; if (!f || !f.turns) return []; const k = String(agentId || ''); return f.turns[k] || (f.turns[k] = []); }),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     /* THE SAMPLE IS UNADDRESSED, EVERY TIME. This route's whole claim is "a REAL run on the REAL UNADDRESSED
        dispatch path" — the FILTER/SPLITTER must sort it. The hub's ordinary chat→agent bookkeeping saved a
@@ -13357,7 +13390,7 @@ async function runSampleJob(readArgs) {
     const age = Math.max(0, Math.round((Date.now() - sampleInFlight.startedAt) / 1000));
     return json(409, { ok: false, error: 'a sample job is already riding the line (started ' + age + 's ago) — wait for it to deliver.' });
   }
-  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now() };
+  sampleInFlight = { streamId: 'sample-' + crypto.randomUUID().slice(0, 8), workitemId: '', startedAt: Date.now(), turns: {} };   // turns: this job's hop history (perFireStore)
   try {
     let body = {};
     try { body = (await readArgs()) || {}; }
@@ -13491,12 +13524,15 @@ async function runSampleJob(readArgs) {
     // NO RUN ROW, BUT A REASON (trigger-runner's pattern): an entry refused before it could run (the line's daily cap, reached
     // at admission) records no row — the hub's ⚠ reply is the only witness of why, and it is what the job record says
     const firstWarn = (sampleReplies.find(x => /^⚠/.test(String(x).trim())) || '').trim().replace(/^⚠\s*/, '').trim();
+    // WHY IT DID NOT DELIVER, in words — the line's own stop reason before the generic sentence (routing/sample-verdict.js)
+    const problem = completed ? null : sampleProblem({ stoppedByUser: !!sampleInFlight.stopRequested, stopCause: sampleInFlight.stopCause, onLine, line, partial, runs,
+      lineStopped: sampleLineOutcome && sampleLineOutcome.stopped, refusedSaid, firstWarn });
     if (jobId) {
       const stoppedJob = !!sampleInFlight.stopRequested;
       // (wave 2 repair) the station's own fault containment stopped it (stopCause 'fault'): said as that, never "you stopped this job"
       lineJobsSet(LineJobs.finish(lineJobs, jobId, { at: Date.now(), usd: totalUsd, output: sampleReplies.join(''), runs, unapproved: completed ? unapproved : '',
         status: completed ? 'delivered' : stoppedJob ? 'stopped' : runs.length ? 'problem' : 'failed',
-        error: completed ? '' : stoppedJob ? (sampleInFlight.stopCause === 'fault' ? 'the station hit an internal fault and stopped this job' : 'you stopped this job') :!onLine ? 'the job did not enter through this line' : (partial && runs.every(r => r.reason === 'done')) ? 'the joiner sent on without every branch (' + partial + ')' : runs.length ? 'a step did not finish cleanly' : (refusedSaid || firstWarn || 'no step ran') }));
+        error: completed ? '' : problem.jobError }));
       sampleInFlight.jobId = null;
     }
     const recordedJob = jobId ? LineJobs.get(lineJobs, jobId) : null;
@@ -13517,10 +13553,7 @@ async function runSampleJob(readArgs) {
       // A job the Commander STOPPED (POST /api/routing/sample/stop) is named as a stop — never as a line that failed.
       const stopped = !!sampleInFlight.stopRequested;
       return json(502, Object.assign({
-        ok: false, sample: true, error: stopped ? 'stopped — you stopped this job before it reached the OUTBOX'
-          : !onLine ? 'sample job did not enter through line "' + line + '"'
-          : (partial && runs.length && runs.every(r => r.reason === 'done')) ? 'sample job came out of its joiner partial (' + partial + ')'
-          : runs.length ? 'sample job did not complete cleanly' : (refusedSaid || firstWarn || 'sample job produced no durable run outcome'),
+        ok: false, sample: true, error: problem.routeError,
         chatId: SAMPLE_CHAT, streamId: streamId, agentId: agentId || null, isTask: isTask,
         workitemId: workitemId || null, replies: sampleReplies.slice(), runs: runs, delivered: null, totalUsd: totalUsd
       }, line ? { line: line } : null, stopped ? { stopped: true } : null, jobId ? { jobId } : null, onward,
@@ -13646,9 +13679,7 @@ function makeTriggerHub(hooks) {
     runOnce: runOnce,
     // the channel store for chat/outbox bookkeeping, but per-agent TURN HISTORY is this fire's own (hooks.turns): a
     // trigger fire is one standalone job, so a later fire's hops never inherit an earlier fire's handoffs
-    store: new Proxy(channelStore, { get: (t, k) => k === 'loadHistory' ? (agentId) => hooks.turns(agentId).slice(-40)
-      : k === 'appendTurn' ? (agentId, role, content) => { hooks.turns(agentId).push({ role: role, content: content }); }
-      : k === 'clearHistory' ? () => {} : (typeof t[k] === 'function' ? t[k].bind(t) : t[k]) }),
+    store: perFireStore(channelStore, hooks.turns),
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     bindChats: false,   // every fire is UNADDRESSED: the line's own doors decide the dock, never a remembered chat binding
     send: (chatId, text) => { hooks.send(text); return Promise.resolve({ ok: true }); },
@@ -14049,7 +14080,10 @@ async function stepTestRunDock(h) {
     else if (name === 'agent.tool_result' && p && p.summary === 'denied') { const t = st.calls[p.callId] || 'a tool'; if (st.denied.indexOf(t) < 0 && st.denied.length < 6) st.denied.push(t); }
     else if (name === 'agent.run.error') st.err = (p && p.message) || 'run error';
     else if (name === 'capdenied') st.err = st.err || ('no ' + ((p && p.need) || 'capability') + ' — ' + ((p && p.reason) || ''));
-    else if (name === 'agent.run.end') { if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd); }
+    else if (name === 'agent.run.end') {
+      if (p && p.reason === 'cancelled') st.stopped = true;   // STOP on this step: the test stops here, never hands its half answer on (quick win 28)
+      if (p && typeof p.usd === 'number' && isFinite(p.usd)) st.usd = Math.max(st.usd, p.usd);
+    }
   };
   let station = null;
   try { station = router.stationFor(h.agentId, h.dockId); } catch (e) { failNote('steptest.station', e); station = null; }
@@ -14075,6 +14109,7 @@ async function stepTestRunDock(h) {
       messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true, emit: sink, signal: h.signal,
       runId, trigger: 'event', streamId: h.streamId,
       resumeSeed: false,   // every step shares one steptest stream: a step (or a NEEDS CHANGES re-run / rewind) must not inherit the others' turns
+      ceilingUsd: h.ceilingUsd,   // what is left of the LINE BUDGET (steptest.js) — lower-only, like every line hop (quick win 28)
       lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId,   // LINE WATCH: the row records the step's line + bay (run.start names its crate)
       initialTaint: h.entry ? null : 'upstream agent output',
       surface: 'autonomous', broadcast: true, reflect: true,   // NO unattendedGrants — the chain-grants law
@@ -14089,7 +14124,7 @@ async function stepTestRunDock(h) {
     if (done) chanEmit('workitem.delivered', { workitemId, finalQueueId: h.agentId, agentId: h.agentId, box: '', ms: Date.now() - t0, ts: Date.now(), dockId: h.dockId || undefined });
     else chanEmit('workitem.superseded', { workitemId, agentId: h.agentId, ts: Date.now(), dockId: h.dockId || undefined });
   } catch (e) { failNote('steptest.crate', e); }
-  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err };
+  return { text: st.buf, usd: st.usd, tools: st.tools, denied: st.denied, runId, ms: Date.now() - t0, error: st.err || (st.stopped ? 'stopped by you' : null) };
 }
 function getStepTest() {
   if (stepTest) return stepTest;
@@ -16994,13 +17029,15 @@ async function handleCronRun(req, res) {
   // routine whose prompt is "/usage" would model-run here and command-run on schedule — the same routine
   // doing two different things depending on who started it. Placed AFTER the credential gate above so both
   // paths gate identically (see runSlashRoutine's note on that shared limit).
-  if (assembledPrompt.charAt(0) === '/') {
+  // (quick win 31) the SAME rule as the scheduled wrapper: a routine carrying a pre-check SCRIPT is a model run, never redirected
+  const firedAt = Date.now();   // this press's fire time: cron.fire's scheduledFor and the run's idempotency scope
+  if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
     cronDriver.leases.set(job.id, { runId: runIdC, startedAt: Date.now(), heartbeatAt: Date.now(), ac: new AbortController(), isOnce: false });
     const busC = { emit: (name, payload) => { try { lines.write(name, redact(payload)); } catch (_) {} } };
     const emitC = wrapEmitDiag(makeEmitter(busC, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
-    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: Date.now() }); } catch (_) {}
+    try { cronEmit('cron.fire', { jobId: job.id, runId: runIdC, scheduledFor: firedAt }); } catch (_) {}
     let out;
     try { out = await runSlashRoutine(assembledPrompt, { agentId: job.agentId, runId: runIdC, emit: emitC }); }
     catch (e) { out = { ok: false, text: 'that command failed: ' + ((e && e.message) || e) }; }
@@ -17048,7 +17085,7 @@ async function handleCronRun(req, res) {
     // the chain's $ ceiling below, so a Run-Now line is bounded exactly like the scheduled fire.
     else if (name === 'agent.run.end') { state.reason = p.reason; if (typeof p.usd === 'number' && isFinite(p.usd)) state.usd = Math.max(state.usd, p.usd); }
   };
-  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: Date.now() }); } catch (_) {}
+  try { cronEmit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: firedAt }); } catch (_) {}
   // NS-0: a manual Run Now is still a cron FIRE decision — record it in the autonomy ledger (binding:'run-now'
   // distinguishes it from a scheduled fire). The scheduled tick path records via cronEmitNotify; this route uses
   // the raw cronEmit, so record explicitly here so BOTH fire paths land in the durable decision trail.
@@ -17072,8 +17109,10 @@ async function handleCronRun(req, res) {
       // identical cron.fire/cron.result events, can fetch the real output via /api/transcript?stream=cron-<runId>.
       // Per-run id keeps the seed empty (index.js reconstructs a stream only when messages<=1) — no behavior drift.
       runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: true,
-      // the routine identity the scheduled fire carries (cron-driver.js): its run-history row and routine.notepad key off it
-      cronJobId: job.id, cronJobName: job.name || '',
+      // the routine identity the scheduled fire carries (cron-driver.js, one helper: routine-identity.js): its run-history row and
+      // routine.notepad key off cronJobId; recipeId keeps a recipe routine's provenance; the idempotency scope (job + this press's
+      // fire time) keeps a retried/resumed Run Now from re-sending a connector write it already made (quick win 31)
+      ...routineRunIdentity(job, firedAt),
       // "Follow station default": same effort rule as the scheduled fire (cron-driver.js) — an unpinned agent with
       // no explicit routine model runs on the Overseer's effort along with its model.
       reasoningEffort: (() => { const ri = !(job.model && String(job.model).trim()) ? cronIdentityFor(job.agentId) : null; return ri && ri.followsStation ? ri.reasoningEffort : undefined; })(),
@@ -17159,7 +17198,7 @@ async function handleCronRun(req, res) {
                 key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
                 baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
                 system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
-                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null, isTask: true,
+                messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
                 ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
                 emit: hopSink, signal: h.signal, runId: hopRunId, streamId: 'cron-' + runId, parallelBranch: !!h.parallel,   // a PARALLEL branch hop keeps its stream but never waits in its queue (chain.js runBatch)
                 resumeSeed: false,   // the handoff carries the upstream output: never re-send earlier stages' transcript (runOnceCore seed)
@@ -17182,10 +17221,10 @@ async function handleCronRun(req, res) {
             return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
           }
         });
-        if (line && String(line.text || '').trim()) state.buf = line.text;
-        // THE ROUTINE'S SPEND IS THE WHOLE LINE'S SPEND (2026-08-22): out.usd is hop-only, so add it to the entry
-        // run's reconciled spend exactly as the scheduled fire does (cron-driver `state.usd += line.usd`).
-        if (line && typeof line.usd === 'number' && isFinite(line.usd)) state.usd += line.usd;
+        // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
+        // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
+        // under its answer and on the routine's record (quick win 25), never delivering stage one's work as the whole line's.
+        foldLineIntoFire(state, line);
       } catch (e) { console.warn('[cron] run-now work line failed after ' + job.agentId + ': ' + ((e && e.message) || e)); }
     }
     runs.delete(runId);
@@ -22140,7 +22179,6 @@ async function runOnceCore(o) {
         return Object.keys(chats).map((key) => {
           const rec = chats[key] || {};
           const channel = String(rec.channel || 'telegram');
-          const live = liveChannelFor(channel);
           return {
             target: key,
             channel: channel,
@@ -22148,7 +22186,7 @@ async function runOnceCore(o) {
             agentId: String(rec.agentId || ''),
             // A handle is not a heartbeat — see channelLiveHealth. Both must hold: something to send THROUGH,
             // and a transport that has actually proved a round-trip and not since failed.
-            connected: !!(live && live.adapter) && !!channelLiveHealth(channel).connected
+            connected: channelReach(channel).ok
           };
         });
       } catch (_) { return []; }
@@ -22156,16 +22194,7 @@ async function runOnceCore(o) {
     // sendTo takes the TARGET KEY and resolves it back to its record, so the tool never has to know about the
     // '<botId>|<chatId>' namespacing. An unknown key answers ok:false rather than throwing — the tool reports
     // partial delivery honestly and transports never throw by contract.
-    sendTo: (target, text) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      return Promise.resolve(live.adapter.send(String(rec.chatId || target), text))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'send failed' }));
-    },
+    sendTo: (target, text) => commsSendTo(target, text),
     // the platform's real message ceiling, straight off the channel descriptor that already declares it (a
     // second table would drift and Discord's 2000 is unforgiving); 'telegram:<botId>' resolves as telegram.
     maxLenFor: (channel) => {
@@ -22179,17 +22208,7 @@ async function runOnceCore(o) {
     readFile: readChannelUpload,
     // Upload through the SAME target-key resolution sendTo uses, so an agent can attach a file exactly where it
     // may already send words — known-targets-only is unchanged by this feature.
-    sendMediaTo: (target, item) => {
-      let rec = null;
-      try { rec = channelStore.getChatRecord(String(target)) || null; } catch (_) { rec = null; }
-      if (!rec) return Promise.resolve({ ok: false, error: 'unknown chat target' });
-      const channel = String(rec.channel || 'telegram');
-      const live = liveChannelFor(channel);
-      if (!(live && live.adapter)) return Promise.resolve({ ok: false, error: channel + ' is not connected' });
-      if (typeof live.adapter.sendMedia !== 'function') return Promise.resolve({ ok: false, error: channel + ' cannot carry files' });
-      return Promise.resolve(live.adapter.sendMedia(String(rec.chatId || target), item))
-        .catch(e => ({ ok: false, error: (e && e.message) || 'upload failed' }));
-    },
+    sendMediaTo: (target, item) => commsSendMediaTo(target, item),
     redact: redact,
     emit: chanEmit
   }).register(registry);
@@ -24259,7 +24278,8 @@ async function runOnceCore(o) {
         cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '',
         cronJobName: trigger === 'schedule' ? String(o.cronJobName || '').slice(0, 200) : '',
         initialTaint: execution.taintedBy() || '',   // additive: a continuation of this run restores it (replayedTaint)
-        untrustedEntry: untrustedEntryRun === true   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        untrustedEntry: untrustedEntryRun === true,   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
+        idempotencyScope: idempotencyScope || ''   // additive: a continuation dedupes connector writes under the SAME work item (consumeRunRecoveryContinuation)
       });
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
@@ -28861,7 +28881,10 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   } catch (e) { return { ok: false, code: 409, error: String((e && e.message) || e) }; }
   activeRunContinuations.add(String(continuedRunId));
   try { syncInterruptedRunHistory(markRunRecoveryForensic(started)); } catch (e) { failNote('run-history.interrupted-sync', e); }   // -> recovering
-  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }) };
+  // the work item the SOURCE ran under (its journaled idempotency scope — a routine's is 'cron:<job>:<fire>'): the continuation
+  // dedupes its connector writes against the source's, not against 'run:<source>' it never wrote under (idempotency-ledger scopeFor)
+  const idempotencyScope = String((current.meta && current.meta.idempotencyScope) || '');
+  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }, idempotencyScope ? { idempotencyScope } : {}) };
 }
 
 // Settles the SOURCE journal after its continuation run returned. Ordering mirrors finishAndRetire: the continued
