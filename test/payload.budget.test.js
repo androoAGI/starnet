@@ -98,11 +98,23 @@ const HOST = '127.0.0.1';
    work-discipline block now opens with "read, list and search files with fs_read / fs_list / fs_search, full paths
    included, not shell_exec", and fs_read / fs_list say they take a full path. Paid for in place by dropping the shell
    listing diagnostic and folding the Bash-style /c sentence into the cwd rule: trunk 29e8ce01c 22,232 / 22,453 / 25,400
-   chars, 61,266 / 66,096 bytes -> 22,243 / 22,464 / 25,411, 61,278 / 66,108. No budget moved. */
+   chars, 61,266 / 66,096 bytes -> 22,243 / 22,464 / 25,411, 61,278 / 66,108. No budget moved.
+   PAYLOAD DIET 2026-10-28 (agent/payload-diet-1028) — RATCHET DOWN, nothing removed. The tool budgets had 4 / 74 bytes of
+   headroom, so wave 2's new tools owed a diet first. 39 tool texts are tightened in place: what a description repeated
+   from its own parameter descriptions (or from its enum) is said once (connectors.list query/scope, notebook.write
+   scope/pinned/correction, voice_generate voice/style/path, routine.manage's by-name rule, todo's status list,
+   deliverable_note's kind list), JSON-quoted argument examples become key:value (fs.search, fs.read, fs.edit, fs.list,
+   quest.update op:start …), "Optional" goes where the required list already says it, and em dashes (3 bytes each on the
+   wire) become plain punctuation. Every safety, consent, approval and impact rule, every spend limit, every receipt /
+   "never accepted as done" / "say saved only after" rule stays, and every string a test pins still matches (no test
+   edited); no parameter name, type, required list or enum moved. Measured base ab5fa2c98 -> lane: default-new-install
+   and fully-granted-floor 61,281 -> 58,272 tool bytes (-3,009, -4.9%), lead-with-crew 66,111 -> 63,021 (-3,090); system
+   chars unchanged at 22,229 / 22,450 / 25,397; 79 / 79 / 84 tools. Tool-byte budgets = measurement + ~0.6% so the diet
+   cannot silently regrow: a lane that adds a tool raises them here, in the same commit, and says why. */
 const BUDGET = {
-  'default-new-install': { systemChars: 22282, tools: 79, toolBytes: 61285 },
-  'fully-granted-floor': { systemChars: 22502, tools: 79, toolBytes: 61285 },
-  'lead-with-crew': { systemChars: 25422, tools: 84, toolBytes: 66185 }
+  'default-new-install': { systemChars: 22282, tools: 79, toolBytes: 58620 },
+  'fully-granted-floor': { systemChars: 22502, tools: 79, toolBytes: 58620 },
+  'lead-with-crew': { systemChars: 25422, tools: 84, toolBytes: 63400 }
 };
 
 (async () => {
