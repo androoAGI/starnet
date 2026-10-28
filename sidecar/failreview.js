@@ -57,7 +57,9 @@
      "No endpoints found that support image input / tool use": a tool screenshot sent to a model that cannot read
      images) keeps its review: the same model answered this run's earlier turns and the review carries no such part. */
   const ACCOUNT_REFUSALS = { auth: 1, billing: 1, quota_exhausted: 1 };
-  const MODEL_REFUSALS = { content_policy_blocked: 1, model_not_found: 1 };
+  // call_too_expensive: the StarNet relay refused this model's price for the conversation — the agent did nothing wrong,
+  // so a same-model review would spend credit to learn nothing
+  const MODEL_REFUSALS = { content_policy_blocked: 1, model_not_found: 1, call_too_expensive: 1 };
   function providerRefused(run, opts) {
     if (!run || String(run.failureStage || '') !== 'provider_stream') return false;
     const code = String(run.failureCode || '');

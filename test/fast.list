@@ -1279,6 +1279,7 @@ test/loop.verify-on-stop-failed-check.test.js
 test/loop.grace-no-tools.test.js
 test/loop.batch-dedupe.test.js
 test/errorclass.overflow-phrasings.test.js
+test/call-too-expensive.test.js
 test/loop.prestream-outage-ladder.test.js
 test/loop.overflow.anthropic.test.js
 test/loop.output-cap.test.js

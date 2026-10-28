@@ -8,9 +8,9 @@
      -> { reason, retryable, shouldRotateCredential, shouldFallback, shouldCompress, statusCode, unsupportedPart, message }
 
    Reasons: auth · billing · rate_limit · quota_exhausted · overloaded · server_error · timeout ·
-            context_overflow · output_cap · model_not_found · content_policy_blocked · format_error ·
-            tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch · template_refusal ·
-            unreachable · unknown.
+            context_overflow · output_cap · call_too_expensive · model_not_found · content_policy_blocked ·
+            format_error · tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch ·
+            template_refusal · unreachable · unknown.
 
    Priority pipeline: content/policy -> HTTP status (code+message consulted inside the ambiguous 400 branch)
    -> structured error-code (for errors with no HTTP status) -> message patterns -> transport -> a
@@ -50,7 +50,13 @@
        parsed `allowedMaxTokens`; the loop retries the SAME turn once with the output budget lowered to it
        (recovery-policy `lower_output`). retryable:false keeps every adapter from re-sending the doomed body. */
     output_cap:             { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
-    model_not_found:        { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
+    /* The StarNet credit relay priced this call's PROMPT ALONE over its per-call ceiling ($2 by default: HTTP 400
+       `call_too_expensive`, "This request could cost more than the $2.00 StarNet allows for one call"). The same
+       prompt on the same model is refused identically, so no resend. A configured fallback is a different model at its
+       own price and may fit, so it is worth taking. No fold: shortening the conversation is the Commander's call, not a
+       silent summary. As format_error it read "Something went wrong — try again" (GitHub #53 follow-up, 2026-10-27). */
+    call_too_expensive:     { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
+    model_not_found:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
     content_policy_blocked: { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
     format_error:           { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
     /* A TLS CERTIFICATE the machine does not trust (expired, self-signed, a corporate proxy re-signing HTTPS).
@@ -318,6 +324,11 @@
      "No allowed providers", a region or an upstream 403: those refuse every request to that model. Surfaced as the
      classification's `unsupportedPart` fact (the failure review keys on it: its plain text request has no such part). */
   const UNSUPPORTED_PART_RE = /no endpoints found that (?:support|can handle)\b/;
+  // the StarNet credit relay's per-call ceiling refusal (starnet-cloud src/app.js THE CREDIT RESERVATION)
+  const CALL_TOO_EXPENSIVE_RE = /could cost more than the \$\d+(?:\.\d+)? starnet allows for one call/;
+  function isCallTooExpensive(code, low) {
+    return String(code || '').toLowerCase() === 'call_too_expensive' || CALL_TOO_EXPENSIVE_RE.test(low);
+  }
   const TOOL_GEN_FAILED_RE = /tool_use_failed|failed to call a function|tool call validation failed/;
   function classify400(low, code, ctx) {
     const c = String(code || '').toLowerCase();
@@ -487,7 +498,9 @@
     // 1b. OUTPUT cap — BEFORE the overflow patterns, whose `maximum.*tokens` matches this refusal's wording and
     //     used to fold history for nothing, retry the identical max_tokens, and kill the run.
     if ((!status || status === 400 || status === 422) && parseOutputCap(low) > 0) return 'output_cap';
-    // 1c. the model's chat template refused the conversation's shape — whatever status carried it: Ollama's /v1 sends
+    // 1c. the StarNet relay's per-call price ceiling — a 400 that is neither malformed nor an overflow
+    if ((!status || status === 400) && isCallTooExpensive(code, low)) return 'call_too_expensive';
+    // 1d. the model's chat template refused the conversation's shape — whatever status carried it: Ollama's /v1 sends
     //     its Jinja exception as a 500 (#102), LM Studio as a 400. Never our credential (401/403) and never a busy
     //     moment (429). A hosted API's own role validator is not a template (templateRefusalLow): it stays format_error.
     if (status !== 401 && status !== 403 && status !== 429 && templateRefusalLow(low)) return 'template_refusal';
