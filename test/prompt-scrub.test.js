@@ -128,20 +128,89 @@ PS.setHeldSource(() => [by.VAULT.value]);
   A.ok(PS.scrubHeld('x ' + by.VAULT.value, []) === 'x ' + by.VAULT.value, 'scrubHeld with an empty held list is identity');
 }
 
-// ---- 5. the generic sk- rule: hyphenated slugs stay, escaped and glued keys are still caught ----
+// ---- 5. context.redact's shapes — a CORPUS, not a hex sample (review r2). Every sk- family the base rule
+//         (/sk-[A-Za-z0-9_\-]{16,}/g, 41c298d9a) hid in a context is hidden now; every vendor key is caught right after
+//         an escape (JSON \n \b \f \uXXXX, %3D / %253D, quoted-printable =3D, an ANSI colour code); hyphenated slugs and
+//         word-like text stay byte-identical; a field rule keeps an auth scheme and every placeholder. ----
 context.setKnownSecretSource(null);
 {
-  const body = FK.stream('generic', 24, 'abcdefghijklmnop0123456789');
-  const k32 = 'sk-' + FK.stream('generic32', 32, '0123456789abcdef');
-  for (const slug of ['task-management-dashboard', 'desk-assignment-overseer-lane', 'risk-assessment-framework-v2', 'whisk-together-the-ingredients'])
-    A.eq(context.redact('Build the ' + slug), 'Build the ' + slug, 'context.redact keeps ' + slug);
-  for (const glue of [' ', '=', '"', ':', '_', '('])
-    A.ok(context.redact('KEY' + glue + 'sk-' + body).indexOf(body) < 0, 'context.redact still catches ' + JSON.stringify(glue) + 'sk-…');
-  const escaped = {
-    'JSON \\n': JSON.stringify('KEY=\n' + k32), 'JSON \\t': JSON.stringify('x\t' + k32), 'JSON-in-JSON tool_calls': JSON.stringify([{ function: { arguments: JSON.stringify({ note: 'a\n' + k32 }) } }]),
-    'URL %3D': 'q?api_key%3D' + k32, 'glued to a word': 'my key is' + k32
+  const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', HEX = '0123456789abcdef', URLSAFE = ALNUM + '-_';
+  const sep = (b, p, ch) => b.slice(0, p) + ch + b.slice(p + 1);
+  const hx = FK.stream('lf-uuid', 32, HEX), uuid = hx.slice(0, 8) + '-' + hx.slice(8, 12) + '-4' + hx.slice(13, 16) + '-a' + hx.slice(17, 20) + '-' + hx.slice(20);
+  const kk = (id, prefix, body) => ({ id, prefix, body, value: prefix + body });
+  const SK = [
+    kk('OPENROUTER', 'sk-or-v1-', FK.stream('c-or', 64, HEX)), kk('ANTHROPIC', 'sk-ant-api03-', sep(FK.stream('c-ant', 95, URLSAFE), 7, '_')),
+    kk('PROJ', 'sk-proj-', FK.stream('c-proj', 48, ALNUM)), kk('PROJ_URLSAFE', 'sk-proj-', sep(FK.stream('c-proj2', 156, URLSAFE), 5, '-')),
+    kk('SVCACCT', 'sk-svcacct-', sep(FK.stream('c-svc', 120, URLSAFE), 9, '_')), kk('ADMIN', 'sk-admin-', sep(FK.stream('c-adm', 100, URLSAFE), 11, '-')),
+    kk('NONE', 'sk-None-', FK.stream('c-none', 48, ALNUM)), kk('GEN48', 'sk-', FK.stream('c-g48', 48, ALNUM)), kk('GENHEX', 'sk-', FK.stream('c-ghex', 32, HEX)),
+    kk('LITELLM', 'sk-', sep(FK.stream('c-lite', 22, URLSAFE), 6, '_')), kk('LANGFUSE', 'sk-lf-', uuid), kk('GENDASH', 'sk-', 'live-' + FK.stream('c-gdf', 40, ALNUM))
+  ];
+  const VENDOR = [
+    kk('GOOGLE', 'AIza', sep(FK.stream('c-goog', 35, URLSAFE), 10, '_')), kk('GHP', 'ghp_', FK.stream('c-ghp', 36, ALNUM)), kk('GHO', 'gho_', FK.stream('c-gho', 36, ALNUM)),
+    kk('GHPAT', 'github_pat_', FK.stream('c-gp1', 22, ALNUM) + '_' + FK.stream('c-gp2', 59, ALNUM)), kk('GLPAT', 'glpat-', sep(FK.stream('c-gl', 20, URLSAFE), 4, '-')),
+    kk('SLACK', 'xoxb-', '7351942086-4820193756241-' + FK.stream('c-xoxb', 24, ALNUM)), kk('STRIPE', 'sk_live_', FK.stream('c-stl', 24, ALNUM)),
+    kk('GROQ', 'gsk_', FK.stream('c-gsk', 52, ALNUM)), kk('PPLX', 'pplx-', FK.stream('c-pplx', 48, ALNUM)), kk('NOTION', 'ntn_', FK.stream('c-ntn', 46, ALNUM)),
+    kk('LINEAR', 'lin_api_', FK.stream('c-lin', 40, ALNUM)), kk('HF', 'hf_', FK.stream('c-hf', 34, ALNUM)), kk('XAI', 'xai-', FK.stream('c-xai', 80, ALNUM)),
+    kk('MATRIX', 'syt_', FK.stream('c-syt', 40, ALNUM)), kk('AWS', 'AKIA', FK.stream('c-akia', 16, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'))
+  ];
+  const ESC = String.fromCharCode(27);
+  const CTX = {
+    bare: v => v, prose: v => 'my key is ' + v + ' ok', eq: v => 'OPENAI_API_KEY=' + v, colon: v => 'key:' + v, dquote: v => '"' + v + '"', paren: v => '(' + v + ')',
+    line_start: v => 'first line\n' + v + '\nlast', tab: v => 'k\t' + v, underscore: v => 'KEY_' + v, slash: v => '/secrets/' + v,
+    json_obj: v => JSON.stringify({ key: v }), json_nl: v => JSON.stringify({ text: 'line1\n' + v }), json_tab: v => JSON.stringify({ text: 'col\t' + v }),
+    json_cr: v => JSON.stringify({ text: 'x\r' + v }), json_bs: v => JSON.stringify({ text: 'x\b' + v }), json_ff: v => JSON.stringify({ text: 'x\f' + v }),
+    json_nul: v => JSON.stringify({ text: 'x\u0000' + v }), json_ansi: v => JSON.stringify({ text: ESC + '[1m' + v + ESC + '[0m' }),
+    json_in_json_nl: v => JSON.stringify(JSON.stringify({ text: 'a\n' + v })), tool_calls_args_nl: v => JSON.stringify([{ function: { arguments: JSON.stringify({ text: 'x\n' + v }) } }]),
+    json_u003c: v => '{"t":"\\u003c' + v + '\\u003e"}', json_u0026: v => '{"u":"https://x.io/?a=1\\u0026' + v + '"}', json_u003d: v => '{"t":"KEY\\u003d' + v + '"}',
+    json_u0022: v => '{"t":"\\u0022' + v + '\\u0022"}', json_u000a: v => '{"t":"a\\u000a' + v + '"}',
+    url_q: v => 'https://api.example.com/v1?key=' + encodeURIComponent(v), url_pct3d: v => 'api_key%3D' + v, url_pct22: v => '%22' + v + '%22',
+    url_double: v => 'redirect=https%3A%2F%2Fx.io%2F%3Fapi_key%253D' + v, url_double_22: v => 'q=%2522' + v + '%2522',
+    qp_3d: v => 'OPENAI_API_KEY=3D' + v, qp_softbreak: v => 'token=3D' + v.slice(0, 20) + '=\r\n' + v.slice(20),
+    ansi_raw: v => ESC + '[32m' + v + ESC + '[0m', ansi_bold: v => 'Your key: ' + ESC + '[1m' + v + ESC + '[22m',
+    glued_letter: v => 'x' + v, glued_word: v => 'mykeyis' + v, glued_digit: v => '1' + v, glued_alnum: v => 'abc123' + v,
+    curl_bearer: v => 'curl -H "Authorization: Bearer ' + v + '" https://x.io', md_fence: v => '```bash\nexport KEY=' + v + '\n```'
   };
-  for (const [name, text] of Object.entries(escaped)) A.ok(context.redact(text).indexOf(k32.slice(3)) < 0, 'context.redact catches a generic sk- key ' + name + ': ' + context.redact(text));
+  const W = 8;
+  const hidden = (out, key) => { for (let i = 0; i + W <= key.body.length; i++) if (out.indexOf(key.body.slice(i, i + W)) >= 0) return false; return true; };
+  const BASE_SK = /sk-[A-Za-z0-9_\-]{16,}/g;   // the 41c298d9a generic rule, unanchored: the parity oracle for the sk- families
+  let parity = 0, misses = [];
+  for (const key of SK) for (const [cn, fn] of Object.entries(CTX)) {
+    const text = fn(key.value);
+    if (!hidden(text.replace(BASE_SK, '[redacted-key]'), key)) continue;   // base did not hide it either (not a regression)
+    parity++;
+    const out = context.redact(text);
+    if (!hidden(out, key)) misses.push(key.id + '|' + cn + ' -> ' + JSON.stringify(out.slice(0, 90)));
+  }
+  A.ok(parity > 400, 'the sk- parity corpus is not empty (' + parity + ' shape x context pairs base hid)');
+  A.eq(misses, [], 'every sk- key the base rule hid is still hidden (svcacct/admin/None/LiteLLM/Langfuse, after \\b \\f \\uXXXX, ANSI, =3D, %253D, glued)');
+  const vmiss = [];
+  for (const key of VENDOR) for (const [cn, fn] of Object.entries(CTX)) {
+    // a vendor key glued to a word is a word ending (the \b rules' contract); a quoted-printable soft break splits the
+    // key in two, and no fixed-length vendor rule matched either half at 41c298d9a (only the generic sk- rule does)
+    if (/^glued_/.test(cn) || cn === 'underscore' || cn === 'qp_softbreak') continue;
+    const out = context.redact(fn(key.value));
+    if (!hidden(out, key)) vmiss.push(key.id + '|' + cn + ' -> ' + JSON.stringify(out.slice(0, 90)));
+  }
+  A.eq(vmiss, [], 'every vendor key is caught in every context, right after a JSON / URL / quoted-printable / ANSI escape included');
+  // the documented glued residual stays readable only when glued: a letters-only body (no digit) after a word char
+  const letters = kk('GENLETTERS', 'sk-', FK.stream('c-glet', 40, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'));
+  for (const cn of ['bare', 'prose', 'eq', 'json_nl', 'json_bs', 'json_u0026', 'url_double', 'qp_3d', 'ansi_raw', 'json_ansi'])
+    A.ok(hidden(context.redact(CTX[cn](letters.value)), letters), 'a letters-only sk- body is hidden ' + cn);
+  // byte-identical ordinary text: hyphenated slugs, word-like sk- text, ids, model names
+  for (const slug of ['Build the task-management-dashboard', 'desk-assignment-overseer-lane', 'risk-assessment-framework-for-q4-planning', 'whisk-together-the-ingredients-now',
+    'disk-usage-report-generator-v2', 'ask-the-commander-about-schedules-weekly', 'flask-sqlalchemy-integration-guide', 'mask-rcnn-instance-segmentation-2023',
+    'brisk-walking-schedule-2024-weekly', 'task-1730000000000-abc123def456', 'desk-ops-2024-10-28-night', 'AbCdEfsk-0123456789abcdefXYZ',
+    'the kiosk-mode-installation-guide-for-retail-2024', 'pip install scikit-learn', 'Write the sk-learn-tutorial',
+    'claude-sonnet-4-5-20250929', 'time 20261028:1230', 'AKIA is the AWS prefix', 'x\\nAIza is the Google prefix', 'see %3Dghp_ in the docs'])
+    A.eq(context.redact(slug), slug, 'context.redact keeps ' + JSON.stringify(slug));
+  // FIELD ASSIGNMENTS: the credential after an auth scheme is the value; a placeholder is not a credential
+  for (const keep of ['headers {"Authorization": "Bearer ${INSTANTLY_API_KEY}"}', 'api_key=${INSTANTLY_API_KEY}', 'Authorization: Bearer <token>',
+    '"password": "{{ secrets.DB_PASSWORD }}"', 'set api_key=%OPENAI_API_KEY% first', '"api_key": "[redacted-secret]"'])
+    A.eq(context.redact(keep), keep, 'a field holding a placeholder is left alone: ' + keep);
+  const basic = 'Basic ' + Buffer.from('admin:' + FK.stream('c-basic', 14, ALNUM)).toString('base64');
+  A.eq(context.redact('Authorization: ' + basic), 'Authorization: Basic [redacted-secret]', 'Authorization: Basic <credential> -> the credential is redacted, the scheme kept');
+  A.eq(context.redact('curl -H "Authorization: Bearer api_key: ' + FK.stream('c-ak', 22, ALNUM) + '"'), 'curl -H "Authorization: [redacted-secret] api_key: [redacted-secret]"', 'a scheme followed by another field name is two assignments, both redacted');
+  A.eq(context.redact('password=' + FK.stream('c-pw', 14, ALNUM)), 'password=[redacted-secret]', 'a plain field value is still redacted');
 }
 
 // ---- 6. the held list is CREDENTIALS: secret-values credentialUnder ----

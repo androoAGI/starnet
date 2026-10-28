@@ -229,6 +229,36 @@
       return last ? out + s.slice(last) : s;
     };
   }
+  /* A KEY RIGHT AFTER AN ESCAPE (context-key-redact review r2, 2026-10-28). A vendor rule anchored with \b misses a
+     key whose preceding char is a letter or digit, and every escape form ends in one: a JSON \n \t \b \f \r or \uXXXX,
+     percent-encoding (stacked %25 too: %253D), quoted-printable =3D, an ANSI colour code (raw, or JSON-escaped
+     \u001b[1m). Text that is already serialized (a JSON evidence object, an encoded link, a captured log) reached the
+     model with the key whole. AFTER_ESCAPE is the lookbehind for those forms; KEY_START = \b or one of them. */
+  const ESCAPE_ALTS = '\\\\[bfnrt]|\\\\u[0-9A-Fa-f]{4}|%(?:25)*[0-9A-Fa-f]{2}|=[0-9A-F]{2}|\\x1b\\[[0-9;]*m|\\\\u001[bB]\\[[0-9;]*m';
+  const AFTER_ESCAPE = '(?<=' + ESCAPE_ALTS + ')';
+  /* keyRule(prefix, rest): the PREFIX literal first, then a lookbehind over it for the start condition. A leading
+     assertion alternation made V8 try every position of the text (a 200 KB redact went from 3 ms to 70 ms); a leading
+     literal keeps its fast scan. Every prefix starts with a word char, so "\b before it" = start of text or a non-word
+     char before it, plus the escapes. */
+  const keyRule = (prefix, rest) => new RegExp('(?:' + prefix + ')(?<=(?:^|[^A-Za-z0-9_]|' + ESCAPE_ALTS + ')(?:' + prefix + '))' + rest, 'g');
+  /* THE GENERIC sk- RULE (keep it last of the key rules). Base matched 'sk-' + 16 anywhere, so 'task-management-
+     dashboard' read 'ta[redacted-key]' in every prompt that quoted a run title. Now:
+       · not glued: after a non-alnum char or an escape (above) — every sk- body, as before
+       · glued to a letter or digit (USER_KEYsk-…, mykeyis sk-…): OpenAI's own sub-prefixes (svcacct/admin/None/proj,
+         Langfuse lf), a 20-char unbroken alnum run holding a digit after letters, or a 20-char urlsafe run holding an
+         upper, a lower AND a digit (LiteLLM-style). A lowercase word slug ('management-dashboard') is none of these.
+     Left out on purpose: a glued body of letters only (a random 40-letter key has no digit ~0.02% of the time). */
+  const GENERIC_SK = new RegExp('sk-(?:(?<=(?:^|[^A-Za-z0-9]|' + ESCAPE_ALTS + ')sk-)[A-Za-z0-9_\\-]{16,}'
+    + '|(?<=[A-Za-z0-9]sk-)(?:(?:svcacct|admin|None|proj|lf)-[A-Za-z0-9_\\-]{16,}'
+    + '|(?=[A-Za-z]*[0-9])(?=[A-Za-z0-9]{20})[A-Za-z0-9_\\-]{16,}'
+    + '|(?=[A-Za-z0-9_\\-]{20})(?=[^A-Z]{0,19}[A-Z])(?=[^a-z]{0,19}[a-z])(?=[^0-9]{0,19}[0-9])[A-Za-z0-9_\\-]{16,}))', 'g');
+  /* A FIELD ASSIGNMENT (api_key=…, "client_secret": "…", Authorization: …). FIELD_VALUE is the rule; see its comment in
+     SECRET_PATTERNS. A scheme is never followed by another field name ("Bearer api_key: …" is two assignments). */
+  const FIELD_NAMES = 'api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization';
+  const AUTH_SCHEME = '(?:Bearer|Basic|Token|Bot)\\s+(?!(?:' + FIELD_NAMES + ')\\b)';
+  const FIELD_VALUE = new RegExp('\\b(' + FIELD_NAMES + ')\\b(["\']?\\s*[=:]\\s*["\']?)'
+    + '(?!(?:' + AUTH_SCHEME + ')?(?:\\[redacted-|\\$\\{|\\{\\{|<[A-Za-z_]|%[A-Za-z_][A-Za-z0-9_]*%))'
+    + '((?:' + AUTH_SCHEME + ')?)[^\\s&,;"\']{4,}', 'gi');
   // Key/token shapes scrubbed before anything is logged, streamed, or persisted. Each pattern is
   // distinctive enough (vendor prefix + a length floor) that it does not eat ordinary prose. This is
   // ALWAYS-ON — there is deliberately no toggle the model could flip off. Most-specific vendor prefixes
@@ -245,34 +275,31 @@
     [/sk-or-v1-[A-Za-z0-9_\-]{8,}/g, '[redacted-key]'],                 // OpenRouter
     [/sk-ant-[A-Za-z0-9_\-]{8,}/g, '[redacted-key]'],                   // Anthropic
     [/sk-proj-[A-Za-z0-9_\-]{16,}/g, '[redacted-key]'],                 // OpenAI project key
-    [/\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/g, '[redacted-key]'],       // Stripe secret/restricted
-    [/\b(?:AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)[0-9A-Z]{16}\b/g, '[redacted-key]'], // AWS access key id
-    [/\bAIza[0-9A-Za-z_\-]{35}\b/g, '[redacted-key]'],                  // Google API key
-    [/\bya29\.[0-9A-Za-z_\-]{20,}/g, '[redacted-key]'],                 // Google OAuth access token
-    [/\bgh[pousr]_[A-Za-z0-9]{36,}\b/g, '[redacted-key]'],              // GitHub token (classic)
-    [/\bgithub_pat_[A-Za-z0-9_]{60,}\b/g, '[redacted-key]'],            // GitHub fine-grained PAT
-    [/\bglpat-[A-Za-z0-9_\-]{20,}\b/g, '[redacted-key]'],               // GitLab PAT
-    [/\bxox[abeprs]-[A-Za-z0-9-]{10,}\b/g, '[redacted-key]'],           // Slack token (bot/user/app/refresh/config)
-    [/\bxapp-\d-[A-Za-z0-9-]{10,}\b/g, '[redacted-key]'],               // Slack app-level (Socket Mode) token
-    [/\b[MNO][A-Za-z0-9_-]{23,27}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,40}\b/g, '[redacted-token]'], // Discord bot token
-    [/\bsyt_[A-Za-z0-9_]{10,}\b/g, '[redacted-token]'],                 // Matrix (Synapse) access token
-    [/\b1\/\/0[A-Za-z0-9_-]{30,}/g, '[redacted-token]'],                 // Google OAuth refresh token
-    [/\bgsk_[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                    // Groq
-    [/\bpplx-[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                   // Perplexity
-    [/\bntn_[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                    // Notion integration token
-    [/\blin_api_[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                // Linear API key
-    [/\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g, '[redacted-key]'], // SendGrid
-    [/\bwhk_[A-Za-z0-9_-]{20,}/g, '[redacted-secret]'],                 // StarNet line-trigger webhook secret (routing/triggers.js)
-    [/\bhf_[A-Za-z0-9]{30,}\b/g, '[redacted-key]'],                     // HuggingFace
-    [/\bxai-[A-Za-z0-9]{20,}\b/g, '[redacted-key]'],                    // xAI
-    [/\bAC[a-f0-9]{32}\b/g, '[redacted-key]'],                          // Twilio account SID
+    // the vendor rules below: keyRule(prefix, rest) = the prefix at \b, or right after an escape (see AFTER_ESCAPE above)
+    [keyRule('sk_(?:live|test)_', '[A-Za-z0-9]{16,}\\b'), '[redacted-key]'],       // Stripe secret/restricted
+    [keyRule('AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA', '[0-9A-Z]{16}\\b'), '[redacted-key]'], // AWS access key id
+    [keyRule('AIza', '[0-9A-Za-z_\\-]{35}\\b'), '[redacted-key]'],                  // Google API key
+    [keyRule('ya29\\.', '[0-9A-Za-z_\\-]{20,}'), '[redacted-key]'],                 // Google OAuth access token
+    [keyRule('gh[pousr]_', '[A-Za-z0-9]{36,}\\b'), '[redacted-key]'],              // GitHub token (classic)
+    [keyRule('github_pat_', '[A-Za-z0-9_]{60,}\\b'), '[redacted-key]'],            // GitHub fine-grained PAT
+    [keyRule('glpat-', '[A-Za-z0-9_\\-]{20,}\\b'), '[redacted-key]'],               // GitLab PAT
+    [keyRule('xox[abeprs]-', '[A-Za-z0-9-]{10,}\\b'), '[redacted-key]'],           // Slack token (bot/user/app/refresh/config)
+    [keyRule('xapp-\\d-', '[A-Za-z0-9-]{10,}\\b'), '[redacted-key]'],               // Slack app-level (Socket Mode) token
+    [keyRule('[MNO]', '[A-Za-z0-9_-]{23,27}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27,40}\\b'), '[redacted-token]'], // Discord bot token
+    [keyRule('syt_', '[A-Za-z0-9_]{10,}\\b'), '[redacted-token]'],                 // Matrix (Synapse) access token
+    [keyRule('1\\/\\/0', '[A-Za-z0-9_-]{30,}'), '[redacted-token]'],                 // Google OAuth refresh token
+    [keyRule('gsk_', '[A-Za-z0-9]{20,}\\b'), '[redacted-key]'],                    // Groq
+    [keyRule('pplx-', '[A-Za-z0-9]{20,}\\b'), '[redacted-key]'],                   // Perplexity
+    [keyRule('ntn_', '[A-Za-z0-9]{20,}\\b'), '[redacted-key]'],                    // Notion integration token
+    [keyRule('lin_api_', '[A-Za-z0-9]{20,}\\b'), '[redacted-key]'],                // Linear API key
+    [keyRule('SG\\.', '[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}'), '[redacted-key]'], // SendGrid
+    [keyRule('whk_', '[A-Za-z0-9_-]{20,}'), '[redacted-secret]'],                 // StarNet line-trigger webhook secret (routing/triggers.js)
+    [keyRule('hf_', '[A-Za-z0-9]{30,}\\b'), '[redacted-key]'],                     // HuggingFace
+    [keyRule('xai-', '[A-Za-z0-9]{20,}\\b'), '[redacted-key]'],                    // xAI
+    [keyRule('AC', '[a-f0-9]{32}\\b'), '[redacted-key]'],                          // Twilio account SID
     [/\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}/g, '[redacted-jwt]', jwtDriver], // JWT
-    [/\b\d{8,10}:[A-Za-z0-9_\-]{30,}\b/g, '[redacted-token]'],          // Telegram bot token (this app uses these)
-    // generic OpenAI-style (broad — keep last). Not right after a letter or digit, so a hyphenated word stays whole:
-    // without that 'task-management-dashboard' read 'ta[redacted-key]' and 'desk-assignment-overseer-lane' read
-    // 'de[redacted-key]' in every prompt that carries a run title. Still caught: a key after an escape in JSON or URL
-    // text (\nsk-…, %3Dsk-…), and a key glued to a word when it looks like one (a 20+ unbroken run holding a digit).
-    [/(?:(?<![A-Za-z0-9])|(?<=\\[nrt])|(?<=%[0-9A-Fa-f]{2}))sk-[A-Za-z0-9_\-]{16,}|(?<=[A-Za-z0-9])sk-(?=[A-Za-z]*[0-9])(?=[A-Za-z0-9]{20})[A-Za-z0-9_\-]{16,}/g, '[redacted-key]'],
+    [keyRule('\\d{8,10}:', '[A-Za-z0-9_\\-]{30,}\\b'), '[redacted-token]'],          // Telegram bot token (this app uses these)
+    [GENERIC_SK, '[redacted-key]'],   // generic OpenAI-style (broad — keep last of the key rules; see GENERIC_SK above)
     [/\bBearer\s+[A-Za-z0-9._\-]{12,}/g, 'Bearer [redacted-key]'],      // Authorization: Bearer <token>
     // The password in a URL's `user:pass@host` part (git remotes, proxies, database URLs). The user name and host stay
     // readable; the password runs to the LAST '@' of the authority, because a password may itself hold an '@'. A vendor
@@ -283,7 +310,12 @@
     // `password=...` or `client_secret: ...` value into a credential disclosure.
     // JSON (`"refresh_token": "…"`) and quoted-YAML forms too: the quote between the key and the colon, and the one
     // opening the value, used to stop this rule cold — so `cat codex/tokens.json` reached the model verbatim.
-    [/\b(api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization)\b(["']?\s*[=:]\s*["']?)(?!\[redacted-)[^\s&,;"']{4,}/gi, '$1$2[redacted-secret]'],
+    // An auth SCHEME (Bearer / Basic / Token / Bot) is kept and the credential after it is the value: base turned
+    // 'Authorization: Basic dXNlcjpwYXNz' into '[redacted-secret] dXNlcjpwYXNz' (the scheme eaten, the credential kept).
+    // A PLACEHOLDER is not a credential and is left alone (${NAME}, {{name}}, <token>, %NAME%, an earlier [redacted-…]):
+    // the host's own instruction '"Authorization": "Bearer ${INSTANTLY_API_KEY}"' used to reach the model as
+    // '"Authorization": "[redacted-secret] ${INSTANTLY_API_KEY}"', teaching it a broken header (review r2, 2026-10-28).
+    [FIELD_VALUE, '$1$2$3[redacted-secret]'],
   ];
   // [regex, replacement, linear driver | null] in pattern order; a driver returns exactly s.replace(regex, replacement)
   const SECRET_RULES = SECRET_PATTERNS.map(p => [p[0], p[1], typeof p[2] === 'function' ? p[2](p[0], p[1]) : null]);
@@ -351,6 +383,7 @@
   function redact(x) { return redactWith(x, knownSecrets()); }
   // redactWith(x, known) is exported too: prompt-scrub.js runs the vendor SHAPES with its own (credential-only) held
   // list, because the known-value list here also sweeps every connector header/env string for transcript redaction.
+  // AFTER_ESCAPE (the lookbehind source) is exported so prompt-scrub.js sees a cut key after the same escapes.
 
   // ---- recalled-memory fence (Cortex): surface the agent's own memory in-prompt without it having to call a
   //      read tool. Pure + deterministic + char-capped. renderRecall returns {text:'',count:0,chars:0} when there
@@ -1068,5 +1101,5 @@
   const _internals = { secretPatterns: () => SECRET_RULES.map(r => ({ re: new RegExp(r[0].source, r[0].flags), rep: r[1], driven: !!r[2], run: r[2] })),
     // the lexical primitives, so a test can rebuild the naive single-pass ranking from the module's CURRENT rules
     tokenize, recordText, lexicalForm, lexicalStem, LEXICAL_GROUPS: LEXICAL_GROUPS.map(g => g.slice()) };
-  return { _internals, makeContext, redact, redactWith, setKnownSecretSource, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
+  return { _internals, makeContext, redact, redactWith, AFTER_ESCAPE, setKnownSecretSource, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
 });
