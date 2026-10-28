@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**34** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 34 P2
+**33** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 33 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -326,7 +326,6 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | providers | [Model catalog lookups resolve a bare model id against another provider's catalog](bugs/f6744691-model-catalog-lookups-resolve-a-bare-model-id-ag.md) | sweep/providers | — |
 | P2 | open | providers | [Ollama run times out with no chat POST observed by reporter](bugs/5274c7b7-ollama-chat-request-not-observed.md) | release-0120-prep-0915 | — |
 | P2 | open | providers | [Reported macOS web fetch TLS decode and socket failures](bugs/1d3ac09a-reported-macos-web-fetch-tls-decode-and-socket-f.md) | release-0135-prep | — |
-| P2 | open | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | — |
 | P2 | open | release | [All 30 superseded StarNet releases (v0.6.4 to v0.13.3) remain publicly downloadable from the releases repo](bugs/1a69136d-all-30-superseded-starnet-releases-v0-6-4-to-v0.md) | sweep/release | — |
 | P2 | open | release | [cli-app-launch e2e keeps running for minutes after a failed assertion instead of exiting](bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md) | gate-seams | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
@@ -392,6 +391,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
 | P2 | fixed | providers | [Provider card status alignment and dated identity artwork](bugs/4a151231-provider-card-status-alignment-and-dated-identit.md) | agent/providers-polish-0910 | 3f2cc70d4 |
+| P2 | fixed | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | d37ae7493 |
 | P2 | fixed | providers | [Run metadata invalidates reusable prompt cache and unused fallback authentication delays primary requests](bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md) | latency-audit-0913 | 9b2ce2d35804623e97fa0a081cc11ffddd33d534 |
 | P2 | fixed | providers | [Secondary console layouts lose provider text and dropdown affordances at enlarged scale](bugs/6c91f5d9-secondary-console-layouts-lose-provider-text-and.md) | agent/interface-finish-0913 | 0054a3d7a |
 | P2 | fixed | providers | [The browser per-minute rate-limit veto lost rpm and tpm to collapsed backspace bytes](bugs/a1ce5839-the-browser-per-minute-rate-limit-veto-lost-rpm.md) | sweep/providers | 163c2d772 |
@@ -518,7 +518,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | --- | --- |
 | channels | 1 |
 | autonomy | 3 |
-| providers | 9 |
+| providers | 8 |
 | safecell | 3 |
 | sessions | 4 |
 | skills | 2 |
