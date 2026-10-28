@@ -372,6 +372,7 @@ const MemoryStore = require('./memory-store.js');                               
 const { makeMemoryStore, resetAgentMemory, restoreDeclined } = MemoryStore;
 const { makeWorkshopStore } = require('./workshop-store.js'); // durable per-agent away-workshop grant + backlog + discard denylist
 const { makeDeliverableStore } = require('./deliverable-store.js'); // durable kept/discarded/failed Workshop lifecycle index
+const { makeHistoricalEvidenceHost } = require('./historical-evidence-host.js'); // Phase A: read-only exact-provenance evidence bridge
 const { makeSteerBuffers, steerNoteStatus } = require('./steer-buffer.js'); // h1: live-steer buffers + the run-end close (an honest 409 once a run can no longer apply a note)
 const { makeIdempotencyLedger } = require('./idempotency-ledger.js'); // SOP lane: durable connector-WRITE idempotency (no double-send on retry/resume)
 const TrustedLearning = require('./trusted-learning.js');
@@ -12592,6 +12593,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/growth/ratings/correction', h: handleGrowthRatingCorrection },   // consistency loop: the Commander's words after a short-of-the-mark verdict
   { m: 'POST', exact: '/api/taste/keep-style', h: handleTasteKeepStyle },   // DESIGN ANCHOR: ★ KEEP THIS STYLE -> station-wide taste with the run's real reference
   { m: ['GET', 'POST'], qsplit: '/api/growth/ratings', h: handleGrowthRatings },
+  { m: 'GET', exact: '/api/historical-evidence', h: handleHistoricalEvidence },
   { m: 'GET', prefix: '/api/runs', h: serveRuns },
   { m: 'GET', qsplit: '/api/recipes/drift', h: serveRecipeDrift },   // qsplit: ?recipeId= narrows
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
@@ -27962,6 +27964,15 @@ function serveRecipeDrift(req, res) {
     return json(200, want ? { recipeId: want, drift: all[want] || RecipeDrift.assessDrift([]) } : { drift: all });
   } catch (e) {
     return json(500, { error: 'run history unreadable: ' + String(e && e.message || e).slice(0, 200) });
+  }
+}
+function handleHistoricalEvidence(req, res) {
+  const json = (code, obj) => respondJson(res, code, obj);
+  try {
+    const host = makeHistoricalEvidenceHost({ readRuns: () => runStore.all(), readDeliverables: () => [] });
+    return Promise.resolve(host.snapshot()).then(snapshot => json(200, snapshot)).catch(() => json(200, { schemaVersion: 'starnet.historical-evidence-projection.v1', readOnly: true, items: [], displayStatus: 'Related work observed — not yet settled as milestone completion.', safety: { canonicalMutationPerformed: false, xpAwarded: false, commanderPointsAwarded: false, historicalEventsInvented: false, completionSettlementPerformed: false }, limitations: ['Evidence provider unavailable.'] }));
+  } catch (_) {
+    return json(200, { schemaVersion: 'starnet.historical-evidence-projection.v1', readOnly: true, items: [], displayStatus: 'Related work observed — not yet settled as milestone completion.', safety: { canonicalMutationPerformed: false, xpAwarded: false, commanderPointsAwarded: false, historicalEventsInvented: false, completionSettlementPerformed: false }, limitations: ['Evidence provider unavailable.'] });
   }
 }
 function serveRuns(req, res) {

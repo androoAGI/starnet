@@ -212,6 +212,26 @@
     return ms.every(m => m && m.status === 'done');
   }
 
+  /* READ-ONLY RELATED WORK (Phase A provenance projection). Exact goal/milestone identity is required;
+     this surface never settles a milestone or changes any progression state. */
+  function projectRelatedWork(goal, rows) {
+    if (!goal || !Array.isArray(rows)) return [];
+    const out = [], seen = new Set();
+    for (const row of rows) {
+      if (!row || !row.runId || String(row.goalId || '') !== String(goal.id) || !row.milestoneId) continue;
+      const milestone = (goal.milestones || []).find(m => m && String(m.id) === String(row.milestoneId));
+      if (!milestone || seen.has(String(row.runId))) continue;
+      seen.add(String(row.runId));
+      out.push({ id: 'related:' + String(row.runId), kind: 'related-work', title: 'related work — ' + clip(row.title || row.runId, 100),
+        desc: String(row.displayStatus || 'Observed activity — not accepted milestone completion.'), reward: 'evidence only', status: 'open',
+        goalId: String(goal.id), milestoneId: String(milestone.id), runId: String(row.runId), controllerRunId: row.controllerRunId || null,
+        controllerExecutionId: row.controllerExecutionId || null, artifacts: Array.isArray(row.artifacts) ? row.artifacts.slice() : [],
+        validation: row.validation || null, timestamp: row.timestamp || null, sourceKind: row.sourceKind || null,
+        readOnly: true, completion: false });
+    }
+    return out;
+  }
+
   /* bind a real WORK quest to a milestone (in place): the Commander accepted the milestone quest, it routed
      through the work-quest path, and THAT quest's id is recorded here so completing the real work can find and
      complete this milestone. Idempotent; only ever binds an OPEN milestone of an ACTIVE goal. Returns true iff bound. */
@@ -349,7 +369,7 @@
 
   return {
     buildDirective, parseDecomposition, makeGoal, progress, nextMilestone, chooseNext, briefing, allDone,
-    bindMilestoneQuest, foldMilestoneDone, milestoneForQuest, retireBySource, activeGoal, project, lowValue, scrubSecrets, resolveConfirmChoice,
+    bindMilestoneQuest, foldMilestoneDone, milestoneForQuest, retireBySource, activeGoal, project, projectRelatedWork, lowValue, scrubSecrets, resolveConfirmChoice,
     MIN_MILESTONES, MAX_MILESTONES, TEXT_CHARS
   };
 });
