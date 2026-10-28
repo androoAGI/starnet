@@ -169,6 +169,23 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(vSpine.blocked, false, 'a timed-out hook through the spine does not block');
       A.ok(exitedAt > 0 && exitedAt <= resolvedAt, 'spine.invoke() resolves only after the killed child has exited (exited ' + (exitedAt ? resolvedAt - exitedAt + 'ms before resolve' : 'never') + ')');
       A.ok(sh._internals.spineBoundMs > 50 + _internals.KILL_SETTLE_MS, 'the spine bound covers timeout + kill-settle (' + sh._internals.spineBoundMs + 'ms)');
+
+      // ---- 7d. A SLOW spawn() DOES NOT HAND THE SPINE THE RACE ----
+      // The spine's timer starts before runScript; if runScript armed its own timeout only after spawn() returned, a
+      // spawn that blocked ~400ms (a RAM-starved box) pushed our kill + settle past the spine's backstop, and invoke()
+      // returned while the killed child still held its cwd. The fake spawn blocks the thread for 400ms, then hands back
+      // a child that takes 450ms to die after kill(): invoke() must still resolve only after that child has exited.
+      await fsp.rm(ALLOW, { force: true });
+      let slowExitAt = 0;
+      const slowSpawnChild = fakeChild(450);
+      slowSpawnChild.once('exit', () => { slowExitAt = Date.now(); });
+      const slowSpawn = () => { const until = Date.now() + 400; while (Date.now() < until) { /* spawn() blocking under memory pressure */ } return slowSpawnChild; };
+      const spine2 = makeHooks();
+      await mk({ spawn: slowSpawn, timeoutMs: 50, onError: () => {} }).install(spine2, { accept: true });
+      const vSlow = await spine2.invoke('pre_tool_call', {});
+      const slowResolvedAt = Date.now();
+      A.eq(vSlow.blocked, false, 'a timed-out hook behind a slow spawn does not block');
+      A.ok(slowExitAt > 0 && slowExitAt <= slowResolvedAt, 'spine.invoke() resolves only after the killed child has exited, even when spawn() took 400ms (exited ' + (slowExitAt ? slowResolvedAt - slowExitAt + 'ms before resolve' : 'never') + ')');
     }
 
     // ---- 8. ONE BAD ENTRY MUST NOT DISABLE THE REST OF THE FILE ----

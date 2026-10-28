@@ -37,7 +37,11 @@
   const MAX_HOOKS = 32;              // a hooks file is hand-written; this is a runaway guard, not a product limit
   const MAX_STDOUT_BYTES = 64000;    // a hook answers with a small verdict; anything more is a misconfiguration
   const KILL_SETTLE_MS = 500;        // how long a timed-out, killed hook may take to actually exit before we settle anyway
-  const SPINE_SLACK_MS = 250;        // the spine's backstop bound sits this far past our own timeout + settle
+  /* The spine's backstop bound sits this far past our own timeout + settle. It is WIDE on purpose: the spine starts
+     its timer before runScript runs, so everything runScript spends before its own clock decides (spawn() itself,
+     which on a RAM-starved box can block for hundreds of ms) eats into this slack. runScript measures its timeout
+     from before spawn, so the slack only has to cover scheduling jitter, and 2s of it never depends on spawn speed. */
+  const SPINE_SLACK_MS = 2000;
   const DEFAULT_TIMEOUT_MS = 5000;
 
   /* Split a command line into argv the way a POSIX shell would for the SIMPLE cases, and no further: double
@@ -177,6 +181,9 @@
         let argv;
         try { argv = splitArgs(hook.command); } catch (e) { onError({ hook: hook.name, error: (e && e.message) }); return resolve(null); }
         const exe = argv[0];
+        // The timeout is measured from HERE, before spawn(): a spawn that blocks for 400ms has spent 400ms of the
+        // hook's budget, exactly as the spine's own timer (already running) sees it.
+        const t0 = Date.now();
         let child;
         try {
           child = spawn(exe, argv.slice(1), { cwd, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -195,7 +202,7 @@
           const bound = setTimeout(() => resolve(v), KILL_SETTLE_MS);
           child.once('exit', () => { clearTimeout(bound); resolve(v); });
         };
-        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, timeoutMs);
+        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, Math.max(0, timeoutMs - (Date.now() - t0)));
 
         try { child.stdout.on('data', (d) => { bytes += d.length; if (bytes <= MAX_STDOUT_BYTES) out += d.toString('utf8'); }); } catch (_) {}
         try { child.stderr.on('data', () => {}); } catch (_) {}          // stderr is the script's own logging, not our business
