@@ -489,6 +489,61 @@ const SEED = {
       'P11d: a HELD credential on the page is still taken out at the provider boundary (L3); the public config stays');
   }
 
+  // ---- P11e (review r3): a Dossier document holding a key can still be EDITED. team.config reaches the model scrubbed, so
+  //      team.configure's previousText never matched the page's compare-and-swap and every edit was refused as 'the
+  //      document changed'. The edit is now mapped back onto the real document host-side; the key never reaches the model. ----
+  {
+    const fs = require('node:fs');
+    const { makeRegistry, attachResultScrub } = require('../sidecar/tools/registry.js');
+    const page = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationcommands.js'), 'utf8');
+    const compareLine = "if (current !== a.previousText && current !== a.text) throw new Error('the document changed; read team.config again before editing');";
+    A.ok(page.indexOf(compareLine) >= 0, 'P11e: the page still compares previousText exactly (the fake bridge below mirrors that line)');
+    const original = 'Outreach desk. Instantly key: ' + K.VAULT.value + '\nOpenRouter fallback: ' + K.OPENROUTER.value + '\nReport every Friday.';
+    const docs = { context: original, manual: 'Be brief.' };
+    const writes = [];
+    const station = { request: async (verb, a) => {
+      if (verb === 'station.agent_config') return { ok: true, result: { id: 'hero', name: 'Hero', docs: Object.assign({}, docs) } };
+      if (verb === 'station.update_agent') {
+        const current = String(docs[a.field] || '');
+        if (current !== a.previousText && current !== a.text) return { ok: false, error: 'the document changed; read team.config again before editing' };
+        docs[a.field] = a.text; writes.push(a.text);
+        return { ok: true, result: { agentId: 'hero', field: a.field, text: a.text, durable: true, applies: 'next run' } };
+      }
+      return { ok: false, error: 'unknown verb ' + verb };
+    } };
+    const reg = makeRegistry();
+    makeStationTools({ station }).register(reg);
+    PS.setHeldSource(() => [{ value: K.VAULT.value, as: '[INSTANTLY_API_KEY saved in API KEYS]' }]);
+    attachResultScrub(PS.scrubStored);
+    const results = [];
+    const call = async (name, args) => { const r = await reg.dispatch({ id: 'c' + results.length, name, args }, {}); results.push(r.content); return r; };
+    try {
+      const seen = JSON.parse((await call('team.config', { agentId: 'hero' })).content).docs.context;
+      A.eq(seen, 'Outreach desk. Instantly key: [INSTANTLY_API_KEY saved in API KEYS]\nOpenRouter fallback: [redacted-key]\nReport every Friday.', 'P11e: the model reads the document with placeholders');
+      const r1 = await call('team.configure', { agentId: 'hero', field: 'context', previousText: seen, text: seen.replace('every Friday', 'every Monday and Friday') });
+      A.ok(!/REFUSED/.test(r1.content) && docs.context === original.replace('every Friday', 'every Monday and Friday'), 'P11e: an edit around the placeholders saves, with both real keys back in place: ' + r1.content.slice(0, 160));
+      const seen2 = JSON.parse((await call('team.config', { agentId: 'hero' })).content).docs.context;
+      const r2 = await call('team.configure', { agentId: 'hero', field: 'context', previousText: seen2, text: seen2.replace('\nOpenRouter fallback: [redacted-key]', '') });
+      A.ok(!/REFUSED/.test(r2.content) && docs.context === 'Outreach desk. Instantly key: ' + K.VAULT.value + '\nReport every Monday and Friday.', 'P11e: dropping one credential line keeps the other key (each placeholder names one value)');
+      const before = docs.context, seen3 = JSON.parse((await call('team.config', { agentId: 'hero' })).content).docs.context;
+      const r3 = await call('team.configure', { agentId: 'hero', field: 'context', previousText: seen3, text: seen3 + '\nBackup key: [redacted-key]' });
+      A.ok(/REFUSED: this context document holds a saved credential/.test(r3.content) && /not in the document/.test(r3.content) && docs.context === before, 'P11e: a placeholder the model invented is refused plainly, the document unchanged: ' + r3.content.slice(0, 200));
+      const r4 = await call('team.configure', { agentId: 'hero', field: 'manual', previousText: 'Be brief.', text: 'Be brief and kind.' });
+      A.ok(!/REFUSED/.test(r4.content) && docs.manual === 'Be brief and kind.', 'P11e: a document with no credential edits exactly as before');
+      const r5 = await call('team.configure', { agentId: 'hero', field: 'context', previousText: 'stale [redacted-key] text', text: 'x [redacted-key]' });
+      A.ok(/the document changed/.test(r5.content) && docs.context === before, 'P11e: a previousText that is not the scrubbed document still meets the page\'s honest refusal');
+      docs.manual = 'Primary ' + K.OPENROUTER.value + ', fallback ' + K.OPENAI.value + '.';
+      const twin = JSON.parse((await call('team.config', { agentId: 'hero' })).content).docs.manual;
+      A.eq(twin, 'Primary [redacted-key], fallback [redacted-key].', 'P11e: two keys read as two identical placeholders');
+      const r6 = await call('team.configure', { agentId: 'hero', field: 'manual', previousText: twin, text: 'Primary [redacted-key].' });
+      A.ok(/cannot tell which placeholder is which/.test(r6.content) && docs.manual.indexOf(K.OPENAI.value) >= 0, 'P11e: dropping one of two identical placeholders is refused (which key went is unknowable), never guessed');
+      const r7 = await call('team.configure', { agentId: 'hero', field: 'manual', previousText: twin, text: 'Use primary [redacted-key], then fallback [redacted-key]. Log both.' });
+      A.ok(!/REFUSED/.test(r7.content) && docs.manual === 'Use primary ' + K.OPENROUTER.value + ', then fallback ' + K.OPENAI.value + '. Log both.', 'P11e: the same placeholders in the same order map back in order');
+      A.eq(leaks(results.join('\n')), '', 'P11e: no tool result the model read holds a key or window');
+      A.ok(writes.every(w => w.indexOf('[redacted-') < 0 && w.indexOf('saved in API KEYS]') < 0), 'P11e: no placeholder was ever written into the document');
+    } finally { attachResultScrub(null); PS.setHeldSource(() => [by.VAULT.value]); }
+  }
+
   // ---- P12: an INTERNAL run's page-composed directive quotes stored beliefs/goals: scrubbed at runOnceCore's intake ----
   {
     const AutoJobs = require('../frontend/app/autojobs.js');
