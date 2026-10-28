@@ -620,9 +620,40 @@
         }
         throw new Error('ChatGPT ' + res.status + ': ' + safe + (retried ? ' (retried on image host ' + body.model + ' after ChatGPT rejected image host ' + refused[0] + ')' : ''));
       }
-      const out = parseCodexImageStream(res.text);
+      let out = parseCodexImageStream(res.text);
+      /* #157: a host that answers 2xx with NO image_generation_call (only text, e.g. "no image-generation tool is
+         available") did not run the image tool for this account: that is a refusal of THIS host too. ONE more host
+         from the live list, never one already tried; a host that answers that way is named in the error, never
+         "is gpt-image-2 an image-output model?" (the image model was never the problem). */
+      const answeredWithoutImage = o => !o.image && !o.failed;
+      const silent = [];
+      let silentNoRetry = '';
+      if (answeredWithoutImage(out)) {
+        silent.push(body.model);
+        const listed = await readLive();
+        const next = codexHostOrder(runModel, listed).find(id => refused.indexOf(id) < 0 && silent.indexOf(id) < 0);
+        require('../../failopen.js').note('image.codex.host-no-image', new Error('ChatGPT image host ' + body.model + ' answered without an image' + (next ? '; one retry on ' + next : '; no other live host')));
+        if (next) {
+          checkCancelled(stopSignal);
+          body.model = next;
+          res = await attempt();
+          if (res.status < 200 || res.status >= 300) {
+            throw new Error('ChatGPT ' + res.status + ': ' + failureOf(res).safe + ' (retried on image host ' + next + ' after image host ' + silent[0] + ' answered without an image)');
+          }
+          out = parseCodexImageStream(res.text);
+          if (answeredWithoutImage(out)) silent.push(next);
+        } else if (codexHostModels) silentNoRetry = listed && listed.length ? 'the account\'s live model list offers no other model' : 'the account\'s live model list was unavailable';
+      }
       if (!out.image && out.failed) throw new Error('ChatGPT image generation failed: ' + out.failed);
-      return { data: out.image ? [{ b64_json: out.image }] : [], choices: out.text ? [{ message: { content: out.text } }] : [] };
+      if (!out.image) {
+        const said = String(out.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        const hosts = silent.length > 1 ? 'image hosts ' + silent.join(' and ') + ' each' : 'image host ' + silent[0];
+        throw new Error(('ChatGPT ' + hosts + ' answered without generating an image' + (said ? ' (it replied: "' + said + '")' : '') + '. Requested image model: ' + tool.model + '. '
+          + (silent.length > 1 ? 'No image was returned or saved by these attempts. ' : 'No image was returned or saved by this attempt. ')
+          + (refused.length ? 'ChatGPT had rejected image host ' + refused[0] + ' before that. ' : '')
+          + (silentNoRetry ? 'No other image host was tried: ' + silentNoRetry + '.' : '')).trim());
+      }
+      return { data: [{ b64_json: out.image }], choices: out.text ? [{ message: { content: out.text } }] : [] };
     }
 
     // ---------------- image_generate ----------------

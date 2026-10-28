@@ -29,7 +29,12 @@ const { makeClock } = require('../shared/clock-rng.js');
 
   /* ---------- 2. the run-end gate and the stash (sidecar/index.js, source-locked: runOnceCore is not unit-loadable) ---------- */
   const src = readSidecarSource();
-  A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(latestUserText\(msgs\)\)\);/.test(src), 'the gate reads the run\'s own latest user turn for the hand-off frame');
+  // quick win 17: the gate reads the run's directive as captured BEFORE the loop (the loop appends its own user-role turns,
+  // e.g. a screen capture, which made the post-loop latest user text the wrong turn to judge)
+  const lh = sidecarTopLevelFunction('runOnceCore');
+  A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(runDirective\)\);/.test(lh)
+    && lh.indexOf('const runDirective = latestUserText(') >= 0 && lh.indexOf('const runDirective = latestUserText(') < lh.indexOf('const _lineHop ='),
+    'the gate reads the run\'s own directive, captured before the loop, for the hand-off frame');
   // memory-truth-1027: every pass reads the hand-off through ONE predicate (learning-eligibility.js; the full matrix is
   // test/learning-eligibility.matrix.test.js) — the gates read its verdict, and the run's own _lineHop feeds it
   const LE = require('../sidecar/learning-eligibility.js');

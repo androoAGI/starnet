@@ -58,7 +58,7 @@ const workspaceRecovery = require('./workspace-recovery.js');
 const { makeUpdatePreparation } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
-const { killAll, markFaulted } = require('./halt.js');
+const { killAll, markFaulted, killStopHandles } = require('./halt.js');
 const { makeRegistry, outputBudgetFor, outputWindowFor } = require('./tools/registry.js');
 const { makeOutputArtifacts, visibleOutputPath } = require('./output-artifacts.js');
 const { makeWebTools, makePoliteScheduler } = require('./tools/builtin/web.js');
@@ -858,7 +858,7 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 // (handleRuntimeKnobsSet), so the next run uses the new value without a restart.
 // maxSubscriptionTokens: per-run TOKEN ceiling for $0 subscription turns (a Claude Code sign-in); cache re-reads count
 // 1/10 (loop.js SUBSCRIPTION SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP overrides; 0 disables.
-const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxCostUsd: 1.00, maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
+const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
 const MAX_TOOL_BYTES_PINNED = knobEnvLocked('MAX_TOOL_BYTES');
 const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget (mcp/manager.js); per-connector timeoutMs overrides
 // Spend governance: per-run, per-agent and global ceilings default OFF; per-DAY ships ON as a soft rail
@@ -2925,12 +2925,33 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
 }
 function providerHasCredential(provider, key, baseUrl) {
   const id = normalizeProvider(provider);
-  if (registryProviderUsesCodex(id)) return !!(codexTokens && codexTokens.access_token) || anyExtraAccountLive(id);
-  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return !!(e && e.tokens && e.tokens.access_token) || anyExtraAccountLive(id); }
+  // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
+  // accountChain runs on). GitHub #92: a refresh token another client consumed left the tokens on disk, so diagnostics,
+  // /api/runtime/agent and every channel/routine 'configured' said yes to a sign-in no run could use.
+  if (registryProviderUsesCodex(id)) return (!!(codexTokens && codexTokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id);
+  if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return (!!(e && e.tokens && e.tokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id); }
   if (providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) return false;
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
   return true;
 }
+// A subscription whose primary sign-in is STORED but recorded dead (a relogin-class refresh failure) and no extra account
+// is live: the one state where "connect first" is false. The Commander signed in; it expired and needs a reconnect.
+function providerSignInExpired(provider) {
+  const id = normalizeProvider(provider);
+  if (!registryProviderUsesCodex(id) && !registryProviderUsesDeviceOAuth(id)) return false;
+  const p = oauthPrimaryStatus(id);
+  return !!(p.tokens && p.tokens.access_token) && !accountLive(id, '') && !anyExtraAccountLive(id);
+}
+// The credential as STORED, before the liveness verdict: what boot channel auto-start reads. A saved channel bot on a
+// sign-in recorded dead still starts, answers each message with the expired-sign-in error, and works again the moment
+// the Commander reconnects (handleCodexPoll clears the marker and restarts nothing, so a bot skipped at boot stayed
+// offline until a restart).
+function providerHasStoredCredential(provider, key, baseUrl) {
+  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider);
+}
+// ...and what such a bot says to a message while the sign-in is dead: the hub answers sec.error before its generic
+// "No provider/model is configured yet" line, which would be false for a sign-in that only expired.
+function expiredSignInNote(provider) { return providerSignInExpired(provider) ? providerCredentialError(provider) : ''; }
 
 // subscription stacking: an extra connected sign-in also makes an OAuth subscription runnable (before the account
 // keeper has initialised at boot, nothing is stacked yet — the TDZ throw reads as "none").
@@ -2999,6 +3020,13 @@ function providerCredentialError(provider) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const label = (profile && profile.label) || id;
+  // A sign-in recorded dead EXISTS: it expired, so the remedy is a reconnect, never "connect first" (the page classifies
+  // this text as oauth, not signed out: "Your ChatGPT sign-in expired — reconnect it" beside ⏼ RECONNECT, friendlyerror.js).
+  if (providerSignInExpired(id)) {
+    return registryProviderUsesCodex(id)
+      ? 'your ChatGPT sign-in expired - sign in with ChatGPT again (RECONNECT on the ChatGPT card in SETTINGS -> AI & MODELS)'
+      : 'your ' + label + ' sign-in expired - reconnect it under SETTINGS -> AI & MODELS';
+  }
   if (registryProviderUsesCodex(id)) return 'connect ChatGPT first - a signed-in ChatGPT account + model are required';
   if (registryProviderUsesDeviceOAuth(id)) return 'sign in to ' + label + ' first - a signed-in subscription + model are required';
   // starnet's baseUrl+bearer both come from the device link, so "configure the base URL" / "connect a key"
@@ -3755,8 +3783,8 @@ async function runStudy(o) {
    AND the permanent declined denylist, and STASHES the survivors for turn-in. Nothing becomes an open thread until
    the Commander KEEPS it (POST /api/threads/turnin) — stash, not auto-commit (the memory/study law). Fail-open:
    a failed mine never touches the run. */
-const THREAD_MINE_TIMEOUT_MS = num(process.env.SKYNET_THREAD_MINE_TIMEOUT_MS, 45000);
-const THREAD_MINE_COOLDOWN_MS = num(process.env.SKYNET_THREAD_MINE_COOLDOWN_MS, 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
+const THREAD_MINE_TIMEOUT_MS = num(ENV('THREAD_MINE_TIMEOUT_MS'), 45000);
+const THREAD_MINE_COOLDOWN_MS = num(ENV('THREAD_MINE_COOLDOWN_MS'), 20 * 60 * 1000); // rarer than reflection: at most one mine per agent per ~20min
 const THREAD_STASH_CAP = 200;
 const threadsByRun = new Map();        // runId -> { agentId, runId, createdAt, proposals:[{id,title,spec,fingerprint,sourceRef}] }
 const latestThreadRun = new Map();     // agentId -> newest pending thread-mine runId (fetch fallback when runId unknown)
@@ -3813,12 +3841,12 @@ async function runThreadMine(o) {
   }
 }
 
-const SKILL_REVIEW_TIMEOUT_MS = num(process.env.SKYNET_SKILL_REVIEW_TIMEOUT_MS, 45000);
-const SKILL_REVIEW_MAX_COST_USD = num(process.env.SKYNET_SKILL_REVIEW_MAX_USD, 0.08);
+const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), 45000);
+const SKILL_REVIEW_MAX_COST_USD = num(ENV('SKILL_REVIEW_MAX_USD'), 0.08);
 // THE SKILL NUDGE (skillreview.nudgeAfterRun): per agent, the model turns taken with skill tools on the wire since
 // its skillbase last changed. Carried across runs AND restarts: a desktop station restarts most days, and a count
 // that reset with the process would rarely reach the bar. SKYNET_SKILL_REVIEW_EVERY sets the bar (default 10, 0 = off).
-const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(process.env.SKYNET_SKILL_REVIEW_EVERY);
+const SKILL_REVIEW_EVERY = skillReview.parseNudgeEvery(ENV('SKILL_REVIEW_EVERY'));
 const SKILL_NUDGE_FILE = path.join(WORKSPACES, 'skill.nudge.json');
 const skillNudge = (() => {
   try {
@@ -3889,8 +3917,8 @@ async function rehydrateReviewJob(job) {
     unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
   });
 }
-const SKILL_CURATOR_INTERVAL_MS = num(process.env.SKYNET_SKILL_CURATOR_INTERVAL_MS, 24 * 60 * 60 * 1000);
-const SKILL_CURATOR_MAX_COST_USD = num(process.env.SKYNET_SKILL_CURATOR_MAX_USD, 0.12);
+const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
+const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), 0.12);
 const skillCuratorLastRun = new Map();
 async function runBackgroundSkillReview(o) {
   const { agentId, runId, messages, provider, model, cost, loadedSkills, managedSkills, verdict, correction } = o || {};
@@ -3994,7 +4022,7 @@ async function runSkillCurator(o) {
   if (SKILL_CURATOR_INTERVAL_MS > 0 && (nowMs - (skillCuratorLastRun.get(agentId) || 0)) < SKILL_CURATOR_INTERVAL_MS) return;
   const all = skillStore.list(agentId, { includeArchived: true });
   skillStore.curate(agentId, { now: nowMs });
-  if (process.env.SKYNET_SKILL_CURATOR_LLM !== '1' || !skillCurator.shouldCurate(all)) {
+  if (ENV('SKILL_CURATOR_LLM') !== '1' || !skillCurator.shouldCurate(all)) {
     skillCuratorLastRun.set(agentId, nowMs);
     return;
   }
@@ -7303,7 +7331,7 @@ const cronDriver = makeCronDriver({
         });
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally { runsMeta.delete(hopRunId); }
-      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+      return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
     }
   })
 });
@@ -10647,7 +10675,7 @@ function startTelegram(token, key, model, agentCfg) {
       const provider = normalizeProvider(t.provider);
       const key = providerRuntimeKey(provider, t.key || '');
       const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '');
-      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
+      return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
     },
     persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
@@ -11060,7 +11088,7 @@ function startDiscord(token, key, model, agentCfg) {
         const provider = normalizeProvider(d.provider);
         const k = providerRuntimeKey(provider, d.key || '');
         const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '');
-        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
+        return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
       },
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -11164,7 +11192,7 @@ function devHubSecrets() {
   const provider = 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = chatModelId(provider, String(process.env.SKYNET_DEFAULT_MODEL || process.env.STARNET_DEFAULT_MODEL || '').trim());   // a batch-only id runs on its base model
+  const model = chatModelId(provider, String(ENV('DEFAULT_MODEL') || '').trim());   // a batch-only id runs on its base model; ENV(): STARNET_ wins, as everywhere
   return { key, model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, ''), agentId: undefined, system: undefined };
 }
 function getDevHub() {
@@ -11353,7 +11381,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
         const p = normalizeProvider(r.provider);
         const k = providerRuntimeKey(p, r.key || '');
         const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '');
-        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
+        return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
       },
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
@@ -11770,6 +11798,16 @@ const TERMINAL_NOTE = '\n\n[TERMINAL] The Commander is talking to you from the S
   + '/routine, /away, the Commander\'s own commands, and each skill as /<skill> <task> (/skills lists them). Never write a FORK: line — ask in plain words. When something '
   + 'can only be done in the StarNet desktop app (placing props, building the station, connecting accounts or keys), say so '
   + 'plainly. Write for a terminal: plain text and simple markdown (short paragraphs, lists, code blocks), no wide tables.';
+/* THE EDITOR (ACP bridge, sidecar/acp/serve.js, client:'editor'): the same desktop persona reaches a code editor since the
+   bridge asks for rosterSystem, so the same correction follows it. It names only what the bridge really renders: the live
+   tool-call list and the editor's own permission card with acp/core.js permissionOptions' three answers. A constant. */
+const EDITOR_NOTE = '\n\n[EDITOR] The Commander is talking to you from their code editor through StarNet\'s editor bridge, not '
+  + 'the desktop app. There is no station on their screen: no COMMS panel, no buttons, cards, windows, dock or one-tap rows — '
+  + 'anything earlier in these instructions about clicking, tapping, approve/deny buttons, FORK rows or placing props does not '
+  + 'apply here. In their editor your tool calls show in a live list, and an approval shows as the editor\'s own prompt: allow '
+  + 'once, allow for the rest of this session, or reject. Never write a FORK: line; when you need their answer, end your reply '
+  + 'with the question in plain words. When something can only be done in the StarNet desktop app (placing props, building the '
+  + 'station, connecting accounts or keys), say so plainly.';
 const remoteCrypto = require('./remote/crypto.js');
 const remoteDevices = require('./remote/devices.js').makeDevices({
   fs, path, crypto: remoteCrypto, file: path.join(WORKSPACES, '.secrets', 'remote.json'),
@@ -12793,7 +12831,9 @@ server.listen(PORT, '127.0.0.1', () => {
     const tgTok = channelToken('telegram', '', t);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (t.enabled && tgTok && t.model && providerHasCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
+    // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
+    if (t.enabled && tgTok && t.model && providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
     else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
@@ -12810,7 +12850,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && d.model && providerHasCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    if (d.enabled && dcTok && d.model && providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
     else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
@@ -12822,7 +12862,7 @@ server.listen(PORT, '127.0.0.1', () => {
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && r.model && providerHasCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
+      if (r.enabled && authOk && r.model && providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
@@ -12951,6 +12991,8 @@ function quiesceForProcessFault() {
   // reason as the triggers above (sampleHub is declared further down this file). stopCause 'fault': its record and its answer
   // name the station's fault, never "you stopped this job" (wave 2 repair, conveyor-backend-08's sibling)
   contain('sample', () => { if (sampleInFlight) { sampleInFlight.stopRequested = true; sampleInFlight.stopCause = 'fault'; } markFaulted((sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); killAll(null, (sampleHub && sampleHub._internals) ? sampleHub._internals.inflight : null); });
+  // every run runOnce drives by id (routine fires, hops, triggers, hubs, /v1) through its stop handle, after the kills above
+  contain('stop-handles', () => killStopHandles(runStopHandles, e => failNote('process-fault.quiesce.stop-handles', e)));
   contain('groups', () => groupSessions && groupSessions.halt && groupSessions.halt());
   contain('subagents', () => subagents && subagents.interruptAll && subagents.interruptAll());
   contain('shell-background', () => shellBg && shellBg.killAll && shellBg.killAll());
@@ -15073,13 +15115,17 @@ function handleRuntimeKnobsGet(req, res) {
    whether a run could actually start right now. Behind the same per-launch token + loopback pin as every /api
    route, so this is not a new trust surface. */
 function handleRuntimeAgent(req, res) {
-  // Resolve exactly as the other HEADLESS host does (devHubSecrets): provider 'openrouter' + the runtime
-  // credential + STARNET_DEFAULT_MODEL. Deliberately not a new env knob — a second resolution rule would
-  // eventually disagree with the one the runs actually use, and then this route would lie.
-  const provider = 'openrouter';
+  // A headless client is an UNPINNED caller, so it runs on the station default: the record stationDefaultFor hands every
+  // unpinned agent (the hero's model + provider — what a routine or a channel hop of an unpinned agent runs on). Only a
+  // station whose hero has no model yet falls back to the bare headless rule (devHubSecrets: provider 'openrouter' + the
+  // runtime credential + STARNET_DEFAULT_MODEL). GitHub #96 follow-up: a ChatGPT-only station answered
+  // openrouter / no model / configured:false here, so the editor bridge refused to run on a station that runs fine.
+  // Not a new resolver: a later run-wire lane replaces this path.
+  const stationDefault = stationDefaultFor('headless', {});
+  const provider = stationDefault ? normalizeProvider(stationDefault.provider) : 'openrouter';
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = String(ENV('DEFAULT_MODEL') || '').trim();
+  const model = stationDefault ? String(stationDefault.model).trim() : String(ENV('DEFAULT_MODEL') || '').trim();
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
@@ -16427,9 +16473,10 @@ function handleStateSnapshot(req, res) {
       // body.internal the run history later records) — so a live view never shows self-talk as the Commander's work.
       if (meta && meta.streamId) row.streamId = String(meta.streamId);
       if (meta && meta.internal) row.internal = true;
-      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach only runs in `runs`; a card offers
-      // STOP / a direction only where this is true, so it never reports a stop that did not happen.
-      row.stoppable = runs.has(runId);
+      // ADDITIVE (HUD STOP/steer honesty): /api/cancel and /api/run/steer reach a run in `runs` or one holding a runOnce
+      // stop handle (runOnceTracked); a card offers STOP / a direction only where this is true, so it never reports a stop
+      // that did not happen — and never withholds one that would.
+      row.stoppable = runs.has(runId) || runStopHandles.has(runId);
       out.runs.push(row);
     }
   } catch (_) {}
@@ -16438,7 +16485,7 @@ function handleStateSnapshot(req, res) {
     for (const [runId, meta] of hostLiveRuns) {
       if (seenRunIds.has(runId)) continue;
       seenRunIds.add(runId);
-      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) });
+      out.runs.push({ runId: runId, agentId: (meta && meta.agentId) || null, startedAt: (meta && meta.startedAt) || null, source: 'host', stoppable: runs.has(runId) || runStopHandles.has(runId) });
     }
   } catch (e) { failNote('snapshot.hostRuns', e); }
   // WATCHABLE BACKGROUND workers outlive the interactive response that launched them and therefore do not
@@ -17132,7 +17179,7 @@ async function handleCronRun(req, res) {
               });
             } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
             finally { runsMeta.delete(hopRunId); }
-            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? 'stopped by you' : null) };
+            return { text: hs.buf, usd: hs.usd, error: hs.errMsg || (hs.stopped ? hopStoppedSaid() : null) };
           }
         });
         if (line && String(line.text || '').trim()) state.buf = line.text;
@@ -20318,6 +20365,7 @@ async function handleRun(req, res) {
   // rows), so a terminal run is told the truth after it, the REMOTE_NOTE pattern. Exact match, opt-in.
   const terminalClient = !!(body && typeof body === 'object' && body.client === 'terminal');
   if (terminalClient) body.system = String(body.system || '') + TERMINAL_NOTE;
+  else if (body && typeof body === 'object' && body.client === 'editor') body.system = String(body.system || '') + EDITOR_NOTE;
   const { model, system, messages = [], agentId = 'agent', isTask = false, provider, fallbackModels, fallbackProviders } = body || {};
   const recurring = !!(body && body.recurring);   // the browser's mint detector saw this task SHAPE before → salience boost for reflection
   // REASON-ONLY SELF-TALK (retitle / goal-judge / pitch / autopilot): the caller composed a complete strict-format
@@ -20925,6 +20973,13 @@ const hostLiveRuns = new Map();   // runId -> { agentId, startedAt, source }
    id gets a stop handle here for exactly as long as runOnce is driving it; its signal is the caller's signal OR this
    handle, so a stop by id ends it the same way its owner's own abort would (the owner still sees the run end). */
 const runStopHandles = new Map();   // runId -> AbortController
+/* What a routine hop that ended 'cancelled' says on its record. Its stop came through its stop handle: the Commander's STOP or
+   E-STOP, OR the station's own process-fault containment (quiesceForProcessFault aborts every stop handle), and a fault stop
+   is named as the fault, never "you" (halt.js markFaulted's law; the same faulted() reading the trigger and hand-off runners
+   use: a fault after the Commander's own E-STOP stays theirs). */
+function hopStoppedSaid() {
+  return (processFaultQuiesced === true && cronHalted !== true) ? 'the station hit an internal fault and stopped this run' : 'stopped by you';
+}
 async function runOnceTracked(o) {
   const rid = o && o.runId ? String(o.runId) : '';
   // a DELEGATED worker (parentRunId / its own o.steer) is not given one: the subagent manager owns its stop (interrupt,
@@ -20935,6 +20990,7 @@ async function runOnceTracked(o) {
     const kc = new AbortController();
     runStopHandles.set(rid, kc);
     o.signal = o.signal ? AbortSignal.any([o.signal, kc.signal]) : kc.signal;
+    kc.runSignal = o.signal;   // E-STOP counts this run only when no other kill already reached it (halt.js killStopHandles)
     try { return await runOnceTrackedBelt(o); }
     finally { if (runStopHandles.get(rid) === kc) runStopHandles.delete(rid); }
   }
@@ -21470,8 +21526,9 @@ async function runOnceCore(o) {
     stationOpenAIKey: providerRuntimeKey('openai', ''),
     stationOpenAIBaseUrl: providerRuntimeBaseUrl('openai', ''),
     // the station's ChatGPT sign-in renders gpt-image-2 on the plan (image.js codex-responses); a known-dead
-    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run
-    codexSignedIn: !!(codexTokens && codexTokens.access_token) && !codexAuthDead
+    // sign-in is not a route, so the blocker names the real fix instead of a 401 mid-run. The PRIMARY sign-in's shared
+    // verdict (accountLive): the image route's token is the primary's (ensureCodexAccessToken), never an extra account's
+    codexSignedIn: accountLive('codex', '')
   };
   let studioRoute = ImageTask.resolveRoute(studioInput);
   // #146: any OTHER OpenRouter key the station holds (the key a browser page saved in Settings, engine-credential.js;
@@ -24187,9 +24244,11 @@ async function runOnceCore(o) {
   // stay in the working set (the micro tier keeps elided copies, a refused fold keeps the whole slice), and those
   // must still reach the provider-resumable checkpoint.
   const initialPromptSet = new WeakSet(msgs.filter(m => m && typeof m === 'object'));
-  // the directive every transcript writer puts first (same rule as the run-end title write; captured before the loop
-  // can append its own user-role messages, e.g. a screen-capture turn). A continuation's is its SOURCE's directive.
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs));
+  // the directive every transcript writer puts first, captured before the loop can append its own user-role messages
+  // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
+  // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
+  const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
+  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(runDirective);
   if (!internal) {
     try {
       runJournal.begin({
@@ -24576,11 +24635,12 @@ async function runOnceCore(o) {
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
-    if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'done' }); } catch (_) {} }
+    // no result = the run THREW before its loop returned (bug 812c3bfb): it is settled as an error, never a finished run
+    if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept
-      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : latestUserText(msgs), liveServiceKeys());
+      const title = KeyTools.nameSavedKeys(o.syntheticTrigger ? String(o.sessionPrompt || '') : runDirective, liveServiceKeys());
       let deliveryText = '';
       if (o.sessionTitle && result && Array.isArray(result.messages)) {
         for (let i = result.messages.length - 1; i >= 0; i--) {
@@ -24592,7 +24652,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'done'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -24630,7 +24690,7 @@ async function runOnceCore(o) {
     // run teardown. The prop sweep fires at run ADMISSION (resolveTools — capability provably live) and the
     // fact sweep at writeMemoryRecord (memory provably committed); see questsweeps.js.
     try {
-      const _qReason = taskQuestionAsked ? 'clarifying' : ((result && result.reason) || 'done');
+      const _qReason = taskQuestionAsked ? 'clarifying' : ((result && result.reason) || 'error');   // a thrown run stalls its quests, never completes them
       if (_qReason === 'done') questStore.completeByContract('run', runId, Date.now()).then(completeQuestRecommendationIds).catch(swallow('quest.complete'));
       else questStore.stallRun(runId, _qReason, Date.now()).catch(swallow('quest.stall'));
     } catch (_) {}
@@ -24708,7 +24768,7 @@ async function runOnceCore(o) {
      said "Do not include a sources list…"»; REFLECTION saves what it reads there as "the user prefers …", silently. The Commander's
      words in a hand-off are only the original request — the line's first run already carried those — so a hand-off run is not
      reflected on, studied or thread-mined (and spends none of the agent's cooldowns). */
-  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(latestUserText(msgs)));
+  const _lineHop = !!(Pipeline.isHandoff && Pipeline.isHandoff(runDirective));
   // Quoted material the Commander typed (o.quotedOwnerInput, host-minted by handleRun), or that this run replayed from an
   // earlier turn (replayedQuoted), withholds learning exactly like untrusted content, without the execution lock: the
   // transcript is not evidence of their preferences, but their own run keeps its tools, standing grants and workers.
@@ -24757,15 +24817,15 @@ async function runOnceCore(o) {
   const _skillToolsOn = resolved.tools.indexOf('skill.manage') >= 0 || resolved.tools.indexOf('skill.write') >= 0;
   const _throwawayAgent = /^sub-/.test(agentId) && !agentRoster.has(agentId);
   // /v1 runs (o.toolsOptional) never fire the paid background passes (skill review, scout) on an external caller's traffic
-  const _nudge = (process.env.SKYNET_SKILL_REVIEW !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
+  const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
   const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
-  const _gateCurator = !!(process.env.SKYNET_SKILL_CURATOR !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
+  const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
   // budgeted candidate, and only when no cycle is already in flight.
-  const _scoutQualifies = !!(process.env.SKYNET_SCOUT !== '0' && isTask && !o.toolsOptional && _auxDone);
+  const _scoutQualifies = !!(ENV('SCOUT') !== '0' && isTask && !o.toolsOptional && _auxDone);
   const _gateScout = !!(_scoutQualifies && !scoutingNow);
 
   // The JOINT decision: rank the candidates by locked priority and grant up to SKYNET_AUX_BUDGET this run-end.
@@ -24794,7 +24854,7 @@ async function runOnceCore(o) {
       if (at >= 0) _auxCandidates.splice(at, 1);
     }
   }
-  const _auxBudget = AuxGovernor.parseBudget(process.env.SKYNET_AUX_BUDGET);
+  const _auxBudget = AuxGovernor.parseBudget(ENV('AUX_BUDGET'));
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
@@ -24848,7 +24908,7 @@ async function runOnceCore(o) {
     skillReviewingNow.add(agentId);
     runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: result.reason, projectRoot: o.projectRoot || '', provider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
-  if (process.env.SKYNET_SKILL_REVIEW !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
+  if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail) && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
     // rating route accepts max_iters/budget/refusal runs, and their `miss` used to find no packet) so that if the Commander rates it
     // `ok`/`miss` (POST /api/growth/ratings) the SAME quiet review runs again WITH THE VERDICT in the prompt.
@@ -26290,6 +26350,10 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
+  // EVERY run runOnce drives by id (routine fires, hops, line triggers, the step test, channel hubs, /v1) holds a stop handle
+  // (runOnceTracked). Last among the run kills, so the count is only the runs none of the kills above reached (QA 0930).
+  let handleAborted = 0;
+  try { handleAborted = killStopHandles(runStopHandles, e => failNote('stop-handles.estop', e)); } catch (e) { failNote('stop-handles.estop', e); }
   try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes (remote SSH jobs: dispatched best-effort, never counted)
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
@@ -26300,7 +26364,7 @@ function handleHalt(req, res) {
   catch (e) { overseerHaltPersisted = false; console.warn('[overseer] stop could not persist:', e.message); }
   try { cronLock.release(); } catch (_) {}  // G4.3: drop any cron lock this process holds so an E-STOP mid-tick never wedges the next tick (standalone halt-block addition; G2 will add connectors.close here)
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ halted: halted + phoneAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
+  res.end(JSON.stringify({ halted: halted + phoneAborted + handleAborted, cronAborted, beatAborted, loopAborted, terminalStops, nightshiftHaltPersisted, cronHaltPersisted, loopsHaltPersisted, overseerHaltPersisted, state: haltStatus() }));   // honest counts + per-subsystem restart-durability receipts
 }
 
 // POST /api/channels/telegram/connect { token, key?, model, provider? } — the Messaging tab hands over the
@@ -28238,7 +28302,7 @@ async function handleGrowthRatings(req, res) {
     feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: canonical.verdict, words: String(body.correction || ''), directive, run: lead });
   }
   let skillReviewArmed = false;
-  if (!result.duplicate && process.env.SKYNET_SKILL_REVIEW !== '0') {
+  if (!result.duplicate && ENV('SKILL_REVIEW') !== '0') {
     // ARM, don't fire (slice 2): hold the review for a grace window so the Commander's correction — a follow-up
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));

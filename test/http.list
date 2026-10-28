@@ -41,6 +41,7 @@ test/outcomes.http.test.js
 test/scout.e2e.test.js
 test/auxbudget.e2e.test.js
 test/auxmodel.e2e.test.js
+test/run-title-directive.e2e.test.js
 test/failreview.e2e.test.js
 test/learning-pause-midflight.e2e.test.js
 test/failreview-budget.e2e.test.js

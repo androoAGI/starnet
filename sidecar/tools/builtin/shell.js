@@ -1094,7 +1094,9 @@
        up?" and useless for "why did it fail": the stack trace that matters is usually hundreds of lines back,
        and the only way to reach it used to be re-running the whole command in the foreground. */
     const bgReadTool = {
-      name: 'shell.bg.read', capability: 'workbench', scope: 'read', requiresConsent: false,
+      // impact none, like shell.bg.status/wait: it reads the log of a process this agent already started; it can start
+      // nothing, write nothing and reach no network (an undeclared tool fails closed to external-unknown)
+      name: 'shell.bg.read', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'Read the output log of one of your background processes by line, instead of the short tail that '
         + 'shell.bg.status shows. Defaults to the LAST 200 lines. Pass offset (0-based; negative counts back from the '
         + 'end) and limit to page, or grep to return only lines containing a string — use grep to find an error, then '

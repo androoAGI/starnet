@@ -94,6 +94,7 @@ test/todo.durability.test.js
 test/halt.test.js
 test/readbody.test.js
 test/set-key-body.test.js
+test/provider-credential-live.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
 test/source-helper.test.js
@@ -361,6 +362,7 @@ test/skill-guard-remote-install.test.js
 test/abilities.skills-lane.test.js
 test/skills.library.test.js
 test/skills.gate.test.js
+test/skill-support-files.test.js
 test/skills.trust-origin.test.js
 test/skills.review-approval.test.js
 test/skills.worker-shared-approval.test.js
@@ -400,6 +402,8 @@ test/roster-clause.test.js
 test/agent-config-target.test.js
 test/notebookrestore.test.js
 test/runstore.test.js
+test/thrown-run-reason.test.js
+test/aux-env-knobs.test.js
 test/run-journal.test.js
 test/run-recovery-continuation.test.js
 test/run-recovery-ui.test.js
@@ -786,6 +790,7 @@ test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
+test/headless-station-default.test.js
 test/workstreams.test.js
 test/workstreams.search-perf.test.js
 test/workstreams.latest-visible.test.js
@@ -1326,6 +1331,7 @@ test/linewatch.test.js
 test/deskscreen.test.js
 test/agent-skin-thumbs.test.js
 test/estop-sample-hub.test.js
+test/estop-stop-handles.test.js
 test/line-test-stop.test.js
 test/conveyor-tab-readable.test.js
 test/workflow-panel-overhaul.test.js

@@ -16,6 +16,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeShellTool } = require('../sidecar/tools/builtin/shell.js');
+const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
+const { makeCommsTools } = require('../sidecar/tools/builtin/comms.js');
 const { makeToolSearchTool } = require('../sidecar/tools/builtin/toolsearch.js');
 const { resolveTools } = require('../sidecar/capability/resolve.js');
 const { makeCapCtx } = require('../sidecar/capability/capGate.js');
@@ -28,6 +30,9 @@ const { withheldCommandTools, commandGap } = require('../sidecar/capability/with
   const registry = makeRegistry();
   // the REAL shell tool definitions (impact classes included); nothing here ever spawns
   makeShellTool({ spawn: () => { throw new Error('must not spawn'); }, fs, pathMod: path, root: tmp, bg: {} }).register(registry);
+  // …and the terminal and channel tools the WORKBENCH / station also project (quick win 8 declares their impact)
+  makeTerminalTools({ manager: {}, environment: {}, fs, pathMod: path, root: tmp, envFor: () => ({}) }).register(registry);
+  makeCommsTools({ listTargets: () => [], sendTo: async () => ({ ok: true }) }).register(registry);
   makeToolSearchTool({ registry }).register(registry);
   registry.register({ name: 'browser.inspect', capability: 'web', impact: 'synthetic-browser', scope: 'read', requiresConsent: false,
     description: 'Inspect one element on the current page.', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'x', summary: 'x' }) });
@@ -45,10 +50,55 @@ const { withheldCommandTools, commandGap } = require('../sidecar/capability/with
   const worker = enforceRunAuthority(floor, registry, authority);
   const has = n => worker.tools.indexOf(n) >= 0;
   A.ok(!has('shell.exec') && !has('shell.bg.write'), 'BY DESIGN: a delegated ASK-mode worker has no shell.exec / shell.bg.write, WORKBENCH or not');
-  A.ok(has('shell.bg.status') && has('shell.bg.kill') && has('shell.bg.wait'), 'only shell_bg_status/kill/wait survive — exactly the reporter\'s list');
+  A.ok(has('shell.bg.status') && has('shell.bg.kill') && has('shell.bg.wait'), 'shell_bg_status/kill/wait survive — exactly the reporter\'s list');
+  A.ok(has('shell.bg.read'), 'and shell_bg_read, a log reader that can run nothing (impact none, quick win 8)');
   // Full Access on the worker is the one grant that changes it (named in the explanation as whole-computer authority)
   const full = enforceRunAuthority(floor, registry, makeRunAuthority({ surface: 'autonomous', isTask: true, fullAccess: true }));
   A.ok(full.tools.indexOf('shell.exec') >= 0, 'with Full Access on the worker, shell.exec is projected (so the explanation is accurate)');
+
+  // ---- 1b. quick win 8 (#155 family): every host tool DECLARES its impact; none falls through to external-unknown ----
+  // An undeclared tool fails closed to external-unknown: withheld from every unattended run (a granted routine could start
+  // a terminal but never read or stop it) and a per-call exact confirmation on a watched one. The eight that fell through:
+  const declared = {
+    'shell.bg.read': 'none', 'terminal.status': 'none', 'terminal.read': 'none', 'terminal.resize': 'none',
+    'terminal.interrupt': 'none', 'terminal.stop': 'none', 'channel.targets': 'none', 'channel.send': 'external-unknown'
+  };
+  for (const [name, impact] of Object.entries(declared)) {
+    const t = registry.get(name);
+    A.ok(t && t.impact === impact && impactOfTool(t) === impact, name + ' declares impact ' + impact + ' (got ' + (t && t.impact) + ' / ' + impactOfTool(t) + ')');
+  }
+  // the command runners keep theirs: a terminal that runs a command is still workspace-process
+  for (const name of ['terminal.start', 'terminal.write', 'shell.exec', 'shell.bg.write']) A.eq(impactOfTool(registry.get(name)), 'workspace-process', name + ' stays workspace-process');
+  // the projection on the reporter's worker: the WORKBENCH's terminal readers and stoppers reach it; its runners do not
+  for (const name of ['terminal.status', 'terminal.read', 'terminal.resize', 'terminal.interrupt', 'terminal.stop']) {
+    A.ok(floor.tools.indexOf(name) >= 0 && has(name), name + ' (impact none) is projected to the delegated ASK worker');
+  }
+  A.ok(!has('terminal.start') && !has('terminal.write'), 'terminal.start / terminal.write are still withheld from it (workspace-process, no grant)');
+  // a GRANTED routine (the terminal grant) now gets the whole terminal: it can read and stop what it starts
+  const granted = enforceRunAuthority(floor, registry, makeRunAuthority({ surface: 'autonomous', isTask: true, fullAccess: false, unattendedGrants: ['workbench'] }));
+  A.ok(['terminal.start', 'terminal.read', 'terminal.status', 'terminal.stop', 'shell.exec', 'shell.bg.read'].every(n => granted.tools.indexOf(n) >= 0), 'a routine granted the terminal can start, read and stop it');
+  // channel.send declares the lane it always fell into (review of quick win 8): outward messaging under the Commander's
+  // bot identity keeps an exact per-call confirmation that never becomes a standing grant, and is never offered to a
+  // delegated worker or an unattended ASK run (whose exec lockout would refuse every call anyway)
+  const commsRun = enforceRunAuthority({ tools: ['channel.targets', 'channel.send'] }, registry, authority);
+  A.ok(commsRun.tools.indexOf('channel.targets') >= 0, 'channel.targets (impact none) is projected to the delegated ASK worker');
+  A.ok(commsRun.tools.indexOf('channel.send') < 0, 'channel.send is NOT offered to a delegated / unattended ASK run');
+  const fullComms = enforceRunAuthority({ tools: ['channel.send'] }, registry, makeRunAuthority({ surface: 'autonomous', isTask: true, fullAccess: true }));
+  A.ok(fullComms.tools.indexOf('channel.send') >= 0, 'Full Access keeps it (unchanged)');
+  const taint = require('../sidecar/taint.js');
+  A.ok(taint.allowedWhenTainted(registry.get('channel.send')) === false, 'a tainted run still cannot send a channel message');
+  A.ok(['terminal.read', 'terminal.stop', 'shell.bg.read', 'channel.targets'].every(n => taint.allowedWhenTainted(registry.get(n)) === true), 'reading and stopping its own work stay open after taint');
+  const workerAsk = await authority.authorize({ name: 'channel.send', args: {} }, registry.get('channel.send'));
+  A.ok(workerAsk.ok === false, 'a delegated worker asking to send is refused before any broker could cache a grant: ' + JSON.stringify(workerAsk));
+  // a watched run: every send asks, and an "always" answer covers that one send only
+  let asked = 0;
+  const watched = makeRunAuthority({ surface: 'interactive', isTask: true, fullAccess: false, confirm: async () => { asked++; return 'always'; } });
+  const s1 = await watched.authorize({ name: 'channel.send', args: { target: 'telegram:1', text: 'one' } }, registry.get('channel.send'));
+  const s2 = await watched.authorize({ name: 'channel.send', args: { target: 'telegram:1', text: 'two' } }, registry.get('channel.send'));
+  A.ok(s1.ok === true && s1.oneShot === true && s2.ok === true && s2.oneShot === true, 'a watched send is a one-shot exact confirmation (no broker, so no standing grant): ' + JSON.stringify([s1, s2]));
+  A.eq(asked, 2, 'an "always" answer is not remembered: the second send asks again');
+  const watchedOffer = enforceRunAuthority({ tools: ['channel.send'] }, registry, watched);
+  A.ok(watchedOffer.tools.indexOf('channel.send') >= 0, 'a watched run is offered it');
 
   // ---- 2. the withheld map index.js builds from that diff ----
   const kept = new Set(worker.tools);

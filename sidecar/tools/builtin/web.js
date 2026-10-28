@@ -332,6 +332,10 @@
   }
   // a refusal the HOST wrote: never taints the run, and its row says why (see browser.js hostRefusal)
   function hostRefusal(msg, summary) { const e = new Error(msg); e.hostAuthored = true; if (summary) e.toolSummary = summary; return e; }
+  // ...but ONLY for the caller's own URL. A REDIRECT hop's refusal names a host the REMOTE server chose (its Location
+  // header, or a name whose DNS it runs), so its text is outside text: it must reach the run like a fetched byte and
+  // latch the taint, exactly as before the refusal was host-authored. Every redirect hop's guard error passes here.
+  function redirectRefusal(e) { if (e && e.hostAuthored) delete e.hostAuthored; return e; }
   function assertSafeUrl(raw) {
     let u;
     try { u = new URL(raw); } catch (e) { throw hostRefusal('invalid URL: ' + raw, 'invalid URL'); }
@@ -346,7 +350,7 @@
     const numericHost = /^\d+$/.test(h) || /^0x[0-9a-f]+$/i.test(h);   // integer / hex IP encodings (e.g. http://2130706433/)
     const bareName = h.indexOf('.') < 0 && h.indexOf(':') < 0 && !numericHost;  // single-label intranet name
     if (blockedName || bareName || numericHost || isPrivateV4(h) || isPrivateV6(h))
-      throw new Error('refusing to fetch private/loopback/intranet host: ' + h);
+      throw hostRefusal('refusing to fetch private/loopback/intranet host: ' + h);
     return u;
   }
   // Resolve every candidate and return the address that the connection must use.
@@ -375,7 +379,9 @@
     for (const a of (addrs || [])) {
       const ip = (a && a.address) || '';
       if (!net.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
-      if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing: ' + u.hostname + ' resolves to private address ' + ip);
+      // host-authored like the static refusal above when the name is the caller's own; a redirect hop's name came
+      // from the remote server, and its caller strips the mark (redirectRefusal)
+      if (isPrivateV4(ip) || isPrivateV6(ip)) throw hostRefusal('refusing: ' + u.hostname + ' resolves to private address ' + ip);
     }
     return addrs;
   }
@@ -773,16 +779,26 @@
     // FALLBACK: direct fetch + strip. No rate limit; great for static pages. Redirects are followed
     // MANUALLY so every hop is re-validated against the SSRF guard — a public page cannot bounce us
     // to an internal address (e.g. a 302 -> http://169.254.169.254/ cloud-metadata endpoint).
+    // Re-validate a redirect target. Its refusal is never host-authored: the server picked the name (redirectRefusal).
+    async function redirectTarget(loc, base) {
+      try {
+        const next = assertSafeUrl(new URL(loc, base).href);
+        await assertResolvedSafe(next, doLookup);
+        return next;
+      } catch (e) { throw redirectRefusal(e); }
+    }
     async function directFetch(u0, parent) {
       let u = u0;
       for (let hop = 0; hop < 6; hop++) {
-        const res = await withTimeout(signal => fetchPinned(u, {
-          headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
-        }), FETCH_TIMEOUT_MS, parent);
+        let res;
+        try {
+          res = await withTimeout(signal => fetchPinned(u, {
+            headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml' }, redirect: 'manual', signal
+          }), FETCH_TIMEOUT_MS, parent);
+        } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // fetchPinned re-resolves a redirect hop's name too
         if (res.status >= 300 && res.status < 400 && res.loc) {
-          const next = assertSafeUrl(new URL(res.loc, u.href).href);   // re-validate the redirect target
-          await assertResolvedSafe(next, doLookup);
-          u = next; continue;
+          u = await redirectTarget(res.loc, u.href);   // re-validate the redirect target
+          continue;
         }
         if (res.status >= 400) throw new Error('http ' + res.status);
         // `cut`: the page body hit the raw-body ceiling, so this text comes from its first part only
@@ -1322,15 +1338,16 @@
           const sendHeaders = hop === 0 || originOf(target) === firstOrigin
             ? headers
             : Object.keys(headers).reduce((o, k) => (isCredential(k) ? o : (o[k] = headers[k], o)), {});
-          res = await withTimeout(signal => fetchPinned(target, {
-            method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
-          }), FETCH_TIMEOUT_MS, ctx && ctx.signal);
+          try {
+            res = await withTimeout(signal => fetchPinned(target, {
+              method, headers: sendHeaders, body: hasBody ? bodyPayload : undefined, redirect: 'manual', signal
+            }), FETCH_TIMEOUT_MS, ctx && ctx.signal);
+          } catch (e) { throw hop > 0 ? redirectRefusal(e) : e; }   // a redirect hop's re-resolve refusal is outside text
           // Capture the URL that actually answered, before a redirect advances target (even on the last hop).
           responseUrl = target.href;
           if (res.status >= 300 && res.status < 400 && res.loc) {
-            const next = assertSafeUrl(new URL(res.loc, target.href).href);
-            await assertResolvedSafe(next, doLookup);
-            target = next; continue;
+            target = await redirectTarget(res.loc, target.href);
+            continue;
           }
           break;
         }
