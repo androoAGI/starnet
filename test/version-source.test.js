@@ -9,7 +9,7 @@
    10s budget, synchronously, and re-ran it every 60s: a hung `--dirty` still starved the fallbacks, and a slow git
    froze every request for ~10s once a minute.
 
-   Laws (run on the real function, extracted through test/helpers/source.js, with a scripted execSync/execFile; a
+   Laws (run on the real function, extracted through test/helpers/source.js, with a scripted execFileSync/execFile; a
    scripted TIMEOUT advances the fake clock by the timeout it was given, so a hang costs what a real one costs):
      V1 the synchronous path is bounded: every probe stays inside its own cap and the whole synchronous git work,
         rev-parse HEAD included, stays inside VERSION_SYNC_BUDGET_MS (4s, the old 2s + 2s worst case);
@@ -26,7 +26,12 @@
      V9 a background refresh that rejects is noted (failNote 'version.refresh') and re-asked on the backoff, never
         silently pinned to 'pkg';
      V10 buildDirty comes from the --dirty answer itself, so it survives a failed rev-parse HEAD, an env BUILD_SHA
-        (which skips the sha step) and the async refresh's sha step failing. */
+        (which skips the sha step) and the async refresh's sha step failing;
+     V11 git is never run through a shell (execFileSync, like the async execFile), and ONE classification serves
+        both paths: FINAL only for ENOENT (no git) and exit 128 / 129 (not a repo / usage); exit 1, a Windows
+        NTSTATUS exit (>= 0xC0000000), ENOMEM and anything else is retried on the backoff;
+     V12 every failed probe is noted ('version.git' sync, 'version.refresh.git' async) before it is classified;
+     V13 a live --dirty answer beats an env STARNET_BUILD_DIRTY stamp on the async path too, as it does on sync. */
 const vm = require('node:vm');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -46,6 +51,8 @@ const noGitErr = () => Object.assign(new Error('spawnSync git ENOENT'), { code: 
 // A resource error at spawn: a code string, no exit status (the child never ran).
 const RESOURCE = (code) => ({ resource: code });
 const resourceErr = (code) => Object.assign(new Error('spawn git ' + code), { code, errno: -11 });
+// git ran and exited with this status: execFileSync reports it as e.status, execFile as a numeric e.code.
+const EXIT = (status) => ({ exit: status });
 const flush = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 
 // script(cmd) -> a string answer, TIMEOUT (a real hang: the clock moves by the timeout given) or NOGIT (fails fast).
@@ -53,7 +60,8 @@ function load(script, clock, opts) {
   opts = opts || {};
   const notes = [];
   const sync = [], async_ = [];
-  const execSync = (cmd, opts) => {
+  const execFileSync = (file, args, opts) => {
+    const cmd = file + ' ' + args.join(' ');
     const timeout = opts && opts.timeout;
     sync.push({ cmd, timeout, at: clock.t });
     const r = script(cmd);
@@ -61,6 +69,7 @@ function load(script, clock, opts) {
     if (r === NOGIT) throw noGitErr();
     if (r === NOTREPO) throw Object.assign(new Error('Command failed: ' + cmd), { status: 128, signal: null });
     if (r && r.resource) throw resourceErr(r.resource);
+    if (r && r.exit !== undefined) throw Object.assign(new Error('Command failed: ' + cmd), { status: r.exit, signal: null });
     return Buffer.from(r + '\n');
   };
   const execFile = (file, args, opts, cb) => {
@@ -72,11 +81,12 @@ function load(script, clock, opts) {
       if (r === NOGIT) return cb(noGitErr(), '', '');
       if (r === NOTREPO) return cb(Object.assign(new Error('Command failed: ' + cmd), { code: 128, killed: false, signal: null }), '', '');
       if (r && r.resource) return cb(resourceErr(r.resource), '', '');
+      if (r && r.exit !== undefined) return cb(Object.assign(new Error('Command failed: ' + cmd), { code: r.exit, killed: false, signal: null }), '', '');
       cb(null, r + '\n', '');
     });
   };
   const sandbox = {
-    stationChildProcess: { execSync, execFile }, path, __dirname: path.join(path.resolve(__dirname, '..'), 'sidecar'),
+    stationChildProcess: { execFileSync, execFile }, path, __dirname: path.join(path.resolve(__dirname, '..'), 'sidecar'),
     ENV: (k) => String((opts.env || {})[k] || ''),
     failNote: (tag, e) => { notes.push(tag); if (opts.onNote) opts.onNote(tag, e); }, process: { version: process.version },
     require: (m) => { if (/package\.json$/.test(m)) return { version: '0.0.0' }; throw noGitErr(); },
@@ -283,6 +293,54 @@ function syncBounded(h, label) {
     A.eq(v.harnessSource, 'git', 'async refresh landed git');
     A.eq(v.buildSha, '', 'its sha step timed out');
     A.eq(v.buildDirty, true, 'and buildDirty still comes from the background --dirty answer');
+  }
+
+  // V11 — no shell, and one classification for both paths
+  A.ok(/stationChildProcess\.execFileSync\('git', args,/.test(sidecarFunctionSource('versionGitSync')) &&
+    !/execSync\(/.test(sidecarFunctionSource('versionGitSync')),
+    'versionGitSync runs git through execFileSync, never a shell command string');
+  const CLASSES = [
+    { label: 'exit 1', r: EXIT(1), final: false },
+    { label: 'NTSTATUS exit 3221225794', r: EXIT(3221225794), final: false },
+    { label: 'NTSTATUS exit 3221225773', r: EXIT(3221225773), final: false },
+    { label: 'ENOMEM at spawn', r: RESOURCE('ENOMEM'), final: false },
+    { label: 'exit 128 (not a repo)', r: EXIT(128), final: true },
+    { label: 'exit 129 (usage)', r: EXIT(129), final: true },
+    { label: 'ENOENT (no git)', r: NOGIT, final: true }
+  ];
+  for (const c of CLASSES) {
+    {   // sync: every probe fails this way
+      const clock = { t: 1e6 };
+      const h = load(() => c.r, clock);
+      A.eq(h.fn().harnessSource, 'pkg', 'sync ' + c.label + ': pkg');
+      await flush();
+      clock.t += 3600000; h.fn(); await flush();
+      A.eq(h.async.length > 0, !c.final, 'sync ' + c.label + (c.final ? ' is final: never re-asked' : ' is retryable: re-asked in the background'));
+      A.ok(h.notes.includes('version.git'), 'sync ' + c.label + ' is noted as version.git (' + h.notes.join(',') + ')');
+    }
+    {   // async: the sync probes hang, every background probe fails this way
+      const clock = { t: 1e6 };
+      let calls = 0;
+      const h = load(() => ++calls <= 3 ? TIMEOUT : c.r, clock);
+      h.fn(); await flush();
+      const n = h.async.length;
+      A.ok(n >= 1, 'async ' + c.label + ': the timeout-caused pkg was re-asked');
+      clock.t += 3600000; h.fn(); await flush();
+      A.eq(h.async.length > n, !c.final, 'async ' + c.label + (c.final ? ' is final: no retry scheduled' : ' is retryable: a retry is scheduled'));
+      A.ok(h.notes.includes('version.refresh.git'), 'async ' + c.label + ' is noted as version.refresh.git (' + h.notes.join(',') + ')');
+    }
+  }
+
+  // V13 — live --dirty beats env BUILD_DIRTY on the async path
+  {
+    const clock = { t: 1e6 };
+    let calls = 0;   // the three synchronous probes hang (--dirty included); in the background --dirty answers
+    const h = load(cmd => ++calls <= 3 ? TIMEOUT : cmd === 'git rev-parse HEAD' ? SHA : 'v5.0.0-dirty', clock, { env: { BUILD_DIRTY: '0' } });
+    A.eq(h.fn().buildDirty, false, 'with no live --dirty, the env stamp BUILD_DIRTY=0 stands');
+    await flush();
+    const v = h.fn();
+    A.eq(v.harness, 'v5.0.0-dirty', 'the background --dirty answer landed');
+    A.eq(v.buildDirty, true, 'and its -dirty suffix beats the env stamp');
   }
 
   A.report('version-source.test');

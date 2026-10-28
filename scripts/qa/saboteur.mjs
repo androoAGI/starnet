@@ -194,7 +194,8 @@ async function main() {
     }
   }
   let sidecarLog = '';
-  try { sidecarLog = readFileSync(sidecarLogPath, 'utf8').slice(-12000); } catch (_) {}
+  try { sidecarLog = readFileSync(sidecarLogPath, 'utf8').slice(-12000); }
+  catch (e) { sidecarLog = '(sidecar.log unreadable: ' + String(e && e.code || e) + ')'; }   // the report says why the trace is missing
   const failures = results.filter(r => !r.verdict.ok);
   const report = {
     schema: 1, generatedAt: new Date().toISOString(), seed, only, routeCount: routes.length,
