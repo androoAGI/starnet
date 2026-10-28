@@ -97,6 +97,11 @@ for (const kind of Object.keys(KIND_FACTS)) {
     A.ok(text && text.indexOf("_learn['" + pass + "']") >= 0 || text.indexOf('_learn.' + pass + ' ') >= 0, pass + ' gate reads the predicate: ' + text.slice(0, 120));
     A.ok(!/_lineHop|refusedAction|_auxDone|_auxFail|learningTaint/.test(text), pass + ' gate keeps no private copy of the guards');
   }
+  // the thread-mine gate's kill switch reads ENV() like every other aux-pass knob (STARNET_ first, the SKYNET_ spelling as the
+  // fallback; test/aux-env-knobs): the whole head of the gate is pinned, so it is the predicate plus its own switch and salience
+  A.ok(gates.threadmine.startsWith("const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)"),
+    'the thread-mine gate reads its kill switch through ENV(): ' + gates.threadmine.slice(0, 160));
+  A.ok(!/process\.env\.(?:SKYNET|STARNET)_THREAD_MINE(?![A-Z_])/.test(gates.threadmine), '…never straight off process.env');
   A.ok(/if \(_learn\['trusted-capture'\]\) \{\s*await captureTrustedLearning\(/.test(core), 'trusted capture is gated by the same predicate');
   A.ok(!/'reflection', 'failure-review', 'study', 'threadmine'\]/.test(core), 'the separate taint splice of the four transcript passes is gone (the predicate reads taint and quotes)');
   A.ok(core.indexOf('const _lineHop =') < at && core.indexOf('const quotedLearning =') < at, 'the facts the outcome reads are known before it is built');
