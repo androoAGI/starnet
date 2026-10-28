@@ -121,6 +121,35 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(v.blocked, false, 'and the run continues');
     }
 
+    // ---- 7b. A KILLED HOOK IS WAITED FOR (bounded), AN EXITED ONE IS NOT ----
+    // On Windows a just-killed child still holds its cwd for a moment; settling the instant kill() returns let the
+    // caller's rm of that directory hit EBUSY. A fake child pins the timing: it exits a set lag after kill().
+    {
+      const { EventEmitter } = require('events');
+      const fakeChild = (exitLag) => {
+        const c = new EventEmitter();
+        c.stdout = new EventEmitter(); c.stderr = new EventEmitter();
+        c.stdin = Object.assign(new EventEmitter(), { end() {} });
+        c.kill = () => { if (exitLag != null) setTimeout(() => { c.emit('exit', null, 'SIGTERM'); c.emit('close'); }, exitLag); };
+        return c;
+      };
+      const run = (child, timeoutMs) => mk({ spawn: () => child, timeoutMs, onError: () => {} })._internals.runScript({ name: 'fake', command: 'fake' }, {});
+      let t0 = Date.now();
+      A.eq(await run(fakeChild(200), 50), null, 'a timed-out hook still settles null');
+      let dt = Date.now() - t0;
+      A.ok(dt >= 230, 'it settles only once the killed child has exited (' + dt + 'ms)');
+      t0 = Date.now();
+      await run(fakeChild(null), 50);
+      dt = Date.now() - t0;
+      A.ok(dt >= 500 && dt < 2000, 'a child that never exits is waited for 500ms at most (' + dt + 'ms)');
+      const quick = fakeChild(null);
+      t0 = Date.now();
+      setTimeout(() => { quick.stdout.emit('data', Buffer.from('{"ok":1}')); quick.emit('exit', 0); quick.emit('close'); }, 20);
+      A.eq(JSON.stringify(await run(quick, 5000)), '{"ok":1}', 'the ordinary close path returns the verdict');
+      dt = Date.now() - t0;
+      A.ok(dt < 400, 'and settles at once, with no kill wait (' + dt + 'ms)');
+    }
+
     // ---- 8. ONE BAD ENTRY MUST NOT DISABLE THE REST OF THE FILE ----
     {
       await fsp.rm(ALLOW, { force: true });
@@ -195,11 +224,11 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(hooks.length, 0, 'no hooks file -> no hooks');
       A.eq(errors.length, 0, 'and no complaints — most stations will never write one');
     }
-  } finally { await fsp.rm(DIR, { recursive: true, force: true }); }
+  } finally { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 
   A.report('shellhooks.test');
 })().catch(async (e) => {
-  try { await fsp.rm(DIR, { recursive: true, force: true }); } catch (_) {}
+  try { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (_) {}
   console.log('FAIL: shellhooks.test threw -- ' + (e && e.stack || e));
   process.exit(1);
 });

@@ -36,6 +36,7 @@
 
   const MAX_HOOKS = 32;              // a hooks file is hand-written; this is a runaway guard, not a product limit
   const MAX_STDOUT_BYTES = 64000;    // a hook answers with a small verdict; anything more is a misconfiguration
+  const KILL_SETTLE_MS = 500;        // how long a timed-out, killed hook may take to actually exit before we settle anyway
   const DEFAULT_TIMEOUT_MS = 5000;
 
   /* Split a command line into argv the way a POSIX shell would for the SIMPLE cases, and no further: double
@@ -179,9 +180,20 @@
           child = spawn(exe, argv.slice(1), { cwd, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
         } catch (e) { onError({ hook: hook.name, error: 'spawn failed: ' + ((e && e.message) || e) }); return resolve(null); }
 
-        let out = '', bytes = 0, done = false;
-        const finish = (v) => { if (done) return; done = true; clearTimeout(timer); try { child.kill(); } catch (_) {} resolve(v); };
-        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null); }, timeoutMs);
+        let out = '', bytes = 0, done = false, exited = false;
+        child.once('exit', () => { exited = true; });
+        /* A KILLED child is not gone yet: on Windows it can keep its cwd (and the files under it) open for a moment
+           after kill() returns, so a caller that removes the directory the instant we settle hits EBUSY. On the kill
+           path only, settle when the child has exited, or after KILL_SETTLE_MS at most. A child that already exited
+           (the ordinary close path) and a spawn error settle at once, exactly as before. */
+        const finish = (v, killed) => {
+          if (done) return; done = true; clearTimeout(timer);
+          try { child.kill(); } catch (_) {}
+          if (!killed || exited) return resolve(v);
+          const bound = setTimeout(() => resolve(v), KILL_SETTLE_MS);
+          child.once('exit', () => { clearTimeout(bound); resolve(v); });
+        };
+        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, timeoutMs);
 
         try { child.stdout.on('data', (d) => { bytes += d.length; if (bytes <= MAX_STDOUT_BYTES) out += d.toString('utf8'); }); } catch (_) {}
         try { child.stderr.on('data', () => {}); } catch (_) {}          // stderr is the script's own logging, not our business
