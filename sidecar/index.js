@@ -6815,7 +6815,7 @@ if (cronToolsetsRepairedOnLoad) {
 // ...and a load-time wire pairing the same way (a failed write re-applies on every load, with the same result)
 if (cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad) {
   try { saveCronJobs(); console.warn('[run-wire] saved the paired {provider, model} of ' + cronWiresPairedOnLoad + ' routine(s)'); }
-  catch (e) { console.warn('[run-wire] routine pair persist failed (re-applied on every load until a write lands):', (e && e.message) || e); }
+  catch (e) { failNote('run-wire.routinePair.persist', e); }   // re-applied on every load until a write lands
 }
 /* W6 ONE-TIME SWEEP — on boot, collapse any accidental double-mints (jobs identical in agentId + normalized name
    + prompt), keeping the OLDEST, logging each removal plainly. This cleans up the pre-fix duplicate "ULTRON daily
