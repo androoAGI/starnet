@@ -684,4 +684,33 @@ const wrongServerCase = (async () => {
   }
 }
 
+/* A MODEL THIS ChatGPT ACCOUNT MAY NOT RUN (2026-10-27 report): the user saw "Something went wrong on that turn — try
+   again" with a RETRY chip four times; every retry was refused the same way. BOTH halves (the node delegate and the
+   browser ladder real users run) must name the model and open the model dock, never offer the doomed retry. */
+{
+  const vm = require('vm');
+  const fs3 = require('fs');
+  const path3 = require('path');
+  const src = fs3.readFileSync(path3.join(__dirname, '..', 'frontend', 'app', 'friendlyerror.js'), 'utf8');
+  const sandbox = { console };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(src + '\nthis.__F = Friendly;', sandbox, { filename: 'friendlyerror.js' });
+  const B = sandbox.__F;
+  const refusal = "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.";
+  for (const [half, F] of [['NODE', { friendlyError, actionButton }], ['BROWSER', B]]) {
+    for (const raw of ['codex http 400 — ' + refusal, refusal]) {
+      const v = F.friendlyError(new Error(raw));
+      A.eq(v.kind, 'model_not_found', half + ': ' + raw + ' is the model unavailable to this account');
+      A.eq(v.retryable, false, half + ': no doomed retry');
+      A.ok(/gpt-6-astra/.test(v.userMessage) && /model dock/i.test(v.userMessage), half + ': the copy names the refused model and the dock: ' + v.userMessage);
+      A.ok(!/went wrong|try again/i.test(v.userMessage), half + ': never "something went wrong — try again"');
+      A.eq(F.actionButton(v).label, '▸ PICK A MODEL', half + ': the door opens the model dock');
+    }
+    // a refusal that quotes no model still reads as the account refusing it
+    A.ok(/won't run this model/.test(F.friendlyError(new Error('codex http 400 — The model is not supported when using Codex with a ChatGPT account.')).userMessage),
+      half + ': an unnamed model still gets the account copy');
+  }
+}
+
 wrongServerCase.then(() => A.report('friendlyerror.test'), e => { A.ok(false, 'the wrong-server case threw: ' + (e && e.stack)); A.report('friendlyerror.test'); });
