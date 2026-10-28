@@ -298,7 +298,12 @@
     + '|\\$\\{[A-Za-z_][A-Za-z0-9_.:-]{0,80}\\}'          // ${NAME}, ${env:NAME}, ${NAME:-x}
     + '|\\{\\{[^{}\\n]{1,80}\\}\\}'                       // {{name}}, {{ .Values.key }}
     + '|<[A-Za-z_][A-Za-z0-9_ .-]{0,60}>'               // <token>, <your api key>
-    + '|%[A-Za-z_][A-Za-z0-9_]{0,80}%)';                 // %NAME%
+    + '|%[A-Za-z_][A-Za-z0-9_]{0,80}%'                  // %NAME%
+    // a shell / code reference to a saved key (keys.save teaches 'the env var NAME'): $NAME in capitals (a lower or mixed
+    // case '$ecurePass' / '$Summer2024' reads as a password), PowerShell $env:NAME, process.env.NAME, os.environ["NAME"]
+    + '|\\$(?:env:[A-Za-z_][A-Za-z0-9_]*|[A-Z_][A-Z0-9_]*)'
+    + '|process\\.env(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\])'
+    + '|os\\.(?:environ\\[\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\]|(?:environ\\.get|getenv)\\(\\\\?["\'][A-Za-z_][A-Za-z0-9_]*\\\\?["\']\\)))';
   const VALUE_END = '[)\\]}]*(?=$|[\\s&,;"\'\\\\]|\\.(?:\\s|$))';
   const FIELD_VALUE = new RegExp('\\b(' + FIELD_NAMES + ')\\b(["\']?\\s*[=:]\\s*["\']?)'
     + '(?!(?:' + AUTH_SCHEME + ')?(?:\\[redacted-|' + PLACEHOLDER + VALUE_END + '))'

@@ -290,8 +290,21 @@ context.setKnownSecretSource(null);
   for (const keep of ['Set api_key=${INSTANTLY_API_KEY}.', 'f(api_key={{ api_key }})', '"password": "<your password here>"', 'x={"api_key":"${KEY}\\"}',
     'api_key=[INSTANTLY_API_KEY saved in API KEYS] (saved)', 'export PASSWORD=%DB_PASSWORD%&& run'])
     A.eq(context.redact(keep), keep, 'r3: a whole placeholder is left alone: ' + keep);
+  // r3: a shell / code REFERENCE to a saved key is not the key: keys.save tells the model 'in the shell it is the env var
+  // NAME', and a clean station's stored instructions said 'Bearer $INSTANTLY_API_KEY' — r2 turned it into 'Bearer
+  // [redacted-secret]' in every tool result and internal run, and a read-modify-write saved the placeholder back
+  for (const keep of ['curl -H "Authorization: Bearer $OPENAI_API_KEY" https://api.x', 'api_key=$STRIPE_API_KEY in the shell', 'use -H "Authorization: Basic $B64CREDS"',
+    '[{"objective":"run curl -s -H \\"Authorization: Bearer $INSTANTLY_API_KEY\\" \\"https://api.instantly.ai/v2\\""}]',
+    '-Headers @{ Authorization = "Bearer $env:OPENAI_API_KEY" }', 'apiKey: process.env.EXAMPLE_API_KEY,', "api_key = os.environ['OPENAI_API_KEY']",
+    'client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))', 'token: process.env["GH_TOKEN"]']) {
+    A.eq(context.redact(keep), keep, 'r3: an env-var reference after a field or scheme is left alone (context.redact): ' + keep);
+    A.ok(PS.scrubStored(keep) === keep, 'r3: …and through scrubStored: ' + keep);
+  }
+  for (const [text, want] of [['password=$Summer2024x', 'password=[redacted-secret]'], ['password=$ecurePassword', 'password=[redacted-secret]'],
+    ['api_key=$ABC' + tail, 'api_key=[redacted-secret]'], ['password=$env:' + tail + '!', 'password=[redacted-secret]']])
+    A.eq(context.redact(text), want, 'r3: a password that only starts with $ is still redacted: ' + JSON.stringify(text));
   PS.setHeldSource(() => [{ value: by.VAULT.value, as: '[INSTANTLY_API_KEY saved in API KEYS]' }]);
-  A.eq(PS.scrubStored('api_key=' + by.VAULT.value + ' for the campaigns'), 'api_key=[INSTANTLY_API_KEY saved in API KEYS] for the campaigns', 'r3: a held key under a field name keeps its saved NAME (the field rule does not eat it)');
+  A.eq(PS.scrubStored('api_key=' + by.VAULT.value + ' for the campaigns'),'api_key=[INSTANTLY_API_KEY saved in API KEYS] for the campaigns', 'r3: a held key under a field name keeps its saved NAME (the field rule does not eat it)');
   PS.setHeldSource(null);
   const basic = 'Basic ' + Buffer.from('admin:' + FK.stream('c-basic', 14, ALNUM)).toString('base64');
   A.eq(context.redact('Authorization: ' + basic), 'Authorization: Basic [redacted-secret]', 'Authorization: Basic <credential> -> the credential is redacted, the scheme kept');
