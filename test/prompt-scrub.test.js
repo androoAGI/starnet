@@ -13,6 +13,8 @@
      4. scrubHeld (the provider-boundary rule) removes held credentials only — a no-digit app password included — and
         never an unheld vendor key
      5. the generic sk- rule keeps 'task-…' slugs yet still catches a key after a JSON / URL escape or glued to a word
+        (review r3: glued to anything but a lowercase vowel it reads every body as base did; after a vowel, where a
+        word's 'sk-' sits, a letters-only body, a masked head and a line-end cut are still caught)
      6. the held list is the station's CREDENTIALS (secret-values credentialUnder): a connector's NODE_ENV=production,
         Content-Type: application/json, an email or a project id is never cut out of the Commander's words
      7. the head rule is linear: a 30 000-char '...' run with a held key scrubs in milliseconds (it was seconds)
@@ -163,10 +165,15 @@ PS.setHeldSource(() => [by.VAULT.value]);
 // ---- 5. context.redact's shapes — a CORPUS, not a hex sample (review r2). Every sk- family the base rule
 //         (/sk-[A-Za-z0-9_\-]{16,}/g, 41c298d9a) hid in a context is hidden now; every vendor key is caught right after
 //         an escape (JSON \n \b \f \uXXXX, %3D / %253D, quoted-printable =3D, an ANSI colour code); hyphenated slugs and
-//         word-like text stay byte-identical; a field rule keeps an auth scheme and every placeholder. ----
+//         word-like text stay byte-identical; a field rule keeps an auth scheme and every placeholder.
+//         Review r3 (2026-10-28): the r2 rule tested every glued body and left 7 corpus cases base hid readable — a
+//         glued letters-only body (GENLETTERS after x / mykeyis / 1 / abc123, and inside an object) and a glued masked
+//         head under 20 chars (ADMIN, LITELLM, GENLETTERS 'x' + 24 chars + '…'). Those rows, a key glued to a
+//         lowercase vowel ('openai' / 'value', whole and masked) and the prompt-scrub mirror's line-end cut are here. ----
 context.setKnownSecretSource(null);
 {
   const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', HEX = '0123456789abcdef', URLSAFE = ALNUM + '-_';
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
   const sep = (b, p, ch) => b.slice(0, p) + ch + b.slice(p + 1);
   const hx = FK.stream('lf-uuid', 32, HEX), uuid = hx.slice(0, 8) + '-' + hx.slice(8, 12) + '-4' + hx.slice(13, 16) + '-a' + hx.slice(17, 20) + '-' + hx.slice(20);
   const kk = (id, prefix, body) => ({ id, prefix, body, value: prefix + body });
@@ -175,7 +182,10 @@ context.setKnownSecretSource(null);
     kk('PROJ', 'sk-proj-', FK.stream('c-proj', 48, ALNUM)), kk('PROJ_URLSAFE', 'sk-proj-', sep(FK.stream('c-proj2', 156, URLSAFE), 5, '-')),
     kk('SVCACCT', 'sk-svcacct-', sep(FK.stream('c-svc', 120, URLSAFE), 9, '_')), kk('ADMIN', 'sk-admin-', sep(FK.stream('c-adm', 100, URLSAFE), 11, '-')),
     kk('NONE', 'sk-None-', FK.stream('c-none', 48, ALNUM)), kk('GEN48', 'sk-', FK.stream('c-g48', 48, ALNUM)), kk('GENHEX', 'sk-', FK.stream('c-ghex', 32, HEX)),
-    kk('LITELLM', 'sk-', sep(FK.stream('c-lite', 22, URLSAFE), 6, '_')), kk('LANGFUSE', 'sk-lf-', uuid), kk('GENDASH', 'sk-', 'live-' + FK.stream('c-gdf', 40, ALNUM))
+    kk('LITELLM', 'sk-', sep(FK.stream('c-lite', 22, URLSAFE), 6, '_')), kk('LANGFUSE', 'sk-lf-', uuid), kk('GENDASH', 'sk-', 'live-' + FK.stream('c-gdf', 40, ALNUM)),
+    kk('GENLETTERS', 'sk-', FK.stream('c-glet', 40, LETTERS)),   // r3: a body of letters only (no digit)
+    // r3: an admin key whose visible head has no digit (the corpus ADMIN row's 'admin-rGfYfqMloWZ-rpc…' has none either)
+    kk('ADMIN_NODIGIT', 'sk-admin-', sep(FK.stream('c-adm-nd', 100, LETTERS + '-_'), 11, '-'))
   ];
   const VENDOR = [
     kk('GOOGLE', 'AIza', sep(FK.stream('c-goog', 35, URLSAFE), 10, '_')), kk('GHP', 'ghp_', FK.stream('c-ghp', 36, ALNUM)), kk('GHO', 'gho_', FK.stream('c-gho', 36, ALNUM)),
@@ -200,6 +210,9 @@ context.setKnownSecretSource(null);
     qp_3d: v => 'OPENAI_API_KEY=3D' + v, qp_softbreak: v => 'token=3D' + v.slice(0, 20) + '=\r\n' + v.slice(20),
     ansi_raw: v => ESC + '[32m' + v + ESC + '[0m', ansi_bold: v => 'Your key: ' + ESC + '[1m' + v + ESC + '[22m',
     glued_letter: v => 'x' + v, glued_word: v => 'mykeyis' + v, glued_digit: v => '1' + v, glued_alnum: v => 'abc123' + v,
+    // r3 corpus rows (the ckr2 corpus's masked_glued, and a key glued to a lowercase vowel — where a slug's 'sk-' sits)
+    glued_masked: v => 'x' + v.slice(0, Math.min(v.length - 4, 24)) + '…', glued_vowel: v => 'openai' + v, glued_vowel_value: v => 'value' + v,
+    glued_vowel_masked: v => 'value' + v.slice(0, Math.min(v.length - 4, 24)) + '…', glued_vowel_stars: v => 'openai' + v.slice(0, 22) + '****' + v.slice(-4),
     curl_bearer: v => 'curl -H "Authorization: Bearer ' + v + '" https://x.io', md_fence: v => '```bash\nexport KEY=' + v + '\n```'
   };
   const W = 8;
@@ -214,7 +227,17 @@ context.setKnownSecretSource(null);
     if (!hidden(out, key)) misses.push(key.id + '|' + cn + ' -> ' + JSON.stringify(out.slice(0, 90)));
   }
   A.ok(parity > 400, 'the sk- parity corpus is not empty (' + parity + ' shape x context pairs base hid)');
-  A.eq(misses, [], 'every sk- key the base rule hid is still hidden (svcacct/admin/None/LiteLLM/Langfuse, after \\b \\f \\uXXXX, ANSI, =3D, %253D, glued)');
+  A.eq(misses, [], 'every sk- key the base rule hid is still hidden (svcacct/admin/None/LiteLLM/Langfuse/letters-only, after \\b \\f \\uXXXX, ANSI, =3D, %253D, glued, glued and masked, glued to a vowel)');
+  // r3: the 7 corpus cases 8399010e0 left readable, named one by one (the parity loop above covers them; these say which)
+  const byK = id => SK.find(x => x.id === id);
+  for (const [id, cn] of [['GENLETTERS', 'glued_letter'], ['GENLETTERS', 'glued_word'], ['GENLETTERS', 'glued_digit'], ['GENLETTERS', 'glued_alnum'],
+    ['ADMIN_NODIGIT', 'glued_masked'], ['LITELLM', 'glued_masked'], ['GENLETTERS', 'glued_masked']])
+    A.ok(hidden(context.redact(CTX[cn](byK(id).value)), byK(id)), 'r3 corpus row ' + id + '|' + cn + ' is hidden: ' + JSON.stringify(context.redact(CTX[cn](byK(id).value)).slice(0, 60)));
+  {
+    const L = byK('GENLETTERS');
+    const obj = { api_key: L.value, nested: { note: 'x\n' + L.value, arr: ['abc' + L.value, { cookie: 'c' }] } };
+    A.ok(hidden(JSON.stringify(context.redact(obj)), L), 'r3 corpus row GENLETTERS|object: a letters-only key glued inside a nested array is hidden');
+  }
   const vmiss = [];
   for (const key of VENDOR) for (const [cn, fn] of Object.entries(CTX)) {
     // a vendor key glued to a word is a word ending (the \b rules' contract); a quoted-printable soft break splits the
@@ -224,17 +247,30 @@ context.setKnownSecretSource(null);
     if (!hidden(out, key)) vmiss.push(key.id + '|' + cn + ' -> ' + JSON.stringify(out.slice(0, 90)));
   }
   A.eq(vmiss, [], 'every vendor key is caught in every context, right after a JSON / URL / quoted-printable / ANSI escape included');
-  // the documented glued residual stays readable only when glued: a letters-only body (no digit) after a word char
-  const letters = kk('GENLETTERS', 'sk-', FK.stream('c-glet', 40, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'));
-  for (const cn of ['bare', 'prose', 'eq', 'json_nl', 'json_bs', 'json_u0026', 'url_double', 'qp_3d', 'ansi_raw', 'json_ansi'])
-    A.ok(hidden(context.redact(CTX[cn](letters.value)), letters), 'a letters-only sk- body is hidden ' + cn);
-  // byte-identical ordinary text: hyphenated slugs, word-like sk- text, ids, model names
+  // byte-identical ordinary text: hyphenated slugs (whole, cut by … / ... / ** and Title-Case), word-like sk- text, ids, model names
   for (const slug of ['Build the task-management-dashboard', 'desk-assignment-overseer-lane', 'risk-assessment-framework-for-q4-planning', 'whisk-together-the-ingredients-now',
     'disk-usage-report-generator-v2', 'ask-the-commander-about-schedules-weekly', 'flask-sqlalchemy-integration-guide', 'mask-rcnn-instance-segmentation-2023',
-    'brisk-walking-schedule-2024-weekly', 'task-1730000000000-abc123def456', 'desk-ops-2024-10-28-night', 'AbCdEfsk-0123456789abcdefXYZ',
+    'brisk-walking-schedule-2024-weekly', 'task-1730000000000-abc123def456', 'desk-ops-2024-10-28-night',
     'the kiosk-mode-installation-guide-for-retail-2024', 'pip install scikit-learn', 'Write the sk-learn-tutorial',
+    'Build the task-management-dashboard…', 'title desk-assignment-overseer-lane...', 'title risk-assessment-framework-for-q4-pla…', 'see task-management-dash**',
+    'Desk-Assignment-Overseer-Lane', 'Build the Task-Management-Dashboard-For-Q4…', 'migrate task-GitHub-Actions-pipeline-now', 'title whisk-together-the-ingre…',
+    'title task-Sprint-Q4-Review…', 'title desk-admin-Settings-Page…',
     'claude-sonnet-4-5-20250929', 'time 20261028:1230', 'AKIA is the AWS prefix', 'x\\nAIza is the Google prefix', 'see %3Dghp_ in the docs'])
     A.eq(context.redact(slug), slug, 'context.redact keeps ' + JSON.stringify(slug));
+  // r3: glued to anything but a lowercase vowel, a body reads as base read it — a base64 fragment holding 'sk-' after a
+  // consonant ('AbCdEf' + 'sk-' + 19) is indistinguishable from a key glued to a word, and base hid it too
+  A.eq(context.redact('AbCdEfsk-0123456789abcdefXYZ'), 'AbCdEf[redacted-key]', "a glued sk- body after a consonant is redacted as base redacted it");
+  // r3: the prompt-scrub mirror — a vowel-glued key cut at a LINE END (no mask), where context.redact cannot see a cut
+  PS.setHeldSource(null);
+  const L = byK('GENLETTERS'), LIT = byK('LITELLM');
+  for (const [label, text, key] of [['letters-only, 19 chars at the end of the text', 'title da' + L.value.slice(0, 22), L],
+    ['letters-only, 16 chars before a line break', 'title da' + L.value.slice(0, 19) + '\nnext line', L],
+    ['letters-only, before a closing quote', '"value' + L.value.slice(0, 21) + '" (recipe)', L], ['LiteLLM, 18 chars at the end', 'title openai' + LIT.value.slice(0, 21), LIT]]) {
+    const o = PS.scrubStored(text);
+    A.ok(hidden(o, key) && o.indexOf('[redacted-key]') >= 0, 'r3 mirror: a vowel-glued cut key is scrubbed (' + label + '): ' + JSON.stringify(o));
+  }
+  for (const t of ['Build the task-management-dashboard', 'title desk-assignment-overseer-la', 'title risk-assessment-framework-for-q4', '"title whisk-together-the-ingredients"'])
+    A.eq(PS.scrubStored(t), t, 'r3 mirror: a slug at a cut point stays: ' + t);
   // FIELD ASSIGNMENTS: the credential after an auth scheme is the value; a placeholder is not a credential
   for (const keep of ['headers {"Authorization": "Bearer ${INSTANTLY_API_KEY}"}', 'api_key=${INSTANTLY_API_KEY}', 'Authorization: Bearer <token>',
     '"password": "{{ secrets.DB_PASSWORD }}"', 'set api_key=%OPENAI_API_KEY% first', '"api_key": "[redacted-secret]"'])

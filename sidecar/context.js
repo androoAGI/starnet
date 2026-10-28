@@ -242,16 +242,45 @@
      char before it, plus the escapes. */
   const keyRule = (prefix, rest) => new RegExp('(?:' + prefix + ')(?<=(?:^|[^A-Za-z0-9_]|' + ESCAPE_ALTS + ')(?:' + prefix + '))' + rest, 'g');
   /* THE GENERIC sk- RULE (keep it last of the key rules). Base matched 'sk-' + 16 anywhere, so 'task-management-
-     dashboard' read 'ta[redacted-key]' in every prompt that quoted a run title. Now:
-       · not glued: after a non-alnum char or an escape (above) — every sk- body, as before
-       · glued to a letter or digit (USER_KEYsk-…, mykeyis sk-…): OpenAI's own sub-prefixes (svcacct/admin/None/proj,
-         Langfuse lf), a 20-char unbroken alnum run holding a digit after letters, or a 20-char urlsafe run holding an
-         upper, a lower AND a digit (LiteLLM-style). A lowercase word slug ('management-dashboard') is none of these.
-     Left out on purpose: a glued body of letters only (a random 40-letter key has no digit ~0.02% of the time). */
-  const GENERIC_SK = new RegExp('sk-(?:(?<=(?:^|[^A-Za-z0-9]|' + ESCAPE_ALTS + ')sk-)[A-Za-z0-9_\\-]{16,}'
-    + '|(?<=[A-Za-z0-9]sk-)(?:(?:svcacct|admin|None|proj|lf)-[A-Za-z0-9_\\-]{16,}'
-    + '|(?=[A-Za-z]*[0-9])(?=[A-Za-z0-9]{20})[A-Za-z0-9_\\-]{16,}'
-    + '|(?=[A-Za-z0-9_\\-]{20})(?=[^A-Z]{0,19}[A-Z])(?=[^a-z]{0,19}[a-z])(?=[^0-9]{0,19}[0-9])[A-Za-z0-9_\\-]{16,}))', 'g');
+     dashboard' read 'ta[redacted-key]' in every prompt that quoted a run title. A WORD's 'sk-' follows a vowel: every
+     English word ending in -sk does (task desk risk disk ask mask flask whisk brisk kiosk husk dusk tusk asterisk …).
+     So the rule splits on the char before 'sk-':
+       · anything but a lowercase vowel (start of text, punctuation, an escape above, a consonant, a digit, a capital:
+         USER_KEYsk-…, mykeyissk-…, x1sk-…): every sk- body of 16+ chars, exactly as base
+       · a lowercase vowel ('task-…', and a key glued to 'openai' or 'value'): the body must look like a key —
+           masked  the whole body run (16-40 chars) ends in a mask (… / ... / ** / ••) and holds an OpenAI sub-prefix
+                   then a digit or a capital inside a segment (rGfY, g_BX — 'admin-Settings…' has none), or starts
+                   with an unbroken 16-char word run, or holds a digit, a lower and a capital inside a segment in its
+                   first 20 chars (a cut 'Sprint-Q4-Review…' capitalizes only word starts), or two inner capitals;
+                   it is scrubbed whole with its mask and visible tail, as the masked rule above scrubs an unglued one
+           whole   OpenAI's own sub-prefixes (svcacct/admin/None/proj, Langfuse lf); a 20-char unbroken word run
+                   [A-Za-z0-9_], letters only too (a lowercase-only vendor key never has a digit); or a 20-char urlsafe
+                   run holding an upper, a lower AND a digit (LiteLLM-style), or two inner capitals (aBcD: a random
+                   mixed-case body without an early digit; a Title-Case slug has none, a brand name one, 'GitHub')
+         A slug breaks on hyphens into short words, so 'management-dashboard' or a cut 'assignment-overseer…' is none
+         of these. Every branch needs the base floor (16 body chars after 'sk-'): it fires only where base fired.
+     Review r3 (2026-10-28): the r2 rule tested every glued body, and left readable a glued letters-only body, a glued
+     masked head under 20 chars, a glued key cut at a line end and ~1% of glued urlsafe keys (a hyphen and no digit in
+     their first 20 chars), all of which base hid. Still left after a vowel: a 16-19 char head cut at a line end or a
+     quote with no mask (no rule here can tell it from a word there; prompt-scrub's vendor-cut pass reads stored text
+     at those cut points), and a masked head that passes none of the tests above (~0.3% of random urlsafe heads).
+     COST: a vowel-glued attempt first passes SK_KEYISH, a test every branch below implies (an OpenAI sub-prefix, an
+     unbroken 16-char word run, or a capital or digit in the first 41 chars), so a page of 'ask-ask-…' or of lowercase
+     slugs fails each 'sk-' in one short scan. A run is read atomically where it can be long (an inner lookahead's
+     capture, then its backreference): it fails at once instead of backtracking through every shorter length. Every
+     other lookahead is bounded, so one attempt costs a constant and a 200 KB redact stays near base. */
+  const SK_SUB = '(?:svcacct|admin|None|proj|lf)-';
+  const SK_HUMPS = '(?=[A-Za-z0-9_\\-]{0,18}?[a-z][A-Z][A-Za-z0-9_\\-]{0,18}?[a-z][A-Z])';   // two inner capitals, early
+  const SK_KEYISH = '(?=' + SK_SUB + '|[A-Za-z0-9_]{16}|(?=([a-z_\\-]{0,40}))\\1[A-Z0-9])';   // capture group 1
+  const GENERIC_SK = new RegExp('sk-(?:(?<=(?:^|[^aeiou]|' + ESCAPE_ALTS + ')sk-)[A-Za-z0-9_\\-]{16,}'
+    + '|(?<=[aeiou]sk-)' + SK_KEYISH + '(?:'
+    + '(?=(?=([A-Za-z0-9_\\-]{16,40}))\\2(?:[*•]{2}|…|\\.{3}))'   // capture group 2
+    + '(?:(?=' + SK_SUB + '[A-Za-z0-9_\\-]{0,33}?(?:[0-9]|[A-Za-z0-9_][A-Z]))|(?=[A-Za-z0-9_]{16})|' + SK_HUMPS
+    + '|(?=[A-Za-z_\\-]{0,19}[0-9])(?=[A-Za-z0-9_\\-]{0,18}?[A-Za-z0-9_][A-Z])(?=[A-Z0-9_\\-]{0,19}[a-z]))'
+    + '[A-Za-z0-9_\\-]+(?:[*•]{2,}|…|\\.{3})(?:[-_A-Za-z0-9*•…]|\\.{3})*'
+    + '|' + SK_SUB + '[A-Za-z0-9_\\-]{16,}'
+    + '|(?=[A-Za-z0-9_\\-]{20})(?:(?=[A-Za-z0-9_]{20})|' + SK_HUMPS
+    + '|(?=[^A-Z]{0,19}[A-Z])(?=[^a-z]{0,19}[a-z])(?=[^0-9]{0,19}[0-9]))[A-Za-z0-9_\\-]{16,}))', 'g');
   /* A FIELD ASSIGNMENT (api_key=…, "client_secret": "…", Authorization: …). FIELD_VALUE is the rule; see its comment in
      SECRET_PATTERNS. A scheme is never followed by another field name ("Bearer api_key: …" is two assignments). */
   const FIELD_NAMES = 'api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization';

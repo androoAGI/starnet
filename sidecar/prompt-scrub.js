@@ -164,8 +164,13 @@ function isCutAt(s, e) {
    The boundary keeps hyphenated words whole ('task-…') yet still sees a key right after the SAME escapes context.js
    does (context.ESCAPE_ALTS: JSON \n \t \b \f \uXXXX, %3D / %253D, quoted-printable =3D, an ANSI code). It is a
    lookbehind over the prefix, so each scan starts at its literal (fast). `mode`: 'digit' = the body must hold a digit (an
-   all-caps AWS id is otherwise a word); 'glued' = the generic sk- key right after a letter or digit (USER_KEYsk-…), as
-   context.js's glued branch catches it whole: only a body holding a digit, an upper- and a lower-case letter counts. */
+   all-caps AWS id is otherwise a word); 'glued' = the generic sk- key right after a letter or digit (USER_KEYsk-…): a
+   body holding a digit, an upper- and a lower-case letter counts. Review r3: context.js now hides every glued body of
+   16+ chars that is not right after a lowercase vowel (base parity), so one of 16+ that reaches this pass sits after a
+   vowel, where a word's 'sk-' does ('task-…'); it also counts when it looks like a key the way context.js's vowel
+   branch reads one: an unbroken 16-char word run at its start, an OpenAI sub-prefix then a digit or a capital inside a
+   segment, or two inner capitals (aBcD). That is the line-end / quote cut context.js cannot see (a letters-only
+   'valuesk-pKavncjHpreUFNeGsU' at the end of a stored title). */
 const START = (p, glued) => glued ? '(?<=[A-Za-z0-9](?:' + p + '))' : '(?<=(?:^|[^A-Za-z0-9]|' + context.ESCAPE_ALTS + ')(?:' + p + '))';
 const CUT_AHEAD = '(?=…|\\.{3}|"|\\\\["nr]|[ \\t]*$)';
 const VENDOR_CUT_SOURCES = [
@@ -197,10 +202,11 @@ const VENDOR_CUTS = VENDOR_CUT_SOURCES.map(([p, cls, min, mode]) => ({
   min: min || 4, mode: mode || ''
 }));
 // a cut body that looks random, not like a word: a digit, or upper- AND lower-case letters past its first char
-// ('digit': a digit is required; 'glued': a digit AND both cases, since a glued body follows a word)
+// ('digit': a digit is required; 'glued': a digit AND both cases, or at 16+ chars GLUED_LONG — see START)
+const GLUED_LONG = /^(?:[A-Za-z0-9_]{16}|(?:svcacct|admin|None|proj|lf)-[A-Za-z0-9_\-]*?(?:[0-9]|[A-Za-z0-9_][A-Z])|[A-Za-z0-9_\-]*?[a-z][A-Z][A-Za-z0-9_\-]*?[a-z][A-Z])/;
 function randomish(body, mode) {
   const digit = /[0-9]/.test(body), mixed = /[A-Z]/.test(body.slice(1)) && /[a-z]/.test(body);
-  if (mode === 'glued') return digit && /[A-Z]/.test(body) && /[a-z]/.test(body);
+  if (mode === 'glued') return (digit && /[A-Z]/.test(body) && /[a-z]/.test(body)) || (body.length >= 16 && GLUED_LONG.test(body));
   if (digit) return true;
   return mode !== 'digit' && mixed;
 }
