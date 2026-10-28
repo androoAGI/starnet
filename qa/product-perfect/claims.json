@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "30656c80a8bd2e6ba2784f07e28463d19d0bfd0e",
+    "sourceCommit": "5d00288751b8b6e63059cf6f4c0e63b770c3c030",
     "pathSetSha256": "e624b215b52a73f9e1674ed2e8290b71d7c2fd4f3b5ff408e25bcd506395e186",
     "files": [
       {
@@ -1338,8 +1338,8 @@
       },
       {
         "path": "frontend/app/voice-live.js",
-        "bytes": 104075,
-        "sha256": "11db8ff7f9f6e4405c3388d482f0159cebc52b2dd5620252b49878ebea9eed37"
+        "bytes": 106243,
+        "sha256": "e738a7d7e5f1ff60d9c2ddcad5347c559aa70bfc8ea2d8cd94cc7d70f18fcf40"
       },
       {
         "path": "frontend/app/voice-stream.js",
