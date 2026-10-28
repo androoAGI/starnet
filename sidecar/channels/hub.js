@@ -2433,7 +2433,7 @@
         markAttempt({ runId: runId });
         try {
           await runOnce({
-            key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask,
+            key: usingCodex ? '' : sec.key, model: sec.model, provider, baseUrl: sec.baseUrl || sec.base_url || '', reasoningEffort, system, messages, agentId, isTask, wireSource: sec.wireSource || undefined,
             emit: sink, signal: ac.signal, runId, lineId, trigger: 'event',
             streamId: canonicalStreamId || undefined,
             // a second go of an interrupted run reuses that run's durable directive row instead of filing the words again
@@ -2552,7 +2552,7 @@
             try { store.appendTurn(hopKey, 'user', h.text); rememberHopKey(chatId, hopKey); } catch (e) { failNote('channels.hub.appendTurn', e); }
             try {
               await runOnce({
-                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
+                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
                 baseUrl: hopConfig.baseUrl || hopConfig.base_url || '', reasoningEffort: hopConfig.reasoningEffort || hopConfig.reasoning_effort,
                 system: hopConfig.system || personaFor(h.agentId, rec), messages: hist.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: h.text }]),
                 agentId: h.agentId, isTask: true, emit: hopSink, signal: h.signal, runId: hopRunId, trigger: 'event',

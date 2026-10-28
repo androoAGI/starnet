@@ -313,6 +313,9 @@
       const entry = {
         runId: str(e.runId), parentRunId: str(e.parentRunId).slice(0, 100), agentId: str(e.agentId),
         provider: str(e.provider).trim().slice(0, 60),
+        // WIRE SOURCE (additive, run-wire-resolver lane): which level of the one {provider, model} resolution chose this run's
+        // pair (sidecar/run-wire.js: explicit | routine | agent | station | connect | env). Present only when known.
+        ...(/^[a-z]{1,20}$/.test(str(e.wireSource)) ? { wireSource: str(e.wireSource) } : {}),
         // clamp to the known enum (matches agent.run.end). An unknown or missing reason is not proof the run finished, so it
         // records as 'error', never 'done' (bug 812c3bfb: a thrown run read as a finished one in the history)
         reason: REASONS.has(e.reason) ? e.reason : 'error',

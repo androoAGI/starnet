@@ -6,8 +6,9 @@
    And the bridge sent no persona, so the run was a bare model with no identity.
 
    Locks:
-   1. the route resolves through stationDefaultFor — the record every unpinned agent follows (the hero's model and
-      provider) — and only a station whose hero has no model falls back to the bare headless env rule;
+   1. the route resolves through the ONE resolver every surface reads (runWireFor -> sidecar/run-wire.js; the station level
+      is what stationDefaultFor used to hand out: the hero's model and provider) — and only a station whose hero has no
+      model falls back to the bare headless env rule; each roster row carries its own resolved `wire`;
    2. the ACP bridge's /api/run body asks for the roster persona (rosterSystem: true) and runs on what the route said.
    The route runs from its own source (requiring sidecar/index.js would boot a sidecar); the bridge runs for real as
    a child process against a fake station on loopback. */
@@ -20,12 +21,16 @@ const { sidecarFunctionSource, sidecarTopLevelFunction, readSidecarSource } = re
 
 // ---- 1. GET /api/runtime/agent resolves the station default ----
 const route = sidecarFunctionSource('handleRuntimeAgent');
-const sdf = sidecarFunctionSource('stationDefaultFor');
-A.ok(route.length > 200 && route.length < 6000 && sdf.length > 40 && sdf.length < 1000, 'bounded handleRuntimeAgent + stationDefaultFor');
+const sdf = sidecarFunctionSource('runWireEnv') + '\n' + sidecarFunctionSource('runWireFor');
+A.ok(route.length > 200 && route.length < 6000 && sdf.length > 40 && sdf.length < 3000, 'bounded handleRuntimeAgent + runWireFor');
+A.ok(!/stationDefaultFor/.test(readSidecarSource()), 'no surface keeps a second station-default rule (stationDefaultFor is the resolver\'s station level now)');
 function runtimeAgent(roster, env, credentialFor) {
   const agentRoster = new Map(Object.entries(roster));
   const deps = {
     agentRoster, agentRosterRaw: new Map(),
+    RunWire: require('../sidecar/run-wire.js'),
+    normalizeProviderId: p => String(p || ''),
+    registryProviderUsesCodex: p => p === 'codex', codexTokens: null, CODEX_DEFAULT_MODEL: 'gpt-codex-default',
     normalizeProvider: p => String(p || 'openrouter'),
     providerRuntimeKey: (id) => (id === 'openrouter' && env.orKey) || '',
     providerRuntimeBaseUrl: () => '',

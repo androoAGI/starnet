@@ -609,7 +609,23 @@
        both have to ask the live page. Absent (headless run, bare unit caller) -> session targeting is refused
        honestly rather than silently ignored. See sidecar/station-bridge.js. */
     const station = (deps.station && typeof deps.station.request === 'function') ? deps.station : null;
-    function workerWire(ident) {
+    /* THE WORKER'S OWN PAIR (run-wire-resolver lane): resolveWire(agentId) is the host's ONE {provider, model} resolution
+       (index.js runWireFor -> sidecar/run-wire.js) — the worker's pin, else the station default an unpinned agent follows on
+       every other surface. Without it an unpinned worker ran on the LEAD's model, so the same specialist answered a routine
+       on the station default and a team.dispatch on whatever its lead was pinned to. The credential rule is unchanged: a
+       pair on another provider runs only with that provider's own server-held credential (providerAuth), else the lead's
+       wire with an honest note. No resolveWire (a bare/legacy host) -> the roster-row rule below. */
+    const resolveWire = (typeof deps.resolveWire === 'function') ? deps.resolveWire : null;
+    function workerWire(ident, agentId) {
+      const w = (resolveWire && agentId) ? resolveWire(agentId) : null;
+      if (w && w.ok && w.model) {
+        const p = String(w.provider || '');
+        const effort = w.followsStation ? w.reasoningEffort : undefined;
+        if (!p || p === provider) return { provider, key, baseUrl, model: String(w.model), note: '', wireSource: w.source, reasoningEffort: effort };
+        const lent = providerAuth ? providerAuth(p) : null;
+        if (lent) return { provider: lent.provider || p, key: lent.key || '', baseUrl: lent.baseUrl || '', model: String(w.model), note: '', wireSource: w.source, reasoningEffort: effort };
+        return { provider, key, baseUrl, model, note: 'worker provider "' + p + '" has no credential on this station — ran on the lead\'s model instead', wireSource: 'lead' };
+      }
       const wanted = (ident && ident.provider) ? String(ident.provider) : '';
       const ownModel = (ident && ident.model) ? String(ident.model) : '';
       if (!wanted || wanted === provider || !ownModel) {
@@ -929,7 +945,7 @@
         const runWorker = async (job, o2) => {
           o2 = o2 || {};
           if (job.error) return { agentId: job.agentId, reason: 'error', result: job.error, usd: 0 };
-          const wire = workerWire(job.ident);   // the worker's OWN provider+model when resolvable (see workerWire)
+          const wire = workerWire(job.ident, job.agentId);   // the worker's OWN provider+model when resolvable (see workerWire)
           // PER-WORKER WALL CLOCK (2026-07-26 audit finding A). Before this, the ONLY clock was the registry's
           // tool timeout over the WHOLE dispatch: one slow worker ate the shared budget, the registry rejected, and
           // every ALREADY-COMPLETED worker's result was thrown away — the lead received the string "team.dispatch
@@ -1008,10 +1024,10 @@
               // THE HAND-OFF: what the earlier workers read, this one inherits; the files they saved, it may read
               ...(handoff && handoff.taint ? { initialTaint: conn.initialTaint || handoff.taint } : {}),
               ...(handoff && handoff.reads && handoff.reads.length ? { handoffReads: handoff.reads.slice() } : {}),
-              key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
+              key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
               // Class Loadouts S1: the WORKER runs at its OWN class-applied reasoning effort (roster record), not the
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
-              reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
+              reasoningEffort: (job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
               model: wire.model,
               system: workerSystem((job.ident && job.ident.system) || ''),
               messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
@@ -1069,8 +1085,8 @@
               repair = await runOnce({
                 outputOnly: true,
                 ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx), ...repairPool.options,
-                key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
-                reasoningEffort: (job.ident && job.ident.reasoningEffort) || reasoningEffort,
+                key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
+                reasoningEffort: (job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
                 model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                   { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(job.resultSchema) }],
@@ -1108,7 +1124,7 @@
             usd: totalUsd,
             runId: workerRunId,
             model: effective.model || wire.model,
-            reasoningEffort: effective.reasoningEffort || ((job.ident && job.ident.reasoningEffort) || reasoningEffort),
+            reasoningEffort: effective.reasoningEffort || ((job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort),
             toolsOk: (Number(result.toolsOk) || 0) + (Number(repaired && repaired.toolsOk) || 0),
             durationMs: (Number(result.durationMs) || 0) + (Number(repaired && repaired.durationMs) || 0),
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
@@ -1547,7 +1563,7 @@
         const ident = crew.get(rec.agentId);
         if (!ident) return { status: 'error', reason: 'error', result: 'worker is no longer in the live roster', usd: 0 };
         const finish = async row => { await finalizeWorkerDelivery(h.runId, row); return row; };
-        const wire = workerWire(ident);   // same cross-provider resolution as a fresh dispatch
+        const wire = workerWire(ident, rec.agentId);   // same cross-provider resolution as a fresh dispatch
         let result;
         const bounded = boundedDomainTask(rec.prompt || '', fileProbeFor(rec.agentId, projectOptions(ctx, rec).projectRoot));
         // The durable record carries the lead's handoff `context`, so a resumed worker rebuilds the SAME
@@ -1558,8 +1574,8 @@
         try {
           result = await runOnce({
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...watched.options,
-            key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
-            reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,   // Class Loadouts S1: worker's own class effort (see runWorker)
+            key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
+            reasoningEffort: (ident && ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,   // Class Loadouts S1: worker's own class effort (see runWorker)
             model: wire.model,
             system: workerSystem((ident && ident.system) || ''),
             messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
@@ -1598,8 +1614,8 @@
             repair = await runOnce({
               outputOnly: true,
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...repairPool.options,
-            key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl,
-            reasoningEffort: (ident && ident.reasoningEffort) || reasoningEffort,
+            key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
+            reasoningEffort: (ident && ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
             model: wire.model, system: workerSystem((ident && ident.system) || ''),
             messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
               { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(rec.resultSchema) }],

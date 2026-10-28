@@ -25,6 +25,11 @@
                            -> string             // LIVE provider credential material when one is key-backed
      deps.providerForJob(job, ident)
                            -> string             // selected runtime provider ('openrouter' or 'codex')
+     deps.wireForJob(job)  -> { model, provider, reasoningEffort, followsStation, source }
+                                                 // OPTIONAL: the host's ONE {provider, model} resolution for this
+                                                 //   routine (index.js cronWireFor -> sidecar/run-wire.js). When
+                                                 //   injected it decides the pair and effort, and providerForJob /
+                                                 //   identityForAgent's model / defaultModel are not consulted for them.
      deps.hasCredential(provider, key, job)
                            -> bool               // OAuth providers can be runnable without a BYOK key
      deps.credentialError(provider, job)
@@ -100,6 +105,7 @@
     const newId = d.newId, newAbort = d.newAbort, now = d.now;
     const getKey = typeof d.getKey === 'function' ? d.getKey : function () { return ''; };
     const providerForJob = typeof d.providerForJob === 'function' ? d.providerForJob : function () { return 'openrouter'; };
+    const wireForJob = typeof d.wireForJob === 'function' ? d.wireForJob : null;
     const hasCredential = typeof d.hasCredential === 'function' ? d.hasCredential : function (_provider, key) { return !!key; };
     // #89: the blocked-config reason is the SAME sentence Run Now and the quest refresh say (index.js injects the
     // registry-aware form); a host that injects nothing gets the same builder with only the provider id
@@ -420,8 +426,12 @@
         if (typeof scan.cleaned === 'string' && scan.cleaned) assembledPrompt = scan.cleaned;
       }
       const ident = identityForAgent(job.agentId, job) || {};
-      const model = (job.model && String(job.model).trim()) || (ident.model && String(ident.model).trim()) || defaultModel;
-      const provider = providerForJob(job, ident) || 'openrouter';
+      // the routine's pair is ONE resolution when the host injects it (run-wire.js): the model and the provider can never
+      // come from two different levels (a routine's own model on its agent's provider by accident, a stale stamp, …)
+      const wired = wireForJob ? (wireForJob(job) || {}) : null;
+      const model = wired ? String(wired.model || '').trim()
+        : ((job.model && String(job.model).trim()) || (ident.model && String(ident.model).trim()) || defaultModel);
+      const provider = (wired ? wired.provider : providerForJob(job, ident)) || 'openrouter';
       const key = getKey(provider, job);
       let configIssue = null;
       if (!job.noAgent && !model) configIssue = { code: 'missing-model', reason: 'no model is configured; choose a model for this routine or its assigned agent' };
@@ -549,7 +559,10 @@
           // "Follow station default": an unpinned agent's routine runs on the Overseer's model AND effort (the
           // identity resolver supplies both), exactly as a channel hop does. A pinned agent or an explicit routine
           // model leaves this undefined, so the run's own roster effort applies unchanged.
-          reasoningEffort: (!(job.model && String(job.model).trim()) && ident.followsStation) ? ident.reasoningEffort : undefined,
+          reasoningEffort: wired ? (wired.followsStation ? wired.reasoningEffort : undefined)
+            : ((!(job.model && String(job.model).trim()) && ident.followsStation) ? ident.reasoningEffort : undefined),
+          // WHERE the pair came from (routine / agent / station / env), recorded on the run row (wireSource)
+          wireSource: wired ? (wired.source || undefined) : undefined,
           // Host-minted recovery identity. The active-run journal can now tie an interrupted headless run back
           // to the routine that launched it without trusting model text or guessing from the stream id. Same helper as
           // Run Now (routine-identity.js): cronJobId/cronJobName, the recipe's provenance (recipeId), and the IDEMPOTENCY

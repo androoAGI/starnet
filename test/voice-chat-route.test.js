@@ -88,7 +88,9 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
     "the loop's own run.start merges the voice route (without it the field never reaches the page)");
   const apply = idx.slice(idx.indexOf('async function applyVoiceTurnRoute('), idx.indexOf('async function applyVoiceTurnRoute(') + 6000);
   A.ok(/next\.fallbackProviders = \[\{ provider: mainProvider, model: mainModel/.test(apply), 'the agent\'s route is the first fallback');
-  A.ok(/sameProvider \? \(o\.key \|\| ''\) : ''/.test(apply), 'a page key never crosses providers');
+  // (run-wire-resolver lane) the page key rides only the provider the caller named: callerKey is empty when the one resolution
+  // passed that provider over, and the voice model's provider takes it only when it is that same provider
+  A.ok(/const callerKey = callerCredential \? \(o\.key \|\| ''\) : ''/.test(apply) && /sameProvider \? callerKey : ''/.test(apply), 'a page key never crosses providers');
   A.ok(/if \(!sameProvider\) next\.keyPool = undefined/.test(apply), 'a page key pool never crosses providers');
   A.ok(/voiceTurn: !!\(body && body\.voiceTurn === true\)/.test(idx), '/api/run marks the turn only on an explicit true');
   A.ok(/voiceTurn: \(!!spoken && !lineId\) \|\| undefined/.test(read('sidecar/channels/hub.js')), 'a channel voice note is a voice turn (never a line stage)');

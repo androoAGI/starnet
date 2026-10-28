@@ -18,8 +18,11 @@ dispatches terminal-capable agent work, so a guessable key is remote code execut
 - The sidecar-wide loopback **Host pin** (`apiauth.isAllowedHost`) is applied to `/v1` too.
 - `STARNET_V1_MAX_CONCURRENT` (default 10) caps concurrent runs across all `/v1` run modes;
   over the cap → **429** (`code: rate_limit_exceeded`). `0` disables the cap.
-- `STARNET_V1_MODEL` / `STARNET_DEFAULT_MODEL` sets the run model when a client selects the
-  generic advertised model `starnet-agent`.
+- Every `/v1` run goes out on the same `{provider, model}` pair the agent runs on every other
+  surface (`sidecar/run-wire.js`): a selected roster agent runs its own pin, or the station default
+  (the Overseer's pin) when it has none; the generic `starnet-agent` runs the station default.
+  `STARNET_V1_MODEL` (then `STARNET_DEFAULT_MODEL`) is the environment default this surface falls
+  back to only when the station has no default model yet.
 
 ## Endpoints
 

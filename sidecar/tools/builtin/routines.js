@@ -192,6 +192,13 @@
      added to the store later is then withheld by default instead of quietly becoming agent-writable.
      (test/tool-withheld-message.test.js additionally source-greps this file to prove no code path here even
      NAMES that grant field — which is why the sentence above describes it instead of spelling it.) */
+  /* A ROUTINE STORES ITS {provider, model} WHOLE (run-wire-resolver lane, sidecar/run-wire.js). A provider with no model names
+     no model, so the host would store it cleared and the routine would follow its agent — refuse it here instead, so the
+     tool never answers "updated (provider)" over a value that did not stick. A model alone is fine: the host pairs it with
+     the provider the routine's agent runs on, and the job in the reply shows the pair. */
+  function providerOnlyRefusal(provider) {
+    return 'provider ' + provider + ' needs a model too: a provider alone names no model. Pass both, or omit provider to run on the agent\'s own model';
+  }
   const AGENT_PATCHABLE = ['name', 'prompt', 'schedule', 'model', 'provider', 'repeatTimes', 'timezone', 'monitorMode', 'deliver', 'attachToSession'];
 
   function makeRoutineTools(deps) {
@@ -305,6 +312,7 @@
         if (args && args.provider != null && args.provider !== '') {
           provider = normalizeProvider(args.provider);
           if (!provider) throw new Error('provider must be openrouter or codex');
+          if (!clean(args.model, 120)) throw new Error(providerOnlyRefusal(provider));
         }
         const repeatTimes = (args && Object.prototype.hasOwnProperty.call(args, 'repeatTimes')) ? args.repeatTimes : null;
         const spec = {
@@ -494,6 +502,7 @@
         if (args && args.provider != null && args.provider !== '') {
           const p = normalizeProvider(args.provider);
           if (!p) throw new Error('provider must be openrouter or codex');
+          if (!patch.model && !String(job.model || '').trim()) throw new Error(providerOnlyRefusal(p));
           patch.provider = p;
         }
         if (args && Object.prototype.hasOwnProperty.call(args, 'repeatTimes')) patch.repeatTimes = args.repeatTimes;

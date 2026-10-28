@@ -64,7 +64,10 @@ const focusBody = appjs.slice(appjs.indexOf('  function focusAgent('), appjs.ind
 A.ok(/applyWire\(wire\)/.test(focusBody) && /const wire = focusWire\(a\)/.test(focusBody), 'focusAgent applies focusWire (station default for unpinned agents)');
 A.ok(!/if \(a\.provider && typeof Harness/.test(focusBody), 'focusAgent no longer writes only the fields an agent happens to carry');
 A.ok(/applyWire\(focusWire\(a\)\);\s+\/\/ a CLEARED pin/.test(appjs), 'clearing the focused agent\'s pin re-applies the station default');
-A.ok(/const fallbackProv = stationDefaultWire\(\)\.provider \|\|/.test(appjs), 'pushRoster stamps unpinned rows with the station provider, not the focused pin');
+A.ok(/const fallbackProv = stationDefaultWire\(\)\.provider \|\|/.test(appjs), 'pushRoster pairs a pinned row\'s bare model with the station provider, not the focused pin');
+// run-wire-resolver lane: an UNPINNED crew row carries no provider (it follows the station default on every surface); the
+// Overseer's row keeps its provider (the station's provider choice)
+A.ok(/provider: \(a\.model \|\| a\.id === 'agent'\) \? \(a\.provider \|\| fallbackProv\) : ''/.test(appjs), 'pushRoster stops stamping a provider onto unpinned crew rows');
 A.ok(/const prov = \(hero && hero\.provider\) \|\|/.test(appjs), 'persist saves the station provider, not the focused agent\'s pin');
 A.eq((appjs.match(/Harness\.setProv\(saved\.prov\)/g) || []).length, 0, 'no resume path restores the raw top-level saved.prov');
 A.eq((appjs.match(/Harness\.setProv\(savedStationProv\(saved\)\)/g) || []).length, 3, 'all three resume paths restore the station provider');

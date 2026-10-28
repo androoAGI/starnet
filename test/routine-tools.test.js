@@ -56,10 +56,10 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
       name: 'Daily AI news brief',
       prompt: 'Research the latest AI related news, cite sources, and summarize the top items.',
       schedule: '0 9 * * *',
-      provider: 'codex', monitorMode: true
+      provider: 'codex', model: 'gpt-5.5', monitorMode: true   // a routine stores provider + model only as a pair (run-wire-resolver lane)
     }, { agentId: 'agent' });
     A.eq(createdSpec.agentId, 'researcher-2', 'research/news/latest routine auto-routes to the research specialist');
-    A.eq(createdSpec.provider, 'codex', 'provider is normalized and stored');
+    A.eq([createdSpec.provider, createdSpec.model], ['codex', 'gpt-5.5'], 'provider is normalized and stored, with its model');
     A.eq(createdSpec.monitorMode, true, 'routine.create preserves explicit monitor mode');
     A.eq(armed, true, 'routine.create arms the scheduler by default so the job will actually fire');
     const body = JSON.parse(out.content);
@@ -255,14 +255,25 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
     // update: only whitelisted fields reach the store
     {
       const out = await mt.manageTool.run({
-        action: 'update', id: 'j-morning', name: 'Morning brief v2', prompt: 'summarize markets', provider: 'codex'
+        action: 'update', id: 'j-morning', name: 'Morning brief v2', prompt: 'summarize markets', provider: 'codex', model: 'gpt-5.5'
       });
       const [, id, patch] = log[log.length - 1];
       A.eq(id, 'j-morning', 'update targets the resolved job');
       A.eq(patch.name, 'Morning brief v2', 'name is patchable');
       A.eq(patch.prompt, 'summarize markets', 'prompt is patchable');
       A.eq(patch.provider, 'codex', 'provider is normalized before it reaches the store');
-      A.eq(JSON.parse(out.content).changed.length, 3, 'the response reports exactly what changed');
+      A.eq(patch.model, 'gpt-5.5', 'the model rides with its provider');
+      A.eq(JSON.parse(out.content).changed.length, 4, 'the response reports exactly what changed');
+    }
+
+    // HALF A PAIR (run-wire-resolver lane): a provider with no model names no model, so the host would store it cleared —
+    // the tool refuses it instead of answering "updated (provider)" over a value that would not stick
+    {
+      const before = log.length;
+      let err = null;
+      try { await mt.manageTool.run({ action: 'update', id: 'j-morning', provider: 'codex' }); } catch (e) { err = e; }
+      A.ok(err && /needs a model too/.test(err.message) && /omit provider/.test(err.message), 'a bare provider on a routine with no model is refused, with the way out: ' + (err && err.message));
+      A.eq(log.length, before, '...and nothing reached the store');
     }
 
     /* NEVER REPORT AN EDIT THAT DID NOT HAPPEN. Two ways the first cut lied about an update:

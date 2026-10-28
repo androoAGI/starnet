@@ -183,6 +183,10 @@ function deriveSessionId(system, firstUser) {
      store                          the channel transcript store (loadHistory/appendTurn) — for app visibility
      isAllowedHost(host)  -> bool   apiauth.isAllowedHost (the loopback pin)
      defaultModel         -> string the run model when the client selects the generic 'starnet-agent' ('' => runOnce default)
+     resolveWire(agentId) -> { ok, provider, model, source } (optional) the host's ONE {provider, model} resolution
+                                    (index.js runWireFor -> sidecar/run-wire.js). When injected it decides every /v1 run's
+                                    pair: a selected roster agent runs its own pair, the generic 'starnet-agent' runs the
+                                    station default; defaultModel / the roster row's raw fields are not consulted.
      maxConcurrent        -> number the cap (env override resolved by index.js); 0 disables
      version              -> string reported by /health + /v1 model created stamp is `now`
      newId()              -> string uuid
@@ -203,6 +207,7 @@ function makeOpenAiCompat(deps) {
   const isAllowedHost = typeof d.isAllowedHost === 'function' ? d.isAllowedHost : () => true;
   const eq = typeof d.constTimeEq === 'function' ? d.constTimeEq : constTimeEq;
   const defaultModel = () => String((typeof d.defaultModel === 'function' ? d.defaultModel() : d.defaultModel) || '').trim();
+  const resolveWire = typeof d.resolveWire === 'function' ? d.resolveWire : null;
   const maxConcurrent = () => { const n = typeof d.maxConcurrent === 'function' ? d.maxConcurrent() : d.maxConcurrent; const v = Number(n); return (Number.isFinite(v) && v >= 0) ? Math.floor(v) : DEFAULT_MAX_CONCURRENT; };
   const version = () => String((typeof d.version === 'function' ? d.version() : d.version) || 'dev');
   const newId = typeof d.newId === 'function' ? d.newId : () => nodeCrypto.randomUUID();
@@ -249,6 +254,18 @@ function makeOpenAiCompat(deps) {
     return { matched: false, agentId: '', model: '', provider: '' };
   }
 
+  /* WHICH PAIR a request runs on. With the host's resolver it is the one every surface runs (run-wire.js): the selected
+     roster agent's own pair, or — for the generic 'starnet-agent' (an ephemeral or session agent that is not on the roster)
+     — the station default every unpinned agent follows. Before, the generic model ran openrouter + an env model whatever
+     the station ran on, and a selected unpinned agent ran the env model on its stale stamped provider. */
+  function runWireOf(agentId, target) {
+    if (resolveWire) {
+      const w = resolveWire(target.matched ? target.agentId : agentId) || {};
+      return { model: String(w.model || ''), provider: String(w.provider || '') || 'openrouter', source: w.source ? String(w.source) : undefined };
+    }
+    return { model: target.matched ? (target.model || defaultModel()) : defaultModel(), provider: target.provider || 'openrouter', source: undefined };
+  }
+
   // Decide the agentId a request runs as:
   //   • explicit session id header  -> a STABLE per-session agent (threads transcript + memory across turns)
   //   • a selected roster agent     -> that specialist's agentId (stateful; serialized by the same-agent mutex)
@@ -282,7 +299,7 @@ function makeOpenAiCompat(deps) {
     try { key = resolveProviderKey(provider) || ''; } catch (_) { key = ''; }
     try { baseUrl = resolveBaseUrl(provider) || ''; } catch (_) { baseUrl = ''; }
     const p = Promise.resolve().then(() => runOnce({
-      key, model: o.model || '', provider, baseUrl,
+      key, model: o.model || '', provider, baseUrl, wireSource: o.wireSource,
       system: o.system || '', messages: o.messages || [], agentId: o.agentId,
       emit: sink, signal: o.signal, runId: o.runId,
       // a /v1 request IS a task (issue #96: without this the model was offered NO tools though this surface's prompt
@@ -390,8 +407,8 @@ function makeOpenAiCompat(deps) {
     const target = resolveTarget(modelField);
     const sessionId = sessionIdOf(req) || deriveSessionId(parsed.system, parsed.history.length ? (parsed.history[0].content) : parsed.lastUser);
     const agentId = deriveAgentId(sessionId, target);
-    const runModel = target.matched ? (target.model || defaultModel()) : defaultModel();
-    const provider = target.provider || 'openrouter';
+    const wire = runWireOf(agentId, target);
+    const runModel = wire.model, provider = wire.provider, wireSource = wire.source;
     // conversation for runOnce = prior turns (history) + the new user directive last (system passed separately).
     const messages = parsed.history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: parsed.lastUser }]);
     let system = parsed.system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
@@ -411,7 +428,7 @@ function makeOpenAiCompat(deps) {
       inFlight++;
       let acc;
       try {
-        acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })),
+        acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, system, messages, signal: ac.signal, onDelta: (dlt) => sseData(res, chatChunk({ id, model: modelField, created, delta: { content: dlt } })),
           // agent.waiting (the loop's heartbeat while the model shows nothing yet) becomes an SSE COMMENT line: every
           // client ignores it, yet a slow first byte or a retry backoff no longer leaves the socket byte-silent for
           // minutes. Phase + seconds only — no model name, no text, nothing a client could mistake for content.
@@ -438,14 +455,14 @@ function makeOpenAiCompat(deps) {
     if (typeof res.on === 'function') res.on('close', () => { if (!syncDone) ac.abort(); });
     inFlight++;
     let acc;
-    try { acc = await startRun({ runId: id, agentId, model: runModel, provider, system, messages, signal: ac.signal }); }
+    try { acc = await startRun({ runId: id, agentId, model: runModel, provider, wireSource, system, messages, signal: ac.signal }); }
     finally { inFlight--; }
     if (contract.schema && acc.reason === 'done') {
       const checked = resultContract.inspect(contract.schema,acc.buf);
       if (!checked.ok) {
         inFlight++;
         let repair;
-        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,system,
+        try { repair = await startRun({runId:id+'-repair',agentId,model:runModel,provider,wireSource,system,
           messages:[{role:'assistant',content:acc.buf}, {role:'user',content:'Repair only the preceding result; do not repeat the original task. Return strict JSON. Errors: '+checked.errors.join('; ')}],signal:ac.signal,outputOnly:true}); } finally { inFlight--; }
         acc.tokensIn += repair.tokensIn; acc.tokensOut += repair.tokensOut;
         const repaired = resultContract.inspect(contract.schema,repair.buf);
@@ -584,8 +601,8 @@ function makeOpenAiCompat(deps) {
     const target = resolveTarget(modelField);
     const sessionId = sessionIdOf(req) || runId;
     const agentId = deriveAgentId(sessionId === runId ? '' : sessionId, target) || sanitizeAid(runId);
-    const runModel = target.matched ? (target.model || defaultModel()) : defaultModel();
-    const provider = target.provider || 'openrouter';
+    const wire = runWireOf(agentId, target);
+    const runModel = wire.model, provider = wire.provider, wireSource = wire.source;
     const messages = history.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: lastUser }]);
     const sys = system || 'You are the Commander\'s StarNet agent, reached over an OpenAI-compatible API. Use your REAL tools when given a task and report what you actually did.';
 
@@ -599,7 +616,7 @@ function makeOpenAiCompat(deps) {
     inFlight++;
     rec.status = 'running';
     startRun({
-      runId, agentId, model: runModel, provider, system: sys, messages, signal: ac.signal,
+      runId, agentId, model: runModel, provider, wireSource, system: sys, messages, signal: ac.signal,
       onEvent: (name, p) => { const ev = mapRunEvent(name, p, runId, now()); if (ev) pushRunEvent(runId, ev); }
     }).then((acc) => {
       const usage = { prompt_tokens: acc.tokensIn, completion_tokens: acc.tokensOut, total_tokens: acc.tokensIn + acc.tokensOut };

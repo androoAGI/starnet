@@ -312,10 +312,14 @@ function joinOutcome(text, pid) {
 const APP_EXIT_START_CANCELLED = 3;
 
 // ---- agent selection ---------------------------------------------------------------------------
-/* GET /api/runtime/agent lists the roster ({agentId, name, model, provider}). Pick the run target:
-   --agent must exist; otherwise 'agent' (the hero); otherwise the first roster entry. --model / --provider
-   override the roster's. An empty roster is fine only when a model is given explicitly (the station runs a
-   bare 'agent' identity — same grace the cron driver has for a roster-less headless sidecar). */
+/* GET /api/runtime/agent lists the roster ({agentId, name, model, provider, wire}). Pick the run target:
+   --agent must exist; otherwise 'agent' (the hero); otherwise the first roster entry. The PAIR is the station's one
+   resolution (sidecar/run-wire.js): the row's `wire` — what that agent runs in COMMS, a routine or a channel — else, on an
+   older station without it, the raw row and then the station default (the top-level pair). --model / --provider are this
+   run's explicit level under the same rule: a bare --model runs on the agent's provider, and a bare --provider names no
+   model, so it is refused unless it is the provider the agent already runs on. An empty roster is fine only when a model
+   is given explicitly or the station reports one (the bare 'agent' identity — the cron driver's roster-less grace). */
+const RunWire = require('../../sidecar/run-wire.js');
 function pickAgent(runtime, want) {
   const rt = runtime || {};
   const w = want || {};
@@ -328,10 +332,17 @@ function pickAgent(runtime, want) {
     rec = agents.find(a => a && a.agentId === DEFAULT_AGENT_ID) || agents[0] || null;
   }
   const agentId = rec ? rec.agentId : DEFAULT_AGENT_ID;
-  const model = String(w.model || (rec && rec.model) || rt.model || '').trim();
-  const provider = String(w.provider || (rec && rec.provider) || rt.provider || 'openrouter').trim();
-  if (!model) return { ok: false, error: 'no model to run: agent ' + JSON.stringify(agentId) + ' has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' };
-  return { ok: true, agentId, name: rec ? rec.name : agentId, model, provider };
+  const own = (rec && rec.wire && rec.wire.model) ? rec.wire : rec;
+  const wire = RunWire.resolveRunWire({
+    agentId: 'cli-target',   // not the hero's id: the row and the station default stay two levels
+    explicit: (w.model || w.provider) ? { provider: w.provider || '', model: w.model || '' } : null,
+    agent: own, hero: { provider: rt.provider || '', model: rt.model || '' }
+  });
+  if (!wire.ok) return { ok: false, error: 'no model to run: agent ' + JSON.stringify(agentId) + ' has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' };
+  if (w.provider && !w.model && wire.ignored.some(x => x.source === 'explicit')) {
+    return { ok: false, error: '--provider ' + w.provider + ' needs --model too: a provider alone names no model, and agent ' + JSON.stringify(agentId) + ' runs on ' + wire.provider + ' / ' + wire.model };
+  }
+  return { ok: true, agentId, name: rec ? rec.name : agentId, model: wire.model, provider: wire.provider || 'openrouter', wireSource: wire.source };
 }
 
 /* Task or talk? The station wires tools ONLY into a run marked isTask, and the page decides it with the shared

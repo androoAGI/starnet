@@ -352,7 +352,7 @@ function makeRemoteHost(d) {
     // setImmediate, not a microtask: runOnce does a second or more of synchronous set-up before its first await,
     // and the phone's "accepted" reply must leave first (measured: the ack took 1.3 s behind a microtask start).
     new Promise((resolve) => setImmediate(resolve)).then(() => d.runOnce({
-      key: cred.key, model: cred.model, provider: cred.provider, baseUrl: cred.baseUrl || '', reasoningEffort: cred.reasoningEffort,
+      key: cred.key, model: cred.model, provider: cred.provider, baseUrl: cred.baseUrl || '', reasoningEffort: cred.reasoningEffort, wireSource: cred.wireSource,
       system: o.voice ? withVoiceStyle(cred.system) : cred.system, messages, agentId: o.agentId, isTask,
       // the persona (host credentials()) carries only its standing half; the station's observed evidence rides this run's
       // context note (a phone task's brief already carries it, so the host adds it only to a run without one)

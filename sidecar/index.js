@@ -299,6 +299,7 @@ const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
 const { routineRunIdentity, runsAsCommand } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
+const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
 const { sampleProblem } = require('./routing/sample-verdict.js');   // a sample job's "why not delivered", the line's own reason first (quick win 26)
 const Verdict = require('./routing/verdict.js');   // /api/routing/chain answers the next stage's VERDICT instruction, as hopTurn composes it
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
@@ -2829,30 +2830,68 @@ function warnRosterMiss(agentId, where) {
   rosterMissWarned.add(id);
   try { console.warn('[roster] identity fallback: agent ' + id + ' not in roster (' + (where || 'lookup') + ') — run proceeds on the station persona/default model, NOT impersonating it as ' + id); } catch (_) {}
 }
-/* "Follow station default": a specialist with NO model pin runs on the STATION DEFAULT — the Overseer's roster
-   model, provider and effort (what the page's stationDefaultWire resolves for COMMS). ONE resolver for every
-   headless surface: channel hops (channelRunConfigFor) and routines/loops/workshop (cronIdentityFor) both read it,
-   so an unpinned agent can never run on the Overseer's model in one lane and be refused in another (v0.12.5
-   refused every routine on an unpinned agent). Returns the Overseer's roster record, or null when the agent is
-   pinned, IS the Overseer, or the Overseer itself has no model (then there is no station default to follow). */
-function stationDefaultFor(id, ident) {
-  if (!ident || String(id || '') === 'agent' || String(ident.model || '').trim()) return null;
-  const hero = agentRoster.get('agent');
-  return hero && String(hero.model || '').trim() ? hero : null;
+/* RUN WIRE (run-wire-resolver lane, B1): the ONE {provider, model} decision. Every entry point asks runWireFor — COMMS and
+   any other run with no pair of its own (runOnceCore), the scheduled tick, Run Now and the phone (cronWireFor), the channel
+   hubs (channelRunConfigFor; the station hubs' entry config), a team.dispatch worker, group turns, /v1, GET
+   /api/runtime/agent (ACP and `starnet run`), the Live Doctor and diagnostics. The precedence lives in sidecar/run-wire.js:
+   the run's explicit pair, the agent's pin, the STATION DEFAULT (the Overseer's pin, what an unpinned agent follows — the
+   page's stationDefaultWire), a host fallback, the environment rule, else an honest refusal. Half a pair never mixes
+   fields: a bare model borrows the next level's provider; a provider with no model is no pin. This used to be decided
+   field by field at every entry point, so one agent ran one pair in COMMS and another from a routine, a phone or /v1. */
+function runWireEnv() {
+  // the environment rule (the old cronProviderFor back-compat): a station with no OpenRouter key but a ChatGPT sign-in can
+  // only run on ChatGPT, with ChatGPT's default model; otherwise STARNET_DEFAULT_MODEL on OpenRouter. ENV(): STARNET_ wins.
+  const provider = (!providerRuntimeKey('openrouter', '') && codexTokens && codexTokens.access_token) ? 'codex' : 'openrouter';
+  return { provider, model: registryProviderUsesCodex(provider) ? CODEX_DEFAULT_MODEL : String(ENV('DEFAULT_MODEL') || '').trim() };
 }
+function runWireFor(agentId, explicit, fallbacks) {
+  const id = String(agentId || '').trim() || 'agent';
+  return RunWire.resolveRunWire({
+    agentId: id, explicit: explicit || null,
+    agent: agentRoster.get(id) || null, hero: agentRoster.get('agent') || null,
+    fallbacks: fallbacks || [], env: runWireEnv(), normalizeProvider: normalizeProviderId
+  });
+}
+// A RUN's pair, as runOnceCore resolves it (and the voice route it must agree with): the caller's own {provider, model} is
+// the explicit level, labelled with the source the caller resolved it from (o.wireSource) when it did the resolving itself.
+// A pair the caller sent unlabelled that IS this agent's own wire (COMMS sends the station default for an unpinned agent)
+// is recorded under that wire's source, so the run row says 'station' rather than 'explicit' for the same pair.
+function runWireOfRun(o) {
+  const r = o || {};
+  const own = runWireFor(r.agentId);
+  if (!(r.provider || r.model)) return own;
+  const sent = runWireFor(r.agentId, { source: r.wireSource || 'explicit', provider: r.provider || '', model: r.model || '' });
+  return (!r.wireSource && own.ok && sent.provider === own.provider && sent.model === own.model) ? own : sent;
+}
+/* READOUTS: each roster agent with the pair its runs really go out on (run-wire.js) — what a chat's /agents, /whoami and
+   /model, the phone's agent list, group participants and /v1/models show. A raw row's empty model means "follows the
+   station default", never "no model set". tag=true marks a follower's model in words, for the chat readouts only. */
+function rosterWireRows(tag) {
+  return [...agentRoster].map(([agentId, a]) => {
+    const w = runWireFor(agentId);
+    const model = w.model ? (tag && w.followsStation ? w.model + ' (station default)' : w.model) : null;
+    return { agentId, name: a.name, model, provider: w.provider || null, wireSource: w.source };
+  });
+}
+// A routine's own saved pair is its explicit level (cron-store stores it only as a pair — pairCronJobWires below).
+function routineWireOf(job) {
+  return (job && (job.model || job.provider)) ? { source: 'routine', provider: job.provider || '', model: job.model || '' } : null;
+}
+function cronWireFor(job) { return runWireFor(job && job.agentId, routineWireOf(job)); }
 function cronIdentityFor(agentId) {
   const id = String(agentId || 'agent');
   const ident = agentRoster.get(id);
   if (!ident) { warnRosterMiss(id, 'cron'); return null; }
   const system = String(ident.system || '').trim();
-  const hero = stationDefaultFor(id, ident);
+  const wire = runWireFor(id);
   return {
     // an unpinned agent's routine runs on the station default model+provider (the SAME rule a channel hop uses);
     // its own persona/name still ride the run — following the station changes the model, never who it is.
-    model: (hero ? hero.model : ident.model) || null,
-    provider: (hero ? (hero.provider || ident.provider) : ident.provider) || null,
-    followsStation: !!hero,
-    reasoningEffort: hero ? hero.reasoningEffort : undefined,
+    model: wire.model || null,
+    provider: wire.provider || null,
+    followsStation: wire.followsStation,
+    reasoningEffort: wire.followsStation ? wire.reasoningEffort : undefined,
+    wireSource: wire.source,
     system: system ? withDossier(system + CRON_ROUTINE_NOTE, dossierWithGoals()) : null,
     name: ident.name || id
   };
@@ -2892,10 +2931,11 @@ function cronSystemFor(agentId) {
   const ident = cronIdentityFor(agentId);
   return (ident && ident.system) || withDossier(CRON_PERSONA, dossierWithGoals());
 }
+// the routine's model and provider are ONE resolution (cronWireFor), never a model from one level and a provider from another
 function cronModelFor(job) {
-  const ident = cronIdentityFor(job && job.agentId);
-  const rosterModel = ident && ident.model ? String(ident.model).trim() : '';
-  return ((job && job.model) ? String(job.model).trim() : '') || rosterModel || CRON_DEFAULT_MODEL;
+  const ident = agentRoster.get(String((job && job.agentId) || 'agent'));
+  if (!ident) warnRosterMiss(String((job && job.agentId) || 'agent'), 'cron');
+  return cronWireFor(job).model;
 }
 function normalizeProviderId(value) {
   return normalizeProviderIdFromRegistry(value, '');
@@ -3094,20 +3134,23 @@ function providerCredentialError(provider) {
   if (providerRequiresKey(id)) return 'connect a ' + label + ' API key';
   return 'provider is not configured';
 }
-function channelRunConfigFor(agentId, candidate) {
+/* opts (the station's own chat hubs, stationHubRunConfig below): unrostered — an id the roster does not hold (an unbound
+   chat's tg_<chatId>) runs unpinned on the station default instead of being refused; fallback — the pair the page handed
+   at connect, the last resort before the environment for a headless station that never received a roster. */
+function channelRunConfigFor(agentId, candidate, opts) {
   const id = String(agentId || '').trim();
   const ident = id ? agentRoster.get(id) : null;
-  if (!ident) return { ok: false, error: 'target agent ' + (id || '(missing)') + ' is not in the live roster' };
+  const o = opts || {};
+  if (!ident && !(o.unrostered && id)) return { ok: false, error: 'target agent ' + (id || '(missing)') + ' is not in the live roster' };
   // An agent with no model pin ("Follow station default") runs on the STATION DEFAULT: the Overseer's roster
   // model, provider and effort, exactly what COMMS resolves (frontend app.js stationDefaultWire). Refusing the
   // empty pin here broke workflow line hops, RUN A SAMPLE and chat channels for every unpinned specialist once
-  // the empty choice started surviving reloads.
-  const hero = stationDefaultFor(id, ident);
-  const followsStation = !!hero;
-  const provider = normalizeProvider(followsStation ? (hero.provider || ident.provider) : ident.provider);
+  // the empty choice started surviving reloads. ONE resolution (runWireFor), the same every other surface reads.
+  const wire = runWireFor(id, null, o.fallback ? [Object.assign({ source: 'connect' }, o.fallback)] : null);
+  const provider = normalizeProvider(wire.provider);
   // a batch-only '<id>:batch' an older build saved runs on its base model here too, as in runOnceCore: the Telegram setup
   // probe, NOT RIGHT? / SET IT UP FOR ME, skill evaluation and restored reviews stream this model without runOnceCore
-  const model = chatModelId(provider, String((followsStation ? hero.model : ident.model) || '').trim());
+  const model = chatModelId(provider, String(wire.model || '').trim());
   if (!model) return { ok: false, error: 'target agent ' + id + ' has no roster model' + (id !== 'agent' ? ' and the station default (the Overseer) has none' : '') };
   /* A browser build may hand the channel route a candidate key/base URL that has not entered the desktop
      runtime store. Accept it ONLY when the caller says it belongs to the SAME provider as the roster. This is
@@ -3121,9 +3164,25 @@ function channelRunConfigFor(agentId, candidate) {
   if (!providerHasCredential(provider, key, baseUrl)) return { ok: false, error: providerCredentialError(provider) + ' for target agent ' + id };
   return {
     ok: true, key, model, provider, baseUrl,
-    reasoningEffort: resolveReasoningEffort(provider, followsStation ? hero.reasoningEffort : ident.reasoningEffort),
-    system: ident.system || ''
+    reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort),
+    system: (ident && ident.system) || '',
+    wireSource: wire.source
   };
+}
+/* THE STATION'S OWN CHAT HUBS (Telegram, Discord, the generic channels, the dev channel) run the ROUTED agent's one pair,
+   read live for every message (channelRunConfigFor -> runWireFor) — never the model/provider the page handed at connect or
+   sync. That snapshot was the GLOBAL wire (the focused agent's pin), and it stayed: /model wrote the roster and replied
+   "changed" while the run kept the snapshot; a floor-routed specialist ran on the configured agent's model. The snapshot
+   keeps what it is for: the credential it was proven with (same provider only), the configured agent's composed prompt
+   while the roster holds none, and — on a headless station that never received a roster — its pair, as the last resort
+   before the environment rule. `snap` is the channel's saved record. */
+function stationHubRunConfig(agentId, snap) {
+  const s = snap || {};
+  const cfg = channelRunConfigFor(agentId, s.provider ? { provider: s.provider, key: s.key || '', baseUrl: s.baseUrl || s.base_url || '' } : null,
+    { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null });
+  if (!cfg.ok) return cfg;
+  const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
+  return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
 }
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
@@ -3177,14 +3236,10 @@ function cronHopConfigFor(agentId, fallback) {
   }
   return channelRunConfigFor(agentId);
 }
+// the provider half of the SAME resolution as cronModelFor (cronWireFor). The old ChatGPT-only back-compat rule (no
+// OpenRouter key + a ChatGPT sign-in -> codex) is the environment level of that resolution now (runWireEnv).
 function cronProviderFor(job) {
-  const ident = cronIdentityFor(job && job.agentId);
-  const explicit = normalizeProviderId((job && job.provider) || (ident && ident.provider) || '');
-  if (explicit) return explicit;
-  // Back-compat for already-persisted rosters/jobs from before provider was mirrored: if there is no
-  // OpenRouter key but a ChatGPT OAuth token exists, inherit the only runnable provider.
-  if (!providerRuntimeKey('openrouter', '') && codexTokens && codexTokens.access_token) return 'codex';
-  return 'openrouter';
+  return cronWireFor(job).provider || 'openrouter';
 }
 function cronKeyFor(provider) {
   return providerRuntimeKey(provider, '');
@@ -5816,7 +5871,8 @@ async function tickOverseer() {
         overseer.patchReview(review.id, { status: 'interrupted', error: 'The parent project is no longer trusted. Restore its project access before continuing.' }); continue;
       }
       const ident = agentRoster.get(review.agentId) || {};
-      const provider = normalizeProvider(ident.provider || '');
+      const reviewWire = runWireFor(review.agentId);   // the reviewer's ONE pair (run-wire.js), as on every other surface
+      const provider = normalizeProvider(reviewWire.provider || '');
       const key = providerRuntimeKey(provider, '');
       const baseUrl = providerRuntimeBaseUrl(provider, '');
       if (!providerHasCredential(provider, key, baseUrl)) {
@@ -5862,7 +5918,7 @@ async function tickOverseer() {
           .filter((w, i) => w && w.runId === review.waitingOn[i].workerRunId && w.status === 'running');
         const instruction = delegatedReportPrompt(members, waiting, review.followUp === true);
         try {
-          await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: ident.model,
+          await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
             system: ident.system || cronSystemFor(review.agentId), stationEvidence: !ident.system, lead: true, isTask: true,
             syntheticTrigger: true,
             surface: 'autonomous', signal: reviewAbort.signal, streamId: parent.id, runId, parentRunId: members[0].runId,
@@ -6711,11 +6767,43 @@ function loadCronJobs() {
       console.warn('[cron] repaired routine ' + h.id + ' toolset list ' + JSON.stringify(h.from) + ' -> ' + JSON.stringify(h.to) +
         (h.dropped.length ? ' (dropped unknown ' + JSON.stringify(h.dropped) + ')' : ''));
     }
+    // the routine's {provider, model} is stored WHOLE (pairCronJobWires): the same load the toolset repair rides
+    const wires = pairCronJobWires(repaired.jobs);
+    cronWiresPairedOnLoad = wires.changed;
+    repaired.jobs = wires.jobs;
     return repaired.jobs;
   } catch (e) {
     console.warn('[cron] load failed:', (e && e.message) || e);
     return Array.isArray(cronJobs) ? cronJobs : [];
   }
+}
+/* ROUTINES STORE THEIR PAIR WHOLE (run-wire-resolver lane). A routine holding HALF a pair — a model with no provider, or a
+   provider with no model (an older routine form stamped the station's provider; routine.create/manage can pass either
+   alone) — ran a tuple the fire path assembled field by field. Normalised on every load and every write, through the one
+   resolver (RunWire.pairSavedWire): a bare model is paired with the provider it has been running on (its agent's resolved
+   provider), so the tuple it ran is the tuple it keeps, now stated; a bare provider named no model, so it is cleared and
+   the routine follows its agent. NOTHING IS LOST: the record keeps what it held in wireMigration { at, was, now, reason }
+   (an earlier note rides on as `previous`), and each routine's change is logged once per boot. A script-only routine
+   never calls a model and is left as it is. Deterministic for the same roster and environment. */
+let cronWiresPairedOnLoad = 0;
+const cronWirePairNoted = new Set();
+function pairCronJobWires(jobs) {
+  let changed = 0;
+  if (!Array.isArray(jobs)) return { jobs, changed };   // not a job list: handed back untouched, never replaced
+  const out = jobs.map(j => {
+    if (!j || typeof j !== 'object' || j.noAgent === true) return j;
+    const r = RunWire.pairSavedWire({ provider: j.provider, model: j.model }, runWireFor(j.agentId));
+    if (!r.changed) return j;
+    changed++;
+    const note = { at: new Date().toISOString(), was: { provider: j.provider || null, model: j.model || null }, now: { provider: r.provider, model: r.model }, reason: r.reason };
+    if (j.wireMigration && typeof j.wireMigration === 'object') note.previous = { at: j.wireMigration.at || null, was: j.wireMigration.was || null };
+    if (!cronWirePairNoted.has(j.id)) {
+      cronWirePairNoted.add(j.id);
+      console.warn('[run-wire] routine ' + j.id + ' (' + (j.name || 'unnamed') + ') stored half a pair ' + JSON.stringify(note.was) + ' -> ' + JSON.stringify(note.now) + ': ' + r.reason);
+    }
+    return Object.assign({}, j, { provider: r.provider, model: r.model, wireMigration: note });
+  });
+  return { jobs: out, changed };
 }
 cronJobs = loadCronJobs();
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
@@ -6723,6 +6811,11 @@ cronJobs = loadCronJobs();
 if (cronToolsetsRepairedOnLoad) {
   try { saveCronJobs(); console.warn('[cron] saved the repaired toolset list of ' + cronToolsetsRepairedOnLoad + ' routine(s)'); }
   catch (e) { console.warn('[cron] toolset repair persist failed (re-applied on every load until a write lands):', (e && e.message) || e); }
+}
+// ...and a load-time wire pairing the same way (a failed write re-applies on every load, with the same result)
+if (cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad) {
+  try { saveCronJobs(); console.warn('[run-wire] saved the paired {provider, model} of ' + cronWiresPairedOnLoad + ' routine(s)'); }
+  catch (e) { console.warn('[run-wire] routine pair persist failed (re-applied on every load until a write lands):', (e && e.message) || e); }
 }
 /* W6 ONE-TIME SWEEP — on boot, collapse any accidental double-mints (jobs identical in agentId + normalized name
    + prompt), keeping the OLDEST, logging each removal plainly. This cleans up the pre-fix duplicate "ULTRON daily
@@ -6879,7 +6972,7 @@ const CRON_WRITE_RETRY_MS = 3;
 async function withCronWrite(mutate) {
   const run = () => {
     const prior = cronJobs;
-    cronJobs = mutate(loadCronJobs());
+    cronJobs = pairCronJobWires(mutate(loadCronJobs())).jobs;   // a write that leaves half a {provider, model} pair stores it whole (pairCronJobWires)
     try { saveCronJobs(); }
     catch (e) {
       try { cronJobs = loadCronJobs(); } catch (_) { cronJobs = prior; }
@@ -7369,6 +7462,7 @@ const cronDriver = makeCronDriver({
   emit: cronEmitNotify, newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   getKey: (provider) => cronKeyFor(provider),
   providerForJob: (job) => cronProviderFor(job),
+  wireForJob: (job) => cronWireFor(job),   // the routine's ONE {provider, model} resolution (run-wire.js), the same Run Now reads
   hasCredential: (provider, key) => cronHasCredential(provider, key),
   credentialError: (provider) => engineCredentialError(provider, 'this scheduled routine'),   // #89: the ONE sentence Run Now says too
   defaultModel: CRON_DEFAULT_MODEL, maxRunMs: CRON_MAX_RUN_MS, maxConsecutiveFailures: CRON_MAX_CONSECUTIVE_FAILURES,
@@ -7450,7 +7544,7 @@ const cronDriver = makeCronDriver({
       runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
       try {
         await runOnce({
-          key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
+          key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
           baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
           system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
           messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
@@ -10840,6 +10934,8 @@ function startTelegram(token, key, model, agentCfg) {
       const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '');
       return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
     },
+    // the ROUTED agent's live pair for every message (run-wire.js), never the connect-time snapshot above (stationHubRunConfig)
+    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets.telegram) || {}),
     persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
     groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
@@ -10855,7 +10951,7 @@ function startTelegram(token, key, model, agentCfg) {
     // In-messenger control surface (channel-agnostic): list agents / switch agent / change the bound agent's model.
     // roster + setModel read/write the SAME agentRoster the browser dossier uses (POST /api/roster) — one source
     // of truth, no per-chat override. modelCatalog is the boot-warmed OpenRouter id snapshot (empty -> skip check).
-    roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+    roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
     setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
     modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },   // re-warm on demand if a boot-time /models failure left it empty
     // MEDIA INGEST: a photo/video/voice/file sent in Telegram is downloaded (adapter getFile), stored in the
@@ -11262,6 +11358,7 @@ function startDiscord(token, key, model, agentCfg) {
         const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '');
         return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
       },
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets.discord) || {}),   // the routed agent's live pair (run-wire.js)
       persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(),
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
@@ -11272,7 +11369,7 @@ function startDiscord(token, key, model, agentCfg) {
       stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
       // In-messenger control surface — identical to Telegram because it lives in the shared hub (roster/setModel/
       // modelCatalog are the SAME app roster + boot-warmed catalog; NO per-channel routing logic here).
-      roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+      roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
       setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
       modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },   // re-warm on demand if a boot-time /models failure left it empty
       // the shared slash registry + the Commander's own commands — the SAME wiring the Telegram hubs carry. Without
@@ -11378,6 +11475,7 @@ function getDevHub() {
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     send: (chatId, text) => devCaptureReply(chatId, text),
     secrets: devHubSecrets,
+    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, devHubSecrets()),   // the routed agent's live pair; the env rule only with no roster
     persona: DEV_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
     briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: same recommendation line on the dev channel
     groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
@@ -11388,7 +11486,7 @@ function getDevHub() {
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
     resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
     stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
-    roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+    roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
     setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
     modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
     onResolved: (info) => { devResolved = info; },
@@ -11559,6 +11657,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
         const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '');
         return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
       },
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets[id]) || {}),   // the routed agent's live pair (run-wire.js)
       persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
       newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
       resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
@@ -11568,7 +11667,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
       resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
       stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
       // In-messenger control surface — identical across channels because it lives in the shared hub.
-      roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+      roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
       setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
       modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
       // the shared slash registry + the Commander's own commands — the SAME wiring the Telegram hubs carry. Without
@@ -11614,11 +11713,17 @@ const openaiCompat = makeOpenAiCompat({
   apiKey: () => String(ENV('API_KEY') || ENV('V1_KEY') || '').trim(),   // env STARNET_API_KEY / STARNET_V1_KEY (SKYNET_* alias too)
   resolveProviderKey: (provider) => providerRuntimeKey(normalizeProvider(provider), ''),
   resolveBaseUrl: (provider) => providerRuntimeBaseUrl(normalizeProvider(provider), ''),
-  roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+  roster: () => rosterWireRows(false),   // each agent with the pair its runs use (run-wire.js)
   store: channelStore,
   isAllowedHost: isAllowedHost,
   constTimeEq: apiauth.constTimeEq,
   defaultModel: () => String(ENV('V1_MODEL') || ENV('DEFAULT_MODEL') || '').trim(),
+  // every /v1 run's pair is the one every surface runs (run-wire.js). STARNET_V1_MODEL is this surface's environment
+  // default: below a roster pin and the station default, above STARNET_DEFAULT_MODEL, on the environment's provider
+  resolveWire: (agentId) => {
+    const v1Model = String(ENV('V1_MODEL') || '').trim();
+    return runWireFor(agentId, null, v1Model ? [{ source: 'env', provider: runWireEnv().provider, model: v1Model }] : null);
+  },
   maxConcurrent: () => num(ENV('V1_MAX_CONCURRENT'), 0),
   version: () => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } },
   newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -11875,7 +11980,7 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
   fs, path, root: WORKSPACES, now: () => Date.now(), id: () => crypto.randomUUID(),
   log: message => console.warn('[groups]', message),
   isBusy: agentId => [...runsMeta.values()].some(r => r.agentId === agentId),
-  roster: () => [...agentRoster].map(([id, a]) => ({ id, name: a.name, model: a.model, provider: a.provider })),
+  roster: () => rosterWireRows(false).map(r => ({ id: r.agentId, name: r.name, model: r.model, provider: r.provider })),   // participants' real pairs (run-wire.js)
   // The private jail IS a group run's base: group runs are never project-scoped (execute below passes runOnce no
   // projectRoot or workdir), so their relative names and receipts are jail-relative, the rule ctx.paths applies. If a
   // group run ever takes a project, route this through egressReader.readFor with that run's paths (run-paths review S3).
@@ -11901,13 +12006,17 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
   execute: async ({ g, t, ctx, runId, signal, emit, tools, prompt, askCommander }) => {
     const ident = agentRoster.get(t.agentId);
     if (!ident) throw new Error('Participant is no longer available');
-    const provider = normalizeProvider(ident.provider), key = providerRuntimeKey(provider, ''), baseUrl = providerRuntimeBaseUrl(provider, '');
+    // a participant runs the pair it runs everywhere else (run-wire.js): an unpinned one follows the station default, never
+    // the env model on a stale stamped provider
+    const wire = runWireFor(t.agentId);
+    if (!wire.ok) throw new Error('Choose a model for ' + (ident.name || t.agentId));
+    const provider = normalizeProvider(wire.provider), key = providerRuntimeKey(provider, ''), baseUrl = providerRuntimeBaseUrl(provider, '');
     if (!providerHasCredential(provider, key, baseUrl)) throw new Error('Connect the provider for ' + (ident.name || t.agentId));
     const ac = { abort: () => groupSessions.control(g.id, { action: 'pause' }).catch(e => console.warn('[groups] stop:', e.message)) };
     runs.set(runId, ac);
     runsMeta.set(runId, { agentId: t.agentId, startedAt: Date.now(), source: 'group', streamId: g.id });
     try {
-      return await runOnce({ agentId: t.agentId, model: ident.model, provider, key, baseUrl,
+      return await runOnce({ agentId: t.agentId, model: wire.model, provider, key, baseUrl, wireSource: wire.source,
         system: String(ident.system || '') + '\n' + ctx.system, messages: ctx.messages,
         runId, signal, emit, broadcast: true, streamId: g.id, sessionTitle: g.title,
         isTask: Classify.isTaskDirective(g.messages.find(m => m.id === t.origin)?.content || ''), trigger: 'directive',
@@ -12101,7 +12210,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   redact: (s) => redact(s),   // the desk save is raw: its turns are redacted before they merge or leave for the relay
   now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: remoteBroadcast,
   phoneAsksFirst: (deviceId) => remoteDevices.askFirst(deviceId),   // that phone was set to ALWAYS ASK at the desk
-  roster: () => [...agentRoster].map(([agentId, a]) => ({ agentId, name: a.name, model: a.model, provider: a.provider })),
+  roster: () => rosterWireRows(false),   // each agent with the pair its runs use (run-wire.js)
   liveRuns: () => {
     const out = [];
     for (const [runId, m] of runsMeta) out.push({ runId, agentId: m.agentId, startedAt: m.startedAt, source: m.source || 'interactive' });
@@ -12115,13 +12224,13 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   },
   // the same resolution a scheduled routine uses (roster model/provider, runtime key), minus the routine note
   credentials: (agentId) => {
-    const job = { agentId };
-    const model = cronModelFor(job), provider = cronProviderFor(job), key = cronKeyFor(provider);
+    const wire = runWireFor(agentId);   // the phone runs the pair this agent runs everywhere else (run-wire.js)
+    const model = wire.model, provider = wire.provider || 'openrouter', key = cronKeyFor(provider);
     if (!model) return { ok: false, error: 'choose a model for this agent at the desk first' };
     if (!cronHasCredential(provider, key)) return { ok: false, error: providerCredentialError(provider) + ' to run tasks from your phone' };
     const ident = agentRoster.get(agentId) || {};
     const raw = String(ident.system || '').trim();
-    return { ok: true, model, provider, key, baseUrl: providerRuntimeBaseUrl(provider, ''), reasoningEffort: resolveReasoningEffort(provider, ident.reasoningEffort),
+    return { ok: true, model, provider, key, baseUrl: providerRuntimeBaseUrl(provider, ''), reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort), wireSource: wire.source,
       system: raw ? withDossier(raw + REMOTE_NOTE, dossierWithGoals()) : withDossier(CRON_PERSONA + REMOTE_NOTE, dossierWithGoals()) };
   },
   // A phone run is a station run: it sits in `runs` + `runsMeta` like a group-session turn, so E-STOP (killAll(runs)),
@@ -14922,16 +15031,19 @@ async function voiceCatalogEntry(providerId, model, key, baseUrl) {
 }
 async function applyVoiceTurnRoute(o) {
   const setting = effectiveVoiceChat();
-  const rosterIdent = agentRoster.get(String(o.agentId || 'agent')) || null;
-  // the agent's own route, resolved exactly as runOnceCore resolves it
-  const mainProvider = normalizeProvider(o.provider || (rosterIdent && rosterIdent.provider) || '');
-  const mainModel = chatModelId(mainProvider, String(o.model || '').trim() || (rosterIdent && rosterIdent.model ? String(rosterIdent.model).trim() : '')
+  // the agent's own route, resolved exactly as runOnceCore resolves it (the same runWireOfRun, so the two cannot drift)
+  const mainWire = runWireOfRun(o);
+  const mainProvider = normalizeProvider(mainWire.provider || '');
+  const mainModel = chatModelId(mainProvider, String(mainWire.model || '').trim()
     || (providerUsesCodex(mainProvider) ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL));
-  const mainBaseUrl = o.baseUrl || o.base_url || '';
+  // the caller's key and endpoint belong to the provider it named; one the resolution passed over carries neither
+  const callerCredential = !o.provider || normalizeProvider(o.provider) === mainProvider;
+  const callerKey = callerCredential ? (o.key || '') : '';
+  const mainBaseUrl = callerCredential ? (o.baseUrl || o.base_url || '') : '';
   const tProvider = setting.model ? normalizeProvider(setting.provider || mainProvider) : mainProvider;
   const sameProvider = tProvider === mainProvider;
   // a key the page sent belongs to the agent's provider; it never crosses to another one
-  const tKey = providerRuntimeKey(tProvider, sameProvider ? (o.key || '') : '');
+  const tKey = providerRuntimeKey(tProvider, sameProvider ? callerKey : '');
   const tBaseUrl = providerRuntimeBaseUrl(tProvider, sameProvider ? mainBaseUrl : '', tKey);
   const credentialOk = !!setting.model && !!getProviderProfile(tProvider) && providerHasCredential(tProvider, tKey, tBaseUrl);
   const swapping = credentialOk && !(sameProvider && setting.model === mainModel);
@@ -14957,7 +15069,7 @@ async function applyVoiceTurnRoute(o) {
   let plan = voiceChatRoute.planVoiceRoute(facts);
   if (plan.route === 'main' && plan.reasoningEffort === 'none') {
     // staying on the agent's model with reasoning off: clamp to what THAT model offers
-    const mainKey = providerRuntimeKey(mainProvider, o.key || '');
+    const mainKey = providerRuntimeKey(mainProvider, callerKey);
     const mainEntry = await voiceCatalogEntry(mainProvider, mainModel, mainKey, providerRuntimeBaseUrl(mainProvider, mainBaseUrl, mainKey));
     plan = voiceChatRoute.planVoiceRoute(Object.assign(facts, { mainEfforts: mainEntry && mainEntry.reasoningEfforts }));
   }
@@ -14970,7 +15082,7 @@ async function applyVoiceTurnRoute(o) {
     next.provider = plan.provider; next.model = plan.model; next.key = tKey; next.baseUrl = tBaseUrl; next.base_url = '';
     // a page's key pool is the agent provider's; the agent's own route answers if the voice model fails mid-turn
     if (!sameProvider) next.keyPool = undefined;
-    next.fallbackProviders = [{ provider: mainProvider, model: mainModel, key: o.key || '', baseUrl: mainBaseUrl }]
+    next.fallbackProviders = [{ provider: mainProvider, model: mainModel, key: callerKey, baseUrl: mainBaseUrl }]
       .concat(Array.isArray(o.fallbackProviders) ? o.fallbackProviders : []);
   } else if (plan.reason) {
     console.warn('[voice-chat] ' + tProvider + '/' + setting.model + ' not used (' + voiceChatRoute.reasonText(plan.reason) + '); the voice turn runs on ' + mainProvider + '/' + mainModel);
@@ -15305,22 +15417,23 @@ function handleRuntimeKnobsGet(req, res) {
    whether a run could actually start right now. Behind the same per-launch token + loopback pin as every /api
    route, so this is not a new trust surface. */
 function handleRuntimeAgent(req, res) {
-  // A headless client is an UNPINNED caller, so it runs on the station default: the record stationDefaultFor hands every
-  // unpinned agent (the hero's model + provider — what a routine or a channel hop of an unpinned agent runs on). Only a
-  // station whose hero has no model yet falls back to the bare headless rule (devHubSecrets: provider 'openrouter' + the
-  // runtime credential + STARNET_DEFAULT_MODEL). GitHub #96 follow-up: a ChatGPT-only station answered
-  // openrouter / no model / configured:false here, so the editor bridge refused to run on a station that runs fine.
-  // Not a new resolver: a later run-wire lane replaces this path.
-  const stationDefault = stationDefaultFor('headless', {});
-  const provider = stationDefault ? normalizeProvider(stationDefault.provider) : 'openrouter';
+  // The top-level pair is the Overseer's ('agent', what ACP runs as): its pin IS the station default every unpinned agent
+  // follows; a station whose Overseer has no model yet answers the environment rule (STARNET_DEFAULT_MODEL). GitHub #96
+  // follow-up: a ChatGPT-only station answered openrouter / no model / configured:false here and the editor bridge refused.
+  // Each roster row carries its OWN resolved `wire` (run-wire.js — the same resolution every surface runs), so a client
+  // that targets one agent (`starnet run --agent`) runs the pair that agent runs in COMMS, never a raw row's half.
+  const stationWire = runWireFor('agent');
+  const provider = normalizeProvider(stationWire.provider);
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = stationDefault ? String(stationDefault.model).trim() : String(ENV('DEFAULT_MODEL') || '').trim();
+  const model = String(stationWire.model || '').trim();
+  const wireOf = (agentId) => { const w = runWireFor(agentId); return { provider: w.provider || null, model: w.model || null, source: w.source, followsStation: w.followsStation }; };
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
     provider: provider,
     model: model,
+    wireSource: stationWire.source,   // which level chose the pair (agent = the Overseer's pin, env = STARNET_DEFAULT_MODEL)
     // configured = a run can start: a credential for this provider AND a model to run it on. Both, because
     // either one missing is a 400 from /api/run, and a client that is told "configured" and then 400s learns
     // nothing about which half is wrong.
@@ -15330,7 +15443,10 @@ function handleRuntimeAgent(req, res) {
       agentId, name: (a && a.name) || agentId, model: (a && a.model) || null, provider: (a && a.provider) || null,
       // the settings a run here is held to (additive): its reasoning effort and its approval mode, as the roster has them
       reasoningEffort: (a && a.reasoningEffort) || null, approvalMode: (a && a.approvalMode) || null,
-      personaId: (a && a.personaId) || ((agentRosterRaw.get(agentId) || {}).personaId) || null
+      personaId: (a && a.personaId) || ((agentRosterRaw.get(agentId) || {}).personaId) || null,
+      // (additive) the pair a run of this agent really goes out on, and where it came from — the raw model/provider above
+      // are the roster row as saved (an unpinned row has no model; it follows the station default)
+      wire: wireOf(agentId)
     }))
   }));
 }
@@ -16526,10 +16642,14 @@ function cronStateSnapshot(now) {
   // halted says the timer is frozen anyway, so the panel can say "paused by E-STOP" instead of a false "armed".
   // `inFlight` (additive, bug-sweep 2026-08-28): real per-job lease state (mirrors the loops snapshot's
   // inFlight) so the panel can gray RUN NOW on a routine that is genuinely running instead of double-firing.
+  // `wire` (additive, run-wire-resolver lane): the {provider, model} this routine's next fire really runs and where it came
+  // from (routine / agent / station / env) — the same resolution the tick and Run Now use (cronWireFor)
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    return (lease && !lease.settlement) ? Object.assign({}, j, { inFlight: true }) : j;
+    const w = cronWireFor(j);
+    const wire = { provider: w.provider || null, model: w.model || null, source: w.source };
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, { wire });
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
@@ -17166,8 +17286,10 @@ async function handleCronRun(req, res) {
     // invisible unicode, but the raw string was what reached the model. Inert sanitization until this line.
     if (typeof scan.cleaned === 'string' && scan.cleaned) assembledPrompt = scan.cleaned;
   }
-  const model = cronModelFor(job);
-  const provider = cronProviderFor(job);
+  // the SAME one resolution the scheduled tick reads (cron driver wireForJob): Run Now is that fire, pressed by hand
+  const runWire = cronWireFor(job);
+  const model = runWire.model;
+  const provider = runWire.provider || 'openrouter';
   const key = cronKeyFor(provider);
   if (!job.noAgent && (!model || !cronHasCredential(provider, key))) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -17270,7 +17392,8 @@ async function handleCronRun(req, res) {
       ...routineRunIdentity(job, firedAt),
       // "Follow station default": same effort rule as the scheduled fire (cron-driver.js) — an unpinned agent with
       // no explicit routine model runs on the Overseer's effort along with its model.
-      reasoningEffort: (() => { const ri = !(job.model && String(job.model).trim()) ? cronIdentityFor(job.agentId) : null; return ri && ri.followsStation ? ri.reasoningEffort : undefined; })(),
+      reasoningEffort: runWire.followsStation ? runWire.reasoningEffort : undefined,
+      wireSource: runWire.source,   // where the pair came from, on the run row (same field the scheduled fire records)
       // LINE WATCH: the row records the bay + line this Run Now's crate named (placeCronWorkitem above)
       lineId: (cronItems.get(runId) || {}).lineId || undefined, dockId: (cronItems.get(runId) || {}).dockId || undefined,
       // per-bay capability isolation (B5): Run Now runs in the SAME bay room the scheduled fire gets (cron-driver.js
@@ -17350,7 +17473,7 @@ async function handleCronRun(req, res) {
             runsMeta.set(hopRunId, { agentId: String(h.agentId || 'agent'), startedAt: Date.now(), source: 'cron' });
             try {
               await runOnce({
-                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider,
+                key: hopConfig.key, model: hopConfig.model, provider: hopConfig.provider, wireSource: hopConfig.wireSource || undefined,
                 baseUrl: hopConfig.baseUrl || '', reasoningEffort: hopConfig.reasoningEffort,
                 system: cronSystemFor(h.agentId), stationEvidence: true,   // the persona's observed half rides the run context (dossierWithGoals)
                 messages: [{ role: 'user', content: h.text }], agentId: h.agentId, isTask: true,   // lineId: ONE key below (the chain's own h.lineId)
@@ -20617,7 +20740,9 @@ async function handleRun(req, res) {
   // (the goal loop's done/continue judge), and the WAKE preflight (it proves the path the awakening uses). Every other
   // internal run is strict-format self-talk on the aux effort.
   const keepEffort = !!(internal && body && body.keepEffort === true);
-  const runProvider = normalizeProvider(provider);
+  // a body that names a model and no provider runs that model on the provider its agent resolves to (run-wire.js: a bare
+  // model borrows the next level's provider), never on a hard-coded OpenRouter
+  const runProvider = normalizeProvider(provider || (model ? runWireFor(agentId, { model: String(model) }).provider : ''));
   const reasoningEffort = resolveReasoningEffort(runProvider, body && (body.reasoningEffort || body.reasoning_effort || (body.reasoning && body.reasoning.effort)));
   const preloadSkills = Array.isArray(body && body.preloadSkills) ? body.preloadSkills.map(s => String(s || '').trim()).filter(Boolean).slice(0, 8) : [];
   const streamId = (body && body.streamId && /^[A-Za-z0-9_-]{1,64}$/.test(String(body.streamId))) ? String(body.streamId) : null;   // M-mem.2b: the active workstream (bounded; bad → global)
@@ -21359,22 +21484,28 @@ async function runOnceCore(o) {
   // (identityFallback) so the gap is visible in history instead of the run silently masquerading as that agent.
   const identityFallback = !rosterIdent && String(agentId || '') !== '' && String(agentId || '') !== 'agent';
   if (identityFallback) warnRosterMiss(agentId, 'runOnce');
-  const providerId = normalizeProvider(o.provider || (rosterIdent && rosterIdent.provider) || '');
+  // ONE RESOLUTION (run-wire.js, runWireOfRun): the caller's own pair, else this agent's pin, else the station default
+  // (what an unpinned agent follows on every surface), else the environment rule — never field by field. A caller's bare
+  // provider names no model, so it is passed over, and its key and endpoint with it (a credential never crosses providers).
+  const runWire = runWireOfRun(o);
+  const providerId = normalizeProvider(runWire.provider || '');
+  const callerCredential = !o.provider || normalizeProvider(o.provider) === providerId;
   const usingCodex = providerUsesCodex(providerId);
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
   let providerUnmetered = !!((getProviderProfile(providerId) || {}).unmetered);
   let runUnmetered = providerUnmetered;
   // Class Loadouts S1: reasoning-effort precedence = explicit run-option > this agent's roster record (the class
-  // applied default) > provider default. An explicit per-run choice still wins; the roster only fills a gap.
-  const reasoningEffort = resolveReasoningEffort(providerId, o.reasoningEffort || o.reasoning_effort || (o.reasoning && o.reasoning.effort) || (rosterIdent && rosterIdent.reasoningEffort));
-  let model = String((o && o.model) || '').trim() || (rosterIdent && rosterIdent.model ? String(rosterIdent.model).trim() : '') || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);
+  // applied default) > provider default. An explicit per-run choice still wins; the roster only fills a gap. An agent that
+  // follows the station default runs on the Overseer's effort with its model, as a routine or a channel hop does.
+  const reasoningEffort = resolveReasoningEffort(providerId, o.reasoningEffort || o.reasoning_effort || (o.reasoning && o.reasoning.effort) || (runWire.followsStation ? runWire.reasoningEffort : (rosterIdent && rosterIdent.reasoningEffort)));
+  let model = String(runWire.model || '').trim() || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);
   // A batch-only variant ('<id>:batch') an older build offered and saved can never run on chat/completions (404 on every
   // run); run its base model instead. The sidecar never rewrites the saved roster or routine record (the page's model
   // dock does move ITS selection to the base row and saves it: modeldock.js catalogEquivalent); this run's own events,
   // history and cost name the model it really used.
   model = chatModelId(providerId, model);
-  const runKey = providerRuntimeKey(providerId, key);
-  const baseUrl = providerRuntimeBaseUrl(providerId, o.baseUrl || o.base_url || '', runKey);   // #89: a page copy's endpoint rides only its own key
+  const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
+  const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey);   // #89: a page copy's endpoint rides only its own key
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -22167,7 +22298,9 @@ async function runOnceCore(o) {
       const k = providerRuntimeKey(id, '');
       const b = providerRuntimeBaseUrl(id, '');
       return providerHasCredential(id, k, b) ? { provider: id, key: k, baseUrl: b } : null;
-    }
+    },
+    // a worker runs the pair it runs on every other surface (run-wire.js): its pin, else the station default
+    resolveWire: (aid) => runWireFor(aid)
   }).register(registry);
   // session.list/create/focus: the LEAD's session verbs, over the same station bridge dispatch's resolver
   // uses. Same 'orchestrator' capability gate as team.* — conferred on the lead run only, so a delegated
@@ -24905,7 +25038,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = Date.now();
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: runUnmetered && mediaUsd === 0, unpriced: runUnpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: trigger === 'schedule' ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -26252,14 +26385,16 @@ function collectDiagnosticsInput(opts) {
     const origin = String(opts.origin || '').toLowerCase();
     const mode = opts.mode === 'desktop' || opts.mode === 'browser'
       ? opts.mode : (TAURI_ORIGINS.has(origin) ? 'desktop' : (origin ? 'browser' : ''));
-    // active provider + model SLUG (never a key): the newest run is the strongest proof of what actually ran; fall
-    // back to the primary roster agent's configured identity when no run has happened yet.
+    // active provider + model SLUG (never a key), always as a PAIR from one source: the caller's run, else the newest run
+    // (the strongest proof of what actually ran), else the pair the Overseer's runs resolve to (run-wire.js) when no run
+    // has happened yet — never a provider from one source and a model from another.
     const recent = (() => { try { return runStore.list(null, { limit: 1 })[0] || null; } catch (_) { return null; } })();
     let provider = String(opts.provider || ''), model = String(opts.model || '');
     try {
-      const first = agentRoster.size ? [...agentRoster.values()][0] : null;
-      provider = provider || (recent && recent.provider) || (first && first.provider) || (runtimeKey ? 'openrouter' : (codexTokens && codexTokens.access_token ? 'codex' : ''));
-      model = model || (recent && recent.model) || (first && first.model) || '';
+      if (!provider && !model) {
+        const w = (recent && (recent.provider || recent.model)) ? { provider: recent.provider, model: recent.model } : runWireFor('agent');
+        provider = String(w.provider || ''); model = String(w.model || '');
+      }
     } catch (_) {}
     // is ANY credential configured for that provider? bool ONLY — the key itself is never read into the snapshot.
     let keyPresent = false;
@@ -26354,11 +26489,15 @@ async function handleLiveDoctor(req, res) {
   if (requested && !rec) return json(404, { error: 'unknown agent' });
   const targets = [];
 
-  // SELECTED MODEL: one tiny inference through the exact provider adapter + credential source a normal run uses.
-  const providerId = normalizeProvider((rec && rec.provider) || (runtimeKey ? 'openrouter' : (codexTokens && codexTokens.access_token ? 'codex' : 'openrouter')));
-  const model = chatModelId(providerId, String((rec && rec.model) || '').trim());   // the model a run really uses (a saved :batch id runs on its base)
-  const reasoningEffort = resolveReasoningEffort(providerId, rec && rec.reasoningEffort);
-  targets.push({ kind: 'provider', id: providerId, label: providerId + (model ? ' / ' + model : ''), probe: async () => {
+  // SELECTED MODEL: one tiny inference through the exact provider adapter + credential source a normal run uses — on the
+  // pair a run of this agent really goes out on (run-wire.js), never the raw roster row: an unpinned agent follows the
+  // station default, so its row's empty model read "no model selected" (and a stale stamped provider was probed) while
+  // its real runs worked. The report names the pair and where it came from (report.wire).
+  const doctorWire = runWireFor(agentId || 'agent');
+  const providerId = normalizeProvider(doctorWire.provider || '');
+  const model = chatModelId(providerId, String(doctorWire.model || '').trim());   // the model a run really uses (a saved :batch id runs on its base)
+  const reasoningEffort = resolveReasoningEffort(providerId, doctorWire.reasoningEffort);
+  targets.push({ kind: 'provider', id: providerId, label: providerId + (model ? ' / ' + model : '') + ' · ' + (RunWire.SOURCE_LABELS[doctorWire.source] || doctorWire.source), probe: async () => {
     const profile = getProviderProfile(providerId);
     const baseUrl = providerRuntimeBaseUrl(providerId, '');
     const key = providerRuntimeKey(providerId, '');
@@ -26468,6 +26607,8 @@ async function handleLiveDoctor(req, res) {
       confirmed: true, agentId, targets, clock: { now: () => Date.now() }
     });
     out.report.build = computeVersionSurface();
+    // the pair the probe used IS the pair this agent's runs use, and where it came from (no key, no endpoint)
+    out.report.wire = { agentId: agentId || 'agent', provider: providerId, model, source: doctorWire.source, providerSource: doctorWire.providerSource, followsStation: doctorWire.followsStation };
     return json(200, out);
   } catch (e) { return json(500, { error: 'live doctor failed', detail: redact((e && e.message) || e) }); }
 }
