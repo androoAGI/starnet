@@ -477,8 +477,11 @@ A.ok(/ALREADY ON THE BOARD/.test(tKnown.prompt) && tKnown.prompt.indexOf('- Buil
 A.eq(tKnown.conversation, tPlain.conversation,
   '…and the quote-veto haystack is UNCHANGED — the block must never become minable "conversation"');
 A.ok(threadmine.buildPrompt(MSGS, 6000, new Array(80).fill('a thread')).prompt.split('- a thread').length - 1 <= 20, '…bounded');
+// (context-key-redact r2: the live titles come through threads-store promptTitles(), which scrubs them for the prompt)
+const threadsStoreSrc = ((sidecarSourceFiles().find(f => f.rel === 'sidecar/threads-store.js') || {}).text) || '';
 A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc)
-  && /knownTitles = \(threadsStore\.read\(\)\.threads \|\| \[\]\)\.filter\(t => t && t\.state !== 'declined'\)/.test(sidecarSrc),
+  && /knownTitles = threadsStore\.promptTitles\(\)/.test(sidecarSrc)
+  && /read\(\)\.threads\.filter\(t => t && t\.state !== 'declined'\)/.test(functionSourceIn(threadsStoreSrc, 'promptTitles')),
   'the sidecar passes the LIVE thread titles (the declined half has no title to show — post-hoc only)');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════
