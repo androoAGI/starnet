@@ -512,7 +512,8 @@ function applyApiCors(req, res) {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');   // PATCH: /api/routing/triggers/:id (line triggers)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token');   // accept the legacy header name too (old Tauri shell)
+  // accept the legacy token header too (old Tauri shell); X-Speech-Deadline-Ms: a sentence's deadline budget (media-service.js)
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
   res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache');
@@ -12155,6 +12156,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/run-recoveries/resolve', h: handleRunRecoveryResolve },
   { m: 'POST', exact: '/api/run-recoveries/continue', h: handleRunRecoveryContinue },
   { m: 'POST', exact: '/api/tts', h: media.handleTts, errorPolicy: media.ttsFailOpenPolicy },
+  { m: 'GET', exact: '/api/tts/status', h: media.handleTtsStatus },   // the last outcome of every speech leg (sidecar/speech-outcome.js)
   // stt: qsplit == the old (url === '/api/stt' || url.indexOf('/api/stt?') === 0) disjunction, verbatim.
   { m: 'POST', qsplit: '/api/stt', h: media.handleStt, errorPolicy: media.sttFailOpenPolicy },
   { m: 'POST', exact: '/api/cancel', h: handleCancel },
@@ -12758,6 +12760,7 @@ server.listen(PORT, '127.0.0.1', () => {
   if (DEV_MODE) console.log('     ⚡ DEV SEED MODE — onboarding auto-skipped; the page resumes the seeded agent.');
   console.log(bar + '\n');
   try { openaiCompat.announce(); } catch (_) {}   // one honest boot line: is the /v1 external-harness API live?
+  media.startFloorProbe();   // one background check of the free Edge voice floor, logged + kept in /api/tts/status
   // STARNET REMOTE: reopen the phone door only if the Commander left Remote switched on
   try {
     if (remoteDevices.enabled()) remoteStartDoors().then(

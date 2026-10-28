@@ -170,7 +170,7 @@ const SYNC_BASELINE = {
   'mcp/translate.js': 1,
   'mcp/transport.http.js': 5,
   'mcp/transport.stdio.js': 5,
-  'media-service.js': 21,
+  'media-service.js': 15,
   'native-stt.js': 1,
   'nightshift-driver.js': 5,
   'openai-compat.js': 18,

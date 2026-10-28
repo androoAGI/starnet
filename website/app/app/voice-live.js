@@ -345,17 +345,15 @@ const VoiceLive = (() => {
 
   function availabilityFailure(response) {
     if (!response || response.ok !== false) return null;
-    // a page the station KEPT its key from (Harness.tokenWithheld) gets the same 403, but it is not a restart: a reload
-    // only re-runs the same ownership check, so it carries the withheld notice instead (review threads-backend-05)
-    const withheld = response.status === 403 && typeof Harness !== 'undefined' && Harness
-      && typeof Harness.tokenWithheld === 'function' && Harness.tokenWithheld()
-      ? ((typeof Harness.tokenWithheldNotice === 'function' && Harness.tokenWithheldNotice())
-        || 'StarNet could not confirm this browser is yours — see the station notice.')
-      : '';
+    // The ONE reading of a refused reply (Harness.classifyApiFailure, shared with voice synthesis and push-to-talk): a
+    // 403 is a restart only when the page's stale-token recovery proved it, and a page the station KEPT its key from
+    // (tokenWithheld) carries the withheld notice instead, since a reload only re-runs the same check (threads-backend-05).
+    const failure = typeof Harness !== 'undefined' && Harness && typeof Harness.classifyApiFailure === 'function'
+      ? Harness.classifyApiFailure(response) : null;
     return {
       probeFailed: true,
-      staleSession: response.status === 403 && !withheld,
-      tokenWithheld: withheld,
+      staleSession: !!(failure && failure.staleSession),
+      tokenWithheld: (failure && failure.tokenWithheld) || '',
       status: Number(response.status) || 0
     };
   }

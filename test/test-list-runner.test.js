@@ -167,9 +167,11 @@ function alive(pid) {
       A.ok(seen[k] && seen[k] !== realAppData && /starnet-gate-profile-/.test(seen[k]), 'R5: ' + k + ' is the hermetic profile, never the real one');
     }
     if (process.platform !== 'win32') A.ok(/starnet-gate-profile-/.test(seen.HOME || ''), 'R5: HOME is the hermetic profile on POSIX');
-    const env = runner.buildStepEnv({ Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/real' }, 'C:/profile', 'win32');
-    A.eq(env, { Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/profile', LOCALAPPDATA: 'C:/profile', XDG_DATA_HOME: 'C:/profile' },
-      'R5: Windows keeps mixed-case spawn variables and the real HOME (git identity); the profile wins APPDATA');
+    // every step's sidecar is quiet: the boot-time floor probe (a live request to Microsoft 15 s after listen) is off
+    A.eq(seen.SKYNET_EDGE_TTS_PROBE, '0', 'R5: the boot-time voice floor probe is switched off for every step');
+    const env = runner.buildStepEnv({ Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/real', SKYNET_EDGE_TTS_PROBE: '1' }, 'C:/profile', 'win32');
+    A.eq(env, { Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/profile', LOCALAPPDATA: 'C:/profile', XDG_DATA_HOME: 'C:/profile', SKYNET_EDGE_TTS_PROBE: '0' },
+      'R5: Windows keeps mixed-case spawn variables and the real HOME (git identity); the profile wins APPDATA; the floor probe is off');
     const posixEnv = runner.buildStepEnv({ PATH: '/bin', HOME: '/home/real' }, '/tmp/p', 'linux');
     A.eq(posixEnv.HOME, '/tmp/p', 'R5: POSIX HOME is the hermetic profile');
 
