@@ -292,7 +292,9 @@
      field and scheme names in both cases (ci) instead of taking the i flag. */
   const ci = src => src.replace(/[a-z]/g, c => '[' + c + c.toUpperCase() + ']');
   const FIELD_NAMES = ci('api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|private[_-]?key|secret[_-]?key|bot[_-]?token|webhook[_-]?secret|password|passwd|authorization');
-  const AUTH_SCHEME = '(?:' + ci('bearer|basic|token|bot') + ')\\s+(?!(?:' + FIELD_NAMES + ')\\b)';
+  // the scheme's credential is on ITS line: 'Authorization: Basic\r\nHost: …' (an empty header) must not take the next
+  // header's name as the credential (review r3)
+  const AUTH_SCHEME = '(?:' + ci('bearer|basic|token|bot') + ')[ \\t]+(?!(?:' + FIELD_NAMES + ')\\b)';
   const PLACEHOLDER = '(?:\\[[A-Z][A-Z0-9_]* saved in API KEYS\\]'   // a saved key's NAME (keys.js keyPlaceholder, prompt-scrub's held form)
     + '|\\$\\{\\{[^{}\\n]{1,80}\\}\\}'                     // ${{ secrets.NAME }}
     + '|\\$\\{[A-Za-z_][A-Za-z0-9_.:-]{0,80}\\}'          // ${NAME}, ${env:NAME}, ${NAME:-x}

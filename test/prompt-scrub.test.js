@@ -290,6 +290,9 @@ context.setKnownSecretSource(null);
   for (const keep of ['Set api_key=${INSTANTLY_API_KEY}.', 'f(api_key={{ api_key }})', '"password": "<your password here>"', 'x={"api_key":"${KEY}\\"}',
     'api_key=[INSTANTLY_API_KEY saved in API KEYS] (saved)', 'export PASSWORD=%DB_PASSWORD%&& run'])
     A.eq(context.redact(keep), keep, 'r3: a whole placeholder is left alone: ' + keep);
+  // r3: an auth scheme with nothing after it on its line does not take the NEXT line as its credential
+  A.eq(context.redact('Authorization: Basic\r\nHost: api.example.com'), 'Authorization: [redacted-secret]\r\nHost: api.example.com', 'r3: an empty Basic header keeps the next header name (as base)');
+  A.eq(context.redact('authorization: token\n  X-Trace: 1234'), 'authorization: [redacted-secret]\n  X-Trace: 1234', 'r3: an empty token header keeps the next header name');
   // r3: a shell / code REFERENCE to a saved key is not the key: keys.save tells the model 'in the shell it is the env var
   // NAME', and a clean station's stored instructions said 'Bearer $INSTANTLY_API_KEY' — r2 turned it into 'Bearer
   // [redacted-secret]' in every tool result and internal run, and a read-modify-write saved the placeholder back
