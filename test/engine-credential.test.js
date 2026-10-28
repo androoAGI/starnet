@@ -242,7 +242,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   A.ok(/const ENGINE_KEYS_FILE = path\.join\(WORKSPACES, '\.secrets', 'provider-keys\.json'\);/.test(src), 'the copy lives in the protected .secrets/ sibling of the fs jail');
   A.ok(/load: \(\) => DESKTOP_SHELL \? undefined :/.test(src) && /if \(DESKTOP_SHELL\) return json\(409/.test(body('handleEngineKeySet')), 'the desktop app (OS keychain) never reads or writes the plaintext copy');
   A.ok(/persist: \(envelope\) => saveCredentialRemovalVerified\(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'\)/.test(src), 'main AND .bak are written and read back (a replaced key never lingers in .bak)');
-  A.ok(/\{ values: engineKeys\.secretValues\(\) \}/.test(body('stationSecretValues')), 'the page copy is a known secret for redaction');
+  // (context-key-redact r3: each computed part is read in its own try — secretPart — so one throwing getter cannot blind the list)
+  A.ok(/\{ values: secretPart\('engineKeys', \(\) => engineKeys\.secretValues\(\)\) \}/.test(body('stationSecretValues')), 'the page copy is a known secret for redaction');
   A.ok(/\{ m: 'POST', exact: '\/api\/providers\/engine-key', h: handleEngineKeySet \}/.test(src), 'the route is an ordinary /api/* POST (token + Host + Origin gate)');
   A.ok(!/TOKEN_EXEMPT[^\n]*engine-key/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'apiauth.js'), 'utf8')), 'and it is NOT token-exempt');
   const h = body('handleEngineKeySet');

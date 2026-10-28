@@ -390,6 +390,12 @@ const SEED = {
       A.ok((await call('loop.list')).content.indexOf(K.SLACK.value) < 0, 'P11: a scrubber that throws withholds the result (fail closed)');
     } finally { attachResultScrub(null); }
     A.ok(/attachResultScrub\(PromptScrub\.scrubStored\)/.test(S.readSidecarSource()), 'P11: boot attaches the stored-text scrub to the registry');
+    // r3: the host's held source reads each part in its own try and tallies a failure (one bad row cannot blind the list)
+    const idxSrc = S.readSidecarSource();
+    A.ok(/catch \(e\) \{ failNote\('prompt-scrub\.heldSource\.serviceKeys', e\); \}/.test(idxSrc) && /try \{ creds = stationCredentialValues\(\); \} catch \(e\) \{ failNote\('prompt-scrub\.heldSource\.station', e\); \}/.test(idxSrc),
+      'P11: the held source reads service keys and station credentials in separate tries, each tallied');
+    A.ok(/\{ values: secretPart\('engineKeys', \(\) => engineKeys\.secretValues\(\)\) \}/.test(idxSrc) && /secretPart\('gmailPasswords', /.test(idxSrc) && /\{ keyed: secretPart\('serviceKeys', \(\) => liveServiceKeys\(\)\) \}/.test(idxSrc),
+      'P11: stationSecretValues reads each computed part in its own try');
   }
 
   // ---- P11b (review r3): a scrubbed JSON result STAYS JSON, and a clean station's env-var instructions keep their bytes.

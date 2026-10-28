@@ -40,9 +40,10 @@
    Both return the identical string when nothing matched, so a clean station's prompts keep their bytes (and their
    prompt cache).
 
-   Pure: no clock, no IO. */
+   Pure: no clock, no IO (a held source that throws is tallied through failopen.note, as the rest of the sidecar does). */
 'use strict';
 const context = require('./context.js');
+const { note: failNote } = require('./failopen.js');
 
 const HEAD_MIN = 12;                 // a held head shorter than this is left alone (too likely to be ordinary text)
 const CUT_MIN = 12;                  // a cut vendor token shorter than this (prefix + body) leaks too little to matter
@@ -102,15 +103,19 @@ function currentHeld() {
   if (pinned !== undefined) return pinned;
   return readHeld();
 }
+/* A source that throws leaves this call with no held list (shape rules only) — and says so (review r3): every held-value
+   and held-head scrub, and all of L3, would otherwise stop with no trace. failopen.note tallies it for diag. */
 function readHeld() {
   let raw;
-  try { raw = heldSource(); } catch (_) { return null; }
-  if (!raw || typeof raw[Symbol.iterator] !== 'function') return null;
   const flat = [];
-  for (const e of raw) {
-    if (typeof e === 'string') flat.push(e, null);
-    else if (e && typeof e.value === 'string') flat.push(e.value, typeof e.as === 'string' ? e.as : null);
-  }
+  try {
+    raw = heldSource();
+    if (!raw || typeof raw[Symbol.iterator] !== 'function') return null;
+    for (const e of raw) {
+      if (typeof e === 'string') flat.push(e, null);
+      else if (e && typeof e.value === 'string') flat.push(e.value, typeof e.as === 'string' ? e.as : null);
+    }
+  } catch (e) { failNote('prompt-scrub.heldSource', e); return null; }
   const c = heldCache;
   if (c && c.flat.length === flat.length) {
     let same = true;
@@ -501,7 +506,7 @@ function guardRequest(provider) {
   const inner = provider.stream;
   return Object.assign({}, provider, {
     stream(req) {
-      if (!taken) { taken = true; try { held = currentHeld(); } catch (_) { held = null; } }
+      if (!taken) { taken = true; try { held = currentHeld(); } catch (e) { failNote('prompt-scrub.guardRequest', e); held = null; } }
       return inner.call(provider, scrubRequest(req, held, memo));
     }
   });

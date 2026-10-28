@@ -6280,21 +6280,24 @@ applyServiceKeysEnv();          // boot: persisted keys are live for the first r
    exact values the sidecar holds RIGHT NOW (read live, so a rotated/added key is covered on the next call).
    The per-launch API/IPC tokens are deliberately NOT listed: a few local surfaces still carry the API token in a
    URL the frontend must open, and scrubbing it there would break them (that is the token-in-URL lane's to fix). */
+// every part that is COMPUTED is read in its own try (review r3): collectSecretValues guards each source, but these
+// were built eagerly in the array literal, so one throwing getter dropped every held value at once
+function secretPart(tag, fn) { try { return fn(); } catch (e) { failNote('secret-values.' + tag, e); return null; } }
 function stationSecretValues(connectorSweep) { return collectSecretValues([
   { values: [runtimeKey, CREDITS_TOKEN, String(process.env.STARNET_CHANNEL_WEBHOOK_SECRET || '')] },
-  { values: Object.values(runtimeKeys) },
-  { values: Object.values(runtimeKeyPools) },
-  { values: engineKeys.secretValues() },        // #89: the page's provider keys the station keeps for unattended runs
-  { values: Object.values(channelTokenRuntime) },
+  { values: secretPart('runtimeKeys', () => Object.values(runtimeKeys)) },
+  { values: secretPart('runtimeKeyPools', () => Object.values(runtimeKeyPools)) },
+  { values: secretPart('engineKeys', () => engineKeys.secretValues()) },        // #89: the page's provider keys the station keeps for unattended runs
+  { values: secretPart('channelTokens', () => Object.values(channelTokenRuntime)) },
   { keyed: channelSecrets },
   { keyed: codexTokens },
-  { keyed: Object.values(oauthProviders).map(p => p && p.tokens) },
+  { keyed: secretPart('oauthProviders', () => Object.values(oauthProviders).map(p => p && p.tokens)) },
   { keyed: connectorOauth },
   // every header/env string of a custom connector is held for redaction; prompt-scrub asks for the credentials only
   Object.assign({ keyed: connectorConfigs }, connectorSweep || { allUnder: ['headers', 'env'] }),
   // the Gmail app password ALONE (its token is 'address:password'; the whole token is listed above)
-  { values: (connectorConfigs || []).map(gmailImapTransport.passwordOf) },
-  { keyed: liveServiceKeys() }   // a value read from 1Password is held only in the live list
+  { values: secretPart('gmailPasswords', () => (connectorConfigs || []).map(gmailImapTransport.passwordOf)) },
+  { keyed: secretPart('serviceKeys', () => liveServiceKeys()) }   // a value read from 1Password is held only in the live list
 ]); }
 setKnownSecretSource(stationSecretValues);
 // Helper processes: strip the same held values, plus every name the sidecar itself exported (service keys).
@@ -6305,10 +6308,14 @@ setStationSecretSource({ names: () => Object.keys(serviceKeysOwnedEnv || {}), va
    but must never be cut out of the Commander's own words. A saved service key is replaced by its NAME, the placeholder
    COMMS and keys.save already use, so a routine or a history that carried it still says which ${NAME} to spend. */
 function stationCredentialValues() { return stationSecretValues({ credentialUnder: ['headers', 'env'] }); }
+// each part in its own try (review r3): one bad service-key row or connector must not blind the rest of the held list
 PromptScrub.setHeldSource(() => {
   const named = [];
-  for (const r of liveServiceKeys() || []) if (r && typeof r.key === 'string' && r.key.trim() && r.envVar) named.push({ value: r.key.trim(), as: KeyTools.keyPlaceholder(r.envVar) });
-  return named.concat(stationCredentialValues());
+  try { for (const r of liveServiceKeys() || []) if (r && typeof r.key === 'string' && r.key.trim() && r.envVar) named.push({ value: r.key.trim(), as: KeyTools.keyPlaceholder(r.envVar) }); }
+  catch (e) { failNote('prompt-scrub.heldSource.serviceKeys', e); }
+  let creds = [];
+  try { creds = stationCredentialValues(); } catch (e) { failNote('prompt-scrub.heldSource.station', e); }
+  return named.concat(creds);
 });
 // Verified persist (secret-durability law): ok ONLY when a read-back proves the write reached disk. On
 // ok:false the in-memory list stays live but the route reports the failure — never a false "saved".

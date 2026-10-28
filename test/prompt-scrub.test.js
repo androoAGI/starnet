@@ -387,6 +387,21 @@ context.setKnownSecretSource(null);
   A.ok(worst < 100, 'a 30 000-char run of cut points with a held key scrubs in < 100 ms (' + worst.toFixed(1) + ' ms)');
 }
 
+// ---- 6b. (review r3) a held source that THROWS leaves shape-only scrubbing, and says so (failopen tally, diag) ----
+{
+  const failopen = require('../sidecar/failopen.js');
+  const before = failopen.counts()['prompt-scrub.heldSource'] || 0;
+  PS.setHeldSource(() => { throw new Error('connector row broke'); });
+  const out = PS.scrubStored('vault ' + by.VAULT.value + ' and ' + by.OPENROUTER.value);
+  A.ok(out.indexOf(by.OPENROUTER.value) < 0 && out.indexOf(by.VAULT.value) >= 0, 'r3: a throwing held source degrades to the shape rules (no crash)');
+  const req = { messages: [{ role: 'user', content: 'x' }] };
+  A.ok(PS.guardRequest({ stream: (r) => r }).stream(req) === req, 'r3: guardRequest passes the request through when the held list is blind');
+  A.ok((failopen.counts()['prompt-scrub.heldSource'] || 0) >= before + 2, 'r3: each blind read is tallied under prompt-scrub.heldSource (' + JSON.stringify(failopen.counts()['prompt-scrub.heldSource']) + ')');
+  PS.setHeldSource(function* () { yield by.VAULT.value; throw new Error('half-read'); });
+  A.ok(PS.scrubStored('vault ' + by.VAULT.value) === 'vault ' + by.VAULT.value && (failopen.counts()['prompt-scrub.heldSource'] || 0) >= before + 3, 'r3: a source that throws mid-iteration is tallied too (never a half list)');
+  PS.setHeldSource(null);
+}
+
 // ---- 7b. (review r3) the VENDOR-CUT pass is linear and returns exactly what its plain global scan returns ----
 (async () => {
   PS.setHeldSource(null);
