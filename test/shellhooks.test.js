@@ -181,7 +181,7 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       slowSpawnChild.once('exit', () => { slowExitAt = Date.now(); });
       const slowSpawn = () => { const until = Date.now() + 400; while (Date.now() < until) { /* spawn() blocking under memory pressure */ } return slowSpawnChild; };
       const spine2 = makeHooks();
-      await mk({ spawn: slowSpawn, timeoutMs: 50, onError: () => {} }).install(spine2, { accept: true });
+      await mk({ spawn: slowSpawn, timeoutMs: 50, onError: () => {}, clock: { now: () => Date.now() } }).install(spine2, { accept: true });
       const vSlow = await spine2.invoke('pre_tool_call', {});
       const slowResolvedAt = Date.now();
       A.eq(vSlow.blocked, false, 'a timed-out hook behind a slow spawn does not block');

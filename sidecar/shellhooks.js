@@ -83,6 +83,9 @@
     const cwd = deps.cwd || '.';
     const onError = (typeof deps.onError === 'function') ? deps.onError : (() => {});
     const timeoutMs = Number(deps.timeoutMs) > 0 ? Number(deps.timeoutMs) : DEFAULT_TIMEOUT_MS;
+    // Time arrives through the injected clock (lint-determinism). With no clock the elapsed spawn time reads as 0,
+    // so the hook gets its full timeout from arming, exactly as before the slow-spawn fix.
+    const nowMs = (deps.clock && typeof deps.clock.now === "function") ? () => Number(deps.clock.now()) || 0 : () => 0;
     const spineBoundMs = timeoutMs + KILL_SETTLE_MS + SPINE_SLACK_MS;
 
     async function readJson(file, fallback) {
@@ -183,7 +186,7 @@
         const exe = argv[0];
         // The timeout is measured from HERE, before spawn(): a spawn that blocks for 400ms has spent 400ms of the
         // hook's budget, exactly as the spine's own timer (already running) sees it.
-        const t0 = Date.now();
+        const t0 = nowMs();
         let child;
         try {
           child = spawn(exe, argv.slice(1), { cwd, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -202,7 +205,7 @@
           const bound = setTimeout(() => resolve(v), KILL_SETTLE_MS);
           child.once('exit', () => { clearTimeout(bound); resolve(v); });
         };
-        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, Math.max(0, timeoutMs - (Date.now() - t0)));
+        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, Math.max(0, timeoutMs - (nowMs() - t0)));
 
         try { child.stdout.on('data', (d) => { bytes += d.length; if (bytes <= MAX_STDOUT_BYTES) out += d.toString('utf8'); }); } catch (_) {}
         try { child.stderr.on('data', () => {}); } catch (_) {}          // stderr is the script's own logging, not our business
