@@ -3,6 +3,7 @@
    length-capped, list() returns newest-first filtered by agentId and respects the limit, ts comes from the
    injected clock, and the on-disk log is replayed into a fresh store. Pure + deterministic. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeRunStore } = require('../sidecar/runstore.js');
 
@@ -28,15 +29,16 @@ const clock = { now: () => clk };
   A.eq(io.lines.length, 2, 'both rows appended to io');
 }
 
-// ---- B. reason clamped to the known enum; unknown -> 'done' ----
+// ---- B. reason clamped to the known enum; unknown -> 'error' (bug 812c3bfb: an unknown end is never a finished run) ----
 {
   const s = makeRunStore({ io: memIo(), clock });
   A.eq(s.record({ runId: 'r', reason: 'refusal' }).reason, 'refusal', 'valid reason kept');
   A.eq(s.record({ runId: 'r', reason: 'budget' }).reason, 'budget', 'budget reason kept');
   A.eq(s.record({ runId: 'r', reason: 'empty' }).reason, 'empty', 'provider-empty remains empty (never rewritten as success)');
   A.eq(s.record({ runId: 'r', reason: 'clarifying' }).reason, 'clarifying', 'a Task Brief question remains neutral (never rewritten as success)');
-  A.eq(s.record({ runId: 'r', reason: 'kaboom' }).reason, 'done', 'unknown reason clamped to done');
-  A.eq(s.record({ runId: 'r' }).reason, 'done', 'missing reason defaults to done');
+  A.eq(s.record({ runId: 'r', reason: 'kaboom' }).reason, 'error', 'unknown reason clamped to error, never done');
+  A.eq(s.record({ runId: 'r' }).reason, 'error', 'a missing reason (a run that threw) records as error, never done');
+  A.eq(s.record({ runId: 'r', reason: 'done' }).reason, 'done', 'a real done is kept');
 }
 
 // ---- C. title is length-capped (no unbounded blob on disk) ----
@@ -304,7 +306,7 @@ const clock = { now: () => clk };
   const mine = s.list(null, { streamId: 'trigger-abc', limit: 200 });
   A.eq(mine.map(r => r.runId), ['mine-2', 'mine-1'], 'list({ streamId }) returns exactly that stream\'s rows, newest-first');
   A.eq(s.list(null, { streamId: 'nope' }).length, 0, 'an unknown stream has no rows');
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/runsFor: \(streamId\) => \(runStore\.list\(null, \{ streamId: streamId/.test(src), 'the trigger runner reads its fire back by streamId');
   A.ok(/(?:runs|const rows) = \(runStore\.list\(null, \{ streamId: streamId, limit: 200 \}\)/.test(src), 'the sample route reads its runs back by streamId');   // `rows` since the delivered-receipt rule reads them twice
 }
@@ -391,7 +393,7 @@ const clock = { now: () => clk };
 // The real host adapter must propagate a strict delivery write failure (ordinary run history stays fail-open).
 {
   const fs = require('fs'), vm = require('vm');
-  const source = fs.readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+  const source = readSidecarSource();
   const start = source.indexOf('const runsIo = {'), end = source.indexOf('// In-process capability', start);
   const io = vm.runInNewContext(source.slice(start, end) + '; runsIo;', {
     fs: {}, RUNS_FILE: 'runs.jsonl', readBoundedJsonl: () => [], failNote: () => {}, rotateJsonl: () => {},

@@ -15,13 +15,15 @@
         no terminal — the remedy users actually reached for (placing a WORKBENCH) cannot work,
         because enforceRunAuthority strips shell.exec/verify.run on every non-interactive surface. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
-const src = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+// the host: cron-driver.js is read on its own below (`driver`), and skills.js / code.js / inputpolicy.js / taint.js use the same words
+const src = readSidecarSource({ except: ['sidecar/cron-driver.js', 'sidecar/tools/builtin/skills.js', 'sidecar/tools/builtin/code.js', 'sidecar/inputpolicy.js', 'sidecar/taint.js'] });
 const panel = fs.readFileSync(path.join(root, 'frontend', 'app', 'windows', 'routines.js'), 'utf8');
 
 // ---- 1. the dispatch seam ----

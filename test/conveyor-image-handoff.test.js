@@ -13,6 +13,7 @@
    real tools with the ctx a line stage gets. Hermetic: real temp dirs, the REAL path-trust core with the project
    as the one blessed root, an injected image fetch. No network, no sidecar. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fsp = require('node:fs/promises');
 const fs = require('node:fs');
@@ -24,7 +25,7 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
 
 // ---- A. the seam: a line stage's run carries the line's project into every tool's ctx ----
 const stripComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
-const SRC = stripComments(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8'));
+const SRC = stripComments(readSidecarSource());
 const core0 = SRC.indexOf('async function runOnceCore(');
 A.ok(core0 > 0, 'runOnceCore exists in sidecar/index.js');
 const head = SRC.slice(core0, core0 + 2500);

@@ -15,6 +15,7 @@
 
    This runs the REAL stopActive (+ its helpers) and the REAL bell settlement listener from chat.js in a sandbox. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -138,7 +139,8 @@ function stopRig(opts) {
     r.ctx.queued.set('ws1', ['use the blue folder', 'say hi in French', 'make it short']);
     r.ctx.__sendNow('ws1', 0, 'use the blue folder'); r.ctx.__sendNow('ws1', 0, 'say hi in French'); r.ctx.__sendNow('ws1', 0, 'make it short');
     await tick(); await tick();
-    A.eq(r.lines.filter(l => /Sent into the live run/.test(l)).length, 3, 'each accepted line says only that the run holds it');
+    A.eq(r.ctx.sentNow.get('ws1').filter(n => n.accepted).length, 3, 'each accepted line is held as SENT (the strip shows it; Andrew 10-26: no SYSTEM line)');
+    A.ok(!r.lines.some(l => /Sent into the live run/.test(l)), 'and no line announces it in the transcript');
     r.ctx.__landed('ws1', 'run-1', 'Working.\n[steering] use the blue folder\n');
     Channels.appendToken('ws1', 'Working.\n[steering] say hi in French\n');
     r.ctx.__stop('click');
@@ -168,7 +170,8 @@ function stopRig(opts) {
   }
   {
     // the wiring the sandbox injects: the live run's tokens mark echoes, and every teardown settles the run's lines
-    A.ok(/onToken: d => \{ acc \+= d; Channels\.appendToken\(ws\.id, d\); if \(thisRunId && d && d\.indexOf\('\[steering\] '\) >= 0\) markSentNowLanded\(ws\.id, thisRunId, d\);/.test(src),
+    // (it also collects every note the run streams, with when it arrived, so the run's end can file it: comms-flow 10-26)
+    A.ok(/onToken: d => \{ acc \+= d; Channels\.appendToken\(ws\.id, d\); if \(d && d\.indexOf\('\[steering\] '\) >= 0\) \{ for \(const t of steerEchoesOf\(d\)\) runSteers\.push\(\{ text: t, ts: Date\.now\(\) \}\); if \(thisRunId\) markSentNowLanded\(ws\.id, thisRunId, d\); \}/.test(src),
       'the run\'s own token stream marks a sent-now line read when its [steering] echo arrives');
     A.ok(/\} finally \{[\s\S]{0,600}Channels\.end\(ws\.id\);\s*if \(thisRunId\) \{ if \(streamLost \|\| interruptedStreams\.has\(ws\.id\)\) releaseSentNow\(ws\.id, thisRunId, acc\); else settleSentNow\(ws\.id, thisRunId, acc\); \}/.test(src), 'send()\'s teardown settles the run\'s sent-now lines on every end, against the run\'s own text — unless its stream died (the station decides those)');
     // LIVE (this lane): the station was killed mid-run with a send-now line pending; the page's thrown teardown is not always
@@ -602,7 +605,7 @@ function stopRig(opts) {
     // THE STATION HALF OF THE CONTRACT (review 2026-10-14). The page finds the report by reading GET /api/overseer for a row
     // { status:'reviewing', parentStreamId:<this conversation>, reviewRunId } and stops it by that id through /api/cancel.
     // Nothing above can see the station, so these pins break the moment either side stops matching.
-    const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     const ovs = fs.readFileSync(path.join(__dirname, '../sidecar/overseer.js'), 'utf8');
     const tick = A.fnBody(idx, 'async function tickOverseer');
     A.ok(tick.length > 1000, 'tickOverseer located');

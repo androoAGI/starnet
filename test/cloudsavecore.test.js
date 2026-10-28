@@ -86,7 +86,7 @@ const now = 10_000_000;
 {
   const h = C.recordFailure(C.freshHealth(), now);
   const snap = C.snapshot(h, now);
-  A.eq(Object.keys(snap).sort().join(','), 'consecutiveFailures,lastPushFailAt,lastPushOkAt,nextRetryAt,stale,warn', 'health snapshot has the documented keys');
+  A.eq(Object.keys(snap).sort().join(','), 'cause,consecutiveFailures,lastPushFailAt,lastPushOkAt,nextRetryAt,stale,warn', 'health snapshot has the documented keys (cause: why the last attempt failed, by name)');
   A.eq(snap.stale, true, 'snapshot surfaces the stale verdict (failing, never confirmed)');
   A.eq(snap.consecutiveFailures, 1, 'snapshot carries the failure streak');
   const clean = C.snapshot(C.freshHealth(), now);

@@ -576,9 +576,19 @@ const App = (() => {
       a.approvalMode = before; persist();
       if (typeof StationUI === 'undefined') return;
       if (StationUI.setRoster) StationUI.setRoster(liveAgents());
-      if (StationUI.notify) StationUI.notify('The station did not record that change — ' + (a.name || a.id) + (before === 'full' ? ' still has FULL POWER' : ' still asks first') + '. Try again once the station is reachable.', 'bad');
+      if (StationUI.notify) StationUI.notify('The station did not record that change — ' + (a.name || a.id) + (before === 'full' ? ' still has FULL POWER' : ' still asks first') + '. ' + rosterRefusalWords(), 'bad');
     });
     return true;
+  }
+
+  // why the last roster push was not recorded, from what the station said (rosterRefusal) — or that it did not answer
+  function rosterRefusalWords() {
+    const r = rosterRefusal;
+    if (!r) return 'Try again once the station is reachable.';
+    if (r.degraded) return 'This station’s data was written by a newer StarNet — update the app.';
+    if (r.behind) return 'Another window saved newer station changes first; try again in a moment.';
+    if (r.stale) return 'Another window sent a newer crew list first; try again in a moment.';
+    return 'The station refused it' + (r.error ? ' (' + r.error.slice(0, 120) + ')' : '') + '.';
   }
 
   // Execution profile is runtime/capability/filesystem scope only. It never changes approvalMode and never
@@ -1033,6 +1043,7 @@ const App = (() => {
     if (typeof Systems !== 'undefined') Systems.opened(startTab === 'recipes' ? 'mywork' : 'recruit');   // door law (RECIPES is a MY WORK tab)
     SFX.click();
     Marketplace.open({
+      intent: (startTab === 'recipes') ? 'recipes' : 'respec',   // the door's intent (Marketplace BAY_INTENTS, gh#117)
       mode: 'deploy',
       tab: (startTab === 'recipes') ? 'recipes' : 'agents',   // the bay opens on this tab (RECIPES = the mission library)
       agentName: agent.name,
@@ -1055,6 +1066,7 @@ const App = (() => {
     if (typeof Marketplace === 'undefined' || !agent || !recipeId) return;
     SFX.click();
     Marketplace.open({
+      intent: 'recipe-launch',
       mode: 'deploy',
       tab: 'recipes',
       agentName: agent.name,
@@ -1342,6 +1354,7 @@ const App = (() => {
     if (typeof Systems !== 'undefined') Systems.opened('recruit');   // door law: whoever opened the bay, RECRUIT is online
     SFX.click();
     const go = () => Marketplace.open({
+      intent: 'recruit',   // the door's intent: this bay RECRUITS (RE-SPEC … INSTEAD is its second verb) — gh#117
       mode: 'pick', summon: true, concurrentCap: concurrentCap,
       classSeed: classSeed || null,   // one-shot: the bay focuses this class's dossier on open (maybeConsumeClassSeed)
       notify: (typeof StationUI !== 'undefined') ? StationUI.notify : null,
@@ -1416,6 +1429,7 @@ const App = (() => {
     if (typeof Marketplace === 'undefined' || !agent || !proposal) return;
     SFX.click();
     Marketplace.open({
+      intent: 'recipe-mint',
       mode: 'deploy',
       tab: 'recipes',
       recipeMint: proposal,                 // ← the R2 editor opens pre-filled from this draft (additive ctx seed)
@@ -1503,6 +1517,12 @@ const App = (() => {
   // the full backoff loop (the roster is re-derivable from local state and re-pushed constantly): track a
   // single failed flag, warn EXACTLY once on the healthy→failing edge, and let the next persist re-attempt.
   let rosterPushFailed = false;
+  // what the station said when it last refused a roster push ({ degraded, stale, behind, error }), null when no answer came —
+  // so a reverted control says what actually happened, never "try again once the station is reachable" when it answered
+  let rosterRefusal = null;
+  // the rows of this page's last ACCEPTED roster push (agentId -> its JSON): a page behind the station sends which rows it
+  // changed since, so the station merges them row by row instead of refusing it (sidecar handleRoster, mergeRosterRows)
+  let rosterAccepted = new Map();
   /* S3 — MAKE THE METERS LOAD-BEARING (without gating anything).
      Until now every reader of an agent's stats was a display surface: the level chip, the dossier, /whoami.
      Nothing in the station ACTED on them, so a TRUSTED veteran and a stranger were identical to delegation —
@@ -1538,7 +1558,14 @@ const App = (() => {
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;
       // a legacy stamp-less push still writes as before (backward compatible). Date.now() is monotonic-enough for
       // this last-write anti-clobber (mirrors save.js's own updatedAt stamp).
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agents: list, updatedAt: Date.now() }) })
+      // saveRevision/saveClient (save-latch-kill): the station revision this crew view is built on and the window it writes as,
+      // so the station refuses a roster from a window behind it (another window or a merge wrote since) instead of letting
+      // the newest page clock win (sidecar handleRoster's revision check)
+      // rosterBase: the rows of the last accepted push and the ones changed since — a page behind the station is merged with it
+      const rows = new Map(list.map(r => [r.agentId, JSON.stringify(r)]));
+      const rosterBase = { known: Array.from(rosterAccepted.keys()), changed: list.filter(r => rosterAccepted.get(r.agentId) !== rows.get(r.agentId)).map(r => r.agentId) };
+      const base = (typeof CloudSave !== 'undefined' && CloudSave.revision && CloudSave.writerId) ? { saveRevision: CloudSave.revision(), saveClient: CloudSave.writerId(), rosterBase } : {};
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base)) })
         .then(async r => {
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);
           // EL-11 FIX 1: the sidecar answers REFUSALS as HTTP 200 { ok:false, ... } (degraded workspace /
@@ -1549,12 +1576,15 @@ const App = (() => {
           try { body = await r.json(); } catch (_) { body = null; }
           if (body && typeof body === 'object' && body.ok === false) {
             if (body.degraded === true && typeof CloudSave !== 'undefined' && CloudSave.markDegraded) CloudSave.markDegraded();
+            rosterRefusal = { degraded: body.degraded === true, behind: body.behind === true, stale: body.stale === true, error: String(body.error || '') };
             throw new Error('roster refused: ' + (body.error || (body.stale ? 'stale push' : 'unknown')));
           }
+          rosterAccepted = rows; rosterRefusal = null;
           if (rosterPushFailed) { rosterPushFailed = false; try { console.info('[roster] sidecar roster sync recovered.'); } catch (_) {} }
           return true;
         })
-        .catch(() => {
+        .catch(e => {
+          if (!/^roster refused/.test(String(e && e.message))) rosterRefusal = null;   // no answer: nothing the station said
           if (!rosterPushFailed) { rosterPushFailed = true; try { console.warn('[roster] sidecar roster sync failed; will retry on next persist. Local roster is intact.'); } catch (_) {} }
           return false;
         });
@@ -1617,6 +1647,47 @@ const App = (() => {
         if (typeof Chat !== 'undefined' && Chat.retireDeskPrompt) { try { Chat.retireDeskPrompt(); } catch (_) {} }
       });
     });
+  }
+
+  /* THE MERGE NOTICES, worded only from what the station answered (cloudsave mergeNotice / onMerged):
+     • inSession — another window saved past this one while it was open; its saves are merged three-way into the station file
+       (sidecar/save-merge.js): what it changed lands, the other window's changes stay. Its view does not show the other
+       window's changes until it is reloaded. Changes the station could not take (a session or crew member another window
+       deleted) are named, with the copy of this window's save kept beside the station.
+     • reentered — the same, for a window whose base was not known: merged on the boot merge's rules (sessions only) and
+       reopened on the station file — its crew, settings and floor changes are NOT in the station file, only in the kept copy.
+     • otherwise the boot merge of a reopening window's unsent save (cloudsave reconcile → POST /api/save/adopt). */
+  let mergeListenerWired = false;
+  function mergeNoticeLine(merge) {
+    const count = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const n = count(merge.added) + count(merge.extended) + count(merge.copied), s = k => k === 1 ? '' : 's';
+    if (merge.inSession) {
+      const lost = Array.isArray(merge.lost) ? merge.lost : [];
+      const head = merge.first
+        ? 'Another window saved station changes while this one was open. From now on this window’s changes are merged into the station file as it saves, without undoing the other window’s; this window does not show the other window’s changes until you reload it.'
+        : '';
+      if (!lost.length) return head;
+      const names = lost.slice(0, 3).map(x => '“' + String(x.name || x.id).slice(0, 40) + '”').join(', ') + (lost.length > 3 ? ' and ' + (lost.length - 3) + ' more' : '');
+      return (head ? head + ' ' : '') + lost.length + ' change' + s(lost.length) + ' from this window could not go into the station file, because another window deleted ' + names + '.'
+        + (merge.kept ? ' This window’s whole save is kept beside the station as ' + merge.kept + '.' : '');
+    }
+    if (merge.threeWay) {
+      // a reopening window's unsent save merged three-way from its journal's own merge description (cloudsave writeSide)
+      const lost = Array.isArray(merge.lost) ? merge.lost : [];
+      const names = lost.slice(0, 3).map(x => '“' + String(x.name || x.id).slice(0, 40) + '”').join(', ') + (lost.length > 3 ? ' and ' + (lost.length - 3) + ' more' : '');
+      return (merge.unchanged ? '' : 'Your unsent changes from last time were merged into the station file.')
+        + (lost.length ? (merge.unchanged ? '' : ' ') + lost.length + ' change' + s(lost.length) + ' from last time could not go into the station file, because another window deleted ' + names + '.' + (merge.kept ? ' This window’s whole save is kept beside the station as ' + merge.kept + '.' : '') : '');
+    }
+    if (merge.reentered) {
+      return merge.base === 'window'
+        ? 'Another window saved station changes while this one was open. This window’s newest changes are in the station file' + (n ? ', with ' + n + ' session' + s(n) + ' only the station file held' : '') + ', and it reopened on it. The station file from before is kept as ' + (merge.backup || 'a backup beside it') + '.'
+        : 'Another window saved station changes while this one was open, so this window reopened on the station file' + (n ? ' with ' + n + ' session' + s(n) + ' from this window added' : '') + '. Its other unsent changes (crew, settings, floor, renames) are not in the station file' + (merge.kept ? ': this window’s whole save is kept beside it as ' + merge.kept : '') + '.';
+    }
+    return merge.late
+      ? 'Your unsent changes from last time were merged into the station file before this window opened. The station file from before is kept beside it.'
+      : merge.base === 'window'
+      ? 'Your newest changes from last time had not reached the station file; they are in it now' + (n ? ', with ' + n + ' session' + s(n) + ' only the station file held' : '') + '. The station file from before is kept as ' + (merge.backup || 'a backup beside it') + '.'
+      : 'The station file was kept over this window’s unsent changes from last time' + (n ? ', with ' + n + ' session' + s(n) + ' from this window added' : '') + '. This window’s whole save is kept beside it' + (merge.kept ? ' as ' + merge.kept : '') + '.';
   }
 
   let saveFailureNotified = false;
@@ -4219,15 +4290,15 @@ const App = (() => {
     // A settled failure uses the crossed lamp; only a live approval/question earns the action row.
     if (w.lastRunOk === false) return { dot: 'ws-dot failed', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'last run failed — open to inspect' };
     // a DELIVERY session ('workshop-<runId>' — idle-built work) that hasn't been reviewed is a decision the
-    // Commander owes, not just an unread chat: say REVIEW on the row itself (2026-07-15 UX audit — the ⚒ prefix
-    // alone didn't distinguish "your agent made you something" from ordinary unread activity).
+    // Commander owes: its lamp is unseen like any new reply, and its hover/label says what is waiting. The row
+    // itself keeps the time — a "⚒ REVIEW" tag there read as clutter (Andrew 10-27).
     if (String(w.id).indexOf('workshop-') === 0 && Workstreams.unread(w)) {
-      return { dot: 'ws-dot unseen', meta: '⚒ REVIEW', busy: false, attn: false, status: 'a build is waiting for your review' };
+      return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'a build is waiting for your review' };
     }
     // UNSEEN vs SEEN is the whole idle axis now. `unread` is two real stored timestamps
     // (lastActiveAt > lastReadAt) and is never true for the stream you have open, so the dot goes
     // faded the instant you actually look at it — which is what makes a glance down the rail mean
-    // something. The ⚒ REVIEW branch above keeps its own wording: a BUILD waiting is a different
+    // something. The build branch above keeps its own status wording: a BUILD waiting is a different
     // errand from a reply waiting, even though both are "unseen".
     if (Workstreams.unread(w)) return { dot: 'ws-dot unseen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'unread activity' };
     return { dot: 'ws-dot seen', meta: railRelTime(w.lastActiveAt), busy: false, attn: false, status: 'read' };
@@ -4255,6 +4326,15 @@ const App = (() => {
     const names = ids.slice(0, 2).map(id => { const m = agents.get(id); return (m && m.name) || id; }).join(', ');
     const more = ids.length - 2;
     return '<span class="ws-agent-names">' + U.esc(names) + '</span>' + (more > 0 ? '<span class="ws-agent-more">+' + more + '</span>' : '');
+  }
+  /* A GROUP SHOWS ITS CREW (Andrew 10-27: the names alone, "ULTRON, CYPHER", read as a line of text, not a group). The
+     first three members' own skin thumbs, lead first — the same portraits their CREW cards show — ahead of the names
+     line; the names and the +N stay as they are. '' for a one-on-one row or an unknown membership. */
+  function railAgentFaces(w) {
+    const members = w.conversationMode === 'group' && typeof GroupChat !== 'undefined' && GroupChat.membersOf ? GroupChat.membersOf(w.id) : null;
+    if (!members || members.length < 2 || typeof AgentPortraits === 'undefined' || !AgentPortraits.thumbHTML) return '';
+    const ids = [w.agentId].concat(members.filter(id => id !== w.agentId)).filter(id => members.includes(id)).slice(0, 3);
+    return '<span class="ws-faces" aria-hidden="true">' + ids.map(id => AgentPortraits.thumbHTML(agents.get(id) || null, 20, 24, 'ws-face')).join('') + '</span>';
   }
   /* WHOLE NAMES (walk 10-14 #6): the row gives the names line its whole first line (app.css / pipglass.css), and this
      picks the reading that fits it — "ULTRON, CYPHER +3", else "ULTRON +4" — so a name is never cut mid-word
@@ -4430,7 +4510,7 @@ const App = (() => {
       return '<li class="' + rowClass(w, st, activeId) + '" data-id="' + U.esc(w.id) + '"' + runAttr + ' tabindex="' + (w.id === railFocusId ? '0' : '-1') + '" role="option" aria-selected="' + (w.id === activeId ? 'true' : 'false') + '" aria-posinset="' + (i + 1) + '" aria-setsize="' + rows.length + '" aria-label="' + U.esc(railRowLabel(w, st)) + '" aria-keyshortcuts="Shift+F10" title="' + U.esc(tip) + '">' +
         '<span class="' + st.dot + '" aria-hidden="true"></span>' +
         (w.pinned ? '<span class="ws-pin" aria-hidden="true">★</span>' : '') +
-        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentLine(w) + '</span>' +
+        '<span class="ws-agent' + (w.conversationMode === 'group' ? ' ws-agent-group' : '') + '" aria-hidden="true"' + railAgentColorAttr(w) + '>' + railAgentFaces(w) + railAgentLine(w) + '</span>' +
         '<span class="ws-title">' + U.esc(title) + '</span>' + runsKey +
         '<span class="ws-meta">' + U.esc(st.meta) + '</span>' +
         '<span class="ws-receipt" aria-hidden="true">' + U.esc(railReceipt(w)) + '</span>' +
@@ -4548,6 +4628,11 @@ const App = (() => {
       if (game && game.classList.contains('active')) renderRail();
     });
   }
+  /* THE COMMANDER PICKED A CONVERSATION (gh#158, review 10-27). Chat.load steps an offer over COMMS aside when ANOTHER conversation
+     goes on screen; a pick that lands on the one already there (its rail row, + NEW over an untouched blank, the crew member whose
+     session is open) is the same explicit act, so it asks the arbiter too (Dialogue.preempt: an offer steps aside, the quick tour
+     yields, the awakening holds). Called only from the Commander's pick paths below, never from Chat.load's re-syncs. */
+  function yieldCommsToPick() { try { if (typeof Dialogue !== 'undefined' && Dialogue.preempt) Dialogue.preempt('session'); } catch (_) {} }
   // switching mid-run is fine now: each workstream keeps its own run-state in Channels (channels.js) and
   // Chat.load re-renders the in-flight stream on switch — the run you left keeps streaming in the background.
   function switchWorkstream(id) {
@@ -4557,7 +4642,7 @@ const App = (() => {
     const home = Workstreams.homeOf ? Workstreams.homeOf(id) : id;
     if (home !== id) { switchWorkstream(home); if (typeof Delegated !== 'undefined' && Delegated.reveal) Delegated.reveal(id); return; }
     if (typeof ProjectHome !== 'undefined') ProjectHome.onSession(id);
-    if (id === Workstreams.activeId()) return;
+    if (id === Workstreams.activeId()) { yieldCommsToPick(); return; }   // re-picked the one on screen: the panel over it steps aside
     const ws = Workstreams.switch(id); if (!ws) return;
     // opened from elsewhere (a notification, the COMMS picker, the HUD) onto a session the narrowed rail
     // doesn't list: show every session again, so the open one is never missing from the rail
@@ -4571,6 +4656,7 @@ const App = (() => {
   }
   function openWorkstream(id) { switchWorkstream(id); }
   function newWorkstream() {
+    yieldCommsToPick();   // + NEW over an untouched blank reuses the session on screen (startSession): still the Commander's pick
     let ws = Workstreams.startSession();
     // + NEW while the rail shows one agent's sessions starts a session WITH that agent: a blank line is
     // rebound (no transcript to corrupt); the General home stream never is, so that case mints a fresh one.
@@ -4641,6 +4727,7 @@ const App = (() => {
   function selectAgent(agentId) {
     const id = String(agentId || '');
     const a = agents.get(id); if (!a) return null;
+    yieldCommsToPick();   // an agent pick can land on the session already on screen (rebind, "already here"): still a pick
     // A BRAND-NEW empty session is a blank line the Commander just opened: picking an agent puts THAT agent
     // on THIS line instead of teleporting to the agent's latest old stream (the Commander keeps the freedom
     // to start a fresh chat with anyone). Rebinding a blank stream corrupts no transcript — the no-rebind
@@ -5978,6 +6065,9 @@ const App = (() => {
     // call site can adopt/re-save it), which would otherwise look like "no save" here and fall through to a fresh
     // create that clobbers the newer save on first persist(). Check the honest status BEFORE reconcile and stop:
     // the gate returns without ever touching the stored doc.
+    // THIS WINDOW'S CRASH JOURNAL first (cloudsave openJournal, save-latch-kill): the local save read below is this window's
+    // own — a dead window's it continues, never another live tab's — and every other dead window's unsent work is merged in
+    try { if (typeof CloudSave !== 'undefined' && CloudSave.openJournal) await CloudSave.openJournal(); } catch (_) {}
     const localStatus = Save.loadStatus ? Save.loadStatus() : { status: (Save.load() ? 'ok' : 'none'), version: 0 };
     if (localStatus.status === 'future') { showFutureSaveGate(localStatus.version); return; }
 
@@ -6019,14 +6109,12 @@ const App = (() => {
     // A REOPENING WINDOW'S UNSENT SAVE WAS MERGED into the station file (cloudsave reconcile → POST /api/save/adopt): say so
     // once, with where the copies from before the merge are kept. Never claims more than the station's answer.
     const merge = (typeof CloudSave !== 'undefined' && CloudSave.mergeNotice) ? CloudSave.mergeNotice() : null;
-    if (merge) {
-      const n = merge.added + merge.extended + merge.copied, s = k => k === 1 ? '' : 's';
-      const line = merge.late
-        ? 'Your unsent changes from last time were merged into the station file before this window opened. The station file from before is kept beside it.'
-        : merge.base === 'window'
-        ? 'Your newest changes from last time had not reached the station file; they are in it now' + (n ? ', with ' + n + ' session' + s(n) + ' only the station file held' : '') + '. The station file from before is kept as ' + (merge.backup || 'a backup beside it') + '.'
-        : 'The station file was kept over this window’s unsent changes from last time' + (n ? ', with ' + n + ' session' + s(n) + ' from this window added' : '') + '. This window’s whole save is kept beside it' + (merge.kept ? ' as ' + merge.kept : '') + '.';
-      setTimeout(() => { try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(line, 'warn'); } catch (_) {} }, 1500);
+    if (merge) setTimeout(() => { try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(mergeNoticeLine(merge), 'warn'); } catch (_) {} }, 1500);
+    // ANOTHER WINDOW SAVED PAST THIS ONE while it is open (cloudsave `merging`): its saves are merged into the station file from
+    // then on. Said once, and every change the station could not take is named once, with where this window's save is kept.
+    if (typeof CloudSave !== 'undefined' && CloudSave.onMerged && !mergeListenerWired) {
+      mergeListenerWired = true;
+      CloudSave.onMerged(note => { try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(mergeNoticeLine(note), note && note.lost && note.lost.length ? 'bad' : 'warn'); } catch (_) {} });
     }
     // a window's refused save left on the station may hold sessions this station lacks: offer them back once it is up
     // (held in 0.14.0; back in 0.14.1 — a copy the station could not read this instant is never settled as empty, and

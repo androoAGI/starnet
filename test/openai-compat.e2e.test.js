@@ -12,6 +12,7 @@
 
    The upstream LLM is mocked via SKYNET_OPENROUTER_BASE (no real key, no network). Modeled on e2e.run.test.js. */
 'use strict';
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const { userWords } = require('./helpers/host-notes.js');   // the caller's own words: the run-context note leads the newest user message on this wire
 const http = require('http');
@@ -207,14 +208,17 @@ async function drain(res) {
   // #96 follow-up: tools ride /v1, but a model the catalog KNOWS is tool-less still answers in text (pre-#96), never refused
   {
     const compat = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'openai-compat.js'), 'utf8');
-    const core = fs.readFileSync(INDEX, 'utf8');
+    const core = readSidecarSource();
     A.ok(/isTask: !o\.outputOnly, toolsOptional: true/.test(compat), '/v1 runs are tasks with tools OPTIONAL');
     A.ok(/if \(isTask && o\.toolsOptional && provider\.supportsTools\(model\) === false\) isTask = false;/.test(core), 'a tools-optional run on a known tool-less model drops to text instead of the "can\'t run tasks" refusal');
-    A.ok(core.indexOf('o.toolsOptional && provider.supportsTools(model) === false') < core.indexOf('fallbackChain.promoteToolCapable('), 'the text downgrade happens before any fallback promotion (the caller named its model)');
+    const runCore = sidecarTopLevelFunction('runOnceCore');   // ordering inside the run itself, never across files
+    const downgradeAt = runCore.indexOf('o.toolsOptional && provider.supportsTools(model) === false');
+    A.ok(downgradeAt >= 0 && downgradeAt < runCore.indexOf('fallbackChain.promoteToolCapable('), 'the text downgrade happens before any fallback promotion (the caller named its model)');
     // review findings: /v1 keeps its pre-#96 admission and never shares a per-agent durable brief or fires paid aux passes
     A.ok(/const imageTask = isTask && !o\.toolsOptional \?/.test(core) && /const directDomainTask = isTask && !o\.toolsOptional \?/.test(core), 'a /v1 request is never classified as an image/domain task ("Image task blocked: no STUDIO" on a text model)');
     A.ok(/if \(isTask && o\.taskKey && !o\.toolsOptional\) \{/.test(core), 'a /v1 request never prepares the per-agent durable brief (one client\'s open question cannot swallow the next client\'s request)');
-    A.ok(/isTask && !o\.toolsOptional && !internal && _skillToolsOn/.test(core) && /SKYNET_SCOUT !== '0' && isTask && !o\.toolsOptional && _auxDone/.test(core), 'external /v1 traffic never fires skill review or scout on the user\'s key');
+    // the scout knob reads through ENV('SCOUT') since quick win 32 (STARNET_ or SKYNET_ spelling: test/aux-env-knobs.test.js)
+    A.ok(/isTask && !o\.toolsOptional && !internal && _skillToolsOn/.test(core) && /ENV\('SCOUT'\) !== '0' && isTask && !o\.toolsOptional && _auxDone/.test(core), 'external /v1 traffic never fires skill review or scout on the user\'s key');
   }
   A.report('openai-compat.e2e');
 })().catch(e => { console.error(e); process.exit(1); });

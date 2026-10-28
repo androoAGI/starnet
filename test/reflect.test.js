@@ -3,6 +3,7 @@
    within a batch, count cap, the NONE/empty/malformed/throw paths (a failed reflection never hurts the
    run), and determinism. Auto-proposals are candidates only — nothing is written here. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { reflect, parse, buildPrompt, worthReflecting, usedTools, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes } = require('../sidecar/reflect.js');
 const { redact } = require('../sidecar/context.js');
@@ -151,8 +152,11 @@ const { makeClock } = require('../shared/clock-rng.js');
   A.eq(refusedAction([]), false, 'no calls -> no refusal');
   A.eq(refusedAction(null), false, 'garbage in -> false (never throws)');
   {
-    const idx = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
-    A.ok(/const _gateReflect = !!\(o\.reflect && [^\n]*reflectSalient\(result\.messages, o\.recurring\)\n\s*&& !refusedAction\(execution\.toolTraceList\(\)\)/.test(idx), 'the run-end REFLECTION gate skips a run whose approval was not given');
+    const idx = readSidecarSource();
+    // memory-truth-1027: refusedAction feeds the ONE learning predicate (denied), which the reflection gate reads
+    A.ok(/denied: refusedAction\(execution\.toolTraceList\(\)\)/.test(idx) && /const _gateReflect = !!\(o\.reflect && [^\n]*_learn\.reflection && reflectSalient\(result\.messages, o\.recurring\)/.test(idx), 'the run-end REFLECTION gate skips a run whose approval was not given');
+    const LE = require('../sidecar/learning-eligibility.js');
+    A.eq(LE.passes(LE.runOutcome({ reason: 'done', denied: true, reflect: true, task: true })).reflection, false, '…through the predicate: a denied run is not reflected on');
   }
 
   // recordFromProposal: a Kept proposal becomes the §5.2 notebook record (content mirrors into body for the

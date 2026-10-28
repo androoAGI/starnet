@@ -313,7 +313,9 @@
       const entry = {
         runId: str(e.runId), parentRunId: str(e.parentRunId).slice(0, 100), agentId: str(e.agentId),
         provider: str(e.provider).trim().slice(0, 60),
-        reason: REASONS.has(e.reason) ? e.reason : 'done',     // clamp to the known enum (matches agent.run.end)
+        // clamp to the known enum (matches agent.run.end). An unknown or missing reason is not proof the run finished, so it
+        // records as 'error', never 'done' (bug 812c3bfb: a thrown run read as a finished one in the history)
+        reason: REASONS.has(e.reason) ? e.reason : 'error',
         turns: num(e.turns), tokens: num(e.tokens), usd: num(e.usd),
         // (additive, token-burn audit 2026-10-17) how much of `tokens`' input the provider served from its prompt cache —
         // `tokens` counts a cache read at full weight. Present only when > 0, so every other row stays byte-identical.

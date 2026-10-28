@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -74,7 +75,7 @@ A.ok(connectors.includes(workbench) && toolsets.includes(workbench), 'public and
 A.ok(/Local <code>stdio<\/code> servers[\s\S]*SAFE CELL/.test(connectors) && !/stdio<\/code> servers[\s\S]{0,120}<b>not<\/b> supported/.test(connectors), 'connector docs describe the isolated Safe Cell stdio path');
 const providers = fs.readFileSync(path.join(root, 'website', 'docs', 'providers.html'), 'utf8');
 A.ok(/ChatGPT \(Codex\)/.test(providers) && /Ollama/.test(providers) && /Perplexity/.test(providers), 'provider docs name the current first-class roster');
-const sidecar = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+const sidecar = readSidecarSource();
 A.eq(/function saveConnectorOauth\(/.test(sidecar), false, 'unused connector OAuth persistence wrapper is removed');
 
 A.report('website-deploy-staging.test');

@@ -5,6 +5,7 @@
    conversation names it, through the same door as the card's Open key (data-dg-file → Chat.openFile). Only files that
    were really saved; a name inside code, an existing link, a longer name or a path is left alone. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -69,7 +70,7 @@ const links = body => { const out = []; const walk = n => { for (const c of n.ch
 
 // ---- the wiring ----
 const dg = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'delegated.js'), 'utf8');
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
 A.ok(/linkSavedFiles\(parentId\)/.test(A.fnBody(dg, 'function repaint()')), 'every repaint (each ledger poll, each history render) links the open conversation\'s reports');
 A.ok(/\.cmsg\.agent:not\(\.tool\) > \.body/.test(A.fnBody(dg, 'function linkSavedFiles(parentId)')), 'only crew message prose is linked, never a tool line or a card');
 A.ok(/files: \(Array\.isArray\(w\.artifacts\) \? w\.artifacts : \[\]\)/.test(idx) && /projectRoot: w\.projectRoot \|\| ''/.test(idx), '/api/overseer carries each worker\'s saved files and its project');

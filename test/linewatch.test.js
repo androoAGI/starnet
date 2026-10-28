@@ -9,6 +9,7 @@
      • PAUSED comes from the step-test session, on the dock that just finished;
      • the crate card shows only what the harness proved — a crate whose run has not started says so. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const LW = require('../frontend/app/linewatch.js');
 
@@ -179,7 +180,7 @@ A.eq(LW.fmtDur(61000), '1m', 'minute durations');
 // ---- (sweep 2026-09-25) the SIDECAR names the bay on agent.run.start (additive fields, frozen contract intact) ----
 {
   const fs = require('fs'), path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const core = src.slice(src.indexOf('async function runOnceCore(o) {'));
   A.ok(/if \(o\.dockId\) runStartExtra\.dockId = String\(o\.dockId\);/.test(core) && /if \(o\.workitemId\) runStartExtra\.workitemId = String\(o\.workitemId\);/.test(core), 'runOnceCore carries the run\'s bay + crate');
   const starts = (core.slice(0, core.indexOf('\n}\n')).match(/emit\('agent\.run\.start', \{[^}]*\}\)/g) || []);

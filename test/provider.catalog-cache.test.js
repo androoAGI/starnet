@@ -6,6 +6,7 @@
    adapter re-fetched /models on its first stream. Every case here drives the REAL path index.js takes: the factory's
    selectProvider with the cache attached, and the exact runWindow() the run setup awaits. Fake fetch, fake clock. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -347,7 +348,7 @@ const hi = model => ({ model, messages: [{ role: 'user', content: 'hi' }] });
   /* index.js wiring (the run-build site cannot be required: it boots a sidecar). The cache is attached at boot, and the
      run's context manager is built from the awaited runWindow, after every provider swap. */
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/attachCatalogCache\(makeCatalogCache\(\{ clock: \{ now: \(\) => Date\.now\(\) \} \}\)\)/.test(src), 'index.js attaches ONE cache with the real clock at boot');
     const waitAt = src.indexOf('const knownRunWindow = CONTEXT_LIMIT_OVERRIDE ? 0 : await catalogRunWindow(provider, model);');
     // windowCeiling: the model's long-context price-tier boundary (context-cost-1023; test/context.price-tier-window.test.js)

@@ -11,6 +11,7 @@
    the ledger says done, the ledger says a worker is waiting on an approval, and the ledger is unreachable. */
 'use strict';
 const A = require('./_assert.js');
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 
 (async () => {
   global.document = undefined;   // neither module wires its DOMContentLoaded poll: the test drives refresh() itself

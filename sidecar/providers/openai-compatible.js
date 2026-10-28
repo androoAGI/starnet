@@ -694,14 +694,14 @@
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages || [], req.model) : (req.messages || []);
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
       const prepared = provider.prepareWireMessages(sent, 'chat');
-      // Keep the profile's SYSTEM projection even after nativeWire falls back to /v1. Do not
-      // infer this policy from a model name or change generic/hosted Chat Completions requests.
-      // Every other route: ONE role projection (provider.chatRoleProjection) — a Claude model keeps its continuation
-      // placement; any other model gets the host notes (<run_context>, recall, the earlier-conversation summary) as the
-      // fenced leading text of the newest user message, never as a system message after index 0 (#102-class refusals).
-      const messages = opts.nativeOllama === true && ollamaNative
-        ? ollamaNative.leadingSystemMessages(prepared)
-        : provider.chatRoleProjection(prepared, req.model);
+      // ONE role projection (provider.projectRoles): the Ollama profile (native wire and its /v1 fallback alike) and every
+      // non-Claude model get the strict 'chat' shape — one leading system message, the host notes and the loop's mid-run
+      // host messages as fenced user-side text, alternating turns ending on a user or tool turn (#102-class refusals); a
+      // Claude model keeps its continuation placement ('native'). A template this endpoint + model proved has no system
+      // role (requestWithRetry, template_refusal) gets 'chat-nosystem'.
+      const policy = provider.systemlessTemplate(baseUrl, req.model) ? 'chat-nosystem'
+        : (opts.nativeOllama === true ? 'chat' : provider.chatRolePolicy(req.model));
+      const messages = provider.projectRoles(prepared, policy);
       const body = { model: req.model, messages, stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
       const explicitMax = Math.floor(Number(req.max_tokens || req.maxTokens || 0)) || 0;
@@ -1002,7 +1002,7 @@
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
       let waited = 0;
-      let healedEffort = false, healedReasoning = false;   // each request self-heals each of these at most once
+      let healedEffort = false, healedReasoning = false, healedTemplate = false;   // each request self-heals each of these at most once
       for (let attempt = 0; ; attempt++) {
         if (signal && signal.aborted) throw abortError();
         let res;
@@ -1038,8 +1038,9 @@
           }
           // a TLS rejection, a crash in our own request code or a loaded model's silence (above) cannot heal by re-sending:
           // fail fast, unmarked
-          if (!classifyApiError(e, { model: body.model }).retryable) throw e;
-          if (attempt < retries) { waited += RETRY_DELAYS[attempt]; await delay(RETRY_DELAYS[attempt], signal); continue; }
+          const failure = classifyApiError(e, { model: body.model });   // unreachable: one retry (its retryBudget), then name the host
+          if (!failure.retryable) throw e;
+          if (attempt < provider.runtime.retryLimit(failure, retries)) { const wait = provider.runtime.retryDelay(failure, attempt, RETRY_DELAYS); waited += wait; await delay(wait, signal); continue; }
           throw provider.runtime.markPreStreamRetriesExhausted(e, { attempts: attempt + 1, waitedMs: waited });
         } finally {
           guard.disarm();
@@ -1047,6 +1048,7 @@
         }
         if (res.ok && res.body) {
           if (native) noteOllamaWindow(nativeBase, body.model, wire.numCtx);
+          if (healedTemplate) provider.noteSystemlessTemplate(baseUrl, body.model);   // proven: this template takes no system role
           return res;
         }
         const upstreamError = await responseErrorDetail(res, signal, native ? nativeBase + '/api/chat' : baseUrl + chatPath);
@@ -1067,6 +1069,17 @@
           if (body.reasoning_effort !== undefined && /does not support thinking/i.test(String(detail))) {
             delete body.reasoning_effort; rememberDrop(body.model, 'reasoning_effort'); attempt--; continue;
           }
+        }
+        /* THE MODEL'S CHAT TEMPLATE REFUSED THE SHAPE (errorClass template_refusal, #102). The 'chat' projection already
+           sends what a strict template asks for, so what is left is a template with no system role at all (Gemma: "System
+           role not supported"). Resend ONCE with the system message folded into the first user turn, the way such a
+           template folds it itself (projectRoles 'chat-nosystem'); when that goes through, this endpoint + model keeps
+           that shape (above). A refusal of that too goes on as template_refusal, naming the template — never resent as a
+           server error. */
+        if (!healedTemplate && errorClass.isTemplateRefusal(detail) && Array.isArray(body.messages) && body.messages.some(m => m && m.role === 'system')) {
+          healedTemplate = true;
+          body.messages = provider.projectRoles(body.messages, 'chat-nosystem');
+          attempt--; continue;
         }
         // The endpoint NAMED the levels this model takes (or, for gpt-5.6 with tools on Chat Completions, that only
         // 'none' works): learn them for the model and resend a level it accepts. Checked BEFORE the generic drop
@@ -1124,6 +1137,11 @@
            errorClass so. */
         if (upstreamError.body) { err.body = upstreamError.body; err.ownMessage = true; }
         localMemoryError(err);
+        if (errorClass.isTemplateRefusal(detail)) {
+          // the template_refusal sentence names the host and says whether the systemless shape was refused too
+          provider.runtime.stampRequestHost(err, native ? nativeBase : baseUrl);
+          err.templateRetried = healedTemplate || !(Array.isArray(body.messages) && body.messages.some(m => m && m.role === 'system'));
+        }
         const cls = classifyApiError(err, { model: body.model });
         err.transient = cls.retryable;
         if (cls.retryable && attempt < retries) { const wait = Math.min(60000, Math.max(RETRY_DELAYS[attempt], cls.retryAfterMs || 0)); waited += wait; await delay(wait, signal); continue; }

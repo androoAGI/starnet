@@ -206,6 +206,20 @@ function build(over) {
     A.ok(/buttons: OFF/.test(sends[0]), 'it reports the approvals state');
   }
 
+  /* ---- /status counts what the RUN replays (quick win 23, bug 956fdecf's last half) ----
+     A real host hands the hub historyFor (the canonical stream) and every run reads THAT, not the legacy store file.
+     /status still counted the store file: "History: 0 messages remembered" beside a run that replayed the whole chat. */
+  {
+    const transcripts = new Map([['channel_telegram_555', [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }, { role: 'user', content: 'c' }, { role: 'assistant', content: 'd' }]]]);
+    const { hub, sends } = build({ store: fakeStore(), historyFor: (sid) => (transcripts.get(sid) || []).slice() });
+    await hub.onInbound(dm('/status'));
+    A.ok(/History: 4 messages remembered/.test(sends[0]), '/status counts the canonical stream the next run replays: ' + sends[0]);
+    // after /new the chat moves to a fresh stream, and /status agrees that nothing is remembered
+    await hub.onInbound(dm('/new'));
+    await hub.onInbound(dm('/status'));
+    A.ok(/History: 0 messages remembered/.test(sends[sends.length - 1]), 'after /new, /status reports the fresh stream: ' + sends[sends.length - 1]);
+  }
+
   {
     let release = null;
     const runOnce = (o) => new Promise(res => { release = res; o.emit('agent.run.start', { runId: o.runId }); });

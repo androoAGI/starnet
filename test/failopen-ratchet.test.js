@@ -157,7 +157,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 349,
+  'index.js': 347,
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)
@@ -170,7 +170,7 @@ const SYNC_BASELINE = {
   'mcp/translate.js': 1,
   'mcp/transport.http.js': 5,
   'mcp/transport.stdio.js': 5,
-  'media-service.js': 21,
+  'media-service.js': 15,
   'native-stt.js': 1,
   'nightshift-driver.js': 5,
   'openai-compat.js': 18,

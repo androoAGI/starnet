@@ -181,16 +181,22 @@ async function run(provider, extra) {
     A.eq(p.calls.length, 4, 'every attempt went out');
   }
 
-  // ---- 11. a refused / unresolvable endpoint retries as before but reads 'unreachable', never '(timeout)' (bug 8873fd77) ----
+  // ---- 11. a refused / unresolvable endpoint reads 'unreachable', never '(timeout)' (bug 8873fd77), and since quick win 15
+  //      (2026-10-27) it IS its own class: ONE retry rides out a blip, a second refusal ends the turn naming the host ----
   {
     const fetchFailed = code => Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ' + code + ' 127.0.0.1:11434'), { code }) });
     for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN']) {
-      const p = scripted(n => (n <= 2 ? { throw: fetchFailed(code) } : { events: answer('ok') }));
+      const p = scripted(n => (n <= 1 ? { throw: fetchFailed(code) } : { events: answer('ok') }));
       const { res, retries, recov, dropped } = await run(p);
-      A.eq(res.reason, 'done', code + ': the ladder still rides it out');
-      A.eq(retries.map(r => r.reason), ['unreachable', 'unreachable'], code + ': the retry line says nothing answered there, not a slow provider');
+      A.eq(res.reason, 'done', code + ': one retry still rides out a blip');
+      A.eq(retries.map(r => r.reason), ['unreachable'], code + ': the retry line says nothing answered there, not a slow provider');
       A.eq(dropped.length, 0, code + ': the payload passes the event contract');
-      A.ok(recov.every(r => r.reason === 'timeout'), code + ': the retry class itself (and the recovery record) is unchanged');
+      A.ok(recov.length > 0 && recov.every(r => r.reason === 'unreachable'), code + ': the retry class (and the recovery record) is unreachable');
+      const twice = scripted(n => (n <= 2 ? { throw: fetchFailed(code) } : { events: answer('ok') }));
+      const second = await run(twice);
+      A.eq(second.res.reason, 'error', code + ': a second refusal ends the turn (no five more rungs)');
+      A.eq(twice.calls.length, 2, code + ': two requests in all');
+      A.ok(second.seq.some(e => e.name === 'agent.run.error' && /127\.0\.0\.1/.test(e.payload.message)), code + ': the end names the host');
     }
     for (const code of ['ETIMEDOUT', 'ECONNRESET']) {
       const p = scripted(n => (n === 1 ? { throw: fetchFailed(code) } : { events: answer('ok') }));

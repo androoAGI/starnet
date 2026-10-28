@@ -103,12 +103,14 @@ const HELP = [
   ['/', 'every command as you type — the app\'s too: /goal /queue /loop …'],
   ['@name message', 'talk to another agent (it queues if busy)'],
   ['/model [name]', 'show or switch the shown agent\'s model'],
+  ['/connect [provider]', 'add a provider: the app\'s AI & MODELS list (sign in, link, or a key)'],
+  ['/split <agent> …', 'talk to more agents at once: a pane each, side by side (/split close · /split off)'],
   ['/new  /resume', 'a fresh conversation · back to an earlier one'],
   ['y  a  n  v', 'answer the open ask: once, always, no, view'],
   ['1-6 or text', 'answer an open question'],
   ['tab  shift+tab', 'switch the agent shown in COMMS'],
   ['↑ ↓  pgup pgdn', 'your earlier messages · scroll COMMS'],
-  ['f1 – f5', 'the pages on the tab rule · /stat /crew /work'],
+  ['f1 – f6', 'the pages on the tab rule · /stat /crew /work /floor'],
   ['click', 'an agent opens its chat · a tab, its page'],
   ['right-click', 'an agent: its menu (model, new chat, stop…)'],
   ['ctrl+click', 'opens a link, or a file an agent wrote'],
@@ -116,7 +118,7 @@ const HELP = [
   ['/retry', 'send your last message again'],
   ['/status', 'the agent, its model, its folder, the station'],
   ['/skills', 'its skills · run one: /<skill> <task>'],
-  ['/usage  /tools', 'spend · what it can call'],
+  ['/usage  /tools', 'what is left on each provider · what it can call'],
   ['/routine', 'scheduled routines: list, create, pause'],
   ['/cron  on · off', 'the routines scheduler: its state, arm it'],
   ['/away', 'work it builds on its own away shift'],
@@ -266,7 +268,8 @@ function render(model, ui, size, now) {
 
   // ---- CREW: a framed list down the left — lamp, name, and a word for what it is doing — the one in COMMS marked; at its
   // foot, where the terminal draws images and the list leaves room, the station camera locked on the agent in COMMS -
-  const side = W >= 90 && rows.length > 0 && !(ui.wake && !ui.wake.crew);   // the awakening shows the crew once its agent exists
+  // the awakening shows the crew once its agent exists; the FLOOR is the crew itself, the whole width
+  const side = W >= 90 && rows.length > 0 && !(ui.wake && !ui.wake.crew) && !(ui.page === 'floor' && !ui.wake && !ui.picker && !ui.overlay);
   const sw = side ? 30 : 0;   // room for a name and its tag, and for the camera feed at its foot
   if (side) {
     // the crew BY KIND, each kind under its strip (the app's NEEDS YOU, grouped by kind): who waits on you, who works,
@@ -330,17 +333,20 @@ function render(model, ui, size, now) {
   // THE PAGES (Andrew 10-22, with the mouse): STAT · CREW · COMMS · WORK · SKILLS on the tab rule, each one the whole of this
   // frame. COMMS is the conversation; SKILLS is the skills list (/skills); the awakening has none of them.
   const page = wk ? '' : PAGES.indexOf(ui.page) >= 0 ? ui.page : '';
+  // THE SPLIT: the agents COMMS shows side by side (drawSplit), named where COMMS is named
+  const splitIds = !wk && ui.panes ? ui.panes.filter(id => rows.some(r => r.id === id)) : [];
+  const splitName = splitIds.length > 1 ? splitIds.map(id => rows.find(r => r.id === id).name).join(' · ') : '';
   frame(g, cx0, top, cx1, bot, 'rule');
   // with the tab rule above, the frames carry no titles of their own (the rule says each place once)
   if (tabsRow < 0) {
     if (wk) edgeL(g, cx0 + 2, top, [[wk.stage.title || 'THE AWAKENING', 'ph b']].concat(wk.stage.detail ? [[' · ' + wk.stage.detail, 'dim']] : []));
     else if (page) edgeL(g, cx0 + 2, top, [[page.toUpperCase(), 'ph b']]);
-    else edgeL(g, cx0 + 2, top, focusRow ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [focusRow.name, 'hi b']] : [['COMMS', 'ph b']]);
+    else edgeL(g, cx0 + 2, top, splitName ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [splitName, 'hi b']] : focusRow ? [['COMMS', 'ph b'], [' ▸ ', 'rule'], [focusRow.name, 'hi b']] : [['COMMS', 'ph b']]);
   }
   const right = [];
   const showModel = !page && focusRow && focusRow.model && cx1 - cx0 > 60;
   if (showModel) right.push([focusRow.model, 'dim']);
-  if (!page && ui.scroll > 0) right.push([(right.length ? '  ' : '') + '↑ ' + ui.scroll, 'am']);
+  if (!page && ui.scroll > 0 && !splitName) right.push([(right.length ? '  ' : '') + '↑ ' + ui.scroll, 'am']);
   if (!page && !side && focusRow && !ui.wake) right.push([(right.length ? '  ' : '') + (rows.indexOf(focusRow) + 1) + '/' + rows.length, 'dim']);
   if (right.length) {
     edgeR(g, cx1 - 1, top, right);
@@ -361,14 +367,17 @@ function render(model, ui, size, now) {
   const card = wk ? (wk.ask ? wakeCardLines(wk.ask, cw, now, ui.still) : []) : slash ? slashLines(slash, iy1 - iy0 - 4, cw) : menuRow ? menuLines(menuAgent, menuRow, now, ui.still)
     : front ? cardLines(front, model, cw, H) : ui.trust ? trustLines(ui.trust, cw) : [];
   const cardTop = iy1 - card.length + 1;
+  let floorAt = null;   // the FLOOR's picture region, when it draws one (the dashboard puts the picture there)
   const paneBot = card.length ? cardTop - 1 : iy1 + 1;
   if (ui.picker) drawPicker(g, ui.picker, iy0, paneBot, ix0, ix1, blink, hit);
   else if (ui.overlay) drawOverlay(g, ui.overlay, iy0, paneBot, ix0, ix1, tabsRow >= 0);
   else if (page === 'stat') drawStatPage(g, ui, head, rows, flows, iy0, paneBot, ix0, ix1, hit);
   else if (page === 'crew') drawCrewPage(g, model, rows, focusRow, ui, iy0, paneBot, ix0, ix1, now, hit);
   else if (page === 'work') drawWorkPage(g, flows, focusRow, ui, iy0, paneBot, ix0, ix1, now, hit);
+  else if (page === 'floor') floorAt = drawFloorPage(g, rows, ui, iy0, paneBot, ix0, ix1, hit);
   else if (wk) drawWake(g, wk, iy0, paneBot, ix0, ix1, ui, now);
   else if (!focusRow) g.put(ix0, iy0, trunc(head.feed === 'connecting' ? 'connecting to the station…' : 'no agents on this station yet', ix1 - ix0 + 1), 'dim');
+  else if (splitName) areas.panes = drawSplit(g, model, rows, ui, iy0, paneBot, ix0, ix1, now, hit);
   else drawPane(g, focusRow ? model.logOf(focusRow.id) : [], focusRow, iy0, paneBot, ix0, ix1, ui, now, hit);
   if (card.length) drawCard(g, card, cardTop, ix0, cw, blink, hit);
   areas.comms = { x0: cx0, x1: cx1 + 1, y0: top, y1: bot + 1 };
@@ -380,10 +389,10 @@ function render(model, ui, size, now) {
     const skillsOpen = !!(ui.picker && ui.picker.kind === 'skills');
     const hereId = wk || (ui.overlay && !ui.picker) ? 'comms' : skillsOpen ? 'skills' : page || 'comms';
     const hereText = ui.overlay && !ui.picker ? ui.overlay.title : wk ? wk.stage.title || 'THE AWAKENING'
-      : hereId === 'comms' ? (focusRow ? 'COMMS ▸ ' + focusRow.name : 'COMMS') : hereId.toUpperCase();
+      : hereId === 'comms' ? (splitName ? 'COMMS ▸ ' + splitName : focusRow ? 'COMMS ▸ ' + focusRow.name : 'COMMS') : hereId.toUpperCase();
     const detail = wk ? wk.stage.detail || '' : '';
     const all = wk ? (side ? [['crew', 'CREW', ' ' + rows.length]] : []).concat([['comms', 'COMMS', '']])
-      : [['stat', 'STAT', ''], ['crew', 'CREW', ' ' + rows.length], ['comms', 'COMMS', ''], ['work', 'WORK', flows.length ? ' ' + flows.length : ''], ['skills', 'SKILLS', '']];
+      : [['stat', 'STAT', ''], ['crew', 'CREW', ' ' + rows.length], ['floor', 'FLOOR', ''], ['comms', 'COMMS', ''], ['work', 'WORK', flows.length ? ' ' + flows.length : ''], ['skills', 'SKILLS', '']];
     // the place you are in keeps at least 8 cells of its name; a tab that leaves it less is left off, from the right
     const tw = t => t[0] === hereId ? 0 : 1 + width(t[1]) + width(t[2]) + 1;
     const fixedW = list => 2 + list.reduce((n, t) => n + tw(t) + 3, 0) + 4 + (detail ? width(detail) + 2 : 0);
@@ -437,7 +446,9 @@ function render(model, ui, size, now) {
   let px = g.put(0, promptY, (ui.wake ? 'you' : focusRow ? focusRow.name.toLowerCase() : 'starnet') + ' ', 'dim');   // the awakening: your answers
   px = g.put(px, promptY, '▸ ', 'brand b');
   const room = W - px - 2 - (flashKey ? 8 : 0);
-  const typed = String(ui.input || '').replace(/\n/g, ' ⏎ ');   // a pasted multi-line message shows its breaks as ⏎
+  // a pasted multi-line message shows its breaks as ⏎; a secret (a /connect key) shows only that something is typed
+  const secret = !!(ui.wake && ui.wake.ask && ui.wake.ask.secret);
+  const typed = secret ? '•'.repeat(Math.min(40, [...String(ui.input || '').replace(/\s/g, '')].length)) : String(ui.input || '').replace(/\n/g, ' ⏎ ');
   const inp = width(typed) > room ? '…' + tail(typed, room - 1) : typed;
   px = g.put(px, promptY, inp, 'hi');
   g.put(px, promptY, blink ? '█' : ' ', 'ph');
@@ -445,7 +456,12 @@ function render(model, ui, size, now) {
   if (ui.flash && ui.flash.until > now) g.put(0, hintY, trunc(ui.flash.text, W), ui.flash.style || 'am');
   else if (ui.quitArmed && ui.quitArmed > now) g.put(0, hintY, trunc('ctrl+c again to quit — ' + ui.quitNote, W), 'am b');
   else {
-    const t = wk
+    // /connect is no setup: esc leaves it, and a key or a URL is typed whole (its options are a click)
+    const t = wk && wk.connect
+      ? (wk.ask && (wk.ask.secret || wk.ask.freeText) ? 'type ' + (wk.ask.customLabel || 'it') + ' + enter · esc goes back'
+        : wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type it + enter · ' : '') + 'esc goes back'
+          : 'esc goes back')
+      : wk
       ? (wk.ask ? ((wk.ask.options || []).length ? '1-' + wk.ask.options.length + ' pick · ' : '') + (wk.ask.custom ? 'or type your own + enter · ' : '') + 'ctrl+c pauses setup'
         : wk.typing ? 'any key shows the rest' : 'ctrl+c pauses setup')
       : slash ? 'tab completes /' + slash.items[slash.sel].name + ' · enter runs it · ↑ ↓ pick · esc hides this'
@@ -454,12 +470,13 @@ function render(model, ui, size, now) {
       : front
       ? (front.question ? (front.question.options.length ? '1-' + front.question.options.length + ' pick · ' : '') + 'type an answer + enter · esc clears' : 'y allow once · ' + (canAlways(front) ? 'a always · ' : '') + 'n deny · v ' + (front.view ? 'hide' : 'view') + ' · ' + (narrow ? 'tab agent' : 'tab next agent'))
       : ui.trust ? 'y trust this folder · n not now · or just type to talk'
-        : page ? PAGE_HINT[page] + '  ·  esc back to COMMS  ·  f1-f5 pages'
-          : narrow ? 'tab agent · /model · /new · /help · ctrl+c quit' : 'tab next agent  ·  ↑ ↓ history  ·  /model  ·  /new  ·  /resume  ·  /help  ·  f1-f5 pages  ·  ctrl+c quit';
+        : page ? PAGE_HINT[page] + '  ·  esc back to COMMS  ·  f1-f6 pages'
+          : narrow ? 'tab agent · /model · /new · /help · ctrl+c quit' : 'tab next agent  ·  ↑ ↓ history  ·  /model  ·  /new  ·  /resume  ·  /help  ·  f1-f6 pages  ·  ctrl+c quit';
     g.put(0, hintY, trunc(t, W), 'dim');
   }
   const out = g.out();
   out.avatar = avatar;
+  out.floor = floorAt;
   out.hits = hits;
   out.areas = areas;
   return out;
@@ -468,11 +485,12 @@ function render(model, ui, size, now) {
 const AGENT_ROWS = 9;   // the titled rule above it + its 8-row scene
 
 // ---- THE PAGES: STAT, CREW and WORK, each the whole COMMS frame (SKILLS is the /skills list; COMMS the conversation) ----
-const PAGES = ['stat', 'crew', 'work'];
+const PAGES = ['stat', 'crew', 'floor', 'work'];
 const PAGE_HINT = {
   stat: 'the station: its level, spend, crew and work',
   crew: 'click an agent to open its chat · right-click one for its menu',
-  work: 'click a workflow to send it a job'
+  work: 'click a workflow to send it a job',
+  floor: 'the crew at work · a handoff flies desk to desk · click a name to open its chat'
 };
 const padR = (s, n) => s + ' '.repeat(Math.max(0, n - width(s)));
 // a page's rows from `top`, scrolled by ui.pageScroll: { label, segs, act, on, strip } (null = a blank row). A labelled row
@@ -537,6 +555,55 @@ function drawCrewPage(g, model, rows, focusRow, ui, top, bot, x0, x1, now, hit) 
   }
   drawPageRows(g, L, ui, top, bot, x0, x1, hit);
 }
+/* THE FLOOR (f6, /floor): the whole crew in one room. Where the terminal draws images it is a picture (bin/lib/floor.js):
+   this leaves its region empty and says where it is (the dashboard draws it there, with the name plates over it); with no
+   images, the same truth as text — the lead, the workers it sent (each with what it is doing), the rest. Under it the LOG
+   of the handoffs: who sent what to whom, who came back. ui.floorView: { images, ready, lead, kids, log } */
+function drawFloorPage(g, rows, ui, top, bot, x0, x1, hit) {
+  const fv = ui.floorView || {};
+  const w = x1 - x0 + 1;
+  const logLines = (fv.log || []).slice(-3);
+  const picBot = bot - 4;   // the LOG: its rule and three lines
+  let region = null;
+  if (fv.images && picBot - top >= 8) {
+    region = { x: x0, y: top, cols: w, rows: picBot - top };
+    if (!fv.ready) g.put(x0 + 2, top + 1, trunc('the floor is fetching the crew\'s art…', w - 2), 'dim');
+  } else {
+    const byId = new Map(rows.map(r => [r.id, r]));
+    const word = r => r.status.key === 'working' ? ['● ' + (r.now || 'working'), 'ph'] : r.status.key === 'needs' ? ['▲ ' + (r.now || 'needs you'), 'am'] : r.status.key === 'done' ? ['✓ done', 'ok'] : r.status.key === 'stopped' ? ['■ ' + r.status.text, 'dim'] : ['standing by', 'dim'];
+    const kids = (fv.kids || []).filter(id => byId.has(id));
+    const lead = byId.get(fv.lead);
+    let y = top;
+    const line = (r, lead2, prefix) => {
+      if (y >= picBot) return;
+      let x = g.put(x0, y, prefix, 'rule');
+      const x1n = g.put(x, y, r.name, lead2 ? 'ph b' : 'hi b');
+      x = lead2 ? g.put(x1n, y, '  lead', 'dim') : x1n;
+      const [t, st] = word(r);
+      g.put(x + 2, y, trunc(t, Math.max(4, x1 - x - 2)), st);
+      hit(x0, x1 + 1, y, { t: 'agent', id: r.id });
+      y++;
+    };
+    if (lead) line(lead, kids.length > 0, '');
+    kids.forEach((id, i) => line(byId.get(id), false, i === kids.length - 1 ? '└─▶ ' : '├─▶ '));
+    if (lead || kids.length) y++;
+    // the rest: who has something going on, then who stands by — on one line when they would not all fit
+    const rest = rows.filter(r => r !== lead && kids.indexOf(r.id) < 0);
+    const by = rest.filter(r => r.status.key === 'idle');
+    rest.filter(r => r.status.key !== 'idle').forEach(r => line(r, false, ''));
+    if (by.length && picBot - y >= by.length) by.forEach(r => line(r, false, ''));
+    else if (by.length && y < picBot) {
+      const x = g.put(x0, y, by.length + ' standing by  ', 'dim');
+      g.put(x, y, trunc(by.map(r => r.name).join(', '), Math.max(4, x1 - x)), 'fg');
+    }
+  }
+  let x = g.put(x0, picBot, 'LOG ', 'dim b');
+  while (x <= x1) x = g.put(x, picBot, '─', 'rule');
+  if (!logLines.length) g.put(x0, picBot + 1, trunc('no handoffs yet — when an agent sends work to the crew it shows here, and on the floor', w), 'dim');
+  logLines.forEach((e, i) => g.put(x0, picBot + 1 + i, trunc(clock(e.at) + '  ' + e.text, w), e.style || 'fg'));
+  return region;
+}
+function clock(at) { const d = new Date(at); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':'); }
 // WORK: the station's workflows (a click readies a job for one), its routines (the scheduler's own list) and the away shift
 // of the agent shown (/away list)
 function drawWorkPage(g, flows, focusRow, ui, top, bot, x0, x1, now, hit) {
@@ -778,6 +845,51 @@ function drawPane(g, log, focusRow, top, bot, x0, x1, ui, now, hit) {
     if (r.file && hit && focusRow) hit(x0 + L, x, yy, Object.assign({ t: 'file', path: r.file, runId: r.runId, agentId: focusRow.id }, typeof r.root === 'string' ? { root: r.root } : {}));
   });
 }
+/* THE SPLIT (/split, Andrew 10-27: "talk to multiple agents at once … see both sessions on the screen … as many as they
+   want … each session separately scrollable"): COMMS holds one pane per agent in ui.panes, side by side while each keeps
+   SPLIT_MIN_W cells, then in more rows. Each pane is that agent's own conversation with its own scroll (the one you type
+   to: ui.scroll; the rest: ui.scrolls[id]); its head names it and says what it is doing, the one you type to marked and
+   filled. A click on a head picks the pane you type to; the dashboard scrolls the pane under the wheel (out.panes). */
+const SPLIT_MIN_W = 36;
+function splitLayout(n, x0, x1, top, bot) {
+  const w = x1 - x0 + 1;
+  const cols = Math.max(1, Math.min(n, Math.floor((w + 1) / (SPLIT_MIN_W + 1))));
+  const rowsN = Math.ceil(n / cols), h = bot - top;
+  const cells = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols), inRow = Math.min(cols, n - r * cols), c = i % cols;
+    const cw = Math.floor((w - (inRow - 1)) / inRow);
+    const cx0 = x0 + c * (cw + 1), cx1 = c === inRow - 1 ? x1 : cx0 + cw - 1;
+    const ch = Math.floor((h - (rowsN - 1)) / rowsN);
+    const cy0 = top + r * (ch + 1), cy1 = r === rowsN - 1 ? bot : cy0 + ch;
+    cells.push({ x0: cx0, x1: cx1, top: cy0, bot: cy1 });
+  }
+  return { cols, rows: rowsN, cells };
+}
+function drawSplit(g, model, rows, ui, top, bot, x0, x1, now, hit) {
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const ids = (ui.panes || []).filter(id => byId.has(id));
+  const L = splitLayout(ids.length, x0, x1, top, bot);
+  const out = [];
+  ids.forEach((id, i) => {
+    const c = L.cells[i], r = byId.get(id), mine = id === ui.focus;
+    // the rules between panes
+    if (c.x1 < x1) for (let y = c.top; y < c.bot; y++) g.put(c.x1 + 1, y, '│', 'rule');
+    if (c.bot < bot) { for (let x = c.x0; x <= c.x1; x++) g.put(x, c.bot, '─', 'rule'); if (c.x1 < x1) g.put(c.x1 + 1, c.bot, '┴', 'rule'); }
+    const [word, wc] = stateWords(r.status, now, ui.still);
+    const scroll = mine ? ui.scroll : (ui.scrolls && ui.scrolls[id]) || 0;
+    let x = g.put(c.x0, c.top, mine ? '▌' : ' ', mine ? 'ph b' : '');
+    x = g.put(x, c.top, trunc(r.name, Math.max(4, c.x1 - x - 12)), mine ? 'ink b hifill' : 'hi b');
+    x = g.put(x, c.top, ' ' + trunc(word, Math.max(0, c.x1 - x - 6)), wc);
+    if (scroll > 0) g.putR(c.x1 + 1, c.top, '↑ ' + scroll, 'am');
+    if (hit) hit(c.x0, c.x1 + 1, c.top, { t: 'pane', id });
+    const pu = { scroll, still: ui.still };
+    drawPane(g, model.logOf(id), r, c.top + 1, c.bot, c.x0 + 1, c.x1, pu, now, hit);
+    if (mine) ui.scroll = pu.scroll; else if (ui.scrolls) ui.scrolls[id] = pu.scroll;
+    out.push({ id, x0: c.x0, x1: c.x1 + 1, y0: c.top, y1: c.bot });
+  });
+  return out;
+}
 /* A PICKER (/model, /resume): a filterable list inside the COMMS frame. p: { title, note, filter, sel, items: [{ cols:
    [[text, style]…], search, current }], loading, error, foot }. The selected row sits on the highlight bar, the current one is
    marked ●, the window scrolls to keep the selection in view. Pure: it only reads p (sel is clamped by the caller's keys). */
@@ -805,6 +917,12 @@ function drawPicker(g, p, top, bot, x0, x1, blink, hit) {
     const yy = y + i, on = start + i === sel;
     g.put(x0, yy, it.current ? '●' : ' ', 'ph b');
     let xx = x0 + 2;
+    // a grouped list (/connect): the group's name where its rows begin (and atop the window), the app's group heads
+    if (p.groupW) {
+      const wide = x1 - x0 >= 104, prev = list[start + i - 1];
+      const gw = wide ? 25 : 14, label = wide ? it.group : (it.groupShort || it.group);
+      xx = g.put(xx, yy, padR(i === 0 || !prev || prev.group !== it.group ? trunc(String(label || ''), gw - 1) : '', gw), on ? 'hi b' : 'ph b');
+    }
     for (const [t, s] of it.cols) { if (xx > x1) break; xx = g.put(xx, yy, trunc(t, Math.max(0, x1 + 1 - xx)), on ? 'hi b' : s); }
     if (on) { g.put(x0 - 1 < 0 ? x0 : x0 - 1, yy, '▌', 'ph b'); g.hl(yy, x0, x1 + 1, 'sel'); }
     if (hit) hit(x0, x1 + 1, yy, { t: 'pick', i: start + i });   // a click chooses it, as enter does
@@ -903,11 +1021,13 @@ function wakeCardLines(ask, cw, now, still) {
   const opts = ask.options || [];
   const lines = [{ kind: 'top', title: ask.waiting ? 'SIGN IN' : opts.length ? 'YOUR CHOICE' : 'YOUR ANSWER' }];
   if (ask.waiting) lines.push({ kind: 'body', segs: [[spin(now, still) + ' ' + ask.waiting, 'am']] });
-  opts.forEach((o, i) => lines.push({ kind: 'body', act: { t: 'wake', i }, segs: [[(i + 1) + '  ', 'am b'], [String(o.label || ''), o.skip ? 'dim' : 'fg']] }));
+  opts.forEach((o, i) => lines.push({ kind: 'body', act: { t: 'wake', i }, segs: [[(ask.secret || ask.freeText ? '·' : i + 1) + '  ', 'am b'], [String(o.label || ''), o.skip ? 'dim' : 'fg']] }));
   if (ask.custom) lines.push({ kind: 'body', segs: [['›  ', 'am'], ['or type ' + (ask.customLabel || 'your own answer') + ' and press enter' + (ask.optional && !opts.some(o => o.skip) ? ' (enter alone skips)' : ''), 'dim']] });
   const keys = [];
-  if (opts.length) keys.push(['[1-' + opts.length + '] PICK', 'am b']);
-  if (ask.custom) keys.push(['[ENTER] SEND WHAT YOU TYPED', 'am b', { t: 'enter' }]);
+  // a key or a URL is typed from its first character (a digit too): its options are a click, or esc goes back
+  if (opts.length && !ask.secret && !ask.freeText) keys.push(['[1-' + opts.length + '] PICK', 'am b']);
+  if (ask.custom) keys.push([ask.secret ? '[ENTER] SAVE' : '[ENTER] SEND WHAT YOU TYPED', 'am b', { t: 'enter' }]);
+  if (ask.secret || ask.freeText) keys.push(['[ESC] GO BACK', 'am b']);
   lines.push({ kind: 'bottom', keys });
   return lines;
 }
@@ -962,7 +1082,7 @@ const PALETTE = {   // (the accent entries are retinted in place by /theme — t
 };
 // (256-color: the card sits on a near-black — the nearest palette brown, 58, is a loud olive)
 // hifill / amfill: the Pip-Boy's filled labels — white for where you are, amber for what waits on you
-const BG = { sel: ['#3a0c14', 52], card: ['#1f1405', 234], inv: ['#ff3b4e', 203], hifill: ['#ffffff', 231], amfill: ['#ffb43a', 214] };
+const BG = { sel: ['#3a0c14', 52], card: ['#1f1405', 234], inv: ['#ff3b4e', 203], hifill: ['#ffffff', 231], amfill: ['#ffb43a', 214], plate: ['#120c0e', 233] };
 function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function sgr(style, level) {
   const parts = String(style || '').split(/\s+/).filter(Boolean);
@@ -1015,4 +1135,4 @@ function colorLevel(env, isTTY) {
   return 2;
 }
 
-module.exports = { PALETTE, BG, render, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, PAGES, slashMatches, slashMenu, slashCommandOf };
+module.exports = { PALETTE, BG, render, splitLayout, SPLIT_MIN_W, toAnsi, toPlain, sliceSegs, colorLevel, clean, width, wrap, trunc, makeGrid, HELP, cardLines, trustLines, wakeCardLines, menuLines, pickerView, stateWords, PAGES, slashMatches, slashMenu, slashCommandOf };

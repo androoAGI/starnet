@@ -7,6 +7,7 @@
      · the desktop wiring: module, managed state, commands, the tray's HUD Mode / Open StarNet paths,
        and the HUD's restore floor mirroring the main window's builder. */
 'use strict';
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -33,6 +34,12 @@ const T0 = 1_800_000_000_000;
   A.ok(by('r-com').canStop && by('r-com').canSteer, 'a run the station can stop offers STOP and a direction');
   A.ok(!by('r-line').canStop && !by('r-line').canSteer, 'a work-line step /api/cancel cannot reach offers neither (no "Stop requested." for a stop that never happens)');
   A.ok(by('r-old').canStop, 'an older station that does not say keeps the controls');
+  // quick win 12: the card reads /api/cancel's own answer — a stop that found no live run never reads "Stop requested."
+  A.eq(H.commandReceipt('stop', 'run', { ok: true, stopped: false }), 'Nothing to stop: this run had already ended.', 'a cancel that stopped nothing says so');
+  A.eq(H.commandReceipt('stop', 'run', { ok: true, stopped: true }), 'Stop requested.', 'a cancel that reached a live run is a stop request');
+  A.eq(H.commandReceipt('stop', 'run', null), 'Stop requested.', 'an older station that does not say keeps the old line');
+  A.eq(H.commandReceipt('stop', 'worker', { ok: true, stopped: false }), 'Stop requested.', 'a worker interrupt is answered by its own route, unchanged');
+  A.eq(H.commandReceipt('steer', 'run', { ok: true }), 'Direction sent. The agent takes it before its next step.', 'a direction keeps its receipt');
   const workers = [
     { id: 'w1', agentId: 'researcher', status: 'stale', prompt: 'Dig up the docs', completedAt: T0 - 1000 },
     { id: 'w2', agentId: 'researcher', status: 'refused', prompt: 'Do the thing', completedAt: T0 - 2000 },
@@ -79,8 +86,14 @@ const T0 = 1_800_000_000_000;
     A.ok(!isDragRegion([key, h3]), 'a header key stays a click (the h3 is not deep)');
     A.eq(h3Attr, '', 'the h3 keeps the bare (self-only) attribute');
   }
-  const side = fs.readFileSync(path.join(ROOT, 'sidecar/index.js'), 'utf8');
-  A.ok(side.includes('row.stoppable = runs.has(runId);') && side.includes("source: 'host', stoppable: runs.has(runId) }"), 'the snapshot says which runs /api/cancel can reach (additive)');
+  // quick win 12: /api/cancel also reaches a run holding a runOnce stop handle (a routine hop, a line step, a hub run), so
+  // the snapshot offers STOP on exactly the runs it can stop — no more, no fewer
+  const snap = sidecarFunctionSource('handleStateSnapshot');
+  A.ok(snap.length > 500 && snap.length < 20000, 'one bounded handleStateSnapshot');
+  A.ok(snap.includes('row.stoppable = runs.has(runId) || runStopHandles.has(runId);') && snap.includes("source: 'host', stoppable: runs.has(runId) || runStopHandles.has(runId) }"),
+    'the snapshot says which runs /api/cancel can reach, a stop-handle run included (additive)');
+  const cancel = sidecarFunctionSource('handleCancel');
+  A.ok(cancel.includes('runStopHandles.get(String(runId))') && cancel.includes('stopped: !!(ac || kc)'), 'the same two maps /api/cancel stops through, and it says whether it stopped one');
   const world = fs.readFileSync(path.join(ROOT, 'frontend/app/world.js'), 'utf8');
   A.ok(world.includes('function cameraState()') && world.includes('function restoreCamera(st)') && world.includes('cameraState, restoreCamera,'), 'the world hands a borrowed camera back exactly');
   const rs = fs.readFileSync(path.join(ROOT, 'src-tauri/src/hud_mode.rs'), 'utf8');
@@ -319,7 +332,7 @@ A.eq([H.fmtAgo(10_000), H.fmtAgo(5 * 60_000), H.fmtAgo(2 * 3_600_000)], ['just n
     A.ok(glass.includes(':is(#chat-status, #chat-elapsed) { display: none !important; }'), 'the HUD header never squeezes its keys out of the window');
     A.ok(js.includes("el('button', 'btn', 'AGENT CAM')") && !js.includes("'btn', 'SMALL')"), 'the key that shrinks the HUD says where it goes: AGENT CAM (Andrew 09-30: not SMALL)');
   }
-  const side = read('sidecar/index.js');
+  const side = readSidecarSource();
   A.ok(has(side, "source: 'interactive', streamId: streamId || '', internal: internal }", 'if (meta && meta.internal) row.internal = true;') && has(js, 'r.internal || workerRuns.has'),
     'live self-talk is marked by the sidecar and never shown as the Commander\'s work');
 }

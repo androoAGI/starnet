@@ -14,7 +14,7 @@
                                   // how = 'entered' (default: the Commander typed the charge) | 'limit' (counted at its per-run limit)
      markUnsettled(runId) -> boolean, // move an ended, unpriced dispatch receipt into the same recovery path without writing
      pendingRuns() -> int,        // runs this process dispatched whose spend is not booked yet
-     all() -> entry[],            count() -> int,
+     all() -> entry[],            count() -> int,               runCount() -> int,   // rows minus aux rows
      totalUsd() -> number,                                       // every recorded run, ever
      usdSince(ts) -> number,      usdForDay(now?) -> number,     // trailing `dayMs` window
      usdForRun(runId) -> number,  usdForAgent(agentId) -> number
@@ -94,12 +94,21 @@
       pending.delete(id);
       return true;
     }
+    // An aux row (a housekeeping call's spend) is booked BESIDE a run, often under that run's id while it is still live
+    // (recall embeds land mid-run): it is never the run's own booking, so it never settles or fails the run's receipt.
+    // The host still hears of it (io.finishRun) to drop the row's own settlement journal.
     function finishRun(entry) {
-      pending.delete(entry.runId);
-      failedBookings.delete(entry.runId);
-      unsettled.delete(entry.runId);   // called only after a durable append: that row settles the run, as the next boot would read it
+      if (!entry.aux) {
+        pending.delete(entry.runId);
+        failedBookings.delete(entry.runId);
+        unsettled.delete(entry.runId);   // called only after a durable append: that row settles the run, as the next boot would read it
+      }
       if (typeof io.finishRun !== 'function') return;
       try { io.finishRun(entry); } catch (_) { /* durable ledger row proves settlement on next boot */ }
+    }
+    function bookingFailed(entry, e) {
+      if (!entry.aux) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); }
+      writeError = String((e && e.code) || 'ledger_write_failed');
     }
 
     function makeEntry(e) {
@@ -112,6 +121,7 @@
         unmetered: !!e.unmetered,
         ...(e.unpriced === true ? { unpriced: true } : {}),   // (additive) some usage had no price: usd is a floor, never a proven $0
         ...(e.usageMissing === true ? { usageMissing: true } : {}),   // (additive) a Stop cut a call off before its usage arrived: usd is a floor
+        ...(str(e.aux).trim() ? { aux: str(e.aux).trim().slice(0, 40) } : {}),   // (additive) a housekeeping call's spend (reflection, study…), not a run
         ts: num(e.ts) || clock.now()
       };
       // settleUnsettled, not a meter: the Commander settled this run. attestedAs says HOW — 'entered' (they typed the
@@ -131,14 +141,14 @@
     function record(e) {
       const entry = makeEntry(e);
       rows.push(entry);
-      try { io.append(entry); finishRun(entry); } catch (e) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); writeError = String((e && e.code) || 'ledger_write_failed'); }
+      try { io.append(entry); finishRun(entry); } catch (e) { bookingFailed(entry, e); }
       return entry;
     }
 
     function recordStrict(e) {
       const entry = makeEntry(e);
       try { io.append(entry); }
-      catch (e) { failedBookings.add(entry.runId); unsettled.delete(entry.runId); writeError = String((e && e.code) || 'ledger_write_failed'); throw e; }
+      catch (e) { bookingFailed(entry, e); throw e; }
       rows.push(entry);
       finishRun(entry);
       return entry;
@@ -199,6 +209,8 @@
       pendingRuns() { return pending.size; },
       all() { return rows.map(r => Object.assign({}, r)); },
       count() { return rows.length; },
+      // runs, not rows: a housekeeping call's aux row is spend booked beside a run, never a run of its own
+      runCount() { let n = 0; for (let i = 0; i < rows.length; i++) if (!(rows[i] && rows[i].aux)) n++; return n; },
       totalUsd() { return sum(null); },
       usdSince(ts) { ts = num(ts); return sum(r => num(r.ts) >= ts); },
       usdForDay(now) { const n = num(now) || clock.now(); return sum(r => num(r.ts) > n - dayMs); },
@@ -210,5 +222,57 @@
     };
   }
 
-  return { makeLedger };
+  /* AUX METER (efficiency audit 2026-10-26). The station's housekeeping passes (reflection, failure review, study, thread
+     mining, the scout cycle, quest refresh, recall embeddings) each booked their spend ONLY `if (usd)`. A subscription
+     route reports $0, so on a ChatGPT/Claude plan every one of those calls drew on the plan and never reached the spend
+     log. One meter per pass: every call it ran is booked, $0 included. A call whose usage never arrived (a timeout, an
+     abort) leaves a metered row usageMissing and an unpriced model leaves it unpriced (both: usd is a floor, never a
+     proven $0), the same metered-only rule the run finalizer uses. The row is tagged `aux` so run counters stay runs.
+
+     makeAuxMeter({ ledger, kind }) -> {
+       stream(provider, req, cost) -> text,   // one streamed completion, metered even when the stream throws
+       add(usage, cost, model),               // one finished call (usage null = none arrived)
+       book({ runId, agentId, model, unmetered, turns? }) -> entry | null,   // no call ran = no row
+       calls(), usd(), tokens()
+     } */
+  function makeAuxMeter(o) {
+    o = o || {};
+    const ledger = o.ledger, kind = str(o.kind).trim() || 'aux';
+    let calls = 0, missing = 0, unpriced = false, usd = 0, tokens = 0, cachedTokens = 0;
+    function add(usage, cost, model) {
+      calls++;
+      let c = null;
+      try { c = usage ? cost.reconcile(usage, model) : null; } catch (_) { c = null; }
+      if (!c) { missing++; return; }
+      usd += num(c.usd); tokens += num(c.tokensIn) + num(c.tokensOut); cachedTokens += num(c.cachedTokens);
+      if (c.unpriced) unpriced = true;
+    }
+    return {
+      add,
+      async stream(provider, req, cost) {
+        let out = '', usage = null;
+        try {
+          for await (const ev of provider.stream(req)) {
+            if (ev && ev.type === 'text') out += ev.delta;
+            else if (ev && ev.type === 'usage') usage = ev.usage;
+          }
+        } finally { add(usage, cost, req && req.model); }
+        return out;
+      },
+      book(row) {
+        if (!calls || !ledger) return null;
+        row = row || {};
+        const unmetered = !!row.unmetered;
+        const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, unmetered,
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, aux: kind });
+        calls = 0; missing = 0; unpriced = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
+        return entry;
+      },
+      calls() { return calls; },
+      usd() { return usd; },
+      tokens() { return tokens; }
+    };
+  }
+
+  return { makeLedger, makeAuxMeter };
 });

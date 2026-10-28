@@ -28,7 +28,9 @@ function undiciError(causeMessage, extra) {
   const dns = undiciError('getaddrinfo ENOTFOUND api.openai.com', { code: 'ENOTFOUND', hostname: 'api.openai.com' });
   A.eq(transportDetail(dns), 'ENOTFOUND api.openai.com', 'DNS failure yields code + host');
   const v = classifyApiError(dns, {});
-  A.eq(v.message, 'fetch failed (ENOTFOUND api.openai.com)', 'the emitted message names the code and the host');
+  // the transport detail still LEADS; since quick win 15 (2026-10-27) the unreachable sentence follows it
+  A.ok(v.message.indexOf('fetch failed (ENOTFOUND api.openai.com) — ') === 0, 'the emitted message names the code and the host');
+  A.ok(/the name api.openai.com did not resolve/.test(v.message), 'and says what that means');
   A.ok(/ENOTFOUND/.test(v.message), 'the report can now distinguish DNS failure from a refused connection');
 
   const refused = undiciError('connect ECONNREFUSED 1.2.3.4:443', { code: 'ECONNREFUSED' });
@@ -60,7 +62,8 @@ function undiciError(causeMessage, extra) {
 
   const own = undiciError('getaddrinfo ENOTFOUND api.openai.com', { code: 'ENOTFOUND', hostname: 'api.openai.com' });
   own.requestHost = 'stamped.example.com';
-  A.eq(classifyApiError(own, {}).message, 'fetch failed (ENOTFOUND api.openai.com)', 'a host the cause carries still wins');
+  const ownMsg = classifyApiError(own, {}).message;
+  A.ok(ownMsg.indexOf('fetch failed (ENOTFOUND api.openai.com) — ') === 0 && ownMsg.indexOf('stamped.example.com') < 0, 'a host the cause carries still wins');
 }
 
 // ---- 1c. the adapter seam: stampRequestHost keeps the HOSTNAME only (keys ride query strings / userinfo) ----
@@ -93,12 +96,13 @@ let readerStamp = Promise.resolve();   // the async leg below; report() waits fo
      message were fed back through classification, 'unauthorized' would flip the verdict to `auth` — which would be
      a nasty bug, since `auth` is non-retryable and would send the user to the PROVIDERS key field over what is
      actually a DNS failure. It must stay the transport verdict.
-     (NOTE for the next reader: a cause CODE legitimately DOES change the reason — errorClass.js:168 maps
-     ENOTFOUND/ECONNREFUSED/UND_ERR_* to `timeout`. That is pre-existing and correct; don't "fix" it.) */
+     (NOTE for the next reader: a cause CODE legitimately DOES change the reason — errorClass.js maps
+     ECONNREFUSED/ENOTFOUND/EAI_AGAIN to `unreachable` (quick win 15, 2026-10-27) and the other UND_ERR_* / socket codes
+     to `timeout`. That is the code, not the text.) */
   const trap = undiciError('getaddrinfo ENOTFOUND unauthorized.example.com', { code: 'ENOTFOUND', hostname: 'unauthorized.example.com' });
   const tv = classifyApiError(trap, {});
   A.ok(/unauthorized\.example\.com/.test(tv.message), 'the trap host really did land in the message');
-  A.eq(tv.reason, 'timeout', 'the appended host text is NOT re-classified (it would read as `auth` if it were)');
+  A.eq(tv.reason, 'unreachable', 'the appended host text is NOT re-classified (it would read as `auth` if it were)');
   A.eq(tv.retryable, true, 'so the verdict stays retryable rather than becoming a dead-end auth door');
 
   // A provider that sent real words keeps them verbatim — plumbing must never displace an upstream explanation.

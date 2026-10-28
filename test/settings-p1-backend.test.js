@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* settings-p1-backend.test.js — source-lock that the P1 settings rows are wired in the SIDECAR to the REAL code
    paths they claim to control (the honesty law — a knob that does nothing is a bug). Grep-guards over
    sidecar/index.js covering the endpoints + the precedence + the live seams:
@@ -8,7 +9,7 @@
      P1-10 the reflect gate reads the live memoryConfig (on/off + cooldown) + the /api/memory/config routes */
 const assert = require('assert');
 const fs = require('fs'); const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource({ except: ['sidecar/tools/builtin/station-control.js'] });   // the host; station-control.js names the same routes as a client
 const importStart = src.indexOf('async function handleConfigImport');
 const importEnd = src.indexOf('/* POST /api/config/reset', importStart);
 const importBody = importStart >= 0 && importEnd > importStart ? src.slice(importStart, importEnd) : '';
@@ -57,7 +58,7 @@ ok(!/Managed credits need a per-run budget cap/.test(src), 'managed credits: the
 ok(/if \(!\(runCapUsd > 0\)\) \{[\s\S]{0,1200}return;[\s\S]{0,300}const adm = credits\.beginRun\(\{ runId, agentId, capUsd: runCapUsd \}\);/.test(src), 'managed credits: an unknown/empty balance still fails CLOSED before any reservation (never spends against an unknown wallet)');
 ok(/resolveKnob\('CONSENT_TIMEOUT_MS', 'consentTimeoutMs', 120000\)/.test(src), 'P1-9: consent timeout is now env>saved>default (was hardcoded)');
 ok(/resolveKnob\('CRON_TICK_MS', 'cronTickMs', 60000\)/.test(src), 'P1-9: cron tick resolves via resolveKnob');
-ok(/function knobEnvLocked\(/.test(src) && /envLocked: locked/.test(src), 'P1-9: the status reports which knobs are env-locked');
+ok(/function knobEnvLocked\(/.test(src) && /fields\[d\.key\] = \{[^}]*envLocked: locked/.test(src), 'P1-9: the status reports which knobs are env-locked');
 ok(/'\/api\/runtime\/knobs'/.test(src), 'P1-9: the runtime-knobs routes are registered');
 // an env-locked knob can't be overwritten from the UI
 ok(/if \(knobEnvLocked\(d\.env\)\) continue/.test(src), 'P1-9: a POST cannot override an env-locked knob');

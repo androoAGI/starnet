@@ -5,6 +5,7 @@
    finished answer: routing/chain.js passed the half-written reply to the NEXT stage, which kept spending. A hop that ended
    cancelled now returns an error, so the chain stops there and keeps the last good answer. Drives the real makeChannelHub. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -53,9 +54,11 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
   A.ok(sends.length === 1 && /stopped early — analyst failed: stopped by you/.test(sends[0]), 'the reply says the line stopped there: ' + JSON.stringify(sends));
 
   // the scheduled routine's and Run-Now's hop runners carry the same rule
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  // the host's two runners wherever they live (the hub's own copy is the one driven above)
+  const idx = readSidecarSource({ except: ['sidecar/channels/hub.js'] });
   A.eq((idx.match(/if \(name === 'agent\.run\.end' && p && p\.reason === 'cancelled'\) hs\.stopped = true;/g) || []).length, 2, 'both index.js hop runners notice a stopped hop');
-  A.eq((idx.match(/error: hs\.errMsg \|\| \(hs\.stopped \? 'stopped by you' : null\)/g) || []).length, 2, '…and return it as an error, so the chain stops');
+  // (worded by hopStoppedSaid: "stopped by you", or the station's fault when the process-fault quiesce stopped it)
+  A.eq((idx.match(/error: hs\.errMsg \|\| \(hs\.stopped \? hopStoppedSaid\(\) : null\)/g) || []).length, 2, '…and return it as an error, so the chain stops');
 
   A.report('line-hop-stop.test');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -4,6 +4,7 @@
    is TOLD. The recurring failure this guards is a command that reports success the store never performed —
    a created routine that cannot fire, a queued build behind an OFF grant, a deleted routine that still exists. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const { makeSlashActions } = require('../sidecar/slash-actions.js');
@@ -112,7 +113,7 @@ const mk = (over) => { const d = deps(over); return { S: makeSlashActions(d), ca
       .S.run('routine', 'add every 30m | check the build');
     A.ok(/Scheduling is off \(you turned it off\), so nothing will fire — \/cron on to turn it on\./.test(off.text) && !/now on/.test(off.text), 'an explicit OFF is kept and said as the Commander\'s choice: ' + off.text);
     const fs = require('fs'), path = require('path');
-    const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const host = idx.slice(idx.indexOf('const slashActions = slashActionsMod.makeSlashActions({'), idx.indexOf('const slashActions = slashActionsMod.makeSlashActions({') + 2400);
     A.ok(/armedNow = armOnSaveIfUnset\(\) && !cronHalted;/.test(host) && /offByChoice: \(\) => !cronArmed && !!cronArmSet,/.test(host), 'the host\'s /routine add create goes through the one arm rule and exposes the explicit OFF');
   }

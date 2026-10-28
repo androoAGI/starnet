@@ -8,6 +8,7 @@
 'use strict';
 
 const A = require('./_assert.js');
+const { loopNotes } = require('./helpers/host-notes.js');
 const http = require('http');
 const path = require('path');
 const os = require('os');
@@ -201,7 +202,8 @@ async function readNdjson(res) {
     ] };
     const llmBefore = llm.requests.length;
     const x = await routine('Readback mismatch', missContract);
-    const nudged = llm.requests.slice(llmBefore).some(r => (r.messages || []).some(mm => mm && mm.role === 'system' && /<acceptance_before_done>[\s\S]*sop-1 \[connector_readback demo\/search_messages\]: connector_readback_mismatch/.test(String(mm.content))));
+    // the fenced host message, wherever the wire put it (provider.js projectRoles: user-side on a chat wire)
+    const nudged = llm.requests.slice(llmBefore).some(r => loopNotes(r.messages, 'acceptance_before_done').some(n => /sop-1 \[connector_readback demo\/search_messages\]: connector_readback_mismatch/.test(n)));
     A.ok(nudged, 'the model was sent back once with the named connector check + mismatch code');
     const ce2 = x.row && x.row.completionEvidence;
     A.eq(ce2 && ce2.checks[0].code, 'connector_readback_mismatch', 'mismatch recorded');

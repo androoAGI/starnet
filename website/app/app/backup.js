@@ -27,6 +27,14 @@ const Backup = (() => {
   const PREFIX = 'starnet.';
   const LEGACY_PREFIX = 'skynet.';
   const SAVE_KEY = 'starnet.save';
+  /* THIS WINDOW'S SAVE (save-latch-kill: per-window crash journals, save.js key()). A backup carries the station under
+     SAVE_KEY as always, read from THIS window's journal; another window's journal ('starnet.save.w.<window>', or the legacy
+     key while another window writes it) is never bundled as this one's station, and an import lands in this window's own
+     journal, never over another live window's. */
+  const JOURNAL_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?$/;
+  // a journal's merge description (cloudsave.js writeSide): this window's own unsent-save bookkeeping, never a backup's
+  const JOURNAL_SIDE_RE = /^starnet\.save(?:\.w\.[A-Za-z0-9_-]{1,80})?\.merge$/;
+  function saveKeyNow() { try { if (typeof Save !== 'undefined' && Save && typeof Save.key === 'function') return Save.key(); } catch (_) {} return SAVE_KEY; }
   const SECRET_POLICY = 'credentials-excluded';
   // BYOK is default-deny: only these known, nonsecret selections are portable. This keeps a future credential
   // field from silently entering a plaintext backup just because its storage key was added after this code.
@@ -65,18 +73,20 @@ const Backup = (() => {
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.indexOf(PREFIX) === 0 && !isCredentialKey(k)) out[k] = localStorage.getItem(k);
+        if (k && k.indexOf(PREFIX) === 0 && !JOURNAL_RE.test(k) && !JOURNAL_SIDE_RE.test(k) && !isCredentialKey(k)) out[k] = localStorage.getItem(k);
       }
     } catch (_) {}
     const mem = saveRaw === undefined ? memorySaveRaw() : saveRaw;
-    if (typeof mem === 'string') out[SAVE_KEY] = mem;
+    let own = typeof mem === 'string' ? mem : null;
+    if (own == null) { try { own = localStorage.getItem(saveKeyNow()); } catch (_) { own = null; } }
+    if (typeof own === 'string') out[SAVE_KEY] = own;
     return out;
   }
 
   function agentName(saveRaw) {
     try {
       const mem = saveRaw === undefined ? memorySaveRaw() : saveRaw;
-      const doc = JSON.parse((typeof mem === 'string' ? mem : localStorage.getItem(SAVE_KEY)) || 'null');
+      const doc = JSON.parse((typeof mem === 'string' ? mem : localStorage.getItem(saveKeyNow())) || 'null');
       return (doc && doc.agent && doc.agent.name) || 'agent';
     } catch (_) { return 'agent'; }
   }
@@ -201,7 +211,10 @@ const Backup = (() => {
         if (!Object.prototype.hasOwnProperty.call(store, k) || typeof store[k] !== 'string') continue;
         if (k.indexOf(PREFIX) !== 0 && k.indexOf(LEGACY_PREFIX) !== 0) continue;   // ours (or a legacy ours) only
         if (isCredentialKey(k)) continue;                                        // portable files never grant credential authority
-        localStorage.setItem(toCurrentKey(k), store[k]); n++;                       // map skynet.* -> starnet.* on the way in
+        const to = toCurrentKey(k);
+        if (to !== SAVE_KEY && JOURNAL_RE.test(to)) continue;                       // another window's journal: never written over
+        if (JOURNAL_SIDE_RE.test(to)) continue;                                     // a journal's merge description: never imported
+        localStorage.setItem(to === SAVE_KEY ? saveKeyNow() : to, store[k]); n++;   // map skynet.* -> starnet.*; the station into THIS window's journal
       }
     } catch (e) { return { ok: false, error: (e && e.message) || 'write failed' }; }
     return { ok: true, records: n, keys: n, agentName: doc.agentName || agentName(), memories: Array.isArray(doc.notebook) ? doc.notebook.length : 0 };
@@ -253,10 +266,10 @@ const Backup = (() => {
       // the export-time updatedAt; without this, a boot-reconcile on a machine whose sidecar holds a NEWER save
       // would silently revert the just-imported agent. Stamping now() makes the import win the anti-clobber guard.
       try {
-        const raw = localStorage.getItem(SAVE_KEY);
+        const raw = localStorage.getItem(saveKeyNow());
         if (raw) {
           const d = JSON.parse(raw); d.updatedAt = Date.now();
-          localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+          localStorage.setItem(saveKeyNow(), JSON.stringify(d));
           // { restore: true }: the Commander chose this backup, so a reset generation's empty station file takes it (a stale
           // browser copy from before the reset never does: savestore explicitRestore, review 10-23 #2)
           if (typeof CloudSave !== 'undefined' && CloudSave.push) CloudSave.push(d, { restore: true });

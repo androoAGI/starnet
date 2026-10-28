@@ -1,5 +1,6 @@
 /* node test/domain-terminal.test.js — bounded one-host checks and host-enforced terminal evidence. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -216,7 +217,7 @@ A.ok(!DomainTask.isTargetFetch({ name: 'web_fetch', args: { url: 'https://starne
   A.ok(!DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://evil-printify.com/x' } }, shop), 'a look-alike host is not a subdomain');
   A.ok(!DomainTask.isTargetRequest({ name: 'web_request', args: { url: 'https://api.stripe.com/v1' } }, shop), 'web_request to another host stays refused');
   A.ok(!DomainTask.isTargetRequest({ name: 'web_fetch', args: { url: 'https://printify.com' } }, shop), 'only web_request is matched');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf("'web_request'") < 0, 'the direct-domain policy no longer strips web_request from the advertised tools');
   A.ok(/c\.name === 'web_request' && !DomainTask\.isTargetRequest\(c, directDomainTask\)/.test(src), 'the dispatch guard confines web_request to the named host');
@@ -260,7 +261,7 @@ for (const [text, host, why] of [
   A.ok(!DomainTask.isDomainMissing({ ok: true, isError: false, content: 'Navigated to https://nodejs.org/api/errors.html\nERR_NAME_NOT_RESOLVED and ENOTFOUND are DNS errors.' }), 'a navigated page that mentions ERR_NAME_NOT_RESOLVED is not a missing domain');
   A.ok(DomainTask.isDomainMissing({ ok: false, content: 'tool browser_navigate failed: getaddrinfo ENOTFOUND etsyy.com' }), 'ok:false alone marks the call as failed');
   A.ok(/browser\.navigate/.test(DomainTask.prompt(etsy)), 'the host policy prompt names the browser as a way to read the host');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   const withheld = (src.match(/const directDomainWithheld = [^\n]+/) || [''])[0];
   A.ok(withheld && withheld.indexOf('browser') < 0, 'the direct-domain policy no longer strips the browser from the advertised tools');
   A.ok(/c\.name === 'browser\.navigate' \|\| c\.name === 'browser\.login'\) && !DomainTask\.isTargetNavigate\(c, directDomainTask\)/.test(src), 'the dispatch guard confines browser navigation to the named host');
@@ -271,7 +272,7 @@ for (const [text, host, why] of [
   A.ok(/policyWithheld: directDomainTask \?/.test(src), 'tool.search is told what the direct-domain policy keeps off this run');
 }
 
-const hostSrc = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const hostSrc = readSidecarSource();
 A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain host withholds delegation');
 A.ok(/DomainTask\.stopControl\(directDomainTask\)/.test(hostSrc), 'exact fetch missing-domain result receives host stop control');
 A.ok(/const directDomainTask = isTask && !o\.toolsOptional \? DomainTask\.classify\(latestUserText\(messages\), \{ isFile: runFileExists\(agentId, o\.projectRoot\) \}\)/.test(hostSrc),

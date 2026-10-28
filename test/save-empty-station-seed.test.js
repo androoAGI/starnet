@@ -24,6 +24,7 @@
         window's copy was saved back first, never that the station file is newer; a NEWER copy that lost the race is
         told the same, and a conflict inside the re-seeded line stays the ordinary one. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -34,7 +35,7 @@ const { makeSaveStore } = require('../sidecar/savestore.js');
 
 const repo = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8');
-const indexSrc = read('sidecar/index.js');
+const indexSrc = readSidecarSource();
 const handlers = ['function crewLooksOf(save)', 'function seedSaveMemos(agentId, doc)', 'function serveSaveLoad(req, res)', 'async function handleSaveWrite(req, res)',
   'function serveSaveConflicts(req, res)', 'async function handleSaveConflictRestore(req, res)',
   'function keepStationGrowth(doc, station)', 'function keepTerminalApprovals(doc, station)', 'async function handleSaveAdopt(req, res)']
@@ -49,8 +50,10 @@ const roots = [];
 function workspace() { const r = fs.mkdtempSync(path.join(os.tmpdir(), 'save-seed-')); roots.push(r); return r; }
 const conflictFiles = root => fs.readdirSync(root).filter(n => n.indexOf('agent.save-conflict-') === 0);
 
-// the sidecar side: the real /api/save handlers over a real savestore rooted at the workspace
-function sidecar(root, storeFs) {
+// the sidecar side: the real /api/save handlers over a real savestore rooted at the workspace. o.noMerge: the station refuses
+// every merge — a case about a conflict that STANDS (since save-latch-kill a refused save is merged in-session)
+function sidecar(root, storeFs, o) {
+  o = o || {};
   const saveStore = makeSaveStore({ fs: storeFs || fs, pathMod: path, root, clock: { now: () => Date.now() } });
   const api = vm.runInNewContext("let _remoteLooksMemo = { stamp: '', looks: null };\nlet _stationEpochMemo = { stamp: '', epoch: 1 };\n" + handlers.join('\n') +
     '\n({ serveSaveLoad, handleSaveWrite, serveSaveConflicts, handleSaveConflictRestore, handleSaveAdopt })', {
@@ -68,7 +71,7 @@ function sidecar(root, storeFs) {
     saveStore,
     conflicts: () => call(api.serveSaveConflicts, { url: '/api/save/conflicts' }).then(r => r.json()),
     restore: file => call(api.handleSaveConflictRestore, { body: JSON.stringify({ file }) }).then(r => r.json()),
-    fetch: (url, opts) => String(url).indexOf('/api/save/adopt') === 0 ? call(api.handleSaveAdopt, { body: opts.body })   // a reopening window's unprovable save, merged
+    fetch: (url, opts) => String(url).indexOf('/api/save/adopt') === 0 ? (o.noMerge ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, error: 'merge refused: this case keeps its conflict standing' }) }) : call(api.handleSaveAdopt, { body: opts.body }))   // a reopening window's unprovable save, merged
       : (opts && opts.method === 'POST')
       ? call(api.handleSaveWrite, { body: opts.body })
       : call(api.serveSaveLoad, { url: String(url) })
@@ -261,9 +264,11 @@ const browserCopy = (over) => Object.assign({
     }
 
     // ================= 6. TWO WINDOWS of the lost station: a stale one can never match the seeded file =================
+    // (a station that REFUSES the merge, so window B's conflict stands: the seed's CAS, its words and its banner. The merge a
+    // refused save now gets in-session is test/save-interleave.seeded.test.js)
     {
       const root = workspace();
-      const host = sidecar(root);
+      const host = sidecar(root, null, { noMerge: true });
       // window A holds the newest copy (last ACK 23); window B is a stale window of the same station, frozen at revision 5
       const cacheA = new Map([['starnet.save', JSON.stringify(browserCopy({ _saveClient: 'window-a' }))]]);
       const staleCopy = () => browserCopy({ _saveRevision: 5, updatedAt: 9500, _saveClient: 'window-b',

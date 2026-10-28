@@ -15,6 +15,7 @@
      · a retried POST of the same noteId is never buffered (or folded) twice;
      · a note without an id (/steer, channel steers, background-exit wakes) keeps the exact old shape and behavior. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const events = require('../shared/events.js');
 const { makeEmitter } = require('../shared/emitter.js');
@@ -142,7 +143,7 @@ function setup() {
   // ── 5. the host wiring (index.js is never required: it boots a real sidecar) ──
   {
     const fs = require('fs'), path = require('path');
-    const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/steerBufs\.post\(runId, text, [^\n]*, body\.noteId\)/.test(idx), 'POST /api/run/steer hands the buffer the page\'s noteId');
     A.ok(/\{ m: 'GET', qsplit: '\/api\/run\/steer', h: handleRunSteerStatus \}/.test(idx), 'GET /api/run/steer is routed');
     const h = A.fnBody(idx, 'function handleRunSteerStatus(req, res)');

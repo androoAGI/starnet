@@ -13,6 +13,7 @@
    the sidecar's bounds; limits.set (station.power) carries every Runtime limits key; every surface's stop message
    names the setting. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -26,7 +27,7 @@ const { runAgentLoop } = require('../sidecar/loop.js');
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.length); if (i < 0 || j < 0) throw new Error('slice ' + a); return s.slice(i, j); };
-const side = read('sidecar/index.js');
+const side = readSidecarSource();
 
 // the real knob code: the boot reader + resolver, the CAPS line, the defs/status, and the POST handler
 const BOOT = part(side, 'let runtimeKnobs = (function loadRuntimeKnobsAtBoot() {', '\n// maxIters: optional per-run tool-turn ceiling.');

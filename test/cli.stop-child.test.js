@@ -9,6 +9,7 @@
      - the order is ask -> SIGTERM -> SIGKILL, and SIGKILL waits the full term grace;
      - the sidecar side actually listens for the message (source check on the require.main block). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -30,7 +31,7 @@ function fakeChild(o) {
 (async () => {
   // ---- 1. the waits outlast the sidecar's own hard shutdown deadline ----
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const body = src.slice(src.indexOf('function gracefulShutdown('), src.indexOf('function gracefulShutdown(') + 800);
     const m = /shutdown deadline hit[\s\S]*?process\.exit\(0\);\s*\},\s*(\d+)\)/.exec(body);
     A.ok(!!m, 'the sidecar gracefulShutdown hard deadline is readable from source');

@@ -10,6 +10,7 @@
    Two floors, both checked: the consent broker's hardline (sidecar/index.js hardlineFloor, extracted from source —
    index.js boots a server and cannot be required) and pathtrust.js hardlineReason via a real guard call. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -17,7 +18,7 @@ const os = require('os');
 const path = require('path');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const m = src.match(/function hardlineFloor\(call\) \{[\s\S]*?\n\}/);
 A.ok(m, 'hardlineFloor(call) found in sidecar/index.js');
 if (!m) A.report('protected-floor-ntfs.test');

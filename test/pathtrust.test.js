@@ -3,6 +3,7 @@
    the protected-file floor, and — above all — the UNATTENDED RULE (an autonomous run can NEVER bless a
    new root) are exercised on the actual path/realpath semantics of the host. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fsp = require('fs/promises');
 const fs = require('fs');
@@ -136,7 +137,7 @@ function scriptPrompt(decision) {
   // the host contract: index.js bumps projects recency ONLY on a user touch, and runPathTrust mints the flag from
   // the run's own surface / owner-trust bit (never from model state).
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/touch: \(rootReal, abs, meta\) => \{ if \(!meta \|\| meta\.user !== true\) return;/.test(src), 'host touch ignores agent (non-user) touches');
     A.ok(/userTouch: surface === 'interactive' \|\| ownerTrusted,/.test(src), 'runPathTrust derives userTouch from surface/ownerTrusted');
   }

@@ -12,6 +12,7 @@
    chat.js is browser-flow (DOM + streaming), not node-loadable, so — like comms-presence.test.js — its DOM-layer invariants
    are read from the source; the pure halves are executed. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -30,7 +31,7 @@ const { makeStationControlTools } = require('../sidecar/tools/builtin/station-co
   A.ok(!TaskIntent.isGateHeld({ isError: false, summary: TaskIntent.GATE_HELD }), 'a success never reads as held');
   A.ok(/not run yet/.test(TaskIntent.GATE_HELD), 'the held summary says the call did not run: ' + TaskIntent.GATE_HELD);
 
-  const idx = read('sidecar/index.js');
+  const idx = readSidecarSource();
   const gate = /if \(!gate\.ok\) return \{[^\n]*\};/.exec(idx);
   A.ok(gate && /summary: TaskIntent\.GATE_HELD/.test(gate[0]), 'the host gate stamps the shared held summary (one source of truth)');
   A.ok(gate && /TaskIntent\.GATE_HELD_LEAD/.test(gate[0]) && /nothing ran/.test(TaskIntent.GATE_HELD_LEAD) && /make the brief call with no text before it and never mention the gate/.test(gate[0]), 'and tells the model nothing ran and not to narrate the gate');

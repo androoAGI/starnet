@@ -21,6 +21,9 @@ test/context.price-tier-window.test.js
 test/compress-run-window.test.js
 test/redact.known-values.test.js
 test/redact.masked-keys.test.js
+test/prompt-scrub.test.js
+test/prompt-scrub.projectors.test.js
+test/prompt-scrub.provider.test.js
 test/redact.linear.test.js
 test/redact.known-cache.test.js
 test/runtimeinfo.test.js
@@ -45,11 +48,15 @@ test/reflect.test.js
 test/memory-corrections.test.js
 test/project-memory-boundary.test.js
 test/memory-truth.test.js
+test/memory-truth.table.test.js
+test/learning-eligibility.matrix.test.js
 test/memory-rank.tokenize-once.test.js
 test/memcore.test.js
 test/cost.test.js
 test/spend.test.js
 test/ledger.test.js
+test/ledger.aux-meter.test.js
+test/ledger.aux-receipt.test.js
 test/logbound.test.js
 test/budget.test.js
 test/budget-caps.test.js
@@ -90,8 +97,10 @@ test/todo.durability.test.js
 test/halt.test.js
 test/readbody.test.js
 test/set-key-body.test.js
+test/provider-credential-live.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
+test/source-helper.test.js
 test/runroute.test.js
 test/run-streams.test.js
 test/run-stream-pool.test.js
@@ -126,7 +135,14 @@ test/realtime-voice.test.js
 test/native-stt.test.js
 test/local-voice.test.js
 test/media-service.test.js
+test/voice-cache-key-version.test.js
+test/stt-openrouter-key-only.test.js
+test/tts-page-key-provider.test.js
+test/speech-outcome.table.test.js
+test/voice-floor-canary.test.js
 test/edgetts-stream-end.test.js
+test/edgetts-gec-v2.test.js
+test/edgetts-clock-skew.test.js
 test/desktop-voice-bundle.test.js
 test/transcript.compaction.e2e.test.js
 test/provider.anthropic.test.js
@@ -149,6 +165,7 @@ test/provider.timeouts.test.js
 test/provider.registry.test.js
 test/managed-cache.test.js
 test/ratelimits.test.js
+test/sub-usage.test.js
 test/provider.codex-auth.test.js
 test/purge-leaked-codex-tokens.test.js
 test/provider.oauth-device.test.js
@@ -202,11 +219,14 @@ test/iteration-budget.test.js
 test/updatecore.test.js
 test/quitguard.test.js
 test/desktop-lifecycle-preferences.test.js
+test/desktop-station-stop.test.js
 test/desktop-installed-cdp-forwarding.test.js
 test/cloudsavecore.test.js
 test/cloudsave-refusal.test.js
 test/growth-stale-save-recovery.test.js
 test/cloudsave-unknown.test.js
+test/cloudsave-version-fallback.test.js
+test/save-health-cause.test.js
 test/save-quota-writethrough.test.js
 test/freshstart.test.js
 test/unreachable-browser-mode.test.js
@@ -244,6 +264,7 @@ test/upgrade-085-090.test.js
 test/t3-release-smoke.test.js
 test/t4-update-delivery.test.js
 test/installer-upgrade-resilience.test.js
+test/installer-stop-leftovers.test.js
 test/t5-public-distribution.test.js
 test/minisign-verify.test.js
 test/release-assemble-manifest.test.js
@@ -344,6 +365,7 @@ test/skill-guard-remote-install.test.js
 test/abilities.skills-lane.test.js
 test/skills.library.test.js
 test/skills.gate.test.js
+test/skill-support-files.test.js
 test/skills.trust-origin.test.js
 test/skills.review-approval.test.js
 test/skills.worker-shared-approval.test.js
@@ -383,6 +405,8 @@ test/roster-clause.test.js
 test/agent-config-target.test.js
 test/notebookrestore.test.js
 test/runstore.test.js
+test/thrown-run-reason.test.js
+test/aux-env-knobs.test.js
 test/run-journal.test.js
 test/run-recovery-continuation.test.js
 test/run-recovery-ui.test.js
@@ -392,6 +416,7 @@ test/autonomy-ledger.test.js
 test/artifacts.test.js
 test/deliverable-store.test.js
 test/idempotency-ledger.test.js
+test/idempotency-continuation-scope.test.js
 test/deliverable-provenance.test.js
 test/deliverable-note.test.js
 test/deliverables-ui.test.js
@@ -403,6 +428,7 @@ test/qa-saboteur.test.js
 test/qa-bugs.test.js
 test/qa-bug-lifecycle.test.js
 test/qa-bugs-register.test.js
+test/qa-bugs-fixed-in-tree.test.js
 test/ledger-reconcile.test.js
 test/qa-guardian.test.js
 test/qa-message-content.test.js
@@ -553,6 +579,11 @@ test/resummonstore.test.js
 test/pitch.test.js
 test/pitchstore.test.js
 test/first-task-recall.test.js
+test/first-task-handoff-yields.test.js
+test/comms-owner-rules.test.js
+test/dialogue-offer-required.ratchet.test.js
+test/offers-step-aside.test.js
+test/bay-intent.test.js
 test/suggeststore.test.js
 test/beat-coordination.test.js
 test/beatcard.test.js
@@ -722,6 +753,7 @@ test/mint-ledger.test.js
 test/cron.dispatch.test.js
 test/cron.delivery-backlog.test.js
 test/cron.chain.test.js
+test/sample-verdict.test.js
 test/cron.tick.test.js
 test/cron.hardening.test.js
 test/cron.reliability-ramp.test.js
@@ -751,6 +783,7 @@ test/loop-tools.test.js
 test/loopgit.test.js
 test/cron.oneshot.test.js
 test/cron.run-now.test.js
+test/routine-identity.test.js
 test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js
@@ -764,6 +797,7 @@ test/routine-toolsets.test.js
 test/routine-grant-rebind.test.js
 test/comms-tools.test.js
 test/acp-core.test.js
+test/headless-station-default.test.js
 test/workstreams.test.js
 test/workstreams.search-perf.test.js
 test/workstreams.latest-visible.test.js
@@ -788,6 +822,7 @@ test/channels.test.js
 test/comms-presence.test.js
 test/comms-header-no-run-state.test.js
 test/comms-convo.test.js
+test/comms-flow.test.js
 test/comms-system-register.test.js
 test/goal-step-readers.test.js
 test/comms-busy-age.test.js
@@ -881,6 +916,7 @@ test/line-edit.test.js
 test/line-edit-panel.test.js
 test/line-place.test.js
 test/line-too-long.test.js
+test/line-budget-shadowed.test.js
 test/conveyor-no-handoff.test.js
 test/line-sendto.test.js
 test/conveyor-ui-truth.test.js
@@ -954,6 +990,8 @@ test/channels.matrix.test.js
 test/channels.signal.test.js
 test/channels.generic-wire.test.js
 test/channels.registry.test.js
+test/channels.reach.test.js
+test/channels.fire-store.test.js
 test/channels.store.test.js
 test/channels.legacy-hop-history.test.js
 test/channels.durability.test.js
@@ -1136,6 +1174,7 @@ test/session-focus-safety.test.js
 test/session-typing-safety.test.js
 test/session-continuity.test.js
 test/history-restore-boot-race.test.js
+test/desk-merge-redaction.test.js
 test/session-reliability.e2e.test.js
 test/harness-placement.test.js
 test/github-device.test.js
@@ -1159,6 +1198,11 @@ test/save-restore-safety.test.js
 test/save-conflicts-route.test.js
 test/save-restore-hardening.test.js
 test/save-adopt-merge.test.js
+test/save-interleave.seeded.test.js
+test/save-journal.test.js
+test/growth-fold.test.js
+test/save-merge.test.js
+test/roster-push-base.test.js
 test/sprite-direction-details.test.js
 test/chat-history-reconcile.test.js
 test/prop-industrial-remaster.test.js
@@ -1212,15 +1256,23 @@ test/staging-development-closure.test.js
 test/overseer-ui.test.js
 test/overseer-pollgate.test.js
 test/workspace-owner-election.test.js
+test/process-identity.fixtures.test.js
+test/parent-watch.test.js
+test/breakaway.test.js
 test/project-home-ui.test.js
 test/cli.test.js
 test/cli.stop-child.test.js
 test/cli-desktop-closed.test.js
+test/cli-owner-identity.test.js
 test/cli-bootstrap-lineage.test.js
 test/cli-dashboard.test.js
 test/cli-dashboard-signal.test.js
 test/cli-dashboard-drive.test.js
 test/cli-theme.test.js
+test/cli-connect.test.js
+test/cli-floor.test.js
+test/cli-usage.test.js
+test/cli-split.test.js
 test/cli-version.test.js
 test/cli-launcher.test.js
 test/cli-link.test.js
@@ -1230,6 +1282,7 @@ test/loop.verify-on-stop-failed-check.test.js
 test/loop.grace-no-tools.test.js
 test/loop.batch-dedupe.test.js
 test/errorclass.overflow-phrasings.test.js
+test/call-too-expensive.test.js
 test/loop.prestream-outage-ladder.test.js
 test/loop.overflow.anthropic.test.js
 test/loop.output-cap.test.js
@@ -1246,6 +1299,8 @@ test/provider.wire-sanitize.test.js
 test/provider.toolschema.keys.test.js
 test/provider.moonshot-schema.test.js
 test/provider.error-body.test.js
+test/provider.conformance.test.js
+test/errorclass.unreachable.test.js
 test/transcript-torn-tail-append.test.js
 test/logbound-torn-tail-append.test.js
 test/loop.fatal-keeps-partial.test.js
@@ -1288,6 +1343,7 @@ test/linewatch.test.js
 test/deskscreen.test.js
 test/agent-skin-thumbs.test.js
 test/estop-sample-hub.test.js
+test/estop-stop-handles.test.js
 test/line-test-stop.test.js
 test/conveyor-tab-readable.test.js
 test/workflow-panel-overhaul.test.js
@@ -1361,6 +1417,7 @@ test/run-context.compaction.test.js
 test/comms-stop-queue-tips.test.js
 test/consent-timer-hint.test.js
 test/needs-you-one-list.test.js
+test/delegated-needsyou-escape.test.js
 test/needs-you-bell-settle.test.js
 test/org-crew-comms.test.js
 test/internal-run-not-working.test.js
@@ -1402,6 +1459,7 @@ test/channels.store-cache.test.js
 test/notebook-peer-reads.test.js
 test/task-turn-evidence.test.js
 test/remote-crew-looks.test.js
+test/remote-routines-scheduler.test.js
 test/save-persist-cost.test.js
 test/run-recoveries-page.test.js
 test/type-floor.test.js
@@ -1410,3 +1468,23 @@ test/one-gutter.test.js
 test/curved-dashboard.test.js
 test/dockglow-seen.test.js
 test/vision-input.test.js
+# Previously on no list, so never run (gate-seams 2026-10-27; test/test-list-completeness.test.js keeps it that way).
+test/approved-sheet-assets.test.js
+test/authored-furniture-motion.test.js
+test/authored-surface-mounts.test.js
+test/chat-history-order.test.js
+test/css-style-invalidation.test.js
+test/eval-comparison.test.js
+test/onboarding-legibility.test.js
+test/projection-correction-assets.test.js
+test/projection-screen-light.test.js
+test/refit-testride-intake.test.js
+test/remaster-skin-import.test.js
+test/skill-metrics.test.js
+test/skill-package-format.test.js
+test/skill-registry.test.js
+dev/computer-eval/adapter.test.js
+dev/industrial-textures/approved-sheet-effects.test.cjs
+dev/industrial-textures/coordinated-effects/accessories.test.cjs
+dev/industrial-textures/coordinated-effects/utility.test.cjs
+test/test-list-completeness.test.js

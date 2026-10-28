@@ -36,7 +36,7 @@
    holder may replace it. Release publishes its marker after the last primary-file operation. */
 'use strict';
 const { note: failNote } = require('./failopen.js');
-const { judgeReuse } = require('./process-identity.js');
+const { judgeReuse, predatesBoot: predatesBootAt } = require('./process-identity.js');
 
 function defaultNonce() {
   try { return require('node:crypto').randomBytes(16).toString('hex'); }
@@ -82,11 +82,9 @@ function makeWorkspaceOwner(deps) {
   // A 60s slack absorbs clock skew between os.uptime() and the stamp so a holder that started seconds after
   // boot is never misjudged as pre-boot.
   const bootedAt = typeof d.bootedAt === 'function' ? d.bootedAt : function () { return 0; };
-  const BOOT_SLACK_MS = 60 * 1000;
+  // the 60s slack lives in process-identity.js predatesBoot (one rule, shared with the CLI and the desktop shell)
   function predatesBoot(ms) {
-    const b = Number(bootedAt()) || 0;
-    const t = Number(ms) || 0;
-    return b > 0 && t > 0 && t < (b - BOOT_SLACK_MS);
+    return predatesBootAt(ms, bootedAt());
   }
   function lockMtime(lockfile) {
     try { return Number(fs.statSync(lockfile).mtimeMs) || 0; } catch (_) { return 0; }

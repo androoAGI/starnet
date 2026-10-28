@@ -8,6 +8,7 @@
    2) BEHAVIOUR — each real registry descriptor wires through wireChannel into a startable adapter driving the
       SAME hub/runOnce path (fake transports, no network). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -23,7 +24,7 @@ const ids = () => { let i = 0; return () => 'r' + (++i); };
 
 (async () => {
   // ---------- 1. BACKEND source-guard over sidecar/index.js ----------
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
 
   // telegram/discord bespoke paths untouched — additive-only guarantee.
   A.ok(/function startTelegram/.test(idx) && /function startDiscord/.test(idx), 'telegram/discord starters preserved (not regressed)');

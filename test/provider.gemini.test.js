@@ -94,8 +94,10 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     // A no-argument tool omits `parameters` entirely: Gemini rejects an OBJECT schema whose
     // properties bag is empty ("should be non-empty for OBJECT type").
     A.eq(captured.body.tools[0].functionDeclarations[0], { name: 'web', description: 'd' }, 'OpenAI tool -> Gemini functionDeclaration');
-    A.eq(captured.body.contents[0].parts[1], { functionCall: { name: 'web', args: { q: 1 } } }, 'assistant tool_call -> functionCall part');
-    A.eq(captured.body.contents[1].parts[0], { functionResponse: { name: 'web', response: { result: 'yes' } } }, 'tool result -> functionResponse part');
+    // the transcript opens on an assistant turn: Gemini wants a user turn first, so a fenced <host_turn> boundary leads (projectRoles)
+    A.eq(captured.body.contents[0].role, 'user', 'a user boundary opens the contents');
+    A.eq(captured.body.contents[1].parts[1], { functionCall: { name: 'web', args: { q: 1 } } }, 'assistant tool_call -> functionCall part');
+    A.eq(captured.body.contents[2].parts[0], { functionResponse: { name: 'web', response: { result: 'yes' } } }, 'tool result -> functionResponse part');
   }
 
   // D. model catalog strips models/ for friendly stored IDs, but modelPath adds it back for calls.

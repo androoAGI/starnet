@@ -11,8 +11,9 @@
      B. cloudsave answers growthStale by asking XpStore to catch up, and retries with the save THAT persists — never
         the refused one, never a rewritten one. The update drain gets the re-synced save confirmed in one pass. A
         catch-up that keeps failing stays a failed save (one request per attempt, no loop, no OK stamp).
-     C. the sidecar's growthStale refusal itself is untouched. */
+     C. the sidecar's protection stays: a trailing save is folded forward from a complete ledger read, refused otherwise. */
 'use strict';
+const { sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -144,9 +145,17 @@ const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(r =>
   A.eq(sentMark(-1), 1000, 'with the save the catch-up persisted');
   A.eq(posts.filter(p => p.stationStats.ratingSyncAt < ledgerLatest).every(p => p.stationStats.ratingSyncAt !== 1000), true, 'cloudsave never rewrote a watermark itself');
 
-  // ================= C. the protection stays =================
-  const sidecar = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-  A.ok(/if \(latestRatingAt > ratingSyncAt\) return json\(200, \{ ok: false, stale: true, growthStale: true, latestRatingAt \}\);/.test(sidecar),
-    'the sidecar still refuses a save whose rating watermark trails the ledger');
+  // ================= C. the protection stays, stronger (save-latch-kill) =================
+  // a save whose watermark trails the ledger is FOLDED forward by the station when its ledger read is complete
+  // (sidecar/growth-fold.js: every rating since the watermark applied, so no acknowledged XP is erased), and refused as
+  // before when it is not — the watermark never moves past a rating the save does not hold. Behaviour: growth-fold.test.js,
+  // roster-cas.http.test.js.
+  const save = sidecarFunctionSource('handleSaveWrite');
+  // (review 10-27: since its watermark — or from the start for a save from the old per-acknowledgement scheme, the replay the
+  // page itself makes before it stamps version 2: growth-fold.js foldSince, growth-fold.test.js)
+  A.ok(/GrowthFold\.foldSave\(body, growthRatings\.since\(\{ since: GrowthFold\.foldSince \? GrowthFold\.foldSince\(body, XpEngine\) : ratingSyncAt, through: latestRatingAt, epoch: growthEpoch \}\), XpEngine, latestRatingAt\)/.test(save),
+    'the station folds a trailing save from a strict read of the ledger since its watermark (or from the start, for an old-scheme save)');
+  A.ok(/if \(!folded\) return json\(200, \{ ok: false, stale: true, growthStale: true, latestRatingAt \}\);/.test(save),
+    'and still refuses one whose fold cannot be proven complete');
   A.report('growth-stale-save-recovery');
 })().catch(e => { console.error(e); process.exit(1); });

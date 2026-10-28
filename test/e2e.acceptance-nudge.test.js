@@ -6,6 +6,7 @@
    system message NAMING the failing check — then ended honestly `incomplete` when the model still did nothing. */
 'use strict';
 const A = require('./_assert.js');
+const { loopNotes } = require('./helpers/host-notes.js');
 const http = require('http');
 const path = require('path');
 const os = require('os');
@@ -79,10 +80,12 @@ function boot(port, env, attemptsLeft) {
     A.ok(end, 'the run ended');
     A.eq(mock.requests.length, 2, 'the model was called TWICE: its first "done" was sent back by the acceptance probe');
     const second = mock.requests[1] || {};
-    const nudge = (second.messages || []).find(m => m && m.role === 'system' && String(m.content).indexOf('<acceptance_before_done>') === 0);
-    A.ok(nudge, 'the second call carries the host acceptance nudge as a system message');
-    A.ok(nudge && /sop-1 \[artifact_contains out\/acme-invoice\.md\]: artifact_not_produced_by_run/.test(nudge.content), 'the nudge names the artifact check and WHY it fails (not produced by this run)');
-    A.ok(nudge && /sop-2 \[verification_passed `node scripts\/check-invoice\.js acme`\]: matching_verification_missing/.test(nudge.content), 'the nudge names the command check and why');
+    // a fenced host message: its own system message on a native wire, user-side text after the answer on a chat wire
+    // (provider.js projectRoles — a strict template refuses a system message after index 0)
+    const nudge = loopNotes(second.messages, 'acceptance_before_done')[0];
+    A.ok(nudge, 'the second call carries the host acceptance nudge as a fenced host message');
+    A.ok(nudge && /sop-1 \[artifact_contains out\/acme-invoice\.md\]: artifact_not_produced_by_run/.test(nudge), 'the nudge names the artifact check and WHY it fails (not produced by this run)');
+    A.ok(nudge && /sop-2 \[verification_passed `node scripts\/check-invoice\.js acme`\]: matching_verification_missing/.test(nudge), 'the nudge names the command check and why');
     // NOTE: `turns` reads 1 here, not 2 — the model's repeated identical answer is a DUPLICATE turn and the loop's
     // existing refund accounting gives it back; the two provider requests above are the proof the turn was bought.
     A.ok(evs.some(e => e.name === 'iteration.refunded' && e.payload && e.payload.reason === 'duplicate'), 'the wasted extra turn was refunded as a duplicate (existing accounting)');

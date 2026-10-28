@@ -1,8 +1,9 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync(require.resolve('../sidecar/index.js'), 'utf8');
+const source = readSidecarSource();
 const start = source.indexOf('function handleCronUpdate(');
 const end = source.indexOf('// POST /api/cron/remove', start);
 (async () => {

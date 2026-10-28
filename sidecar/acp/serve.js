@@ -166,6 +166,12 @@ function openRun(opts) {
         model: rt.model,
         provider: rt.provider || 'openrouter',
         agentId: 'agent',
+        // the editor has no persona of its own to send: run the agent as its roster entry defines it (who it is, its
+        // standing orders), the way the terminal does — never a bare model with no identity
+        rosterSystem: true,
+        // ...and says it is an editor, so the station appends its EDITOR_NOTE: that persona speaks of COMMS and Approve/Deny
+        // buttons, which the editor does not have (its approvals are the permission cards this bridge sends)
+        client: 'editor',
         isTask: true,   // an editor prompt is task work: without it /api/run offers the model NO tools (issue #96)
         messages: (o.messages || []).map(m => ({ role: m.role, content: String(m.content == null ? '' : m.content) })),
         // the coding office: files + shell + web + memory, every mutation still consent-gated (which is what

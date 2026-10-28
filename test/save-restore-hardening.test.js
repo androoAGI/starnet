@@ -73,9 +73,11 @@ const touch = (root, name, sec) => fs.utimesSync(path.join(root, name), sec, sec
     }
 
     // ================= r2. work typed after a CLEAR comes back; a restore of nothing never drops this window =================
+    // (a station that refuses the merge, so the conflict stands and its RESTORE is what is tested; the in-session merge runs
+    // the same save-restore plan: test/save-interleave.seeded.test.js)
     {
       const root = workspace();
-      const host = sidecar(root);
+      const host = sidecar(root, { noMerge: true });
       const T0 = Date.now();
       host.saveStore.save('agent', stationDoc({ workstreams: [{ id: 'general', title: null, history: [turn('user', 'hi')] },
         { id: 'X', title: 'Payroll', createdAt: T0 - 1000, lastActiveAt: T0 - 500, history: [turn('user', 'o1 (cleared)'), turn('assistant', 'o2 (cleared)')] }] }), { compareRevision: true });
@@ -103,8 +105,9 @@ const touch = (root, name, sec) => fs.utimesSync(path.join(root, name), sec, sec
     }
     {
       // a restore that brings NOTHING back (this window's own copy holds nothing the station lacks): the window keeps its work
+      // (a station that refuses the merge: the conflict stands, so the restore is what is tested)
       const root = workspace();
-      const host = sidecar(root);
+      const host = sidecar(root, { noMerge: true });
       host.saveStore.save('agent', stationDoc({ updatedAt: Date.now() }), { compareRevision: true });
       const cache = new Map(); const P = page(host, cache);
       const boot = await P.reconcile(null);
@@ -270,7 +273,7 @@ const touch = (root, name, sec) => fs.utimesSync(path.join(root, name), sec, sec
     // ================= r7. a re-seed overtaken by another window's save: "another window saved" =================
     {
       const root = workspace();
-      const host = sidecar(root);   // one sidecar process: no restart
+      const host = sidecar(root, { noMerge: true });   // one sidecar process: no restart; it refuses the merge, so the conflict and its words stand
       const seed = host.saveStore.save('agent', stationDoc({ _saveRevision: 23, updatedAt: 9000, _saveClient: 'window-a' }), { compareRevision: true });
       A.ok(seed.ok && seed.seeded, 'r7: window A re-seeds the empty file (its ACK is lost)');
       const loaded = host.saveStore.load('agent');

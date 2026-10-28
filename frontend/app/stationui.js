@@ -1852,8 +1852,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // The shimmer (.bar-active) reads as live activity; it's an indeterminate sweep, not a % readout.
       '<div class="crew-prog bar-active" id="cp-' + esc(a.id) + '" aria-hidden="true"><div></div></div>' +
       '</div>' +
-      // the dossier stays one step away: this key (or a right-click) opens it; the row itself shows the sessions
-      (present.length > 1 ? '<button type="button" class="crew-dossier" tabindex="-1" aria-label="Open dossier for ' + esc(a.name || a.id) + '" data-tip="Open ' + esc(a.name || a.id) + '&#39;s dossier">DOSSIER</button>' : '') +
       '</li>').join('');
     // (the head's roster count moved out — #crew-sum below the list already totals the same crew)
     ul.querySelectorAll('.crew-row').forEach(li => {
@@ -1870,8 +1868,6 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         else openAgent(+li.dataset.i);
       });
       li.addEventListener('contextmenu', ev => { ev.preventDefault(); sfx('click'); openAgent(+li.dataset.i); });
-      const dos = li.querySelector('.crew-dossier');
-      if (dos) dos.addEventListener('click', ev => { ev.stopPropagation(); sfx('click'); openAgent(+li.dataset.i); });
       li.addEventListener('keydown', ev => {
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); li.click(); }
         // the row advertises Shift+F10 (aria-keyshortcuts); WKWebView (macOS) fires no contextmenu for it, so handle the key
@@ -2510,6 +2506,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const head = mkEl('div', 'mc-head');
     const tag = mkEl('span', 'turnin-kind'); tag.textContent = MEM_KIND[p.kind] || 'NOTE'; head.appendChild(tag);
     const org = originChip(p.origin); if (org) head.appendChild(org);
+    // releases#7: a proposal says when the run that raised it FAILED (the sidecar carries the run's outcome). The failure
+    // review's lessons already wear that chip as their origin; anything else a failed run raised gets the same one here.
+    if (p.outcome === 'failed' && p.origin !== 'failure-review') {
+      const f = mkEl('span', 'mc-scope'); f.textContent = ORIGIN_LABEL['failure-review']; f.title = 'raised by a run that failed'; head.appendChild(f);
+    }
     card.appendChild(head);
     const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = p.replaceId ? 'Update remembered preference: “' + p.previousBody + '” → “' + p.content + '”' : (p.content || '(empty)'); card.appendChild(bodyEl);
     const meta = mkEl('div', 'mc-meta');
@@ -2644,6 +2645,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     card.appendChild(head);
 
     const bodyEl = mkEl('div', 'mc-body'); bodyEl.textContent = rec.body || '(empty)'; card.appendChild(bodyEl);
+    // memory-truth-1027: what this belief REPLACED. A newer claim on the same subject (or a correction) retires the old
+    // text from recall; it stays visible here, newest first, instead of silently vanishing. The full list is the tip.
+    const hist = Array.isArray(rec.history) ? rec.history : [];
+    if (hist.length) {
+      const was = mkEl('div', 'mc-meta'), line = mkEl('span', 'mc-prov');
+      const h = hist[0];
+      line.textContent = 'replaced: “' + h.body + '”' + (h.replacedAt ? ' · ' + new Date(h.replacedAt).toLocaleDateString() : '') + (hist.length > 1 ? ' · +' + (hist.length - 1) + ' earlier' : '');
+      line.title = hist.map(x => '“' + x.body + '”' + (x.restoredAs ? ' (restored as its own memory)' : '')).join('\n');
+      was.appendChild(line); card.appendChild(was);
+    }
 
     const meta = mkEl('div', 'mc-meta');
     const prov = mkEl('span', 'mc-prov');
@@ -10203,6 +10214,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const later = document.createElement('button'); later.className = 'bb'; later.textContent = 'Not now'; later.onclick = () => { dismissPreserved(offer); banner.remove(); };
     banner.append(label, restore, later); document.body.append(banner);
   }
+  /* WHY the newest save is not in the station file, from the cause CloudSave recorded for the last failed attempt
+     (CloudSaveCore.causeOf: what the station answered, or that it did not answer). The disk is named ONLY when the station
+     said ENOSPC (diskFull) or EPERM/EACCES (diskDenied) — every failure streak used to read "check disk space / folder
+     permissions" on machines with plenty of disk (10-26 audit, gh#121). */
+  function saveCauseWords(h) {
+    // one table (CloudSaveCore.describeCause), shared with the update drain's words
+    return (typeof CloudSaveCore !== 'undefined' && CloudSaveCore.describeCause) ? CloudSaveCore.describeCause(h && h.cause) : 'the station file has not confirmed it';
+  }
   function refreshSaveDurability(d) {
     d = d || $('#save-dot'); if (!d) return;
     let h = null;
@@ -10262,6 +10281,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         degradedNotified = true;
         try { notify('This station’s data was written by a newer StarNet — update the app. Until you do, your changes are NOT being backed up.', 'bad'); } catch (_) {}
       }
+    } else if (h && h.cause === 'tooLarge' && (h.consecutiveFailures || 0) > 0) {
+      // a save over the station file's 16 MiB cap (a named 413): retrying cannot land it, so it says so on the FIRST refusal,
+      // never "check disk space"
+      d.classList.add('degraded');
+      // a station over 16 MiB is over the browser cache's cap too: then the latest change is held ONLY in this window's memory,
+      // and closing it loses it (the cacheFailed warning, review 10-27) — never "local play continues" alone
+      d.title = 'too large to save — this station is larger than the 16 MiB the station file takes, so your latest change is NOT saved.'
+        + (h.cacheFailed ? ' The browser cache could not hold it either: it is only in this window, and closing this window loses it.' : ' Local play continues; retrying will not land it.');
     } else if (h && h.cacheFailed) {
       // #121: the browser cache is full (its per-site cap), so every change rides on the station file alone. The words
       // follow the station file's confirmation of the NEWEST save, never the cache: amber while it is confirmed or on
@@ -10273,7 +10300,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         d.title = cache + ' — saving to the station file only. Your latest change is confirmed in the station file.';
       } else if ((h.consecutiveFailures || 0) > 0) {
         d.classList.add('degraded');
-        d.title = cache + ' and the station file has not confirmed your latest change — it is NOT saved. Keep StarNet open; it keeps retrying.';
+        d.title = cache + ' and the station file has not confirmed your latest change (' + saveCauseWords(h) + ') — it is NOT saved. Keep StarNet open; it keeps retrying.';
       } else {
         d.classList.add('stale');
         d.title = cache + ' — your latest change is NOT saved yet; it is on its way to the station file.';
@@ -10281,12 +10308,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     } else if (h && h.stale) {
       d.classList.add('stale');
       const since = h.lastPushOkAt ? new Date(h.lastPushOkAt).toLocaleString() : 'never';
-      d.title = 'world is saved locally; the durable backup copy hasn’t synced since ' + since;
+      d.title = 'world is saved locally; the durable backup copy hasn’t synced since ' + since + ' (' + saveCauseWords(h) + ')';
     } else if (h && h.warn) {
       // EL-11 FIX 4: a live streak of failed pushes (3+) warns IMMEDIATELY — no 60-minute blind window while
-      // POST /api/save errors (disk full / EPERM / refused). Same amber vocabulary as stale, advising title.
+      // POST /api/save errors. Same amber vocabulary as stale; the words name the cause the station gave (saveCauseWords).
       d.classList.add('stale');
-      d.title = 'saves are failing — check disk space / folder permissions (' + (h.consecutiveFailures || 0) + ' failed attempts in a row). Local play continues; the durable backup is not confirming writes.';
+      d.title = 'saves are failing — ' + saveCauseWords(h) + ' (' + (h.consecutiveFailures || 0) + ' failed attempts in a row). Local play continues; the durable backup is not confirming writes.';
+    } else if (h && h.merging) {
+      // another window saved past this one: this window's saves are merged into the station file (cloudsave `merging`), and its
+      // view does not show the other window's changes until it is reloaded — said, never implied by a plain "autosave"
+      d.title = 'autosave — merged into the station file with another window’s changes; reload this window to see them';
     } else {
       d.title = 'autosave';
     }

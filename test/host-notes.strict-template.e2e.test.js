@@ -1,11 +1,9 @@
 /* node test/host-notes.strict-template.e2e.test.js — A STRICT CHAT TEMPLATE ACCEPTS THE HOST NOTES (lean-prompt review 2026-10-12).
 
    SCOPE (review 2026-10-12): this proves the host NOTES (<run_context>, <recalled-memory>, <conversation_summary>) no
-   longer trip a strict template. It drives no tool turns and no loop nudges, so it does NOT prove a whole run passes:
-   the loop's own mid-run system messages (continuation / empty_reply nudges, steering_note, iteration_limit,
-   hook_context, verify_*, loop_guard, the post-fold todo note) still go out as role 'system' after an assistant or
-   tool turn on these routes, and a strict template refuses that request. Pre-existing (also on 04ce1fcb8), tracked
-   as its own follow-up — see provider.js HOST NOTES ON A GENERIC CHAT WIRE.
+   longer trip a strict template. It drives no tool turns and no loop nudges. The whole run — tool turns and the loop's
+   own mid-run host messages, which provider.js projectRoles now carries user-side (2026-10-27) — is proved by
+   test/host-notes.strict-template.whole-run.e2e.test.js.
 
    The lean-prompt lane put the per-run <run_context> note on EVERY message as a system message right before the newest
    user turn. On a generic Chat Completions endpoint (provider 'custom' and its local/lmstudio/vllm/llama.cpp aliases,

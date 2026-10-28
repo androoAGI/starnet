@@ -92,8 +92,13 @@ function makeTerminalTools(deps) {
     }
   };
 
+  /* IMPACT (declared, never inferred: an undeclared tool fails closed to external-unknown, which withheld these from
+     every unattended run, granted terminal or not, and asked a per-call confirmation for each read on a watched one).
+     start/write are workspace-process: they run commands. status/read/resize/interrupt/stop are none: they act only
+     on THIS agent's own sessions (manager calls are keyed by aid(ctx)), start nothing, send no input a shell could
+     run and reach no network. Ctrl-C and stop end work, like shell.bg.kill; resize only redraws. */
   const statusTool = {
-    name: 'terminal.status', capability: 'workbench', scope: 'read', requiresConsent: false,
+    name: 'terminal.status', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
     description: 'List your terminal sessions, or inspect one by name/id. Lifecycle truth includes whether the '
       + 'process is attached in this sidecar life; prior-life sessions are reported unknown, never falsely running.',
     schema: { type: 'object', properties: { session: { type: 'string' } } },
@@ -112,7 +117,7 @@ function makeTerminalTools(deps) {
   };
 
   const readTool = {
-    name: 'terminal.read', capability: 'workbench', scope: 'read', requiresConsent: false,
+    name: 'terminal.read', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
     description: 'Read bounded scrollback from one terminal. Pass the returned nextOffset on the next call to '
       + 'continue without duplicates. If old output fell out of the bounded ring, truncatedStart says so explicitly.',
     schema: {
@@ -155,7 +160,7 @@ function makeTerminalTools(deps) {
   };
 
   const resizeTool = {
-    name: 'terminal.resize', capability: 'workbench', scope: 'write', requiresConsent: false,
+    name: 'terminal.resize', capability: 'workbench', impact: 'none', scope: 'write', requiresConsent: false,
     description: 'Resize a running terminal so full-screen and width-sensitive programs redraw correctly.',
     schema: { type: 'object', required: ['session', 'cols', 'rows'], properties: { session: { type: 'string' }, cols: { type: 'number' }, rows: { type: 'number' } } },
     run: function (args, ctx) {
@@ -165,7 +170,7 @@ function makeTerminalTools(deps) {
   };
 
   const interruptTool = {
-    name: 'terminal.interrupt', capability: 'workbench', scope: 'write', requiresConsent: false,
+    name: 'terminal.interrupt', capability: 'workbench', impact: 'none', scope: 'write', requiresConsent: false,
     description: 'Send Ctrl-C to a running terminal. This reports that the interrupt was sent; inspect status/read '
       + 'to learn what the process actually did.',
     schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
@@ -176,7 +181,7 @@ function makeTerminalTools(deps) {
   };
 
   const stopTool = {
-    name: 'terminal.stop', capability: 'workbench', scope: 'write', requiresConsent: false,
+    name: 'terminal.stop', capability: 'workbench', impact: 'none', scope: 'write', requiresConsent: false,
     description: 'Request stop for one of your terminal sessions. The whole owned process tree is targeted. This '
       + 'does not claim exit until the PTY emits its actual exit event; check terminal.status.',
     schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },

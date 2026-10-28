@@ -63,6 +63,7 @@ const PitchStore = (() => {
     if (!ready()) return { go: false, reason: 'not-ready' };
     if (firing) return { go: false, reason: 'firing' };
     if (state.pitched) return { go: false, reason: 'already-pitched' };
+    if (asideThisSession) return { go: false, reason: 'stepped-aside' };   // moved past once this session: never a per-run-end nag
     p = p || {};
     if (p.reason !== 'done') return { go: false, reason: 'not-done' };          // only a cleanly completed task graduates
     if ((p.agentId || 'agent') !== 'agent') return { go: false, reason: 'not-hero' };   // summoned crew never pitch
@@ -132,10 +133,25 @@ const PitchStore = (() => {
   // run the directive → parse → present the beat → route the choice. Awaitable so the test can drive it. `p` is the
   // triggering agent.run.end payload; its runId lets getRecentTask name the run that ACTUALLY just finished (not
   // whatever workstream happens to be on screen — they differ if the Commander switched streams mid-run).
+  /* THE FIRST PITCH IS AN OFFER (comms-owner arbiter, wave 1). It opened with no offer and covered the whole of COMMS, message box
+     included, through the model call and the choice. Now it ends above the message box and steps aside, unanswered, when the
+     Commander picks a conversation, sends a turn or an ask reaches them: it stays un-pitched and a later run end offers it again,
+     and a model call still in flight is aborted. Esc before the pitch is on screen steps aside the same way; Esc on the pitch is
+     its own "something else" key.
+     NEVER A NAG LOOP (review 10-27): a pitch that stepped aside is not offered again this session (asideThisSession), so it costs
+     at most one model call per session until it is answered; one that reached the screen first also spends its unit of the
+     shared session ask budget, as an answered one does. */
+  const PITCH_ASIDE = { aside: true }, PITCH_NOT_NOW = { notNow: true };
+  let asideThisSession = false;
   async function fire(p) {
     if (firing || !ready()) return;
     if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return;
     firing = true;
+    let leave = null, ctl = null;
+    const left = new Promise(resolve => { leave = resolve; });
+    const until = q => Promise.race([q, left]);
+    const away = r => r === PITCH_ASIDE || r === PITCH_NOT_NOW;
+    const standDown = () => { asideThisSession = true; try { if (ctl) ctl.abort(); } catch (_) {} try { if (Dialogue.isOpen()) Dialogue.close(); } catch (_) {} };
     try {
       const recipes = (typeof Recipes !== 'undefined' && Recipes.list)
         ? Recipes.list().map(r => ({ id: r.id, name: r.name, tagline: r.tagline })) : [];
@@ -145,11 +161,15 @@ const PitchStore = (() => {
       const name = deps.getName ? deps.getName() : 'AGENT';
 
       if (typeof Chat !== 'undefined' && Chat.clearNudge) Chat.clearNudge();   // retire any stale gentle nudge from a prior run before the focused panel opens over it
-      Dialogue.open({ name });
-      await Dialogue.say('give me a second — now that i know you a little, let me think about what would actually be worth building for you…', { auto: true });   // latency patter — never gate a wait on a click
+      Dialogue.open({ name, offer: { notNow: () => leave(PITCH_NOT_NOW), stepAside: () => leave(PITCH_ASIDE) } });
+      const heard = await until(Dialogue.say('give me a second — now that i know you a little, let me think about what would actually be worth building for you…', { auto: true }));   // latency patter — never gate a wait on a click
+      if (away(heard)) { standDown(); return; }   // nothing was pitched yet: stays un-pitched
       // evidence:true (W2) — this call ASKS what is worth building for this Commander, so it reasons from the
       // same bounded evidence pack an ordinary task run gets, not from the static dossier block alone.
-      const res = await Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true });
+      try { ctl = typeof AbortController === 'function' ? new AbortController() : null; } catch (_) { ctl = null; }
+      const res = await until(Harness.chat({ system, messages: [{ role: 'user', content: directive }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true, signal: ctl ? ctl.signal : undefined }));
+      if (away(res)) { standDown(); return; }   // stepped aside mid-call: the call is aborted, the pitch stays un-pitched
+      ctl = null;
       const parsed = (res && !res.error) ? Pitch.parsePitch(res.text) : null;
       if (!parsed) {   // graceful: no usable pitch (model hiccup / unparseable) → say nothing, stay un-pitched so a later run can retry
         if (Dialogue.isOpen()) Dialogue.close();
@@ -163,7 +183,12 @@ const PitchStore = (() => {
         if (credit) presented += ' ' + credit;
       }
       if (typeof SFX !== 'undefined' && SFX.idea) { try { SFX.idea(); } catch (_) {} }   // G3a: the pitch beat gets its soft chime (was mute)
-      const choice = await Dialogue.node({ lines: presented, options: Pitch.choices() });
+      const picked = await until(Dialogue.node({ lines: presented, options: Pitch.choices() }));
+      if (picked === PITCH_ASIDE) {   // unanswered: never a decline, offered again in a later session
+        try { if (typeof Chat !== 'undefined' && Chat.spendAsk) Chat.spendAsk(); } catch (_) {}   // it DID reach the screen: one unit of the budget
+        standDown(); return;
+      }
+      const choice = picked === PITCH_NOT_NOW ? { value: 'other', label: 'something else' } : picked;   // Esc = its own "something else"
       state.pitched = true; save();   // we DID deliver a pitch — never offer the first one again (a transient error above leaves it un-pitched)
       // a pitch that actually reached the screen spends one unit of the shared session ask budget (never the
       // transient-error path above, which delivered nothing to be budgeted).
@@ -211,7 +236,7 @@ const PitchStore = (() => {
   // the pitch replaced its classic close; any quiet outcome resolves false and leaves the pitch armed.
   async function offerAtHandoff(runId) {
     try {
-      if (!ready() || firing || state.pitched) return false;
+      if (!ready() || firing || state.pitched || asideThisSession) return false;
       if (typeof Harness === 'undefined' || !Harness.chat || typeof Dialogue === 'undefined') return false;
       if (!deps.wasTaskRun || !deps.wasTaskRun(runId)) return false;   // stricter than the auto path: the tour MUST prove the run was a real task
       const sum = (typeof DossierStore !== 'undefined' && DossierStore.summary) ? DossierStore.summary() : null;
@@ -265,6 +290,25 @@ const PitchStore = (() => {
 
   // A durable first-task review. Merely displaying it never spends the handoff.
   // Interview proposals and edits survive a tour/reload; nothing runs until Start.
+  /* THE HAND-OFF IS AN OFFER (gh#158). It opened with no offer, so it owned the whole of COMMS, message box included, and
+     tutorial.onEnterGame re-shows it on every boot while handoffPending stays set: a v0.14.0 Commander with real conversations
+     selected one, the camera moved, and COMMS stayed on YOUR FIRST TASK with no message box. Now it opens as an offer
+     (Dialogue armOffer): it ends above the message box, and it steps aside, unanswered, when the Commander picks a conversation
+     or sends a turn (Dialogue.stepAside) or presses Esc. Stepping aside is never a decline: handoffPending and the draft stay,
+     the draft goes into the message box's ↑ recall at once, and the hand-off is offered again at the next boot. A task the
+     Commander sends from COMMS completes it (noteCommsTask). */
+  const handoffAside = why => ({ action: 'aside', why: String(why || '') });
+  const HELP_CAP_MS = 12000;   // "Help me choose": a late suggestion is a weird one — cap the model call (deps.helpCapMs in tests)
+  let helpCtl = null;          // the in-flight "Help me choose" call's AbortController (reset() ends it too)
+  function stepHandoffAside(res) {
+    try { if (Dialogue.isOpen && Dialogue.isOpen()) Dialogue.close(); } catch (_) {}
+    // the draft goes into the ↑ recall when the Commander went elsewhere (a session pick, an ask, Esc) — never on their own turn:
+    // they just typed in that box, and ↑ right after a send must bring back what they sent, not the old draft (review 10-27).
+    // The draft is still kept for the next offer.
+    const draft = String((state && state.handoffDraft) || '').trim();
+    if (draft && !(res && res.why === 'turn') && typeof Chat !== 'undefined' && Chat.rememberSent) { try { Chat.rememberSent(draft); } catch (_) {} }
+    return res;
+  }
   async function offerHandoff(opts) {
     if (!ready() || firing || typeof Dialogue === 'undefined' || !Dialogue.node) return null;
     if (typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()) return null;
@@ -274,8 +318,11 @@ const PitchStore = (() => {
     state.handoffPending = true;
     if (state.handoffDraft == null) state.handoffDraft = state.firstMove || '';
     save();
+    let leave = null;
+    const left = new Promise(resolve => { leave = resolve; });
+    const until = p => Promise.race([p, left]);
     try {
-      Dialogue.open({ name: deps.getName ? deps.getName() : 'AGENT' });
+      Dialogue.open({ name: deps.getName ? deps.getName() : 'AGENT', offer: { notNow: () => leave(handoffAside('esc')), stepAside: why => leave(handoffAside(why)) } });
       let note = '';
       while (state === session && state.handoffPending) {
         const purpose = deps.getPurpose ? String(deps.getPurpose() || '').trim() : '';
@@ -283,7 +330,7 @@ const PitchStore = (() => {
         const lines = note || (state.handoffDraft
           ? 'here’s the first task we can begin with. change anything you like, then start when you’re ready.'
           : (purpose ? 'your direction: ' + purpose + '\n\nwhat would you like us to work on first?' : 'what would you like us to make, learn, or figure out first?'));
-        const pick = await Dialogue.node({ lines: [{ text: lines, cps: 60, holdAfter: 0 }],
+        const pick = await until(Dialogue.node({ lines: [{ text: lines, cps: 60, holdAfter: 0 }],
           allowCustom: true, customFirst: true, customValue: state.handoffDraft,
           customPlaceholder: 'Describe the first thing you want to work on…', submitLabel: 'Start this task →',
           onCustomInput: text => { if (state === session) { state.handoffDraft = text; save(); } },
@@ -291,8 +338,9 @@ const PitchStore = (() => {
             { label: 'Help me choose a first task', value: 'help', help: true },
             ...(opts && opts.tour ? [{ label: 'Show me around first', value: 'tour', open: true }] : []),
             { label: 'I’ll explore on my own', value: 'explore', skip: true }
-          ] });
+          ] }));
         if (state !== session || !pick) return null;
+        if (pick.action === 'aside') return stepHandoffAside(pick);
         if (pick.custom && String(pick.value || '').trim()) {
           state.handoffDraft = String(pick.value).trim(); save();
           return { action: 'start', task: state.handoffDraft };
@@ -302,16 +350,23 @@ const PitchStore = (() => {
         if (pick.help) {
           note = 'tell me something you’re curious about, something you’re making, or something you’d like help with. a rough idea is enough.';
           if (typeof Harness !== 'undefined' && Harness.chat && Harness.configured && Harness.configured()) {
-            let timer;
+            // HELP ME CHOOSE IS CANCELLABLE (comms-owner arbiter). The suggestion is a reason-only model call capped at 12 s; the cap
+            // only stopped the WAIT, so a slow model kept running (and spending) after the hand-off had moved on. Its own
+            // AbortController now ends the call when the cap passes, when the hand-off steps aside, or when a new hero resets it.
+            let timer, ctl = null;
+            try { ctl = typeof AbortController === 'function' ? new AbortController() : null; } catch (_) { ctl = null; }
+            helpCtl = ctl;
+            const stop = () => { try { if (ctl) ctl.abort(); } catch (_) {} };
             try {
-              const result = await Promise.race([
-                Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true }),
-                new Promise(resolve => { timer = setTimeout(() => resolve(null), 12000); })
-              ]);
-              if (state !== session) return null;
+              const result = await until(Promise.race([
+                Harness.chat({ system: deps.getSystem ? deps.getSystem() : '', messages: [{ role: 'user', content: Pitch.buildStarterDirective({ capabilities: deps.getCaps ? deps.getCaps() : [], purpose, draft: state.handoffDraft }) }], agentId: 'agent', isTask: false, placed: [], internal: true, evidence: true, signal: ctl ? ctl.signal : undefined }),
+                new Promise(resolve => { timer = setTimeout(() => { stop(); resolve(null); }, Number.isFinite(deps.helpCapMs) ? deps.helpCapMs : HELP_CAP_MS); })
+              ]));
+              if (state !== session) { stop(); return null; }
+              if (result && result.action === 'aside') { stop(); return stepHandoffAside(result); }
               const proposed = result && !result.error && Pitch.parseStarter(result.text);
               if (proposed) { state.handoffDraft = proposed.move; save(); note = (proposed.why || 'one possible starting point.') + ' edit the task below to make it yours.'; }
-            } catch (_) {} finally { clearTimeout(timer); }
+            } catch (_) {} finally { clearTimeout(timer); if (helpCtl === ctl) helpCtl = null; }
           }
         }
       }
@@ -332,17 +387,29 @@ const PitchStore = (() => {
     else if (typeof Chat !== 'undefined' && Chat.prefill) Chat.prefill(task);
     return !!sent;
   }
+  // A TASK THE COMMANDER SENDS FROM COMMS COMPLETES THE HAND-OFF (gh#158). startHandoff completes it for a task sent for them;
+  // a task they type into the message box themselves (the one a failed Start put back there, or simply their own first task)
+  // is the same first task. Before this the hand-off stayed pending after that send and came back over COMMS on every boot.
+  // chat.js calls it only for a task directive the Commander sent from the message box (never a retry or a send made for them).
+  // The bar startHandoff sets (review 10-27): a station with no model configured cannot run that task, so the first task stays
+  // pending (offered again) instead of being spent on a run that fails. A completed hand-off has no draft left to offer.
+  function noteCommsTask(text) {
+    if (!ready() || !state.handoffPending || !String(text == null ? '' : text).trim()) return false;
+    if (typeof Harness !== 'undefined' && Harness.configured && !Harness.configured()) return false;
+    state.handoffPending = false; state.starterDone = true; delete state.firstMove; delete state.handoffDraft; save();
+    return true;
+  }
   function handoffPending() { return !!(state && state.handoffPending); }
 
   // S2: a brand-new hero re-earns its First Pitch. Drop the self-persisted flag (Save.clear() only wipes the
   // main save envelope; this store owns its own key, like curiositystore).
-  function reset() { state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
+  function reset() { asideThisSession = false; if (helpCtl) { try { helpCtl.abort(); } catch (_) {} helpCtl = null; } state = (typeof Pitch !== 'undefined') ? Pitch.fresh() : { v: 1, pitched: false }; firing = false; if (pitchTimer) { clearTimeout(pitchTimer); pitchTimer = null; } pendingPitch = null; try { localStorage.removeItem(KEY); } catch (_) {} }
 
   // has the one-time First Pitch already fired? (read by the ongoing-suggestion engine — graduation gates it).
   function done() { return !!(state && state.pitched); }
 
   // _-prefixed handles are exposed for the deterministic node test (harmless in the browser).
-  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, offerHandoff, startHandoff, handoffPending, _decide: decide, _fire: fire, _settle: settlePitch, _pending: () => pendingPitch, _state: () => state };
+  return { init, reset, onRunEnd, done, offerAtHandoff, offerStarter, armFirstMove, offerHandoff, startHandoff, noteCommsTask, handoffPending, _decide: decide, _fire: fire, _settle: settlePitch, _pending: () => pendingPitch, _state: () => state };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { PitchStore };

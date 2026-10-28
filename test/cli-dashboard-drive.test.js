@@ -40,7 +40,7 @@ function fakeStation(opts) {
   const live = new Map();     // runId -> { body, res }
   const hits = [];            // every request: { method, path, body }
   const ended = [];           // every run that ended (GET /api/runs lists them: the /resume picker reads conversations there)
-  const roster = { agents: [{ agentId: 'agent', name: 'ULTRON', model: 'test/m', provider: 'openrouter', reasoningEffort: o.effort === undefined ? null : o.effort, approvalMode: 'ask', personaId: null }] };
+  const roster = { agents: [{ agentId: 'agent', name: 'ULTRON', model: 'test/m', provider: 'openrouter', reasoningEffort: o.effort === undefined ? null : o.effort, approvalMode: 'ask', personaId: null }].concat(o.agents || []) };
   let feed = null, evId = 0, seq = 0;
   const emit = (name, payload) => { if (feed) feed.write('id: ' + (++evId) + '\ndata: ' + JSON.stringify({ name, payload }) + '\n\n'); };
   const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
@@ -52,6 +52,7 @@ function fakeStation(opts) {
       const p = u.pathname;
       let b = null; try { b = body ? JSON.parse(body) : null; } catch (_) {}
       hits.push({ method: req.method, path: p + u.search, body: b });
+      if (o.routes && o.routes[p]) { const r = o.routes[p](b) || {}; return json(res, r.status || 200, r.body || {}); }   // a case's own answers
       if (p === '/api/runtime/agent') return json(res, 200, Object.assign({ configured: true, version: 'dev' }, roster));
       if (p === '/api/state/snapshot') return json(res, 200, { runs: [...live.values()].filter(r => !r.body.internal).map(r => ({ runId: r.runId, agentId: r.body.agentId, streamId: r.body.streamId, startedAt: r.at })), prompts: [] });
       if (p === '/api/runs') return json(res, 200, { runs: ended });
@@ -62,7 +63,9 @@ function fakeStation(opts) {
       if (p === '/api/slash/dispatch') return json(res, 200, { ok: true, directive: { type: 'say', title: 'SPEND', lines: ['spend: $0.00 today'] } });
       if (p === '/api/budget/status' || p === '/api/routing/lines/stats') return json(res, 200, {});
       if (p === '/api/line-jobs') return json(res, 200, { jobs: [] });
-      if (p === '/api/providers') return json(res, 200, { providers: [{ id: 'openrouter', configured: true }] });
+      if (p === '/api/providers/connect' && o.connect) { const r = o.connect(b); return json(res, r.status, r.body); }
+      if (p === '/api/auth/claude-cli/status' && o.claude) return json(res, 200, o.claude);
+      if (p === '/api/providers') return json(res, 200, { providers: (o.providers || ['openrouter']).map(id => ({ id, configured: true })) });
       if (p === '/api/models/openrouter') return json(res, 200, { models: [{ id: 'test/m', context_length: 1048576, runWindow: 200000 }] });
       if (p === '/api/insights') return json(res, 200, { totalRuns: 3, totalUsd: 0.05, totalTokens: 900, avgUsdPerRun: 0.0167, successPct: 100, usageMissingRuns: 1, unpricedRuns: 1, spendUnknownRuns: 1,
         byModel: [{ model: 'sub/model', usd: 0, spendLabel: 'subscription / unmetered' }, { model: 'paid/model', usd: 0.05 }] });
@@ -477,7 +480,156 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
     require('fs').rmSync(dir, { recursive: true, force: true });
   }
 
-  global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;
+  /* 15. /connect: the app's AI & MODELS list in its groups (names, what each needs, what the station proves); a key typed
+     hidden — never on screen, never in ↑ history — is handed to the station once, and a refusal says why and keeps asking;
+     a typed name goes straight to that provider; esc leaves with nothing connected */
+  {
+    const KEY = '9sk-ant-drive-secret-XYZ';   // starts with a digit: a key is text from its first character on
+    let saves = [];
+    const d = await boot({ providers: ['openrouter', 'codex'], claude: { installed: true, loggedIn: false },
+      connect: b => { saves.push(b); return saves.length === 1 ? { status: 422, body: { ok: false, error: 'provider rejected this key (HTTP 401) — nothing was saved' } } : { status: 200, body: { ok: true, provider: b.provider, via: 'page', store: 'keychain', verified: true } }; } });
+    let at = d.mark();
+    await d.keys('/connect\r', 900);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CONNECT · AI & MODELS/.test(said), 'connect: /connect opens the list');
+    A.ok(['A SUBSCRIPTION YOU HAVE', 'AN API KEY', 'YOUR OWN MODELS'].every(g => said.includes(g)) && !said.includes('STARNET MANAGED'), 'connect: the app\'s groups; STARNET MANAGED only where a StarNet account can link');
+    A.ok(['OPENROUTER', 'CHATGPT (CODEX)', 'GROK (XAI)', 'KIMI FOR CODING', 'CLAUDE CODE', 'ANTHROPIC', 'GEMINI', 'CEREBRAS', 'OLLAMA', 'CUSTOM'].every(n => said.includes(n)), 'connect: every provider the app lists, by the app\'s name');
+    A.ok(/OPENROUTER\s+one key · 300\+ models\s+● KEY SAVED/.test(said) && /CHATGPT \(CODEX\)\s+ChatGPT subscription\s+● SIGNED IN/.test(said) && /ANTHROPIC\s+Claude native API\s+○ NO KEY/.test(said) && /CLAUDE CODE\s+your Claude subscription\s+○ NOT SIGNED IN/.test(said),
+      'connect: each row says what it needs and what the station proves: ' + (said.match(/OPENROUTER.{0,80}/) || [''])[0]);
+    at = d.mark();
+    await d.keys('anthropic', 300);
+    await d.keys('\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CONNECT/.test(said) && /ANTHROPIC/.test(said) && /paste your ANTHROPIC key — it stays hidden here/.test(said), 'connect: picking ANTHROPIC asks for its key: ' + said.slice(-240));
+    at = d.mark();
+    await d.keys(KEY, 300);
+    A.ok(!d.raw().includes(KEY) && !d.raw().includes('sk-ant-drive') && d.since(at).includes('•'), 'connect: the key is never drawn — only dots');
+    await d.keys('\r', 1200);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.eq(saves[0], { provider: 'anthropic', key: KEY }, 'connect: the key goes to the station once, whole (a leading digit is part of it)');
+    A.ok(/not saved: provider rejected this key \(HTTP 401\)/.test(said) && /paste it again, or go back/.test(said), 'connect: a refusal says why and asks again');
+    await d.keys(KEY, 200);
+    await d.keys('\r', 1500);
+    said = d.screen().replace(/\s+/g, ' ');
+    A.eq(saves.length, 2, 'connect: the second try is saved');
+    A.ok(/ANTHROPIC key saved in your OS keychain — ANTHROPIC accepted it\. \/model picks one of its models for ULTRON\./.test(said), 'connect: it says where the key went and that it was checked');
+    A.ok(!d.raw().includes(KEY), 'connect: the key never reached the screen');
+    await d.key(UP, 300);
+    A.ok(!d.raw().includes(KEY), 'connect: ↑ history never brings the key back');
+    await d.key(ESC, 700); await d.key(ESC, 700);   // (the first hides the "/" menu the recalled line opened; readline holds a lone esc 500 ms)
+    // a name goes straight there; esc leaves it
+    at = d.mark();
+    await d.keys('/connect groq\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/paste your GROQ key/.test(said), 'connect: /connect groq goes straight to GROQ: ' + said.slice(-400));
+    await d.key(ESC, 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/nothing was connected/.test(said) && saves.length === 2, 'connect: esc leaves, nothing saved');
+    at = d.mark();
+    await d.keys('/connect warp\r', 600);
+    A.ok(/No provider called warp/.test(d.since(at).replace(/\s+/g, ' ')), 'connect: an unknown name says so');
+    await d.done();
+  }
+
+  /* 16. /floor on a terminal with no images: the lead and the worker its run sent (live from the feed: the worker's run
+     names its lead run), what each is doing, and the LOG of the handoff and its return */
+  {
+    const d = await boot();
+    d.st.emit('agent.run.start', { runId: 'L1', agentId: 'agent', streamId: 'desk-1', trigger: 'directive', prompt: 'ship the landing page' });
+    d.st.emit('agent.run.start', { runId: 'W1', agentId: 'scout', streamId: 'w-1', parentRunId: 'L1', delegatedBy: 'agent', prompt: 'research pricing' });
+    d.st.emit('agent.tool_call', { runId: 'W1', agentId: 'scout', name: 'web.fetch', callId: 'c1', argsSummary: '{"url":"vercel.com/pricing"}' });
+    await sleep(400);
+    let at = d.mark();
+    await d.keys('/floor\r', 700);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/ULTRON lead ● /.test(said) && /└─▶ SCOUT ● web\.fetch/.test(said), 'floor: the lead and the worker it sent, each with what it is doing: ' + (said.match(/ULTRON lead.{0,120}/) || [''])[0]);
+    A.ok(/ULTRON → SCOUT team\.dispatch "research pricing"/.test(said), 'floor: the handoff in the LOG');
+    at = d.mark();
+    d.st.emit('agent.run.end', { runId: 'W1', agentId: 'scout', reason: 'done', turns: 1, usd: 0 });
+    await sleep(700);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/SCOUT → ULTRON done/.test(said), 'floor: its result comes back in the LOG');
+    await d.done();
+  }
+
+  /* 17. /usage: each connected provider and what is left of it, as the station says (a Claude Code sign-in's window, a
+     ChatGPT sign-in no run has used yet, a key with no call yet, the ledger's spend); /connect on a subscription already
+     signed in offers ANOTHER account of it, signs it in through the station's /add route (polled with that account), and
+     says so; going back from one leaves nothing behind (its empty account is removed) */
+  {
+    const added = [];
+    let next = 0;
+    const d = await boot({ providers: ['openrouter', 'codex'], claude: { installed: true, loggedIn: true }, routes: {
+      '/api/usage/providers': () => ({ body: { subscriptions: { 'claude-cli': { primary: { windows: [{ id: 'five_hour', label: '5-hour', usedPct: 12, resetsAt: Date.now() + 3 * 3600e3, status: 'allowed' }], seenAt: Date.now() - 5 * 60000 } } }, rate: [] } }),
+      '/api/budget/status': () => ({ body: { spentToday: 0.42, lifetime: 31.1 } }),
+      '/api/auth/claude-cli/accounts': () => ({ body: { accounts: [{ account: '', label: 'account 1', primary: true, installed: true, loggedIn: true, coolingUntil: 0 }].concat(added.map((a, i) => ({ account: a, label: 'account ' + (i + 2), installed: true, loggedIn: true, coolingUntil: 0 }))), max: 8 } }),
+      '/api/auth/codex/accounts': () => ({ body: { accounts: [{ account: '', label: 'account 1', primary: true, connected: true, coolingUntil: 0 }], max: 8 } }),
+      '/api/auth/claude-cli/add': () => ({ body: { account: ['ab12cd34ef', 'cd56ef78ab'][next++], status: 'pending', login_id: 'L' + next, url: 'https://claude.ai/oauth/authorize?x=1' } }),
+      '/api/auth/claude-cli/poll': b => { if (b.login_id === 'L1') { added.push(b.account); return { body: { status: 'connected' } }; } return { body: { status: 'pending' } }; },
+      '/api/auth/claude-cli/cancel': () => ({ body: { ok: true } }),
+      '/api/auth/claude-cli/remove': () => ({ body: { ok: true } })
+    } });
+    let at = d.mark();
+    await d.keys('/usage\r', 1200);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/USAGE/.test(said) && /CLAUDE CODE · 1 sign-in/.test(said) && /account 1 5-hour 88% left · resets/.test(said) && /\(as of 5 min ago\)/.test(said), 'usage: a Claude Code sign-in, what is left of its window and when that was said: ' + (said.match(/CLAUDE CODE.{0,160}/) || [''])[0]);
+    A.ok(/CHATGPT \(CODEX\) · 1 sign-in[│ ]+account 1 unknown — no run on it yet/.test(said), 'usage: a ChatGPT sign-in no run has used: unknown: ' + (said.match(/CHATGPT.{0,160}/) || [''])[0]);
+    A.ok(/OPENROUTER · key saved — unknown until a call says/.test(said) && /Spent today \$0\.42 · all time \$31\.10/.test(said), 'usage: a key with no call yet is unknown; the ledger\'s spend last');
+    A.ok(d.st.hits.some(h => h.path === '/api/auth/claude-cli/accounts') && d.st.hits.some(h => h.path === '/api/auth/codex/accounts'), 'usage: each subscription\'s own sign-ins are read');
+
+    at = d.mark();
+    await d.keys('/connect claude\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CLAUDE CODE is signed in\. another account of the same subscription stacks on it/.test(said) && /Add another account/.test(said) && /Keep it as is/.test(said), 'connect: a subscription already signed in offers another account: ' + said.slice(-300));
+    await d.keys('1', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/sign(?:ing)? in with the OTHER Claude account at https:\/\/claude\.ai\/oauth\/authorize/.test(said), 'connect: the new account\'s sign-in link, saying to use the OTHER account');
+    await sleep(3800);
+    said = d.since(at).replace(/\s+/g, ' ');
+    const poll = d.st.hits.find(h => h.path === '/api/auth/claude-cli/poll');
+    A.eq(poll && poll.body, { account: 'ab12cd34ef', login_id: 'L1' }, 'connect: it polls the NEW account\'s sign-in, by its account');
+    A.ok(/another CLAUDE CODE account is connected — 2 sign-ins now; when one hits its limit the runs carry on with the next/.test(said), 'connect: it says the second sign-in landed: ' + said.slice(-260));
+
+    at = d.mark();
+    await d.keys('/connect claude\r', 900);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/CLAUDE CODE is signed in — 2 accounts/.test(said), 'connect: now it counts two');
+    await d.keys('1', 900);
+    await d.keys('2', 900);   // Go back
+    const removed = d.st.hits.filter(h => h.path === '/api/auth/claude-cli/remove');
+    A.ok(removed.length === 1 && removed[0].body.account === 'cd56ef78ab' && d.st.hits.some(h => h.path === '/api/auth/claude-cli/cancel'), 'connect: going back cancels that sign-in and removes its empty account — nothing left behind');
+    await d.done();
+  }
+
+  /* 18. /split: more agents on the screen at once — a pane each; what you type goes to the pane marked (the one just added,
+     then tab moves through the panes); /split close closes the one you are in, /split off goes back to one; a name that
+     is no agent says so */
+  {
+    const d = await boot({ agents: [{ agentId: 'scout', name: 'SCOUT', model: 'test/m', provider: 'openrouter' }, { agentId: 'forge', name: 'FORGE', model: 'test/m', provider: 'openrouter' }] });
+    let at = d.mark();
+    await d.keys('/split scout forge\r', 700);
+    let said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ ULTRON · SCOUT · FORGE/.test(said), 'split: COMMS shows ULTRON, SCOUT and FORGE at once');
+    await d.keys('hello forge\r', 600);
+    A.eq(d.userRuns().map(r => r.body.agentId), ['forge'], 'split: what you type goes to the pane just added');
+    await d.key('\t', 300);
+    await d.keys('hello ultron\r', 600);
+    A.eq(d.userRuns().map(r => r.body.agentId), ['forge', 'agent'], 'split: tab moves to the next pane, and the message goes there');
+    at = d.mark();
+    await d.keys('/split close\r', 600);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ SCOUT · FORGE/.test(said), 'split: /split close closes the pane you were in: ' + (said.match(/COMMS ▸[^│╮]{0,40}/) || [''])[0]);
+    at = d.mark();
+    await d.keys('/split off\r', 600);
+    said = d.since(at).replace(/\s+/g, ' ');
+    A.ok(/COMMS ▸ (SCOUT|FORGE)\b(?! ·)/.test(said) && !/COMMS ▸ SCOUT · FORGE/.test(said), 'split: /split off — one agent again');
+    at = d.mark();
+    await d.keys('/split warp\r', 600);
+    A.ok(/No agent called warp — your crew: ULTRON, SCOUT, FORGE/.test(d.since(at).replace(/\s+/g, ' ')), 'split: a name that is no agent says so, and names the crew');
+    await d.done();
+  }
+
+global.setTimeout = realSetTimeout; global.setInterval = realSetInterval;
   A.report('cli-dashboard-drive.test');
   process.exit(process.exitCode || 0);
 })().catch(e => { console.error(e); process.exit(1); });

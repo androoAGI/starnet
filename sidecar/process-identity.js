@@ -207,5 +207,17 @@ function judgeReuse(stamp, seen) {
   return out;
 }
 
-module.exports = { makeProcessIdentity, judgeReuse, CIM_TOLERANCE_MS,
+/* predatesBoot(stampMs, bootedAtMs) — a claim stamped before this computer last started cannot belong to a running
+   process. The ONE boot rule: workspace-owner.js judges every claim with it, bin/starnet.js judges the desktop's claim
+   with it, and src-tauri process_identity.rs predates_boot holds the same rule (test/fixtures/process-identity-cases.json
+   "predatesBoot" pins both). BOOT_SLACK_MS absorbs skew between the boot clock (Date.now() - os.uptime()) and a stamp,
+   so a holder that stamped seconds after boot is never misread as pre-boot. An unknown boot time (0) proves nothing. */
+const BOOT_SLACK_MS = 60 * 1000;
+function predatesBoot(stampMs, bootedAtMs) {
+  const b = Number(bootedAtMs) || 0;
+  const t = Number(stampMs) || 0;
+  return b > 0 && t > 0 && t < (b - BOOT_SLACK_MS);
+}
+
+module.exports = { makeProcessIdentity, judgeReuse, predatesBoot, BOOT_SLACK_MS, CIM_TOLERANCE_MS,
   _internals: { parseWin32, parseLstart, parseProcStat, validPid, imageName, REUSE_SLACK_MS, REUSE_EXE_SLACK_MS } };

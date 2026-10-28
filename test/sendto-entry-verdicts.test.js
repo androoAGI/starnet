@@ -22,6 +22,7 @@
      4. NO MINT  — the verdict fields are written only by the hub's seed and the handoff runner; no other chain entry point
                    (routines, Run Now) can stamp one. */
 'use strict';
+const { readSidecarSource, readSidecarIndex } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -364,7 +365,8 @@ function world(opts) {
     })(path.join(root, 'sidecar'));
     A.eq(files.sort(), ['sidecar/channels/hub.js', 'sidecar/index.js', 'sidecar/routing/chain.js', 'sidecar/routing/handoff-runner.js'],
       'the verdict fields live ONLY in the hub (which established them), the routine seeds (hostPowerKept only), the chain (which carries them) and the handoff runner');
-    const idxSrc = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+    // a per-file pin on purpose: the walk above already fails on any OTHER file that starts naming the verdict fields
+    const idxSrc = readSidecarIndex();
     A.eq((idxSrc.match(/\bentryTrusted\b/g) || []).length, 0, 'index.js never stamps entryTrusted (a routine / Run Now entry is not the hub\'s verdict to mint)');
     A.eq((idxSrc.match(/^\s*hostPowerKept: true,/gm) || []).length, 2, 'index.js stamps hostPowerKept on exactly the two routine seeds (scheduled advanceChain + Run Now) — a routine never withholds host power');
     const hubSrc = fs.readFileSync(path.join(root, 'sidecar', 'channels', 'hub.js'), 'utf8');
@@ -376,7 +378,7 @@ function world(opts) {
     A.ok(/entryUntrusted: \(\) => !\(s\.current && s\.current\.entryTrusted === true\),/.test(hoSrc) && /senderWithheld: \(\) => !\(s\.current && s\.current\.hostPowerKept === true\),/.test(hoSrc),
       'the handoff runner\'s hooks fail closed (only a positive verdict lifts either)');
     // the HOST HALF: index.js makeTriggerHub forwards the hooks to the hub (39d51ba78). Without it every hand-off keeps today's lock.
-    const idx = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     const trig = (idx.split('function makeTriggerHub(hooks) {')[1] || '').split('\n}\n')[0];
     A.ok(trig.length > 0, 'found index.js makeTriggerHub');
     A.ok(/entryUntrusted: hooks\.entryUntrusted, senderWithheld: hooks\.senderWithheld,/.test(trig), 'index.js makeTriggerHub forwards BOTH verdict hooks to the hub');

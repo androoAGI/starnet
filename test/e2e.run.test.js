@@ -224,8 +224,9 @@ function boot(port, env, attemptsLeft) {
       const raw = await r.text();
       const evs = raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
       A.ok(evs.some(e => e.name === 'agent.run.end' && e.payload.reason === 'done'), 'compatible route recovers malformed tool history through the real sidecar');
-      // the run-context note leads the Commander's own message (provider.js noteCarrier), not the recovered-result turn
-      const wire = mock.requests.slice(before).find(q => (q.messages || []).some(m => m.role === 'user' && userWords(m) === 'PAIRRECOVERY compatible route'));
+      // the run-context note leads the Commander's own message (provider.js noteCarrier), not the recovered-result turn;
+      // on a chat wire the recovered text then joins that turn (projectRoles 'chat': two user turns in a row are one)
+      const wire = mock.requests.slice(before).find(q => (q.messages || []).some(m => m.role === 'user' && userWords(m).indexOf('PAIRRECOVERY compatible route') === 0));
       A.ok(wire && wire.messages.some(m => m.role === 'user' && String(m.content).includes('[recovered tool result') && String(m.content).includes('evidence survives')), 'compatible wire retains orphan evidence as labeled recovery text');
       A.ok(evs.some(e => e.name === 'agent.cost' && e.payload.reconciled === true), 'compatible recovery still emits reconciled cost');
     }

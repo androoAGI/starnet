@@ -521,4 +521,14 @@ A.eq([W.get(recoveredOrder.id).lastRunOk, W.get(recoveredOrder.id).lastRunReason
   A.eq([W.get('saved-old').projectRootAt, W.get('saved-new').projectRootAt], [null, 300], 'and survives a save and reload round trip');
   Date.now = realNow;
 }
+
+/* ---------- a delivery session's name is its title alone (Andrew 10-27: the ⚒ prefix pushed it off the rail's title column) ---------- */
+{
+  W.reset();
+  W.adopt({ id: 'workshop-old1', title: '⚒ Pricing page v2', lane: 'active' });
+  W.adopt({ id: 's-forge', title: '⚒ my forge notes', lane: 'active' });
+  A.eq(W.titleOf('workshop-old1'), 'Pricing page v2', 'a delivery session stored as "⚒ <title>" before 10-27 is named by its title alone');
+  A.eq(W.get('workshop-old1').title, '⚒ Pricing page v2', 'the stored title is untouched (only the name it is shown by)');
+  A.eq(W.titleOf('s-forge'), '⚒ my forge notes', 'a session someone named with a hammer keeps it: only delivery sessions carried the mark');
+}
 A.report('workstreams.test');

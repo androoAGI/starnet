@@ -115,4 +115,32 @@ const mk = (fs) => makeChannelStore({ fs, pathMod, root: ROOT, clock, limits: { 
   A.throws(() => s.appendTurn('tg_ok', 'bogusrole', 'x'), 'bad role rejected');
 }
 
+// ---- Z. (quick win 34) a file that is BUSY is not a file that is missing ----
+// readRaw caught every error as "absent": on Windows an antivirus scan or an indexer holding chatmap.json open answers
+// EBUSY/EPERM, the store read that as an empty (or .bak-old) map, and the read-modify-write in saveChatRecord wrote it
+// back — every other chat's binding, /allow and approvals gone. Only ENOENT (and a torn/corrupt file) means absent.
+{
+  const fs = memFs();
+  const s = mk(fs);
+  s.saveChatRecord('A', { agentId: 'tg_A' });
+  s.saveChatRecord('B', { agentId: 'tg_B' });
+  const file = pathMod.join(ROOT, 'chatmap.json');
+  const realRead = fs.readFileSync;
+  fs.readFileSync = function (p) { if (p === file) { const e = new Error('EBUSY: resource busy or locked, open ' + p); e.code = 'EBUSY'; throw e; } return realRead.apply(this, arguments); };
+  A.throws(() => s.saveChatRecord('C', { agentId: 'tg_C' }), 'a BUSY chat map refuses the write instead of clobbering it');
+  A.throws(() => s.loadChatMap(), 'and a read of a busy file is an error, never an empty map');
+  fs.readFileSync = realRead;
+  const map = s.loadChatMap();
+  A.eq(Object.keys(map.chats).sort(), ['A', 'B'], 'once the lock clears, every chat recorded before is still there');
+  // a missing file is still simply absent, and a torn one still recovers from .bak
+  const s2 = mk(memFs());
+  A.eq(s2.loadOutbox(), [], 'a missing outbox is still empty (ENOENT is absence)');
+  const fs3 = memFs();
+  const s3 = mk(fs3);
+  s3.saveChatRecord('X', { agentId: 'tg_X' });
+  s3.saveChatRecord('Y', { agentId: 'tg_Y' });
+  fs3.files.set(file, '{"version":1,"chats":{');   // torn main
+  A.ok(!!s3.getChatRecord('X'), 'a torn main is still recovered from its .bak (corrupt != busy)');
+}
+
 A.report('channels.store.test');

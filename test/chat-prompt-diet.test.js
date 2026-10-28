@@ -9,11 +9,12 @@
    test/chat-prompt-diet.e2e.test.js proves the bytes the model receives; this lock keeps the gates from
    quietly regressing in an auto-merge. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const once = (needle, label) => { A.eq(src.split(needle).length - 1, 1, label + ' (exactly one occurrence)'); };
 
 // 600ab235c hoisted a project-conversation lookup behind the same gate, so the crew>0 briefing is now the else-branch
@@ -27,7 +28,8 @@ once("    : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? 
 once("skillBlock = isTask", 'the skill recipe block is gated on isTask');
 once("if (isTask && resolved.tools.indexOf('skill.view') >= 0) {", 'the runtime skill index is gated on isTask');
 A.ok(src.indexOf("(system || '') + runtimeBlock + toolNote") < 0, 'the runtime block no longer leads the appended payload');
-once("+ deliverableNote + crewCallNote + runtimeBlock, { isTask, internal, tools: resolved.tools });", 'the runtime block rides LAST in the appended payload');
+// (context-key-redact, 2026-10-28: the kill-switch path's per-run blocks ride inside PromptScrub.scrubStored(…))
+once("+ deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });", 'the runtime block rides LAST in the appended payload');
 // The explicit skill PRELOAD ("/skill Name" or body.preloadSkills) is a Commander request and stays ungated.
 once("    if (resolved.tools.indexOf('skill.view') >= 0) {", 'explicit skill preload keeps its own (isTask-free) gate');
 

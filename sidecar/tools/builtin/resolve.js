@@ -349,6 +349,7 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
   function makeResolveTools(deps) {
     deps = deps || {};
     const fsp = deps.fsp, P = deps.pathMod, ROOT = deps.root, spawn = deps.spawn;
+    const breakawaySpawn = (deps.breakaway || require('../../breakaway.js').makeBreakaway({ platform: deps.platform })).spawnVia(spawn);
     if (!fsp || !P || !ROOT || typeof spawn !== 'function') throw new Error('resolve.js requires { fsp, pathMod, root, spawn }');
     const platform = deps.platform || process.platform;
     const envFor = typeof deps.envFor === 'function' ? deps.envFor : () => Object.assign({}, process.env);
@@ -563,7 +564,9 @@ out(dict(base, ok=False, error="unknown action " + str(act)))
           const app = await installed();
           if (!app) throw new Error('DaVinci Resolve is not installed at the default location');
           const r = platform === 'darwin' ? await run('open', ['-a', app], { timeoutMs: 15000 })
-            : await new Promise(res => { try { const ch = spawn(app, [], { shell: false, detached: true, stdio: 'ignore', windowsHide: false }); ch.on('error', e => res({ code: null, error: e.message })); if (ch.unref) ch.unref(); setTimeout(() => res({ code: 0 }), 1500); } catch (e) { res({ code: null, error: e.message }); } });
+            // Windows: launched outside the station's job (sidecar/breakaway.js) — Resolve is the person's app, and quitting
+            // StarNet must never close it with an unsaved project
+            : await new Promise(res => { try { const ch = breakawaySpawn(app, [], { shell: false, detached: true, stdio: 'ignore', windowsHide: false }); ch.on('error', e => res({ code: null, error: e.message })); if (ch.unref) ch.unref(); setTimeout(() => res({ code: 0 }), 1500); } catch (e) { res({ code: null, error: e.message }); } });
           if (r.code !== 0) throw new Error('could not launch Resolve: ' + (r.error || 'exit ' + r.code));
           return { content: 'Launched ' + app + '. Resolve takes a while to open — call resolve_status until it reports live control.', summary: 'resolve launched' };
         }

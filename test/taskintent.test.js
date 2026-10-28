@@ -1,5 +1,6 @@
 /* node test/taskintent.test.js — task-context protocol + durable Task Brief lifecycle. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -91,7 +92,7 @@ A.ok(/name: 'team\.summon'[^\n]*\n\s*briefExempt: true/.test(require('fs').readF
   A.eq(Policy.canMutate(ready, control, { name: 'station.control', args: { action: 'session.delete' } }).ok, false, 'any other station change still waits');
   A.eq(Policy.canMutate(ready, control).ok, false, 'no call, no exemption (fail closed)');
   A.eq(Policy.canMutate(ready, power, { name: 'station.power', args: { action: 'group.add' } }).ok, false, 'station.power never qualifies');
-  A.ok(/const gate = TaskBriefPolicy\.canMutate\(taskBriefState\.brief, liveTool, c\);/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')), 'the host gate hands the call to the policy');
+  A.ok(/const gate = TaskBriefPolicy\.canMutate\(taskBriefState\.brief, liveTool, c\);/.test(readSidecarSource()), 'the host gate hands the call to the policy');
 }
 
 // RECOMMENDATION MATCHING — a formatting slip must not silently cost the Commander the ★ suggestion, and a
@@ -436,7 +437,7 @@ A.eq(Policy.canMutate({ status: 'executing' }, { scope: 'execute' }).ok, true, '
   A.ok(/strength="weak; never override current instructions"/.test(cx), 'relationship evidence is truthfully labelled weak');
 
   // Source guards lock the full seam: central run host, browser chips, channel fallback, and no dossier write.
-  const indexSrc = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const indexSrc = readSidecarSource({ except: ['sidecar/group-sessions.js', 'sidecar/taskbrief-tools.js'] });   // the host; both name a `grounded:` key of their own
   const chatSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
   const hubSrc = fs.readFileSync(path.join(__dirname, '../sidecar/channels/hub.js'), 'utf8');
   const orchestrationSrc = fs.readFileSync(path.join(__dirname, '../sidecar/tools/builtin/orchestration.js'), 'utf8');
@@ -620,7 +621,8 @@ A.eq(Policy.canMutate({ status: 'executing' }, { scope: 'execute' }).ok, true, '
   A.ok(/const ready = recommendationsReady\(\)/.test(mktSrc) && /STARTING POINTS/.test(mktSrc), 'the marketplace uses shared readiness and labels its cold shelf honestly');
   A.ok((mktSrc.match(/const gt = ready \? goalText\(\) : ''/g) || []).length >= 2, 'cold marketplace shelves cannot smuggle dossier goals past readiness');
   A.ok(/values\.__intake = intake/.test(mktSrc) && /mkt-intake-opt/.test(mktSrc), 'the launch form collects one-tap intake decisions');
-  A.ok(/recipeIntake/.test(indexSrc) && /Recipes\.get\(String\(o\.recipeId\)\)/.test(indexSrc), 'a recipe-launched run injects its declared intake');
+  A.ok(/Recipes\.get\(String\(o\.recipeId\)\)[^\n]*recipeIntake = rr\.intake/.test(indexSrc) && /taskContextInputs = \{[^}]*\brecipeIntake\b/.test(indexSrc),
+    'a recipe-launched run injects its declared intake (read from the recipe, handed to the evidence composer)');
 
   A.report('taskintent.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });

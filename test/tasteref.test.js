@@ -10,6 +10,7 @@
    newest reference in full; the injection guard still blocks a poisoned reference; and the record survives a durable
    store reload. The live route + prompt seam is test/tasteref.http.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -264,7 +265,7 @@ function eight() {
 
 // ---- seam: both injection sites render through renderTaste; the rating + keep-style routes capture ----
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.eq((idx.match(/FeedbackMemory\.renderTaste\(tasteRecs, renderRecall(, \{ agentId \})?\)/g) || []).length, 2, 'the run prompt and delegated workers both render taste through renderTaste');
   A.ok(/FeedbackMemory\.renderTaste\(tasteRecs, renderRecall, \{ agentId \}\)/.test(idx), 'the run prompt names its own agent (its own workspace files need no owner tag)');
   A.ok(/agentId: proj \? '' : agentId \}\)/.test(idx) && /path: path\.join\(proj, String\(a\.path\)\)/.test(idx), 'a project run\'s files are stored absolute; a workspace run names the owning agent');

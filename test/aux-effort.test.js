@@ -21,6 +21,7 @@
        decomposition, candidates) stays on the aux effort;
      • runAgentLoop carries a per-run reasoningEffort onto every request, and a run without one is byte-identical. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -45,7 +46,7 @@ A.eq(G.effortAsRan('none', []), 'none', 'no list: the pick as asked');
 A.eq(G.effortAsRan(null, ['low']), null, 'no pick: nothing to record');
 
 // ---- the composition root wires it (source locks) ----
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
 const fnSrc = A.fnBody(idx, 'function auxPassEffort(');
 A.ok(/AUX_EFFORT/.test(fnSrc) && /resolveAuxModel\(\)/.test(fnSrc) && /return auxReasoningEffort\(provider, model\)/.test(fnSrc),
   'auxPassEffort: a configured aux tier (STARNET_AUX_EFFORT / STARNET_AUX_MODEL) keeps exactly auxReasoningEffort');

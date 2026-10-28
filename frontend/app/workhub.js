@@ -11,7 +11,7 @@
   }
   function openDraft(options) {
     StationUI.closeTerm('commander');
-    Marketplace.open({tab:'recipes',firstValue:options || {},onLaunch:App.launchRecipe});
+    Marketplace.open({intent:'first-value',tab:'recipes',firstValue:options || {},onLaunch:App.launchRecipe});
     return true;
   }
   function mountSources(parent) {

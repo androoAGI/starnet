@@ -15,6 +15,7 @@
      5. THE WIRING — recAccept/recDecline really do reach the ledger, the pass really does drop a declined
         candidate, and the impression is recorded AFTER the card renders (source-locked: DOM flow). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -418,8 +419,15 @@ A.ok(/askBudgetSpent, spendAsk \};\s*$/m.test(chatSrc) || /setRosterStatus, askB
 const pitchSrc = read('frontend/app/pitchstore.js');
 A.ok(/Chat\.askBudgetSpent\(\)\) return \{ go: false, reason: 'ask-budget' \}/.test(pitchSrc),
   'the First Pitch defers on a spent budget (and stays un-pitched, so it returns at a quieter moment)');
-A.ok(pitchSrc.indexOf('Chat.spendAsk()') > pitchSrc.indexOf('state.pitched = true'),
-  '…and spends only a pitch that actually reached the screen');
+// every spend sits after the pitch is put on screen (Dialogue.node of the presented pitch): an answered one, and one the
+// Commander stepped aside from once it was on screen (comms-owner arbiter review 10-27) — never the latency line or a model hiccup
+{
+  const fire = A.fnBody(pitchSrc, '  async function fire(p) {');
+  const shown = fire.indexOf('Dialogue.node({ lines: presented');
+  const spends = []; for (let i = fire.indexOf('Chat.spendAsk()'); i >= 0; i = fire.indexOf('Chat.spendAsk()', i + 1)) spends.push(i);
+  A.ok(fire.length > 500 && shown > 0 && spends.length >= 1 && spends.every(i => i > shown),
+    '…and spends only a pitch that actually reached the screen (' + spends.length + ' spend site(s), all after the pitch is shown)');
+}
 const nnSrc = read('frontend/app/nightnudge.js');
 A.ok(/Chat\.askBudgetSpent && Chat\.askBudgetSpent\(\)\) return/.test(nnSrc),
   'the night-shift "review?" nudge waits on a spent budget (the drafts and the morning report still carry it)');
@@ -433,7 +441,7 @@ A.ok(/if \(shown && typeof Chat\.spendAsk === 'function'\)/.test(qrSrc),
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════
    9. THE EVAL SCORECARD HAS A RUNTIME CONSUMER (source-locked: route table)
    ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
-const idxSrc = read('sidecar', 'index.js');
+const idxSrc = readSidecarSource();
 A.ok(/qsplit: '\/api\/recommendations\/eval', h: handleRecommendationsEval/.test(idxSrc),
   'GET /api/recommendations/eval serves the scorecard over the REAL ledger (it had zero runtime consumers)');
 A.ok(/RecommendationEval\.evaluate\(rows/.test(idxSrc), '…through the same pure evaluate() the CI script uses');

@@ -29,6 +29,8 @@ qa/evidence/0.11.2-audit/audit-image-cancel.json records cancelStatus=200, reaso
 
 Original audit recommendation: Propagate the run/tool cancellation signal through inference, download and resize; check before publishing files or deliverables and fence stale results. A provider may already have incurred a charge: retain truthful usage rather than promise refunds or zero cost. Cover abort before call, during synthesis/download, just before publication, timeout and restart. The probe shows a write after acknowledged cancellation, not necessarily after the terminal event.
 
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): the recommendation above was carried out by `d503f00c5` (see the cleanup verification below), an ancestor of trunk and first released in v0.11.2. Regression: test/managed-image.e2e.test.js and test/image.test.js, green on this tree. Installer verification and customer recovery are still not claimed.
+
 ## Cleanup verification — 2026-09-10
 
 test/managed-image.e2e.test.js releases a held provider response only after cancellation acknowledgement and asserts no output or deliverable. test/image.test.js covers pre-cancel, ignored upstream abort, download cancellation and abort during staged write; old output stays intact and staging is removed. Received billed usage remains recorded even when publication is cancelled.

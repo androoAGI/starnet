@@ -138,7 +138,8 @@
     const sendMediaTo = typeof deps.sendMediaTo === 'function' ? deps.sendMediaTo : null;
 
     const targetsTool = {
-      name: 'channel.targets', capability: 'comms', scope: 'read', requiresConsent: false,
+      // impact none: it lists the chats the host already holds; no network, no send
+      name: 'channel.targets', capability: 'comms', impact: 'none', scope: 'read', requiresConsent: false,
       description: 'List the messaging chats this station can actually send to (channel, chat, which agent it is bound to, and whether that channel is connected right now). Call this before channel.send.',
       schema: { type: 'object', properties: {} },
       run: async () => {
@@ -154,7 +155,18 @@
     };
 
     const sendTool = {
-      name: 'channel.send', capability: 'comms', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
+      /* impact external-unknown, DECLARED, and deliberately the lane it always fell into. It acts OUTWARD as the station
+         on a third-party platform with the channel's stored bot token and can carry workspace files out (capability
+         registry: "the obvious prompt-injection exfiltration target"), and this lane is the strictest one that still
+         lets the Commander send: a watched run asks an exact per-call confirmation and ANY yes covers that one send only
+         (no "always" grant is ever recorded); a delegated worker and an unattended ASK run are never offered it; a
+         tainted run loses it; Full Access keeps it. Declared, it is also refused on a dispatch that carries no run
+         authority at all (registry.js reads a declared external-unknown; every run context carries one, index.js dctx).
+         external-credentialed (web_request's class) was tried in quick win 8
+         and rejected in review: it made one "Always" a station-wide comms:execute grant, offered it to delegated workers
+         under a watched lead, and offered it to unattended runs whose exec lockout refuses every call. Moving it to a
+         class that stores grants waits for Andrew's security sign-off. */
+      name: 'channel.send', capability: 'comms', impact: 'external-unknown', scope: 'execute', requiresConsent: true, timeoutMs: 30000,
       description: 'Send a message from this station to a connected messaging chat (Telegram, Discord, Slack, Matrix, Signal), optionally with files attached. Use this when the Commander asks to be told, pinged, notified, or messaged somewhere, or to report a result outside the station — including sending them an image, chart, or document you produced. The target must be a chat channel.targets lists — an agent cannot message a new id.',
       schema: {
         type: 'object',

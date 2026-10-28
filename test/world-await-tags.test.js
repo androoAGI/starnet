@@ -6,6 +6,7 @@
      · RUN clocks at neighbouring desks ran together into one string ("RUN 2:54 RUN 2:14"): a tag that would touch one
        already drawn this frame steps up a line. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs'), path = require('path'), A = require('./_assert');
 const src = fs.readFileSync(path.join(__dirname, '../frontend/app/world.js'), 'utf8');
 const fn = n => A.fnBody(src, 'function ' + n + '(');
@@ -27,7 +28,7 @@ const fn = n => A.fnBody(src, 'function ' + n + '(');
   A.ok(/enterAwait\(\{ promptId: p\.promptId \|\| '', agentId: p\.agentId \|\| \(agent && agent\.id\), question: p\.tool === 'brief\.ask' \}\)/.test(src), 'the live prompt carries whether it is a question to the hero');
   A.ok(/b\.pendingApprovals\.set\(p\.promptId, \{ at: now, runId: p\.runId \|\| null, question: p\.tool === 'brief\.ask' \}\)/.test(src), '...and to a crew body');
   A.ok(/if \(mine\) enterAwait\(\{ promptId: mine\.promptId \|\| '', agentId: mine\.agentId \|\| \(agent && agent\.id\), question: mine\.tool === 'brief\.ask' \}\)/.test(src), '...and a reconnect snapshot does too');
-  const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/const row = \{ runId: runId, agentId: \(ask && ask\.workerAgentId\) \|\| agentId, promptId: promptId \};\s*if \(ask && ask\.tool\) row\.tool = ask\.tool;/.test(idx), 'the snapshot names what each open ask is (additive), so a reloaded floor words it right');
 }
 

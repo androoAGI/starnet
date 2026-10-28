@@ -212,6 +212,7 @@ const Tutorial = (() => {
       ]
     }).then(res => {
       if (!active) return;
+      if (res.preempted) return tourSteppedAside();   // the Commander put another conversation on screen (Dialogue.preempt)
       if (res.value === 'platforms') {
         finishOrientation(true);
         showPlatformConnections();
@@ -232,6 +233,9 @@ const Tutorial = (() => {
     const result = await PitchStore.offerHandoff({ tour });
     if (!result) { if (active) finishUp(true, true); return; }
     if (result.action === 'tour') { resumeFirstTask = true; beatShowAround(); return; }
+    // the hand-off stepped aside (gh#158): the Commander picked a conversation or sent a turn. Its panel is already gone and the
+    // first task stays pending (offered again at the next boot); nothing is said over the conversation they chose.
+    if (result.action === 'aside') { if (active) finishUp(true, true); return; }
     if (active) finishUp(true, true);
     else { state.firstCommandDone = true; state.briefDismissed = true; save(); if (hasDialogue() && Dialogue.isOpen()) Dialogue.close(); }
     if (result.action === 'start') {
@@ -272,7 +276,7 @@ const Tutorial = (() => {
     Dialogue.node({
       lines: [seg(summary + '\n' + placed.map(c => purposes[c]).join('\n') + '\n\nEquipment supports these tools. Connected services and your access settings determine what can run.', 64, 0)],
       options: [{ label: 'NEXT · USING YOUR STATION', value: 'next' }, { label: resumeFirstTask ? 'Back to my first task' : 'Finish tour', value: 'done', skip: true }]
-    }).then(res => { if (!active) return; if (res.skip) return finishOrientation(); beatStationUse(); });
+    }).then(res => { if (!active) return; if (res.preempted) return tourSteppedAside(); if (res.skip) return finishOrientation(); beatStationUse(); });
   }
   function beatStationUse() {
     if (!active || !hasDialogue()) return;
@@ -288,10 +292,19 @@ const Tutorial = (() => {
       ]
     }).then(res => {
       if (!active) return;
+      if (res.preempted) return tourSteppedAside();   // the Commander put another conversation on screen (Dialogue.preempt)
       if (res.value === 'demo') return beatCommand();
       finishOrientation(res.value === 'value');
       if (res.value === 'value' && FirstValue.open() === false && hasChat()) Chat.localLine('type your first task in COMMS whenever you’re ready.');
     });
+  }
+  /* THE TOUR YIELDS TO THE COMMANDER (comms-owner arbiter). Another conversation went on screen while a tour beat stood over
+     COMMS: Dialogue.preempt answered the beat's own way out and marked it `preempted`. The tour ends quietly: no first-task
+     re-offer and no line over the conversation they chose. A pending first task is offered again at the next boot, and the
+     tour stays in SYSTEM › FIELD MANUAL. */
+  function tourSteppedAside() {
+    resumeFirstTask = false;
+    finishUp(true, true);
   }
   function finishOrientation(quiet) {
     // A finished orientation must not spawn a placement checklist, connector pitch and coachmark.
@@ -449,7 +462,7 @@ const Tutorial = (() => {
     const have = placed.length ? 'you’ve placed equipment for ' + listWords(placed) + '. ' : 'no equipment placed in this tour yet. you can still talk to me in COMMS. ';
     const dark = left.length ? 'remaining tour examples: ' + listWords(left) + '.' : '';
     if (!hasDialogue()) return placed.length ? beatEquippedPartial() : finishUp(true);
-    Dialogue.open({ name: agentName });
+    Dialogue.open({ name: agentName, owner: 'tour' });
     Dialogue.node({
       lines: [seg(have + dark + ' continue the optional tour?', 44, 0)],
       options: [
@@ -458,6 +471,7 @@ const Tutorial = (() => {
       ]
     }).then(res => {
       if (!active) return;
+      if (res.preempted) return tourSteppedAside();   // the Commander put another conversation on screen (Dialogue.preempt)
       if (res.skip) return placed.length ? beatEquippedPartial() : finishUp(true);
       if (hasDialogue()) Dialogue.close();
       kitMode = true; kitWasOpen = false; kitHold = false; kitFocusKey = null;   // re-arm; the tick re-lights the path back in
@@ -487,14 +501,14 @@ const Tutorial = (() => {
     if (!active) return;
     sfx('level');
     if (!hasDialogue()) return beatCommand();
-    Dialogue.open({ name: agentName });
+    Dialogue.open({ name: agentName, owner: 'tour' });
     Dialogue.node({
       lines: [seg('you’ve tried equipment for files, web, terminal and memory. that’s the placement loop. ABILITIES shows which tools i can use with my current settings. choose what your real tasks need.', 44, 460)],
       options: [
         { label: '▸ Watch me use it on a real job', value: 'demo' },
         { label: 'I’ve got it from here', value: 'done', skip: true }
       ]
-    }).then(res => { if (!active) return; if (res.value === 'demo') return beatCommand(); finishUp(false); });
+    }).then(res => { if (!active) return; if (res.preempted) return tourSteppedAside(); if (res.value === 'demo') return beatCommand(); finishUp(false); });
   }
   // they stopped with SOME gear placed — a real, partial agent. Acknowledge honestly and bow out (no nag).
   function beatEquippedPartial() {

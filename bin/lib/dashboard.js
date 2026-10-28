@@ -26,9 +26,11 @@ const { makeStation, costText, ONCE_ONLY_TOOLS } = require('./station-model.js')
 const tui = require('./tui.js');
 const sixel = require('./sixel.js');
 const camfeed = require('./camfeed.js');
+const { makeFloor } = require('./floor.js');
 const folderLib = require('./folder.js');
 const mouse = require('./mouse.js');
 const theme = require('./theme.js');
+const connect = require('./connect.js');
 
 function runDashboard(station, opts) {
   const o = opts || {};
@@ -44,6 +46,7 @@ function runDashboard(station, opts) {
   let themeName = theme.apply(theme.load(env, themeFile), themeTargets);
   const ui = {
     focus: '', input: '', overlay: null, picker: null, streams: {}, history: [], histAt: null, histDraft: '', pasting: false, flash: null, scroll: 0, keyFlash: null, quitArmed: 0, quitNote: '',
+    panes: [], scrolls: {},   // THE SPLIT (/split): the agents COMMS shows side by side (the one you type to is ui.focus), each pane's own scroll
     // which station this is, in words: the desktop app's own, a private one this terminal booted, or one at an address
     stationLabel: station.mode === 'spawned' ? 'private station · port ' + client.base.replace(/^.*:/, '')
       : station.workspace ? 'desktop station · port ' + client.base.replace(/^.*:/, '')
@@ -121,6 +124,7 @@ function runDashboard(station, opts) {
      wears (GET /api/save), and the sprites and furniture the feed draws (/assets/...), fetched when an agent's feed first
      needs them. An agent with no skin wears the default, as in the app. */
   const feed = camfeed.makeCamFeed();
+  const floor = makeFloor(feed);   // the FLOOR page: the whole crew in one room, from the same art
   let skinTable = null;
   const inFlight = new Set();
   async function loadSkins() {
@@ -157,6 +161,22 @@ function runDashboard(station, opts) {
     try { Xp = Xp || require(require('node:path').join(__dirname, '..', '..', 'frontend', 'app', 'xp.js')); } catch (_) { return; }
     ui.stats = doc && doc.stationStats ? Xp.compute(doc.stationStats) : null;
   }
+  // the FLOOR's art: the furniture and every pose of every skin on the floor, fetched once into the camera's own store — a
+  // few at a time (a big crew is hundreds of sprites), and a sprite is missing only when the station says so (404): a
+  // request that failed is asked again on a later frame
+  function loadFloorAssets(sets) {
+    for (const p of floor.needs(sets)) {
+      if (inFlight.size >= 24) return;
+      if (inFlight.has(p)) continue;
+      inFlight.add(p);
+      client.request('GET', p, null, { raw: true, timeoutMs: 8000 }).then(r => {
+        if (r.ok && r.status === 200) feed.add(p, r.buf);
+        else if ((r.ok && r.status === 404) || (floorFails.set(p, (floorFails.get(p) || 0) + 1), floorFails.get(p) >= 3)) feed.add(p, null);   // (three tries, then the floor draws without it)
+        inFlight.delete(p);
+      }, () => { inFlight.delete(p); });
+    }
+  }
+  const floorFails = new Map();
   function loadFeedAssets(id) {
     for (const p of feed.needs(id)) {
       if (inFlight.has(p)) continue;
@@ -434,6 +454,140 @@ function runDashboard(station, opts) {
     } else flash('the model did not change: ' + ((r.json && r.json.error) || r.error || (r.status === 404 ? 'this station is older than /model' : 'HTTP ' + r.status)), 'bad', 9000);
     loadRoster().then(paint, () => {});
   }
+  /* ---- /connect: the app's SETTINGS › AI & MODELS list (bin/lib/connect.js), in its groups, each row saying what the
+     station proves about it; a pick runs that provider's own way in — a sign-in (the awakening's, in the same view), a
+     link, or a key typed hidden and saved where the app keeps keys. A provider connected here is one /model lists. */
+  let stIO = null;
+  const connectIO = () => stIO || (stIO = require('./station-io.js').makeStationIO(client));
+  async function connectFacts() {
+    const ok = r => !!(r && r.ok && r.status === 200 && r.json);
+    const [pr, cr, cl, ol] = await Promise.all([get('/api/providers', 10000), get('/api/credits?history=0', 20000),
+      get('/api/auth/claude-cli/status', 15000), get('/api/models/ollama', 6000)]);
+    let credits = { state: 'absent' };
+    if (ok(cr) && cr.json.configured) credits = { state: cr.json.linkStatus === 'unavailable' ? 'saved' : 'linked', balanceUsd: typeof cr.json.balanceUsd === 'number' ? cr.json.balanceUsd : null };
+    else { const lk = await get('/api/credits/linkable', 10000); if (ok(lk) && lk.json.available) credits = { state: 'linkable' }; }
+    return {
+      read: ok(pr), error: pr.error || 'HTTP ' + pr.status,
+      configured: new Set(ok(pr) ? (pr.json.providers || []).filter(p => p && p.configured).map(p => p.id) : []),
+      credits, claude: ok(cl) && typeof cl.json.installed === 'boolean' ? cl.json : null,
+      ollama: ok(ol) && Array.isArray(ol.json.models) && ol.json.models.length > 0
+    };
+  }
+  // /usage: every connected provider and what is left of it (usage.js) — each sign-in's own accounts list, the usage
+  // windows the providers last reported, the API keys' rate buckets, and the ledger's spend
+  async function showUsage() {
+    const ok = r => !!(r && r.ok && r.status === 200 && r.json);
+    const [facts, u, b] = await Promise.all([connectFacts(), get('/api/usage/providers', 10000), get('/api/budget/status', 10000)]);
+    const accounts = {};
+    await Promise.all(['claude-cli', 'codex', 'grok', 'kimi'].filter(id => connect.status(connect.find(id), facts)[1] === 'ok').map(async id => {
+      const r = await get('/api/auth/' + id + '/accounts', 20000);
+      if (ok(r) && Array.isArray(r.json.accounts)) accounts[id] = r.json.accounts;
+    }));
+    const lines = require('./usage.js').usageLines({ facts, usage: ok(u) ? u.json : null, accounts, budget: ok(b) ? b.json : null, now: now() });
+    if (!ok(u)) lines.push('(this station is older than /usage — it does not report its providers’ limits yet)');
+    sayHere('/usage', lines, true, 'USAGE');
+  }
+  async function openConnectPicker(arg) {
+    const want = String(arg || '').trim();
+    if (want) {
+      const hit = connect.find(want);
+      if (!hit) return sayHere('/connect', ['No provider called ' + want + ' — /connect lists every one.'], false, 'CONNECT');
+      return connectFlow(hit);
+    }
+    const p = {
+      kind: 'connect', title: 'CONNECT · AI & MODELS', note: 'the AI your agents think with', filter: '', sel: 0, items: [], loading: true, groupW: 1,
+      foot: '↑ ↓ pick · enter connects it · esc close · type to filter',
+      onPick: it => connectFlow(it.p)
+    };
+    ui.picker = p; ui.overlay = null; paint();
+    const f = await connectFacts();
+    if (!f.read) p.error = 'the station did not list its providers: ' + f.error;
+    // STARNET MANAGED is drawn only where the app draws it: a station a StarNet account can link (or already has)
+    p.items = connect.ordered().filter(x => x.id !== 'starnet' || f.credits.state !== 'absent').map(x => {
+      const g = connect.groupOf(x.id), st = connect.status(x, f);
+      return { p: x, group: g.label, groupShort: g.short, search: (x.id + ' ' + x.name + ' ' + g.label + ' ' + connect.need(x)).toLowerCase(),
+        cols: [[padTo(x.name, 18), 'fg'], [padTo(connect.need(x), 36), 'dim'], st] };
+    });
+    p.loading = false;
+    paint();
+  }
+  let connecting = null;   // the /connect on screen: { cancelled }
+  async function connectFlow(p) {
+    if (ui.wake) return flash('finish what is on screen first', 'am');
+    const run = { cancelled: false };
+    connecting = run;
+    ui.picker = null;
+    ui.wake = { connect: true, crew: true, log: [], ask: null, stage: { title: 'CONNECT', detail: p.name }, speaker: 'STARNET', feedKey: null, note: '', typing: false, ff: false };
+    paint();
+    let out = { ok: false, msg: '' };
+    try {
+      for (;;) {
+        out = connect.flowOf(p.id) === 'key' || connect.flowOf(p.id) === 'custom' ? await connectKey(p, run) : await connectSignIn(p);
+        if (out.ok || run.cancelled || !out.retry) break;
+        // a sign-in that did not land: its reason stays on screen until you choose
+        const a = await wakeIO.ask({ options: [{ label: 'Try again', value: 'again' }, { label: 'Close', value: 'close', skip: true }] });
+        if (run.cancelled || a.value !== 'again') break;
+      }
+    } catch (e) { out = { ok: false, msg: 'the connection stopped: ' + ((e && e.message) || e) }; }
+    const said = ui.wake ? [...ui.wake.log].reverse().find(e => e.who === 'STARNET') : null;
+    connecting = null; ui.wake = null; ui.input = ''; modelsCache = null;
+    const a = model.state.agents.get(ui.focus);
+    if (out.ok) sayHere('/connect', [out.msg + ' /model picks one of its models' + (a ? ' for ' + a.name : '') + '.'], true, 'CONNECT');
+    else if (run.cancelled) flash('nothing was connected', 'dim', 4000);
+    else sayHere('/connect', [p.name + ' is not connected' + (out.msg ? ': ' + out.msg : said ? ': ' + said.text : '.')], false, 'CONNECT');
+  }
+  async function connectSignIn(p) {
+    const aw = require('./awaken.js').makeAwakening({ st: connectIO(), io: wakeIO, mods: {}, env });
+    // a subscription already signed in: another account of it stacks on it (the next one takes the runs when one hits its
+    // limit) — the app's SETTINGS › AI & MODELS "add account", here
+    const flow = connect.flowOf(p.id);
+    if (flow === 'device' || flow === 'claude') {
+      const r = await get('/api/auth/' + p.id + '/accounts', 20000);
+      const accts = r && r.ok && r.status === 200 && r.json && Array.isArray(r.json.accounts) ? r.json.accounts : null;
+      const live = accts ? accts.filter(a => a.connected === true || a.loggedIn === true) : [];
+      if (live.length) {
+        const max = Number(r.json.max) || 8, room = accts.length < max;
+        const say = t => wakeIO.say([{ text: t, cps: 70 }], { who: 'STARNET' });
+        await say(p.name + ' is signed in' + (live.length > 1 ? ' — ' + live.length + ' accounts' : '') + '. another account of the same subscription stacks on it: when one hits its limit, the runs carry on with the next.' + (room ? '' : ' it holds ' + max + ' at most — that is all of them.'));
+        const a = await wakeIO.ask({ options: (room ? [{ label: 'Add another account', value: 'add' }] : []).concat([{ label: 'Keep it as is', value: 'keep', skip: true }]) });
+        if (a.value !== 'add') return { ok: true, msg: p.name + ' stays as it is — ' + live.length + ' sign-in' + (live.length === 1 ? '' : 's') + '.' };
+        const added = await aw.signIn(connect.brainOf(p.id), { add: true });
+        return added ? { ok: true, msg: 'another ' + p.name + ' account is connected — ' + (live.length + 1) + ' sign-ins now; when one hits its limit the runs carry on with the next. /usage shows what is left on each.' } : { ok: false, retry: true };
+      }
+    }
+    const ok = await aw.signIn(connect.brainOf(p.id));
+    return ok ? { ok: true, msg: p.name + ' is connected.' } : { ok: false, retry: true };
+  }
+  async function connectKey(p, run) {
+    const say = t => wakeIO.say([{ text: t, cps: 70 }], { who: 'STARNET' });
+    const back = { label: 'Go back', value: 'back', skip: true };
+    let baseUrl = '';
+    if (p.id === 'custom') {
+      await say('the endpoint’s address — its /v1 base URL, for example http://localhost:1234/v1');
+      for (;;) {
+        const a = await wakeIO.ask({ options: [back], custom: true, freeText: true, customLabel: 'the URL' });
+        if (run.cancelled || a.value === 'back') return { ok: false };
+        const n = connect.normEndpoint(a.value);
+        if (n) { baseUrl = n; break; }
+        await say('that doesn’t look like a URL — for example http://localhost:1234/v1');
+      }
+    }
+    await say((p.id === 'custom' ? 'its API key, if it needs one' : 'paste your ' + p.name + ' key') + ' — it stays hidden here, StarNet checks it with ' + (p.id === 'custom' ? 'the endpoint' : p.name) + ' first, then keeps it where the app keeps keys');
+    for (;;) {
+      const a = await wakeIO.ask({ options: p.id === 'custom' ? [back, { label: 'No key — save the endpoint', value: 'nokey' }] : [back], custom: true, secret: true, customLabel: 'the key' });
+      if (run.cancelled || a.value === 'back') return { ok: false };
+      const key = a.value === 'nokey' ? '' : String(a.value || '').replace(/\s+/g, '');
+      wakeIO.note(key ? 'checking the key with ' + (p.id === 'custom' ? 'the endpoint' : p.name) + '…' : 'saving the endpoint…', 'dim');
+      const r = await connect.saveKey(connectIO(), p.id, key, baseUrl);
+      wakeIO.note('', 'dim');
+      if (run.cancelled) return { ok: false };
+      if (r.ok) {
+        const where = r.store === 'keychain' ? ' in your OS keychain' : r.store === 'browser' ? ' in StarNet' : ' on this station';
+        return { ok: true, msg: p.name + (key ? ' key saved' + where + (r.verified ? ' — ' + (p.id === 'custom' ? 'the endpoint' : p.name) + ' accepted it.' : '.') : ' endpoint saved' + where + '.') };
+      }
+      await say('not saved: ' + r.error + '. paste it again, or go back');
+    }
+  }
   function pickerKey(str, k) {
     const p = ui.picker, list = tui.pickerView(p);
     if (k.name === 'escape') { ui.picker = null; return paint(); }
@@ -471,11 +625,15 @@ function runDashboard(station, opts) {
     { name: 'stat', desc: 'the STAT page: the station\'s level, spend, crew and work' },
     { name: 'crew', desc: 'the CREW page: every agent on one line' },
     { name: 'work', desc: 'the WORK page: workflows, routines, the away shift' },
+    { name: 'floor', desc: 'the FLOOR: the whole crew in one room, handoffs flying desk to desk' },
     { name: 'comms', desc: 'back to the conversation' },
+    { name: 'split', desc: 'talk to more agents at once — a pane each, side by side, each scrolling on its own (/split close · /split off)', argsHint: '<agent> …' },
+    { name: 'usage', desc: 'how much is left on each connected provider — each sign-in’s limits, as the provider last said them' },
+    { name: 'connect', aliases: ['providers'], desc: 'add a provider — the app’s AI & MODELS list: sign in, link, or paste a key', argsHint: '[provider]' },
     { name: 'theme', aliases: ['themes'], desc: 'the terminal colors: ' + theme.NAMES.join(' · '), argsHint: '[' + theme.NAMES.join('|') + ']' },
     { name: 'quit', aliases: ['exit'], desc: 'quit starnet' }
   ].map(c => Object.assign({ source: 'terminal', aliases: [], argsHint: '', here: true }, c));
-  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'comms', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
+  const HANDLED_HERE = ['help', 'quit', 'exit', 'stat', 'crew', 'work', 'floor', 'comms', 'connect', 'providers', 'usage', 'split', 'theme', 'themes', 'model', 'new', 'clear', 'resume', 'stop', 'flow', 'retry', 'status', 'whoami', 'version', 'skills', 'history', 'cron',
     'agents', 'insights', 'memory', 'bundles', 'blueprint', 'reload-mcp', 'reload-skills', 'steer', 'copy', 'compress', 'reasoning', 'fast', 'debug', 'queue', 'background', 'loop', 'save', 'goal', 'subgoal', 'yolo', 'personality'];
   async function loadCatalog() {
     const id = ui.focus || 'agent';
@@ -550,10 +708,51 @@ function runDashboard(station, opts) {
     paint();
     loadPage().then(paint, () => {});
   }
+  // the agent you type to: with a split, each pane keeps its own scroll as you move between them, and an agent opened that
+  // has no pane takes the one you were in
+  const splitOn = () => ui.panes.filter(id => model.state.agents.has(id)).length > 1;
+  function setFocus(id) {
+    if (ui.focus === id) return;
+    if (splitOn()) {
+      ui.scrolls[ui.focus] = ui.scroll;
+      if (ui.panes.indexOf(id) < 0) { const i = ui.panes.indexOf(ui.focus); if (i >= 0) ui.panes[i] = id; else ui.panes.push(id); }
+      ui.focus = id; ui.scroll = ui.scrolls[id] || 0;
+    } else { ui.focus = id; ui.scroll = 0; }
+  }
+  // /split <agent> … · /split close · /split off: talk to more agents at once (tui.js THE SPLIT)
+  function split(arg) {
+    const words = String(arg || '').trim();
+    const names = () => model.state.order.map(id => model.state.agents.get(id)).filter(Boolean).map(a => a.name).join(', ');
+    if (!words) return sayHere('/split', ['/split <agent> puts another agent beside this one — a pane each, each scrolling on its own; type to the one marked ▌ (click a pane, or tab). /split close closes the pane you are in, /split off goes back to one.', 'Your crew: ' + names() + '.'], true, 'SPLIT');
+    if (/^(off|none|one)$/i.test(words)) { ui.panes = []; ui.scrolls = {}; ui.page = ''; return paint(); }
+    if (/^close$/i.test(words)) {
+      if (!splitOn()) return flash('nothing is split', 'dim');
+      const i = ui.panes.indexOf(ui.focus);
+      ui.panes.splice(i, 1);
+      const next = ui.panes[Math.max(0, i - 1)];
+      delete ui.scrolls[ui.focus];
+      ui.focus = next; ui.scroll = ui.scrolls[next] || 0;
+      if (ui.panes.length < 2) { ui.panes = []; ui.scrolls = {}; }
+      ui.page = '';
+      return paint();
+    }
+    const want = words.split(/[\s,]+/).filter(Boolean);
+    const all = model.state.order.map(id => model.state.agents.get(id)).filter(Boolean);
+    const found = [], missing = [];
+    for (const w of want) { const a = all.find(x => x.name.toLowerCase() === w.toLowerCase() || x.id === w) || all.find(x => x.name.toLowerCase().indexOf(w.toLowerCase()) === 0); if (a) found.push(a.id); else missing.push(w); }
+    if (missing.length) return sayHere('/split', ['No agent called ' + missing.join(', ') + ' — your crew: ' + names() + '.'], false, 'SPLIT');
+    if (!splitOn()) ui.panes = [ui.focus].filter(Boolean);
+    ui.scrolls[ui.focus] = ui.scroll;
+    for (const id of found) if (ui.panes.indexOf(id) < 0) ui.panes.push(id);
+    const last = found[found.length - 1];
+    ui.focus = last; ui.scroll = ui.scrolls[last] || 0;   // the one you just added is the one you type to
+    ui.page = ''; ui.overlay = null; ui.picker = null; ui.agentMenu = '';
+    paint();
+  }
   // a chat opened from anywhere: the agent's conversation in COMMS
   function openChat(id) {
     if (!model.state.agents.has(id)) return;
-    if (ui.focus !== id) { ui.focus = id; ui.scroll = 0; }
+    setFocus(id);
     ui.page = ''; ui.agentMenu = ''; ui.overlay = null; ui.picker = null;
     paint();
   }
@@ -620,8 +819,10 @@ function runDashboard(station, opts) {
       const d = ev.dir === 'up' ? 1 : -1;
       if (ui.picker) { const n = tui.pickerView(ui.picker).length; ui.picker.sel = Math.max(0, Math.min(n - 1, (ui.picker.sel | 0) - d)); return paint(); }
       if (!inArea(lastAreas.comms, ev.x, ev.y)) return;
+      const pane = !ui.overlay && !ui.page && (lastAreas.panes || []).find(p => inArea(p, ev.x, ev.y));
       if (ui.overlay) ui.overlay.scroll = Math.max(0, (ui.overlay.scroll | 0) - 3 * d);
       else if (ui.page) ui.pageScroll = Math.max(0, (ui.pageScroll | 0) - 3 * d);
+      else if (pane && pane.id !== ui.focus) ui.scrolls[pane.id] = Math.max(0, (ui.scrolls[pane.id] | 0) + 3 * d);   // a pane you are not typing to scrolls on its own
       else ui.scroll = Math.max(0, ui.scroll + 3 * d);
       return paint();
     }
@@ -640,7 +841,9 @@ function runDashboard(station, opts) {
     if (ev.button !== 'left') return;
     if (!act) {
       // a click anywhere off a list laid over COMMS closes it, as any key does
-      if (ui.overlay) { ui.overlay = null; paint(); }
+      if (ui.overlay) { ui.overlay = null; paint(); return; }
+      const pane = (lastAreas.panes || []).find(p => inArea(p, ev.x, ev.y));   // a click in a pane: that is the one you type to
+      if (pane && pane.id !== ui.focus) { setFocus(pane.id); paint(); }
       return;
     }
     if (ui.overlay && act.t !== 'tab') { ui.overlay = null; paint(); return; }
@@ -651,6 +854,7 @@ function runDashboard(station, opts) {
         // the agent already in COMMS (on COMMS): its menu; any other, its chat
         if (!ui.page && act.id === ui.focus && !ui.picker && !ui.wake) return openMenu(act.id);
         return ui.wake ? undefined : openChat(act.id);
+      case 'pane': setFocus(act.id); return paint();
       case 'needs': { const q = model.front(); if (q) openChat(q.agentId); return; }
       case 'model': return openModelPicker('');
       case 'menu': return menuKey(act.key);
@@ -698,7 +902,7 @@ function runDashboard(station, opts) {
     if (m) {
       const a = model.findAgent(m[1]);
       if (!a) return flash('no agent named ' + m[1] + ' · ' + model.state.order.map(id => '@' + model.state.agents.get(id).name.toLowerCase()).join(' '));
-      ui.focus = a.id; target = a.id; body = m[2].trim();
+      setFocus(a.id); target = a.id; body = m[2].trim();
       if (!body) return paint();
     }
     if (!target) return flash('no agent to talk to');
@@ -711,8 +915,11 @@ function runDashboard(station, opts) {
     const parts = text.split(/\s+/), cmd = parts[0].toLowerCase();
     if (cmd === '/help' || cmd === '/?') { ui.overlay = { title: 'COMMANDS', items: tui.HELP, foot: 'any key closes this' }; return paint(); }
     if (cmd === '/quit' || cmd === '/exit') return quit(true);
-    if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms') return openPage(cmd.slice(1));
+    if (cmd === '/stat' || cmd === '/crew' || cmd === '/work' || cmd === '/comms' || cmd === '/floor') return openPage(cmd.slice(1));
     if (cmd === '/theme' || cmd === '/themes') return themeCommand(parts[1] || '');
+    if (cmd === '/connect' || cmd === '/providers') return openConnectPicker(parts.slice(1).join(' '));
+    if (cmd === '/usage') return showUsage();
+    if (cmd === '/split') return split(parts.slice(1).join(' '));
     // the app's own commands, done here (above: what each does and which station route it uses)
     const rest = text.slice(parts[0].length).trim();
     if (cmd === '/agents' || cmd === '/tasks') return openPage('crew');
@@ -1430,11 +1637,12 @@ function runDashboard(station, opts) {
       for (let i = 0; i < list.length; i++) {
         if (!ui.wake) return;
         const s = list[i];
-        const e = { who, text: String(s.text).replace(/^\s+/, ''), first: i === 0, born: now(), cps: s.cps || 44, full: false };
+        // /connect is not the ceremony: its lines come quickly (a key is waited on, not a story told)
+        const e = { who, text: String(s.text).replace(/^\s+/, ''), first: i === 0, born: now(), cps: w.connect ? Math.max(s.cps || 44, 300) : s.cps || 44, full: false };
         w.log.push(e); w.typing = true; ui.scroll = 0;
         await waitOrSkip(Math.min(9000, e.text.length / e.cps * 1000));
         e.full = true;
-        if (s.hold) await waitOrSkip(Math.min(900, s.hold));
+        if (s.hold && !w.connect) await waitOrSkip(Math.min(900, s.hold));
       }
       if (ui.wake) ui.wake.typing = false;
       paint();
@@ -1446,13 +1654,21 @@ function runDashboard(station, opts) {
     const w = ui.wake, a = w && w.ask;
     if (!a) return;
     w.ask = null;
-    w.log.push({ who: 'YOU', text: ans.custom ? String(ans.value) : String(ans.label || ''), full: true, you: true, skip: !!ans.skip });
+    // a secret (a /connect key) is never written out, not even here: only that one was typed
+    w.log.push({ who: 'YOU', text: ans.custom ? (a.secret ? '•••••••• (hidden)' : String(ans.value)) : String(ans.label || ''), full: true, you: true, skip: !!ans.skip });
     a.resolve(ans);
     paint();
   }
   // a key while the awakening runs; false = the ordinary prompt handles it (typing an answer, backspace, esc)
   function wakeKey(str, k) {
     const w = ui.wake;
+    // /connect: esc leaves it, whatever it is waiting on (a sign-in in flight is cancelled on the station)
+    if (w.connect && k.name === 'escape') {
+      if (connecting) connecting.cancelled = true;
+      ui.input = ''; w.ff = true;
+      if (w.ask) wakeIO.cancelAsk({ value: 'back', skip: true });
+      return true;
+    }
     if (w.typing && !w.ask) { w.ff = true; return true; }
     if (!w.ask) return k.name === 'return' || k.name === 'enter' || k.name === 'tab';
     if (k.name === 'return' || k.name === 'enter') {
@@ -1467,7 +1683,8 @@ function runDashboard(station, opts) {
     }
     if (k.name === 'tab' || k.name === 'up' || k.name === 'down') return true;
     const ch = typeof str === 'string' ? str : '';
-    if (!ui.input && /^[1-9]$/.test(ch) && w.ask.options[Number(ch) - 1]) { wakeAnswer(Object.assign({}, w.ask.options[Number(ch) - 1])); return true; }
+    // a key or a URL is text from its first character on (a key may start with a digit): its options are clicked, or esc
+    if (!ui.input && !w.ask.secret && !w.ask.freeText && /^[1-9]$/.test(ch) && w.ask.options[Number(ch) - 1]) { wakeAnswer(Object.assign({}, w.ask.options[Number(ch) - 1])); return true; }
     if (!ui.input && !w.ask.custom && ch && !/^[\x00-\x1f]$/.test(ch) && k.name !== 'backspace' && k.name !== 'escape' && k.name !== 'pageup' && k.name !== 'pagedown') { flash('pick a number — 1 to ' + w.ask.options.length); return true; }
     return false;
   }
@@ -1517,11 +1734,11 @@ function runDashboard(station, opts) {
     return true;
   }
   function focusStep(d) {
-    const ids = model.state.order;
+    const ids = splitOn() ? ui.panes.filter(id => model.state.agents.has(id)) : model.state.order;
     if (!ids.length) return;
     const i = Math.max(0, ids.indexOf(ui.focus));
-    ui.focus = ids[(i + d + ids.length) % ids.length];
-    ui.scroll = 0; ui.overlay = null;
+    setFocus(ids[(i + d + ids.length) % ids.length]);
+    ui.overlay = null;
   }
   function quit(force) {
     const live = [...mine.values()].filter(x => x.kind === 'run').length;
@@ -1533,7 +1750,7 @@ function runDashboard(station, opts) {
     }
     stop(0);
   }
-  const F_PAGES = { f1: 'stat', f2: 'crew', f3: 'comms', f4: 'work', f5: 'skills' };
+  const F_PAGES = { f1: 'stat', f2: 'crew', f3: 'comms', f4: 'work', f5: 'skills', f6: 'floor' };
   function onKey(str, key) {
     const k = key || {};
     if (mouseReader(str, k)) return;   // a mouse report, put back together from the keys Node split it into
@@ -1551,6 +1768,7 @@ function runDashboard(station, opts) {
       if (!ui.input && ch === 's' && a && a.runs.size) return menuKey('s');
       ui.agentMenu = '';
     }
+    if (k.name === 'escape' && ui.wake && ui.wake.connect) { wakeKey(str, k); return paint(); }
     if (k.name === 'escape') {
       if (tui.slashMenu(ui)) { ui.slashHidden = ui.input; slashReset(); return paint(); }   // esc hides the "/" menu first (what you typed stays)
       ui.input = ''; slashReset(); ui.overlay = null; ui.scroll = 0; ui.page = ''; return paint();
@@ -1630,14 +1848,25 @@ function runDashboard(station, opts) {
     // character, and on consoles without a deferred wrap the bottom-right cell scrolls the whole screen
     const size = { cols: Math.max(20, (out.columns || 80) - 1), rows: out.rows || 24 };
     const skip = ui.logoImage ? ui.logoImage.cols : 0, skipRows = ui.logoImage ? ui.logoImage.rows : 0;
+    // the FLOOR's handoffs come from the runs the station reports (each delegated run names the lead run that sent it): read on
+    // every paint, whatever page is shown, so its LOG is whole when you open it
+    const nameOf = id => { const a = model.state.agents.get(id); return a ? a.name : String(id).toUpperCase(); };
+    floor.observe(model.state.runs, nameOf, id => { const a = model.state.agents.get(id); return a && a.last ? a.last.reason : 'done'; }, t);
+    const floorLead = floor.leadOf(model.state.runs, ui.focus || 'agent');
+    ui.floorView = { images: !!ui.images, ready: floorReady, lead: floorLead, kids: [...new Set([...floor._known.values()].filter(k => k.lead === floorLead).map(k => k.agentId))], log: floor.log() };
     const screen = tui.render(model, ui, size, t);
     lastHits = screen.hits || []; lastAreas = screen.areas || {}; lastScreen = screen;   // what a click lands on
     const av = screen.avatar;   // where the camera feed goes, when the card is up
+    const fv = screen.floor && floorReady ? screen.floor : null;   // where the FLOOR's picture goes, once it can be drawn
     // every rendered row is padded to the full width, so no erase-to-end is needed (or wanted). A row beside the logo
     // image starts to its right, a row beside the feed is written either side of it: an image's cells are never
     // written over (that would erase it)
     const rows = screen.map((segs, y) => {
       if (y < skipRows) return '\x1b[' + (y + 1) + ';' + (skip + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, skip), level);
+      if (fv && y >= fv.y && y < fv.y + fv.rows) {
+        return '\x1b[' + (y + 1) + ';1H' + tui.toAnsi(tui.sliceSegs(segs, 0, fv.x), level) + '\x1b[0m' +
+          '\x1b[' + (y + 1) + ';' + (fv.x + fv.cols + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, fv.x + fv.cols), level);
+      }
       if (av && y >= av.y && y < av.y + av.rows) {
         return '\x1b[' + (y + 1) + ';1H' + tui.toAnsi(tui.sliceSegs(segs, 0, av.x), level) + '\x1b[0m' +
           '\x1b[' + (y + 1) + ';' + (av.x + av.cols + 1) + 'H' + tui.toAnsi(tui.sliceSegs(segs, av.x + av.cols), level);
@@ -1655,6 +1884,35 @@ function runDashboard(station, opts) {
       const key = pic ? pic.key + '@' + av.x + ',' + av.y : '';
       if (pic && key !== avatarShown) { s += '\x1b[0m\x1b[' + (av.y + 1) + ';' + (av.x + 1) + 'H' + pic.sixel; avatarShown = key; }
     } else avatarShown = '';
+    // the FLOOR: its picture (drawn again when what it shows changes, at most four times a second: a frame is a whole room),
+    // then the name plates over it — text cells, so a plate is never part of the picture
+    if (screen.floor) {
+      const box = screen.floor;
+      const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, now: r.now }));
+      if (!floorPic || t - floorAt >= 250 || ui.still) {
+        floorAt = t;
+        floorPic = floor.frame({ lead: floorLead, agents }, t, ui.still, { cellW: term.cellW, cellH: term.cellH, cols: box.cols, rows: box.rows });
+        if (!floorPic) loadFloorAssets(agents.map(a => a.set).filter(Boolean));
+      }
+      const was = floorReady;
+      floorReady = !!floorPic;
+      if (floorReady !== was) { prevRows = []; schedulePaint(); }   // the region changes hands (text ↔ picture): repaint it whole
+      if (floorPic && fv) {
+        const plates = floorPic.plates.map(p => {
+          const segs = [[' ', 'fg plate']].concat(p.segs.map(([tx, st]) => [tx, st + ' plate'])).concat([[' ', 'fg plate']]);
+          const w = segs.reduce((n, q) => n + tui.width(q[0]), 0);
+          const col = Math.max(0, Math.min(box.cols - w, p.center ? p.col - Math.floor(w / 2) : p.col));
+          return { x: box.x + col, y: box.y + p.row, w, segs, id: p.id };
+        });
+        const key = floorPic.key + '|' + plates.map(p => p.x + ',' + p.y + tui.toPlain(p.segs)).join('|') + '@' + box.x + ',' + box.y;
+        if (key !== floorShown) {
+          s += '\x1b[0m\x1b[' + (box.y + 1) + ';' + (box.x + 1) + 'H' + floorPic.sixel;
+          for (const p of plates) s += '\x1b[' + (p.y + 1) + ';' + (p.x + 1) + 'H' + tui.toAnsi(p.segs, level) + '\x1b[0m';
+          floorShown = key;
+        }
+        for (const p of plates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
+      }
+    } else { floorShown = ''; floorPic = null; floorReady = false; }
     if (rows.length < prevRows.length) s += '\x1b[' + (rows.length + 1) + ';1H\x1b[J';
     prevRows = rows;
     if (s) try { out.write(s); } catch (_) {}
@@ -1670,11 +1928,12 @@ function runDashboard(station, opts) {
     inp.resume();
     out.on('resize', onResize);
   }
-  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
+  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; floorShown = ''; floorPic = null; buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
   function onResize() { redrawAll(); }
 
   // ---- the real logo, as an image -----------------------------------------------------------------------------------
   let term = {}, image = null, imageShown = false, avatarShown = '';
+  let floorPic = null, floorAt = 0, floorShown = '', floorReady = false;
   // ask the terminal (before the screen opens) whether it draws Sixel and how big a cell is. Replies arrive in order, so
   // DA1, which every terminal answers, goes last and closes the probe.
   function probeTerminal(ms) {

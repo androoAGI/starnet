@@ -5,6 +5,7 @@
    validation, unknown/ambiguous names, and that a command NEVER spawns an LLM run. Fake runOnce/store/send —
    no network, no real loop. Mirrors channels.hub.test.js style. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +13,7 @@ const { makeChannelHub, parseCommand, matchAgent } = require('../sidecar/channel
 
 // Execute the production sidecar's small, self-contained roster mutation against injected state so durability
 // failures can be reproduced without booting a real messaging network.
-const indexSource = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const indexSource = readSidecarSource();
 const setModelSource = (indexSource.match(/function setAgentModelFromChannel\(agentId, model\) \{[\s\S]*?\n\}/) || [])[0];
 A.ok(setModelSource, 'production setAgentModelFromChannel function is extractable');
 const makeProductionSetModel = (roster, save) => new Function('agentRoster', 'saveAgentRoster', setModelSource + '\nreturn setAgentModelFromChannel;')(roster, save);

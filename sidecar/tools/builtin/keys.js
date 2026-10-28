@@ -129,7 +129,9 @@
         + crowded.slice(0, 5).map(k => '"' + k.slice(0, 4) + '…"').join(', ') + '). Call keys.save again with starts_with set to the first few characters of the key for this service.' };
     }
     return { error: want
-      ? 'no key starting "' + want + '" is in the Commander\'s recent messages. Check the characters, or leave starts_with out.'
+      // the hint is echoed by its first 8 chars only: this result skips the registry's scrub, and a model that passed a
+      // whole key as starts_with must not see it repeated back
+      ? 'no key starting "' + (want.length > 8 ? want.slice(0, 8) + '…' : want) + '" is in the Commander\'s recent messages. Check the characters, or leave starts_with out.'
       : 'no API key is in the Commander\'s recent messages (a key-shaped one may already show as [redacted-…] there). Ask the Commander to paste the key into this chat again, then call keys.save.' };
   }
 
@@ -138,6 +140,9 @@
 
     const saveTool = {
       name: 'keys.save', capability: 'web', scope: 'write', requiresConsent: false, network: false, timeoutMs: 15000,
+      // its result never holds a key: a refusal names candidates by their first 4 chars ("sk-p…", which the registry's
+      // stored-text scrub read as masked keys), success names the saved key's NAME (review r3)
+      resultScrub: false,
       description: 'The Commander pasted an API key into this chat: save it to API KEYS so you can use it. Name the service; '
         + 'the station finds the key in the Commander\'s own recent message, stores it, and replaces it in the chat with '
         + 'a placeholder. Then call the API with web_request using the key\'s NAME in a header, e.g. '

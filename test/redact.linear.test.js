@@ -53,7 +53,8 @@ const BOUND = 300;   // the old scans need 1,700-4,400 ms on the 80 KB inputs (1
 // ---- 2. identical to the old plain scans ----
 const OLD_MASKED = /\b(?:(?:sk|pk|rk|xai|pplx|glpat|xox[abeprs])-|sk_(?:live|test)_|(?:gsk|hf|gh[pousr]|whk|ntn|lin_api)_|AIza|ya29\.)[-_.A-Za-z0-9]*?(?:[*•]{2,}|…|\.{3})(?:[-_A-Za-z0-9*•…]|\.{3})*/g;
 const OLD_PRIVATE = /-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z]+ )?PRIVATE KEY-----/g;
-const OLD_URL = /\b([a-z][a-z0-9+.-]*:\/\/[^\s:\/?#@]*:)(?!\[redacted-)[^\s\/?#]+(?=@)/gi;
+// review r3 (2026-10-28): the URL password never runs past a '"' or a '\' (in a compact JSON result it ran across fields)
+const OLD_URL = /\b([a-z][a-z0-9+.-]*:\/\/[^\s:\/?#@]*:)(?!\[redacted-)[^\s\/?#"\\]+(?=@)/gi;
 const OLD_JWT = /\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}/g;
 const pats = (C._internals && typeof C._internals.secretPatterns === 'function') ? C._internals.secretPatterns() : [];
 A.ok(pats.length > 0, 'the pattern list is reachable for the diff');
@@ -72,7 +73,7 @@ const PREFIXES = ['sk-', 'pk-', 'rk-', 'xai-', 'pplx-', 'glpat-', 'xoxb-', 'xoxa
 const MASKED_PIECES = PREFIXES.concat(['sk', 'sk_', 'ya29', 'AI', 'lin_', 'xox', 'a', 'Z', '0', '9', '-', '_', '.', '.', '..', '...', '*', '**', '•', '••', '…', '*•',
   ' ', '\n', '@', ':', '/', '"', ',', 'x', 'é', 'proj-', 'or-v1-']);
 const URL_PIECES = ['a', 'b', 'git', 'http', 'x+y', 'Z', '1', '.', '-', '+', '_', '://', '://', ':', ':', '//', '/', '@', '@', '@@', '?', '#', ' ', '\t', '\u00a0', '\n',
-  '[redacted-', '[REDACTED-', 'p', 'é', '\u212a', '\u017f', '\u0131', '%40', 'u:p', 'h.com', 'http://', 'a://', 'u:p@', ':pw@', 'x://y:z@', 'git+ssh://'];
+  '[redacted-', '[REDACTED-', 'p', 'é', '\u212a', '\u017f', '\u0131', '%40', 'u:p', 'h.com', 'http://', 'a://', 'u:p@', ':pw@', 'x://y:z@', 'git+ssh://', '"', '\\', '\\"', '","o":"'];
 const PRIV_PIECES = ['-----BEGIN ', '-----BEGIN PRIVATE KEY-----', '-----BEGIN RSA PRIVATE KEY-----', '-----BEGIN ec PRIVATE KEY-----', '-----END PRIVATE KEY-----',
   '-----END EC PRIVATE KEY-----', '-----END ', '-----', '-', 'RSA ', 'PRIVATE KEY-----', 'BEGIN ', '\n', 'abc', ' '];
 const JWT_PIECES = ['eyJ', 'eyJ', 'eyJ', 'eyJhbGciOiJ', 'eyJabcdefgh.', 'eyJAb12_-x9.eyJ', 'eyJa.eyJabcdefgh.', 'abcdefgh.', '.eyJ', '.eyJ', '.eyJ12345678.',

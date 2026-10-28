@@ -8,6 +8,7 @@
    adapter captures it into the turn's opaque reasoning block and replays it.
    Drives the REAL chain: factory adapter -> publicModel (lifted from sidecar/index.js) -> model dock -> the wire. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const vm = require('vm');
@@ -16,7 +17,7 @@ const factory = require('../sidecar/providers/factory.js');
 const { makeOpenAICompatibleProvider, _internals: oc } = require('../sidecar/providers/openai-compatible.js');
 const Dock = require('../frontend/app/modeldock.js');
 
-const backend = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const backend = readSidecarSource();
 const pmStart = backend.indexOf('function publicModel(m)');
 const publicModel = vm.runInNewContext('(' + backend.slice(pmStart, backend.indexOf('\n}\n', pmStart) + 2) + ')');
 const I = Dock._internals;

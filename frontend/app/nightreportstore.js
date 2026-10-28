@@ -98,7 +98,7 @@ const NightReportStore = (() => {
     if (hasNight && report.idleReason) lines.push(report.idleReason);
     // the review-owed line (server-proven /api/workshop/pending): name each waiting build, say where it lives.
     if (pendingBuilds.length) {
-      lines.push('⚒ ' + pendingBuilds.length + ' build' + (pendingBuilds.length > 1 ? 's are' : ' is') + ' waiting for your review — each is a ⚒ session in your rail:');
+      lines.push('⚒ ' + pendingBuilds.length + ' build' + (pendingBuilds.length > 1 ? 's are' : ' is') + ' waiting for your review — each is its own session in your rail:');
       for (const p of pendingBuilds.slice(0, 5)) lines.push('   · ' + String(p.title || 'a deliverable'));
       if (pendingBuilds.length > 5) lines.push('   · …and ' + (pendingBuilds.length - 5) + ' more');
     }

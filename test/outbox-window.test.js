@@ -11,6 +11,7 @@
    chat-runmeta.test.js we lock the invariants by reading the shipped source. returns.js IS pure and
    node-loadable, so its streamId contract is asserted by execution. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -128,7 +129,7 @@ A.ok(/setOutboxCrates\(outboxCrateMap\(\)\)/.test(world) && !/setOutboxCrates\(r
 const ps = read('frontend/app/propsprites.js');
 A.ok(/outboxCrates\[f\.id\]/.test(ps), 'PropSprites reads each outbox’s own crate count by prop id');
 // …and every finished workflow job is ALSO filed in DELIVERABLES (Andrew 10-03): one library row per job, text-only results included
-const sidecar = read('sidecar/index.js');
+const sidecar = readSidecarSource();
 const dRows = sidecar.slice(sidecar.indexOf('async function deliverableRows'), sidecar.indexOf('function deliverableProjectFacet'));
 A.ok(/lineJobs\.jobs/.test(dRows) && /id: 'line:' \+ job\.id/.test(dRows) && /kind: 'workflow'/.test(dRows) && /output: output/.test(dRows), 'DELIVERABLES lists every finished workflow job as its own row with the delivered output');
 A.ok(/jobOfRun\.get\(run\.runId\)/.test(dRows), 'a workflow stage’s files fold into its job row (never double-listed as loose run rows)');

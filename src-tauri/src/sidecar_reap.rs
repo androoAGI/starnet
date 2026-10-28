@@ -11,13 +11,55 @@
 //! adopted it, ppid 1). A bundled-node process whose parent is alive belongs to someone and is never touched, and
 //! neither is a terminal session this StarNet runs for. Children of an orphan go with it.
 
+/// What the reap could prove about a process's parent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub enum Parent {
+    /// the live process that started it
+    Alive,
+    /// gone, exited, or its pid now names a younger process (Windows); adopted by launchd (macOS)
+    Gone,
+    /// could not be inspected (access denied, ps said nothing): never reaped — what is not proven orphaned is spared
+    Unprovable,
+}
+
 /// One process running the bundled node, as the reap sees it. (Other unix has no reaper wired: unused there.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub struct NodeProc {
     pub pid: u32,
     pub parent: u32,
-    pub parent_alive: bool,
+    pub parent_state: Parent,
+}
+
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+impl NodeProc {
+    pub fn parent_alive(&self) -> bool {
+        self.parent_state != Parent::Gone
+    }
+}
+
+/// Why the reap leaves `p` alone — its startup.log line. Every process the image nominated and the reap spares gets one.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub fn kept_reason(p: &NodeProc, keep: &[u32], own_pid: u32, reap: &[u32]) -> String {
+    if p.pid == own_pid {
+        return "this StarNet itself".to_string();
+    }
+    if keep.contains(&p.pid) {
+        return "a starnet terminal this StarNet runs for".to_string();
+    }
+    match p.parent_state {
+        Parent::Alive if reap.contains(&p.parent) => format!("its parent pid={} is reaped first", p.parent),
+        Parent::Alive => format!(
+            "its parent pid={} is alive (a starnet terminal, a station it runs, or a sidecar's own child)",
+            p.parent
+        ),
+        Parent::Unprovable => format!(
+            "its parent pid={} could not be inspected — what is not proven orphaned is never reaped",
+            p.parent
+        ),
+        Parent::Gone => "spared".to_string(),
+    }
 }
 
 /// The pids to terminate: orphans (no live parent) and, transitively, bundled-node processes whose parent is one of
@@ -27,7 +69,7 @@ pub fn orphans_to_reap(procs: &[NodeProc], keep: &[u32], own_pid: u32) -> Vec<u3
     let spared = |pid: u32| pid == own_pid || keep.contains(&pid);
     let mut reap: Vec<u32> = procs
         .iter()
-        .filter(|p| !p.parent_alive && !spared(p.pid))
+        .filter(|p| !p.parent_alive() && !spared(p.pid))
         .map(|p| p.pid)
         .collect();
     loop {
@@ -51,10 +93,13 @@ pub fn parse_ps_ppid(out: &str) -> Option<u32> {
 
 /// Every process whose image is exactly the bundled node (`is_node` decides on the full image path), with its parent
 /// and whether that parent is alive. Err when the process list itself could not be read (the reap then does nothing).
+/// A process with the node's file name that could not be inspected (not opened, image unreadable) is never a
+/// candidate; it is pushed to `uninspected` with why, so the caller logs that skip too.
 #[cfg(windows)]
 pub fn windows_bundled_node_processes(
     node_file_name: &str,
     is_node: &dyn Fn(&std::path::Path) -> bool,
+    uninspected: &mut Vec<(u32, String)>,
 ) -> Result<Vec<NodeProc>, ()> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -76,15 +121,21 @@ pub fn windows_bundled_node_processes(
         if exe_name == node_file_name {
             let pid = entry.th32ProcessID;
             let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-            if !handle.is_null() {
+            if handle.is_null() {
+                uninspected.push((pid, format!("could not open it ({})", std::io::Error::last_os_error())));
+            } else {
                 // the full image path is the ONLY thing that nominates a process (another node install never is)
-                if windows_image(handle).is_some_and(|full| is_node(&full)) {
-                    let created = windows_created(handle);
-                    out.push(NodeProc {
-                        pid,
-                        parent: entry.th32ParentProcessID,
-                        parent_alive: windows_parent_alive(entry.th32ParentProcessID, created),
-                    });
+                match windows_image(handle) {
+                    Some(full) if is_node(&full) => {
+                        let created = windows_created(handle);
+                        out.push(NodeProc {
+                            pid,
+                            parent: entry.th32ParentProcessID,
+                            parent_state: windows_parent(entry.th32ParentProcessID, created),
+                        });
+                    }
+                    Some(_) => {}
+                    None => uninspected.push((pid, "its image path could not be read".to_string())),
                 }
                 unsafe { CloseHandle(handle) };
             }
@@ -95,63 +146,45 @@ pub fn windows_bundled_node_processes(
     Ok(out)
 }
 
-/// A process's full executable image path (the handle needs PROCESS_QUERY_LIMITED_INFORMATION).
+// The image path and creation time readers live with the identity rule (process_identity.rs); the reap shares them.
 #[cfg(windows)]
-pub fn windows_image(handle: windows_sys::Win32::Foundation::HANDLE) -> Option<std::path::PathBuf> {
-    use windows_sys::Win32::Foundation::MAX_PATH;
-    use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
-    let mut buf = [0u16; MAX_PATH as usize + 1];
-    let mut size = buf.len() as u32;
-    if unsafe { QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size) } == 0 {
-        return None;
-    }
-    Some(std::path::PathBuf::from(String::from_utf16_lossy(&buf[..size as usize])))
-}
-
-/// A process's creation time (100 ns ticks), when Windows says it.
-#[cfg(windows)]
-fn windows_created(handle: windows_sys::Win32::Foundation::HANDLE) -> Option<u64> {
-    use windows_sys::Win32::Foundation::FILETIME;
-    use windows_sys::Win32::System::Threading::GetProcessTimes;
-    let zero = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
-    let (mut created, mut exited, mut kernel, mut user) = (zero, zero, zero, zero);
-    if unsafe { GetProcessTimes(handle, &mut created, &mut exited, &mut kernel, &mut user) } == 0 {
-        return None;
-    }
-    Some(((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64)
-}
+pub use crate::process_identity::{windows_created, windows_image};
 
 /// Is `parent` still the live process that started a child created at `child_created`? Gone, exited, or a pid now
-/// reused by a process younger than the child = no. A parent that cannot be inspected (access denied) counts as
-/// alive: the reap spares what it cannot prove orphaned.
+/// reused by a process younger than the child = Gone. A parent that cannot be inspected (access denied), or whose
+/// creation time Windows does not give, is Unprovable: the reap spares what it cannot prove orphaned.
 #[cfg(windows)]
-fn windows_parent_alive(parent: u32, child_created: Option<u64>) -> bool {
+fn windows_parent(parent: u32, child_created: Option<u64>) -> Parent {
     use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0};
     use windows_sys::Win32::System::Threading::{
         OpenProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
     };
     if parent == 0 {
-        return false;
+        return Parent::Gone;
     }
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE, 0, parent) };
     if handle.is_null() {
-        return (unsafe { GetLastError() }) != ERROR_INVALID_PARAMETER;
+        return if (unsafe { GetLastError() }) == ERROR_INVALID_PARAMETER { Parent::Gone } else { Parent::Unprovable };
     }
     let exited = unsafe { WaitForSingleObject(handle, 0) } == WAIT_OBJECT_0;
     let parent_created = windows_created(handle);
     unsafe { CloseHandle(handle) };
     if exited {
-        return false;
+        return Parent::Gone;
     }
-    !matches!((parent_created, child_created), (Some(p), Some(c)) if p > c)
+    match (parent_created, child_created) {
+        (Some(p), Some(c)) if p > c => Parent::Gone,
+        (Some(_), Some(_)) => Parent::Alive,
+        _ => Parent::Unprovable,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{orphans_to_reap, parse_ps_ppid, NodeProc};
+    use super::{kept_reason, orphans_to_reap, parse_ps_ppid, NodeProc, Parent};
 
     fn p(pid: u32, parent: u32, parent_alive: bool) -> NodeProc {
-        NodeProc { pid, parent, parent_alive }
+        NodeProc { pid, parent, parent_state: if parent_alive { Parent::Alive } else { Parent::Gone } }
     }
 
     #[test]
@@ -173,6 +206,25 @@ mod tests {
         let procs = [p(10, 999, false), p(11, 998, false), p(12, 11, true)];
         assert_eq!(orphans_to_reap(&procs, &[11], 1), vec![10], "a kept terminal and its children stay, even parentless");
         assert_eq!(orphans_to_reap(&[p(5, 0, false)], &[], 5), Vec::<u32>::new(), "never this process");
+    }
+
+    #[test]
+    fn an_unprovable_parent_is_never_reaped_and_every_spared_process_says_why() {
+        let unprovable = NodeProc { pid: 13, parent: 4, parent_state: Parent::Unprovable };
+        let procs = [p(10, 999, false), p(20, 10, true), p(11, 4242, true), unprovable, p(12, 998, false), p(1, 0, false)];
+        let reap = orphans_to_reap(&procs, &[12], 1);
+        assert_eq!(reap, vec![10, 20], "an unprovable parent spares its child: {reap:?}");
+        let reasons: Vec<String> = procs
+            .iter()
+            .filter(|q| !reap.contains(&q.pid))
+            .map(|q| format!("{}: {}", q.pid, kept_reason(q, &[12], 1, &reap)))
+            .collect();
+        assert_eq!(reasons.len(), 4, "every spared process gets a line: {reasons:?}");
+        assert!(reasons[0].starts_with("11: its parent pid=4242 is alive"), "{reasons:?}");
+        assert!(reasons[1].starts_with("13: its parent pid=4 could not be inspected"), "{reasons:?}");
+        assert!(reasons[2].starts_with("12: a starnet terminal"), "{reasons:?}");
+        assert!(reasons[3].starts_with("1: this StarNet itself"), "{reasons:?}");
+        assert_eq!(kept_reason(&p(20, 10, true), &[], 1, &[10]), "its parent pid=10 is reaped first");
     }
 
     #[test]
@@ -222,11 +274,11 @@ mod tests {
         std::thread::sleep(Duration::from_millis(500));
 
         let is_node = |full: &std::path::Path| full.to_string_lossy().eq_ignore_ascii_case(&bundled.to_string_lossy());
-        let procs = super::windows_bundled_node_processes("node.exe", &is_node).expect("process list");
+        let procs = super::windows_bundled_node_processes("node.exe", &is_node, &mut Vec::new()).expect("process list");
         let seen = |pid: u32| procs.iter().find(|q| q.pid == pid).copied();
-        assert!(seen(orphan).is_some_and(|q| !q.parent_alive), "the orphan is listed with a dead parent: {:?}", seen(orphan));
-        assert!(seen(kept_orphan).is_some_and(|q| !q.parent_alive), "so is the second one");
-        assert!(seen(cli_like.id()).is_some_and(|q| q.parent_alive), "the live-parent one is listed as owned");
+        assert!(seen(orphan).is_some_and(|q| q.parent_state == Parent::Gone), "the orphan is listed with a dead parent: {:?}", seen(orphan));
+        assert!(seen(kept_orphan).is_some_and(|q| q.parent_state == Parent::Gone), "so is the second one");
+        assert!(seen(cli_like.id()).is_some_and(|q| q.parent_state == Parent::Alive), "the live-parent one is listed as owned");
         assert!(seen(bystander.id()).is_none(), "a node from another path is never even listed");
         let reap = orphans_to_reap(&procs, &[kept_orphan], std::process::id());
         assert_eq!(reap, vec![orphan], "only the unkept orphan is nominated (kept orphan, CLI-like and bystander spared)");

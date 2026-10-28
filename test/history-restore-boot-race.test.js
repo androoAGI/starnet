@@ -58,7 +58,8 @@ function harness(root, opts) {
     renderHistory() {}, replayChannel() {}, syncStatus() {}, maybeEmptyState() {}, pinLoadedHistoryAfterLayout() {},
     log: { innerHTML: '' }, activeWs: w, historyPinSeq: 3, historyPinPending: 0, revealKey: '',
   });
-  const merge = A.fnBody(src, 'function mergeCanonicalHistory(local, turns)');
+  // the read-back places mid-run notes after merging (comms-flow 10-26): the real placeSteerNotes rides with the real merge
+  const merge = A.fnBody(src, 'function mergeCanonicalHistory(local, turns)') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
   const start = src.indexOf('  const historyLoads = new WeakMap();');
   const seam = src.slice(start, src.indexOf('\n  // swap the rendered conversation', start));
   assert.ok(merge.length > 500 && start > 0 && seam.length > 1000 && seam.length < 16000, root + ': bounded production seam');

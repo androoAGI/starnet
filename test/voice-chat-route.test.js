@@ -8,6 +8,7 @@
    3) SOURCE GUARD (frontend): COMMS marks a spoken reply (never live-call delegations), the notice reasons match
       the planner's, and the Settings row saves on the change. The live proof is test/voice-chat-model.e2e.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -73,7 +74,7 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
 
 // ---------- 2. host source guards ----------
 {
-  const idx = read('sidecar/index.js');
+  const idx = readSidecarSource();
   A.ok(/require\('\.\/voice-chat-route\.js'\)/.test(idx), 'host requires the planner');
   A.ok(/exact: '\/api\/voice\/chat-model', h: handleVoiceChatStatus/.test(idx) && /exact: '\/api\/voice\/chat-model', h: handleVoiceChatSet/.test(idx), 'GET + POST routes registered');
   A.ok(/VOICE_CHAT_FILE = path\.join\(WORKSPACES, 'voice-chat\.json'\)/.test(idx) && /makeDomainStore\(\{\s*fs, path, file: VOICE_CHAT_FILE/.test(idx), 'persisted through the durable domain store');

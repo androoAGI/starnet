@@ -6,6 +6,7 @@
 
 const path = require('node:path');
 const crypto = require('node:crypto');
+const SO = require('./speech-outcome.js');
 
 const TTS_DEFAULT_MODEL = 'google/gemini-3.1-flash-tts-preview';
 const TTS_KEY_PROVIDERS = ['openrouter', 'gemini', 'openai'];
@@ -16,6 +17,35 @@ const STT_MAX_BYTES = 10 * 1024 * 1024;
 const STT_PROMPT = 'Transcribe this audio verbatim. Output ONLY the transcribed words, nothing else. If there is no speech, output nothing.';
 const STT_GROQ_MODEL = 'whisper-large-v3-turbo';
 const STT_OPENAI_MODEL = 'whisper-1';
+/* VERSIONED voice-cache keys (bug 81812888). Before 0efc04afe an Edge stream cut before turn.end was cached as a
+   whole clip under the full sentence's key and replayed cut in half for good. The fix stopped new truncations but
+   left every poisoned clip on disk, so each key now starts with a version segment: a clip written under an older
+   key is never read again, the sentence is synthesized whole, and the old file ages out of the LRU sweep. Bump a
+   segment whenever a leg could have cached audio the current code would not produce. local-kokoro/v2 is its own. */
+const VOICE_CACHE_EDGE = 'edge/v2';
+const VOICE_CACHE_KEYED = 'keyed/v2';
+const VOICE_CACHE_ELEVENLABS = 'elevenlabs/v2';
+/* ONE DEADLINE PER SENTENCE. The desk sends the time it has left for a sentence (body.deadlineMs, or the
+   X-Speech-Deadline-Ms header), and every leg of the ladder is capped by what remains of it, so the sidecar answers
+   with a typed outcome BEFORE the desk gives up — a keyed call no longer runs 60 s behind a 30 s client ceiling.
+   Clamped; absent = each leg's own cap (an older desk). */
+const SPEECH_DEADLINE_MIN_MS = 500;
+const SPEECH_DEADLINE_MAX_MS = 120000;
+const SPEECH_LEG_FLOOR_MS = 250;        // less than this left: the leg is not started, it is reported as a timeout
+const KEYED_LEG_CAP_MS = 60000;
+const EDGE_LEG_CAP_MS = 15000;
+// A paid keyed call every waiting request abandoned is aborted after this grace: long enough for the desk's spaced
+// retry (0.4 s / 1.2 s) to JOIN the running call instead of paying for the sentence twice (bug df610df1).
+// The sentence DEADLINE never aborts it: a request whose deadline passes is answered with a typed timeout while the
+// call runs on to KEYED_LEG_CAP_MS and caches its clip, so a provider slower than the deadline is paid for once and
+// the next request for that clip joins the call or hits the cache.
+const KEYED_ABANDON_GRACE_MS = 2500;
+function speechDeadlineMs(req, body) {
+  const raw = (body && body.deadlineMs != null) ? body.deadlineMs : (req && req.headers && req.headers['x-speech-deadline-ms']);
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.max(SPEECH_DEADLINE_MIN_MS, Math.min(SPEECH_DEADLINE_MAX_MS, Math.floor(n)));
+}
 
 let oggOpusDecoderModulePromise = null;
 
@@ -165,9 +195,12 @@ function makeMediaService(options) {
   // backend policy (tests and alternate compositions can then reproduce cache decisions exactly).
   const now = typeof o.now === 'function' ? o.now : (() => 0);
   const randomUUID = typeof o.randomUUID === 'function' ? o.randomUUID : crypto.randomUUID;
+  const monotonicNow = typeof o.monotonicNow === 'function' ? o.monotonicNow : now;
   const voiceStreams = require('./voice-stream.js').makeVoiceStreams({
-    localVoice, now, monotonicNow: typeof o.monotonicNow === 'function' ? o.monotonicNow : now, uuid: randomUUID
+    localVoice, now, monotonicNow, uuid: randomUUID
   });
+  // The last outcome of every speech leg any ladder tried (GET /api/tts/status): what the speaker tooltip names.
+  const speechStatus = SO.makeSpeechStatus({ now });
   const voiceCacheDir = path.join(o.workspaces, 'voice-cache');
   const keyedInFlight = new Map();   // voice-cache key -> the one keyed synthesis running for that clip
   const sttModels = String(env('STT_MODELS') || 'google/gemini-3.1-flash-lite-preview,google/gemini-2.5-flash')
@@ -230,32 +263,45 @@ function makeMediaService(options) {
     if (++ttsMissCount % 32 === 0) setImmediate(() => { maybeEvictVoiceCache().catch(() => {}); });
   }
 
+  /* One keyed synthesis. A failure is { ok:false, reason, leg }: `leg` is the typed verdict (status and body read ONCE,
+     here, by SO.httpLeg), `reason` the legacy text an older desk still reads. args.signal aborts it (every request
+     waiting on it went away); args.timeoutMs caps it at what is left of the sentence's deadline. */
   async function ttsSynthKeyed(ttsProvider, args) {
     const { model, voice, input, text, style, key } = args;
+    const capMs = args.timeoutMs > 0 ? Math.min(KEYED_LEG_CAP_MS, args.timeoutMs) : KEYED_LEG_CAP_MS;
+    const callOpts = init => voiceFetchOpts(args.signal ? Object.assign({ signal: args.signal }, init) : init, capMs);
+    const thrown = (error, prefix) => ({
+      ok: false, reason: prefix + ((error && error.message) || error),
+      leg: SO.errorLeg(ttsProvider, error, { cancelled: !!(args.signal && args.signal.aborted) })
+    });
+    const refused = async (response, label) => {
+      let detail = '';
+      try { detail = (await response.text()).slice(0, 300); } catch (_) { detail = ''; }
+      const reason = label + ' ' + response.status + (detail ? ' — ' + detail : '');
+      return { ok: false, reason, leg: SO.httpLeg(ttsProvider, response.status, detail, response.headers, reason) };
+    };
+    const unusable = (reason, code) => ({ ok: false, reason, leg: SO.leg(ttsProvider, code, { detail: reason }) });
     if (ttsProvider === 'gemini') {
       const base = (providerRuntimeBaseUrl('gemini', '') || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
       const nativeModel = model.replace(/^google\//, '');
       let response;
       try {
-        response = await fetchFn(base + '/models/' + encodeURIComponent(nativeModel) + ':generateContent', voiceFetchOpts({
+        response = await fetchFn(base + '/models/' + encodeURIComponent(nativeModel) + ':generateContent', callOpts({
           method: 'POST',
           headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: input }] }],
             generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } }
           })
-        }, 60000));
-      } catch (error) { return { ok: false, reason: 'network: ' + ((error && error.message) || error) }; }
-      if (!response.ok) {
-        let detail = ''; try { detail = (await response.text()).slice(0, 300); } catch (_) {}
-        return { ok: false, reason: 'gemini ' + response.status + (detail ? ' — ' + detail : '') };
-      }
-      let json; try { json = await response.json(); } catch (_) { return { ok: false, reason: 'gemini: bad json' }; }
+        }));
+      } catch (error) { return thrown(error, 'network: '); }
+      if (!response.ok) return refused(response, 'gemini');
+      let json; try { json = await response.json(); } catch (_) { return unusable('gemini: bad json', 'bad_response'); }
       const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
       const part = parts && parts.find(p => p && p.inlineData && p.inlineData.data);
-      if (!part) return { ok: false, reason: 'gemini: no audio in response' };
-      let buf; try { buf = Buffer.from(part.inlineData.data, 'base64'); } catch (_) { return { ok: false, reason: 'gemini: bad audio data' }; }
-      if (!buf.length) return { ok: false, reason: 'empty audio' };
+      if (!part) return unusable('gemini: no audio in response', 'bad_response');
+      let buf; try { buf = Buffer.from(part.inlineData.data, 'base64'); } catch (_) { return unusable('gemini: bad audio data', 'bad_response'); }
+      if (!buf.length) return unusable('empty audio', 'empty_audio');
       const mime = String(part.inlineData.mimeType || '').toLowerCase();
       const rate = parseInt((mime.match(/rate=(\d+)/) || [])[1], 10) || 24000;
       return { ok: true, buf: pcmToWav(buf, rate, 1), outType: 'audio/wav', ext: 'wav' };
@@ -266,34 +312,28 @@ function makeMediaService(options) {
       if (style) payload.instructions = style;
       let response;
       try {
-        response = await fetchFn(base + '/audio/speech', voiceFetchOpts({
+        response = await fetchFn(base + '/audio/speech', callOpts({
           method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        }, 60000));
-      } catch (error) { return { ok: false, reason: 'network: ' + ((error && error.message) || error) }; }
-      if (!response.ok) {
-        let detail = ''; try { detail = (await response.text()).slice(0, 300); } catch (_) {}
-        return { ok: false, reason: 'openai ' + response.status + (detail ? ' — ' + detail : '') };
-      }
-      let buf; try { buf = Buffer.from(await response.arrayBuffer()); } catch (error) { return { ok: false, reason: 'read: ' + ((error && error.message) || error) }; }
-      if (!buf.length) return { ok: false, reason: 'empty audio' };
+        }));
+      } catch (error) { return thrown(error, 'network: '); }
+      if (!response.ok) return refused(response, 'openai');
+      let buf; try { buf = Buffer.from(await response.arrayBuffer()); } catch (error) { return thrown(error, 'read: '); }
+      if (!buf.length) return unusable('empty audio', 'empty_audio');
       return { ok: true, buf, outType: 'audio/mpeg', ext: 'mp3' };
     }
     const payload = { model, input, voice, response_format: 'pcm' };
     let response;
     try {
-      response = await fetchFn('https://openrouter.ai/api/v1/audio/speech', voiceFetchOpts({
+      response = await fetchFn('https://openrouter.ai/api/v1/audio/speech', callOpts({
         method: 'POST',
         headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://localhost', 'X-Title': 'STARNET' },
         body: JSON.stringify(payload)
-      }, 60000));
-    } catch (error) { return { ok: false, reason: 'network: ' + ((error && error.message) || error) }; }
-    if (!response.ok) {
-      let detail = ''; try { detail = (await response.text()).slice(0, 300); } catch (_) {}
-      return { ok: false, reason: 'openrouter ' + response.status + (detail ? ' — ' + detail : '') };
-    }
+      }));
+    } catch (error) { return thrown(error, 'network: '); }
+    if (!response.ok) return refused(response, 'openrouter');
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-    let buf; try { buf = Buffer.from(await response.arrayBuffer()); } catch (error) { return { ok: false, reason: 'read: ' + ((error && error.message) || error) }; }
-    if (!buf.length) return { ok: false, reason: 'empty audio' };
+    let buf; try { buf = Buffer.from(await response.arrayBuffer()); } catch (error) { return thrown(error, 'read: '); }
+    if (!buf.length) return unusable('empty audio', 'empty_audio');
     if (/pcm|octet-stream/.test(contentType) || /rate=|channels=/.test(contentType)) {
       const rate = parseInt((contentType.match(/rate=(\d+)/) || [])[1], 10) || 24000;
       const channels = parseInt((contentType.match(/channels=(\d+)/) || [])[1], 10) || 1;
@@ -302,41 +342,52 @@ function makeMediaService(options) {
     if (/mpeg|mp3/.test(contentType)) return { ok: true, buf, outType: 'audio/mpeg', ext: 'mp3' };
     if (/wav/.test(contentType)) return { ok: true, buf, outType: 'audio/wav', ext: 'wav' };
     if (/ogg/.test(contentType)) return { ok: true, buf, outType: 'audio/ogg', ext: 'ogg' };
-    return { ok: false, reason: 'unexpected content-type: ' + contentType };
+    return unusable('unexpected content-type: ' + contentType, 'bad_response');
   }
+
+  // nothing to say is the REQUEST's failure, typed like every other (it says nothing about an engine)
+  const noTextOutcome = () => SO.outcome([SO.leg('request', 'no_text', { detail: 'no text' })]);
 
   async function synthesizeForAgent(args) {
     const text = String((args && args.text) || '').replace(/\s+/g, ' ').trim();
-    if (!text) return { ok: false, reason: 'no text' };
+    if (!text) return { ok: false, reason: 'no text', outcome: noTextOutcome() };
     const style = String((args && args.style) || '').replace(/\s+/g, ' ').trim().slice(0, 500);
     const wantVoice = String((args && args.voice) || '').trim();
     const input = style ? ('Say the following in ' + style + ': ' + text) : text;
     // only: try just that keyed provider (a reply pinned to it); noEdge: skip the Edge floor (a caller that
     // already tried Edge in its own mapped voice must not try it again in Edge's default one)
     const only = String((args && args.only) || '');
-    const reasons = [];
+    const source = String((args && args.source) || 'agent');
+    const lad = SO.ladder();
+    const spoke = (provider, out) => { speechStatus.record(SO.success(provider), source); return out; };
+    let keyedTried = false;
     for (const provider of TTS_KEY_PROVIDERS) {
       if (only && provider !== only) continue;
       const key = providerRuntimeKey(provider, '');
-      if (!key) { if (only) reasons.push(provider + ': no key'); continue; }
+      if (!key) { if (only) lad.fail(SO.leg(provider, 'no_key', { detail: 'no key' }), provider + ': no key'); continue; }
+      keyedTried = true;
       let result;
       try { result = await ttsSynthKeyed(provider, { model: TTS_DEFAULT_MODEL, voice: wantVoice || 'Umbriel', input, text, style, key }); }
-      catch (error) { result = { ok: false, reason: (error && error.message) || String(error) }; }
+      catch (error) { result = { ok: false, reason: (error && error.message) || String(error), leg: SO.errorLeg(provider, error) }; }
       if (result && result.ok && result.buf && result.buf.length) {
-        return { ok: true, buf: result.buf, ext: result.ext, mime: result.outType, provider };
+        return spoke(provider, { ok: true, buf: result.buf, ext: result.ext, mime: result.outType, provider });
       }
-      reasons.push(provider + ': ' + ((result && result.reason) || 'failed'));
+      lad.fail((result && result.leg) || SO.leg(provider, 'empty_audio', { detail: 'failed' }), provider + ': ' + ((result && result.reason) || 'failed'));
     }
+    // the keyed tier held no credential at all: a STRUCTURAL leg (no legacy text — the reason string never said it)
+    if (!keyedTried && !only) lad.fail(SO.leg('keyed', 'no_key', { detail: 'no keyed voice credential' }));
     const edgeFloor = !(args && args.noEdge);
     if (edgeFloor && edgetts.enabled()) {
       const edgeVoice = /^[a-z]{2}-[A-Za-z]{2,8}-\w+$/.test(wantVoice) ? wantVoice : '';
       try {
         const buf = await edgetts.synth(text, edgeVoice ? { nowMs: now(), voice: edgeVoice } : { nowMs: now() });
-        if (buf && buf.length) return { ok: true, buf, ext: 'mp3', mime: 'audio/mpeg', provider: 'edge' };
-        reasons.push('edge: empty audio');
-      } catch (error) { reasons.push('edge: ' + ((error && error.message) || error)); }
-    } else if (edgeFloor) reasons.push('edge: disabled');
-    return { ok: false, reason: reasons.join('; ') || (edgeFloor ? 'this station holds no voice-capable credential' : 'no keyed voice provider') };
+        if (buf && buf.length) return spoke('edge', { ok: true, buf, ext: 'mp3', mime: 'audio/mpeg', provider: 'edge' });
+        lad.fail(SO.leg('edge', 'empty_audio', { detail: 'empty audio' }), 'edge: empty audio');
+      } catch (error) { lad.fail(SO.errorLeg('edge', error), 'edge: ' + ((error && error.message) || error)); }
+    } else if (edgeFloor) lad.fail(SO.leg('edge', 'disabled', { detail: 'the free Edge voice is switched off' }), 'edge: disabled');
+    const outcome = lad.outcome();
+    speechStatus.record(outcome, source);
+    return { ok: false, reason: lad.reason(edgeFloor ? 'this station holds no voice-capable credential' : 'no keyed voice provider'), outcome };
   }
   /* The spoken voice for a paired device (remote/voice.js `speak`): always the built-in engine's DEFAULT voice
      (am_onyx), then that voice's mapped Edge neural voice, then the keyed ladder. Voice picks (station and
@@ -350,48 +401,60 @@ function makeMediaService(options) {
      loading in the background and this reply goes to the next leg at once. A failed load is retried the same way. */
   async function synthesizeStationVoice(text, opts) {
     const said = String(text || '').replace(/\s+/g, ' ').trim();
-    if (!said) return { ok: false, reason: 'no text' };
+    if (!said) return { ok: false, reason: 'no text', outcome: noTextOutcome() };
     const pin = String((opts && opts.provider) || '');
-    const reasons = [];
+    const lad = SO.ladder();
+    const LOCAL = 'local-kokoro';
+    const spoke = (provider, out) => { speechStatus.record(SO.success(provider), 'remote'); return out; };
+    const failed = () => { const outcome = lad.outcome(); speechStatus.record(outcome, 'remote'); return { ok: false, reason: lad.reason(), outcome }; };
     const voiceId = localVoice.defaultVoice();
     let st = null;
-    try { st = localVoice.status() || null; } catch (error) { reasons.push('local status: ' + ((error && error.message) || error)); }
-    if (st && st.available && (!pin || pin === 'local-kokoro')) {
+    try { st = localVoice.status() || null; } catch (error) { lad.fail(SO.leg(LOCAL, 'internal_error', { detail: (error && error.message) || error }), 'local status: ' + ((error && error.message) || error)); }
+    if (st && st.available && (!pin || pin === LOCAL)) {
       let onDisk = false;
       if (st.tts === 'cold' || st.tts === 'loading') {
         try { onDisk = typeof localVoice.ttsCached === 'function' && !!localVoice.ttsCached(); }
-        catch (error) { reasons.push('local cache: ' + ((error && error.message) || error)); }
+        catch (error) { lad.fail(SO.leg(LOCAL, 'internal_error', { detail: (error && error.message) || error }), 'local cache: ' + ((error && error.message) || error)); }
       }
-      if (st.tts === 'ready' || pin === 'local-kokoro' || onDisk) {
+      if (st.tts === 'ready' || pin === LOCAL || onDisk) {
         try {
           const buf = await localVoice.synthesize(said, { voice: voiceId, speed: 1 });
-          if (buf && buf.length) return { ok: true, buf, mime: 'audio/wav', provider: 'local-kokoro' };
-          reasons.push('local: empty audio');
-        } catch (error) { reasons.push('local: ' + ((error && error.message) || error)); }
+          if (buf && buf.length) return spoke(LOCAL, { ok: true, buf, mime: 'audio/wav', provider: LOCAL });
+          lad.fail(SO.leg(LOCAL, 'empty_audio', { detail: 'empty audio' }), 'local: empty audio');
+        } catch (error) {
+          lad.fail(SO.leg(LOCAL, error && error.unavailable ? 'local_unavailable' : 'local_failed', { detail: (error && error.message) || error }),
+            'local: ' + ((error && error.message) || error));
+        }
       } else {
         if (st.tts !== 'loading') {
           Promise.resolve().then(() => localVoice.warm({ asr: false }))
             .catch(error => logger.error('[local-voice] warm failed:', (error && error.message) || error));
         }
-        reasons.push(st.tts === 'error' ? 'local: voice model failed to load' : 'local: voice model still loading');
+        // a model still loading (or retried in the background after a failed load) may answer the next sentence
+        const why = st.tts === 'error' ? 'local: voice model failed to load' : 'local: voice model still loading';
+        lad.fail(SO.leg(LOCAL, 'local_failed', { detail: why.slice(7) }), why);
       }
     }
-    if (pin === 'local-kokoro') return { ok: false, reason: reasons.join('; ') || 'local: unavailable' };
+    if (pin === LOCAL) {
+      if (!lad.legs.length) lad.fail(SO.leg(LOCAL, 'local_unavailable', { detail: 'unavailable' }), 'local: unavailable');
+      return failed();
+    }
     if (!pin || pin === 'edge') {
       if (edgetts.enabled()) {
         try {
           const buf = await edgetts.synth(said, { voice: localVoice.edgeVoiceFor(voiceId), nowMs: now() });
-          if (buf && buf.length) return { ok: true, buf, mime: 'audio/mpeg', provider: 'edge' };
-          reasons.push('edge: empty audio');
-        } catch (error) { reasons.push('edge: ' + ((error && error.message) || error)); }
-      } else reasons.push('edge: disabled');
-      if (pin === 'edge') return { ok: false, reason: reasons.join('; ') };
+          if (buf && buf.length) return spoke('edge', { ok: true, buf, mime: 'audio/mpeg', provider: 'edge' });
+          lad.fail(SO.leg('edge', 'empty_audio', { detail: 'empty audio' }), 'edge: empty audio');
+        } catch (error) { lad.fail(SO.errorLeg('edge', error), 'edge: ' + ((error && error.message) || error)); }
+      } else lad.fail(SO.leg('edge', 'disabled', { detail: 'the free Edge voice is switched off' }), 'edge: disabled');
+      if (pin === 'edge') return failed();
     }
     // Edge already had its one try above, in the mapped voice: the keyed ladder runs without its own Edge floor
-    const keyed = await synthesizeForAgent(pin ? { text: said, noEdge: true, only: pin } : { text: said, noEdge: true });
+    const keyed = await synthesizeForAgent(pin ? { text: said, noEdge: true, only: pin, source: 'remote' } : { text: said, noEdge: true, source: 'remote' });
     if (keyed.ok) return keyed;
-    reasons.push(keyed.reason);
-    return { ok: false, reason: reasons.join('; ') };
+    for (const l of (keyed.outcome && keyed.outcome.legs) || []) lad.fail(l);
+    lad.fail(null, keyed.reason);
+    return failed();
   }
   // CERTAIN-availability probe for voice_generate (runOnce's tool footprint): false only when synthesizeForAgent
   // above has no leg it could even try — no keyed TTS provider AND the keyless Edge floor switched off. Reads the
@@ -400,77 +463,127 @@ function makeMediaService(options) {
     return TTS_KEY_PROVIDERS.some(provider => !!providerRuntimeKey(provider, '')) || !!edgetts.enabled();
   }
 
-  async function ttsElevenLabs(res, body, text, fallback) {
+  async function ttsElevenLabs(res, body, text, t) {
     const key = String((body && body.elKey) || '').trim() || String(processEnv.ELEVENLABS_API_KEY || '').trim();
     const voiceId = String((body && body.voiceId) || '').trim();
     const modelId = String((body && body.modelId) || EL_TTS_MODEL).trim();
-    if (!/^[A-Za-z0-9]{8,48}$/.test(voiceId)) return fallback('bad voiceId');
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(modelId)) return fallback('bad modelId');
-    if (!key) return fallback('no elevenlabs key');
-    const cacheKey = crypto.createHash('sha1').update('elevenlabs/' + modelId + '|' + voiceId + '||' + text).digest('hex');
+    const EL = 'elevenlabs';
+    if (!/^[A-Za-z0-9]{8,48}$/.test(voiceId)) return t.refuse('bad_input', 'bad voiceId');
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(modelId)) return t.refuse('bad_input', 'bad modelId');
+    if (!key) { t.lad.fail(SO.leg(EL, 'no_key', { detail: 'no elevenlabs key' }), 'no elevenlabs key'); return t.answerFailure(); }
+    const cacheKey = crypto.createHash('sha1').update(VOICE_CACHE_ELEVENLABS + '|' + modelId + '|' + voiceId + '||' + text).digest('hex');
     try {
       const buf = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.mp3'));
-      res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Cache': 'hit' });
-      return res.end(buf);
+      return t.answerAudio(buf, { 'Content-Type': 'audio/mpeg', 'X-Voice-Cache': 'hit' });
     } catch (_) {}
+    const capMs = t.legCap(KEYED_LEG_CAP_MS);
+    if (capMs <= 0) return t.deadlineSpent(EL);
     let response;
     try {
       response = await fetchFn('https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voiceId), voiceFetchOpts({
-        method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ text, model_id: modelId })
-      }, 60000));
-    } catch (error) { return fallback('network: ' + ((error && error.message) || error)); }
+        method: 'POST', headers: { 'xi-api-key': key, 'Content-Type': 'application/json' }, body: JSON.stringify({ text, model_id: modelId }),
+        signal: t.signal
+      }, capMs));
+    } catch (error) { t.lad.fail(SO.errorLeg(EL, error, { cancelled: t.signal.aborted }), 'network: ' + ((error && error.message) || error)); return t.answerFailure(); }
     if (!response.ok) {
-      let detail = ''; try { detail = (await response.text()).slice(0, 300); } catch (_) {}
-      return fallback('elevenlabs ' + response.status + (detail ? ' — ' + detail : ''));
+      let detail = '';
+      try { detail = (await response.text()).slice(0, 300); } catch (_) { detail = ''; }
+      const reason = 'elevenlabs ' + response.status + (detail ? ' — ' + detail : '');
+      t.lad.fail(SO.httpLeg(EL, response.status, detail, response.headers, reason), reason);
+      return t.answerFailure();
     }
     const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-    let buf; try { buf = Buffer.from(await response.arrayBuffer()); } catch (error) { return fallback('read: ' + ((error && error.message) || error)); }
-    if (!buf.length) return fallback('empty audio');
-    if (!/mpeg|mp3/.test(contentType)) return fallback('unexpected content-type: ' + contentType);
+    let buf;
+    try { buf = Buffer.from(await response.arrayBuffer()); }
+    catch (error) { t.lad.fail(SO.errorLeg(EL, error, { cancelled: t.signal.aborted }), 'read: ' + ((error && error.message) || error)); return t.answerFailure(); }
+    if (!buf.length) { t.lad.fail(SO.leg(EL, 'empty_audio', { detail: 'empty audio' }), 'empty audio'); return t.answerFailure(); }
+    if (!/mpeg|mp3/.test(contentType)) { t.lad.fail(SO.leg(EL, 'bad_response', { detail: 'unexpected content-type: ' + contentType }), 'unexpected content-type: ' + contentType); return t.answerFailure(); }
     try {
       const tmp = path.join(voiceCacheDir, cacheKey + '.mp3.' + randomUUID() + '.tmp');
       await fsp.writeFile(tmp, buf); await fsp.rename(tmp, path.join(voiceCacheDir, cacheKey + '.mp3'));
     } catch (_) {}
-    res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Cache': 'miss' });
-    res.end(buf); sweepMaybe();
+    speechStatus.record(SO.success(EL), 'tts');
+    t.answerAudio(buf, { 'Content-Type': 'audio/mpeg', 'X-Voice-Cache': 'miss' }); sweepMaybe();
   }
 
+  /* POST /api/tts — the desk's sentence. Every failure answers the 200 envelope
+       { fallback:true, reason, outcome }
+     where `outcome` is the typed SpeechOutcome (sidecar/speech-outcome.js) and `reason` the legacy string an older desk
+     reads (kept for one release). Each leg is capped by what is left of the sentence's deadline (body.deadlineMs or
+     X-Speech-Deadline-Ms), and a desk that goes away (barge-in, a closed page) cancels the legs it was waiting on. */
   async function handleTts(req, res) {
-    const fallback = reason => {
+    const lad = SO.ladder();
+    const ac = new AbortController();
+    if (res && typeof res.on === 'function') res.on('close', () => { if (!res.writableEnded) ac.abort(); });
+    const gone = () => ac.signal.aborted || !!(res && res.destroyed);
+    const answerFailure = () => {
+      const outcome = lad.outcome();
+      const reason = lad.reason('voice synthesis failed');
+      speechStatus.record(outcome, 'tts');
+      if (gone()) return;   // nobody is waiting for this answer
       logger.error('[tts] fallback →', reason);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ fallback: true, reason }));
+      res.end(JSON.stringify({ fallback: true, reason, outcome }));
+    };
+    const refuse = (code, detail) => { lad.fail(SO.leg('request', code, { detail }), detail); return answerFailure(); };
+    const answerAudio = (buf, headers) => {
+      if (gone()) return;
+      res.writeHead(200, Object.assign({ 'Cache-Control': 'no-store' }, headers));
+      res.end(buf);
     };
     let body;
-    try { body = JSON.parse(await readBody(req, 1 << 16)); } catch (_) { return fallback('bad json'); }
+    try { body = JSON.parse(await readBody(req, 1 << 16)); } catch (_) { return refuse('bad_input', 'bad json'); }
+    // a desk that left while its body was still arriving is waiting for nothing: no leg is started for it
+    if (gone()) return;
     const text = String((body && body.text) || '').replace(/\s+/g, ' ').trim();
     // Over the cap is REFUSED, never truncated: speaking only the first ~1200 characters and answering 200 audio
     // told the caller the whole script was said (voice_generate refuses the same way; the desk splits at 1000).
-    if (text.length > 1200) return fallback('text is ' + text.length + ' characters; the per-request cap is 1200 — split it into sentences');
+    if (text.length > 1200) return refuse('text_too_long', 'text is ' + text.length + ' characters; the per-request cap is 1200 — split it into sentences');
     const model = String((body && body.model) || TTS_DEFAULT_MODEL).trim();
     const voice = String((body && body.voice) || 'Umbriel').trim();
     const style = String((body && body.style) || '').replace(/\s+/g, ' ').trim().slice(0, 500);
-    if (!text) return fallback('no text');
-    if (String((body && body.provider) || '').trim().toLowerCase() === 'elevenlabs') return ttsElevenLabs(res, body, text, fallback);
+    if (!text) return refuse('no_text', 'no text');
+    // ONE deadline for the whole sentence: every leg gets at most what is left of it (and never more than its own cap)
+    const deadlineMs = speechDeadlineMs(req, body);
+    const startedAt = monotonicNow();
+    const legCap = cap => {
+      if (!deadlineMs) return cap;
+      const left = Math.floor(deadlineMs - (monotonicNow() - startedAt));
+      return left < SPEECH_LEG_FLOOR_MS ? 0 : Math.min(cap, left);
+    };
+    const deadlineSpent = engine => {
+      lad.fail(SO.leg(engine, 'timeout', { detail: 'the sentence deadline ran out before this leg could start' }), engine + ': deadline spent');
+      return answerFailure();
+    };
+    const t = { lad, signal: ac.signal, refuse, answerFailure, answerAudio, legCap, deadlineSpent };
+    if (String((body && body.provider) || '').trim().toLowerCase() === 'elevenlabs') return ttsElevenLabs(res, body, text, t);
 
-    const serveEdge = async (edgeVoice, reasonPrefix) => {
-      if (!edgetts.enabled()) return fallback(reasonPrefix ? reasonPrefix + '; edge floor disabled' : 'no key');
-      const cacheKey = crypto.createHash('sha1').update('edge|' + edgeVoice + '|' + text).digest('hex');
+    const serveEdge = async (edgeVoice) => {
+      // switched off: the legacy reason for a ladder that tried nothing else is the bare 'no key'
+      if (!edgetts.enabled()) {
+        lad.fail(SO.leg('edge', 'disabled', { detail: 'the free Edge voice is switched off' }), lad.reason() ? 'edge floor disabled' : 'no key');
+        return answerFailure();
+      }
+      const cacheKey = crypto.createHash('sha1').update(VOICE_CACHE_EDGE + '|' + edgeVoice + '|' + text).digest('hex');
       try {
         const cached = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.mp3'));
-        res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Provider': 'edge:' + edgeVoice, 'X-Voice-Cache': 'hit' });
-        return res.end(cached);
+        return answerAudio(cached, { 'Content-Type': 'audio/mpeg', 'X-Voice-Provider': 'edge:' + edgeVoice, 'X-Voice-Cache': 'hit' });
       } catch (_) {}
+      const capMs = legCap(EDGE_LEG_CAP_MS);
+      if (capMs <= 0) return deadlineSpent('edge');
       let buf;
-      try { buf = await edgetts.synth(text, { voice: edgeVoice, nowMs: now() }); }
-      catch (error) { return fallback(reasonPrefix ? reasonPrefix + '; edge: ' + ((error && error.message) || error) : 'edge: ' + ((error && error.message) || error)); }
-      if (!buf || !buf.length) return fallback(reasonPrefix ? reasonPrefix + '; edge: empty audio' : 'edge: empty audio');
+      try { buf = await edgetts.synth(text, { voice: edgeVoice, nowMs: now(), timeoutMs: capMs, signal: ac.signal }); }
+      catch (error) {
+        lad.fail(SO.errorLeg('edge', error, { cancelled: ac.signal.aborted }), 'edge: ' + ((error && error.message) || error));
+        return answerFailure();
+      }
+      if (!buf || !buf.length) { lad.fail(SO.leg('edge', 'empty_audio', { detail: 'empty audio' }), 'edge: empty audio'); return answerFailure(); }
       try {
         const tmp = path.join(voiceCacheDir, cacheKey + '.mp3.' + randomUUID() + '.tmp');
         await fsp.writeFile(tmp, buf); await fsp.rename(tmp, path.join(voiceCacheDir, cacheKey + '.mp3'));
       } catch (_) {}
-      res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', 'X-Voice-Provider': 'edge:' + edgeVoice, 'X-Voice-Cache': 'miss' });
-      res.end(buf); sweepMaybe();
+      speechStatus.record(SO.success('edge'), 'tts');
+      answerAudio(buf, { 'Content-Type': 'audio/mpeg', 'X-Voice-Provider': 'edge:' + edgeVoice, 'X-Voice-Cache': 'miss' }); sweepMaybe();
     };
 
     if (body && body.local) {
@@ -479,7 +592,7 @@ function makeMediaService(options) {
       // Live Voice pins the engine that served its first audible chunk. Once Edge owns the room, do not
       // probe Kokoro again between sentences; once Kokoro owns it, a transient miss must fail silent rather
       // than substitute a different speaker for just that chunk.
-      if (localEngine === 'edge') return serveEdge(localVoice.edgeVoiceFor(localVoiceId), '');
+      if (localEngine === 'edge') return serveEdge(localVoice.edgeVoiceFor(localVoiceId));
       try {
         // v2 = sentence pieces + trimmed edges + punctuation pauses + 16-bit (local-voice.js renderSpeech); a v1
         // (q4, one call, float32) clip in the cache must never answer for it.
@@ -488,31 +601,31 @@ function makeMediaService(options) {
         const cachePath = path.join(voiceCacheDir, `local-${cacheKey}.wav`);
         try {
           const cached = await fsp.readFile(cachePath);
-          res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Voice-Provider': 'local-kokoro', 'X-Voice-Cache': 'hit' });
-          return res.end(cached);
+          return answerAudio(cached, { 'Content-Type': 'audio/wav', 'X-Voice-Provider': 'local-kokoro', 'X-Voice-Cache': 'hit' });
         } catch (_) {}
         const buf = await localVoice.synthesize(text, { voice: localVoiceId, speed: localSpeed });
         try { const tmp = cachePath + '.' + randomUUID() + '.tmp'; await fsp.writeFile(tmp, buf); await fsp.rename(tmp, cachePath); } catch (_) {}
-        res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store', 'X-Voice-Provider': 'local-kokoro', 'X-Voice-Cache': 'miss' });
+        speechStatus.record(SO.success('local-kokoro'), 'tts');
+        answerAudio(buf, { 'Content-Type': 'audio/wav', 'X-Voice-Provider': 'local-kokoro', 'X-Voice-Cache': 'miss' });
         // A Kokoro miss writes a clip to the same cache every other leg sweeps; skipping the sweep here let the
         // offline voice grow the folder without bound (~120 MB a day at 500 sentences).
-        res.end(buf); sweepMaybe(); return;
+        sweepMaybe(); return;
       } catch (error) {
         const why = 'local voice engine: ' + ((error && error.message) || error);
-        if (localEngine === 'local-kokoro') return fallback(why);
+        lad.fail(SO.leg('local-kokoro', error && error.unavailable ? 'local_unavailable' : 'local_failed', { detail: (error && error.message) || error }), why);
+        if (localEngine === 'local-kokoro') return answerFailure();
         logger.error('[tts] local Kokoro failed → edge-mapped floor:', (error && error.message) || error);
-        return serveEdge(localVoice.edgeVoiceFor(localVoiceId), why);
+        return serveEdge(localVoice.edgeVoiceFor(localVoiceId));
       }
     }
 
     const prefer = normalizeProviderId(String((body && body.preferProvider) || ''));
     const chain = TTS_KEY_PROVIDERS.includes(prefer) ? [prefer].concat(TTS_KEY_PROVIDERS.filter(p => p !== prefer)) : TTS_KEY_PROVIDERS;
     let ttsProvider = '', ttsKey = '';
-    const explicitKey = String((body && body.key) || '').trim();
-    if (explicitKey) {
-      ttsProvider = normalizeProviderId(String((body && body.keyProvider) || '')) || 'openrouter';
-      if (!TTS_KEY_PROVIDERS.includes(ttsProvider)) ttsProvider = 'openrouter';
-      ttsKey = explicitKey;
+    const explicit = ttsPageKey(body && body.key, body && body.keyProvider);
+    if (explicit) {
+      ttsProvider = explicit.provider;
+      ttsKey = explicit.key;
     } else {
       for (const provider of chain) {
         const key = providerRuntimeKey(provider, '');
@@ -520,24 +633,35 @@ function makeMediaService(options) {
       }
     }
     const input = style ? ('Say the following in ' + style + ': ' + text) : text;
-    let keyedReason = '';
+    // no keyed credential: a STRUCTURAL leg (the legacy reason never said it unless the floor is off too)
+    if (!ttsKey) lad.fail(SO.leg('keyed', 'no_key', { detail: 'no OpenRouter, Gemini or OpenAI credential' }));
     if (ttsKey) {
       const cacheKey = ttsProvider === 'openai'
-        ? crypto.createHash('sha1').update('openai/' + OPENAI_TTS_MODEL + '|' + OPENAI_TTS_VOICE + '|' + style + '|' + text).digest('hex')
-        : crypto.createHash('sha1').update(model + '|' + voice + '|' + style + '|' + text).digest('hex');
+        ? crypto.createHash('sha1').update(VOICE_CACHE_KEYED + '|openai/' + OPENAI_TTS_MODEL + '|' + OPENAI_TTS_VOICE + '|' + style + '|' + text).digest('hex')
+        : crypto.createHash('sha1').update(VOICE_CACHE_KEYED + '|' + model + '|' + voice + '|' + style + '|' + text).digest('hex');
       for (const ext of ['wav', 'mp3']) {
         try {
           const cached = await fsp.readFile(path.join(voiceCacheDir, cacheKey + '.' + ext));
-          res.writeHead(200, { 'Content-Type': ext === 'mp3' ? 'audio/mpeg' : 'audio/wav', 'Cache-Control': 'no-store', 'X-Voice-Cache': 'hit' });
-          return res.end(cached);
+          return answerAudio(cached, { 'Content-Type': ext === 'mp3' ? 'audio/mpeg' : 'audio/wav', 'X-Voice-Cache': 'hit' });
         } catch (_) {}
       }
-      // ONE paid synthesis per clip: the desk abandons a request at 30s and retries while this call may run to 60s,
-      // so a retry bought the same sentence a second time. A request whose clip is already in flight joins that call.
-      let pending = keyedInFlight.get(cacheKey);
-      if (!pending) {
-        pending = ttsSynthKeyed(ttsProvider, { model, voice, input, text, style, key: ttsKey })
-          .catch(error => ({ ok: false, reason: (error && error.message) || String(error) }))
+      /* ONE paid synthesis per clip (bug df610df1): a request whose clip is already in flight JOINS that call. The call
+         runs to its OWN cap (KEYED_LEG_CAP_MS), never a request's sentence deadline: a request whose deadline passes
+         is answered with a typed timeout and the call runs on, so a provider slower than the deadline is paid for
+         once, its clip lands in the cache, and the next request for it joins the call or hits the cache (an abort at
+         the deadline paid for the clip and threw it away, every time the sentence came back). It is aborted only once
+         EVERY waiting request has gone away (a closed page, a barge-in) and a short grace has passed, and never once
+         a request timed out on it (that clip is still wanted). */
+      const waitMs = legCap(KEYED_LEG_CAP_MS);
+      if (waitMs <= 0) return deadlineSpent(ttsProvider);
+      // the desk went away before the call started (or before it could join one): never start a paid call for nobody.
+      // Nothing below awaits before the abort listener is attached, so a later close always reaches leave().
+      if (gone()) return;
+      let entry = keyedInFlight.get(cacheKey);
+      if (!entry) {
+        const fresh = { waiters: 0, wanted: false, ac: new AbortController(), timer: null, promise: null };
+        fresh.promise = ttsSynthKeyed(ttsProvider, { model, voice, input, text, style, key: ttsKey, signal: fresh.ac.signal })
+          .catch(error => ({ ok: false, reason: (error && error.message) || String(error), leg: SO.errorLeg(ttsProvider, error) }))
           .then(async result => {
             if (result.ok) {
               try {
@@ -547,32 +671,117 @@ function makeMediaService(options) {
             }
             return result;
           })
-          .finally(() => keyedInFlight.delete(cacheKey));
-        keyedInFlight.set(cacheKey, pending);
+          .finally(() => {
+            if (fresh.timer) clearTimeout(fresh.timer);
+            if (keyedInFlight.get(cacheKey) === fresh) keyedInFlight.delete(cacheKey);
+          });
+        keyedInFlight.set(cacheKey, fresh);
+        entry = fresh;
       }
-      const keyed = await pending;
+      const joined = entry;
+      joined.waiters++;
+      if (joined.timer) { clearTimeout(joined.timer); joined.timer = null; }
+      let departed = false;
+      const leave = () => {
+        departed = true;
+        joined.waiters--;
+        if (joined.waiters > 0 || joined.timer || joined.wanted) return;
+        joined.timer = setTimeout(() => {
+          if (joined.waiters > 0 || joined.wanted) { joined.timer = null; return; }
+          // a request for this clip that arrives after the abort starts its own call, never joins a dying one
+          if (keyedInFlight.get(cacheKey) === joined) keyedInFlight.delete(cacheKey);
+          joined.ac.abort();
+        }, KEYED_ABANDON_GRACE_MS);
+        if (joined.timer && typeof joined.timer.unref === 'function') joined.timer.unref();
+      };
+      ac.signal.addEventListener('abort', leave, { once: true });
+      // this request waits at most what is left of ITS sentence's deadline (no deadline: the call's own cap)
+      let deadlineTimer = null;
+      const keyed = !deadlineMs ? await joined.promise : await Promise.race([
+        joined.promise,
+        new Promise(resolve => { deadlineTimer = setTimeout(() => resolve(null), waitMs); })
+      ]);
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      ac.signal.removeEventListener('abort', leave);
+      if (keyed === null) {
+        if (departed) return;   // the desk left first: it was counted out by leave(), the abandonment path owns the call
+        // the deadline passed with the call still running: it runs on and caches its clip (paid for once), and this
+        // request answers with a typed timeout the desk can act on before its own ceiling
+        joined.wanted = true;
+        joined.waiters--;
+        if (joined.timer) { clearTimeout(joined.timer); joined.timer = null; }
+        if (gone()) return;
+        lad.fail(SO.leg(ttsProvider, 'timeout', { detail: 'no audio within the sentence deadline (the call runs on; a clip it returns is cached)' }),
+          ttsProvider + ': no audio within the sentence deadline');
+        return serveEdge(edgetts.resolveVoice());
+      }
+      if (gone()) return;   // this desk went away while the call ran (another request may still be waiting on it)
       if (keyed.ok) {
-        res.writeHead(200, { 'Content-Type': keyed.outType, 'Cache-Control': 'no-store', 'X-Voice-Cache': 'miss' });
-        res.end(keyed.buf); sweepMaybe(); return;
+        speechStatus.record(SO.success(ttsProvider), 'tts');
+        answerAudio(keyed.buf, { 'Content-Type': keyed.outType, 'X-Voice-Cache': 'miss' }); sweepMaybe(); return;
       }
-      keyedReason = keyed.reason;
+      lad.fail(keyed.leg || SO.leg(ttsProvider, 'internal_error', { detail: keyed.reason }), keyed.reason);
     }
-    return serveEdge(edgetts.resolveVoice(), keyedReason);
+    return serveEdge(edgetts.resolveVoice());
   }
 
-  async function sttTranscribe(baseUrl, apiKey, whisperModel, audioBuf, filename, contentType) {
+  // GET /api/tts/status — the last outcome of every speech leg (no secrets: engine, code, HTTP status, a short
+  // detail, when, and which ladder tried it), plus whether the free floor is switched on.
+  function ttsStatus() {
+    const snap = speechStatus.snapshot();
+    let edgeOn = false;
+    try { edgeOn = !!edgetts.enabled(); } catch (_) { edgeOn = false; }
+    return Object.assign({ edge: { enabled: edgeOn }, keyed: TTS_KEY_PROVIDERS.filter(p => !!providerRuntimeKey(p, '')) }, snap);
+  }
+  function handleTtsStatus(req, res) {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(ttsStatus()));
+  }
+
+  /* STARTUP SELF-PROBE of the free floor: one short synth a little after boot, recorded as the edge leg's outcome
+     (source 'self-probe') and logged in one line, so a floor Microsoft stopped answering (10-26: HTTP 403 on every
+     request) is visible in the boot log and in /api/tts/status BEFORE a user meets a silent reply. Off when the floor
+     is off, when it is aimed at a test host, or with SKYNET_EDGE_TTS_PROBE=0. Never throws; the timer is unref'd. */
+  async function probeFloor(opts) {
+    const o2 = opts || {};
+    try {
+      const buf = await edgetts.synth(String(o2.text || 'StarNet voice check.'), { nowMs: now(), timeoutMs: o2.timeoutMs || EDGE_LEG_CAP_MS });
+      if (!buf || !buf.length) throw Object.assign(new Error('edge: empty audio'), { speechCode: 'empty_audio' });
+      speechStatus.record(SO.success('edge'), 'self-probe');
+      if (typeof logger.log === 'function') logger.log('  · voice floor: the free Edge voice answered its startup check (' + buf.length + ' bytes)');
+      return { ok: true, bytes: buf.length };
+    } catch (error) {
+      const l = SO.errorLeg('edge', error);
+      speechStatus.record(SO.outcome([l]), 'self-probe');
+      logger.warn('[voice] the free Edge voice failed its startup check: ' + l.code + (l.http ? ' (HTTP ' + l.http + ')' : '') + ' — '
+        + l.detail + '. A station with no OpenRouter, Gemini or OpenAI key will be silent until it answers.');
+      return { ok: false, leg: l };
+    }
+  }
+  function startFloorProbe(opts) {
+    const o2 = opts || {};
+    const off = /^(0|false|no|off)$/i.test(String(env('EDGE_TTS_PROBE') || '').trim());
+    if (off || !edgetts.enabled() || String(env('EDGE_TTS_HOST') || '').trim()) return false;
+    const timer = setTimeout(() => { probeFloor().catch(error => logger.warn('[voice] floor probe:', (error && error.message) || error)); }, o2.delayMs > 0 ? o2.delayMs : 15000);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+    return true;
+  }
+
+  async function sttTranscribe(baseUrl, apiKey, whisperModel, audioBuf, filename, contentType, engine) {
     const multipart = sttMultipartBody(audioBuf, filename, contentType, { model: whisperModel }, o.randomBytes);
     let response;
     try {
       response = await fetchFn(baseUrl.replace(/\/+$/, '') + '/audio/transcriptions', voiceFetchOpts({
         method: 'POST', headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': multipart.contentType }, body: multipart.body
       }, 120000));
-    } catch (error) { return { ok: false, reason: 'network: ' + ((error && error.message) || error) }; }
+    } catch (error) { return { ok: false, reason: 'network: ' + ((error && error.message) || error), leg: SO.errorLeg(engine, error) }; }
     if (!response.ok) {
-      let detail = ''; try { detail = (await response.text()).slice(0, 200); } catch (_) {}
-      return { ok: false, reason: whisperModel + ' ' + response.status + (detail ? ' — ' + detail : '') };
+      let detail = '';
+      try { detail = (await response.text()).slice(0, 200); } catch (_) { detail = ''; }
+      const reason = whisperModel + ' ' + response.status + (detail ? ' — ' + detail : '');
+      return { ok: false, reason, leg: SO.httpLeg(engine, response.status, detail, response.headers, reason) };
     }
-    let json; try { json = await response.json(); } catch (_) { return { ok: false, reason: 'bad json from ' + whisperModel }; }
+    let json; try { json = await response.json(); } catch (_) { return { ok: false, reason: 'bad json from ' + whisperModel, leg: SO.leg(engine, 'bad_response', { detail: 'bad json from ' + whisperModel }) }; }
     return { ok: true, text: String((json && json.text) || '').trim() };
   }
 
@@ -592,28 +801,43 @@ function makeMediaService(options) {
     return { available: preferred !== 'none', preferred, cloud, local, native };
   }
 
+  /* The STT ladder (Groq whisper → OpenAI whisper → OpenRouter audio-in chat → the local engine). A failure is
+     { ok:false, reason, outcome }: `outcome` is the typed SpeechOutcome over every leg tried; `reason` stays the LAST
+     leg's legacy text (what callers have always shown). */
   async function transcribeAudioBuffer(audioBuf, format, apiKey) {
-    if (!audioBuf || !audioBuf.length) return { ok: false, reason: 'no audio' };
+    const lad = SO.ladder();
+    let lastReason = 'no transcription';
+    const failed = reason => {
+      const outcome = lad.outcome();
+      speechStatus.record(outcome, 'stt');
+      return { ok: false, reason, outcome };
+    };
+    const heard = (engine, text) => { speechStatus.record(SO.success(engine), 'stt'); return { ok: true, text: String(text || '') }; };
+    if (!audioBuf || !audioBuf.length) { lad.fail(SO.leg('request', 'no_text', { detail: 'no audio' })); return failed('no audio'); }
     const key = String(apiKey || (typeof o.getRuntimeKey === 'function' ? o.getRuntimeKey() : '') || '');
     const groqKey = providerRuntimeKey('groq', '');
     const openaiKey = providerRuntimeKey('openai', '');
     const localReady = (() => { try { return !!localVoice.status().available; } catch (_) { return false; } })();
-    if (!groqKey && !openaiKey && !key && !localReady) return { ok: false, reason: 'no key' };
+    if (!groqKey && !openaiKey && !key && !localReady) {
+      lad.fail(SO.leg('keyed', 'no_key', { detail: 'no Groq, OpenAI or OpenRouter credential, and no local engine' }));
+      return failed('no key');
+    }
     format = (format === 'x-wav' || format === 'wave') ? 'wav' : (format || 'webm');
     const filename = 'audio.' + format;
     const contentType = 'audio/' + format;
-    let lastReason = 'no transcription';
     if (groqKey) {
       const base = sttGroqBase || providerRuntimeBaseUrl('groq', '') || 'https://api.groq.com/openai/v1';
-      const result = await sttTranscribe(base, groqKey, STT_GROQ_MODEL, audioBuf, filename, contentType);
-      if (result.ok) return { ok: true, text: String(result.text || '') };
+      const result = await sttTranscribe(base, groqKey, STT_GROQ_MODEL, audioBuf, filename, contentType, 'groq');
+      if (result.ok) return heard('groq', result.text);
       lastReason = 'groq: ' + result.reason;
+      lad.fail(result.leg);
     }
     if (openaiKey) {
       const base = sttOpenAiBase || providerRuntimeBaseUrl('openai', '') || 'https://api.openai.com/v1';
-      const result = await sttTranscribe(base, openaiKey, STT_OPENAI_MODEL, audioBuf, filename, contentType);
-      if (result.ok) return { ok: true, text: String(result.text || '') };
+      const result = await sttTranscribe(base, openaiKey, STT_OPENAI_MODEL, audioBuf, filename, contentType, 'openai');
+      if (result.ok) return heard('openai', result.text);
       lastReason = 'openai: ' + result.reason;
+      lad.fail(result.leg);
     }
     if (key) {
       const audio = audioBuf.toString('base64');
@@ -627,15 +851,17 @@ function makeMediaService(options) {
               { type: 'input_audio', input_audio: { data: audio, format } }, { type: 'text', text: STT_PROMPT }
             ] }] })
           }, 120000));
-        } catch (error) { lastReason = 'network: ' + ((error && error.message) || error); continue; }
+        } catch (error) { lastReason = 'network: ' + ((error && error.message) || error); lad.fail(SO.errorLeg('openrouter', error)); continue; }
         if (!response.ok) {
-          let detail = ''; try { detail = (await response.text()).slice(0, 200); } catch (_) {}
+          let detail = '';
+          try { detail = (await response.text()).slice(0, 200); } catch (_) { detail = ''; }
           lastReason = model + ' → openrouter ' + response.status + (detail ? ' — ' + detail : '');
+          lad.fail(SO.httpLeg('openrouter', response.status, detail, response.headers, lastReason));
           continue;
         }
-        let json; try { json = await response.json(); } catch (_) { lastReason = 'bad json from ' + model; continue; }
+        let json; try { json = await response.json(); } catch (_) { lastReason = 'bad json from ' + model; lad.fail(SO.leg('openrouter', 'bad_response', { detail: lastReason })); continue; }
         const text = String((json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '').trim();
-        return { ok: true, text };
+        return heard('openrouter', text);
       }
     }
     if (localReady) {
@@ -646,24 +872,63 @@ function makeMediaService(options) {
             : await decodeOggOpus(audioBuf);
           if (pcm) {
             const text = await localVoice.transcribe(Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
-            return { ok: true, text: String(text || '') };
+            return heard('local', text);
           }
           lastReason = 'local: unreadable ' + format;
-        } catch (error) { lastReason = 'local: ' + ((error && error.message) || error); }
+          lad.fail(SO.leg('local', 'bad_input', { detail: 'unreadable ' + format }));
+        } catch (error) {
+          lastReason = 'local: ' + ((error && error.message) || error);
+          lad.fail(SO.leg('local', error && error.unavailable ? 'local_unavailable' : 'local_failed', { detail: (error && error.message) || error }));
+        }
       } else {
         lastReason = lastReason === 'no transcription'
           ? 'local engine cannot decode ' + format
           : lastReason + '; local engine cannot decode ' + format;
+        lad.fail(SO.leg('local', 'bad_input', { detail: 'the local engine cannot decode ' + format }));
       }
     }
-    return { ok: false, reason: lastReason };
+    return failed(lastReason);
   }
 
   async function transcribeForMime(buffer, mime) {
     const match = /(webm|wav|mp3|mpeg|m4a|mp4)/.exec(String(mime || ''));
     const format = /ogg|opus/.test(String(mime || '')) ? 'ogg' : (match ? match[1] : 'ogg');
     try { return await transcribeAudioBuffer(buffer, format === 'mpeg' ? 'mp3' : format); }
-    catch (error) { return { ok: false, reason: (error && error.message) || 'transcribe failed' }; }
+    catch (error) {
+      // the ladder itself threw (it never should): typed and named, never a bare string
+      const outcome = SO.outcome([SO.errorLeg('station', error)]);
+      speechStatus.record(outcome, 'stt');
+      return { ok: false, reason: (error && error.message) || 'transcribe failed', outcome };
+    }
+  }
+
+  /* A page credential reaches openrouter.ai ONLY when it IS an OpenRouter key. The desk used to send its RUN provider's
+     key (Harness.getKey()) as X-OpenRouter-Key, so a browser-mode OpenAI or Anthropic station shipped that secret to
+     openrouter.ai as a Bearer token on every spoken sentence. The page now names the pair ({key, keyProvider} in a
+     JSON body, X-Speech-Key-Provider beside the raw-bytes header), as the TTS route's keyProvider already does. A
+     legacy page that names no provider is trusted only for an sk-or- key; any other pair is not used at all. */
+  function openRouterPageKey(key, provider) {
+    const k = String(key || '').trim();
+    if (!k) return '';
+    const named = String(provider || '').trim();
+    if (named) return normalizeProviderId(named) === 'openrouter' ? k : '';
+    return /^sk-or-/i.test(k) ? k : '';
+  }
+
+  /* The same rule for the desk's spoken sentence (POST /api/tts {key, keyProvider}): a page key is used only with the
+     TTS provider it is NAMED for. A key named for a provider that has no voice (an Anthropic key), or a legacy body
+     that names none, used to be re-labelled 'openrouter' and sent to openrouter.ai as a Bearer token; now an unnamed
+     key is trusted only when it is an sk-or- key, and anything else is ignored (the station's own keys and the free
+     floor answer instead). */
+  function ttsPageKey(key, provider) {
+    const k = String(key || '').trim();
+    if (!k) return null;
+    const named = String(provider || '').trim();
+    if (named) {
+      const p = normalizeProviderId(named);
+      return TTS_KEY_PROVIDERS.includes(p) ? { key: k, provider: p } : null;
+    }
+    return /^sk-or-/i.test(k) ? { key: k, provider: 'openrouter' } : null;
   }
 
   async function handleStt(req, res) {
@@ -671,10 +936,11 @@ function makeMediaService(options) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ text: String(text || '') }));
     };
-    const degrade = reason => {
+    // the 200 degrade envelope: the legacy reason plus the typed outcome (sidecar/speech-outcome.js)
+    const degrade = (reason, outcome) => {
       logger.warn('[stt] →', reason);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ text: '', reason }));
+      res.end(JSON.stringify({ text: '', reason, outcome: outcome || SO.outcome([SO.leg('request', 'bad_input', { detail: reason })]) }));
     };
     const requestType = String(req.headers['content-type'] || '').toLowerCase();
     let audioB64 = '', format = '', key = '';
@@ -684,18 +950,18 @@ function makeMediaService(options) {
         const body = JSON.parse(raw.toString('utf8') || '{}');
         audioB64 = String((body && body.audio) || '').replace(/^data:[^,]*,/, '');
         format = String((body && body.format) || '').trim();
-        key = String((body && body.key) || '').trim();
+        key = openRouterPageKey(body && body.key, body && body.keyProvider);
       } else {
         const buf = await readBodyBuffer(req, STT_MAX_BYTES);
         audioB64 = buf.toString('base64');
         const match = requestType.match(/audio\/(?:x-)?([a-z0-9]+)/);
         format = match ? match[1] : '';
-        key = String(req.headers['x-openrouter-key'] || '').trim();
+        key = openRouterPageKey(req.headers['x-openrouter-key'], req.headers['x-speech-key-provider']);
       }
     } catch (error) { return degrade('body: ' + ((error && error.message) || error)); }
-    if (!audioB64) return degrade('no audio');
+    if (!audioB64) return degrade('no audio', SO.outcome([SO.leg('request', 'no_text', { detail: 'no audio' })]));
     const result = await transcribeAudioBuffer(Buffer.from(audioB64, 'base64'), format, key);
-    return result.ok ? ok(result.text) : degrade(result.reason);
+    return result.ok ? ok(result.text) : degrade(result.reason, result.outcome);
   }
 
   function handleSttStatus(req, res) {
@@ -777,8 +1043,13 @@ function makeMediaService(options) {
   function ttsFailOpenPolicy(res, error) {
     try {
       if (!res.headersSent) {
+        // the SAME envelope every other TTS failure answers ({fallback, reason}): a body with only `error` left the desk
+        // no reason to read, so it saw 'http 200' and retried a crashed handler as if it were a network blip
+        const reason = redact('tts failure: ' + ((error && error.message) || error));
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        res.end(JSON.stringify({ error: redact('tts failure: ' + ((error && error.message) || error)) }));
+        const outcome = SO.outcome([SO.leg('station', 'internal_error', { detail: reason })]);   // a bug, not a blip: terminal, named
+        speechStatus.record(outcome, 'tts');
+        res.end(JSON.stringify({ fallback: true, reason, error: reason, outcome }));
       } else res.end();
     } catch (_) { try { res.end(); } catch (_) {} }
   }
@@ -787,7 +1058,8 @@ function makeMediaService(options) {
     try {
       if (!res.headersSent) {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        res.end(JSON.stringify({ text: '', reason: redact('stt failure: ' + ((error && error.message) || error)) }));
+        const reason = redact('stt failure: ' + ((error && error.message) || error));
+        res.end(JSON.stringify({ text: '', reason, outcome: SO.outcome([SO.leg('station', 'internal_error', { detail: reason })]) }));
       } else res.end();
     } catch (_) { try { res.end(); } catch (_) {} }
   }
@@ -810,6 +1082,10 @@ function makeMediaService(options) {
     handleLocalVoiceStream,
     ttsFailOpenPolicy,
     sttFailOpenPolicy,
+    ttsStatus,
+    handleTtsStatus,
+    probeFloor,
+    startFloorProbe,
     _internals: { ttsSynthKeyed, sttTranscribe, maybeEvictVoiceCache, voiceCacheDir }
   };
 }

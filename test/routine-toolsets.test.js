@@ -13,6 +13,7 @@
      · index.js routes create/update/routine.manage AND every cron.jobs.json load through this one module.
    The live proof (a legacy [] routine fires WITH web tools after a restart) is test/routine-keys.e2e.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -110,7 +111,7 @@ for (const input of [['Web & Browser'], ['web', 'cabinet'], ['todo'], ['mcp:x'],
 
 /* ---------- index.js reads every list through this module ---------- */
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')
+  const src = readSidecarSource()
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   A.ok(/function cronToolsetList\(v\) \{ return routineToolsets\.strict\(v\); \}/.test(src), 'create/update/routine.manage validate through routineToolsets.strict');
   A.ok(!/let cronToolsetIndex/.test(src), 'no second copy of the toolset rules is left in index.js');

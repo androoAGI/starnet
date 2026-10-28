@@ -199,15 +199,21 @@ async function lostAckThenDeath(opts) {
       await tick();
       // the stale tab (still on the first save) writes the shared cache last, with one session of its own; it is refused
       const staleDoc = Object.assign(clone(start), { workstreams: start.workstreams.concat([{ id: 'stale-tab', history: [turn('user', 's')] }]) });
-      persist(stale, shared, staleDoc); A.eq(await stale.flush({ force: true }), false, 'fixture: the stale tab is refused');
+      persist(stale, shared, staleDoc); A.eq(await stale.flush({ force: true }), false, 'fixture: the stale tab’s save does not land as it is');
+      // since save-latch-kill the refusal is merged while the tab is open. This tab never had a save taken by the station (it
+      // booted on an empty one), so there is no base for a three-way merge: the boot merge's rules, the station file the base,
+      // and the stale tab reopens on the merge — its notice says so (reentered), never that its changes were merged
+      const sm = stale.mergeNotice();
+      A.eq(sm && [sm.base, sm.reentered, sm.inSession], ['station', true, undefined], 'f: the stale tab’s refused save was merged on the boot merge\'s rules, the station file the base');
+      A.eq(stale._reloads.length, 1, 'f: and the stale tab re-entered (reloaded onto the merge), never sending its own view on top');
       const host = sidecar(root);
       const Z = page(host, shared);                                  // the stale tab is reloaded
       const resumed = await Z.reconcile(JSON.parse(shared.get('starnet.save')));
       A.eq(resumed.agent.name, 'RENAMED', 'f: the live tab\'s rename stands');
       A.ok(!titles(resumed).includes('OLD'), 'f: the live tab\'s delete stands');
       A.ok(titles(resumed).includes('stale-tab'), 'f: the stale tab\'s own session is brought in');
-      A.eq(Z.mergeNotice() && Z.mergeNotice().base, 'station', 'f: the station file was the base');
       A.eq(host.saveStore.load('agent').agent.name, 'RENAMED', 'f: and the station file still says so');
+      A.ok(titles(host.saveStore.load('agent')).includes('stale-tab') && !titles(host.saveStore.load('agent')).includes('OLD'), 'f: the station file holds the stale tab’s session and keeps the live tab’s delete');
     }
 
     // ================= g. the dead window's id rides ONE resend, never this page's later saves (review #3) =================
@@ -227,11 +233,16 @@ async function lostAckThenDeath(opts) {
       } };
       const Z = page(proxy, cache);
       const resumed = await Z.reconcile(JSON.parse(cache.get('starnet.save')));
-      A.eq(await Z.flush({ force: true }), false, 'g: the resend as the first window is refused — that window saved newer since');
+      await Z.flush({ force: true });
+      // the resend as the first window is refused (that window saved newer since); since save-latch-kill the page then MERGES
+      // its work three-way on the head it opened on (the first window's own save) — written as adopt-<this page>, never as
+      // the first window
+      A.ok(String(host.saveStore.load('agent')._saveClient).indexOf('adopt-') === 0 && host.saveStore.load('agent')._saveClient !== writer, 'g: the refused resend is merged as this page\'s merge, never passed off as the first window');
       persist(Z, cache, Object.assign(clone(resumed), { workstreams: resumed.workstreams.concat([{ id: 'Z-later', history: [turn('user', 'z')] }]) }));
-      A.eq(await Z.flush({ force: true }), false, 'g: this page\'s next save is its own: refused, never passed off as the first window');
+      A.eq(await Z.flush({ force: true }), true, 'g: this page\'s next save is its own, and merged');
+      A.eq(Z.writerId() !== writer, true, 'g: …written as this page, never the first window');
       A.ok(titles(host.saveStore.load('agent')).includes('X-by-A'), 'g: the first window\'s newer save stays in the station file');
-      A.ok(conflictFiles(root).length >= 1, 'g: this page\'s work is preserved beside it');
+      A.ok(titles(host.saveStore.load('agent')).includes('Z-later') && titles(host.saveStore.load('agent')).includes('S3'), 'g: this page\'s work is IN the station file, the dead window\'s unsent S3 too');
     }
 
     // ================= h. the merge's answer never arrived: the page reads again and resumes the merge (review #1) =================
@@ -329,6 +340,26 @@ async function lostAckThenDeath(opts) {
       persist(P1, cache, Object.assign(clone(r1), { workstreams: r1.workstreams.concat([{ id: 'P1-next', history: [turn('user', 'p')] }]) }));
       A.eq(await P1.flush({ force: true }), true, 'i: the first page is not frozen: its next save lands');
       A.eq(P1.health().conflict, null, 'i: with no conflict');
+    }
+
+    // ================= m. a PASSING refusal of the boot merge never latches (review 10-27) =================
+    // the station file was locked at the moment of the boot merge ({ ok:false, unreadable }): asked again later, never "the
+    // station said no for good" — one Windows file lock at the wrong moment brought the wedge back
+    {
+      const { root, cache } = await lostAckThenDeath();
+      const host = sidecar(root);
+      let locked = true;
+      const lock = { fetch: (u, o) => (locked && String(u) === '/api/save/adopt') ? Promise.resolve({ ok: true, status: 200, json: async () => ({ ok: false, unreadable: true, error: 'the station file is unreadable right now' }) }) : host.fetch(u, o) };
+      // another window saves first, so the cached save cannot land as it is: the boot merge is asked, and the file is locked
+      host.saveStore.save('agent', Object.assign(clone(host.saveStore.load('agent')), { _saveClient: 'other-window', updatedAt: Date.now() + 50 }), { compareRevision: true });
+      const Z = page(lock, cache);
+      await Z.reconcile(JSON.parse(cache.get('starnet.save')));
+      A.eq(Z._mergeState().mergeRefused, false, 'm: a locked station file at the boot merge is not a refusal for good');
+      locked = false;
+      persist(Z, cache, Object.assign(clone(JSON.parse(cache.get('starnet.save'))), { workstreams: JSON.parse(cache.get('starnet.save')).workstreams.concat([{ id: 'after-lock', history: [turn('user', 'typed after the lock')] }]) }));
+      await Z.flush({ force: true });
+      await tick();
+      A.ok(Z.health().conflict === null && (Z._reloads.length === 1 || titles(host.saveStore.load('agent')).includes('after-lock')), 'm: once the file is readable the window is merged, never left with a banner that will not clear (' + JSON.stringify(Z.health().conflict && Z.health().conflict.error) + ')');
     }
   } catch (e) {
     A.ok(false, 'threw: ' + (e && e.stack || e));

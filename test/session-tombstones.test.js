@@ -25,6 +25,7 @@
         card's remove hide rows and forget nothing: the ratings the agent-delete route adopted keep their directive and
         feedbackRef, the threads mined there stay, and those conversations read as before. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -466,7 +467,7 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
 
   // ---------------- 6. host wiring (static: sidecar/index.js is never required here) ----------------
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const ledgerAt = src.indexOf('const sessionTombstones = SessionTombstones.makeSessionTombstones(');
     const storeAt = src.indexOf('const transcriptStore = makeTranscriptStore(');
     A.ok(ledgerAt > 0 && storeAt > ledgerAt, 'the ledger is built before the transcript store reads anything');

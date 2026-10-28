@@ -10,13 +10,14 @@
       agent.run.start now carries streamId (additive), and the crew row names such a run LINE TEST with a tip saying where
       it shows and how it stops. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { killAll } = require('../sidecar/halt.js');
 const read = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const sidecar = read('sidecar/index.js'), build = read('frontend/app/build.js'), panel = read('frontend/app/workflowpanel.js'), station = read('frontend/app/stationui.js');
+const sidecar = readSidecarSource(), build = read('frontend/app/build.js'), panel = read('frontend/app/workflowpanel.js'), station = read('frontend/app/stationui.js');
 // a function's source, from its head to the closing brace at the head's own indent (top-level or inside an IIFE)
 function fnBody(src, head) {
   const i = src.indexOf(head);
@@ -40,7 +41,9 @@ A.ok(!/killAll\(runs/.test(stopFn), 'it never touches the browser\'s runs or any
 A.ok(/async function handleRoutingSample\(req, res\) \{\n  const r = await runSampleJob\(/.test(sidecar), 'POST /api/routing/sample runs runSampleJob, the one core');
 const sampleFn = fnBody(sidecar, '\nasync function runSampleJob(');
 A.ok(/if \(sampleInFlight\.stopRequested\) return json\(409, \{ ok: false, stopped: true, error: 'stopped before it started — nothing ran\.' \}\);[\s\S]{0,80}const t0 = Date\.now\(\);/.test(sampleFn), 'a stop that lands before the first run starts is honoured: nothing runs, nothing is spent');
-A.ok(/const stopped = !!sampleInFlight\.stopRequested;/.test(sampleFn) && /error: stopped \? 'stopped — you stopped this job before it reached the OUTBOX'/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn),
+// the words live in routing/sample-verdict.js since quick win 26 (one place picks the record's and the route's reason)
+A.ok(/const stopped = !!sampleInFlight\.stopRequested;/.test(sampleFn) && /stoppedByUser: !!sampleInFlight\.stopRequested/.test(sampleFn) && /error: problem\.routeError/.test(sampleFn) && /stopped \? \{ stopped: true \} : null/.test(sampleFn)
+  && require('../sidecar/routing/sample-verdict.js').sampleProblem({ stoppedByUser: true, onLine: true, runs: [{ reason: 'stopped' }], lineStopped: 'writer failed' }).routeError === 'stopped — you stopped this job before it reached the OUTBOX',
   'a job stopped mid-line answers stopped:true and names the stop — never "the line failed"');
 A.ok(/if \(o\.streamId\) runStartExtra\.streamId = String\(o\.streamId\);/.test(sidecar), 'agent.run.start carries the run\'s streamId (additive — obj() stanzas allow it)');
 {

@@ -24,8 +24,7 @@ const line = rule('body.glass-demo:not(.hud-mode) #crew .crew-name');
 A.ok(/min-width:\s*0/.test(line) && /flex-wrap:\s*wrap/.test(line) && /overflow:\s*hidden/.test(line) && /max-height:/.test(line), 'the name line is one line: what does not fit whole ("Lv N") waits on a hidden second line: ' + line);
 A.ok(/body\.glass-demo:not\(\.hud-mode\) #crew \.crew-row\.has-clock \.crew-name \{[^}]*max-height:\s*none/.test(css), 'a run clock is never hidden: when it does not fit beside the name it takes the line under it, whole');
 A.ok(/body\.glass-demo:not\(\.hud-mode\) #crew \.crew-main \{[^}]*min-width:\s*0/.test(css), 'the text column may shrink below its content (no sideways scroll on the rail)');
-const dos = rule('body.glass-demo:not(.hud-mode) #crew .crew-dossier');
-A.ok(/left:\s*9px/.test(dos) && /right:\s*auto/.test(dos), 'the DOSSIER key sits at the foot of the portrait well, never over the status line: ' + dos);
+A.ok(!/\.crew-dossier/.test(css), 'the DOSSIER key is gone from the card (Andrew 10-26), so nothing sits on the portrait or the status line');
 A.ok(!/\.crew-step \{ padding-right: 66px; \}/.test(css), 'the status line no longer reserves room for a key that is not there');
 
 A.report('crew-card-fit.test');

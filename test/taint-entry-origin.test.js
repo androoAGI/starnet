@@ -9,6 +9,7 @@
       work-line hop (scheduled + Run Now) starts tainted as 'upstream agent output'.
    The behavioural end-to-end (a webhook fire on Full Access agents) is test/e2e.trigger-fullaccess-taint.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -101,7 +102,7 @@ const msg = (text, extra) => Object.assign({ channel: 'telegram', chatId: '42', 
 
   // ---- 4. wiring ----
   {
-    const src = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/const untrustedEntryRun = entryUntrusted\(o\) \|\| recoverySourceEntryUntrusted\(o\);/.test(src), 'runOnce derives the origin verdict from host-minted options, or from the source run a continuation resumes');
     // crash + resume must not hand a trigger payload Full Access again: the verdict is journaled and read back
     A.ok(/runJournal\.begin\(\{[\s\S]{0,1200}?untrustedEntry: untrustedEntryRun === true/.test(src), 'the run journal records the untrusted-entry verdict');

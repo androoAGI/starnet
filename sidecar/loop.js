@@ -848,6 +848,16 @@
      continuation, empty reply, failure recovery, loop guard, tool markup, memory receipt, and the verify / acceptance checks —
      says what it is and that it is never answered. (A steering note is the Commander's own words and never carries it.) */
   const HOST_CHECK = ' (This note is an automatic host check; the Commander never sees it. Do not answer, acknowledge or apologize for it in your reply — just continue the work.)';
+  /* EVERY HOST MESSAGE THE LOOP ADDS IS FENCED (provider-conformance-suite, 2026-10-27). On every chat wire the loop's
+     mid-run system messages now ride as user-side text (providers/provider.js projectRoles), as they already did on the
+     Claude, Gemini and Codex wires; a fenced <tag>…</tag> body is what keeps them reading as the host's, never as the
+     Commander's words. The nudges below carry their own tags; text that arrives from outside the loop (the re-injected
+     task list, a tool's stop prompt) is fenced here when it is not already. */
+  const HOST_FENCE_HEAD = /^\s*<([a-z][a-z0-9_-]*)>[\s\S]*<\/\1>\s*$/i;
+  function hostFenced(text, tag) {
+    const t = String(text == null ? '' : text).trim();
+    return HOST_FENCE_HEAD.test(t) ? t : '<' + tag + '>\n' + t + '\n</' + tag + '>';
+  }
   function announcesIntent(text, allowPeerWait = false) {
     const t = String(text == null ? '' : text).trim();
     if (endsOnChoiceMarker(t)) return false;   // it asks the Commander: a wait, never an announce
@@ -1712,7 +1722,7 @@
       if (!foldOlder.length) return false;
       const beforeTokens = context.estimateMessages(messages);
       const threshold = (typeof context.thresholdTokens === 'function') ? context.thresholdTokens() : 0;
-      const appendTodo = (arr) => { if (todoNote) { try { const tn = todoNote(); if (tn) return arr.concat([{ role: 'system', content: String(tn) }]); } catch (e) { failNote('loop.compaction.todoNote', e); } } return arr; };
+      const appendTodo = (arr) => { if (todoNote) { try { const tn = todoNote(); if (tn) return arr.concat([{ role: 'system', content: hostFenced(tn, 'task_list') }]); } catch (e) { failNote('loop.compaction.todoNote', e); } } return arr; };
       /* THE USER'S WORDS RIDE EVERY FOLD VERBATIM (audit F3). Only the first user message was pinned; a later "NEVER
          modify prod-db.conf" went through the summarizer and a generic summary dropped it. Every fold that removes
          messages (paid, fallback) now ends its note with the folded slice's user/steering messages, word for word,
@@ -1807,7 +1817,7 @@
       const note = summaryNote(summary);
       let rebuilt = prefix.concat([note], carriedCtx, plan.tail);
       // re-append the active task plan so it rides through the compaction (folded into the after-count below)
-      if (todoNote) { try { const tn = todoNote(); if (tn) rebuilt = rebuilt.concat([{ role: 'system', content: String(tn) }]); } catch (e) { failNote('loop.compaction.todoNote', e); } }
+      if (todoNote) { try { const tn = todoNote(); if (tn) rebuilt = rebuilt.concat([{ role: 'system', content: hostFenced(tn, 'task_list') }]); } catch (e) { failNote('loop.compaction.todoNote', e); } }
       const afterTokens = context.estimateMessages(rebuilt);
       messages.length = 0; for (const mm of rebuilt) messages.push(mm);
       if (r && typeof r === 'object') {
@@ -2270,7 +2280,10 @@
           // policy shrank it to fit), it is the last local rung, so the total is n. (A server-stated Retry-After is
           // honored outside the budget and is not predictable here, so it keeps the rung count.)
           const patienceSpent = decision.ladderMs > 0 && ladderWaitMs >= STREAM_RETRY_PATIENCE_MS;
-          emitRetry({ attempt: retriesUsed, reason: retryReasonOf(decision.reason, streamErr), delayMs: decision.delayMs, maxAttempts: patienceSpent ? Math.min(retriesUsed, MAX_STREAM_RETRIES) : MAX_STREAM_RETRIES,
+          // …and must not promise rungs the CLASS refuses: a class that names a smaller budget (errorClass unreachable:
+          // ONE retry, which recovery-policy enforces) reads "retry 1/1", never "1/6" (review 2026-10-27)
+          const classCap = typeof cls.retryBudget === 'number' && cls.retryBudget >= 0 ? Math.min(MAX_STREAM_RETRIES, Math.max(retriesUsed, cls.retryBudget)) : MAX_STREAM_RETRIES;
+          emitRetry({ attempt: retriesUsed, reason: retryReasonOf(decision.reason, streamErr), delayMs: decision.delayMs, maxAttempts: patienceSpent ? Math.min(retriesUsed, classCap) : classCap,
             stage: sawStreamEvent ? 'mid_stream' : 'pre_stream', retryAfterMs: cls.retryAfterMs, waitedMs: waitedBefore, patienceMs: STREAM_RETRY_PATIENCE_MS });
           if (sleep) { const backoff = startWaiting('retry_backoff', false); try { await sleep(decision.delayMs); } catch (_) {} backoff.stop(); }
           if (signal.aborted) break;   // a cancel during the backoff ends cleanly below
@@ -2841,7 +2854,7 @@
       if (stopTools) {
         tools.splice(0, tools.length);
         deferredDefs.clear();
-        messages.push({ role: 'system', content: String(stopTools.prompt || '<terminal_evidence>The requested subject is unavailable. Use the tool result above and answer now without more tools.</terminal_evidence>') });
+        messages.push({ role: 'system', content: stopTools.prompt ? hostFenced(stopTools.prompt, 'terminal_evidence') : '<terminal_evidence>The requested subject is unavailable. Use the tool result above and answer now without more tools.</terminal_evidence>' });
       }
 
       const finalControl = results.map(r => r.control).find(c => c && c.final);
