@@ -20,7 +20,7 @@
 const A = require('./_assert.js');
 const http = require('http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
-const { userWords } = require('./helpers/host-notes.js');
+const { userWords, firstUserWords } = require('./helpers/host-notes.js');
 
 const HOST = '127.0.0.1';
 
@@ -78,8 +78,12 @@ function startMockProvider() {
         } else if (/REPORTFILE/.test(user)) {
           if (used.indexOf('fs_write') < 0) call('fs_write', { path: 'report.md', content: '# Weekly report\n' });
           else say(/said no/.test(lastTool) ? 'You declined writing report.md, so it was not created.' : 'Wrote report.md.');
-        } else if (/FAILME/.test(user)) say('Let me write the weekly report now.');   // announces forever -> the run fails (incomplete_work)
-        else say('ok');
+        } else if (/FAILME/.test(firstUserWords(messages))) {
+          // announces forever -> the run fails (incomplete_work). Matched on the run's OPENING words: the loop's announce
+          // nudge is a fenced host message that rides user-side on this chat wire (provider.js projectRoles), so after
+          // the first nudge the newest user turn is the host's, never the Commander's FAILME
+          say('Let me write the weekly report now.');
+        } else say('ok');
         res.write('data: [DONE]\n\n');
         res.end();
       });
