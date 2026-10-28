@@ -217,7 +217,8 @@ async function drain(res) {
     // review findings: /v1 keeps its pre-#96 admission and never shares a per-agent durable brief or fires paid aux passes
     A.ok(/const imageTask = isTask && !o\.toolsOptional \?/.test(core) && /const directDomainTask = isTask && !o\.toolsOptional \?/.test(core), 'a /v1 request is never classified as an image/domain task ("Image task blocked: no STUDIO" on a text model)');
     A.ok(/if \(isTask && o\.taskKey && !o\.toolsOptional\) \{/.test(core), 'a /v1 request never prepares the per-agent durable brief (one client\'s open question cannot swallow the next client\'s request)');
-    A.ok(/isTask && !o\.toolsOptional && !internal && _skillToolsOn/.test(core) && /SKYNET_SCOUT !== '0' && isTask && !o\.toolsOptional && _auxDone/.test(core), 'external /v1 traffic never fires skill review or scout on the user\'s key');
+    // the scout knob reads through ENV('SCOUT') since quick win 32 (STARNET_ or SKYNET_ spelling: test/aux-env-knobs.test.js)
+    A.ok(/isTask && !o\.toolsOptional && !internal && _skillToolsOn/.test(core) && /ENV\('SCOUT'\) !== '0' && isTask && !o\.toolsOptional && _auxDone/.test(core), 'external /v1 traffic never fires skill review or scout on the user\'s key');
   }
   A.report('openai-compat.e2e');
 })().catch(e => { console.error(e); process.exit(1); });
