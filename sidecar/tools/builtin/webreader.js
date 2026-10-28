@@ -115,9 +115,15 @@
     const launchFailureOf = e => {
       const m = String((e && e.message) || e || '');
       return /could not attach to Chromium|exited before CDP ownership|Chromium not found|browser could not start|WebSocket\/fetch is not available/i.test(m)
-        ? m.replace(/^browser unavailable:\s*/i, '').replace(/^the station browser could not start:\s*/i, '') : '';
+        ? m.replace(/^browser unavailable:\s*/i, '').replace(/^the station browser could not start:\s*/i, '')
+          // the driver's words for a Chrome that quit at launch, said plainly (how it exited stays: it is the diagnosis)
+          .replace(/^spawned Chromium exited before CDP ownership was established(?::\s*(.+))?$/i, (_, how) => 'Chrome closed right after it was launched' + (how ? ', ' + how : ''))
+        : '';
     };
-    const downNote = () => 'the station browser could not start (' + launchDown.reason.slice(0, 160) + ')';
+    /* NOT THE STATION BROWSER (user report 10-28). This hidden Chrome belongs to web_search/web_fetch alone; the browser
+       tool runs its own. Calling it "the station browser" told agents (and the people reading them) that browsing itself
+       was dead, so a research run stopped while browser.navigate was still there to try. */
+    const downNote = () => 'web search\'s background browser could not start (' + launchDown.reason.slice(0, 160) + ')';
 
     function availability() {
       if (String(env.SKYNET_WEB_READER || env.STARNET_WEB_READER || '') === '0') return { ok: false, reason: 'disabled' };

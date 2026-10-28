@@ -1402,7 +1402,12 @@
       args.push('about:blank');
       proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
       procClosePromise = new Promise(resolve => {
-        if (proc && proc.on) proc.on('close', () => { procExited = true; resolve(true); });
+        // how it exited rides the launch error (procError): "exited before CDP ownership" alone never said why (user report, 10-28)
+        const child = proc;
+        if (proc && proc.on) proc.on('close', (code, signal) => {
+          if (proc === child && procError === null && (code !== null || signal)) procError = signal ? 'ended by ' + signal : 'exit code ' + code;
+          procExited = true; resolve(true);
+        });
         else resolve(true);
         if (proc && proc.on) proc.on('error', e => { procError = (e && e.message) || String(e); procExited = true; resolve(true); });
       });
