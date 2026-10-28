@@ -3849,7 +3849,8 @@ async function runThreadMine(o) {
     // call instead of having its duplicates thrown away after it. Live threads only: the declined denylist keeps
     // fingerprints with no title, so it stays post-hoc-only — which is where it was already doing its job.
     let knownTitles = [];
-    try { knownTitles = (threadsStore.read().threads || []).filter(t => t && t.state !== 'declined').map(t => String(t.title || '')).filter(Boolean); } catch (_) { knownTitles = []; }
+    // prompt-bound: threadsStore.promptTitles() scrubs each title before threadmine clips it (prompt-scrub, review r2)
+    try { knownTitles = threadsStore.promptTitles(); } catch (_) { knownTitles = []; }
     const out = await threadmine.mine({ agentId, runId, streamId, messages }, {
       propose, redact, clock: { now: () => Date.now() }, known, knownTitles, max: threadmine.DEFAULT_MAX
     });

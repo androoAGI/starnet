@@ -111,6 +111,13 @@ function makeThreadsStore(deps) {
     const n = Number.isFinite(limit) ? limit : 6;
     return list({ state: 'open', limit: n }).map(t => ({ id: t.id, title: scrubStored(t.title), spec: scrubStored(t.spec) }));
   }
+  // the READABLE titles of every live (non-declined) thread, as a PROMPT shows them: the thread-mining pass lists them as
+  // ALREADY ON THE BOARD (threadmine knownBlock, which clips each at 120). Scrubbed here, before that clip (prompt-scrub):
+  // a turn-in edit stores a title as typed, so a key in it rode the mining request whole or as a cut fragment (review r2).
+  // Dedupe never reads these strings (knownFingerprints is computed from the raw store), so scrubbing loses nothing.
+  function promptTitles() {
+    return read().threads.filter(t => t && t.state !== 'declined').map(t => scrubStored(String(t.title || ''))).filter(Boolean);
+  }
   // is this idea permanently declined? true iff its fingerprint is on the denylist OR matches a declined thread.
   function isDeclined(title) {
     const fp = fingerprint(title);
@@ -232,7 +239,7 @@ function makeThreadsStore(deps) {
   }
 
   return {
-    read, list, openThreads, isDeclined, knownFingerprints,
+    read, list, openThreads, promptTitles, isDeclined, knownFingerprints,
     add, pick, deliver, decline, setState, declineFingerprint, forgetSources,
     fingerprint,
     _durable: durable

@@ -36,6 +36,7 @@ const nightfocus = require('../sidecar/nightfocus.js');
 const QuestRefresh = require('../sidecar/questrefresh.js');
 const { makeStationTools } = require('../sidecar/tools/builtin/station.js');
 const { makeThreadsStore } = require('../sidecar/threads-store.js');
+const threadmine = require('../sidecar/threadmine.js');
 const S = require('./helpers/source.js');
 const FK = require('./helpers/fake-keys.js');
 const { list, by } = FK.make('prompt-scrub-projectors');
@@ -202,6 +203,18 @@ const SEED = {
   A.eq(leaks(JSON.stringify(open)), '', 'P5: openThreads title + spec are scrubbed');
   A.ok(open[0] && open[0].title === 'rotate the key [redacted-key]', 'P5: the thread title keeps its words');
   A.ok(store.list()[0].title.indexOf(K.OPENAI.value) >= 0, 'P5: list() (the store) stays raw');
+  // the thread-mining pass's ALREADY ON THE BOARD list (review r2): threadmine.knownBlock clips each title at 120 + '…',
+  // so a key straddling char 120 left a cut head no later rule could see. promptTitles() scrubs before that clip.
+  const longTitle = ('Wire the maps geocoder into the outreach dashboard so every lead gets coordinates, key detail detail detail ').slice(0, 99) + ' ' + K.GOOGLE.value + ' and ship';   // the key straddles char 120
+  await store.add({ id: 't2', title: longTitle, spec: 'x' }, 2000);
+  await store.add({ id: 't3', title: 'Pull Instantly campaigns with ' + K.VAULT.value, spec: 'nightly' }, 3000);
+  const titles = store.promptTitles();
+  const board = threadmine.buildPrompt([{ role: 'user', content: 'u'.repeat(220) }, { role: 'assistant', content: 'a'.repeat(220) }], 0, titles).prompt;
+  A.eq(leaks(JSON.stringify(titles) + '\n' + board), '', 'P5: promptTitles() + the mining prompt\'s ALREADY ON THE BOARD block hold no key or window (whole, cut at 120, held)');
+  A.ok(titles.indexOf('rotate the key [redacted-key]') >= 0, 'P5: a mined-board title keeps its words');
+  const knownRaw = store.knownFingerprints();
+  A.ok(Object.keys(knownRaw).length >= 3, 'P5: dedupe still reads the raw store (fingerprints), unaffected by the prompt scrub');
+  A.ok(/knownTitles = threadsStore\.promptTitles\(\)/.test(S.sidecarFunctionSource('runThreadMine')) && !/threadsStore\.read\(\)/.test(S.sidecarFunctionSource('runThreadMine')), 'P5: runThreadMine lists the board only through promptTitles()');
 
   // ---- P6: source locks on the host wiring ----
   const all = S.readSidecarSource();
