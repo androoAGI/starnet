@@ -38,7 +38,12 @@ function makeTerminalTools(deps) {
       const wanted = String(args.cwd).trim();
       const norm = Shell.normalizeWinCwd(P, wanted, isWin);
       const lexical = P.isAbsolute(norm) || /^[A-Za-z]:[\\/]/.test(norm) ? P.resolve(norm) : P.resolve(cwd, norm);
-      const inRoot = !!paths.root && !/^\\\\/.test(wanted) && Shell.withinJail(P, lexical, paths.root);
+      // inside the project by its REAL path too: a link or junction planted in the project cannot carry the cwd out
+      let inRoot = false;
+      if (paths.root && !/^\\\\/.test(wanted) && Shell.withinJail(P, lexical, paths.root) && typeof fs.realpathSync === 'function') {
+        try { inRoot = Shell.withinJail(P, fs.realpathSync(lexical), fs.realpathSync(paths.root)); }
+        catch (e) { require('../../failopen.js').note('terminal.cwd.real', e); }   // not there: resolveShellCwd names why
+      }
       cwd = Shell.resolveShellCwd({ pathMod: P, fs, requested: args.cwd, current: cwd, jailRoot, root: ROOT, isWin, allowExternal: remoteOwner(ctx) || inRoot, allowProtected: remoteOwner(ctx) });
     }
     return { cwd, jailRoot };

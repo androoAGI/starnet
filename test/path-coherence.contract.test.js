@@ -32,6 +32,7 @@ const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
 const { makeBrowserTools, _internals: BrowserT } = require('../sidecar/tools/builtin/browser.js');
 const { makeImageTools } = require('../sidecar/tools/builtin/image.js');
 const { makeVoiceTools } = require('../sidecar/tools/builtin/voice.js');
+const { makeResolveTools } = require('../sidecar/tools/builtin/resolve.js');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 const { makeEnvironmentManager } = require('../sidecar/environment.js');
 const { makeLoopDriver } = require('../sidecar/loopjob-driver.js');
@@ -222,6 +223,14 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       fs.writeFileSync(path.join(PROJECT, 'up.txt'), 'upload me'); uploads.length = 0;
       await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: ['up.txt'] }, one()));
       row('ONE SOURCE browser.upload reads from ctx.paths root', uploads.length === 1 && uploads[0][0] === path.join(PROJECT, 'up.txt'), uploads[0] && uploads[0][0]);
+      // DaVinci Resolve: a timeline reads its media and writes its .fcpxml through the same resolver (no ffprobe here)
+      const resolveTimeline = makeResolveTools({ fsp, pathMod: path, root: WS, pathTrust, spawn: () => { throw new Error('no ffprobe in this rig'); } }).tools.find(t => t.name === 'resolve_timeline_file');
+      fs.writeFileSync(path.join(PROJECT, 'clip.mp4'), 'not really a video');
+      const tl = await attempt(() => resolveTimeline.run({ name: 'One', clips: [{ path: 'clip.mp4', out: 1 }], path: 'edits/one.fcpxml' }, one()));
+      row('ONE SOURCE resolve_timeline_file reads media and writes its timeline in ctx.paths root', tl.ok && inProject('edits/one.fcpxml') && !inDecoy('edits/one.fcpxml'), tl.e && tl.e.message);
+      const spill = await attempt(() => termRead.run({ session: 't' }, one()));
+      const spillAt = spill.ok ? savedAt(spill.v.content, /saved once at (.+?) \(page with fs\.read\)/) : '';
+      row('ONE SOURCE terminal.read names its spill for ctx.paths (absolute in a project run)', path.isAbsolute(spillAt) && spillAt === path.join(JAIL, '.output', 'terminal-t.txt'), spillAt);
       const shot = await attempt(() => btool('browser.screenshot').run({}, one()));
       const shotPath = shot.ok ? savedAt(shot.v.content, /^Screenshot saved to (.+?) \(\d+ KB\)/m) : '';
       row('ONE SOURCE browser.screenshot names its file for ctx.paths (absolute in a project run)', !!shotPath && path.isAbsolute(shotPath) && fs.existsSync(shotPath), shotPath);
@@ -244,6 +253,24 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       await shellTool.run({ cmd: 'cd sub' }, proj);
       spawned.length = 0; await shellTool.run({ cmd: 'touch p.txt' }, hostCtx({ projectRoot: PROJECT }));
       row('a `cd` in one project chat does not move another chat in the same project', spawned[0] && spawned[0].cwd === PROJECT, spawned[0] && spawned[0].cwd);
+    }
+
+    // ================= C2. terminal.start's own cwd argument stays inside the run's folders =================
+    {
+      const proj = () => hostCtx({ projectRoot: PROJECT });
+      terminalStarts.length = 0;
+      const sub = await attempt(() => termStart.run({ name: 'c2a', command: 'node', cwd: 'sub' }, proj()));
+      row('a project chat\'s terminal.start {cwd:"sub"} opens in the project\'s sub folder', sub.ok && terminalStarts[0] && terminalStarts[0].cwd === path.join(PROJECT, 'sub'), sub.e ? sub.e.message : terminalStarts[0] && terminalStarts[0].cwd);
+      const up = await attempt(() => termStart.run({ name: 'c2b', command: 'node', cwd: '..' }, proj()));
+      row('terminal.start {cwd:".."} out of the project is refused', !up.ok);
+      const out = await attempt(() => termStart.run({ name: 'c2c', command: 'node', cwd: DECOY }, proj()));
+      row('terminal.start {cwd:<another trusted folder>} is refused (the run\'s own root only)', !out.ok);
+      let planted = false;
+      try { fs.symlinkSync(DECOY, path.join(PROJECT, 'jlink'), isWin ? 'junction' : 'dir'); planted = true; } catch (e) { console.log('[skip] no link: ' + e.message); }
+      if (planted) {
+        const via = await attempt(() => termStart.run({ name: 'c2d', command: 'node', cwd: 'jlink' }, proj()));
+        row('terminal.start {cwd:<a link in the project pointing out>} is refused', !via.ok);
+      }
     }
 
     // ================= D. entry points =================
