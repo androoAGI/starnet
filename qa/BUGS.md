@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 33 P2
+**31** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -336,9 +336,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | safecell | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | release-0135-prep | — |
 | P2 | open | safecell | [First file write in a fresh station can time out while the checkpoint runs inside its 10s budget](bugs/e47efecf-first-file-write-in-a-fresh-station-can-time-out.md) | agent/ollama-fixes | — |
 | P2 | open | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | — |
-| P2 | open | sessions | [Reloading the newer window boots the stale window's cached station and calls it this window's work](bugs/27bae3d6-reloading-the-newer-window-boots-the-stale-windo.md) | sweep/sessions | — |
 | P2 | open | sessions | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | release-0135-prep | — |
-| P2 | open | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | — |
 | P2 | open | skills | [A diverged installed package's support files are mirrored to disk and shown to the model as base64 text](bugs/a36d1b00-a-diverged-installed-package-s-support-files-are.md) | sweep/skills | — |
 | P2 | open | skills | [A legacy skill record's unscanned summary still rides the prompt index](bugs/56c6f962-a-legacy-skill-record-s-unscanned-summary-still.md) | sweep/skills | — |
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
@@ -440,11 +438,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Late deliverable preview replaces the current file selection](bugs/b1da69a1-late-deliverable-preview-replaces-the-current-fi.md) | agent/system-polish-0920 | 4a2028759 |
 | P2 | fixed | sessions | [Outbox run review can display another run answer](bugs/ecb3df69-outbox-run-review-can-display-another-run-answer.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | sessions | [Phone conversation and previews expose internal worker repair dialogue](bugs/958a8796-phone-dispatch-repair-history.md) | thread-ux-review-1011 | 18c1ec59f094775ada818175d927e9c4ffc845d8 |
+| P2 | fixed | sessions | [Reloading the newer window boots the stale window's cached station and calls it this window's work](bugs/27bae3d6-reloading-the-newer-window-boots-the-stale-windo.md) | sweep/sessions | 923f03a98 |
 | P2 | fixed | sessions | [Saved rejected worker output survives accepted answer reconciliation](bugs/8ee2341e-saved-rejected-dispatch-history.md) | thread-ux-review-1011 | 4c3d9c3019f8475eae283c62757d7e94a9296fdc |
 | P2 | fixed | sessions | [Session recommendations ignore user goals and actual work](bugs/a55c0020-session-recommendations-ignore-user-goals-and-ac.md) | agent/useful-starters-0906 | 51768e661 |
 | P2 | fixed | sessions | [Shared query refresh cannot retire a stalled predecessor](bugs/c095c750-shared-query-refresh-cannot-retire-a-stalled-pre.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | sessions | [Stalled finite JSON mutations never release their callers](bugs/38aad6db-stalled-finite-json-mutations-never-release-thei.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | sessions | [The fast gate's save-quota-writethrough Q3 precondition flakes when two saves land in one millisecond](bugs/c9c58539-the-fast-gate-s-save-quota-writethrough-q3-preco.md) | sweep/sessions | 0151a2b74 |
+| P2 | fixed | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | 1b374f9ba |
 | P2 | fixed | sessions | [Spoken approvals clear sibling waits before confirmation](bugs/35c720c1-voice-approval-sibling-settlement.md) | thread-ux-review-1011 | fcd8007ca473d52488986537e304370c37f7f9a0 |
 | P2 | fixed | sessions | [Worker recovery rebuilds an unrelated conversation and loses reader state](bugs/abb287e8-worker-recovery-reader-state.md) | thread-ux-review-1011 | a69664135e4983fe624ec11bea6b2bd4666ee651 |
 | P2 | fixed | sessions | [Workshop Keep accepts an empty decision acknowledgement](bugs/9bc0b751-workshop-keep-accepts-an-empty-decision-acknowle.md) | agent/system-polish-0920 | 4a2028759 |
@@ -520,7 +520,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | autonomy | 3 |
 | providers | 8 |
 | safecell | 3 |
-| sessions | 4 |
+| sessions | 2 |
 | skills | 2 |
 | onboarding | 3 |
 | world | 1 |
