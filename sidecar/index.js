@@ -26063,7 +26063,18 @@ const VERSION_PROBES = [
 const VERSION_SYNC_BUDGET_MS = 4000, VERSION_SYNC_CAPS_MS = [2000, 1000, 1000], VERSION_SYNC_SHA_CAP_MS = 1000;
 const VERSION_ASYNC_CAPS_MS = [6000, 3000, 2000], VERSION_ASYNC_SHA_CAP_MS = 2000;
 const VERSION_RETRY_BACKOFF_MS = [60000, 300000, 900000, 3600000];
-const versionGitTimedOut = (e) => !!(e && (e.code === 'ETIMEDOUT' || e.killed || e.signal));   // a timeout is not final; ENOENT / not-a-repo is
+/* Which git failures make a 'pkg' answer FINAL. Only two: git is not there at all (ENOENT — the packaged app), or git
+   ran and said no (a non-zero exit status, e.g. 128 not-a-repo). Everything else — a timeout, and the resource errors
+   a RAM-starved machine throws at spawn (EAGAIN, ENOMEM, EMFILE, ENFILE), or anything we cannot classify — says
+   nothing about whether this is a checkout, so it goes on the backoff path and git is asked again later. execSync
+   reports an exit as e.status; execFile reports it as a numeric e.code. */
+const versionGitFinal = (e) => !!(e && (e.code === 'ENOENT' ||
+  (typeof e.status === 'number' && e.status !== 0) || (typeof e.code === 'number' && e.code !== 0)));
+const versionGitRetryable = (e) => !versionGitFinal(e);
+function scheduleVersionRetry() {
+  _versionRetryAt = Date.now() + VERSION_RETRY_BACKOFF_MS[Math.min(_versionRetries, VERSION_RETRY_BACKOFF_MS.length - 1)];
+  _versionRetries++;
+}
 function versionGitSync(args, timeout) {
   const { execSync } = stationChildProcess;
   return String(execSync('git ' + args.join(' '), {
@@ -26079,41 +26090,42 @@ function versionGitAsync(args, timeout) {
 // The background re-ask: only from a timeout-caused 'pkg', one at a time, merged into the cache when git answers.
 async function refreshVersionFromGit() {
   _versionRefreshing = true;
-  let timedOut = false, found = null;
+  let retryable = false, found = null;
   try {
     for (let i = 0; i < VERSION_PROBES.length && !found; i++) {
       try {
         const desc = await versionGitAsync(VERSION_PROBES[i].args, VERSION_ASYNC_CAPS_MS[i]);
         if (desc) found = { harness: desc, dirtyKnown: VERSION_PROBES[i].dirty };
-      } catch (e) { if (versionGitTimedOut(e)) timedOut = true; }
+      } catch (e) { if (versionGitRetryable(e)) retryable = true; }
     }
     if (found) {
       _versionRetryAt = 0;
       if (!_versionCache || _versionCache.harnessSource !== 'pkg') return;
       const next = Object.assign({}, _versionCache, { harness: found.harness, harnessSource: 'git' });
+      // --dirty answering is what proves the tree's state, so buildDirty comes from it HERE, not from the sha step.
+      if (found.dirtyKnown && next.buildDirty === null) next.buildDirty = /-dirty$/.test(next.harness);
       if (!next.buildSha) {
         try {
           const sha = await versionGitAsync(['rev-parse', 'HEAD'], VERSION_ASYNC_SHA_CAP_MS);
           if (/^[0-9a-f]{40}$/i.test(sha)) next.buildSha = sha.toLowerCase();
-          if (found.dirtyKnown && next.buildDirty === null) next.buildDirty = /-dirty$/.test(next.harness);
         } catch (e) { failNote('version.refresh.sha', e); }   // the commit name stands without its full sha
       }
       _versionCache = next;
-    } else if (timedOut) {
-      _versionRetryAt = Date.now() + VERSION_RETRY_BACKOFF_MS[Math.min(_versionRetries, VERSION_RETRY_BACKOFF_MS.length - 1)];
-      _versionRetries++;
-    } else _versionRetryAt = 0;   // git answered "no" outright: the pkg answer is final
+    } else if (retryable) scheduleVersionRetry();
+    else _versionRetryAt = 0;   // git is absent or answered "no" outright: the pkg answer is final
   } finally { _versionRefreshing = false; }
 }
 function kickVersionRefresh() {
   if (_versionRefreshing || !_versionRetryAt || Date.now() < _versionRetryAt) return;
   if (!stationChildProcess || typeof stationChildProcess.execFile !== 'function') { _versionRetryAt = 0; return; }
-  refreshVersionFromGit().catch(() => { _versionRefreshing = false; _versionRetryAt = 0; });   // backstop: it catches its own
+  // Backstop: refresh catches its own git errors, so a rejection here is a bug — note it, and keep re-asking on the
+  // backoff rather than pinning 'pkg' for the life of the process.
+  refreshVersionFromGit().catch((e) => { _versionRefreshing = false; failNote('version.refresh', e); scheduleVersionRetry(); });
 }
 function computeVersionSurface() {
   if (_versionCache) { kickVersionRefresh(); return _versionCache; }   // after the first answer, git is never asked on this path
   const gitDeadline = Date.now() + VERSION_SYNC_BUDGET_MS;
-  let gitTimedOut = false, dirtyKnown = false;
+  let gitRetryable = false, dirtyKnown = false;
   const out = {
     harness: '', app: '', node: process.version, appSource: 'unknown', harnessSource: 'unknown',
     buildSha: '', buildDirty: null
@@ -26123,11 +26135,16 @@ function computeVersionSurface() {
   else {
     for (let i = 0; i < VERSION_PROBES.length; i++) {
       const left = Math.min(VERSION_SYNC_CAPS_MS[i], gitDeadline - Date.now());
-      if (left <= 0) { gitTimedOut = true; break; }
+      if (left <= 0) { gitRetryable = true; break; }
       try {
         const desc = versionGitSync(VERSION_PROBES[i].args, left);
-        if (desc) { out.harness = desc; out.harnessSource = 'git'; dirtyKnown = VERSION_PROBES[i].dirty; break; }
-      } catch (e) { if (versionGitTimedOut(e)) gitTimedOut = true; }
+        if (desc) {
+          out.harness = desc; out.harnessSource = 'git'; dirtyKnown = VERSION_PROBES[i].dirty;
+          // Derived the moment --dirty answers, so a failed/skipped rev-parse HEAD or an env BUILD_SHA cannot lose it.
+          if (dirtyKnown) out.buildDirty = /-dirty$/.test(desc);
+          break;
+        }
+      } catch (e) { if (versionGitRetryable(e)) gitRetryable = true; }
     }
     if (!out.harness) {   // no env stamp, no git (packaged app has neither) — fall back to the package.json version
       try { out.harness = String(require('../package.json').version || ''); out.harnessSource = 'pkg'; } catch (_) {}
@@ -26136,14 +26153,15 @@ function computeVersionSurface() {
   const envBuildSha = String(ENV('BUILD_SHA') || '').trim();
   const envBuildDirty = String(ENV('BUILD_DIRTY') || '').trim();
   if (/^[0-9a-f]{40}$/i.test(envBuildSha)) out.buildSha = envBuildSha.toLowerCase();
-  if (envBuildDirty === '0' || envBuildDirty === '1') out.buildDirty = envBuildDirty === '1';
+  // A live --dirty answer describes the tree `harness` names, so it wins over a stamp (as it always did when the sha
+  // step ran); the stamp fills in when git could not prove the tree's state.
+  if (!dirtyKnown && (envBuildDirty === '0' || envBuildDirty === '1')) out.buildDirty = envBuildDirty === '1';
   const shaLeft = Math.min(VERSION_SYNC_SHA_CAP_MS, gitDeadline - Date.now());
   if (!out.buildSha && out.harnessSource === 'git' && shaLeft > 0) {   // a spent budget skips it: the commit name stands
     try {
       const sha = versionGitSync(['rev-parse', 'HEAD'], shaLeft);
       if (/^[0-9a-f]{40}$/i.test(sha)) out.buildSha = sha.toLowerCase();
-      if (dirtyKnown) out.buildDirty = /-dirty$/.test(out.harness);
-    } catch (_) {}
+    } catch (e) { failNote('version.sha', e); }   // the commit name stands without its full sha
   }
   const envApp = String(ENV('APP_VERSION') || '').trim();   // STARNET_APP_VERSION (or SKYNET_APP_VERSION) — the packaged-app source of truth
   if (envApp) { out.app = envApp; out.appSource = 'env'; }
@@ -26155,7 +26173,7 @@ function computeVersionSurface() {
     } catch (_) {}
   }
   _versionCache = out;
-  _versionRetryAt = out.harnessSource === 'pkg' && gitTimedOut ? Date.now() : 0;   // due now: the first re-ask starts at once
+  _versionRetryAt = out.harnessSource === 'pkg' && gitRetryable ? Date.now() : 0;   // due now: the first re-ask starts at once
   kickVersionRefresh();
   return out;
 }

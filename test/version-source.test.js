@@ -19,7 +19,14 @@
         becomes git when git answers; git is never run synchronously again after the first answer;
      V4 a background re-ask that times out again backs off (60s, then 5m), so a slow machine is not hammered;
      V5 a 'pkg' answer with no git at all (the packaged app) is cached for good: no re-ask, sync or async;
-     V6 the happy path is unchanged: one --dirty call, harnessSource 'git', buildDirty from the suffix. */
+     V6 the happy path is unchanged: one --dirty call, harnessSource 'git', buildDirty from the suffix;
+     V7 resource exhaustion at spawn (EAGAIN / ENOMEM / EMFILE / ENFILE, a RAM-starved box) is NOT final: it is
+        re-asked in the background and backs off exactly like a timeout, and git wins once it answers;
+     V8 git running and saying no (a non-zero exit, 128 not-a-repo) IS final, sync and async alike;
+     V9 a background refresh that rejects is noted (failNote 'version.refresh') and re-asked on the backoff, never
+        silently pinned to 'pkg';
+     V10 buildDirty comes from the --dirty answer itself, so it survives a failed rev-parse HEAD, an env BUILD_SHA
+        (which skips the sha step) and the async refresh's sha step failing. */
 const vm = require('node:vm');
 const path = require('node:path');
 const A = require('./_assert.js');
@@ -34,12 +41,17 @@ const program = fileText.slice(stateAt, at.index) + sidecarFunctionSource('compu
   '\nthis.computeVersionSurface = computeVersionSurface; this.SYNC_BUDGET = VERSION_SYNC_BUDGET_MS;';
 
 const SHA = 'abcdef0123456789abcdef0123456789abcdef01';
-const TIMEOUT = Symbol('timeout'), NOGIT = Symbol('nogit');
+const TIMEOUT = Symbol('timeout'), NOGIT = Symbol('nogit'), NOTREPO = Symbol('notrepo');
 const noGitErr = () => Object.assign(new Error('spawnSync git ENOENT'), { code: 'ENOENT' });
+// A resource error at spawn: a code string, no exit status (the child never ran).
+const RESOURCE = (code) => ({ resource: code });
+const resourceErr = (code) => Object.assign(new Error('spawn git ' + code), { code, errno: -11 });
 const flush = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 
 // script(cmd) -> a string answer, TIMEOUT (a real hang: the clock moves by the timeout given) or NOGIT (fails fast).
-function load(script, clock) {
+function load(script, clock, opts) {
+  opts = opts || {};
+  const notes = [];
   const sync = [], async_ = [];
   const execSync = (cmd, opts) => {
     const timeout = opts && opts.timeout;
@@ -47,6 +59,8 @@ function load(script, clock) {
     const r = script(cmd);
     if (r === TIMEOUT) { clock.t += timeout; throw Object.assign(new Error('spawnSync git ETIMEDOUT'), { code: 'ETIMEDOUT', signal: 'SIGTERM' }); }
     if (r === NOGIT) throw noGitErr();
+    if (r === NOTREPO) throw Object.assign(new Error('Command failed: ' + cmd), { status: 128, signal: null });
+    if (r && r.resource) throw resourceErr(r.resource);
     return Buffer.from(r + '\n');
   };
   const execFile = (file, args, opts, cb) => {
@@ -56,18 +70,21 @@ function load(script, clock) {
     setImmediate(() => {
       if (r === TIMEOUT) { clock.t += opts.timeout; return cb(Object.assign(new Error('git timed out'), { killed: true, signal: 'SIGTERM', code: null }), '', ''); }
       if (r === NOGIT) return cb(noGitErr(), '', '');
+      if (r === NOTREPO) return cb(Object.assign(new Error('Command failed: ' + cmd), { code: 128, killed: false, signal: null }), '', '');
+      if (r && r.resource) return cb(resourceErr(r.resource), '', '');
       cb(null, r + '\n', '');
     });
   };
   const sandbox = {
     stationChildProcess: { execSync, execFile }, path, __dirname: path.join(path.resolve(__dirname, '..'), 'sidecar'),
-    ENV: () => '', failNote: () => {}, process: { version: process.version },
+    ENV: (k) => String((opts.env || {})[k] || ''),
+    failNote: (tag, e) => { notes.push(tag); if (opts.onNote) opts.onNote(tag, e); }, process: { version: process.version },
     require: (m) => { if (/package\.json$/.test(m)) return { version: '0.0.0' }; throw noGitErr(); },
     Date: { now: () => clock.t }
   };
   vm.createContext(sandbox);
   vm.runInContext(program, sandbox);
-  return { fn: sandbox.computeVersionSurface, sync, async: async_, budget: sandbox.SYNC_BUDGET, t0: clock.t };
+  return { fn: sandbox.computeVersionSurface, sync, async: async_, notes, budget: sandbox.SYNC_BUDGET, t0: clock.t };
 }
 
 // V1: checked on every scenario's synchronous calls. The worst case is every call running to its own timeout, so
@@ -172,6 +189,100 @@ function syncBounded(h, label) {
     h.fn(); await flush();
     A.eq(h.sync.length, n, 'a no-git pkg answer is cached for good');
     A.eq(h.async.length, 0, 'and never re-asked in the background');
+  }
+
+  // V7 — resource exhaustion is retryable, every flavour of it, sync and async
+  for (const code of ['EAGAIN', 'ENOMEM', 'EMFILE', 'ENFILE']) {
+    const clock = { t: 1e6 };
+    let mode = 'starved';
+    const h = load(cmd => mode === 'starved' ? RESOURCE(code)
+      : cmd === 'git rev-parse HEAD' ? SHA : 'v2.0.0', clock);
+    A.eq(h.fn().harnessSource, 'pkg', code + ' on every sync probe falls to pkg');
+    syncBounded(h, code);
+    await flush();
+    const first = h.async.length;
+    A.ok(first >= 1, code + ' at spawn is re-asked in the background, not pinned to pkg (' + first + ' git calls)');
+    clock.t += 30000; h.fn(); await flush();
+    A.eq(h.async.length, first, code + ' in the background backs off: no re-ask inside 60s');
+    mode = 'ok';
+    clock.t += 31000; h.fn(); await flush();
+    A.ok(h.async.length > first, code + ': re-asked after the backoff');
+    const v = h.fn();
+    A.eq(v.harnessSource, 'git', code + ': git wins once the machine recovers');
+    A.eq(v.harness, 'v2.0.0', code + ': with the real describe');
+  }
+
+  // V8 — not a repository: git ran and said no. Final, sync and async.
+  {
+    const clock = { t: 1e6 };
+    const h = load(() => NOTREPO, clock);
+    A.eq(h.fn().harnessSource, 'pkg', 'not-a-repo -> pkg');
+    clock.t += 3600000; h.fn(); await flush();
+    A.eq(h.async.length, 0, 'a non-zero git exit is final: never re-asked');
+  }
+  {
+    const clock = { t: 1e6 };
+    let calls = 0;   // the three synchronous probes hang; every background probe gets exit 128
+    const h = load(() => ++calls <= 3 ? TIMEOUT : NOTREPO, clock);
+    h.fn();
+    await flush();
+    const n = h.async.length;
+    A.ok(n >= 1, 'a timeout-caused pkg is re-asked');
+    clock.t += 3600000; h.fn(); await flush();
+    A.eq(h.async.length, n, 'and a background answer of exit 128 makes it final');
+  }
+
+  // V9 — the backstop notes and keeps re-asking
+  {
+    const clock = { t: 1e6 };
+    let mode = 'slow';
+    // A rejection out of refreshVersionFromGit is a bug path; drive it by making the sha step's note throw.
+    const h = load(cmd => mode === 'slow' ? TIMEOUT : cmd === 'git rev-parse HEAD' ? TIMEOUT : 'v3.0.0', clock,
+      { onNote: (tag) => { if (tag === 'version.refresh.sha' && mode === 'boom') throw new Error('note sink exploded'); } });
+    h.fn();
+    mode = 'boom';
+    await flush();
+    A.ok(h.notes.includes('version.refresh'), 'a rejected background refresh is NOTED, not swallowed (' + h.notes.join(',') + ')');
+    const n = h.async.length;
+    mode = 'ok';
+    clock.t += 61000; h.fn(); await flush();
+    A.ok(h.async.length > n, 'and it is re-asked on the backoff instead of pinning pkg forever');
+    A.eq(h.fn().harnessSource, 'git', 'which then lands git');
+  }
+
+  // V10 — buildDirty does not depend on the sha step
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => cmd === 'git rev-parse HEAD' ? TIMEOUT : 'v0.9.0-4-gabc1234-dirty', clock);
+    const v = h.fn();
+    A.eq(v.buildSha, '', 'rev-parse HEAD hung: no sha');
+    A.eq(v.buildDirty, true, 'but buildDirty still comes from the --dirty answer');
+    A.ok(h.notes.includes('version.sha'), 'and the lost sha is noted, not swallowed');
+    syncBounded(h, 'sha hung');
+  }
+  {
+    const clock = { t: 1e6 };
+    const h = load(cmd => cmd === 'git rev-parse HEAD' ? NOTREPO : 'v0.9.0-4-gabc1234', clock);
+    A.eq(h.fn().buildDirty, false, 'rev-parse HEAD failing outright: a clean --dirty answer still proves clean');
+  }
+  {
+    const clock = { t: 1e6 };
+    const h = load(() => 'v0.9.0-4-gabc1234-dirty', clock, { env: { BUILD_SHA: SHA } });
+    const v = h.fn();
+    A.eq(v.buildSha, SHA, 'env BUILD_SHA is used');
+    A.eq(h.sync.length, 1, 'and the sha step is skipped');
+    A.eq(v.buildDirty, true, 'yet buildDirty still comes from the --dirty answer');
+  }
+  {
+    const clock = { t: 1e6 };
+    let calls = 0;   // the three synchronous probes hang; in the background --dirty answers and rev-parse HEAD hangs
+    const h = load(cmd => ++calls <= 3 ? TIMEOUT : cmd === 'git rev-parse HEAD' ? TIMEOUT : 'v4.0.0-dirty', clock);
+    h.fn();
+    await flush();
+    const v = h.fn();
+    A.eq(v.harnessSource, 'git', 'async refresh landed git');
+    A.eq(v.buildSha, '', 'its sha step timed out');
+    A.eq(v.buildDirty, true, 'and buildDirty still comes from the background --dirty answer');
   }
 
   A.report('version-source.test');
