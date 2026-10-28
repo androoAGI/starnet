@@ -210,21 +210,20 @@
 
     const listTool = {
       name: 'connectors.list', capability: 'web', scope: 'read', requiresConsent: false, timeoutMs: 8000,
-      description: 'List the station\'s INTEGRATIONS: MCP connectors already connected, platform API keys already '
-        + 'connected, and — the part you cannot otherwise know — the vetted connectors and platform keys the '
+      description: 'List the station\'s INTEGRATIONS: MCP connectors and platform API keys already connected, and '
+        + '(the part you cannot otherwise know) the vetted connectors and platform keys the '
         + 'Commander could add but has not (GitHub, Notion, Stripe, Google Workspace, Printify, Etsy and more). '
         + 'Check this BEFORE telling the Commander that StarNet cannot reach a service: it usually can, and the '
         + 'honest answer is "that service has a setup path in CONNECT › ABILITIES › APPS — I can walk you through '
         + 'it?". Read-only: you cannot install or authenticate anything, and you never see a key\'s value. '
-        + 'Optional `query` filters by service or category; `scope` narrows to connected or available. '
-        + 'Pass `goal` (the Commander\'s task in their words, e.g. "email my notes to myself") to get SUGGESTED: '
-        + 'the not-yet-connected connector(s) that task needs — the station then offers the Commander a one-click '
+        + 'Pass `goal` (the Commander\'s task) to get SUGGESTED: the not-yet-connected connector(s) it needs; the '
+        + 'station then offers the Commander a one-click '
         + 'door to connect it. Call it with `goal` BEFORE declining a task for lack of email/site/calendar/docs access.',
       schema: {
         type: 'object', properties: {
           scope: { type: 'string', enum: SCOPES, description: 'all (default), connected (what is live now), or available (what could be added)' },
-          query: { type: 'string', description: 'filter by name, id, or category — e.g. "github", "payments"' },
-          goal: { type: 'string', description: 'the task in the Commander\'s words — returns SUGGESTED: the unconnected connector(s) it needs' }
+          query: { type: 'string', description: 'filter by name, id or category, e.g. github, payments' },
+          goal: { type: 'string', description: 'the Commander\'s task in their words, e.g. "email my notes to myself"' }
         }
       },
       run: async (args, ctx) => {

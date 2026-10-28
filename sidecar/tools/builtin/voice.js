@@ -70,18 +70,17 @@
     const generateTool = {
       name: 'voice_generate', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: SYNTH_TIMEOUT_MS + 15000,
       description: 'Speak text as neural audio and SAVE it into your workspace as a playable clip (returns the saved '
-        + 'path + a viewer URL, and the clip appears in chat with a player). Use for any "record / narrate / read this '
+        + 'path + a viewer URL; the clip appears in chat with a player). Use for any "record / narrate / read this '
         + 'aloud / make a voiceover" request, or to hand the Commander an audio version of something you wrote. This '
-        + 'is NOT how you talk in conversation — your spoken replies are already handled by the station. Optional '
-        + '"voice" picks a named voice and "style" gives delivery direction (e.g. "calm and deliberate"); support for '
-        + 'both depends on which voice credential the station holds. Optional "path" sets the output filename. Long '
-        + 'scripts: split them into takes and call once per take — text over ' + MAX_TEXT + ' characters is refused, never truncated.',
+        + 'is NOT how you talk in conversation: the station already handles your spoken replies. Whether voice and '
+        + 'style work depends on which voice credential the station holds. Long scripts: split them into takes and '
+        + 'call once per take; text over ' + MAX_TEXT + ' characters is refused, never truncated.',
       schema: {
         type: 'object', required: ['text'], properties: {
           text: { type: 'string', description: 'what to say — plain prose, no SSML' },
-          voice: { type: 'string', description: 'optional named voice' },
-          style: { type: 'string', description: 'optional delivery direction, e.g. "warm, unhurried"' },
-          path: { type: 'string', description: 'optional output filename: relative = the project folder in a project-scoped conversation, else your private workspace; or an absolute path inside a trusted project folder' }
+          voice: { type: 'string', description: 'a named voice' },
+          style: { type: 'string', description: 'delivery direction, e.g. calm and deliberate' },
+          path: { type: 'string', description: 'output filename: relative = the project folder in a project-scoped conversation, else your private workspace; or an absolute path inside a trusted project folder' }
         }
       },
       run: async (args, ctx) => {
