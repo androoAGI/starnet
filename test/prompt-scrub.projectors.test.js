@@ -97,7 +97,7 @@ const SEED = {
 
   // FIELD-COVERAGE GUARD: every <obj>.<field> compose() reads must be seeded above (with a key, where it is text)
   const ccFile = S.sidecarSourceFiles().find(f => f.rel === 'sidecar/commander-context.js');
-  const src = S.functionSourceIn(ccFile ? ccFile.text : '', 'compose');
+  const src = S.functionSourceIn(ccFile ? ccFile.text : '', 'composeOnce');   // compose() pins one held read around composeOnce()
   A.ok(src.length > 1000, 'P1 guard: compose() source found');
   const holders = { input: [SEED], b: [SEED.brief], q: SEED.brief.questions, t: SEED.topics.concat(SEED.threads), sw: [SEED.standingWork], e: SEED.recipeIntake, p: SEED.patterns };
   const seen = new Set();

@@ -41,10 +41,11 @@
   // DEFAULT, not by caller injection — run titles, goals and landed titles used to pass raw while only briefs and chats
   // got the caller's redact, so a key typed once rode every later RECENT ACTIVITY line.
   const node = typeof module !== 'undefined' && module.exports && typeof require === 'function';
-  const api = factory(node ? require('./prompt-scrub.js').scrubStored : null);
+  const ps = node ? require('./prompt-scrub.js') : null;
+  const api = factory(ps ? ps.scrubStored : null, ps ? ps.withHeld : null);
   if (node) module.exports = api;
   else { (root.SK = root.SK || {}).contextpack = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (defaultScrub) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (defaultScrub, withHeld) {
   'use strict';
 
   const DAY_MS = 86400000;
@@ -118,7 +119,9 @@
      the prompt resolver existed: the transcript's redaction holds EVERY connector header/env value, so a credential the
      prompt's credential list does not name (a password under an innocuous header) stays out of them as it did at
      41c298d9a (review r2). Run titles, goals and beliefs never take it ('production' is not mangled there). */
-  function assemble(inputs, opts) {
+  // one held-list read for the whole pack (prompt-scrub withHeld): ~40 scrubs, one source walk
+  function assemble(inputs, opts) { return typeof withHeld === 'function' ? withHeld(() => assembleOnce(inputs, opts)) : assembleOnce(inputs, opts); }
+  function assembleOnce(inputs, opts) {
     inputs = inputs || {}; opts = opts || {};
     const now = num(opts.now);
     const windowMs = (num(opts.windowDays) || DEFAULT_WINDOW_DAYS) * DAY_MS;

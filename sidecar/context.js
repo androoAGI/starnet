@@ -383,7 +383,8 @@
   function redact(x) { return redactWith(x, knownSecrets()); }
   // redactWith(x, known) is exported too: prompt-scrub.js runs the vendor SHAPES with its own (credential-only) held
   // list, because the known-value list here also sweeps every connector header/env string for transcript redaction.
-  // AFTER_ESCAPE (the lookbehind source) is exported so prompt-scrub.js sees a cut key after the same escapes.
+  // AFTER_ESCAPE (the lookbehind source) and ESCAPE_ALTS (its alternation) are exported so prompt-scrub.js sees a cut key
+  // after the same escapes.
 
   // ---- recalled-memory fence (Cortex): surface the agent's own memory in-prompt without it having to call a
   //      read tool. Pure + deterministic + char-capped. renderRecall returns {text:'',count:0,chars:0} when there
@@ -1101,5 +1102,5 @@
   const _internals = { secretPatterns: () => SECRET_RULES.map(r => ({ re: new RegExp(r[0].source, r[0].flags), rep: r[1], driven: !!r[2], run: r[2] })),
     // the lexical primitives, so a test can rebuild the naive single-pass ranking from the module's CURRENT rules
     tokenize, recordText, lexicalForm, lexicalStem, LEXICAL_GROUPS: LEXICAL_GROUPS.map(g => g.slice()) };
-  return { _internals, makeContext, redact, redactWith, AFTER_ESCAPE, setKnownSecretSource, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
+  return { _internals, makeContext, redact, redactWith, AFTER_ESCAPE, ESCAPE_ALTS, setKnownSecretSource, renderRecall, injectRecall, rank, bm25, lexicalScores, expandRecallQuery, isStandingMemory, activeMemoryRecords, projectKey, memoryProjectKey, memoryAllowedInProject, cosine, SEMANTIC_FLOOR, flagInjection, stripRecallFence, compactionMemoryBlock, compactionSummaryPrompt, COMPACTION_SECTIONS, CHARS_PER_TOKEN, IMAGE_TOKENS_DEFAULT, imageTokens, estimateContentTokens, RUN_CONTEXT_DEFAULTS, REARM_MIN_FREED, foldFreedEnough };
 });

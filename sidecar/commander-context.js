@@ -10,12 +10,14 @@
    prompt-scrub's scrubStored BEFORE it is clipped — the clip is what turns a whole, matchable key into an unmatchable
    fragment. There is no opt-out: a caller cannot hand compose() a field that skips it. */
 'use strict';
-const { scrubStored } = require('./prompt-scrub.js');
+const { scrubStored, withHeld } = require('./prompt-scrub.js');
 
 function clip(s, n) { return String(s == null ? '' : s).trim().slice(0, n); }
 // scrub the raw stored field, THEN clip it (never the other way round)
 function sc(s, n) { return clip(scrubStored(s == null ? '' : String(s)), n); }
-function compose(input) {
+// one held-list read for the whole composition (prompt-scrub withHeld): ~100 scrubs, one source walk
+function compose(input) { return withHeld(() => composeOnce(input)); }
+function composeOnce(input) {
   input = input || {}; const lines = [];
   const b = input.brief;
   if (b && b.originalDirective) {

@@ -77,6 +77,38 @@ PS.setHeldSource(() => [{ value: by.VAULT.value, as: '[INSTANTLY_API_KEY saved i
   A.eq(PS.scrubStored('[INSTANTLY_API_KEY saved in API KEYS] ok'), '[INSTANTLY_API_KEY saved in API KEYS] ok', 'a named placeholder is stable (idempotent)');
 }
 
+// ---- 2b. (review r2) heads of keys that share a prefix; a public vendor prefix is not a head; escapes and glue ----
+{
+  const ALNUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const A1 = 'Rq7' + FK.stream('share-a', 29, ALNUM);                       // a 32-char saved key
+  const B1 = A1.slice(0, 23) + FK.stream('share-b', 9, ALNUM);             // shares a 23-char head with A1
+  const C1 = A1 + 'EXTRA77';                                               // A1 is a proper prefix of C1
+  const ANT = by.ANTHROPIC.value;
+  const nm = n => '[' + n + '_KEY saved in API KEYS]';
+  PS.setHeldSource(() => [{ value: A1, as: nm('A') }, { value: B1, as: nm('B') }, { value: C1, as: nm('C') }, { value: ANT, as: '[ANTHROPIC_API_KEY saved in API KEYS]' }]);
+  A.eq(PS.scrubStored('title ' + C1.slice(0, 38)), 'title ' + nm('C'), 'a longer key cut past the end of a shorter one it begins with is replaced whole (no tail revealed)');
+  A.eq(PS.scrubHeld('title ' + C1.slice(0, 38) + '…'), 'title ' + nm('C') + '…', '…by the provider-boundary rule too');
+  A.eq(PS.scrubStored('title ' + A1.slice(0, 25)), 'title [redacted-secret]', 'a head two saved keys could be (A, C) is never named after either');
+  A.eq(PS.scrubStored('title ' + A1.slice(0, 20) + '…'), 'title [redacted-secret]…', 'a head three saved keys share is [redacted-secret]');
+  A.eq(PS.scrubStored('title ' + B1.slice(0, 28)), 'title ' + nm('B'), 'a head only one saved key continues is named after it');
+  A.eq(PS.scrubStored('use ' + A1), 'use ' + nm('A'), 'a whole key at the end of the text is named after itself (not the longer key it begins)');
+  A.eq(PS.scrubStored('use ' + A1 + ' and ' + C1 + ' now'), 'use ' + nm('A') + ' and ' + nm('C') + ' now', 'whole keys mid-text are named after themselves');
+  // the PUBLIC vendor prefix of a saved key is not part of its secret
+  for (const t of ['Anthropic keys start with sk-ant-api03…', 'call keys.save with starts_with sk-ant-api03', '{"service":"Anthropic","starts_with":"sk-ant-api03-"}', 'prefix sk-ant-api03-Ab'])
+    A.eq(PS.scrubHeld(t), t, 'a bare public prefix of a saved key is prose, not a cut key: ' + t);
+  A.eq(PS.scrubHeld('key ' + ANT.slice(0, 13 + 12) + '…'), 'key [ANTHROPIC_API_KEY saved in API KEYS]…', 'a head 12 chars past the public prefix is the saved key');
+  PS.setHeldSource(null);
+  // vendor cuts after an escape (the same set context.js uses) and glued to a word
+  const k = by.OPENAI.value, g = by.GOOGLE.value;
+  for (const [label, text] of [['JSON \\b', JSON.stringify({ t: 'x\b' + k.slice(0, 24) + '…' })], ['ANSI', 'Your key: \u001b[1m' + g.slice(0, 20) + '…'], ['%253D', 'q%253D' + by.GITHUB.value.slice(0, 20)],
+    ['=3D', 'KEY=3D' + by.SLACK.value.slice(0, 22) + '…'], ['glued sk-', 'title USER_KEY' + 'sk-' + FK.stream('glued-sk', 30, ALNUM).slice(0, 15) + '…']]) {
+    const o = PS.scrubStored(text);
+    A.ok(o.indexOf('[redacted-key]') >= 0 && !/[A-Za-z0-9]{10,}…/.test(o.replace(/^title USER_KEY/, '')), 'a cut vendor key ' + label + ' is scrubbed: ' + JSON.stringify(o));
+  }
+  for (const t of ['Build the task-management-dashboard…', 'see the desk-assignment-overseer…', 'Fix task-1730000000000-abc123def456'])
+    A.eq(PS.scrubStored(t), t, 'a glued cut rule never eats a slug: ' + t);
+}
+
 // ---- 3. ordinary text is byte-identical (=== identity) ----
 PS.setHeldSource(() => [by.VAULT.value]);
 {

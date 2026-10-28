@@ -180,6 +180,44 @@ function request(model) {
     parts.content[0].text = 'now ' + VAULT;   // a clean message mutated to hold a value later
     for await (const _ of g.stream({ model: 'm', messages: [parts] })) { /* drain */ }
     A.ok(JSON.stringify(seen[3]).indexOf(VAULT) < 0, 'W9: a message memoized clean, then mutated to hold a value, is scrubbed');
+    // W9b (review r2): loop.js deletes m.reasoning IN PLACE before a same-adapter model fallback; a dirty message's
+    // cached copy must not bring the stripped foreign thinking back
+    const asst = { role: 'assistant', content: 'calling', reasoning: [{ type: 'thinking', thinking: 'foreign', signature: 'sig' }],
+      tool_calls: [{ id: 't1', type: 'function', function: { name: 'web_request', arguments: JSON.stringify({ key: VAULT }) } }] };
+    const conv = [{ role: 'user', content: 'go' }, asst, { role: 'tool', tool_call_id: 't1', content: 'ok' }, { role: 'user', content: 'next' }];
+    for await (const _ of g.stream({ model: 'm', messages: conv })) { /* drain */ }
+    A.ok(seen[4].messages[1].reasoning && JSON.stringify(seen[4].messages[1]).indexOf(VAULT) < 0, 'W9b: (first send: the reasoning rides, the held value is scrubbed)');
+    delete asst.reasoning;
+    for await (const _ of g.stream({ model: 'm', messages: conv })) { /* drain */ }
+    A.ok(!('reasoning' in seen[5].messages[1]), 'W9b: reasoning deleted in place never reaches the wire again (no stale memo copy)');
+    A.ok(JSON.stringify(seen[5].messages[1]).indexOf(VAULT) < 0 && seen[5].messages[1].tool_calls[0].function.name === 'web_request', 'W9b: the memoized scrub of its tool call still applies');
+  }
+
+  // ---- W8b (review r2): one held-list read per projection, a fresh read outside it, at 2 000 held values ----
+  {
+    let reads = 0;
+    const big = Array.from({ length: 2000 }, (_, i) => 'Hb' + i + FK.stream('big' + i, 26, 'abcdefghijklmnopqrstuvwxyz0123456789'));
+    PS.setHeldSource(() => { reads++; return big; });
+    const text = 'stored line with ' + big[1234] + ' in it';
+    let out;
+    const t0 = process.hrtime.bigint();
+    PS.withHeld(() => { for (let i = 0; i < 100; i++) out = PS.scrubStored(text); });
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    A.eq(reads, 1, 'W8b: 100 scrubs inside one projection read the source once');
+    A.ok(out === 'stored line with [redacted-secret] in it', 'W8b: the pinned list still scrubs');
+    A.ok(ms < 1500, 'W8b: 100 stored-text scrubs at 2 000 held values stay bounded (' + ms.toFixed(1) + ' ms)');
+    reads = 0;
+    const CommanderContext = require('../sidecar/commander-context.js');
+    const composed = CommanderContext.compose({ dossier: 'Runs an agency', goal: { text: 'Ship ' + big[5], next: 'x' }, activity: ['ran ' + big[6]], topics: [{ label: 'a', evidence: ['q ' + big[7]] }] });
+    A.ok((composed.match(/\[redacted-secret\]/g) || []).length === 3 && [5, 6, 7].every(i => composed.indexOf(big[i]) < 0), 'W8b: compose() scrubs its goal, activity and topic fields');
+    A.eq(reads, 1, 'W8b: compose() pins one read for all its fields');
+    reads = 0;
+    const late = 'Hlate' + FK.stream('late', 26, 'abcdefghijklmnopqrstuvwxyz0123456789');
+    PS.scrubStored('x'); big.push(late);
+    A.eq(PS.scrubStored('use ' + late), 'use [redacted-secret]', 'W8b: outside a projection the very next scrub sees a key held a moment ago');
+    A.eq(reads, 2, 'W8b: (each un-pinned call reads the source)');
+    held = [VAULT];
+    PS.setHeldSource(() => held);
   }
 
   // ---- W10: named service keys, a no-digit credential, ordinary connector values ----

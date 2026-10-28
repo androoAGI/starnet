@@ -58,9 +58,26 @@ const SECRET = '[redacted-secret]';
    per-adapter snapshot on it). */
 let heldSource = null;
 let heldCache = null;   // { flat: [value, as, value, as, …] as last read, H }
-function setHeldSource(fn) { heldSource = typeof fn === 'function' ? fn : null; heldCache = null; }
+/* ONE SOURCE READ PER PROJECTION (review r2 perf). The host's source walks every connector and service key; compose()
+   makes ~100 scrub calls and the evidence pack ~40 in one synchronous pass, and each re-read the whole source (78 ms per
+   100 reads on a 1,790-value station). withHeld(fn) pins ONE read for the duration of fn (synchronous; nested calls
+   reuse the outer pin) — the projectors wrap their bodies in it. Outside a pin every call reads the source fresh, so a
+   key saved a moment ago is covered by the very next scrub (a job-long cache could not promise that). */
+let pinned;             // undefined = no pin active
+function setHeldSource(fn) { heldSource = typeof fn === 'function' ? fn : null; heldCache = null; pinned = undefined; }
+function withHeld(fn) {
+  if (pinned !== undefined) return fn();
+  pinned = heldSource ? readHeld() : null;
+  try { return fn(); } finally { pinned = undefined; }
+}
 
-// H = { values: [longest first], rep: Map(value -> placeholder), heads: Map(first 12 chars -> [values]), maxLen }
+/* A held value's PUBLIC vendor prefix is not part of its secret: every saved Anthropic key starts 'sk-ant-api03-', so a
+   12-char head made of that prefix alone is not a cut key ('keys start with sk-ant-api03…' is prose, and keys.save's
+   starts_with hint names it). A cut head must reach HEAD_MIN chars PAST the public prefix. */
+const PUBLIC_PREFIX = /^(?:sk-(?:ant-(?:api|admin|sid)\d\d-|or-v\d-|proj-|svcacct-|admin-|None-|lf-)?|[spr]k_(?:live|test)_|AIza|ya29\.|gh[pousr]_|github_pat_|glpat-|xox[abeprs]-(?:\d+-)*|xapp-\d-(?:[A-Z0-9]+-)*|syt_|gsk_|pplx-|ntn_|lin_api_|SG\.|whk_|hf_|xai-|(?:AKIA|ASIA))/;
+function headFloor(v) { const m = PUBLIC_PREFIX.exec(v); return HEAD_MIN + (m ? m[0].length : 0); }
+
+// H = { values: [longest first], rep: Map(value -> placeholder), heads: Map(first 12 chars -> [values]), floor: Map(value -> min cut head) }
 function buildHeld(flat) {
   const rep = new Map();
   for (let i = 0; i < flat.length; i += 2) {
@@ -70,17 +87,22 @@ function buildHeld(flat) {
   }
   if (!rep.size) return null;
   const values = Array.from(rep.keys()).sort((a, b) => b.length - a.length);   // longest first: a key holding another is replaced whole
-  const heads = new Map();
+  const heads = new Map(), floor = new Map();
   for (const v of values) {
     if (v.length <= HEAD_MIN || /\s/.test(v)) continue;
+    floor.set(v, headFloor(v));
     const h = v.slice(0, HEAD_MIN);
     const list = heads.get(h);
     if (list) list.push(v); else heads.set(h, [v]);
   }
-  return Object.freeze({ values: Object.freeze(values), rep, heads });
+  return Object.freeze({ values: Object.freeze(values), rep, heads, floor });
 }
 function currentHeld() {
   if (!heldSource) return null;
+  if (pinned !== undefined) return pinned;
+  return readHeld();
+}
+function readHeld() {
   let raw;
   try { raw = heldSource(); } catch (_) { return null; }
   if (!raw || typeof raw[Symbol.iterator] !== 'function') return null;
@@ -139,9 +161,12 @@ function isCutAt(s, e) {
 }
 
 /* VENDOR CUTS — the full rules' prefixes and body classes (context.js SECRET_PATTERNS), floor dropped to 4 body chars.
-   The boundary keeps hyphenated words whole ('task-…') yet still sees a key right after an escape in JSON / URL text
-   (\nsk-…, %3Dsk-…). `digit` = this family's body must hold a digit (an all-caps AWS id is otherwise a word). */
-const BOUND = '(?:(?<![A-Za-z0-9])|(?<=\\\\[nrt])|(?<=%[0-9A-Fa-f]{2}))';
+   The boundary keeps hyphenated words whole ('task-…') yet still sees a key right after the SAME escapes context.js
+   does (context.ESCAPE_ALTS: JSON \n \t \b \f \uXXXX, %3D / %253D, quoted-printable =3D, an ANSI code). It is a
+   lookbehind over the prefix, so each scan starts at its literal (fast). `mode`: 'digit' = the body must hold a digit (an
+   all-caps AWS id is otherwise a word); 'glued' = the generic sk- key right after a letter or digit (USER_KEYsk-…), as
+   context.js's glued branch catches it whole: only a body holding a digit, an upper- and a lower-case letter counts. */
+const START = (p, glued) => glued ? '(?<=[A-Za-z0-9](?:' + p + '))' : '(?<=(?:^|[^A-Za-z0-9]|' + context.ESCAPE_ALTS + ')(?:' + p + '))';
 const CUT_AHEAD = '(?=…|\\.{3}|"|\\\\["nr]|[ \\t]*$)';
 const VENDOR_CUT_SOURCES = [
   ['sk-', '[A-Za-z0-9_\\-]'],                    // OpenRouter / Anthropic / OpenAI project / generic
@@ -163,17 +188,21 @@ const VENDOR_CUT_SOURCES = [
   ['hf_', '[A-Za-z0-9]'],                        // HuggingFace
   ['xai-', '[A-Za-z0-9]'],                       // xAI
   ['eyJ', '[A-Za-z0-9_\\-.]'],                   // JWT
-  ['(?:AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)', '[0-9A-Z]', 4, true],   // AWS access key id
-  ['\\d{8,10}:', '[A-Za-z0-9_\\-]', 8]          // Telegram bot token (8+: a compact 'yyyymmdd:hhmm' stays a time)
+  ['(?:AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)', '[0-9A-Z]', 4, 'digit'],   // AWS access key id
+  ['\\d{8,10}:', '[A-Za-z0-9_\\-]', 8],         // Telegram bot token (8+: a compact 'yyyymmdd:hhmm' stays a time)
+  ['sk-', '[A-Za-z0-9_\\-]', 4, 'glued']        // the generic sk- key glued to a word (see START)
 ];
-const VENDOR_CUTS = VENDOR_CUT_SOURCES.map(([p, cls, min, digit]) => ({
-  re: new RegExp(BOUND + '(' + p + ')(' + cls + '{' + (min || 4) + ',})' + CUT_AHEAD, 'gm'),
-  min: min || 4, digit: !!digit
+const VENDOR_CUTS = VENDOR_CUT_SOURCES.map(([p, cls, min, mode]) => ({
+  re: new RegExp('(' + p + ')' + START(p, mode === 'glued') + '(' + cls + '{' + (min || 4) + ',})' + CUT_AHEAD, 'gm'),
+  min: min || 4, mode: mode || ''
 }));
 // a cut body that looks random, not like a word: a digit, or upper- AND lower-case letters past its first char
-function randomish(body, digitOnly) {
-  if (/[0-9]/.test(body)) return true;
-  return !digitOnly && /[A-Z]/.test(body.slice(1)) && /[a-z]/.test(body);
+// ('digit': a digit is required; 'glued': a digit AND both cases, since a glued body follows a word)
+function randomish(body, mode) {
+  const digit = /[0-9]/.test(body), mixed = /[A-Z]/.test(body.slice(1)) && /[a-z]/.test(body);
+  if (mode === 'glued') return digit && /[A-Z]/.test(body) && /[a-z]/.test(body);
+  if (digit) return true;
+  return mode !== 'digit' && mixed;
 }
 const VENDOR_HINT = /sk[-_]|AIza|ya29|gh[pousr]_|github_pat_|glpat-|xox|xapp-|syt_|gsk_|pplx-|ntn_|lin_api_|SG\.|whk_|hf_|xai-|eyJ|A[KSGIRN][A-Z]A|\d{8}:/;
 function vendorCuts(s) {
@@ -187,7 +216,7 @@ function vendorCuts(s) {
       const dots = /\.{3,}$/.exec(body);           // a class holding '.' (SG., eyJ) swallowed the ellipsis: give it back
       if (dots) body = body.slice(0, dots.index);
       const len = m[1].length + body.length;
-      if (body.length >= v.min && len >= CUT_MIN && randomish(body, v.digit)) hits.push([m.index, m.index + len]);
+      if (body.length >= v.min && len >= CUT_MIN && randomish(body, v.mode)) hits.push([m.index, m.index + len]);
       if (m[0].length === 0) v.re.lastIndex++;
     }
   }
@@ -201,7 +230,11 @@ function vendorCuts(s) {
 /* HELD HEADS at cut points. One pass over the text's tokens (never a walk-back per cut point: a long run of '...' was
    quadratic): in each token, the candidate starts are the token start and the char after ':', '=' or an escaped \n;
    the 12-char head map says which held values can start there, and the common prefix with each says where the head
-   ends. A head that ends at a cut point, short of the whole value, is a cut key. */
+   ends. A head that ends at a cut point, short of the whole value and at least HEAD_MIN chars past its public vendor
+   prefix, is a cut key. The LONGEST span at a start wins, so a value cut past the end of a shorter held value it begins
+   with is replaced whole (it ran before exactHeld for that: exactHeld replaced the shorter value and left the rest of
+   the longer one raw). Naming (review r2): a whole held value is named after itself; a cut head only after the ONE held
+   value it can be — a head two saved keys share is [redacted-secret], never a guess at which key it was. */
 const TOKEN = /[^\s"'`()<>[\]{},;|]+/g;
 function heldHeads(s, H) {
   if (!H || !H.heads.size || s.length < HEAD_MIN) return s;
@@ -218,14 +251,23 @@ function heldHeads(s, H) {
       }
       const list = H.heads.get(s.substr(p, HEAD_MIN));
       if (!list) continue;
-      let best = 0, as = SECRET;
+      let best = 0, whole = null;
       for (const v of list) {
-        const max = Math.min(v.length - 1, te - p);
+        const max = Math.min(v.length, te - p);
         let L = HEAD_MIN;
         while (L < max && s.charCodeAt(p + L) === v.charCodeAt(L)) L++;
-        if (L > best && isCutAt(s, p + L)) { best = L; as = H.rep.get(v) || SECRET; }
+        if (L === v.length) { if (L > best || (L === best && !whole)) { best = L; whole = v; } }   // the whole value (wins a tie)
+        else if (L > best && L >= (H.floor.get(v) || HEAD_MIN) && isCutAt(s, p + L)) { best = L; whole = null; }
       }
-      if (best) { hits.push([p, p + best, as]); p += best - 1; }
+      if (!best) continue;
+      let as;
+      if (whole) as = H.rep.get(whole) || SECRET;
+      else {
+        const head = s.substr(p, best);
+        const could = list.filter(v => v.length > best && v.startsWith(head));
+        as = could.length === 1 ? (H.rep.get(could[0]) || SECRET) : SECRET;
+      }
+      hits.push([p, p + best, as]); p += best - 1;
     }
   }
   if (!hits.length) return s;
@@ -242,10 +284,9 @@ function heldHeads(s, H) {
 function scrubStored(text, opts) {
   if (typeof text !== 'string' || !text) return text;
   const H = currentHeld();
-  let out = H ? exactHeld(text, H) : text;
+  let out = H ? exactHeld(heldHeads(text, H), H) : text;   // heads first: a cut longer key is replaced whole (see heldHeads)
   out = context.redactWith(out, null);
   if (!(opts && opts.whole)) out = vendorCuts(out);
-  if (H) out = heldHeads(out, H);
   return out === text ? text : out;
 }
 
@@ -255,7 +296,7 @@ function scrubHeld(text, held) {
   if (typeof text !== 'string' || !text) return text;
   const H = asHeld(held);
   if (!H) return text;
-  const out = heldHeads(exactHeld(text, H), H);
+  const out = exactHeld(heldHeads(text, H), H);
   return out === text ? text : out;
 }
 
@@ -321,9 +362,20 @@ function memoFresh(m, e) {
   if (e.args) { if (m.tool_calls.length !== e.args.length) return false; for (let i = 0; i < e.args.length; i++) { const tc = m.tool_calls[i]; if ((tc && tc.function && tc.function.arguments) !== e.args[i]) return false; } }
   return true;
 }
+/* A memo hit REBUILDS the copy from the message as it is now, with only the cached scrubbed content / tool_calls laid
+   over it: every other field (reasoning, name, cache markers) is read fresh. loop.js deletes m.reasoning in place before
+   a same-adapter model fallback; a cached whole-message copy re-sent the foreign thinking the loop had just stripped
+   (review r2). The scrubbed strings stay cached, so a hit costs one shallow copy. */
+function memoHit(m, e) {
+  if (e.out === m) return m;
+  const over = {};
+  if (e.out.content !== m.content) over.content = e.out.content;
+  if (e.out.tool_calls !== m.tool_calls) over.tool_calls = e.out.tool_calls;
+  return Object.assign({}, m, over);
+}
 function scrubMessage(m, H, memo) {
   if (!m || typeof m !== 'object') return m;
-  if (memo) { const e = memo.get(m); if (e && memoFresh(m, e)) return e.out; }
+  if (memo) { const e = memo.get(m); if (e && memoFresh(m, e)) return memoHit(m, e); }
   let out = m;
   if (typeof m.content === 'string') {
     const c = scrubHeld(m.content, H);
@@ -408,4 +460,4 @@ function guardRequest(provider) {
   });
 }
 
-module.exports = { setHeldSource, currentHeld, scrubStored, scrubHeld, scrubDeep, scrubStoredMessages, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN };
+module.exports = { setHeldSource, currentHeld, withHeld, scrubStored, scrubHeld, scrubDeep, scrubStoredMessages, scrubRequest, guardRequest, HEAD_MIN, CUT_MIN, HELD_MIN };
