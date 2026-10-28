@@ -215,6 +215,7 @@ test/iteration-budget.test.js
 test/updatecore.test.js
 test/quitguard.test.js
 test/desktop-lifecycle-preferences.test.js
+test/desktop-station-stop.test.js
 test/desktop-installed-cdp-forwarding.test.js
 test/cloudsavecore.test.js
 test/cloudsave-refusal.test.js
@@ -259,6 +260,7 @@ test/upgrade-085-090.test.js
 test/t3-release-smoke.test.js
 test/t4-update-delivery.test.js
 test/installer-upgrade-resilience.test.js
+test/installer-stop-leftovers.test.js
 test/t5-public-distribution.test.js
 test/minisign-verify.test.js
 test/release-assemble-manifest.test.js
@@ -1233,10 +1235,14 @@ test/staging-development-closure.test.js
 test/overseer-ui.test.js
 test/overseer-pollgate.test.js
 test/workspace-owner-election.test.js
+test/process-identity.fixtures.test.js
+test/parent-watch.test.js
+test/breakaway.test.js
 test/project-home-ui.test.js
 test/cli.test.js
 test/cli.stop-child.test.js
 test/cli-desktop-closed.test.js
+test/cli-owner-identity.test.js
 test/cli-bootstrap-lineage.test.js
 test/cli-dashboard.test.js
 test/cli-dashboard-signal.test.js

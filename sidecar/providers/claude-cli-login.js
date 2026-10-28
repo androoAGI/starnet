@@ -22,12 +22,19 @@
 'use strict';
 const crypto = require('crypto');
 const { makeCliHost } = require('./claude-cli.js');
+const { makeBreakaway } = require('../breakaway.js');
 
 const AUTHORIZE_URL_RE = /https:\/\/[^\s"'<>]+\/oauth\/authorize\?[^\s"'<>]+/;
 
 function makeClaudeCliLogin(opts) {
   opts = opts || {};
   const host = opts.host || makeCliHost(opts);
+  /* The CLI opens the person's BROWSER, which it starts when none is running. Inside the desktop shell's station job
+     that browser would be the station's — a StarNet crash would close it, a quit would end its helper processes. So the
+     login runs TETHERED (sidecar/breakaway.js): outside the job, still ended with its launcher (cancel, TTL, sidecar
+     exit — end() kills the launcher's tree — and a hard kill of StarNet), while the browser it opens is in no job.
+     No launcher named (macOS, Linux, `npm start`, a test host): a plain spawn, exactly as before. */
+  const spawnLogin = makeBreakaway({ env: host.env || {}, platform: host.platform || process.platform }).spawnVia((f, a, o) => host.spawn(f, a, o), { tether: true });
   const ttlMs = opts.ttlMs || 10 * 60 * 1000;           // an abandoned sign-in is killed, never left listening
   const urlWaitMs = opts.urlWaitMs || 8000;             // how long start() waits for the CLI to print its URL
   // poll re-asks `claude auth status` every Nth poll (the tile polls every 1.5s, so 2 = ~3s) — a count, not a clock
@@ -64,7 +71,7 @@ function makeClaudeCliLogin(opts) {
     if (!cmd) { const e = host.notInstalled(); return { status: 'error', error: e.message, code: 'not_installed' }; }
     let child;
     try {
-      child = host.spawn(cmd.file, cmd.pre.concat(['auth', 'login', '--claudeai']), { env: host.childEnv(), cwd: host.os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      child = spawnLogin(cmd.file, cmd.pre.concat(['auth', 'login', '--claudeai']), { env: host.childEnv(), cwd: host.os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
       return { status: 'error', error: host.notInstalled().message, code: 'not_installed' };
     }

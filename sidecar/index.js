@@ -13053,6 +13053,14 @@ if (require.main === module) {
       if (process.channel && typeof process.channel.unref === 'function') process.channel.unref();
     } catch (e) { failNote('shutdown.ipc', e); }
   }
+  /* OWNER GONE → GRACEFUL STOP (sidecar/parent-watch.js). A hard-killed owner (the desktop shell or the `starnet`
+     terminal) runs none of its stop code; the station notices on its own and shuts down cleanly, never orphaned. */
+  try {
+    const watch = require('./parent-watch.js').makeParentWatch({
+      onGone: (why) => { try { console.warn('  · ' + why + ' — shutting this station down'); } finally { gracefulShutdown('parent-gone'); } }
+    }).start();
+    if (watch.ignored) console.warn('  · parent watch: ' + watch.ignored);
+  } catch (e) { failNote('shutdown.parent-watch', e); }
 }
 
 /* ---- SSE bridge: forward validated channel/work-item telemetry to the live station HUD ---- */

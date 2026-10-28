@@ -832,6 +832,8 @@
     const redact = typeof deps.redact === 'function' ? deps.redact : (s) => s;
     const now = (deps.clock && typeof deps.clock.now === 'function') ? deps.clock.now : () => 0;
     const isWin = (deps.platform != null) ? (deps.platform === 'win32') : WIN;
+    // how a command that opens the person's own window leaves the station's job (Windows desktop only; a pass-through elsewhere)
+    const breakaway = deps.breakaway || require('../../breakaway.js').makeBreakaway({ platform: isWin ? 'win32' : 'posix' });
     const L = deps.limits || {};
     const MAX_BYTES = L.maxBytes || 64000;
     const DEFAULT_MS = L.defaultTimeoutMs || 30000;
@@ -940,10 +942,14 @@
             + ' — this command ran with an effective timeout of ' + timeoutMs + 'ms]\n'
           : '';
         const markerIsWin = environment && environmentBackendId !== 'local' ? false : isWin;
+        /* A full-power command that opens a window on the person's screen (`start`, `explorer`, a headed browser…) opens
+           THEIR app: on Windows it runs outside the station's job (sidecar/breakaway.js), so quitting or crashing StarNet
+           never closes what it opened. Every other command stays the station's and ends with it. */
+        const forPerson = isWin && remoteOwner && (!environment || environmentBackendId === 'local') && !!opensVisibleWindow(cmd, shellDialect);
         const run = checkpoint.then(function () {
           return environment && typeof environment.execute === 'function'
-            ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd) })
-            : runCommand({ spawn: spawn, cmd: buildMarkedCmd(cmd, isWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
+            ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })
+            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
         });
         return run.then(function (res) {
           // recover the final cwd + the REAL exit code from the marker; persist the cwd only if it stayed in-jail.

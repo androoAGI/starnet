@@ -203,3 +203,17 @@ jobs:
           for log in policy guards; do
             grep -Eq 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/$log.log" || { echo "::error::the $log filter ran no test"; exit 1; }
           done
+
+      # The desktop shell's process-ownership rules, compiled by path without the app (test/native-process-ownership):
+      # the PID-reuse and boot rules must match the sidecar's JS rule case for case (both read
+      # test/fixtures/process-identity-cases.json), and the Linux probe runs for real here. Without this step the Rust half
+      # of that parity ran only when someone ran cargo test in src-tauri by hand.
+      - name: Process-ownership rules shared with the sidecar (parity with the JS rule)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path test/native-process-ownership/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/ownership.log"
+          grep -Eq 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/ownership.log" || { echo "::error::the process-ownership crate ran no test"; exit 1; }
+          for t in shared_fixtures_match_the_js_rule the_shared_boot_rule_matches_the_js_rule; do
+            grep -Eq "test process_identity::tests::$t \.\.\. ok" "$RUNNER_TEMP/ownership.log" || { echo "::error::the parity test $t did not pass"; exit 1; }
+          done
