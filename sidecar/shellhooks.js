@@ -36,6 +36,12 @@
 
   const MAX_HOOKS = 32;              // a hooks file is hand-written; this is a runaway guard, not a product limit
   const MAX_STDOUT_BYTES = 64000;    // a hook answers with a small verdict; anything more is a misconfiguration
+  const KILL_SETTLE_MS = 500;        // how long a timed-out, killed hook may take to actually exit before we settle anyway
+  /* The spine's backstop bound sits this far past our own timeout + settle. It is WIDE on purpose: the spine starts
+     its timer before runScript runs, so everything runScript spends before its own clock decides (spawn() itself,
+     which on a RAM-starved box can block for hundreds of ms) eats into this slack. runScript measures its timeout
+     from before spawn, so the slack only has to cover scheduling jitter, and 2s of it never depends on spawn speed. */
+  const SPINE_SLACK_MS = 2000;
   const DEFAULT_TIMEOUT_MS = 5000;
 
   /* Split a command line into argv the way a POSIX shell would for the SIMPLE cases, and no further: double
@@ -77,6 +83,7 @@
     const cwd = deps.cwd || '.';
     const onError = (typeof deps.onError === 'function') ? deps.onError : (() => {});
     const timeoutMs = Number(deps.timeoutMs) > 0 ? Number(deps.timeoutMs) : DEFAULT_TIMEOUT_MS;
+    const spineBoundMs = timeoutMs + KILL_SETTLE_MS + SPINE_SLACK_MS;
 
     async function readJson(file, fallback) {
       if (!file) return fallback;
@@ -174,14 +181,28 @@
         let argv;
         try { argv = splitArgs(hook.command); } catch (e) { onError({ hook: hook.name, error: (e && e.message) }); return resolve(null); }
         const exe = argv[0];
+        // The timeout is measured from HERE, before spawn(): a spawn that blocks for 400ms has spent 400ms of the
+        // hook's budget, exactly as the spine's own timer (already running) sees it.
+        const t0 = Date.now();
         let child;
         try {
           child = spawn(exe, argv.slice(1), { cwd, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
         } catch (e) { onError({ hook: hook.name, error: 'spawn failed: ' + ((e && e.message) || e) }); return resolve(null); }
 
-        let out = '', bytes = 0, done = false;
-        const finish = (v) => { if (done) return; done = true; clearTimeout(timer); try { child.kill(); } catch (_) {} resolve(v); };
-        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null); }, timeoutMs);
+        let out = '', bytes = 0, done = false, exited = false;
+        child.once('exit', () => { exited = true; });
+        /* A KILLED child is not gone yet: on Windows it can keep its cwd (and the files under it) open for a moment
+           after kill() returns, so a caller that removes the directory the instant we settle hits EBUSY. On the kill
+           path only, settle when the child has exited, or after KILL_SETTLE_MS at most. A child that already exited
+           (the ordinary close path) and a spawn error settle at once, exactly as before. */
+        const finish = (v, killed) => {
+          if (done) return; done = true; clearTimeout(timer);
+          try { child.kill(); } catch (_) {}
+          if (!killed || exited) return resolve(v);
+          const bound = setTimeout(() => resolve(v), KILL_SETTLE_MS);
+          child.once('exit', () => { clearTimeout(bound); resolve(v); });
+        };
+        const timer = setTimeout(() => { onError({ hook: hook.name, error: 'timeout after ' + timeoutMs + 'ms' }); finish(null, true); }, Math.max(0, timeoutMs - (Date.now() - t0)));
 
         try { child.stdout.on('data', (d) => { bytes += d.length; if (bytes <= MAX_STDOUT_BYTES) out += d.toString('utf8'); }); } catch (_) {}
         try { child.stderr.on('data', () => {}); } catch (_) {}          // stderr is the script's own logging, not our business
@@ -214,15 +235,19 @@
           await allow(h.event, h.command);
         }
         try {
-          hookSpine.register(h.event, (payload) => runScript(h, payload), { name: h.name, timeoutMs });
+          /* The spine bounds every handler with its OWN timer. If that bound equalled ours it would always fire first
+             (it starts before runScript does), and invoke() would return while the killed child still held its cwd:
+             the EBUSY this module's kill-settle wait exists to prevent. So the spine's bound covers our whole
+             timeout + kill + settle path, and ours is the one that decides. */
+          hookSpine.register(h.event, (payload) => runScript(h, payload), { name: h.name, timeoutMs: spineBoundMs });
           installed.push(h);
         } catch (e) { errors.push('cannot register ' + h.name + ' on ' + h.event + ': ' + ((e && e.message) || e)); }
       }
       return { installed, pending, errors };
     }
 
-    return { load, install, allow, revoke, create, remove, listPending, _internals: { splitArgs, keyOf, runScript } };
+    return { load, install, allow, revoke, create, remove, listPending, _internals: { splitArgs, keyOf, runScript, spineBoundMs, KILL_SETTLE_MS } };
   }
 
-  return { makeShellHooks, _internals: { splitArgs, keyOf } };
+  return { makeShellHooks, _internals: { splitArgs, keyOf, KILL_SETTLE_MS } };
 });

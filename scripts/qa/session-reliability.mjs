@@ -1,17 +1,20 @@
 // Real seeded browser lifecycle campaign. Transport faults are injected at fetch;
 // persistence and restart use the production sidecar. No customer data or paid calls.
 import { spawn } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { allocatePort, SidecarFixture } from '../../test/helpers/sidecar-fixture.js';
 import { launchChrome, connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 import { waitDevReady } from '../lib/seed.mjs';
+import { createScratch } from '../lib/scratch.mjs';
 
 const out = resolve('.dogfood/session-reliability');
 mkdirSync(out, { recursive: true });
-// Each invocation owns a workspace; reuse it only for this campaign's restart.
-const seedWorkspace = mkdtempSync(resolve(out, 'workspace-'));
+// Each invocation owns a workspace (reused only for this campaign's restart) and a Chrome profile. Both are scratch,
+// not evidence: they live under os.tmpdir() and are removed in the finally below (scripts/lib/scratch.mjs says why).
+const scratch = createScratch('session-reliability');
+const seedWorkspace = scratch.dir('workspace');
 const port = await allocatePort(), cdpPort = await allocatePort();
 const url = `http://127.0.0.1:${port}/`;
 let app, browser, cdp, log = '';
@@ -55,7 +58,7 @@ async function page() {
 }
 try {
   await boot();
-  browser = launchChrome({ cdpPort, profileDir: resolve(out, 'profile-' + Date.now()) }).proc;
+  browser = launchChrome({ cdpPort, profileDir: scratch.dir('profile') }).proc;
   cdp = await connectCDP(cdpPort);
   await cdp.send('Runtime.enable'); await cdp.send('Page.enable');
   await page();
@@ -159,9 +162,11 @@ try {
   assert.deepEqual(result.restart.history, result.history, 'full conversation survives process restart');
   console.log('session-reliability: PASS (delayed restore, context, durable save, process restart)');
 } finally {
-  writeFileSync(resolve(out, 'boot.log'), log);
-  if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
-  if (browser) browser.kill();
-  await stop();
-  if (installed) await installed.dispose();
+  try {
+    writeFileSync(resolve(out, 'boot.log'), log);
+    if (cdp) { try { await cdp.send('Browser.close'); } catch (e) { console.error('session-reliability: Browser.close failed: ' + (e && e.message || e)); } cdp.ws.close(); }
+    if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
+    await stop();
+    if (installed) await installed.dispose();
+  } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the scratch dirs
 }

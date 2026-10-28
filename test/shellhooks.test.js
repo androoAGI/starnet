@@ -121,6 +121,73 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(v.blocked, false, 'and the run continues');
     }
 
+    // ---- 7b. A KILLED HOOK IS WAITED FOR (bounded), AN EXITED ONE IS NOT ----
+    // On Windows a just-killed child still holds its cwd for a moment; settling the instant kill() returns let the
+    // caller's rm of that directory hit EBUSY. A fake child pins the timing: it exits a set lag after kill().
+    {
+      const { EventEmitter } = require('events');
+      const fakeChild = (exitLag) => {
+        const c = new EventEmitter();
+        c.stdout = new EventEmitter(); c.stderr = new EventEmitter();
+        c.stdin = Object.assign(new EventEmitter(), { end() {} });
+        c.kill = () => { if (exitLag != null) setTimeout(() => { c.emit('exit', null, 'SIGTERM'); c.emit('close'); }, exitLag); };
+        return c;
+      };
+      const run = (child, timeoutMs) => mk({ spawn: () => child, timeoutMs, onError: () => {} })._internals.runScript({ name: 'fake', command: 'fake' }, {});
+      let t0 = Date.now();
+      A.eq(await run(fakeChild(200), 50), null, 'a timed-out hook still settles null');
+      let dt = Date.now() - t0;
+      A.ok(dt >= 230, 'it settles only once the killed child has exited (' + dt + 'ms)');
+      t0 = Date.now();
+      await run(fakeChild(null), 50);
+      dt = Date.now() - t0;
+      A.ok(dt >= 500 && dt < 2000, 'a child that never exits is waited for 500ms at most (' + dt + 'ms)');
+      // The close path is checked by ORDER, not by a wall-clock bound a RAM-starved gate box could overrun: it must
+      // settle before a sentinel set just under the kill-settle wait fires.
+      const quick = fakeChild(null);
+      let sentinelFired = false;
+      const sentinel = setTimeout(() => { sentinelFired = true; }, _internals.KILL_SETTLE_MS - 20);
+      setTimeout(() => { quick.stdout.emit('data', Buffer.from('{"ok":1}')); quick.emit('exit', 0); quick.emit('close'); }, 20);
+      A.eq(JSON.stringify(await run(quick, 5000)), '{"ok":1}', 'the ordinary close path returns the verdict');
+      clearTimeout(sentinel);
+      A.ok(!sentinelFired, 'and settles at once, with no kill wait (before the ' + (_internals.KILL_SETTLE_MS - 20) + 'ms sentinel)');
+
+      // ---- 7c. THE SAME WAIT HOLDS THROUGH THE SPINE, which is how every production hook runs ----
+      // The spine bounds each handler with its own timer, started before runScript. If that bound were the hook's
+      // timeoutMs it would always win, invoke() would return null at once, and the caller would rm the cwd while
+      // the killed child still held it. invoke() must not resolve before the killed child has exited.
+      await fsp.rm(ALLOW, { force: true });
+      await writeHooks([{ event: 'pre_tool_call', command: 'fake-hook', name: 'fake' }]);
+      let exitedAt = 0;
+      const slowDie = fakeChild(300);
+      slowDie.once('exit', () => { exitedAt = Date.now(); });
+      const spine = makeHooks();
+      const sh = mk({ spawn: () => slowDie, timeoutMs: 50, onError: () => {} });
+      await sh.install(spine, { accept: true });
+      const vSpine = await spine.invoke('pre_tool_call', {});
+      const resolvedAt = Date.now();
+      A.eq(vSpine.blocked, false, 'a timed-out hook through the spine does not block');
+      A.ok(exitedAt > 0 && exitedAt <= resolvedAt, 'spine.invoke() resolves only after the killed child has exited (exited ' + (exitedAt ? resolvedAt - exitedAt + 'ms before resolve' : 'never') + ')');
+      A.ok(sh._internals.spineBoundMs > 50 + _internals.KILL_SETTLE_MS, 'the spine bound covers timeout + kill-settle (' + sh._internals.spineBoundMs + 'ms)');
+
+      // ---- 7d. A SLOW spawn() DOES NOT HAND THE SPINE THE RACE ----
+      // The spine's timer starts before runScript; if runScript armed its own timeout only after spawn() returned, a
+      // spawn that blocked ~400ms (a RAM-starved box) pushed our kill + settle past the spine's backstop, and invoke()
+      // returned while the killed child still held its cwd. The fake spawn blocks the thread for 400ms, then hands back
+      // a child that takes 450ms to die after kill(): invoke() must still resolve only after that child has exited.
+      await fsp.rm(ALLOW, { force: true });
+      let slowExitAt = 0;
+      const slowSpawnChild = fakeChild(450);
+      slowSpawnChild.once('exit', () => { slowExitAt = Date.now(); });
+      const slowSpawn = () => { const until = Date.now() + 400; while (Date.now() < until) { /* spawn() blocking under memory pressure */ } return slowSpawnChild; };
+      const spine2 = makeHooks();
+      await mk({ spawn: slowSpawn, timeoutMs: 50, onError: () => {} }).install(spine2, { accept: true });
+      const vSlow = await spine2.invoke('pre_tool_call', {});
+      const slowResolvedAt = Date.now();
+      A.eq(vSlow.blocked, false, 'a timed-out hook behind a slow spawn does not block');
+      A.ok(slowExitAt > 0 && slowExitAt <= slowResolvedAt, 'spine.invoke() resolves only after the killed child has exited, even when spawn() took 400ms (exited ' + (slowExitAt ? slowResolvedAt - slowExitAt + 'ms before resolve' : 'never') + ')');
+    }
+
     // ---- 8. ONE BAD ENTRY MUST NOT DISABLE THE REST OF THE FILE ----
     {
       await fsp.rm(ALLOW, { force: true });
@@ -195,11 +262,11 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
       A.eq(hooks.length, 0, 'no hooks file -> no hooks');
       A.eq(errors.length, 0, 'and no complaints — most stations will never write one');
     }
-  } finally { await fsp.rm(DIR, { recursive: true, force: true }); }
+  } finally { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 
   A.report('shellhooks.test');
 })().catch(async (e) => {
-  try { await fsp.rm(DIR, { recursive: true, force: true }); } catch (_) {}
+  try { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (e2) { console.log('shellhooks.test: teardown rm failed: ' + (e2 && e2.code || e2)); }
   console.log('FAIL: shellhooks.test threw -- ' + (e && e.stack || e));
   process.exit(1);
 });

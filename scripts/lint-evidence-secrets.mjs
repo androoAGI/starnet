@@ -19,6 +19,14 @@ const SECRET_PATTERNS = [
   { id: 'telegram-bot-token', re: /\b\d{8,12}:[A-Za-z0-9_-]{30,}\b/g }
 ];
 
+// QA scratch, not evidence: a Chrome --user-data-dir named profile-<Date.now()> and a mkdtemp seeded workspace named
+// workspace-XXXXXX. Older QA scripts left these inside .dogfood (one Chrome profile is thousands of files; ~148k piled
+// up under .dogfood/session-reliability and pushed this lint past its 120s gate bound). Scripts now make scratch
+// under os.tmpdir() via scripts/lib/scratch.mjs; this is the belt for leftovers. Only those exact generated shapes
+// are skipped, so a real evidence dir such as workspace-before-restart/ is still scanned.
+const SCRATCH_DIR = [/^profile-\d+$/, /^workspace-[A-Za-z0-9]{6}$/];
+const isScratchDir = name => SCRATCH_DIR.some(re => re.test(name));
+
 function* walk(dir) {
   if (!existsSync(dir)) return;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -28,6 +36,7 @@ function* walk(dir) {
       // upstream fixtures may intentionally contain key-shaped examples; scan the receipts around
       // them, but do not recursively lint a nested Git worktree or clone as if StarNet authored it.
       if (existsSync(join(full, '.git'))) continue;
+      if (isScratchDir(entry.name)) continue;
       yield* walk(full);
     } else if (entry.isFile()) {
       yield full;
