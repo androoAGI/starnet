@@ -26045,9 +26045,17 @@ function handleRunSteerStatus(req, res) {
 //   it spawns the sidecar (one-line follow-up for the src-tauri owner — NOT edited here). `appSource` is additive:
 //   it names WHERE app came from ('env' | 'conf' | 'unknown') so diagnostics never reports a silent blank as fact.
 //   The response keeps the existing {harness, app, node} shape byte-compatible (chat.js versionCommand reads those).
-let _versionCache = null;
+//   GIT IS ASKED THREE WAYS, ONE 10s BUDGET (guardian triage 2026-10-28): the old single 2s `--dirty` call lost to a
+//   loaded machine, fell to the placeholder and cached 'pkg' for the whole process. `--dirty` may fail or be slow on
+//   its own (it refreshes the index), so `describe --always --tags` and then `rev-parse --short HEAD` still name the
+//   commit — with buildDirty left null, because only `--dirty` can prove clean. A 'pkg' answer that a git TIMEOUT
+//   caused is not cached for good: it is re-asked once VERSION_RETRY_MS has passed.
+let _versionCache = null, _versionRetryAt = 0;
+const VERSION_GIT_BUDGET_MS = 10000, VERSION_RETRY_MS = 60000;
 function computeVersionSurface() {
-  if (_versionCache) return _versionCache;
+  if (_versionCache && (!_versionRetryAt || Date.now() < _versionRetryAt)) return _versionCache;
+  const gitDeadline = Date.now() + VERSION_GIT_BUDGET_MS;
+  let gitTimedOut = false, dirtyKnown = false;
   const out = {
     harness: '', app: '', node: process.version, appSource: 'unknown', harnessSource: 'unknown',
     buildSha: '', buildDirty: null
@@ -26055,13 +26063,17 @@ function computeVersionSurface() {
   const envHarness = String(ENV('BUILD_DESCRIBE') || '').trim();   // STARNET_BUILD_DESCRIBE — stamped by the build/release pipeline
   if (envHarness) { out.harness = envHarness; out.harnessSource = 'env'; }
   else {
-    try {
-      const { execSync } = stationChildProcess;
-      const desc = String(execSync('git describe --always --dirty --tags', {
-        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000
-      }) || '').trim();
-      if (desc) { out.harness = desc; out.harnessSource = 'git'; }
-    } catch (_) {}
+    for (const probe of ['git describe --always --dirty --tags', 'git describe --always --tags', 'git rev-parse --short HEAD']) {
+      const left = gitDeadline - Date.now();
+      if (left <= 0) { gitTimedOut = true; break; }
+      try {
+        const { execSync } = stationChildProcess;
+        const desc = String(execSync(probe, {
+          cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: left
+        }) || '').trim();
+        if (desc) { out.harness = desc; out.harnessSource = 'git'; dirtyKnown = /--dirty/.test(probe); break; }
+      } catch (e) { if (e && (e.code === 'ETIMEDOUT' || e.signal)) gitTimedOut = true; }   // a non-repo / no-git failure is final, a timeout is not
+    }
     if (!out.harness) {   // no env stamp, no git (packaged app has neither) — fall back to the package.json version
       try { out.harness = String(require('../package.json').version || ''); out.harnessSource = 'pkg'; } catch (_) {}
     }
@@ -26074,10 +26086,10 @@ function computeVersionSurface() {
     try {
       const { execSync } = stationChildProcess;
       const sha = String(execSync('git rev-parse HEAD', {
-        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000
+        cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'], timeout: Math.max(1000, gitDeadline - Date.now())
       }) || '').trim();
       if (/^[0-9a-f]{40}$/i.test(sha)) out.buildSha = sha.toLowerCase();
-      out.buildDirty = /-dirty$/.test(out.harness);
+      if (dirtyKnown) out.buildDirty = /-dirty$/.test(out.harness);
     } catch (_) {}
   }
   const envApp = String(ENV('APP_VERSION') || '').trim();   // STARNET_APP_VERSION (or SKYNET_APP_VERSION) — the packaged-app source of truth
@@ -26090,6 +26102,7 @@ function computeVersionSurface() {
     } catch (_) {}
   }
   _versionCache = out;
+  _versionRetryAt = out.harnessSource === 'pkg' && gitTimedOut ? Date.now() + VERSION_RETRY_MS : 0;
   return out;
 }
 function handleVersion(req, res) {
