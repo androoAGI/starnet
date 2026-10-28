@@ -794,6 +794,7 @@ test/cron.run-now.test.js
 test/routine-identity.test.js
 test/run-wire.unit.test.js
 test/run-wire.invariant.test.js
+test/run-wire.routine-pair.test.js
 test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js
