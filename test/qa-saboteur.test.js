@@ -42,6 +42,8 @@ A.eq(S.verdictFor({ family: 'payload' }, { status: 400 }, false).severity, 'P1',
   const seed = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'lib', 'seed.mjs'), 'utf8');
   A.ok(/if \(!logFile\) return spawn\(process\.execPath, \[SIDECAR\], \{ cwd: REPO, env, stdio: 'ignore' \}\);/.test(seed),
     'every other bootSeededSidecar caller keeps stdio ignore');
+  const open = /const fd = openSync\(logFile,\s*'([a-z+]+)'\)/.exec(seed);
+  A.eq(open && open[1], 'w', 'the boot log is truncated per run: a reused --out dir never reports the previous run tail as this boot');
 }
 
 A.report('qa-saboteur');

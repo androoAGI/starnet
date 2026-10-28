@@ -49,8 +49,9 @@ export function materializeSeedWorkspace(scratchDir, model = DEFAULT_MODEL) {
 export async function isUp(url) { try { const r = await fetch(url); return r.ok; } catch { return false; } }
 
 // Boot the sidecar in DEV SEED mode. Returns the child process (caller owns teardown).
-// logFile (opt-in): append the sidecar's stdout+stderr to that file, so a boot that never comes up leaves a trace in
-// the caller's evidence dir. Without it stdio stays 'ignore', exactly as every other caller has always had it.
+// logFile (opt-in): write the sidecar's stdout+stderr to that file, so a boot that never comes up leaves a trace in
+// the caller's evidence dir. It is truncated first: a reused --out dir must never show the previous run's tail as
+// this boot's trace. Without it stdio stays 'ignore', exactly as every other caller has always had it.
 export function bootSeededSidecar({ port, model = DEFAULT_MODEL, key = PLACEHOLDER_KEY, scratchDir, fullAccess = true, env: extraEnv = {}, logFile = '' }) {
   const env = {
     ...process.env,
@@ -65,7 +66,7 @@ export function bootSeededSidecar({ port, model = DEFAULT_MODEL, key = PLACEHOLD
   else delete env.SKYNET_FULL_ACCESS;
   if (!logFile) return spawn(process.execPath, [SIDECAR], { cwd: REPO, env, stdio: 'ignore' });
   mkdirSync(dirname(logFile), { recursive: true });
-  const fd = openSync(logFile, 'a');
+  const fd = openSync(logFile, 'w');
   try { return spawn(process.execPath, [SIDECAR], { cwd: REPO, env, stdio: ['ignore', fd, fd] }); }
   finally { closeSync(fd); }   // the child holds its own copy of the handle
 }
