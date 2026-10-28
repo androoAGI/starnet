@@ -2,7 +2,7 @@
 // lint-evidence-secrets.mjs - fail if shareable evidence/log packs contain key-shaped secrets.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,10 +22,13 @@ const SECRET_PATTERNS = [
 // QA scratch, not evidence: a Chrome --user-data-dir named profile-<Date.now()> and a mkdtemp seeded workspace named
 // workspace-XXXXXX. Older QA scripts left these inside .dogfood (one Chrome profile is thousands of files; ~148k piled
 // up under .dogfood/session-reliability and pushed this lint past its 120s gate bound). Scripts now make scratch
-// under os.tmpdir() via scripts/lib/scratch.mjs; this is the belt for leftovers. Only those exact generated shapes
-// are skipped, so a real evidence dir such as workspace-before-restart/ is still scanned.
-const SCRATCH_DIR = [/^profile-\d+$/, /^workspace-[A-Za-z0-9]{6}$/];
-const isScratchDir = name => SCRATCH_DIR.some(re => re.test(name));
+// under os.tmpdir() via scripts/lib/scratch.mjs; this is the belt for leftovers. A name alone never skips a dir: an
+// evidence pack called workspace-before/ or profile-1/ is evidence. A leftover is skipped only by shape AND provenance:
+// a Chrome profile is profile-<epoch ms> holding Chrome's own "Local State" file, and a seeded workspace is a mkdtemp
+// workspace-XXXXXX directly under session-reliability/, the one legacy campaign dir that made them.
+const isScratchDir = (name, parent) =>
+  (/^profile-\d{10,}$/.test(name) && existsSync(join(parent, name, 'Local State'))) ||
+  (/^workspace-[A-Za-z0-9]{6}$/.test(name) && basename(parent) === 'session-reliability');
 
 function* walk(dir) {
   if (!existsSync(dir)) return;
@@ -36,7 +39,7 @@ function* walk(dir) {
       // upstream fixtures may intentionally contain key-shaped examples; scan the receipts around
       // them, but do not recursively lint a nested Git worktree or clone as if StarNet authored it.
       if (existsSync(join(full, '.git'))) continue;
-      if (isScratchDir(entry.name)) continue;
+      if (isScratchDir(entry.name, dir)) continue;
       yield* walk(full);
     } else if (entry.isFile()) {
       yield full;
