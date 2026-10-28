@@ -2118,16 +2118,51 @@ const Chat = (() => {
     return read;
   }
 
+  /* THE DESK REDACTS ITS COPY BEFORE IT MERGES, as the phone does (remote/host.js mergedTurns; wave 1 qw18, 10-27). The
+     save is raw and the station redacts each row it writes, so a turn holding a secret never keyed equal: it showed twice,
+     raw copy kept. When the station's rows carry a redaction, the station redacts this copy's turn texts with the store's
+     own redact (the page has none). A row it holds then merges as ONE turn, redacted; a row it does not hold (this send's
+     own turn) stays as typed.
+     TYPED FIRST (review, 10-27): a station row keeps the redaction of its day, so a value held only later is raw there
+     and today's redaction of the copy missed it (twice, then once more per open). The copy merges as typed first; only
+     rows left unmatched are asked and keyed redacted, so a row that matched as typed (a steered reply holding its parts
+     included) is never re-keyed. At most REDACT_ASK_MAX texts go, newest first, within REDACT_ASK_CHARS of JSON (the
+     route takes 500 and 8 MB); a row past that merges as typed. THE RETRY TARGET (the newest directive with no answer
+     after it) keeps the Commander's words, as one row, since retryLast re-sends it; the next open after an answer
+     redacts it. */
+  const REDACT_ASK_MAX = 400;          // a station read returns at most 200 turns
+  const REDACT_ASK_CHARS = 2000000;    // at most 6 MB of UTF-8
+  function redactAsk(rows) {
+    const texts = [], seen = new Set();
+    let chars = 0;
+    for (let i = rows.length - 1; i >= 0 && texts.length < REDACT_ASK_MAX; i--) {
+      const t = rows[i].content, size = JSON.stringify(t).length + 1;
+      if (seen.has(t) || chars + size > REDACT_ASK_CHARS) continue;
+      seen.add(t); chars += size; texts.push(t);
+    }
+    return texts;
+  }
+  // -> Map(raw -> redacted), or false (no answer in the window: the merge runs on the raw copy, as before)
+  async function redactedTexts(texts, ms) {
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), ms);
+    try {
+      const r = await fetch('/api/transcript/redact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts }), cache: 'no-store', signal: controller.signal });
+      const j = r.ok ? await r.json() : null;
+      return !!j && Array.isArray(j.texts) && j.texts.length === texts.length && new Map(texts.map((t, i) => [t, String(j.texts[i])]));
+    } catch (_) { return false; } finally { clearTimeout(timeout); }
+  }
+
   async function reconcileServerHistory(ws, loadToken, read) {
     if (!ws || !ws.id) return;
     const cronSession = String(ws.id).indexOf('cron-') === 0;
+    const startedAt = Date.now(), windowMs = read.timeoutMs > 0 ? read.timeoutMs : 8000;   // a send's read may wait longer (ensureHistoryReady)
     let busy = false;
     try { busy = typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id); } catch (_) {}
     const waits = cronSession && !busy ? [120, 400] : [];
     let turns = [], reachable = false, refused = false, failed = false;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), read.timeoutMs > 0 ? read.timeoutMs : 8000);   // a send's read may wait longer (ensureHistoryReady)
+      const timeout = setTimeout(() => controller.abort(), windowMs);
       try {
         const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store', signal: controller.signal });
         refused = !r.ok && r.status >= 400 && r.status < 500;   // the station answered "no": asking again cannot change it
@@ -2146,11 +2181,44 @@ const Chat = (() => {
     read.retryable = !reachable && !refused && !failed;   // unanswered (or unreadable) — a send may keep asking (ensureHistoryReady)
     read.serverFailed = !reachable && failed;              // answered 5xx — a send asks once more, then refuses (ensureHistoryReady)
     // A superseded read, removed session or deliberate clear cannot write back.
-    if (historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
-      || (read.history.length && !ws.history.length)) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    const stale = () => historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
+      || (read.history.length && !ws.history.length);
+    if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
     if (!reachable && !cronSession) return false;
-    const next = placeSteerNotes(mergeCanonicalHistory(ws.history, turns));
+    // the typed merge, and the turn rows it left unmatched (a row that comes back as itself matched nothing)
+    const typedMerge = () => { const merged = mergeCanonicalHistory(ws.history, turns), out = new Set(merged);
+      return { merged, left: ws.history.filter(r => out.has(r) && r && !r.sys && (r.role === 'user' || r.role === 'assistant') && typeof r.content === 'string') }; };
+    const ask = turns.some(t => t && /\[redacted-/.test(String(t.content))) ? redactAsk(typedMerge().left) : [];
+    // what is left of this read's own window, never a fresh one: a send's wait stays bounded
+    const clean = ask.length ? await redactedTexts(ask, Math.max(1000, windowMs - (Date.now() - startedAt))) : null;
+    if (clean !== null && stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+    if (clean === false) noteContinuity(ws, 'history-redact-unavailable');
+    const first = typedMerge();   // again: the copy may have grown while the redaction was out
+    let merged = first.merged;
+    if (clean) {
+      // TYPED: the row as typed (the merge carries a matched copy's own fields, this one too)
+      const TYPED = Symbol('typed'), left = new Set(first.left), copies = new Set();
+      const local = ws.history.map(r => {
+        const t = left.has(r) ? clean.get(r.content) : undefined;
+        if (t === undefined || t === r.content) return r;
+        const copy = Object.assign({}, r, { content: t, [TYPED]: r }); copies.add(copy); return copy;
+      });
+      if (copies.size) {
+        const keyed = mergeCanonicalHistory(local, turns);
+        const lastUser = keyed.map(m => m && m.role).lastIndexOf('user');
+        const answered = keyed.slice(lastUser + 1).some(m => m && m.role === 'assistant' && !m.error && !m.stopped && String(m.content == null ? '' : m.content).trim());
+        merged = keyed.map((m, i) => {
+          const row = m && m[TYPED];
+          if (!row) return m;
+          if (copies.has(m)) return row;   // a copy the station did not match goes back as it was
+          const out = Object.assign({}, m, i === lastUser && !answered && m.role === 'user' ? { content: row.content } : null);   // the retry target
+          delete out[TYPED];
+          return out;
+        });
+      }
+    }
+    const next = placeSteerNotes(merged);
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())

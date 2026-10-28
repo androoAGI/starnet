@@ -29,3 +29,5 @@ Six positive/negative contract pairs pass. Live JSON-format probes now report fa
 ## Verdict
 
 Source-fixed in isolated agent/hermes-stress-0910; full fast 757/757 and HTTP 110/110 passed. See qa/audits/hermes-stress-2026-09-10/EXECUTION.md. Not merged or installed-verified; no live-model parity claim. Twelve actual-sidecar schema cases pass with exact usage. Hostile output-only repair makes one generation, advertises no tools and writes no file. Nested-schema safety regressions pass. Additional live worker spawn/resume campaign coverage remains pending.
+
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): `61eeac2b40` is an ancestor of trunk and first released in v0.11.2, so "not merged" no longer holds. No installed-build verification or live-model parity is claimed here.

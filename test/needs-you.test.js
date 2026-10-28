@@ -5,6 +5,7 @@
    then failures newest first), gives each kind its real action, and forgets a failure once dismissed or stale.
    SOURCE-LOCKED: the rail renders it in place of the retired "Waiting for you" filter, and the page loads it. */
 const A = require('./_assert.js');
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -121,7 +122,8 @@ const WHOLE = { clientHeight: 19, scrollHeight: 19, clientWidth: 150, scrollWidt
   A.eq(list.find(i => i.key === 'worker:wr7').what, 'stopped when the station restarted', 'a worker a restart cut off still says so');
   const capped = list.find(i => i.key === 'worker:wr8');
   A.eq(capped.what, 'failed: couldn\'t start (too many running, or a sign-in is needed)', 'a refused worker says what stopped it');
-  A.ok(NY._internals.html([capped], NOW).includes('title="failed: couldn\'t start (too many running, or a sign-in is needed) — subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once. — in General"'), 'and its row\'s tip carries the sidecar\'s own sentence, then where it waits');
+  // the attribute holds couldn&#39;t (U.esc, qw36): the tip the reader sees still says couldn't
+  A.ok(NY._internals.html([capped], NOW).includes('title="failed: couldn&#39;t start (too many running, or a sign-in is needed) — subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once. — in General"'), 'and its row\'s tip carries the sidecar\'s own sentence, then where it waits');
   global.Overseer = ledger;
 }
 {

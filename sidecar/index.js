@@ -1847,6 +1847,8 @@ const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, fi
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
 const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id) });
+// the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
+const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
@@ -12690,6 +12692,7 @@ const ROUTES = [
   { m: 'GET', qsplit: '/api/recipes/drift', h: serveRecipeDrift },   // qsplit: ?recipeId= narrows
   { m: 'GET', prefix: '/api/autonomy/ledger', h: serveAutonomyLedger },   // NS-0: recent autonomy decisions
   { m: 'GET', prefix: '/api/transcript', h: serveTranscript },
+  { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
   { m: 'POST', prefix: '/api/channels/webhook/', h: handleChannelWebhook },
   { m: 'GET', prefix: '/api/memory/proposals', h: serveProposals },

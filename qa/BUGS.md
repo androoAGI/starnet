@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**42** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 42 P2
+**34** open (open+claimed) of 381 total — 0 P0 · 0 P1 · 34 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -314,14 +314,10 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | autonomy | [Customer requests accounting for credits consumed during Mac boot trouble](bugs/abd75bb4-credit-usage-during-mac-boot-failure.md) | release-0120-prep-0915 | — |
 | P2 | open | autonomy | [Customer cannot explain idle behavior and unexpectedly high usage](bugs/acb47320-idle-usage-customer-unexplained.md) | reliability-followup | — |
 | P2 | open | autonomy | [Repeated project verification reportedly consumes overnight budget](bugs/f8d479d9-repeated-project-verification-reportedly-consume.md) | agent/reliability-audit-0919 | — |
-| P2 | open | channels | [A steered Telegram reply arrives with the raw '[steering] <note>' echo and both the pre- and post-steer answers glued into one message](bugs/e903a199-a-steered-telegram-reply-arrives-with-the-raw-st.md) | sweep/channels | — |
-| P2 | open | channels | [Desktop slash aliases and client-only commands typed on Telegram (/routines, /reset, /version, /q) fall through to a paid model run](bugs/6cd531b1-desktop-slash-aliases-and-client-only-commands-t.md) | sweep/channels | — |
-| P2 | open | channels | [/routine add typed on Telegram creates a station-only routine: its results never come back to the chat that created it](bugs/3b958e41-routine-add-typed-on-telegram-creates-a-station.md) | sweep/channels | — |
 | P2 | open | channels | [Zoho Mail bootstrap tool reportedly requires undiscoverable account](bugs/54564ff9-zoho-mail-bootstrap-tool-reportedly-requires-und.md) | agent/reliability-audit-0919 | — |
 | P2 | open | onboarding | [A first task that fails at the provider consumes the hand-off with no retry](bugs/159d44fc-a-first-task-that-fails-at-the-provider-consumes.md) | sweep/onboarding | — |
 | P2 | open | onboarding | [Google Drive authorization is hard blocked for a fresh personal account](bugs/f2ac6356-google-drive-authorization-is-hard-blocked-for-a.md) | release-0135-prep | — |
 | P2 | open | onboarding | [Customer reports unusable visibility without build or platform details](bugs/6bb9d2a1-visibility-failure-without-diagnostics.md) | release-0120-prep-0915 | — |
-| P2 | open | providers | [A run cancelled mid-stream is recorded as a known zero-dollar run instead of spend unknown](bugs/80de2a75-a-run-cancelled-mid-stream-is-recorded-as-a-know.md) | sweep/autonomy | — |
 | P2 | open | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | — |
 | P2 | open | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | — |
 | P2 | open | providers | [Connector sign-in is lost after credential-store recovery](bugs/e7b2ffcd-connector-sign-in-is-lost-after-credential-store.md) | release-0135-prep | — |
@@ -333,7 +329,6 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | — |
 | P2 | open | release | [All 30 superseded StarNet releases (v0.6.4 to v0.13.3) remain publicly downloadable from the releases repo](bugs/1a69136d-all-30-superseded-starnet-releases-v0-6-4-to-v0.md) | sweep/release | — |
 | P2 | open | release | [cli-app-launch e2e keeps running for minutes after a failed assertion instead of exiting](bugs/1619dab8-cli-app-launch-e2e-keeps-running-for-minutes-aft.md) | gate-seams | — |
-| P2 | open | release | [Every INSTALL UPDATE attempt writes another full-station backup to update-snapshots and nothing ever prunes them](bugs/31db37b0-every-install-update-attempt-writes-another-full.md) | sweep/release | — |
 | P2 | open | release | [Mac installer reports application unsupported on the computer](bugs/ff3fb4cb-mac-unsupported-installation-uncorrelated.md) | release-0120-prep-0915 | — |
 | P2 | open | release | [T0.2 reports a clean Windows surface is available when only a QEMU binary exists and no Windows guest is configured](bugs/c856c4f7-t0-2-reports-a-clean-windows-surface-is-availabl.md) | sweep/release | — |
 | P2 | open | release | [Windows 0.13.2 startup fails loading a packaged backend module](bugs/85f602c4-windows-0132-packaged-backend-startup.md) | release-0135-prep | — |
@@ -342,17 +337,14 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | safecell | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | release-0135-prep | — |
 | P2 | open | safecell | [First file write in a fresh station can time out while the checkpoint runs inside its 10s budget](bugs/e47efecf-first-file-write-in-a-fresh-station-can-time-out.md) | agent/ollama-fixes | — |
 | P2 | open | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | — |
-| P2 | open | sessions | [Internal title and goal self-talk is stored as Commander dialogue in the global transcript and recalled as such](bugs/4dee26ba-internal-title-and-goal-self-talk-is-stored-as-c.md) | sweep/sessions | — |
 | P2 | open | sessions | [Reloading the newer window boots the stale window's cached station and calls it this window's work](bugs/27bae3d6-reloading-the-newer-window-boots-the-stale-windo.md) | sweep/sessions | — |
 | P2 | open | sessions | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | release-0135-prep | — |
 | P2 | open | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | — |
 | P2 | open | skills | [A diverged installed package's support files are mirrored to disk and shown to the model as base64 text](bugs/a36d1b00-a-diverged-installed-package-s-support-files-are.md) | sweep/skills | — |
 | P2 | open | skills | [A legacy skill record's unscanned summary still rides the prompt index](bugs/56c6f962-a-legacy-skill-record-s-unscanned-summary-still.md) | sweep/skills | — |
-| P2 | open | skills | [A model can remove the Commander's pin on a skill directly, without a staged proposal](bugs/97743dff-a-model-can-remove-the-commander-s-pin-on-a-skil.md) | sweep/skills | — |
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
 | P2 | open | world | [Kepler Relay preset: the fabrication room is walkable but not reachable from command](bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md) | gate-seams | — |
-| P2 | open | world | [station.test_line claims an unconfirmed onward hand-off for a job that landed in a non-sending OUTBOX](bugs/3ee2d13a-test-line-unconfirmed-hand-off-from-a-non-sendin.md) | conveyor-final-runtime | — |
 | P2 | fixed | autonomy | [A clock that jumped ahead and was corrected back strands recurring routines for the length of the jump](bugs/7ae7e435-a-clock-that-jumped-ahead-and-was-corrected-back.md) | sweep/autonomy | 6102a1612 |
 | P2 | fixed | autonomy | [A cron advance anchored inside a fall-back repeated hour fires that day's ambiguous time a second time](bugs/10ecf010-a-cron-advance-anchored-inside-a-fall-back-repea.md) | sweep/autonomy | 822503be5 |
 | P2 | fixed | autonomy | [A force-killed holder's cron.lock with a recycled PID mutes the scheduler for up to 8 minutes](bugs/1186e4e7-a-force-killed-holder-s-cron-lock-with-a-recycle.md) | sweep/autonomy | 283face2e |
@@ -369,12 +361,15 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | autonomy | [The every-other-week routine refusal never fires because its regex carries backspace bytes](bugs/46602571-the-every-other-week-routine-refusal-never-fires.md) | sweep/providers | 163c2d772 |
 | P2 | fixed | autonomy | [The night-shift panel shows a next-job clock that a spent leash or a held gate will not honor](bugs/72fef60f-the-night-shift-panel-shows-a-next-job-clock-tha.md) | sweep/autonomy | c6ebbb0ce |
 | P2 | fixed | autonomy | [Unique line names block multi-inbox and repeated template builds](bugs/58136a6a-unique-line-names-block-multi-inbox-and-repeated.md) | agent/session-handoff-1011 | 07b522235232032e2b85a4cf201937fc85ebf1f0 |
+| P2 | fixed | channels | [A steered Telegram reply arrives with the raw '[steering] <note>' echo and both the pre- and post-steer answers glued into one message](bugs/e903a199-a-steered-telegram-reply-arrives-with-the-raw-st.md) | sweep/channels | faccfbbdd |
 | P2 | fixed | channels | [Answering one prompt clears other parallel approvals](bugs/47c3a845-answering-one-clarification-clears-other-paralle.md) | agent/ux-triage-1011 | ced84e2f04e4a94a77f04cac97f7f469d4f4c336 |
 | P2 | fixed | channels | [channel.send tells the chat a missing or refused file 'is saved in the workspace on the station'](bugs/c0beb187-channel-send-tells-the-chat-a-missing-or-refused.md) | sweep/channels | 00bc7ba60 |
 | P2 | fixed | channels | [COMMS report lists lose plus and tab-separated markers](bugs/3ad3e2b8-comms-report-lists-lose-plus-and-tab-separated-m.md) | agent/release-0112-audit-0910 | cb6c30b4d |
 | P2 | fixed | channels | [Dense service cards squeeze technical prose into tiny columns](bugs/734b469e-dense-service-cards-squeeze-technical-prose-into.md) | agent/ui-density-audit | 221775a85 |
+| P2 | fixed | channels | [Desktop slash aliases and client-only commands typed on Telegram (/routines, /reset, /version, /q) fall through to a paid model run](bugs/6cd531b1-desktop-slash-aliases-and-client-only-commands-t.md) | sweep/channels | d3eda4f3b |
 | P2 | fixed | channels | [E-STOP silences the channel reply path via the supersede flag, so a deliberately stopped run is indistinguishable from a crashed bot on the phone](bugs/600f4982-e-stop-silences-the-channel-reply-path-via-the-s.md) | sweep/channels | 96fe108d |
 | P2 | fixed | channels | [Every channel run without a configured system prompt reaches the provider with the persona replaced by the literal text '() => p'](bugs/446602ab-every-channel-run-without-a-configured-system-pr.md) | sweep/channels | 9e15c999e |
+| P2 | fixed | channels | [/routine add typed on Telegram creates a station-only routine: its results never come back to the chat that created it](bugs/3b958e41-routine-add-typed-on-telegram-creates-a-station.md) | sweep/channels | 61aadf2ab |
 | P2 | fixed | channels | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | agent/comms-controls-0906 | e4e4512b198279e35cdd9f2cc2be9d786b02e87f |
 | P2 | fixed | channels | [/usage on an unsettled ledger answers '…See SETTINGS › SPENDING LIMITS..' with a doubled period, on Telegram and in COMMS](bugs/67ba42c6-usage-on-an-unsettled-ledger-answers-see-setting.md) | sweep/channels | cc57c42b6 |
 | P2 | fixed | channels | [With /mention off, a group command @-addressed to another bot (/new@otherbot, /stop@otherbot) runs on this bot](bugs/bbf17048-with-mention-off-a-group-command-addressed-to-an.md) | sweep/channels | debe64ba4 |
@@ -387,6 +382,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | onboarding | [Onboarding sign-in codes have dark text on dark backgrounds](bugs/c9929ae3-onboarding-sign-in-codes-have-dark-text-on-dark.md) | agent/onboarding-test-0919 | 51dcb517d2ed6935bca7ed924d8ca6c095a17913 |
 | P2 | fixed | onboarding | [Text typed at an awakening read gate or mid-question is silently discarded](bugs/bc709e71-text-typed-at-an-awakening-read-gate-or-mid-ques.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [WAKE key-check failure claims a previous key on a fresh install and shows raw outage jargon](bugs/5d19823c-wake-key-check-failure-claims-a-previous-key-on.md) | sweep/onboarding | 2ad0d1c9a |
+| P2 | fixed | providers | [A run cancelled mid-stream is recorded as a known zero-dollar run instead of spend unknown](bugs/80de2a75-a-run-cancelled-mid-stream-is-recorded-as-a-know.md) | sweep/autonomy | bd501893e |
 | P2 | fixed | providers | [A sign-in token-endpoint 429 tells a subscription user their account is out of credit](bugs/7631293b-a-sign-in-token-endpoint-429-tells-a-subscriptio.md) | sweep/providers | 8650b980a |
 | P2 | fixed | providers | [An OpenRouter in-band error loses its status and the upstream's words, so an in-band 401 is retried for about 100 seconds](bugs/cf675264-an-openrouter-in-band-error-loses-its-status-and.md) | sweep/providers | c486a4f0a |
 | P2 | fixed | providers | [An OpenRouter key credit limit or an upstream region refusal reads as a rejected API key](bugs/7d396570-an-openrouter-key-credit-limit-or-an-upstream-re.md) | sweep/providers | 613beeac9 |
@@ -405,6 +401,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | 9cdfc0ba5 |
 | P2 | fixed | release | [Desktop bundles include development-only native dependencies](bugs/037ec5d2-desktop-bundles-include-development-only-native.md) | reliability-audit-0919 | a711f6ea2 |
 | P2 | fixed | release | [Desktop overlay version disagrees with sidecar diagnostics](bugs/65587128-desktop-overlay-version-disagrees-with-sidecar-d.md) | agent/release-0112-audit-0910 | bed625bdd |
+| P2 | fixed | release | [Every INSTALL UPDATE attempt writes another full-station backup to update-snapshots and nothing ever prunes them](bugs/31db37b0-every-install-update-attempt-writes-another-full.md) | sweep/release | 0d456f194 |
 | P2 | fixed | release | [HTTP gate watchdog expires before the full suite finishes](bugs/0c148510-http-gate-watchdog-expires-before-the-full-suite.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Hydration regression depends on host scheduling](bugs/4bc5d562-hydration-regression-depends-on-host-scheduling.md) | cleanup-0112-0910 | 5262e4a2943e72e2ce147f6fa804fd1b859df211 |
 | P2 | fixed | release | [Installed Mac acceptance receipts hard-code destination version](bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md) | reliability-audit-0919 | 2098a36f9 |
@@ -438,6 +435,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Escape from a terminal field loses the dialog keyboard boundary](bugs/8b2ef7e7-escape-from-a-terminal-field-loses-the-dialog-ke.md) | agent/glass-demo-0909 | e6ecdd986 |
 | P2 | fixed | sessions | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | agent/session-failed-marker-0910 | 407ac8433 |
 | P2 | fixed | sessions | [Files dropped onto chat do not attach in the desktop app](bugs/b48aa05d-files-dropped-onto-chat-do-not-attach-in-the-des.md) | agent/chat-drop-0917 | 68a4cfabe |
+| P2 | fixed | sessions | [Internal title and goal self-talk is stored as Commander dialogue in the global transcript and recalled as such](bugs/4dee26ba-internal-title-and-goal-self-talk-is-stored-as-c.md) | sweep/sessions | 284b20ed0 |
 | P2 | fixed | sessions | [Kept style masks a later real rejection after unkeep](bugs/db8f361d-kept-style-masks-a-later-real-rejection-after-un.md) | agent/provider-triage-1011 | 2ce225f88 |
 | P2 | fixed | sessions | [Late deliverable preview replaces the current file selection](bugs/b1da69a1-late-deliverable-preview-replaces-the-current-fi.md) | agent/system-polish-0920 | 4a2028759 |
 | P2 | fixed | sessions | [Outbox run review can display another run answer](bugs/ecb3df69-outbox-run-review-can-display-another-run-answer.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -450,6 +448,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Spoken approvals clear sibling waits before confirmation](bugs/35c720c1-voice-approval-sibling-settlement.md) | thread-ux-review-1011 | fcd8007ca473d52488986537e304370c37f7f9a0 |
 | P2 | fixed | sessions | [Worker recovery rebuilds an unrelated conversation and loses reader state](bugs/abb287e8-worker-recovery-reader-state.md) | thread-ux-review-1011 | a69664135e4983fe624ec11bea6b2bd4666ee651 |
 | P2 | fixed | sessions | [Workshop Keep accepts an empty decision acknowledgement](bugs/9bc0b751-workshop-keep-accepts-an-empty-decision-acknowle.md) | agent/system-polish-0920 | 4a2028759 |
+| P2 | fixed | skills | [A model can remove the Commander's pin on a skill directly, without a staged proposal](bugs/97743dff-a-model-can-remove-the-commander-s-pin-on-a-skil.md) | sweep/skills | 562b2b8da |
 | P2 | fixed | skills | [Design references assert requested image properties as observed](bugs/436ab17d-design-references-assert-requested-image-propert.md) | agent/provider-triage-1011 | 2e9c7ffb4 |
 | P2 | fixed | skills | [Rolling back an installed skill overrides its pin without an explicit force](bugs/29043870-rolling-back-an-installed-skill-overrides-its-pi.md) | sweep/skills | bd449b81b |
 | P2 | fixed | skills | [Skill hydrate has no file-count or byte limit, so 10k files on disk reach the provider in one request](bugs/4ab22e0e-skill-hydrate-has-no-file-count-or-byte-limit-so.md) | sweep/skills | bd449b81b |
@@ -507,6 +506,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [station.test_line claims an unconfirmed onward hand-off for a failed test](bugs/0d10e82b-station-test-line-claims-an-unconfirmed-onward-h.md) | conveyor-final-runtime | 8968a9269 |
 | P2 | fixed | world | [Station tooltip: pointerout during the 320ms show delay cannot clear the pending timer (`if (!anchor) return` runs before hide()), so a ghost card pops up besid](bugs/01caed27-station-tooltip.md) | sweep/world | f4d03511 |
 | P2 | fixed | world | [STEP THROUGH stops on two review loops in a row](bugs/670332ae-step-through-stops-on-two-review-loops-in-a-row.md) | conveyor-final-runtime | 28d32bbfa |
+| P2 | fixed | world | [station.test_line claims an unconfirmed onward hand-off for a job that landed in a non-sending OUTBOX](bugs/3ee2d13a-test-line-unconfirmed-hand-off-from-a-non-sendin.md) | conveyor-final-runtime | 28cc8a595 |
 | P2 | fixed | world | [Turtle rear walk faces forward and wizard staff flickers](bugs/20a0796e-turtle-rear-walk-faces-forward-and-wizard-staff.md) | skin-motion-0910 | 734063b21 |
 | P2 | fixed | world | [Website preview applies retired rendering effects and implies live work](bugs/d0904df1-website-preview-applies-retired-rendering-effect.md) | agent/website-demo-0921 | 8be5cf230 |
 | P2 | fixed | world | [Workflow style undo can be overwritten by a delayed keep](bugs/1ee46ab1-workflow-style-undo-can-be-overwritten-by-a-dela.md) | agent/ux-triage-1011 | bf756e00e85172c01c9fc336bd9da69c8183864c |
@@ -516,14 +516,14 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 
 | Surface | Open |
 | --- | --- |
-| channels | 4 |
+| channels | 1 |
 | autonomy | 3 |
-| providers | 10 |
+| providers | 9 |
 | safecell | 3 |
-| sessions | 5 |
-| skills | 3 |
+| sessions | 4 |
+| skills | 2 |
 | onboarding | 3 |
-| world | 2 |
+| world | 1 |
 | voice | 2 |
-| release | 7 |
+| release | 6 |
 

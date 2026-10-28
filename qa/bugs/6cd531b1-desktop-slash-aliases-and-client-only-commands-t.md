@@ -4,10 +4,10 @@ slug: desktop-slash-aliases-and-client-only-commands-t
 title: Desktop slash aliases and client-only commands typed on Telegram (/routines, /reset, /version, /q) fall through to a paid model run
 surface: channels
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/channels
-fix:
+fix: d3eda4f3b
 origin: audit
 ---
 
@@ -31,4 +31,4 @@ Booted sidecar :9721, mock Telegram + scripted mock OpenRouter, owner DM 4242.
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `d3eda4f3b` (2026-10-23; an ancestor of trunk, first released in v0.14.0). The hub maps the shared registry's aliases (/routines, /reset, /tasks, /buildaway) onto its own commands under the same owner gate, and hands every other registry built-in (/version, /v, /retry) to the registry, so each answers for free instead of becoming a paid model run. `bbfe3b4af` then gave the note commands (/steer, /q, /btw) their desktop meaning: the words after them go to the running task, a bare one explains itself, and the command word itself never reaches the model. Regression: test/channels.desktop-commands.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).

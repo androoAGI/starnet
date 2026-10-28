@@ -23,7 +23,7 @@ async function campaign(root, seed) {
   });
   const merge = A.fnBody(src,'function mergeCanonicalHistory(local, turns)')+'\n'+A.fnBody(src,'function placeSteerNotes(rows)');   // the read-back places mid-run notes after merging (comms-flow 10-26)
   const seam = src.slice(src.indexOf('  const historyLoads = new WeakMap();'), src.indexOf('\n  // swap the rendered conversation',src.indexOf('  const historyLoads = new WeakMap();')));
-  assert.ok(seam.length>1000 && seam.length<12000, 'bounded production seam');
+  assert.ok(seam.length>1000 && seam.length<16000, 'bounded production seam');   // history-restore-boot-race's bound: the seam grew by the desk-copy redaction (qw18, 10-27)
   vm.runInContext(merge+'\n'+seam+'\nthis.api={loadServerHistory,ensureHistoryReady,continuityDiagnostics};',context);
   const {api}=context;
   const reply = (index,turns,status=200)=>requests[index].resolve({ok:status===200,json:async()=>({turns})});

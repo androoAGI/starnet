@@ -21,7 +21,7 @@ const Delegated = (() => {
   const steps = new Map();   // worker runId -> { name, args } of its latest agent.tool_call
   let ticker = 0, tickGen = 0, wired = false;
   const $log = () => document.getElementById('chat-log');
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const esc = s => U.esc(s == null ? '' : s);   // the one complete impl (escapes & < > " ' — the local copy left ' raw, qw36)
   const clock = ms => { const s = Math.max(0, Math.floor((Number(ms) || 0) / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   const snap = () => (typeof Overseer !== 'undefined' && Overseer.snapshot && Overseer.snapshot()) || {};
   // the instant CREW is painting when this repaint rides its turn (CrewClock.now), so the row reads exactly what CREW shows

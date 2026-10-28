@@ -4,10 +4,10 @@ slug: every-install-update-attempt-writes-another-full
 title: Every INSTALL UPDATE attempt writes another full-station backup to update-snapshots and nothing ever prunes them
 surface: release
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/release
-fix:
+fix: 0d456f194
 origin: audit
 ---
 
@@ -33,4 +33,4 @@ _Found by the `sweep/release` lane, 2026-10-20._
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Fixed in `0d456f194` (2026-10-23; an ancestor of trunk, first released in v0.14.0). After a verified prepare and once at boot, `update-snapshots` keeps only the three newest pre-update bundles with their receipts (`sidecar/update-preparation.js` pruneSnapshots, KEEP_SNAPSHOTS = 3): the bundle a prepare just verified, or the live receipt's, is never removed; read-only files are made writable first; only `pre-*.starnet-backup.json` and its `.receipt.json` are ever touched; a file that cannot be removed is reported (failNote `update.snapshots.prune`) and never fails the update. Regression: test/update-snapshot-prune.test.js (passes on this tree) and test/update-preparation.http.test.js. Reconciled 2026-10-27 (reliability wave 1, quick win 37).

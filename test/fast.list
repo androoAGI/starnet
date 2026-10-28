@@ -425,6 +425,7 @@ test/qa-saboteur.test.js
 test/qa-bugs.test.js
 test/qa-bug-lifecycle.test.js
 test/qa-bugs-register.test.js
+test/qa-bugs-fixed-in-tree.test.js
 test/ledger-reconcile.test.js
 test/qa-guardian.test.js
 test/qa-message-content.test.js
@@ -1170,6 +1171,7 @@ test/session-focus-safety.test.js
 test/session-typing-safety.test.js
 test/session-continuity.test.js
 test/history-restore-boot-race.test.js
+test/desk-merge-redaction.test.js
 test/session-reliability.e2e.test.js
 test/harness-placement.test.js
 test/github-device.test.js
@@ -1411,6 +1413,7 @@ test/run-context.compaction.test.js
 test/comms-stop-queue-tips.test.js
 test/consent-timer-hint.test.js
 test/needs-you-one-list.test.js
+test/delegated-needsyou-escape.test.js
 test/needs-you-bell-settle.test.js
 test/org-crew-comms.test.js
 test/internal-run-not-working.test.js

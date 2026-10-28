@@ -29,6 +29,8 @@ qa/evidence/0.11.2-audit/audit-live-probes.json records chosen starnet / anthrop
 
 Original audit recommendation: Fence catalog application by selection generation, agent/session identity and current provider/model. Delayed requests may update their own cache but must not mutate a newer selection. Add browser and deterministic regressions for A-to-B, A-to-B-to-A, same-provider model change, relink, and failure; verify saved selection after restart. Do not infer affected-customer recovery from this synthetic catalog reproduction.
 
+Reconciled 2026-10-27 (reliability wave 1, quick win 37): the recommendation above was carried out by `59b5f2462` (see the cleanup verification below), an ancestor of trunk and first released in v0.11.2. Regression: test/model-provider-reconcile.test.js, green on this tree. Installer verification and customer recovery are still not claimed.
+
 ## Cleanup verification — 2026-09-10
 
 Late catalogs preserve the explicit provider/model choice and focused agent. The real browser delayed-Ollama probe retains StarNet / anthropic/test-model. test/model-provider-reconcile.test.js covers provider and same-provider switches, A-to-B-to-A, explicit same-pair writes, agent identity and confirmed empty catalogs.

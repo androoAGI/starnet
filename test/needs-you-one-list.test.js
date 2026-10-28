@@ -14,6 +14,7 @@
    seenSession), or, with no conversation to open, dismissed — never a second row beside a live ask in the same
    conversation, never in the history while it waits, counted on the bell once. */
 const A = require('./_assert.js');
+require('./helpers/frontend-esc.js').installEsc();   // delegated.js / needsyou.js escape with the production U.esc, as in the page (qw36)
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
