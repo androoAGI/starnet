@@ -451,6 +451,27 @@ const SEED = {
     A.ok(/makeTranscriptRedactRoute\(\{ redact: \(t\) => PromptScrub\.scrubStored\(t\), readBody, json: respondJson \}\)/.test(idx) && /exact: '\/api\/prompt\/scrub', h: handlePromptScrub/.test(idx), 'P13: index.js serves /api/prompt/scrub with prompt-scrub\'s stored-text rule');
   }
 
+  // ---- P14: the belt never mangles HOST INSTRUCTIONS (review r2): '"Authorization": "Bearer ${NAME}"' stays intact ----
+  {
+    const fs = require('node:fs');
+    const serviceKeysMod = require('../sidecar/servicekeys.js');
+    const list = [{ name: 'Instantly', envVar: 'INSTANTLY_API_KEY', key: K.VAULT.value }, { name: 'Acme', envVar: 'ACME_API_TOKEN', key: 'acme-' + K.VAULT.value.slice(0, 20) }];
+    for (const platform of ['win32', 'posix']) {
+      const block = serviceKeysMod.promptBlock(list, { shell: true, request: true, platform });
+      A.ok(block.length > 200 && block.indexOf('${INSTANTLY_API_KEY}') >= 0, 'P14: the service-keys block teaches ${NAME} (' + platform + ')');
+      A.ok(PS.scrubStored(block) === block, 'P14: scrubStored leaves the composed service-keys block byte-identical (' + platform + ')');
+    }
+    const skillsDir = path.join(__dirname, '..', 'skills-catalog', 'skills');
+    const changed = [];
+    for (const slug of fs.readdirSync(skillsDir)) {
+      const f = path.join(skillsDir, slug, 'SKILL.md');
+      if (!fs.existsSync(f)) continue;
+      const body = fs.readFileSync(f, 'utf8');
+      if (PS.scrubStored(body) !== body) changed.push(slug);
+    }
+    A.eq(changed, [], 'P14: scrubStored leaves every shipped skill body byte-identical (rest-graphql-debug teaches "Authorization": "Bearer ${ACME_API_TOKEN}")');
+  }
+
   PS.setHeldSource(null);
   A.report('prompt-scrub.projectors.test');
 })().catch(e => { console.error(e); process.exit(1); });
