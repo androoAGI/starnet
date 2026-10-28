@@ -30,7 +30,11 @@
         progress; the internal evidence run carries the evidence pack; the persona keeps its dossier words
      I3 the live turn is untouched: ASK1's own request carries its key raw (keys.save reads it); every chat request
         ends on a user turn
-     I4 at rest: new run titles hold no key; the legacy rows are still raw on disk (read-side scrub, no migration) */
+     I4 at rest: new run titles hold no key; the legacy rows are still raw on disk (read-side scrub, no migration)
+   Review r2 lanes (all leaked at b54518d12): CONN types a password a connector then holds under a plain header name
+   (I1b: never on a later request); MINE drives the thread-mining aux pass (SKYNET_AUX_BUDGET=0, its board lists the
+   legacy thread); LOOP / SUBA script loop_list and team_subagents calls over seeded loops.json / subagents.json; AJ is
+   the page's autojobs internal run built with its real module from a stored belief (I5: each lane really ran). */
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -48,23 +52,38 @@ const { list: KEYS, by: K } = FK.make('prompt-scrub-invariant');
 const PROVIDER_KEY = 'sk-or-v1-' + FK.stream('invariant-provider', 64, '0123456789abcdef');
 
 // ---------- the capturing mock provider ----------
-let phase = 'boot', lastHit = Date.now(), panelSeq = Infinity;
+let phase = 'boot', lastHit = Date.now(), panelSeq = Infinity, connSeq = Infinity;
 const captures = [];   // { seq, phase, url, body }
 const flat = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (typeof p === 'string' ? p : ((p && p.text) || ''))).join('') : (c == null ? '' : String(c)));
 const LEAD = /^\s*<(run_context|recalled-memory|conversation_summary|crew_call)>[\s\S]*?<\/\1>\s*/;
 function ownWords(t) { t = String(t || ''); for (;;) { const m = LEAD.exec(t); if (!m) break; t = t.slice(m[0].length); } return t.replace(/<crew_call>[\s\S]*<\/crew_call>\s*$/, '').trim(); }
 function sse(res, msg) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+  const usage = { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 };
+  if (msg && typeof msg === 'object') {   // a scripted tool call (review r2: store-reading tool results)
+    res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: { role: 'assistant', content: null, tool_calls: [{ index: 0, id: 'call_inv_' + captures.length, type: 'function', function: { name: msg.tool, arguments: '' } }] } }] }) + '\n\n');
+    res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: msg.args } }] } }] }) + '\n\n');
+    res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage }) + '\n\n');
+    return res.end('data: [DONE]\n\n');
+  }
   res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: { role: 'assistant', content: msg } }] }) + '\n\n');
-  res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 } }) + '\n\n');
+  res.write('data: ' + JSON.stringify({ id: 'inv', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage }) + '\n\n');
   res.end('data: [DONE]\n\n');
 }
 const KEYLIKE = /[A-Za-z0-9_\-]{24,}/;
+// per phase: the tool calls the MAIN request (the one offering the station's tools) makes, in order
+const SCRIPT = { LOOP: [{ tool: 'loop_list', args: '{}' }], SUBA: [{ tool: 'tool_search', args: JSON.stringify({ query: 'background subagents list status' }) }, { tool: 'team_subagents', args: '{}' }] };
+const scripted = {};
+const LONG_REPLY = 'Done. I reviewed the outreach dashboard plan and the follow-up schedule: the lead scoring pass is finished, the weekly report export still needs its template, and the reminder emails for cold leads can become a standing routine.';
 function decide(body) {
   const msgs = Array.isArray(body.messages) ? body.messages : [];
   const all = msgs.map(m => flat(m && m.content)).join('\n');
   let lastUser = -1; for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i] && msgs[i].role === 'user') { lastUser = i; break; }
   const words = lastUser >= 0 ? ownWords(flat(msgs[lastUser].content)) : '';
+  if (/You surface ideas the Commander raised/.test(all)) return 'NONE';   // the thread-mining aux pass
+  const q = SCRIPT[phase] || [], n = scripted[phase] || 0;
+  if (q[n] && Array.isArray(body.tools) && body.tools.length > 5) { scripted[phase] = n + 1; return q[n]; }
+  if (/INV-MINE/.test(words)) return LONG_REPLY;
   // the interests intake pass: quote ONE activity line verbatim, as its directive demands (a key rides along if present)
   if (/station's intake analyst/.test(all)) {
     const act = (all.split('RECENT ACTIVITY')[1] || '').split('\n').filter(l => /^\s*•/.test(l)).map(l => l.replace(/^\s*•\s*/, ''));
@@ -115,6 +134,20 @@ fs.writeFileSync(path.join(WS, 'scout.interests.json'), JSON.stringify(interests
 fs.writeFileSync(path.join(WS, 'threads.json'), JSON.stringify({ threads: [{ id: 'th_legacy', state: 'open', createdAt: NOW - HOUR, updatedAt: NOW - HOUR,
   title: 'LEGACY-T rotate the deploy key ' + K.GITHUB.value, spec: ('he said ' + 'z'.repeat(150) + ' ' + K.ANTHROPIC.value).slice(0, 180) }], declined: [] }));
 
+// (review r2) station stores a TOOL hands back: a loop whose objective/lastError hold keys, a background subagent whose
+// lead-authored prompt and handoff context hold keys
+fs.writeFileSync(path.join(WS, 'loops.json'), JSON.stringify({ version: 1, loops: [{ id: 'loop_inv', name: 'Standup poster',
+  objective: 'Post the daily standup to Slack with bot token ' + K.SLACK.value + ' until the channel shows it', agentId: 'agent', gate: 'ask',
+  state: 'paused', enabled: false, iterationCount: 0, maxIterations: 5, createdAt: NOW - HOUR, iterations: [] }] }));
+fs.writeFileSync(path.join(WS, 'subagents.json'), JSON.stringify({ version: 1, records: [{ id: 'sa_inv', leadId: 'agent', agentId: 'agent', runId: 'run_sa_inv',
+  status: 'done', reason: 'done', generation: 1, prompt: 'Call the billing API with key ' + K.OPENAI.value + ' and summarize the open invoices',
+  context: 'The Commander said: the Anthropic key is ' + K.ANTHROPIC.value, result: 'Summarized 4 open invoices.',
+  createdAt: NOW - HOUR, updatedAt: NOW - HOUR, startedAt: NOW - HOUR, endedAt: NOW - HOUR + 1000 }] }));
+// (review r2) a password the Commander typed BEFORE a connector held it, under a header name that is no credential word:
+// only the transcript's redaction (every header/env value) holds it, never the prompt's credential list
+const CONN_PW = 'Tr0ub4dor&3!xq#Z';
+const CONN_TEXT = ('INV-CONN update the reporting mailer settings for the weekly digest and keep the same relay host as before, the relay value').padEnd(121, ' x') + ' is ' + CONN_PW + ' ok';
+
 // the page persona: the page bakes the Commander's dossier into every agent's stored systemPrompt (frontend/app/app.js)
 const DOSSIER = 'Runs an outreach agency. Our OpenRouter key: ' + K.OPENROUTER.value;
 const PAGE_SYSTEM = 'You are Hero, the station lead. Answer briefly.\n\nCOMMANDER DOSSIER\n' + DOSSIER;
@@ -139,6 +172,7 @@ function hermeticEnv(port, mockPort) {
     SKYNET_OPENROUTER_BASE: orBase, STARNET_OPENROUTER_BASE: orBase, SKYNET_OPENROUTER_KEY: PROVIDER_KEY,
     SKYNET_DEFAULT_MODEL: 'test/model', SKYNET_FULL_ACCESS: '1',
     SKYNET_EDGE_TTS: '0', SKYNET_EDGE_TTS_PROBE: '0', SKYNET_REFLECT: '0', SKYNET_SKILL_REVIEW: '0',
+    SKYNET_AUX_BUDGET: '0',   // (review r2) the aux governor off: every gated post-run pass spends, thread mining included
     HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: '127.0.0.1,localhost', NODE_USE_ENV_PROXY: '1'
   });
 }
@@ -210,6 +244,12 @@ const TYPED = {};   // phase -> the key ids its own words typed
       TYPED[label] = [id];
       A.eq(await run(label, 'INV-' + label + ' ' + service + ' ' + K[id].value + ' ' + ask), 'done', 'phase B: ' + label + ' run completed');
     }
+    // (review r2) CONN types a password past the 120-char title cut; a connector then saves it under a plain header name
+    A.eq(await run('CONN', CONN_TEXT), 'done', 'phase B: CONN run completed');
+    phase = 'CONNSAVE';
+    const conn = await api('POST', '/api/connectors', { id: 'invmailer', transport: 'http', url: 'http://127.0.0.1:9/mcp', headers: { 'X-Relay-Value': CONN_PW } });
+    A.ok(conn.status === 200, 'phase B: a connector holding the typed value under a plain header was saved (http ' + conn.status + ')');
+    connSeq = captures.length;
     phase = 'PANEL';
     const saved = await api('POST', '/api/servicekeys', { name: 'Instantly', key: K.VAULT.value });
     A.ok(saved.status === 200 && saved.json && saved.json.ok, 'phase B: the vault value is saved through the KEYS panel route');
@@ -233,6 +273,17 @@ const TYPED = {};   // phase -> the key ids its own words typed
     await api('POST', '/api/quests/refresh/run', {});
     await idle(2500, 60000);
     A.eq(await run('INT', '', { extra: { internal: true, evidence: true, isTask: false, system: 'You recommend the Commander\'s next step. Reply with ONE line.' }, messages: [{ role: 'user', content: 'INV-INT what should the Commander do next?' }] }), 'done', 'phase C: an internal evidence:true run completed');
+    // ---- (review r2) the lanes round 2 found open ----
+    // MINE: a substantive task run, so the thread-mining aux pass fires and lists the board (th_legacy holds GITHUB)
+    A.eq(await run('MINE', 'INV-MINE Please review the outreach dashboard plan we sketched last week and tell me which of the follow-up steps still need doing: the lead scoring pass, the weekly report export, and the reminder emails for cold leads. Also note which could become a standing routine.'), 'done', 'phase C: MINE completed');
+    await idle(2500, 30000);
+    // LOOP / SUBA: the model calls a store-reading station tool; its result rides the follow-up request
+    A.eq(await run('LOOP', 'INV-LOOP which loops do I have, and are any stuck?'), 'done', 'phase C: LOOP completed');
+    A.eq(await run('SUBA', 'INV-SUBA how did my background workers do?'), 'done', 'phase C: SUBA completed');
+    // AJ: the page's own internal prompt, built with its REAL module from a stored Commander belief
+    const AutoJobs = require('../frontend/app/autojobs.js');
+    const ajDirective = AutoJobs.buildProposalDirective({ beliefs: { goals: ['Ship outreach v2 this quarter'], stack: ['Every model call goes through OpenAI with key ' + K.OPENAI.value] }, existingJobs: ['Morning digest'] });
+    A.eq(await run('AJ', '', { extra: { internal: true, evidence: true, isTask: false, placed: [], system: 'You are Hero, the station lead.' }, messages: [{ role: 'user', content: ajDirective }] }), 'done', 'phase C: the page\'s autojobs internal run completed');
     TYPED.ASK1 = ['ASKKEY'];
     A.eq(await run('ASK1', 'INV-ASK1 open an issue on my tracker with openai key ' + K.ASKKEY.value + ' for the triage bot', { streamId: 'invASK' }), 'clarifying', 'phase C: ASK1 ends asking its question');
     phase = 'ASK2';
@@ -262,6 +313,16 @@ const TYPED = {};   // phase -> the key ids its own words typed
     }
   }
   A.eq(hits, [], 'I1: no later request carries a key typed in another phase (whole or any 12-char window)');
+  // I1b (review r2): the CONN password, held by the connector after it was typed, reaches no later request
+  const connHits = captures.filter(c => c.seq > connSeq && (typeof c.body === 'string' ? c.body : JSON.stringify(c.body)).indexOf(CONN_PW) >= 0).map(c => '#' + c.seq + ' ' + c.phase);
+  A.eq(connHits, [], 'I1b: a value only a connector header holds (plain name) never rides a later request (base parity on brief/chat lines)');
+  // I5 (review r2): the lanes that leaked at b54518d12 were actually driven
+  const sysOf = c => { const m = (c.body && c.body.messages) || []; return m.map(x => flat(x && x.content)).join('\n'); };
+  A.ok(chat.some(c => c.phase === 'MINE' && /You surface ideas the Commander raised/.test(sysOf(c)) && /LEGACY-T rotate the deploy key \[redacted-key\]/.test(JSON.stringify(c.body))), 'I5: the thread-mining pass fired and listed the legacy thread with its key replaced');
+  const toolMsg = (ph, re) => chat.some(c => c.phase === ph && ((c.body && c.body.messages) || []).some(m => m && m.role === 'tool' && re.test(flat(m.content))));
+  A.ok(toolMsg('LOOP', /Post the daily standup to Slack with bot token \[redacted-key\]/), 'I5: loop.list\'s result reached the model, its stored objective scrubbed');
+  A.ok(toolMsg('SUBA', /Call the billing API with key \[redacted-key\]/), 'I5: team.subagents\' result reached the model, its stored prompt scrubbed');
+  A.ok(chat.some(c => c.phase === 'AJ' && /Every model call goes through OpenAI with key \[redacted-key\]/.test(JSON.stringify(c.body))), 'I5: the page\'s autojobs internal run kept its words, its belief key scrubbed');
   // I2
   const later = chat.filter(c => c.seq > panelSeq);
   const text = c => JSON.stringify(c.body);
@@ -277,7 +338,7 @@ const TYPED = {};   // phase -> the key ids its own words typed
   // I3
   const ask1 = chat.filter(c => c.phase === 'ASK1');
   A.ok(ask1.some(c => { const m = c.body.messages || []; const u = m[m.length - 1]; return u && u.role === 'user' && ownWords(flat(u.content)).indexOf(K.ASKKEY.value) >= 0; }), 'I3: the live turn is untouched: ASK1 sends its own key raw (keys.save reads it there)');
-  A.eq(chat.filter(c => { const m = c.body.messages || []; return !m.length || m[m.length - 1].role !== 'user'; }).map(c => c.phase), [], 'I3: every chat request ends on a user turn');
+  A.eq(chat.filter(c => { const m = c.body.messages || []; return !m.length || (m[m.length - 1].role !== 'user' && m[m.length - 1].role !== 'tool'); }).map(c => c.phase), [], 'I3: every chat request ends on a user turn (or a tool result)');
   // I4
   let rows = [];
   try { rows = fs.readFileSync(path.join(WS, 'runs.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch (_) {}
