@@ -1,0 +1,42 @@
+{
+  "experiment_id": "AU-UCR-EP-000001",
+  "sprint_id": "S0",
+  "work_item_id": "S0-003",
+  "state": "frozen_pending_acceptance",
+  "owner_lane": "unassigned_role_only",
+  "reviewer": null,
+  "implementation_critical_path": "UCR-001",
+  "edges": [
+    ["UCR-001", "UCR-002"],
+    ["UCR-001", "UCR-003"],
+    ["UCR-001", "UCR-004"],
+    ["UCR-002", "UCR-005"],
+    ["UCR-003", "UCR-005"],
+    ["UCR-004", "UCR-005"],
+    ["UCR-005", "UCR-006"],
+    ["UCR-005", "UCR-007"],
+    ["UCR-005", "UCR-008"],
+    ["UCR-004", "UCR-009"],
+    ["UCR-006", "UCR-009"],
+    ["UCR-007", "UCR-010"],
+    ["UCR-008", "UCR-010"],
+    ["UCR-009", "UCR-010"],
+    ["UCR-010", "UCR-011"],
+    ["UCR-011", "UCR-012"]
+  ],
+  "parallel_safe_after_ucr_001_accepted": [
+    {
+      "items": ["UCR-002", "UCR-003"],
+      "lane": "Runtime Agent",
+      "constraint": "separate worktrees"
+    },
+    {
+      "items": ["UCR-004"],
+      "lane": "Security/Governance Agent",
+      "constraint": "starts only after UCR-001 acceptance"
+    }
+  ],
+  "blocked_until_reconciliation_acceptance": [
+    "Campus/UI Agent assertions of runtime truth"
+  ]
+}
