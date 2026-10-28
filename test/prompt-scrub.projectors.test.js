@@ -605,6 +605,40 @@ const SEED = {
     const p1 = api.pushSessionContext(), p2 = api.pushSessionContext();
     await Promise.all([p1, p2]);
     A.eq(sent.length, 2, 'P13: a newer push supersedes one still in flight (one update, not two)');
+    // r3: get_starnet_status's function_call_output quotes the SAME stored titles and leaves the browser directly too —
+    // the voice model is told to call it before any status answer. And the context the call holds is recorded only once a
+    // push really went out (a failed or hung scrub is retried, never silently skipped).
+    const src2 = seqLine + 'let lastContextFingerprint = \'\', pendingContextFingerprint = \'\';\n' + body('function voiceInstructions() {') + body('function scrubbedInstructions(text) {')
+      + body('function pushSessionContext() {') + body('function syncSessionContext() {') + body('function statusSnapshot() {') + body('async function runVoiceTool(name, args) {') + body('function voiceToolOutput(name, result) {');
+    const sent2 = [];
+    let fetchImpl = pageFetch, fp = 'A', fastTimeout = false;
+    const Workstreams = { active: () => ctx.streams[0], list: () => ctx.streams };
+    const Channels = { isBusy: () => false, statusOf: () => 'idle', pendingOf: () => null };
+    const api2 = new Function('fetch', 'sendEvent', 'stationContext', 'sessionName', 'Personas', 'Workstreams', 'Channels', 'voiceContextFingerprint', 'setTimeout', 'clearTimeout',
+      src2 + '; return { syncSessionContext, runVoiceTool, voiceToolOutput, state: () => [lastContextFingerprint, pendingContextFingerprint] };')(
+      (u, i) => fetchImpl(u, i), (e) => { sent2.push(e); return true; }, () => ctx, (ws) => ws.title, undefined, Workstreams, Channels, () => fp,
+      (fn, ms) => setTimeout(fn, fastTimeout ? 5 : ms), clearTimeout);
+    const status = await api2.runVoiceTool('get_starnet_status', {});
+    A.ok(status.ok && leaks(JSON.stringify(status)) !== '', 'P13: (get_starnet_status\'s snapshot carries the held session title raw)');
+    const out = await api2.voiceToolOutput('get_starnet_status', status);
+    A.eq(leaks(out), '', 'P13: the get_starnet_status output that leaves the browser holds no key or window');
+    A.eq(JSON.parse(out).workstreams[0].title, 'pull campaigns with [redacted-secret]', 'P13: …and stays the JSON snapshot, words kept');
+    routeUp = false;
+    const down = await api2.voiceToolOutput('get_starnet_status', status);
+    A.ok(JSON.parse(down).ok === false && leaks(down) === '' && down.indexOf('pull campaigns') < 0, 'P13: when the station cannot scrub it, the model hears "unavailable", never the raw snapshot');
+    A.eq(await api2.voiceToolOutput('interrupt_starnet_task', { ok: true, interrupted: true }), '{"ok":true,"interrupted":true}', 'P13: a tool with no stored text answers as before (no scrub round trip)');
+    A.ok(/const output = await voiceToolOutput\(name, result\);[\s\S]{0,240}item: \{ type: 'function_call_output', call_id: event\.call_id, output \}/.test(voice), 'P13: every function_call_output goes out through voiceToolOutput');
+    // the fingerprint: a failed push is not recorded, so the next tick retries it
+    A.eq([await api2.syncSessionContext(), api2.state(), sent2.length], [false, ['', ''], 0], 'P13: a push the station could not scrub is not recorded as the call\'s context');
+    routeUp = true;
+    A.eq([await api2.syncSessionContext(), api2.state(), sent2.length], [true, ['A', ''], 1], 'P13: the next tick pushes it and records it');
+    A.eq([await api2.syncSessionContext(), sent2.length], [false, 1], 'P13: an unchanged context is not pushed again');
+    fp = 'B'; fastTimeout = true;
+    fetchImpl = (u, init) => new Promise((_, rej) => { init.signal.addEventListener('abort', () => rej(new Error('aborted'))); });   // a scrub route that hangs
+    A.eq([await api2.syncSessionContext(), api2.state(), sent2.length], [false, ['A', ''], 1], 'P13: a hung scrub gives up (AbortController) and the change stays pending');
+    fetchImpl = pageFetch; fastTimeout = false;
+    A.eq([await api2.syncSessionContext(), api2.state(), sent2.length], [true, ['B', ''], 2], 'P13: …and is pushed on the next tick once the station answers');
+    A.ok(/dataChannel\.onopen = \(\) => \{\n\s+lastContextFingerprint = ''; pendingContextFingerprint = '';[^\n]*\n\s+syncSessionContext\(\);[\s\S]{0,200}syncSessionContext\(\);\n\s+\}, 2000\);/.test(voice), 'P13: the channel opens and ticks through syncSessionContext');
     const idx = S.readSidecarSource();
     A.ok(/makeTranscriptRedactRoute\(\{ redact: \(t\) => PromptScrub\.scrubStored\(t\), readBody, json: respondJson \}\)/.test(idx) && /exact: '\/api\/prompt\/scrub', h: handlePromptScrub/.test(idx), 'P13: index.js serves /api/prompt/scrub with prompt-scrub\'s stored-text rule');
   }
