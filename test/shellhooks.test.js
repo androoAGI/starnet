@@ -266,7 +266,7 @@ const mk = (extra) => makeShellHooks(Object.assign({ spawn, fsp, pathMod: path, 
 
   A.report('shellhooks.test');
 })().catch(async (e) => {
-  try { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (_) {}
+  try { await fsp.rm(DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (e2) { console.log('shellhooks.test: teardown rm failed: ' + (e2 && e2.code || e2)); }
   console.log('FAIL: shellhooks.test threw -- ' + (e && e.stack || e));
   process.exit(1);
 });

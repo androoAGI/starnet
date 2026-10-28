@@ -189,7 +189,7 @@ async function main() {
   finally {
     if (child.exitCode === null && child.signalCode === null) {
       const gone = new Promise(r => child.once('exit', r));
-      try { child.kill(); } catch (_) {}
+      try { child.kill(); } catch (e) { console.error('saboteur: kill failed: ' + (e && e.code || e)); }
       await Promise.race([gone, new Promise(r => setTimeout(r, 3000))]);   // let it flush its last lines into sidecar.log
     }
   }

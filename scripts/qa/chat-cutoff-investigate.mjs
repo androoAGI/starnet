@@ -106,7 +106,7 @@ try {
 } finally {
   try {
     writeFileSync(resolve(out, 'boot.log'), log);
-    if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
+    if (cdp) { try { await cdp.send('Browser.close'); } catch (e) { console.error('chat-cutoff-investigate: Browser.close failed: ' + (e && e.message || e)); } cdp.ws.close(); }
     if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
     // seed.js forwards SIGTERM to the sidecar on platforms with signal support.
     if (app.exitCode === null && app.signalCode === null) {

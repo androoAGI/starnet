@@ -93,7 +93,7 @@ try {
   console.log('Interactive review: initialized; before/after toggles PASS');
 } finally {
   try {
-    if(cdp) { await cdp.send('Browser.close').catch(()=>{}); cdp.ws.close(); }
+    if(cdp) { await cdp.send('Browser.close').catch((e)=>console.error('check-small-screen: Browser.close failed: ' + (e && e.message || e))); cdp.ws.close(); }
     if(proc.exitCode===null) { const exit=once(proc,'exit'); proc.kill(); await exit; }
   } finally { await scratch.dispose(); }   // its own finally: a teardown step that throws cannot leak the profile
 }

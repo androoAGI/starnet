@@ -164,7 +164,7 @@ try {
 } finally {
   try {
     writeFileSync(resolve(out, 'boot.log'), log);
-    if (cdp) { try { await cdp.send('Browser.close'); } catch {} cdp.ws.close(); }
+    if (cdp) { try { await cdp.send('Browser.close'); } catch (e) { console.error('session-reliability: Browser.close failed: ' + (e && e.message || e)); } cdp.ws.close(); }
     if (browser && browser.exitCode === null) { const gone = new Promise(r => browser.once('exit', r)); browser.kill(); await Promise.race([gone, sleep(3000)]); }
     await stop();
     if (installed) await installed.dispose();
