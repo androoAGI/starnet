@@ -1475,7 +1475,9 @@ const Chat = (() => {
       if (hasStaged) await settleAttachments();
       if (activeWs?.id !== ws.id) return;   // you moved on while the files uploaded: the message stays in the box
       const atts = pendingAtts.filter(entry => entry.status === 'ready' && entry.ref).map(entry => entry.ref);
+      stepOfferAside('turn');   // a turn typed here never reaches send(): it steps an offer aside the same way (review 10-27)
       const sent = await GroupChat.sendText(t, { attachments: atts, attachmentAgent: ws.agentId });
+      if (sent) typedTaskCompletesHandoff(t, ws);
       if (sent && activeWs?.id === ws.id) { takeAttachments(); if (input.value.trim() === t) input.value = ''; closeSlash(); autoGrowInput(); }
       return;
     }
@@ -1484,7 +1486,9 @@ const Chat = (() => {
       if (hasStaged) await settleAttachments();
       if (activeWs?.id !== ws.id || focusVersion !== submissionFocusVersion) return;
       const atts = pendingAtts.filter(entry => entry.status === 'ready' && entry.ref).map(entry => entry.ref);
+      stepOfferAside('turn');   // a group turn never reaches send(): it steps an offer aside the same way (review 10-27)
       const sent = await GroupChat.sendText(t, { attachments: atts, attachmentAgent: ws.agentId });
+      if (sent) typedTaskCompletesHandoff(t, ws);
       if (sent && activeWs?.id === ws.id) { takeAttachments(); if (input.value.trim() === t) input.value = ''; closeSlash(); autoGrowInput(); }
       return;
     }
@@ -1497,7 +1501,9 @@ const Chat = (() => {
       return;
     }
     // BUSY: type-ahead queues TEXT; staged files wait in the strip for the next idle send (one run per stream).
-    if (isBusy()) { if (t) { input.value = ''; closeSlash(); autoGrowInput(); enqueue(t); } return; }
+    // a typed task queued here is the Commander's all the same: it completes a pending first-task hand-off now (the queue later
+    // sends it with no composer mark, so send() could not tell it was typed)
+    if (isBusy()) { if (t) { input.value = ''; closeSlash(); autoGrowInput(); enqueue(t); stepOfferAside('turn'); typedTaskCompletesHandoff(t, activeWs); } return; }
     // SETTLE UPLOADS: a staged attachment still uploading must not be silently dropped — uploads to the local
     // sidecar are near-instant, so we AWAIT them before snapshotting. A failed one already notified per-file.
     if (hasStaged) await settleAttachments();
@@ -1505,7 +1511,7 @@ const Chat = (() => {
     const atts = takeAttachments();   // snapshot the READY refs + clear the composer strip
     if (!t && !atts.length) return;   // everything failed to upload and there's no text → nothing to send
     input.value = ''; closeSlash(); autoGrowInput();   // COMPOSER: collapse back to one line after a send
-    send(t, { attachments: atts });
+    send(t, { attachments: atts, composer: true });   // composer: the Commander typed this turn (a pending first task reads it)
   }
 
   /* ── ATTACHMENTS ────────────────────────────────────────────────────────────────────────────────────
@@ -2225,9 +2231,13 @@ const Chat = (() => {
     historyPinPending = historyPin;
     revealKey = '';   // a reveal into this conversation runs after load(); this only drops a stale one
     const nextWs = ws || (typeof Workstreams !== 'undefined' ? Workstreams.active() : null);
+    const prevWs = activeWs;
     if (activeWs?.id !== nextWs?.id) focusVersion++;
     activeWs = nextWs;
     paintTitle();
+    // ANOTHER CONVERSATION IS ON SCREEN (gh#158): an offer panel over COMMS (the first-task hand-off included) steps aside,
+    // unanswered, so COMMS shows the conversation now open and its message box. A re-sync of the same one never does.
+    if (prevWs && nextWs && prevWs.id !== nextWs.id) stepOfferAside('session');
     noteContinuity(activeWs, 'session-selected');
     heldCard = null; heldQueue.length = 0;
     if (activeWs && activeWs.conversationMode === 'group' && typeof GroupChat !== 'undefined') {
@@ -6792,8 +6802,25 @@ const Chat = (() => {
      UNDER the panel — 19 approve clicks hit the panel's line. An offer panel (Dialogue.open({ offer })) now steps aside,
      unanswered, the moment an approval or question reaches the Commander — asked-for or not, since a paused run is waiting on
      them — and when they send a turn of their own (its reply would stream under it). Never a decline: it is offered again. */
-  function stepOfferAside(why) { return !!(typeof Dialogue !== 'undefined' && Dialogue.stepAside && Dialogue.stepAside(why)); }
+  // the arbiter (Dialogue.preempt / OWNER_RULES) decides who yields: an offer always does, the quick tour yields a session pick,
+  // the awakening never — COMMS never decides that per call site
+  function stepOfferAside(why) {
+    if (typeof Dialogue === 'undefined') return false;
+    if (Dialogue.preempt) return !!Dialogue.preempt(why);
+    return !!(Dialogue.stepAside && Dialogue.stepAside(why));
+  }
   function noteAskLanding() { return stepOfferAside('ask'); }
+  /* A TASK THE COMMANDER TYPED COMPLETES A PENDING FIRST-TASK HAND-OFF (gh#158), on the composer paths that never reach send()'s
+     own check: a group conversation (GroupChat.sendText) and the busy type-ahead queue. Same classifier as send() (the agent's
+     last reply as context), and PitchStore.noteCommsTask keeps the first task pending on a station that cannot run it. */
+  function typedTaskCompletesHandoff(t, ws) {
+    if (!t || typeof PitchStore === 'undefined' || !PitchStore.noteCommsTask || !PitchStore.handoffPending || !PitchStore.handoffPending()) return false;
+    const h = (ws && Array.isArray(ws.history)) ? ws.history : [];
+    let prior = '';
+    for (let i = h.length - 1; i >= 0; i--) { const m = h[i]; if (m && m.role === 'assistant') { prior = typeof m.content === 'string' ? m.content : ''; break; } if (m && m.role === 'user') break; }
+    if (!(typeof Classify !== 'undefined' && Classify.isTaskDirective && Classify.isTaskDirective(t, { priorAgentTurn: prior }))) return false;
+    try { return !!PitchStore.noteCommsTask(t); } catch (_) { return false; }
+  }
   // ANY approval or question raised for the Commander (a run's own, a delegated worker's, a group's, a background one) steps an
   // offer panel aside before its card draws: "defer while an ask waits" (askWaiting keeps it from re-opening meanwhile)
   if (typeof U !== 'undefined' && U.bus && U.bus.on) U.bus.on('permission.prompt', noteAskLanding);
@@ -11210,6 +11237,9 @@ const Chat = (() => {
     // tools, but never feeds what reads the Commander's own wording (the profile, the recurring-job miner, the intent
     // offer) — two "yes please" acceptances must not look like a recurring job called "yes please".
     const acceptedOffer = !!(isTask && Classify.isAffirmation && Classify.isAffirmation(text));
+    // a task the Commander typed into the message box completes a pending first-task hand-off (gh#158). Never a retry, a goal
+    // step, or a send made for them (the tour's file example, a recipe launch, a hand-off Start): those carry no `composer`.
+    if (opts && opts.composer && isTask && !retry && !goalContinuation && typeof PitchStore !== 'undefined' && PitchStore.noteCommsTask) { try { PitchStore.noteCommsTask(text); } catch (_) {} }
     // INTENT OFFER: a real, fresh directive is the one moment the Commander has stated what they want in their
     // own words — the only honest place to say "there is a class built for exactly this". Gated to genuine new
     // work: never a retry (already offered on the original), never a recipe launch (they came FROM the library),

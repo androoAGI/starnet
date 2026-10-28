@@ -8,8 +8,9 @@
        landed on .fnv-opts ("fnv-dialogue show fnv-wait (fully)" while it was still narrating).
    The law, executed here with a small DOM (dialogue.js and chat.js's offerArc run for real):
    A. an offer panel (Dialogue.open({ offer })) ends ABOVE the message box and the queued-message pills, refits when they grow,
-      and honours the TEXT SIZE body zoom (rects are visual px, its own style px are layout px); the awakening / tour / first-task
-      panels (no offer) still own the whole of COMMS, exactly as before;
+      and honours the TEXT SIZE body zoom (rects are visual px, its own style px are layout px); the awakening / tour panels
+      (no offer) still own the whole of COMMS, exactly as before (the first-task hand-off is an offer since gh#158 — see
+      test/first-task-handoff-yields.test.js; who yields to what is test/comms-owner-rules.test.js);
    B. Esc answers an offer the way its own "not now" key does — never from a station field, never an Esc the message box used
       (stop a run, close the / menu), never an Esc inside another surface; a panel with no offer keeps Esc off (the awakening);
    C. Dialogue.stepAside(why) hands the moment back to the offer's caller and is a no-op otherwise;
@@ -146,7 +147,7 @@ const settle = async () => { for (let n = 0; n < 40; n++) await new Promise(r =>
     s.D.close();
   }
   {
-    // the awakening / tour / first-task hand-off pass no offer: they still own the whole of COMMS (unchanged)
+    // the awakening / tour pass no offer: they still own the whole of COMMS (unchanged)
     const s = station();
     s.D.open({ name: 'NOVA' });
     void s.D.say('wake up.');
