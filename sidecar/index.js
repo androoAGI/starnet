@@ -8632,7 +8632,9 @@ function nightshiftContextPack(evidence) {
   const trackRecord = stationTrackRecordLines();
   // No redact is passed: the pack scrubs every stored line itself (contextpack's default prompt-scrub resolver), so the
   // prompt text, the activity pool and the grounding veto all read one identically scrubbed copy. matchRedact is the
-  // transcript's own redaction, used ONLY to join a self-talk run title to its redacted-on-write transcript row.
+  // transcript's own redaction (every connector header/env value): it joins a self-talk run title to its redacted-on-
+  // write transcript row, and the brief directives + chat first-lines go through it first, exactly where this pack
+  // applied `redact` before the prompt resolver existed (base parity, review r2).
   const pack = contextpack.assemble({ runs, briefs, chats, goal, landed, beliefs, learn, trackRecord, matchRedact: redact }, { now });
   // A legacy run's absent taintedBy is not positive owner provenance. Persisted interests may learn only
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.

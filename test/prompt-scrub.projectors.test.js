@@ -172,6 +172,18 @@ const SEED = {
     chats: [{ role: 'user', content: 'Plan the [redacted-secret] rollout for the outreach push', ts, streamId: 'f' }] };
   A.ok(!contextpack.assemble(Object.assign({ matchRedact: fullRedact }, selfTalk), { now }).activityLines.some(l => /rollout/.test(l)), 'P3: matchRedact joins a self-talk title to its (more) redacted transcript row');
   A.ok(contextpack.assemble(selfTalk, { now }).activityLines.some(l => /rollout/.test(l)), 'P3: (without it the row would read as the Commander\'s own activity)');
+  // BASE PARITY (review r2): the transcript's redaction holds EVERY connector header/env value; the prompt list only
+  // the credentials. A password under an innocuous header, typed before the connector existed, sits raw in a chat row
+  // and a brief: the pack applies matchRedact to those two sections exactly as it applied the host redact at 41c298d9a.
+  const PW = 'Tr0ub4dor&3!xq#Z';
+  const transcriptRedact = s => String(s).split(PW).join('[redacted-secret]');   // the host's context.redact holds it
+  const legacy = { runs: [], briefs: [{ originalDirective: 'Sync the CRM contacts, the relay value is ' + PW + ' every morning', ts }],
+    chats: [{ role: 'user', content: 'dump the orders table, the relay value is ' + PW, ts, streamId: 'g' }], matchRedact: transcriptRedact };
+  const lp = contextpack.assemble(legacy, { now });
+  A.ok((lp.text + '\n' + lp.activityLines.join('\n')).indexOf(PW) < 0, 'P3: a value only the transcript redaction holds stays out of brief and chat lines (base parity)');
+  A.ok(lp.activityLines.some(l => /^Sync the CRM contacts, the relay value is \[redacted-secret\] every morning/.test(l)) && lp.activityLines.some(l => /relay value is \[redacted-secret\]"/.test(l)), 'P3: both lines keep their words');
+  const titled = contextpack.assemble({ runs: [{ title: 'Deploy production now', ts, streamId: 'h' }], goal: { text: 'Ship production' }, matchRedact: s => String(s).split('production').join('[redacted-secret]') }, { now });
+  A.ok(titled.activityLines.indexOf('Deploy production now (today)') >= 0 && titled.activityLines.some(l => /^Ship production/.test(l)), 'P3: run titles and the goal never take the transcript redaction (\'production\' stays)');
 }
 
 // ---- P4: Interests.summary / topicsBlock ----

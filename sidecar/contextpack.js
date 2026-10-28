@@ -108,11 +108,16 @@
        inputs.learn    : { archetype:{up,down} }             (the LEARN store; summarized to one line)
        inputs.trackRecord : [string]                         (outcomes.js lines(); pre-composed literal-count lines)
        inputs.redact   : fn(string)->string                  (an EXTRA scrubber, applied before the default one)
-       inputs.matchRedact : fn(string)->string               (the transcript's redaction: only for the self-talk join)
+       inputs.matchRedact : fn(string)->string               (the transcript's own redaction: the self-talk join, and the
+                                                              transcript-derived brief directives + chat first-lines)
      opts: { now, windowDays, maxChars }
      Every stored string (run titles, internal heads, briefs, chats, goal, landed titles, beliefs, track record) is
      scrubbed BEFORE oneLine clips it: prompt-scrub's scrubStored by default, after inputs.redact when one is given —
-     an injected scrubber can add to the default, never weaken it. */
+     an injected scrubber can add to the default, never weaken it. The two TRANSCRIPT-DERIVED sections (brief directives,
+     chat first-lines) also go through inputs.matchRedact first, exactly where the pack applied the host's redact before
+     the prompt resolver existed: the transcript's redaction holds EVERY connector header/env value, so a credential the
+     prompt's credential list does not name (a password under an innocuous header) stays out of them as it did at
+     41c298d9a (review r2). Run titles, goals and beliefs never take it ('production' is not mangled there). */
   function assemble(inputs, opts) {
     inputs = inputs || {}; opts = opts || {};
     const now = num(opts.now);
@@ -136,6 +141,7 @@
     const headOf = s => oneLine(redact(matchRedact ? matchRedact(str(s)) : s), 400).replace(/…$/, '').slice(0, 48).toLowerCase();
     const internalHeads = (Array.isArray(inputs.runs) ? inputs.runs : [])
       .filter(r => r && r.internal).map(r => headOf(r.title)).filter(h => h.length >= 12);
+    const transcriptRedact = (s) => redact(matchRedact ? matchRedact(str(s)) : s);   // briefs + chats only (see above)
     const isSelfTalk = text => { if (!internalHeads.length) return false; const h = headOf(text); return h.length >= 12 && internalHeads.some(x => h.indexOf(x) === 0 || x.indexOf(h) === 0); };
 
     const sections = [];
@@ -173,7 +179,7 @@
       const seen = {};
       for (const b of rows) {
         if (briefLines.length >= MAX_BRIEFS) break;
-        const directive = oneLine(redact(b.originalDirective), 220);
+        const directive = oneLine(transcriptRedact(b.originalDirective), 220);
         const key = directive.toLowerCase();
         if (!directive || seen[key]) continue;
         seen[key] = 1;
@@ -196,7 +202,7 @@
       for (const m of rows) {
         if (chatLines.length >= MAX_CHATS) break;
         // FIRST LINE only, redacted again (defense in depth), clamped — never a full body, never a secret.
-        const first = oneLine(redact(str(m.content).split(/\r?\n/)[0] || ''), LINE_MAX);
+        const first = oneLine(transcriptRedact(str(m.content).split(/\r?\n/)[0] || ''), LINE_MAX);
         const key = first.toLowerCase();
         if (!first || seen[key]) continue;
         seen[key] = 1;
