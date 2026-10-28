@@ -38,6 +38,7 @@
   'use strict';
 
   const COPY_SUFFIX = '~restored';
+  const COPY_MAX = 20;   // restored copies of one session: ~restored … ~restored20
 
   function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function list(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => w && typeof w === 'object' && typeof w.id === 'string' && w.id) : []; }
@@ -104,9 +105,29 @@
       return { kind: 'extend', id, have, more: theirs };
     }
     if (startsWith(theirs, mine)) return { kind: 'extend', id, have, more: theirs.slice(mine.length) };
-    const copyId = id + COPY_SUFFIX;
-    if (ctx.byId.has(copyId) || ctx.deleted(copyId, activity(raw))) return null;        // restored (or dismissed) before
-    return { kind: 'copy', id, have, copyId, history: theirs };
+    /* BOTH SIDES CHANGED IT DIFFERENTLY: the preserved one is kept beside it as a restored copy. A copy an earlier restore or
+       merge made is CONTINUED when this one continues it, and left alone when it already holds this one (a second restore of
+       the same save brings nothing twice); a session that diverged AGAIN gets the next copy (~restored2, ~restored3, …).
+       save-latch-kill: a refused save is now merged in-session, so a session two windows keep writing (General) diverges
+       again and again — a second divergence used to stay out of the station, only in the copy kept beside it (and pruned).
+       A copy the Commander deleted stays deleted: that slot is never refilled. When the deleted-session ledger says the copy
+       was deleted after this save last worked in the session, this is the work that was deleted on purpose: nothing comes
+       back. Otherwise (a copy deleted before this work was done, or a deletion only the station's own list records) the
+       next free slot takes it (review 10-27: a slot deleted once used to drop every later divergence without a word). With
+       every slot taken the session is UNPLACED: plan() reports it, never drops it silently. */
+    for (let n = 1; n <= COPY_MAX; n++) {
+      const copyId = id + COPY_SUFFIX + (n > 1 ? String(n) : '');
+      const copy = ctx.byId.get(copyId);
+      if (!copy) {
+        if (ctx.coveredByDelete(copyId, activity(raw))) return null;                  // deleted on purpose after this work
+        if (ctx.deleted(copyId, activity(raw))) continue;                               // a dead slot: the next one
+        return { kind: 'copy', id, have, copyId, history: theirs };
+      }
+      const ch = hist(copy);
+      if (startsWith(ch, theirs)) return null;                                          // that copy already holds it
+      if (startsWith(theirs, ch)) return { kind: 'extend', id: copyId, have: copy, more: theirs.slice(ch.length) };
+    }
+    return { kind: 'unplaced', id };
   }
   function context(current, preserved, opts) {
     const stationList = list(current);
@@ -118,7 +139,9 @@
       stationList, byId, toGeneral, cleared: clearedRows(current),
       mapId: id => (fromGeneral && toGeneral && id === fromGeneral) ? toGeneral : id,
       // only ever asked about a session the station does NOT hold live
-      deleted: (id, ts) => deletedIds.has(id) || !!(forgotten && forgotten(id, ts))
+      deleted: (id, ts) => deletedIds.has(id) || !!(forgotten && forgotten(id, ts)),
+      // the time-scoped ledger alone: deleted at or after `ts` (so the work up to `ts` was deleted on purpose)
+      coveredByDelete: (id, ts) => !!(forgotten && forgotten(id, ts))
     };
   }
 
@@ -127,10 +150,11 @@
     const doc = Object.assign({}, current || {});
     const out = ctx.stationList.slice();
     const at = new Map(out.map((w, i) => [w.id, i]));
-    const added = [], extended = [], copied = [];
+    const added = [], extended = [], copied = [], unplaced = [];
     for (const raw of list(preserved)) {
       const d = decide(raw, ctx);
       if (!d) continue;
+      if (d.kind === 'unplaced') { unplaced.push(d.id); continue; }
       if (d.kind === 'add') {
         const w = Object.assign({}, raw, { id: d.id });
         if (w.parentStreamId) w.parentStreamId = ctx.mapId(w.parentStreamId);
@@ -147,7 +171,9 @@
       }
     }
     doc.workstreams = out;
-    return { doc, added, extended, copied };
+    // unplaced: diverged sessions with no restored-copy slot left (every one taken): not in `doc` — the caller says so, and
+    // the save they came from stays where it is (a preserved copy, a kept copy)
+    return { doc, added, extended, copied, unplaced };
   }
 
   // how many sessions plan() would bring back — what a notice may honestly offer. Builds nothing.
@@ -156,7 +182,7 @@
     let n = 0;
     for (const raw of list(preserved)) {
       const d = decide(raw, ctx);
-      if (!d) continue;
+      if (!d || d.kind === 'unplaced') continue;   // nothing a restore could bring back
       n++;
       // a later preserved session with the same id (or the copy's id) sees this one as present, exactly as plan() does
       if (d.kind === 'add') ctx.byId.set(d.id, raw);

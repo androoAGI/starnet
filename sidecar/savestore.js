@@ -371,6 +371,23 @@
         const head = doc ? vouchedHead(r, w, num(doc._saveRevision)) : null;
         return head ? { status: r.status, doc, head } : { status: r.status, doc };
       },
+      /* THE STATION FILE'S HEAD, cheaply (save-latch-kill: the crew roster's revision check, sidecar handleRoster): its
+         revision and, when the store can prove it, the window that wrote it — from this process's own last write while nothing
+         moved the file since (no read), else one read whose writer is proved the way GET /api/save proves it (vouchedHead).
+         { revision, client } (client null = not provable) | { revision: 0, client: null, absent: true } | null (unreadable). */
+      head(agentId) {
+        const file = saveFile(agentId);
+        const memo = lastWritten.get(file);
+        if (memo && memo.stamp && memo.stamp === stamp(agentId)) return { revision: num(memo.revision), client: typeof memo.writer === 'string' ? memo.writer : null };
+        const r = readTagged(file);
+        if (r.status === 'absent') return { revision: 0, client: null, absent: true };
+        if (r.status !== 'ok' && r.status !== 'recovered') return null;
+        const doc = r.wrapper && typeof r.wrapper === 'object' && r.wrapper.doc && typeof r.wrapper.doc === 'object' ? r.wrapper.doc : null;
+        if (!doc) return null;
+        const revision = num(doc._saveRevision);
+        const vouched = vouchedHead(r, r.wrapper, revision);
+        return { revision, client: vouched ? vouched.client : null };
+      },
       // the stored save envelope (the exact doc the frontend persisted), or undefined when there is none or
       // the file is unreadable/corrupt. Never throws on a bad file — a wiped agent reads as "nothing yet".
       load(agentId) {
@@ -535,7 +552,7 @@
         recoveredMissing.delete(file);   // the main exists again and is this write
         const after = stamp(agentId);
         if (after) lastWritten.set(file, { stamp: after, updatedAt: incomingUpdated, revision: num(doc._saveRevision), replayAt: options.compareRevision ? requestUpdatedAt : incomingUpdated, seededRevision: options.compareRevision ? seededRevision : 0,
-          seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, founded: foundedAt(doc) });
+          seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, writer: writer.client || null, founded: foundedAt(doc) });
         return { ok: true, updatedAt: incomingUpdated, ...(options.compareRevision ? { revision: doc._saveRevision } : {}), ...(seeded ? { seeded: true } : {}) };
       },
 
@@ -642,6 +659,21 @@
         saveFile(agentId);   // validates the id before it names a file
         if (!doc || typeof doc !== 'object') throw new Error('preserve: a doc object is required');
         return preserveCopy(String(agentId), doc);
+      },
+
+      /* drop the copy a refused save of window `client` left beside the station (<agent>.save-conflict-<client>.json, and its
+         .bak) once that window's work is IN the station file: an in-session merge that took all of it (save-merge.js). A
+         window falling behind refuses one save before it merges; without this every such window left a copy, and the newest
+         CONFLICT_KEEP pruning then deleted older copies that still held work the station never got (review 10-27). Returns
+         true when a copy was removed. Never touches another window's copy or a kept-<window> copy (those hold what did not land). */
+      discardConflict(agentId, client) {
+        saveFile(agentId);
+        if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(client || '')) || /^kept-/.test(String(client)) || typeof fs.unlinkSync !== 'function') return false;
+        const name = pathMod.join(rootDir, String(agentId) + '.save-conflict-' + client + '.json');
+        let removed = false;
+        try { fs.unlinkSync(name); removed = true; } catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.conflict-discard', e); }
+        try { fs.unlinkSync(name + '.bak'); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.conflict-discard-bak', e); }
+        return removed;
       },
 
       // a durable copy of the current station file under <agentId>.save-before-<label>.json, taken before a restore

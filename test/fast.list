@@ -212,6 +212,8 @@ test/cloudsavecore.test.js
 test/cloudsave-refusal.test.js
 test/growth-stale-save-recovery.test.js
 test/cloudsave-unknown.test.js
+test/cloudsave-version-fallback.test.js
+test/save-health-cause.test.js
 test/save-quota-writethrough.test.js
 test/freshstart.test.js
 test/unreachable-browser-mode.test.js
@@ -1165,6 +1167,11 @@ test/save-restore-safety.test.js
 test/save-conflicts-route.test.js
 test/save-restore-hardening.test.js
 test/save-adopt-merge.test.js
+test/save-interleave.seeded.test.js
+test/save-journal.test.js
+test/growth-fold.test.js
+test/save-merge.test.js
+test/roster-push-base.test.js
 test/sprite-direction-details.test.js
 test/chat-history-reconcile.test.js
 test/prop-industrial-remaster.test.js

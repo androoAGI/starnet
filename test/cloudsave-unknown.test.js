@@ -96,7 +96,8 @@ const doc = (updatedAt) => ({ schema: 'starnet.save', version: 3, updatedAt, age
   const resumed = await CloudSave.reconcile(staleLocal);
   A.eq(resumed && resumed.agent && resumed.agent.name, 'NOVA-2', 'a failed cache write resumes the newer station file, not the stale local copy');
   A.eq(CloudSave.revision(), 5, 'the resumed station builds on the station file revision');
-  A.eq(removed, ['starnet.save'], 'the superseded clean cache entry is removed');
+  // (with its merge description beside it, if any: save-latch-kill cloudsave writeSide — a copy and its description go together)
+  A.eq(removed, ['starnet.save', 'starnet.save.merge'], 'the superseded clean cache entry is removed');
 
   // ...but when that newer remote fails migration, the original local snapshot is kept at its own revision
   global.Save = { CURRENT: 5, load: () => staleLocal, fromDoc: () => ({ status: 'error', doc: null, version: 0 }) };

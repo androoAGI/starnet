@@ -26,6 +26,10 @@
    Pure injected I/O; no ambient clock/rng -> passes lint-determinism. */
 'use strict';
 
+// deps.onCut (optional): called when a read leaves older lines out (a byte cut of either file, or the combined budget), so a
+// reader that must know it holds the WHOLE log (the growth fold's strict read) learns it from this one read, not a second
+function cutAt(deps) { if (deps && typeof deps.onCut === 'function') deps.onCut(); }
+
 // return the complete trailing lines of `file` within the last `maxBytes` bytes (newest-biased).
 // A line straddling the byte cut at the front is dropped (it is incomplete). Missing file -> [].
 function tailLines(deps, file, maxBytes) {
@@ -50,7 +54,7 @@ function tailLines(deps, file, maxBytes) {
         off += n;
       }
       let text = buf.toString('utf8', 0, off);
-      if (start > 0) { const nl = text.indexOf('\n'); text = nl >= 0 ? text.slice(nl + 1) : ''; }   // drop the sheared partial first line
+      if (start > 0) { cutAt(deps); const nl = text.indexOf('\n'); text = nl >= 0 ? text.slice(nl + 1) : ''; }   // drop the sheared partial first line
       return text.split('\n').filter(Boolean);
     } catch (e) {
       if (e && e.code === 'ENOENT') return [];
@@ -66,7 +70,7 @@ function tailLines(deps, file, maxBytes) {
   if (raw == null) return [];
   let text = String(raw);
   if (deps.strict && Buffer.byteLength(text, 'utf8') > cap) throw new Error('spend history truncated by read limit');
-  if (text.length > cap) { const cut = text.slice(text.length - cap); const nl = cut.indexOf('\n'); text = nl >= 0 ? cut.slice(nl + 1) : ''; }
+  if (text.length > cap) { cutAt(deps); const cut = text.slice(text.length - cap); const nl = cut.indexOf('\n'); text = nl >= 0 ? cut.slice(nl + 1) : ''; }
   return text.split('\n').filter(Boolean);
 }
 
@@ -80,6 +84,7 @@ function loadBounded(deps, file, maxBytes) {
   let total = 0, keepFrom = all.length;
   for (let i = all.length - 1; i >= 0; i--) { total += (deps.strict ? Buffer.byteLength(all[i], 'utf8') : all[i].length) + 1; if (total > cap) break; keepFrom = i; }
   if (deps.strict && keepFrom > 0) throw new Error('spend history truncated by combined read limit');
+  if (keepFrom > 0) cutAt(deps);
   return all.slice(keepFrom);
 }
 
