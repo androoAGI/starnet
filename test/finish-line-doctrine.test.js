@@ -5,13 +5,14 @@
    failed tool. The host therefore appends one compact doctrine at the final runOnce prompt seam for every real
    task. This test locks both the behavioral contract and that final-seam wiring. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
 const FinishLine = require('../sidecar/finish-line.js');
 
 const root = path.resolve(__dirname, '..');
-const indexJs = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+const indexJs = readSidecarSource();
 
 const text = FinishLine.block({ tools: ['tool.search', 'browser.login', 'shell.exec'] });
 A.ok(/keep working until the requested result is actually complete/i.test(text), 'doctrine requires actual completion');

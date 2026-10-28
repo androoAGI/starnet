@@ -4,6 +4,7 @@
    (clean job + proven work) AND a durable terminal receipt (a job shipped, not a stage done); failed is the dead-run set; a line with no runs answers zeros (never absent, never a guess);
    the $ ledger + cap are read through the injected readers; each bay's LAST outcome is its newest row. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { lineStats, median, shippedRow, failedRow, FAILED_REASONS } = require('../sidecar/routing/line-stats.js');
 const { makeLineShipments, cleanShipments, validateShipments, loadShipmentReceipts } = require('../sidecar/routing/line-shipments.js');
@@ -103,7 +104,7 @@ A.eq(lineStats(null).lines, [], 'no input -> no lines');
   const st = require('../sidecar/runstore.js').makeRunStore({ io: { readAll: () => [], append: () => {} }, clock: { now: () => 1 } });
   A.eq(st.record({ runId: 's1', reason: 'done', stepTest: true }).stepTest, true, 'the run row records a step-test hop');
   A.ok(!('stepTest' in st.record({ runId: 's2', reason: 'done' })), 'every other row keeps its old shape');
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/stepTest: true\s+\/\/ the run row says it was a TEST hop/.test(src), 'the step-test host stamps its runs stepTest');
   A.ok(/stepTest: o\.stepTest === true, lineId: o\.lineId/.test(src), 'runOnce passes the stamp to the run row');
 }
@@ -268,7 +269,7 @@ if (store && store.record) {
   const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
   const { makeDomainStore } = require('../sidecar/domain-store.js');
   const { writeFileDurable } = require('../sidecar/durable-write.js');
-  const source = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const source = readSidecarSource();
   const start = source.indexOf('const lineShipmentStore = makeDomainStore(');
   const end = source.indexOf('const lineShipments = makeLineShipments(', start);
   const initializer = source.slice(start, end);

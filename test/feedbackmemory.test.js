@@ -6,6 +6,7 @@
    the newest feedback first, ignores ordinary notes, and caps; the taste block renders through the real
    renderRecall. The live route + prompt seam is proven in test/feedbackmemory.http.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const FM = require('../sidecar/feedbackmemory.js');
 const memcore = require('../sidecar/memcore.js');
@@ -133,7 +134,7 @@ A.eq(block.usedIds.length, 2, 'both count as used');
   for (let i = 0; i < 8; i++) olds.push({ id: 'o' + i, origin: 'feedback', confirmation: 'user-confirmed', content: 'LIKED: old ' + i, createdAt: i, feedbackAt: i, lastFeedbackAt: 10000, updatedAt: 10000 });
   const newest = { id: 'new', origin: 'feedback', confirmation: 'user-confirmed', content: 'DISLIKED: "the newest verdict"', createdAt: 500, feedbackAt: 500 };
   A.ok(FM.selectTaste(olds.concat([newest])).some(r => r.id === 'new'), 'the Commander\'s newest verdict stays in the capped block even after agents re-rate old ones');
-  const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   const chat = require('fs').readFileSync(require('path').join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   A.ok(/streamId: \(\(runMeta\(runId\) \|\| \{\}\)\.streamId\) \|\| awayStreams\.get\(runId\) \|\| null, at: Date\.now\(\) \};/.test(chat)
     && /lastShortVerdict\.streamId && lastShortVerdict\.streamId === ws\.id/.test(chat)
@@ -145,7 +146,7 @@ A.eq(block.usedIds.length, 2, 'both count as used');
 }
 
 {
-  const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/const recs = all\.filter\(r => !\(r && \(tasteIds\.has\(r\.id\) \|\| \(tasteWithheld && r\.origin === FeedbackMemory\.ORIGIN\)\)\)\);/.test(idx),
     'QA 10-02: a withheld run (channel guest) drops every feedback record from ordinary recall — a verdict carries the Commander\'s past request');
   A.ok(/r\.pinned && !tasteIds\.has\(r\.id\) && !\(tasteWithheld && r\.origin === FeedbackMemory\.ORIGIN\)/.test(idx),

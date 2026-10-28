@@ -1,6 +1,7 @@
 /* Real sidecar regression for STUDIO routing and artifact-backed completion.
    All provider/image responses are local mocks; no external key or account is used. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const http = require('node:http');
 const fs = require('node:fs');
@@ -210,7 +211,7 @@ async function run(base, token, body) {
     A.eq(borrowed.filter(e => e.name === 'agent.run.end').pop().payload.reason, 'done', 'the borrowed-key image earns done');
     // the web-search OpenRouter fallback sends the RUN's model: it stays armed only by the run's own OpenRouter key or the
     // desktop / OPENROUTER_KEY one, never by a page-saved key on another provider's (or a StarNet-credits) run
-    A.ok(/const openrouterToolKey = providerId === 'openrouter' \? runKey : runtimeKey;/.test(fs.readFileSync(INDEX, 'utf8')), 'the web-search OpenRouter fallback never borrows the page-saved key');
+    A.ok(/const openrouterToolKey = providerId === 'openrouter' \? runKey : runtimeKey;/.test(readSidecarSource()), 'the web-search OpenRouter fallback never borrows the page-saved key');
   } finally {
     try { child.kill(); } catch (_) {}
     await new Promise(resolve => provider.server.close(resolve));

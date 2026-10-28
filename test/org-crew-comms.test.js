@@ -8,6 +8,7 @@
      P25 — fewer empty sessions: a background hire mints none, a starter fills a blank open session, the busy row names who.
      P33 — starter-room machines show what they are: a capability prop raises a GLANCE nameplate on hover (no pointer until a click exists). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -19,7 +20,7 @@ A.ok(/desc: n => 'What ' \+ n \+ ' is for\. It rides only ' \+ n \+ '’s prompt
 A.ok(/desc: n => 'House rules only ' \+ n \+ ' follows: tone, format, the do-nots\. Rules for every agent live in YOU › PREFERENCES\.'/.test(SUI), 'P23: the house-rules card says only this agent follows it and where every-agent rules live');
 A.ok(SUI.includes("typeof f.desc === 'function' ? f.desc(esc((a && a.name) || 'this agent'))"), 'P23: fileCard renders the reach with the agent name escaped');
 A.ok(SUI.includes('your standing orders (every agent follows these)'), 'P23: YOU › PREFERENCES says every agent follows the standing orders');
-A.ok(read('frontend/app/app.js').includes('DossierStore.composeBlock()') && read('sidecar/index.js').includes('withDossier(CRON_PERSONA'), 'P23: the "every agent" claim stays true — the dossier rides every browser prompt and cron runs');
+A.ok(read('frontend/app/app.js').includes('DossierStore.composeBlock()') && readSidecarSource().includes('withDossier(CRON_PERSONA'), 'P23: the "every agent" claim stays true — the dossier rides every browser prompt and cron runs');
 
 /* ---------- P20 STRUCK (Andrew 10-14: "hell no … insanely ugly"): the crew row's DOSSIER key is the candidate's again —
    rendered only with 2+ agents and shown only while the row is pointed at (test/agent-threads-rail, test/crew-card-fit).
@@ -49,7 +50,7 @@ A.ok(SUI.includes("return (AP && AP.approval === 'ask') ? AP.label : 'custom'; }
 A.ok(CONN.includes('id="ts-agent" class="ab-agent-pick"') && /select\.ab-agent-pick \{[^}]*appearance: none/.test(read('frontend/css/interface.css')), 'P21: the ABILITIES agent pickers are glass fields with a drawn chevron, not key-input/OS paint');
 A.ok(/each switch turns a tool on or off for every agent; CHECK WITH ME and LET IT WORK obey the switches, FULL POWER overrides them/i.test(CONN), 'P21: TOOLS (was BUILT-IN ABILITIES) says its switches are for every agent, in ONE ACCESS words');
 A.ok(CONN.includes("data-tip=\"Turns ' + esc(t.label) + ' on or off for every agent\"") && CONN.includes("notify((tsLabels[id] || id) + (enabled ? ' on' : ' off') + ' for every agent'"),'P21: the switch tip and toast name the ability and say every agent');
-A.ok(/toolsetDisabled/.test(read('sidecar/index.js')), 'P21: "for every agent" stays true — the toggle writes the station-wide toolsetDisabled map');
+A.ok(/toolsetDisabled/.test(readSidecarSource()), 'P21: "for every agent" stays true — the toggle writes the station-wide toolsetDisabled map');
 
 /* ---------- P22: RECRUIT speaks one language ---------- */
 const MKT = read('frontend/app/marketplace.js');

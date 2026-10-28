@@ -12,6 +12,7 @@
       local status lines become the lead's words); a stop / failed reply / reload drops it and SAYS so in the chat; a group
       invites only the new members. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -37,7 +38,7 @@ const { makeStationControlTools, cardFor, ACTIONS } = require('../sidecar/tools/
   A.eq(cardFor({ action: 'group.add', args: { agents: ['nova'], session: 'Launch plan' } }, { nameOf, chat: 'direct' }), 'bring NOVA into the session "Launch plan"', 'another session is named, never "this chat"');
   A.eq(cardFor({ action: 'group.add', args: { agents: ['copywriter'] } }), 'bring "copywriter" into this chat', 'with no host help the card still reads (the ids quoted)');
   // the host hands the card its roster and the chat's kind from the page's own save (index.js consentSummary)
-  const host = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const host = readSidecarSource();
   A.ok(/return stationControlCard\(redact\(a\), \{ nameOf: crewNameOf, chat: \(where && where\.chat\) \|\| chatKindOf\(where && where\.streamId\) \}\);/.test(host), 'consentSummary passes the roster names and the chat kind');
   A.ok(/argsSummary: consentSummary\(call, \{ streamId \}\)/.test(host) && /argsSummary: consentSummary\(call, \{ streamId: g\.id, chat: 'group' \}\)/.test(host), 'from the run\'s own conversation (a group turn is a group chat)');
   A.ok(/if \(save\.generalId === id\) return 'general';/.test(host) && /w\.conversationMode === 'group' \? 'group' : 'direct'/.test(host), 'the chat kind is read from the page\'s save (General, group, direct)');
@@ -233,7 +234,7 @@ const { makeStationControlTools, cardFor, ACTIONS } = require('../sidecar/tools/
     'the reply\'s teardown lands the join BEFORE a queued follow-up is sent (it then goes to the new group)');
   A.ok(/const stoppedHere = interrupted\.has\(ws\.id\);[^\n]*\n\s*interrupted\.delete\(ws\.id\);/.test(chatSrc), 'the stop flag is read before the teardown consumes it');
   // a group turn keeps the agent's own room gear (its dish = web search), as its one-on-one chat does (gap review G2)
-  const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/lead: t\.agentId === g\.leadId, groupTools: tools, askCommander,\s*\n\s*station: router\.stationFor\(t\.agentId\) \|\| undefined,[\s\S]{0,400}extraObjects: require\('\.\/capability\/saved-placement\.js'\)\.savedPlacement\(saveStore\.load\('agent'\), t\.agentId\),/.test(idx),
     'a group participant\'s run carries its saved room gear (a researcher can search in a group)');
   A.report('group-add.test');

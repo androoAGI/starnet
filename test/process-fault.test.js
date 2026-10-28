@@ -6,6 +6,7 @@
    after a bounded delay so the shell watchdog restarts a clean process. Benign stdio EPIPE stays surface-only;
    STARNET_UNCAUGHT_KEEP_SERVING is the test-only opt-out. Section E proves it against a REAL node process. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -165,7 +166,7 @@ function harness(extra) {
 
   // ---- F. index.js wiring + Map bounds (source-level, mirrors the honesty asserts in sidecar.http.test.js) ----
   {
-    const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/process\.on\('uncaughtException',\s*e\s*=>\s*processFault\.onUncaught\(e\)\)/.test(src), 'uncaughtException is routed through the fail-loud handler');
     A.ok(/process\.on\('unhandledRejection',\s*e\s*=>\s*surfaceProcessError\('unhandledRejection',\s*e\)\)/.test(src), 'unhandledRejection stays log-only');
     A.ok(/ENV\('UNCAUGHT_KEEP_SERVING'\)/.test(src), 'test opt-out env is honoured');

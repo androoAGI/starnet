@@ -1,7 +1,8 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A=require('./_assert.js'),fs=require('node:fs'),vm=require('node:vm');
 const read=p=>fs.readFileSync(require('node:path').join(__dirname,'..',p),'utf8');
-const chat=read('frontend/app/chat.js'),gc=read('frontend/app/group-chat.js'),idx=read('sidecar/index.js'),dlv=read('frontend/app/deliverables.js'),out=read('frontend/app/windows/outbox.js');
+const chat=read('frontend/app/chat.js'),gc=read('frontend/app/group-chat.js'),idx=readSidecarSource(),dlv=read('frontend/app/deliverables.js'),out=read('frontend/app/windows/outbox.js');
 function fn(src,name){const m=new RegExp('^( {0,4})(?:async )?function '+name+'\\([^]*?\\n\\1\\}', 'm').exec(src);if(!m)throw Error('missing '+name);return m[0];}
 (async()=>{
   let loads=0,version='v1';
@@ -98,7 +99,7 @@ function fn(src,name){const m=new RegExp('^( {0,4})(?:async )?function '+name+'\
   }
   // seams-07: the sidecar sends the count itself, on the filtered view, by the clear route's own skip rule
   {
-    const idx=require('fs').readFileSync(require('path').join(__dirname,'..','sidecar','index.js'),'utf8');
+    const idx=readSidecarSource();
     const list=idx.slice(idx.indexOf('async function handleDeliverablesList('),idx.indexOf('async function handleDeliverablesClear('));
     A.ok(/items = deliverableFilter\(items, filter\);[\s\S]*clearable: items\.filter\(r => r\.status !== 'pending'\)\.length/.test(list),'the library list answers how many rows CLEAR ALL would take');
     A.ok(/const ids = rows\.filter\(r => r\.status !== 'pending'\)/.test(idx),'with the same rule the clear route applies');

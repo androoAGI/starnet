@@ -15,6 +15,7 @@
      5. THE WIRING — recAccept/recDecline really do reach the ledger, the pass really does drop a declined
         candidate, and the impression is recorded AFTER the card renders (source-locked: DOM flow). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -433,7 +434,7 @@ A.ok(/if \(shown && typeof Chat\.spendAsk === 'function'\)/.test(qrSrc),
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════
    9. THE EVAL SCORECARD HAS A RUNTIME CONSUMER (source-locked: route table)
    ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
-const idxSrc = read('sidecar', 'index.js');
+const idxSrc = readSidecarSource();
 A.ok(/qsplit: '\/api\/recommendations\/eval', h: handleRecommendationsEval/.test(idxSrc),
   'GET /api/recommendations/eval serves the scorecard over the REAL ledger (it had zero runtime consumers)');
 A.ok(/RecommendationEval\.evaluate\(rows/.test(idxSrc), '…through the same pure evaluate() the CI script uses');

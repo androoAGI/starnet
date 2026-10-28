@@ -12,6 +12,7 @@
    surface knows every id. Add a new authType:'oauth_device_code' profile and this test fails on every file
    that hasn't caught up — the failure list IS the checklist. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +26,7 @@ A.ok(OAUTH_IDS.includes('codex') && OAUTH_IDS.includes('grok') && OAUTH_IDS.incl
   'sanity: the registry ships the known device-OAuth trio (codex/grok/kimi)');
 
 const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-const sidecarSrc = read('sidecar/index.js');
+const sidecarSrc = readSidecarSource();
 const appSrc = read('frontend/app/app.js');
 const harnessSrc = read('frontend/app/harness.js');
 const dockSrc = read('frontend/app/modeldock.js');

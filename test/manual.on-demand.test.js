@@ -14,6 +14,7 @@
         index.js only uses the inline TOC form when manual.read is on the run's wire.
    Pure + deterministic. The live bytes are proven by test/prompt-on-demand.e2e.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -134,7 +135,7 @@ A.ok(!/undefined|null|\[object/.test(index), 'no junk leaks into the inline form
   A.eq(g.length, 1, 'manual.read is granted by the COMPUTER object');
   A.eq([g[0].capId, g[0].scope, g[0].requiresConsent, g[0].network, !!g[0].deferred], ['stationinfo', 'read', false, false, false],
     'same grant class as station.inspect, and never deferred (the TOC must point at an advertised tool)');
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.eq(idx.split("(coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual())").length - 1, 1,
     'index.js uses the TOC form only when manual.read is advertised, else the whole manual stays inline');
   A.eq(idx.split('makeManualReadTool().register(registry);').length - 1, 1, 'the run registers manual.read');

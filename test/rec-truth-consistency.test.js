@@ -19,6 +19,7 @@
    Source-locks are used where the subject is DOM-flow or load-order wiring (not node-loadable); everything else
    is exercised against the real module. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -269,7 +270,7 @@ A.ok(/App\.openRecipeLaunch\(c\.id, 'routine'\)/.test(proposeBody), 'accept deep
    8. THE NIGHT SHIFT CONSULTS THE DECLINED INDEX
    ══════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const DeclinedIndex = require('../sidecar/declinedindex.js');
-const sidecarSrc = read('sidecar/index.js');
+const sidecarSrc = readSidecarSource();
 A.ok(/function nightshiftUndeclined\(agentId, candidates\)/.test(sidecarSrc), 'the sidecar has one night-shift declined filter');
 A.eq((sidecarSrc.match(/nightshiftUndeclined\(agentId, Autopilot\.parseCandidates\(/g) || []).length, 2,
   'BOTH night-shift propose paths (draft beat + act shift) run candidates through it');
@@ -438,7 +439,8 @@ A.ok(/ALREADY ON THE BOARD/.test(tKnown.prompt) && tKnown.prompt.indexOf('- Buil
 A.eq(tKnown.conversation, tPlain.conversation,
   '…and the quote-veto haystack is UNCHANGED — the block must never become minable "conversation"');
 A.ok(threadmine.buildPrompt(MSGS, 6000, new Array(80).fill('a thread')).prompt.split('- a thread').length - 1 <= 20, '…bounded');
-A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc) && /t\.state !== 'declined'/.test(sidecarSrc),
+A.ok(/clock: \{ now: \(\) => Date\.now\(\) \}, known, knownTitles, max/.test(sidecarSrc)
+  && /knownTitles = \(threadsStore\.read\(\)\.threads \|\| \[\]\)\.filter\(t => t && t\.state !== 'declined'\)/.test(sidecarSrc),
   'the sidecar passes the LIVE thread titles (the declined half has no title to show — post-hoc only)');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════════════

@@ -263,3 +263,9 @@ test/cron.channel-media.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js
 test/cron.images-grant.e2e.test.js
 test/unpriced-run-label.e2e.test.js
+# Previously on no list, so never run (gate-seams 2026-10-27). lsp-live-installed drives a real installed language server
+# (clangd or rust-analyzer) and SKIPs honestly when neither is on PATH.
+test/consent-full-args.e2e.test.js
+test/credrotate.e2e.test.js
+test/summarize-failover.e2e.test.js
+test/lsp-live-installed.test.js

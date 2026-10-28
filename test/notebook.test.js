@@ -3,6 +3,7 @@
    is persisted, every transition is a validated U.bus event, removing the notebook drops the
    tool (capdenied), and a same-seed double-run is byte-identical. Zero spend, zero browser. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const events = require('../shared/events.js');
 const { makeEmitter } = require('../shared/emitter.js');
@@ -567,7 +568,7 @@ const dcall = (name, args) => ({ id: 'c', name, args, argsRaw: JSON.stringify(ar
     A.eq(taintPolicy.lockoutLead({ name: 'x', capability: 'orchestrator', taintLocked: () => { throw new Error('boom'); }, schema: { properties: { action: { enum: ['a'] } } } }, { name: 'x', args: { action: 'a' } }), '"x" is no longer available on this run.', 'a throwing predicate offers nothing as open');
     // the host's post-run passes (reflection / failure-review / study / threadmine / skill-review) turn a transcript into
     // durable notes and skills — a tainted run's transcript never feeds them, and auto-recall latches a tainted note
-    const idx = require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(idx.includes("['reflection', 'failure-review', 'study', 'threadmine'].concat(noTrustedEvidence ? ['skill-review'] : [])") && idx.includes('LearningEvidence.buildLearningEvidence(o, redact).eligible'),
       'tainted transcripts cannot feed memory writers; skill review requires separately attributed evidence');
     A.ok(/latchRunTaint\('recalled memory saved by a run that read '/.test(idx), 'auto-recall of a tainted note latches the reading run');

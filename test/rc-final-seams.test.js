@@ -12,6 +12,7 @@
      #41  the lead hands over the deliverable as a thing to OPEN, never a list of file names or an offer to fetch it
    The live proof of each is in the lane report (isolated station, scripted model). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -64,7 +65,7 @@ function load(src, headers, globals, extra) {
   A.ok(!/not counted/.test(strip(fns.jobResultHTML({ view: { ok: false, usd: 0.01 }, runs: [{ runId: 'r1', agentId: 'agent', reason: 'error', usd: 0.01 }], output: 'x', stamp: 2, shipped: false }, null))), 'a job with a problem is not a delivered job: no SHIPPED words');
   A.ok(/shipped: response && typeof response\.shipped === 'boolean' \? response\.shipped : null/.test(build), 'the panel keeps the server\'s own per-job answer (never guessed from the reply)');
   A.ok(/shippedWhy: response && response\.shipped === false && typeof response\.shippedWhy === 'string' \? response\.shippedWhy : null/.test(build), '…and the server\'s reason, only beside a false');
-  const host = rd('sidecar/index.js'), sample = A.fnBody(host, 'async function runSampleJob(readArgs)');
+  const host = readSidecarSource().replace(/\r\n/g, '\n'), sample = A.fnBody(host, 'async function runSampleJob(readArgs)');
   A.ok(sample.length > 2000 && sample.length < host.length / 4, 'sliced runSampleJob (' + sample.length + ' chars)');
   A.ok(/anyProvenWork = rows\.some\(provenWork\)/.test(sample) && /shippedWhy = \(shipped === false && runs\.length && anyProvenWork === false\) \? 'no-proven-work' : null/.test(sample), 'the route says no-proven-work only when its own run rows prove it (the receipt rule\'s provenWork)');
   const upd = A.fnBody(panel, 'function jobUpdate()');
@@ -212,7 +213,7 @@ function load(src, headers, globals, extra) {
 
 /* ---------- #41: a deliverable is a thing to OPEN ---------- */
 {
-  const host = rd('sidecar/index.js');
+  const host = readSidecarSource().replace(/\r\n/g, '\n');
   A.ok(/name the deliverable and say it is ready to open on its card \(every file a worker saved is one\) — never answer with only a list of file names, and never ask whether to show or fetch it/.test(host), 'the lead\'s YOUR TEAM line hands over the deliverable to open');
   A.ok(/A saved file is ready to open on its card; never offer to fetch, pull or paste it\. /.test(A.fnBody(host, 'function delegatedReportPrompt(live, waiting, followUp)')), 'the background report says the same');
 }

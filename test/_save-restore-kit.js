@@ -3,6 +3,7 @@
    workspace, and the REAL boot offer + conflict banner sliced out of stationui.js. Never boots a sidecar (index.js is only
    read as text) and never touches a real station: every workspace is a fresh temp dir, removed by cleanup(). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -13,7 +14,7 @@ const { makeSaveStore } = require('../sidecar/savestore.js');
 
 const repo = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8');
-const indexSrc = read('sidecar/index.js');
+const indexSrc = readSidecarSource();
 const handlers = ['function crewLooksOf(save)', 'function seedSaveMemos(agentId, doc)', 'function serveSaveLoad(req, res)', 'async function handleSaveWrite(req, res)',
   'function serveSaveConflicts(req, res)', 'async function handleSaveConflictRestore(req, res)',
   'function keepStationGrowth(doc, station)', 'function keepTerminalApprovals(doc, station)', 'async function handleSaveAdopt(req, res)']

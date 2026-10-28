@@ -1,5 +1,6 @@
 /* node test/longhaul-retention.test.js — scale contracts that must stay data-preserving. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -7,7 +8,7 @@ const path = require('node:path');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
-const sidecarSource = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const sidecarSource = readSidecarSource();
 
 (async () => {
   // Thousands of short conversations must not defeat a per-stream-only RAM ceiling.

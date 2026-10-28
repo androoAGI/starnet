@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -41,7 +42,7 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
 
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   const mirror = fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8');
-  const index = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const index = readSidecarSource();
   A.ok(/mergeCanonicalHistory/.test(chat) && /buckets\.get\(key\)/.test(chat), 'desktop reconciliation is occurrence-aware');
   const mergeBody = A.fnBody(chat, 'function mergeCanonicalHistory(local, turns)');
   const mergeCanonicalHistory = new Function(mergeBody + '; return mergeCanonicalHistory;')();

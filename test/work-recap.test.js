@@ -12,11 +12,12 @@
       the single post-run beat slot (no clearNudge, no .turnin/.nudge class, no vanish()), renders ONLY
       when artifacts exist or the run ended abnormally, and offers copy-path (no invented Tauri perms). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
-const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+const idx = readSidecarSource();
 const chat = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '../frontend/css/app.css'), 'utf8');
 

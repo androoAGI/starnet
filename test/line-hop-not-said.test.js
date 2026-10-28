@@ -7,6 +7,7 @@
      3. study() says «you said» (kind 'verbatim') only for the Commander's own words — a quote found in a reply or a tool result falls
         back to the directive receipt. */
 'use strict';
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -27,12 +28,13 @@ const { makeClock } = require('../shared/clock-rng.js');
   A.ok(!P.isHandoff('please explain: PIPELINE HANDOFF — you are stage 2 of a work line on this station.'), 'the frame quoted INSIDE a message is not a hand-off (only a turn that opens with it)');
 
   /* ---------- 2. the run-end gate and the stash (sidecar/index.js, source-locked: runOnceCore is not unit-loadable) ---------- */
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const src = readSidecarSource();
   A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(latestUserText\(msgs\)\)\);/.test(src), 'the gate reads the run\'s own latest user turn for the hand-off frame');
   A.ok(/const _gateStudy = !!\(Study && o\.reflect && memoryConfig\.studyEnabled && isTask && _auxDone && !_lineHop && /.test(src), 'STUDY never runs on a line hand-off');
   A.ok(/const _gateThreadmine = !!\([^\n]*_auxDone && !_lineHop && threadmine\.mineSalient/.test(src), 'THREAD-MINE never runs on a line hand-off');
   A.ok(/const _gateReflect = !!\(o\.reflect && memoryConfig\.reflectEnabled && isTask && _auxDone && !_lineHop && reflectSalient/.test(src), 'REFLECTION never saves "the user prefers …" from a line hand-off');
-  A.ok(src.indexOf('const _lineHop =') < src.indexOf('const _gateReflect ='), '…(the hand-off is known before any pass\'s gate reads it)');
+  const core = sidecarTopLevelFunction('runOnceCore');   // ordering inside the run itself, never across files
+  A.ok(core.indexOf('const _lineHop =') >= 0 && core.indexOf('const _lineHop =') < core.indexOf('const _gateReflect ='), '…(the hand-off is known before any pass\'s gate reads it)');
   A.ok(/o\.reflect && memoryConfig\.reflectEnabled && isTask/.test(src), '…and the reflection gate keeps its settings P1-10 lock');
   A.ok(/function studyFromLineHop\(b\) \{\s*try \{ const r = b && b\.runId \? runStore\.latest\(b\.runId\) : null; return !!\(r && Pipeline\.isHandoff && Pipeline\.isHandoff\(r\.title\)\); \}/.test(src), 'a stashed batch is judged by its run row\'s title');
   A.ok(/!b\.proposals\.length \|\| studyFromLineHop\(b\)\) continue;/.test(src), 'GET /api/study/pending never lists a batch from a hand-off run');

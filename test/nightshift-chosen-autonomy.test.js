@@ -27,6 +27,7 @@
    pre-spend — the canned "Code & build" chip included, in step with the station's own shared V3 verdict
    (no-direction) — and the copy names the one thing that grounds a job, never a count of areas. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -40,7 +41,7 @@ const nightshift = require('../sidecar/nightshift.js');
 const { makeNightshiftDriver } = require('../sidecar/nightshift-driver.js');
 
 const ROOT = path.resolve(__dirname, '..');
-const sidecarSrc = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');
+const sidecarSrc = readSidecarSource();
 const dossierStoreSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'dossierstore.js'), 'utf8');
 
 // ---- the REAL host code, sliced by declaration (length-guarded: fnBody does not parse regex literals) ----

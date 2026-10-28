@@ -11,6 +11,7 @@
    Built here with the REAL station builder, saved-floor validation, router.stationFor, composeOffice + execution
    profile + resolveTools, and summarizeCapabilities. Pure node: no sidecar boot (index.js is source-locked only). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path');
 const M = require('../frontend/app/worldmodel.js'), P = require('../frontend/app/pipeline.js'), W = require('../frontend/app/workflowline.js');
@@ -248,7 +249,7 @@ const BEFORE_I = '\n<capabilities_ground_truth>\nThese are your REAL powers this
 /* 7. THE HOST WIRING (index.js is never required: it boots a real sidecar). runOnceCore passes the lazy scope at the ONE
       capability-note seam, built from this run's own routed station / placed objects and the stamped saved floor. */
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/const savedFloor = makeSavedFloor\(\{ stamp: \(\) => saveStore\.stamp\('agent'\), loadStamped: \(\) => saveStore\.loadStamped\('agent'\) \}\);/.test(idx), 'the saved floor is memoized by the save stamp');
   A.ok(/toolless: !isTask,\s*\n(?:\s*\/\/[^\n]*\n)*\s*disabledCaps: unrestrictedHostNow\(\) \? new Set\(\) : disabledCapsSet\(\), enabledToolsets: unrestrictedHostNow\(\) \? null : o\.enabledToolsets,\s*\n\s*mediaRoute: !!\(studioRoute && studioRoute\.ok\),\s*\n(?:\s*\/\/[^\n]*\n)*\s*scopeFn: \(\) => \{ try \{ return scopeForRun\(\{ loadStation: savedFloor, agentId, runStation: o\.station, extraObjects: o\.extraObjects, interactive: surface === 'interactive', floorless: !!o\.floorless, hasBay: \(\) => router\.docksOf\(agentId\)\.length > 0 \}\); \} catch \(e\) \{ failNote\('capsummary\.roomscope', e\); return null; \} \} \}\) \+ skillBlock;/.test(idx),
     'summarizeCapabilities gets the TOOLSETS switches, the routine\'s own toolset list, the image route and scopeFn from this run\'s station, placed objects, surface and the router\'s docks, failing open to null');

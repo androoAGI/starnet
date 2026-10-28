@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/slag-known-error-kinds.test.js — a failed run's post-mortem names the REAL door for every error kind the
    page classifies (audit B3, 2026-10-08).
 
@@ -20,7 +21,7 @@ const Friendly = require('../frontend/app/friendlyerror.js');
 const SlagLog = require('../frontend/app/slaglog.js');
 
 const friendlySrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'friendlyerror.js'), 'utf8');
-const host = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const host = readSidecarSource();
 
 /* ---- 1. every Friendly kind has a decided post-mortem ---- */
 const KINDS = {};

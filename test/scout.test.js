@@ -5,6 +5,7 @@
    and a denylisted shape; NONE is a sentinel; reducers (stage/dismiss/accept/note/stampAttempt/setContext)
    are pure, capped, and dismiss-denylists so an equivalent never re-mints. Deterministic — injected now. */
 'use strict';
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const S = require('../sidecar/scout.js');
 
@@ -320,9 +321,12 @@ A.eq(ad.archetypeId, 'broker', 'archetype draft records its provenance (archetyp
 A.eq(ad.source, 'archetype', 'archetype draft records its source');
 // the sidecar cycle wires the matcher BEFORE the LLM authorship pass (source-lock, mirrors the suite's style).
 const fs2 = require('fs'); const path2 = require('path');
-const idxSrc = fs2.readFileSync(path2.join(__dirname, '../sidecar/index.js'), 'utf8');
+const idxSrc = readSidecarSource();
 A.ok(/Scout\.matchArchetype\(SharedSpecialties\.ARCHETYPES/.test(idxSrc), 'runScoutCycle consults the archetype matcher on a prospect turn');
-A.ok(idxSrc.indexOf('Scout.matchArchetype') < idxSrc.indexOf('ProspectGen.buildDirective'), 'the archetype match runs BEFORE the LLM authorship pass');
+// ordering inside runScoutCycle itself: offsets in the whole joined text would compare file order once either anchor moved
+const scoutCycle = sidecarTopLevelFunction('runScoutCycle');
+const archetypeAt = scoutCycle.indexOf('Scout.matchArchetype'), directiveAt = scoutCycle.indexOf('ProspectGen.buildDirective');
+A.ok(archetypeAt >= 0 && directiveAt > archetypeAt, 'the archetype match runs BEFORE the LLM authorship pass');
 A.ok(/for \(const c of \(SharedSpecialties\.ARCHETYPES \|\| \[\]\)\)/.test(idxSrc), 'the LLM near-duplicate guard counts archetypes as existing classes (the model never re-authors one)');
 A.ok(/function scoutTakenNames\(\)/.test(idxSrc), 'the matcher dedups against the names the Commander actually HAS (not the catalog itself)');
 

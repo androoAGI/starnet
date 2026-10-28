@@ -38,6 +38,7 @@ const { runAgentLoop, _internals: LoopInternals } = require('./loop.js');
 const DomainTask = require('./domain-task.js');
 const ImageTask = require('./image-task.js');
 const { makeCostEngine } = require('./cost.js');
+const { routePrefixMatches } = require('./route-prefix.js');   // how a ROUTES prefix entry matches (dispatchRoute)
 const { makeLedger, makeAuxMeter } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
@@ -12708,14 +12709,6 @@ async function handleWorkspaceStartFresh(req, res) {
   }
 }
 
-// Prefix routes are route families, not arbitrary string aliases. A route whose declared prefix already
-// ends in '/' owns every child below it; otherwise the next byte must be a real URL boundary.
-function routePrefixMatches(url, prefix) {
-  if (url.indexOf(prefix) !== 0) return false;
-  if (prefix.charAt(prefix.length - 1) === '/') return true;
-  const next = url.charAt(prefix.length);
-  return next === '' || next === '?' || next === '/';
-}
 server.on('error', (e) => {
   if (e && e.code === 'EADDRINUSE') console.error('✗ Port ' + PORT + ' is already in use (another sidecar already running?). Stop it, or set STARNET_PORT=<n> and retry.');
   else if (e && e.code === 'EACCES') console.error('✗ Port ' + PORT + ' needs elevated privileges — pick a port >= 1024 via STARNET_PORT.');

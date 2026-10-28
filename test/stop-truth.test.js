@@ -15,6 +15,7 @@
 
    This runs the REAL stopActive (+ its helpers) and the REAL bell settlement listener from chat.js in a sandbox. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -604,7 +605,7 @@ function stopRig(opts) {
     // THE STATION HALF OF THE CONTRACT (review 2026-10-14). The page finds the report by reading GET /api/overseer for a row
     // { status:'reviewing', parentStreamId:<this conversation>, reviewRunId } and stops it by that id through /api/cancel.
     // Nothing above can see the station, so these pins break the moment either side stops matching.
-    const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     const ovs = fs.readFileSync(path.join(__dirname, '../sidecar/overseer.js'), 'utf8');
     const tick = A.fnBody(idx, 'async function tickOverseer');
     A.ok(tick.length > 1000, 'tickOverseer located');

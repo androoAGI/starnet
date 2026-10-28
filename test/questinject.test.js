@@ -5,6 +5,7 @@
    it never double-appends; and the block is clipped to the cap, dropping the OLDEST quests first with a "N more"
    note. Pure + deterministic (no clock/rng/fs). */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -102,7 +103,7 @@ A.eq(_internals.nextStep({}), null, 'missing steps → null');
    Source-guarded (the mirror of settings-p1-backend.test.js's gate check) because the composition lives inline in the
    runOnce path where a full-loop harness isn't cheap to stand up. ---------- */
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   // the exact gate: isTask AND quest.update present in resolved.tools before questBlock is composed.
   A.ok(/questsBlock\s*=\s*questBlock\(/.test(idx), 'index.js composes questsBlock via questBlock(...)');
   A.ok(/isTask\s*&&[\s\S]{0,120}?resolved\.tools\.indexOf\(\s*['"]quest\.update['"]\s*\)\s*>=\s*0[\s\S]{0,20}?\)\s*questsBlock\s*=\s*questBlock\(/.test(idx),

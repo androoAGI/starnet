@@ -3,6 +3,7 @@
    within a batch, count cap, the NONE/empty/malformed/throw paths (a failed reflection never hurts the
    run), and determinism. Auto-proposals are candidates only — nothing is written here. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { reflect, parse, buildPrompt, worthReflecting, usedTools, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes } = require('../sidecar/reflect.js');
 const { redact } = require('../sidecar/context.js');
@@ -151,7 +152,7 @@ const { makeClock } = require('../shared/clock-rng.js');
   A.eq(refusedAction([]), false, 'no calls -> no refusal');
   A.eq(refusedAction(null), false, 'garbage in -> false (never throws)');
   {
-    const idx = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+    const idx = readSidecarSource();
     A.ok(/const _gateReflect = !!\(o\.reflect && [^\n]*reflectSalient\(result\.messages, o\.recurring\)\n\s*&& !refusedAction\(execution\.toolTraceList\(\)\)/.test(idx), 'the run-end REFLECTION gate skips a run whose approval was not given');
   }
 

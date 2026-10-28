@@ -12,12 +12,13 @@
        strict-only syntax;
      • finalCompletionEvidence is a per-run local of runOnceCore, and the settle path never reads it unset. */
 'use strict';
+const { readSidecarIndex } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const A = require('./_assert.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarIndex();
 
 function compiles(body) {
   try { new vm.Script('(function (exports, require, module, __filename, __dirname) {' + body + '\n})', { filename: 'index.js' }); return null; }

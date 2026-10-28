@@ -14,6 +14,7 @@
         "Assistant reply (context only):" tail, an "INTERNAL —" directive, the goal judge's prompt) are skipped by the
         same readers; the same words in a named session are the Commander's and are still found. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -28,7 +29,7 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
 (async () => {
   // ---------------- 1. WRITE: the host stamps streamless self-talk 'internal' ----------------
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const rule = src.match(/const transcriptState = \(o\.dispatchDelivery && o\.dispatchDelivery\.state\) \|\| \(internal && !o\.streamId \? 'internal' : undefined\);/);
     A.ok(!!rule, 'runOnce names ONE transcript state: the dispatch envelope\'s, else \'internal\' for streamless self-talk');
     const mk = src.indexOf('const runTranscript = makeRunTranscript({');

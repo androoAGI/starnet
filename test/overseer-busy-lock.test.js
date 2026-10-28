@@ -1,4 +1,5 @@
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 /* node test/overseer-busy-lock.test.js — ONE BUSY CONVERSATION NEVER HOLDS UP ANOTHER'S REPORT (idle-cpu piece 2, 2026-10-19).
    runOnce holds a conversation's overseer lock for its whole turn (tool loops, consent waits up to 900 s). The tick used to
    AWAIT that lock, then the review run itself, so while conversation A was mid-turn no other conversation's report started,
@@ -17,7 +18,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { makeOverseer } = require('../sidecar/overseer.js');
 
-const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const idx = readSidecarSource();
 const tickSrc = A.fnBody(idx, 'async function tickOverseer');
 const countSrc = A.fnBody(idx, 'function runningReviews');
 const cap = (idx.match(/\nconst REVIEW_RUNS_AT_ONCE = (\d+);/) || [])[1];

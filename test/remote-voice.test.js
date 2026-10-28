@@ -3,6 +3,7 @@
    The Ogg container the station builds from the device's raw Opus frames is decoded by the REAL decoder the
    STT chain uses (media-service oggOpusToMono16kFloat32), so a malformed page, CRC or granule fails here. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const nodeCrypto = require('crypto');
 const fs = require('fs');
@@ -386,7 +387,7 @@ function parsePages(buf) {
     A.ok(/voiceTurn: o\.voice === true \|\| undefined/.test(hostSrc), 'and marks it a voice turn, so the VOICE CHAT MODEL may answer the companion (a phone is unchanged)');
     // voice-remote-channels-02: the per-reply engine pin (synthOne's { provider }) must reach the station voice, or a model
     // that finishes loading mid-reply answers sentence 2 in another engine and the reply is cut short
-    const indexSrc = fs.readFileSync(require('path').join(__dirname, '../sidecar/index.js'), 'utf8');
+    const indexSrc = readSidecarSource();
     A.ok(indexSrc.includes('synthesize: (text, o) => media.synthesizeStationVoice(text, o)'), 'the sidecar passes the per-reply engine pin through to the station voice');
   }
 

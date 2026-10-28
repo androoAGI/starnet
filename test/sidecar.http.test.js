@@ -10,6 +10,7 @@
 
    NOT in test:fast (a child-process boot test shouldn't gate ~25 other agents' merges); run via `npm run test:http`. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -730,7 +731,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(Array.isArray(ckOk.body.snapshots), '/api/checkpoint 200 body carries {snapshots:[...]}');
     A.eq(ckOk.body.enabled, true, 'checkpoints are ON by default (no STARNET_/SKYNET_CHECKPOINTS set) — Lane C5');
     // the truthful-failure branch itself (structural: the catch now reports 500, never a masking 200-empty)
-    const idxSrcHonesty = fs.readFileSync(INDEX, 'utf8');
+    const idxSrcHonesty = readSidecarSource();
     const serveRunsSrc = idxSrcHonesty.slice(idxSrcHonesty.indexOf('function serveRuns'), idxSrcHonesty.indexOf('function serveInsights'));
     A.ok(/catch\s*\(e\)\s*\{[\s\S]*?json\(500,\s*\{\s*error/.test(serveRunsSrc), 'serveRuns reports json(500,{error}) on a thrown read, not a 200-empty');
     const ckStart = idxSrcHonesty.indexOf('function handleCheckpointList');
@@ -1048,7 +1049,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     // SOURCE LOCK — auto-saved (saved:true) stash items carry a REAL record id; a keep/edit on one would mint a
     // DUPLICATE note and a discard would denylist while the record survives. The handler must 409 them before the
     // write path (the stash is in-memory + LLM-fed, so this guarantee is locked at the source seam).
-    const idxSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const idxSrc = readSidecarSource();
     const iTurnin = idxSrc.indexOf('async function handleMemoryTurnin');
     const iWrite = idxSrc.indexOf('writeMemoryRecord(agentId, prop', iTurnin);
     // needle pins the GUARANTEE (a .saved item 409s before the write), not the local variable name that holds it —

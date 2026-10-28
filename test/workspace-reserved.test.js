@@ -5,6 +5,7 @@
    custom agent named "Codex" slugged to `codex`, so fs.read tokens.json handed that agent the ChatGPT OAuth
    tokens, and /api/file?agent=codex served them. Proven here against a REAL temp directory holding a canary. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fsp = require('fs/promises');
 const fs = require('fs');
@@ -72,7 +73,7 @@ async function rejects(promise, msg, re) {
   A.eq(AgentId.alloc('channels', new Set()), 'channels-2', '"channels" is allocated channels-2');
   A.eq(AgentId.alloc('coder', new Set()), 'coder', 'ordinary class ids are unchanged');
   A.eq(AgentId.alloc('Skill Market', new Set()), 'skill-market-2', 'an agent named "Skill Market" never owns the market install folder (sweep 10-02)');
-  A.ok(Reserved.RESERVED.has('skill-market') && /path\.join\(WORKSPACES, 'skill-market'\)/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')),
+  A.ok(Reserved.RESERVED.has('skill-market') && /path\.join\(WORKSPACES, 'skill-market'\)/.test(readSidecarSource()),
     'the market install folder (WORKSPACES/skill-market) is a reserved station folder');
   A.eq(Array.from(AgentId.RESERVED).sort(), Array.from(Reserved.RESERVED).sort(), 'frontend RESERVED mirrors sidecar/workspace-reserved.js');
   for (const id of AgentId.RESERVED) A.ok(AgentId.RE.test(id) || /^_/.test(id), 'reserved id is expressible in the id grammar: ' + id);
@@ -80,7 +81,7 @@ async function rejects(promise, msg, re) {
   // ---- agent delete archives WORKSPACES/<id>: a reserved id is still deletable (the recovery path for an agent
   // named before the rule), but the station directory is NEVER moved into the archive ----
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const start = src.indexOf('async function handleAgentDelete');
     const body = src.slice(start, src.indexOf('ORPHANED-AUTOMATION CLEANUP', start));
     A.ok(/const reservedId = WorkspaceReserved\.isReservedWorkspaceId\(agentId\);/.test(body), 'agent delete classifies a reserved id');

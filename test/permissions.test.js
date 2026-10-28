@@ -3,6 +3,7 @@
    hardline floor sits BELOW the bypass flag, mutations default-deny under an autonomous surface,
    grants are per-session (not process-global), and an 'always' grant only sticks if it persisted. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const { makeConsentBroker, ANTI_RETRY, SILENCE } = require('../sidecar/permissions.js');
 
@@ -232,7 +233,7 @@ const hardline = (call) => (call && call.args && /(^|\/)(\.env|permissions\.allo
   // Structural wiring lock: the endpoint persists roster Full Access and run authority reads it live.
   {
     const fs = require('fs'); const path = require('path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     A.ok(/persistAgentFullAccess\(agentId\)/.test(src), 'the permission-card endpoint persists Full Access');
     A.ok(/fullAccess: agentFullAccessNow/.test(src), 'run authority receives the live per-agent predicate');
     A.ok(/agentFullAccessNow\(\)/.test(src), 'the consent broker reads that posture on every call');

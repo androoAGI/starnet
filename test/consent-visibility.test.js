@@ -8,6 +8,7 @@
    the DOM wiring (which is not headless-loadable) is locked with source-level asserts, same convention as
    test/settings-p1-backend.test.js. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -76,7 +77,7 @@ const F = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 /* ---------- FIX 1c · sidecar: ack route exists, wired to the extendable waiter; fail-closed floor intact ---------- */
 {
-  const idx = F('sidecar/index.js');
+  const idx = readSidecarSource();
   A.ok(/'\/api\/consent\/ack'/.test(idx) && /handleConsentAck/.test(idx), 'sidecar: POST /api/consent/ack is routed');
   A.ok(/makeConsentWait/.test(idx) && /require\('\.\/consentwait\.js'\)/.test(idx),
     'sidecar: askHuman rides the tested extendable waiter (not a second untested timer)');
@@ -84,12 +85,22 @@ const F = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
   // the summon channel keeps its own untouched fail-closed timer (no behavior change out of scope).
   A.ok(/setTimeout\(\(\) => finish\(null\), CONSENT_TIMEOUT_MS\)/.test(idx), 'sidecar: summon fail-closed timer untouched');
   // sidecar-index-14: AbortSignal.any is missing on Node 18/20.0-20.2; an unguarded call threw inside askHuman, so a
-  // delegated worker's first approval failed its tool call instead of showing the Commander a card
+  // delegated worker's first approval failed its tool call instead of showing the Commander a card.
+  // EVERY sidecar file is scanned, so a guarded call that moves out of index.js stays covered. One reasoned
+  // exception: sidecar/tools/builtin/cua-computer.js still makes two unguarded AbortSignal.any calls (outside this
+  // fix's scope — fix them, then drop the exception). A hit on a comment line (one that starts with //, /* or *) is
+  // a comment quoting the call, not a call (sidecar/channels/adapter.js explains its controller that way).
+  const host = readSidecarSource({ except: ['sidecar/tools/builtin/cua-computer.js'] });
   const unguarded = [];
-  for (let at = idx.indexOf('AbortSignal.any(['); at >= 0; at = idx.indexOf('AbortSignal.any([', at + 1)) {
+  let scanned = 0;
+  for (let at = host.indexOf('AbortSignal.any(['); at >= 0; at = host.indexOf('AbortSignal.any([', at + 1)) {
+    const line = host.slice(host.lastIndexOf('\n', at) + 1, host.indexOf('\n', at)).trim();
+    if (/^(\/\/|\/\*|\*)/.test(line)) continue;
+    scanned++;
     // the guard sits on the same expression or on the enclosing if, a few lines up
-    if (!/typeof AbortSignal\.any === 'function'/.test(idx.slice(Math.max(0, at - 300), at))) unguarded.push(idx.slice(idx.lastIndexOf('\n', at) + 1, idx.indexOf('\n', at)).trim());
+    if (!/typeof AbortSignal\.any === 'function'/.test(host.slice(Math.max(0, at - 300), at))) unguarded.push(line);
   }
+  A.ok(scanned >= 1, 'sidecar: the guard scan found AbortSignal.any calls to check (' + scanned + ') — a scan of nothing proves nothing');
   A.eq(unguarded, [], 'sidecar: every AbortSignal.any call checks that the runtime has it');
 }
 

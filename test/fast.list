@@ -94,6 +94,7 @@ test/readbody.test.js
 test/set-key-body.test.js
 test/file-response.test.js
 test/test-list-runner.test.js
+test/source-helper.test.js
 test/runroute.test.js
 test/run-streams.test.js
 test/run-stream-pool.test.js
@@ -1419,3 +1420,23 @@ test/one-gutter.test.js
 test/curved-dashboard.test.js
 test/dockglow-seen.test.js
 test/vision-input.test.js
+# Previously on no list, so never run (gate-seams 2026-10-27; test/test-list-completeness.test.js keeps it that way).
+test/approved-sheet-assets.test.js
+test/authored-furniture-motion.test.js
+test/authored-surface-mounts.test.js
+test/chat-history-order.test.js
+test/css-style-invalidation.test.js
+test/eval-comparison.test.js
+test/onboarding-legibility.test.js
+test/projection-correction-assets.test.js
+test/projection-screen-light.test.js
+test/refit-testride-intake.test.js
+test/remaster-skin-import.test.js
+test/skill-metrics.test.js
+test/skill-package-format.test.js
+test/skill-registry.test.js
+dev/computer-eval/adapter.test.js
+dev/industrial-textures/approved-sheet-effects.test.cjs
+dev/industrial-textures/coordinated-effects/accessories.test.cjs
+dev/industrial-textures/coordinated-effects/utility.test.cjs
+test/test-list-completeness.test.js

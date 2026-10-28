@@ -14,6 +14,7 @@
         consumed by settleRunRecoveryContinuation, which records continuation_finish with it BEFORE removing the
         source; the listing and boot scan retire on `retirable`. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const os = require('os');
@@ -120,7 +121,7 @@ try {
 
   // ---- E. host wiring ----------------------------------------------------------------------------------------
   {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const src = readSidecarSource();
     const settle = A.fnBody(src, 'function settleRunRecoveryContinuation(');
     A.ok(settle.length > 200 && settle.length < 4000, 'settleRunRecoveryContinuation located');
     const iAck = settle.indexOf('continuationTranscriptAcks.delete(');

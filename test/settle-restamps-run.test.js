@@ -6,6 +6,7 @@
    Store level, real file IO: settle → restart → still settled; a later recovery-status change never re-opens it;
    the ledger names the attested figure so the host can heal a row the settle could not restamp. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -80,7 +81,7 @@ try {
 
 // ---- the host wires it: the settle restamps, the boot scan heals from the ledger ----
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   const settle = idx.slice(idx.indexOf('async function handleBudgetSettle('), idx.indexOf('async function warmModelCatalogSet('));
   A.ok(settle.length > 200 && settle.length < 6000, 'handleBudgetSettle found');
   const ledgerAt = settle.indexOf('ledger.settleUnsettled(runId, usd'), stampAt = settle.indexOf('runStore.settleSpend(runId, usd');

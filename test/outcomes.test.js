@@ -8,6 +8,7 @@
      - lane derivation follows the workstream-prefix vocabulary; lane:interactive never rates FAILING
      - successPrior is Laplace-smoothed and absent under support (a caller's default must stay untouched) */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const O = require('../sidecar/outcomes.js');
 
@@ -129,7 +130,7 @@ A.eq(O.successPrior(null, 'x'), null, '…and leans nothing');
   // host seams (DOM/boot flow — source-locked like the sibling suites' wiring sections)
   const fs = require('fs');
   const path = require('path');
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   A.ok(/function stationTrackRecord\(\)/.test(idx) && /personalizationStore\.read\(\)\.enabled\) return null/.test(A.fnBody(idx, 'function stationTrackRecord()')),
     'the shared read exists and the personalization PAUSE returns null before any fold');
   A.ok(/const trackRecord = stationTrackRecordLines\(\);/.test(A.fnBody(idx, 'function commanderEvidenceInputs(evidence)')),

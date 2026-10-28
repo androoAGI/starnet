@@ -11,6 +11,7 @@
       wire path (belt-and-braces over the registry test), and that connect()/disconnect() are clean with no gateway
       (the honest no-WS default): connect does not throw, disconnect does not throw, send still returns a SendResult. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -28,7 +29,7 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
 
 (async () => {
   // ---------- 1. BACKEND source-guard: the four discord endpoints + handlers exist and mirror Telegram ----------
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
 
   // Telegram (the model we mirror) is untouched — additive-only guarantee.
   A.ok(/\/api\/channels\/telegram\/connect/.test(idx), 'Telegram connect route still present (not regressed)');

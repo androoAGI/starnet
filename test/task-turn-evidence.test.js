@@ -18,6 +18,7 @@
          handler seeds the memo from the doc it just stored (seedSaveMemos): 0 parses per turn, a new generation is read
          at once, a refused save seeds nothing, an outside edit is still read. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -30,7 +31,7 @@ const W = require('../sidecar/workflow-takeover.js');
 const CP = require('../sidecar/contextpack.js');
 const CC = require('../sidecar/commander-context.js');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 const names = ['function evidenceRows(ev)', 'function stationEpoch()', 'function nightshiftRecentRuns()', 'function nightshiftContextPack(evidence)',
   'function commanderEvidenceInputs(evidence)', 'function commanderEvidenceContext(existingSystem, extra, evidence)', 'function standingWorkNotice(brief, agentId, o, evidence)'];
 const bodies = names.map(n => fnBody(src, n));

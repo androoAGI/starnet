@@ -13,6 +13,7 @@
      · the scheduled fire's blocked-config reason is the injected sentence (the same one Run Now says)
      · index.js: an operator env var outranks the page copy; the copy lives under .secrets/ and is redacted. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -179,7 +180,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
 
 /* ---------- the page copy is ONE credential: its endpoint + backups ride only its own key (index.js, executed) ---------- */
 {
-  const raw = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const raw = readSidecarSource();
   const fn = name => { const i = raw.indexOf('\nfunction ' + name + '('); A.ok(i >= 0, 'index.js has ' + name); return i < 0 ? '' : raw.slice(i, raw.indexOf('\n}\n', i) + 3); };
   const code = ['providerRuntimeKey', 'providerOperatorKey', 'providerRuntimeKeyPool', 'providerFallbackKeyPool', 'pageCopyRidesWith', 'providerRuntimeBaseUrl'].map(fn).join('\n');
   const PROFILES = {
@@ -233,7 +234,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
 
 /* ---------- index.js wiring ---------- */
 {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const src = readSidecarSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const body = name => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)); };
   A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
   A.ok(/const runKey = providerRuntimeKey\(providerId, key\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, o\.baseUrl \|\| o\.base_url \|\| '', runKey\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key)');

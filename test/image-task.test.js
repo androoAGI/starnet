@@ -1,5 +1,6 @@
 /* Offline regressions for image-task admission, credential routing, and truthful completion. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -108,7 +109,7 @@ A.eq(alreadyFailed.reason, 'budget', 'existing failure reason is preserved');
 
 // Composition-root lock: the pure policy must guard the real run host, including the
 // terminal event that consumers use as completion truth.
-const indexSource = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const indexSource = readSidecarSource();
 const runHost = indexSource.slice(indexSource.indexOf('async function runOnce(o)'));
 const admissionAt = runHost.indexOf('ImageTask.admissionBlocker');
 const loopAt = runHost.indexOf('result = await runAgentLoop');

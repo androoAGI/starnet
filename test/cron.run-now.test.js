@@ -6,12 +6,13 @@
    must also place a cron work item and mirror lifecycle over SSE so the floor
    moves immediately when the user presses Run Now. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.resolve(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+const src = readSidecarSource();
 
 function sliceBetween(text, startPattern, endPattern) {
   const start = text.search(startPattern);

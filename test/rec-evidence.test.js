@@ -18,6 +18,7 @@
    Plus the Q3 staleness guard the earlier plan named but never wired: a pitch is never silently aimed at a
    belief the station itself would not assert. */
 'use strict';
+const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -61,7 +62,7 @@ const RecQuality = require('../frontend/app/recquality.js');
 const harnessSrc = read('frontend/app/harness.js');
 A.ok(/async function chat\(\{[^}]*\bevidence\b/.test(harnessSrc), 'Harness.chat accepts an evidence flag');
 A.ok(/if \(evidence\) reqBody\.evidence = true;/.test(harnessSrc), '…and puts it on the request body');
-const idxSrc = read('sidecar', 'index.js');
+const idxSrc = readSidecarSource();
 A.ok(/const evidence = !!\(body && body\.evidence\);/.test(idxSrc), 'the route reads it');
 A.ok(/trigger: 'directive', internal, evidence,/.test(idxSrc), '…and hands it to runOnce');
 A.ok(/if \(internal && o\.evidence\) \{/.test(idxSrc), 'runOnce composes the pack ONLY for an internal run that asked');
