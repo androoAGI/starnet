@@ -6924,10 +6924,11 @@ const egressReader = require('./egress-files.js').makeEgressReader({ ...egressDe
 const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: 20 * 1024 * 1024 });   // web.js FILE_MAX_BYTES
 // browser.upload proves a file and copies its bytes, through the verified handle, into a staged copy in a STATION-OWNED
 // scratch root OUTSIDE every agent jail and project root (egress-files.js defaultStagingRoot: os.tmpdir()/starnet-upload
-// -staging-<station id>, 200 MB a file; review round 5). A crashed run's copies are swept at boot, walking that same
-// root derived from WORKSPACES (real host boot only: unit tests require() this file)
+// -staging-<station id>, 200 MB a file; review round 5). A crashed run's copies are swept at HOST START, walking that
+// same root derived from WORKSPACES: here at module load, so a host that require()s this file sweeps too (it used to
+// sit behind require.main === module; review round 6), and sweepUploadStagingOnce never sweeps a root twice
 const uploadEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps });
-if (require.main === module) require('./egress-files.js').sweepUploadStaging({ fsp, pathMod: path, workspaces: WORKSPACES }).then(n => { if (n) console.log('[browser.upload] boot sweep removed ' + n + ' staged upload cop' + (n === 1 ? 'y' : 'ies')); }).catch(e => failNote('browser.upload.bootsweep', e));
+require('./egress-files.js').sweepUploadStagingOnce({ fsp, pathMod: path, workspaces: WORKSPACES }).then(n => { if (n) console.log('[browser.upload] boot sweep removed ' + n + ' staged upload cop' + (n === 1 ? 'y' : 'ies')); }).catch(e => failNote('browser.upload.bootsweep', e));
 async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egressReader.readFor(agentId, rel, ctx, projectRoot); }
 /* THE ONE OUTBOUND HOST-PATH SCRUB (run-paths review round 3, sidecar/host-path-scrub.js). A chat is never shown an
    absolute host path: every live channel adapter's send / editMessage / answerCallback is wrapped in place

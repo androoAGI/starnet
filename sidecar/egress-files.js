@@ -17,6 +17,15 @@
    strictest form (autonomous, no prompt, no grants, no posture). There is NO fallback to a same-named file in another
    folder, and no refusal quotes an absolute host path (shownName: the jail-relative form, else the file name).
 
+   THE THREAT MODEL (owner decision, review round 6, 2026-10-29). These rules guard the TOOL paths a file leaves the
+   station by (channel.send, a routine delivery, web_request's ${file:…}, browser.upload) and ACCIDENTAL leaks: a wrong
+   name, a link nobody meant to send, a stale same-named file. They are NOT a defence against a hostile same-user shell.
+   A run that holds an unsandboxed local shell already has the user's own file and network reach (it could read ~/.ssh
+   and curl it out with no tool here involved), so a hostile same-user shell is OUT OF SCOPE for egress; the shell's own
+   sandbox and consent govern it. The race hardening below exists so the tool paths never become the easy road out for
+   such a process, and so a swap is caught and refused where it cheaply can be. It does not claim to stop that process,
+   and nothing the station tells the user or the model may claim it does.
+
    ONE NAME, ONE FILE, THE BYTES THAT WERE PROVEN (review round 3). A hard link is the same file under a second name
    (`mklink /H notes.txt %USERPROFILE%\.ssh\id_ed25519` needs no admin), so a name proven inside the jail could carry
    any file on the volume: a file with more than one name never leaves. The open handle is checked against the proven
@@ -38,27 +47,45 @@
    one name and size are checked after the write. Bounded: a file over STAGE_MAX_BYTES is refused. This is a station
    root, so neither fs.* (pathtrust: an outside path is a hard deny on the autonomous surface, and a path under the
    workspace parent that is not the agent's own is denied) nor the shell's absolute-path floor can reach it by a literal
-   path. HONEST LIMIT: a shell with the user's full rights can still COMPUTE the temp dir, and owner-only ACLs do not
-   stop the SAME user; so the remaining defences are (a) the stage, the handle check and the hand-off happen in quick
-   succession, (b) the copy is not in a folder the run is told about or works in, and (c) the copy is re-verified
-   (realpath, nlink===1, dev/ino, size) immediately before AND after the hand-off, and the selection cancelled if it
-   changed. The browser tools drop their copies when the run ends or their own browser closes (unstage), and the host
-   sweeps any a crash left behind at boot (sweepUploadStaging). unstage/sweep never descend through a reparse point and
-   prove the folder really lies inside the staging root before removing anything (review round 5 MAJOR, dropStaged).
+   path. HONEST LIMIT (THE THREAT MODEL above): a shell with the user's rights can still COMPUTE the temp dir, and
+   owner-only ACLs do not stop the SAME user. What the station does about it: (a) the copy is not in a folder the run
+   is told about or works in; (b) the copy's sha256 is taken from the bytes written, and the copy is re-verified
+   (realpath, plain file, nlink===1, dev/ino, size, a bounded streaming re-hash: verifyStaged) immediately before AND
+   after the hand-off; (c) Chrome reads an uploaded file at FORM SUBMIT, a later separate action, not when it is
+   selected (review round 6, scratchpad rr6-chrome-submit.js: an in-place overwrite and a hard-link swap made after the
+   selection were sent at submit), so browser.js keeps every staged copy registered with that proof and re-verifies all
+   of them before EVERY later browser action that can submit or read; on any change it clears the file input, drops
+   the copy and refuses the action; (d) a copy whose page is gone (navigated away, tab or browser closed) is dropped.
+   RESIDUAL RISK: a swap that lands in the window between that last pre-action check and Chrome's read (milliseconds)
+   is still sent, and so is one made while a human holds the browser (STEP-IN, sign-in). FOLLOW-UP (not built): verify
+   at the network boundary, with CDP Fetch interception of the request body refusing any multipart part whose sha256
+   is not a proven one. The browser tools drop their copies when the run ends or their own browser closes (unstage),
+   and the host sweeps any a crash left behind at boot (sweepUploadStaging). unstage/sweep never descend through a
+   reparse point and prove the folder really lies inside the staging root before removing anything (review round 5
+   MAJOR, dropStaged), and re-prove it immediately before each file is unlinked (review round 6 minor).
+
+   THE STAGING ROOT MUST BE OURS (review round 6 MAJOR). On POSIX os.tmpdir() is shared (/tmp), so another user could
+   create starnet-upload-staging-<id> first (or a link by that name), and the old recursive mkdir adopted it. The root
+   is now created NON-recursively with mode 0o700. A root or per-agent folder that already exists is used only when it
+   is a real directory, not a link and not reached through one, and (POSIX) owned by this user with no group/other
+   write bit; anything else refuses the upload, fail closed. Windows' os.tmpdir() is per-user; the link and realpath
+   checks hold there too (the owner check can be injected for a test: deps.stagingOwner).
 
    NOT DONE (owner decision, review round 4 minor-5): a hard link stays refused for egress even when it is a build
    output the agent made itself (a compiler or a package manager linking an artifact into place). With round 4's
    MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible and never silent.
 
-   makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard, stagingRoot?, hardenStagingDir? }) -> {
+   makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard, stagingRoot?, hardenStagingDir?, stagingOwner? }) -> {
      read(paths, name, { allowEmpty, probe, stage }?) a name through THIS path object's jail and root; probe: every
                                                check, no bytes read; stage: { dir, maxBytes? } every check, then the
                                                proven bytes copied into a fresh folder of `dir` (abs: the copy, staged:
-                                               its folder, ino/dev: the copy's identity for re-verification, for unstage)
+                                               its folder, ino/dev/nlink/sha256: the copy's proof for re-verification)
      stageDirFor(agentId)                      the per-agent staging folder under the station staging root (what
                                                browser.upload passes as stage.dir); null when no root is known
-     verifyStaged(absPath, { size, ino, dev }) re-prove a staged copy is unchanged (realpath, plain file, nlink===1,
-                                               dev/ino, size) -> { ok } | { ok:false, error }
+     verifyStaged(absPath, { size, ino, dev, sha256? })
+                                               re-prove a staged copy is unchanged (realpath, plain file, nlink===1,
+                                               dev/ino, size, and with sha256 a bounded streaming re-hash through one
+                                               open handle) -> { ok } | { ok:false, error }
      unstage(folder, name?)                    removes one staged copy's folder (never recursive, never through a link,
                                                only when it really lies inside the staging root; bounded to `name`)
      readFor(agentId, name, ctx?, projectRoot?, opts?)
@@ -106,36 +133,82 @@ function defaultHardenStagingDir(fsp, dir) {
   });
 }
 
+/* THE STAGING ROOT MUST BE OURS (review round 6 MAJOR; header). The owner a staging folder must have: POSIX, this
+   process's uid (a folder another user made in the shared /tmp is theirs, and so is anything they put in it); Windows,
+   none (os.tmpdir() is per-user and stat carries no owner; the link and realpath checks still hold). */
+function defaultStagingOwner() {
+  return process.platform !== 'win32' && typeof process.getuid === 'function' ? { uid: process.getuid() } : null;
+}
+// null when `d` is a staging folder this station may write into, else the reason it is not: it must be a real
+// directory, not a link and not reached through one (its real path is its real parent's plus its own name), and with
+// an owner to check, owned by that uid with no group/other write bit. Throws what lstat/realpath throw (ENOENT).
+async function stagingDirProblem(fsp, P, d, owner) {
+  const abs = P.resolve(d);
+  const st = await fsp.lstat(abs);
+  if (st.isSymbolicLink() || !st.isDirectory()) return 'is a link to somewhere else';
+  const real = await fsp.realpath(abs);
+  if (mfold(P, real) !== mfold(P, P.join(await fsp.realpath(P.dirname(abs)), P.basename(abs)))) return 'is a link to somewhere else';
+  if (owner) {
+    if (Number(st.uid) !== Number(owner.uid)) return 'belongs to another user';
+    if (Number(st.mode) & 0o022) return 'is writable by other users';
+  }
+  return null;
+}
+function sweepRootOf(deps, P) {
+  return deps.stagingRoot ? String(deps.stagingRoot) : (deps.workspaces ? defaultStagingRoot(P, deps.workspaces, deps.tmpdir) : null);
+}
+/* THE BOOT SWEEP, ONCE (review round 6 info). index.js runs it at HOST START whether it was started as `node
+   sidecar/index.js` or require()d by a host (the sweep used to sit behind require.main === module, so a host that
+   require()s index.js never swept). Guarded per staging root for the life of the process: a second call is a no-op,
+   so a later caller can never sweep a live run's staged copies. -> what sweepUploadStaging removed, or 0 */
+const sweptRoots = new Set();
+function sweepUploadStagingOnce(deps) {
+  const P = deps.pathMod || require('node:path');
+  const root = sweepRootOf(deps, P);
+  if (!root) return Promise.resolve(0);
+  const key = mfold(P, P.resolve(root));
+  if (sweptRoots.has(key)) return Promise.resolve(0);
+  sweptRoots.add(key);
+  return sweepUploadStaging(deps);
+}
+
 /* ONE staged copy's folder away (review round 5 MAJOR). A junction swapped in between lstat and readdir used to make
    readdir return a VICTIM folder's children, which were then unlinked (rr5r-stage-race.js S4). Now: a reparse point /
    symlink is unlinked as a link and NEVER descended into (a Windows directory junction is removed by unlink/rmdir of
    the link, never recursively); a folder is proven to really lie inside the staging root (realpath on the lstat-proven
    directory) before its entries are touched; the delete is bounded to the one known staged name where we have it, and
    the folder is RE-PROVEN unchanged after the readdir before anything is removed, so a mid-readdir swap is refused.
+   RE-PROVEN BEFORE EACH UNLINK (review round 6 minor, scratchpad rr6-dropstaged-race.js A): with the name known, a
+   junction swapped in AFTER the first proof made folder/<name> name the VICTIM's file of that name, and it was
+   unlinked. The folder is now proven a real directory inside the root again immediately before every unlink; a folder
+   that became a link is unlinked as a link and nothing in it is touched. RESIDUAL: a swap in the microseconds between
+   that last proof and the unlink (Node has no unlinkat on a held directory handle).
    boundRoot: the staging root `folder` must really lie inside (and never be). knownName: the single staged file. */
 async function dropStaged(fsp, P, folder, boundRoot, knownName) {
-  let st;
-  try { st = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
-  if (st.isSymbolicLink() || !st.isDirectory()) { await unlinkOne(fsp, folder); return; }   // a reparse point: unlink the link, never enter
-  if (!(await provenInside(fsp, P, folder, boundRoot))) return;                              // not a per-copy folder inside the root: touch nothing
+  // -> true while `folder` is still a real directory inside boundRoot; a folder that became a link is unlinked (as a link)
+  const stillOurs = async () => {
+    let s;
+    try { s = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return false; throw e; }
+    if (s.isSymbolicLink() || !s.isDirectory()) { await unlinkOne(fsp, folder); return false; }   // a reparse point: unlink the link, never enter
+    return provenInside(fsp, P, folder, boundRoot);                                                 // not a per-copy folder inside the root: touch nothing
+  };
+  if (!(await stillOurs())) return;
   let names;
   if (knownName) names = [knownName];
   else {
     try { names = await fsp.readdir(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
-    if (!(await provenInside(fsp, P, folder, boundRoot))) { await unlinkOne(fsp, folder); return; }   // swapped DURING the readdir: its victim entries are never trusted
+    if (!(await stillOurs())) return;   // swapped DURING the readdir: its victim entries are never trusted
   }
   for (const name of names) {
     const p = P.join(folder, name);
     let s;
     try { s = await fsp.lstat(p); } catch (e) { if (e && e.code === 'ENOENT') continue; throw e; }
     if (s.isDirectory() && !s.isSymbolicLink()) continue;   // a real subdirectory is not a staged file; leave it (rmdir then fails, caller notes it)
+    if (!(await stillOurs())) return;                       // swapped since the proof: folder/<name> may now be a victim's file
     await unlinkOne(fsp, p);
   }
   // re-prove once more before removing the folder itself: a junction swapped in now is unlinked as a link, not entered
-  let st2;
-  try { st2 = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
-  if (st2.isSymbolicLink() || !st2.isDirectory()) { await unlinkOne(fsp, folder); return; }
-  if (!(await provenInside(fsp, P, folder, boundRoot))) return;
+  if (!(await stillOurs())) return;
   await fsp.rmdir(folder);
 }
 // the lstat-proven directory `folder` really resolves inside boundRoot (and is not boundRoot itself). No boundRoot => refuse.
@@ -161,8 +234,13 @@ async function unlinkOne(fsp, p) {
    -> count removed. */
 async function sweepUploadStaging(deps) {
   const fsp = deps.fsp, P = deps.pathMod || require('node:path');
-  const root = deps.stagingRoot ? String(deps.stagingRoot) : (deps.workspaces ? defaultStagingRoot(P, deps.workspaces, deps.tmpdir) : null);
+  const root = sweepRootOf(deps, P);
   if (!root) return 0;
+  // a root that is not ours (a link, another user's folder: review round 6 MAJOR) is never walked
+  let problem;
+  try { problem = await stagingDirProblem(fsp, P, root, deps.stagingOwner !== undefined ? deps.stagingOwner : defaultStagingOwner()); }
+  catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
+  if (problem) { console.warn('[browser.upload] boot sweep skipped: the upload staging root ' + root + ' ' + problem); return 0; }
   let agents, removed = 0;
   try { agents = await fsp.readdir(root, { withFileTypes: true }); }
   catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
@@ -196,6 +274,7 @@ function makeEgressReader(deps) {
   const stagingRoot = deps.stagingRoot ? String(deps.stagingRoot) : (deps.workspaces ? defaultStagingRoot(P, deps.workspaces, deps.tmpdir) : null);
   const hardenDir = typeof deps.hardenStagingDir === 'function' ? deps.hardenStagingDir : (dir => defaultHardenStagingDir(fsp, dir));
   const hardened = new Set();   // per-agent staging folders already locked owner-only this process (icacls once per folder)
+  const stagingOwner = deps.stagingOwner !== undefined ? deps.stagingOwner : defaultStagingOwner();
   function stageDirFor(agentId) {
     const aid = String(agentId == null ? '' : agentId);
     if (!stagingRoot || !AGENT_ID_RE.test(aid)) return null;
@@ -229,15 +308,32 @@ function makeEgressReader(deps) {
     let off = 0;
     while (off < n) { const w = await out.write(buf, off, n - off); off += w.bytesWritten; if (!w.bytesWritten) throw new Error('short write'); }
   }
-  // stage mode: the proven bytes, through the verified handle, into a fresh folder of the per-agent staging folder.
-  // The per-agent folder is locked owner-only once per process (fail-closed). -> { ok, path, dir, ino, dev }
+  // THE STAGING ROOT AND THE PER-AGENT FOLDER, PROVEN OURS (review round 6 MAJOR): each is created non-recursively
+  // with mode 0o700, and one that already exists must pass stagingDirProblem. dir must be a direct child of the root.
+  // -> null | the chat-facing reason (fail closed; the host path goes to the console only)
+  async function ensureStagingDir(dir) {
+    const refuse = (what, why) => {
+      console.warn('[browser.upload] staging refused: ' + what + ' ' + why);
+      return 'cannot be staged for the browser: the upload staging folder ' + why + ', so nothing was uploaded';
+    };
+    if (!stagingRoot || fold(P.dirname(P.resolve(dir))) !== fold(P.resolve(stagingRoot))) return refuse(dir, 'is not this station\'s staging folder');
+    for (const d of [stagingRoot, dir]) {
+      try { await fsp.mkdir(d, { mode: 0o700 }); }
+      catch (e) { if (!(e && e.code === 'EEXIST')) throw e; }
+      const problem = await stagingDirProblem(fsp, P, d, stagingOwner);
+      if (problem) return refuse(d, problem);
+    }
+    return null;
+  }
+  // stage mode: the proven bytes, through the verified handle, into a fresh folder of the per-agent staging folder,
+  // hashed (sha256) from the very bytes written. The per-agent folder is locked owner-only once per process
+  // (fail-closed). -> { ok, path, dir, ino, dev, nlink, sha256 }
   async function stageCopy(fh, size, name, dir) {
     let sub = null;
     try {
-      await fsp.mkdir(dir, { recursive: true });
-      const st = await fsp.lstat(dir);
+      const refused = await ensureStagingDir(dir);
+      if (refused) return { ok: false, error: refused };
       const dirReal = await fsp.realpath(dir);
-      if (!st.isDirectory() || st.isSymbolicLink() || !(await ownFolder(dir, dirReal))) return { ok: false, error: 'cannot be staged for the browser: the upload staging folder is a link to somewhere else' };
       // owner-only ACLs on the (proven-real) per-agent staging folder, once per folder; a failure refuses the upload
       // (fail closed — never stage into a folder we could not lock to this user)
       if (!hardened.has(fold(dirReal))) {
@@ -248,7 +344,8 @@ function makeEgressReader(deps) {
       sub = P.join(dir, require('node:crypto').randomBytes(12).toString('hex'));
       await fsp.mkdir(sub);
       const dest = P.join(sub, name);
-      const out = await fsp.open(dest, 'wx');
+      const out = await fsp.open(dest, 'wx', 0o600);
+      const hash = require('node:crypto').createHash('sha256');
       let got = 0;
       try {
         const buf = Buffer.alloc(Math.max(1, Math.min(STAGE_CHUNK, size + 1)));
@@ -256,6 +353,7 @@ function makeEgressReader(deps) {
           const r = await fh.read(buf, 0, Math.min(buf.length, size + 1 - got), got);
           if (!r.bytesRead) break;
           await writeAll(out, buf, r.bytesRead);
+          hash.update(buf.subarray(0, r.bytesRead));
           got += r.bytesRead;
         }
       } finally { await out.close(); }
@@ -267,8 +365,9 @@ function makeEgressReader(deps) {
         await dropStaged(fsp, P, sub, stagingRoot, name);
         return { ok: false, error: 'could not be staged for the browser; nothing was uploaded' };
       }
-      // the copy's identity (dev/ino), so the hand-off can re-prove it is still this exact file before and after
-      return { ok: true, path: again, dir: sub, ino: cst.ino, dev: cst.dev };
+      // the copy's proof (dev/ino, one name, size, the sha256 of the bytes written), so the hand-off and every later
+      // browser action can re-prove it is still this exact file holding these exact bytes
+      return { ok: true, path: again, dir: sub, ino: cst.ino, dev: cst.dev, nlink: 1, sha256: hash.digest('hex') };
     } catch (e) {
       if (sub) { try { await dropStaged(fsp, P, sub, stagingRoot, name); } catch (e2) { failNote('egress.stage.drop', e2); } }
       return { ok: false, error: 'could not be staged for the browser (' + ((e && e.code) || 'error') + ')' };
@@ -276,20 +375,50 @@ function makeEgressReader(deps) {
   }
 
   // re-prove a staged copy is unchanged: a plain file, one name, the same dev/ino, the same size, whose realpath is
-  // still itself (a folder or file swapped for a link/junction changes the realpath or dev/ino). -> { ok } | { ok:false, error }
+  // still itself (a folder or file swapped for a link/junction changes the realpath or dev/ino), and with
+  // expected.sha256 (review round 6 BLOCKER) the same bytes: an in-place overwrite to the same size with its mtime put
+  // back keeps every identity above, so the bytes are re-hashed through ONE open handle whose identity is checked
+  // against the path's, reading at most size + 1 bytes (bounded: an upload is at most STAGE_MAX_BYTES), and the path
+  // is re-checked after the read. -> { ok } | { ok:false, error }
   async function verifyStaged(absPath, expected) {
     expected = expected || {};
+    const fail = error => ({ ok: false, error });
+    const same = (st) => {
+      if (st.nlink !== 1n) return 'the staged upload gained another name on disk';
+      if (expected.size != null && Number(st.size) !== Number(expected.size)) return 'the staged upload changed size';
+      if (expected.ino != null && st.ino !== expected.ino) return 'the staged upload was replaced';
+      if (expected.dev != null && st.dev !== expected.dev) return 'the staged upload moved to another volume';
+      return null;
+    };
     try {
       const st = await fsp.lstat(absPath, { bigint: true });
-      if (st.isSymbolicLink() || !st.isFile()) return { ok: false, error: 'the staged upload is no longer a plain file' };
-      if (st.nlink !== 1n) return { ok: false, error: 'the staged upload gained another name on disk' };
-      if (expected.size != null && Number(st.size) !== Number(expected.size)) return { ok: false, error: 'the staged upload changed size' };
-      if (expected.ino != null && st.ino !== expected.ino) return { ok: false, error: 'the staged upload was replaced' };
-      if (expected.dev != null && st.dev !== expected.dev) return { ok: false, error: 'the staged upload moved to another volume' };
+      if (st.isSymbolicLink() || !st.isFile()) return fail('the staged upload is no longer a plain file');
+      const off = same(st);
+      if (off) return fail(off);
       const real = await fsp.realpath(absPath);
-      if (fold(real) !== fold(P.resolve(absPath))) return { ok: false, error: 'the staged upload path now resolves elsewhere' };
-      return { ok: true };
-    } catch (e) { return { ok: false, error: 'the staged upload could not be re-verified (' + ((e && e.code) || 'error') + ')' }; }
+      if (fold(real) !== fold(P.resolve(absPath))) return fail('the staged upload path now resolves elsewhere');
+      if (typeof expected.sha256 !== 'string' || !expected.sha256) return { ok: true };
+      const size = Number(st.size);
+      const fh = await fsp.open(real, 'r');
+      try {
+        const hst = await fh.stat({ bigint: true });
+        if (!hst.isFile() || hst.ino !== st.ino || hst.dev !== st.dev) return fail('the staged upload was replaced');
+        const hash = require('node:crypto').createHash('sha256');
+        const buf = Buffer.alloc(Math.max(1, Math.min(STAGE_CHUNK, size + 1)));
+        let got = 0;
+        while (got <= size) {
+          const r = await fh.read(buf, 0, Math.min(buf.length, size + 1 - got), got);
+          if (!r.bytesRead) break;
+          hash.update(buf.subarray(0, r.bytesRead));
+          got += r.bytesRead;
+        }
+        if (got !== size) return fail('the staged upload changed size');
+        if (hash.digest('hex') !== expected.sha256) return fail('the staged upload\'s bytes changed');
+      } finally { await fh.close(); }
+      const after = await fsp.lstat(absPath, { bigint: true });
+      const moved = after.isSymbolicLink() || !after.isFile() ? 'the staged upload is no longer a plain file' : same(after);
+      return moved ? fail(moved) : { ok: true };
+    } catch (e) { return fail('the staged upload could not be re-verified (' + ((e && e.code) || 'error') + ')'); }
   }
 
   // the chat-facing reason a file on a network share is refused, naming no server; the detail goes to the console
@@ -394,7 +523,7 @@ function makeEgressReader(deps) {
         if (size > cap) return no(q + ' is ' + sized(size) + '; a browser upload takes at most ' + sized(cap));
         const copy = await stageCopy(fh, size, P.basename(real), stage.dir);
         if (!copy.ok) return no(q + ' ' + copy.error);
-        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, ino: copy.ino, dev: copy.dev, shown, size, mtimeMs };
+        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, ino: copy.ino, dev: copy.dev, nlink: copy.nlink, sha256: copy.sha256, shown, size, mtimeMs };
       }
       // at most the proven size plus one byte, through this handle (readFile would stat again): an extra byte means the
       // file grew after the check and a short read that it shrank; either way it is not the file that was proven
@@ -500,4 +629,4 @@ function makeEgressReader(deps) {
   };
 }
 
-module.exports = { makeEgressReader, sweepUploadStaging, defaultStagingRoot, STAGE_DIR, STAGE_MAX_BYTES };
+module.exports = { makeEgressReader, sweepUploadStaging, sweepUploadStagingOnce, defaultStagingRoot, STAGE_DIR, STAGE_MAX_BYTES };

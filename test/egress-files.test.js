@@ -18,7 +18,11 @@
    rr4-unc.js) a file on a network share is refused for the true reason; a workspace folder that is a link is trunk's on
    the station and refused for egress with a fix-it hint (minor-2).
    NOT DONE, owner decision (minor-5): a hard link stays refused for egress even when it is a build output the agent made
-   itself; with MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible. */
+   itself; with MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible.
+   Review round 6: the staging root must be ours (created non-recursively 0o700; a squatted, linked or shared one is
+   refused, the owner check through an injected stat), a staged copy carries the sha256 of the bytes written and
+   verifyStaged re-hashes, unstage re-proves its folder before each unlink (rr6-dropstaged-race.js A), and the boot sweep
+   runs once per root at host start. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -362,6 +366,154 @@ function plant(linkAt, target) {
         }
         fs.rmSync(stagingRoot, { recursive: true, force: true });
       } catch (e) { console.log('[cleanup] ' + e.message); }
+    }
+
+    /* ---- review round 6 (scratchpad rr6-dropstaged-race.js, rr6-chrome-submit.js; the root squat and the boot sweep).
+       Every row below failed before the fix: a squatted staging root was adopted, a staged copy carried no hash so an
+       in-place overwrite kept every identity it was checked by, unstage's known-name delete followed a junction swapped
+       in after its proof, and the boot sweep ran only under require.main === module. ---- */
+    {
+      const cp = require('node:child_process');
+      const crypto = require('node:crypto');
+      const sha = s => crypto.createHash('sha256').update(s).digest('hex');
+      const sh = c => { try { cp.execSync(c, { stdio: 'pipe' }); return true; } catch (e) { console.log('[skip] ' + c + ': ' + e.message.split('\n')[0]); return false; } };
+      const linkDir = (at, target) => { if (isWin) return sh('cmd /c mklink /J "' + at + '" "' + target + '"'); try { fs.symlinkSync(target, at, 'dir'); return true; } catch (e) { console.log('[skip] symlink: ' + e.message); return false; } };
+      const unlinkDir = at => { let st = null; try { st = fs.lstatSync(at); } catch (e) { if (e.code !== 'ENOENT') throw e; } if (st && st.isSymbolicLink()) { if (isWin) sh('cmd /c rmdir "' + at + '"'); else fs.unlinkSync(at); } };
+      const quiet = async fn => { const w0 = console.warn, said = []; console.warn = (...a) => said.push(a.join(' ')); try { return { got: await fn(), said }; } finally { console.warn = w0; } };
+      const r6ctx = runCtx({ agentId: 'alpha' }), r6inA = runCtx({ projectRoot: PA });
+      const OWN = 'R6-OWN-BYTES-0123456789';   // 23 bytes
+      put(path.join(JAIL, 'r6.txt'), OWN);
+      const SR = path.join(BASE, 'r6-staging'), SRA = path.join(SR, 'alpha');
+      const r6reader = o => makeEgressReader(Object.assign({ fsp, pathMod: path, workspaces: WS, stagingRoot: SR, guard: (abs, o2) => core.guard(abs, o2) }, o || {}));
+      const stage = (rd, ctx, name) => rd.read((ctx || r6ctx).paths, name || 'r6.txt', { stage: { dir: SRA } });
+
+      // MAJOR (POSIX root squat): (1) the root pre-created as a link to a folder elsewhere is refused, nothing written through it
+      const elsewhere = path.join(BASE, 'r6-elsewhere');
+      fs.mkdirSync(elsewhere, { recursive: true });
+      if (linkDir(SR, elsewhere)) {
+        try {
+          const { got: g, said } = await quiet(() => stage(r6reader()));
+          A.ok(!g.ok && /upload staging folder is a link to somewhere else/.test(g.error) && noHostPath(g), 'R6 squat: a staging ROOT that is a link is refused (' + (g.ok ? 'STAGED into ' + g.abs : g.error) + ')');
+          A.eq(fs.readdirSync(elsewhere), [], 'R6 squat: nothing was written through the linked root');
+          A.ok(said.some(w => w.indexOf(SR) >= 0), 'R6 squat: the host path goes to the console only');
+        } finally { unlinkDir(SR); }
+      }
+      // (2)-(4) the owner check, with an injected stat (Windows stat carries no owner; on POSIX it is process.getuid())
+      const ME = 1000, THEM = 4242;
+      const statAs = who => Object.assign({}, fsp, { lstat: async (p, o) => {
+        const st = await fsp.lstat(p, o);
+        const w = (o && o.bigint) ? null : who(path.resolve(p));
+        if (!w) return st;
+        return Object.assign(Object.create(Object.getPrototypeOf(st)), st, { uid: w.uid, mode: w.mode });
+      } });
+      const owned = { uid: ME, mode: 0o40700 };
+      const under = p => p === path.resolve(SR) || p === path.resolve(SRA);   // the two staging folders only (a file's stat is never faked)
+      const squats = [
+        ['a staging root another user made first', p => (p === path.resolve(SR) ? { uid: THEM, mode: 0o40700 } : under(p) ? owned : null), /upload staging folder belongs to another user/],
+        ['a group/other-writable staging root', p => (p === path.resolve(SR) ? { uid: ME, mode: 0o40777 } : under(p) ? owned : null), /upload staging folder is writable by other users/],
+        ['a per-agent staging folder another user made first', p => (p === path.resolve(SRA) ? { uid: THEM, mode: 0o40700 } : under(p) ? owned : null), /upload staging folder belongs to another user/]
+      ];
+      for (const [label, who, re] of squats) {
+        fs.rmSync(SR, { recursive: true, force: true });   // a real folder here (the link above was unlinked first)
+        fs.mkdirSync(SRA, { recursive: true });            // the squatter's folder, there before the station's
+        const { got: g } = await quiet(() => stage(r6reader({ fsp: statAs(who), stagingOwner: { uid: ME } })));
+        A.ok(!g.ok && re.test(g.error) && noHostPath(g), 'R6 squat: ' + label + ' is refused, fail closed (' + (g.ok ? 'STAGED' : g.error) + ')');
+        A.eq(fs.readdirSync(SRA), [], 'R6 squat: ' + label + ': nothing was staged in it');
+      }
+      // the boot sweep never walks a root that is not ours
+      const left = path.join(SRA, 'a1b2c3d4e5f6a1b2c3d4e5f6');
+      fs.mkdirSync(left, { recursive: true }); put(path.join(left, 'r6.txt'), 'LEFT');
+      const { got: n0 } = await quiet(() => sweepUploadStaging({ fsp: statAs(p => (p === path.resolve(SR) ? { uid: THEM, mode: 0o40700 } : null)), pathMod: path, stagingRoot: SR, stagingOwner: { uid: ME } }));
+      A.ok(n0 === 0 && fs.existsSync(path.join(left, 'r6.txt')), 'R6 squat: the boot sweep never walks a staging root another user owns (' + n0 + ')');
+      // (5) the station's own root, owned and private: created NON-recursively with mode 0o700; staging works from the
+      //     own jail and the own project root
+      fs.rmSync(SR, { recursive: true, force: true });
+      const made = [];
+      const spy = Object.assign({}, statAs(p => (under(p) ? owned : null)), { mkdir: async (p, o) => { made.push([path.resolve(p), o]); return fsp.mkdir(p, o); } });
+      const mine = r6reader({ fsp: spy, stagingOwner: { uid: ME } });
+      const g1 = await stage(mine), g2 = await stage(mine, r6inA, 'report.md');
+      A.ok(g1.ok && g2.ok, 'R6: an owned private root stages from the own jail and the own project root (' + [g1, g2].map(g => (g.ok ? 'ok' : g.error)).join(' / ') + ')');
+      const rootMade = made.find(m => m[0] === path.resolve(SR));
+      A.ok(rootMade && rootMade[1] && rootMade[1].mode === 0o700 && !rootMade[1].recursive, 'R6: the staging root is created non-recursively, mode 0o700: ' + JSON.stringify(rootMade && rootMade[1]));
+      if (!isWin) A.eq(fs.statSync(SR).mode & 0o777, 0o700, 'R6 (POSIX): the created root is 0700');
+      // (6) never made recursively: a root whose parent is missing refuses and creates nothing
+      const deep = path.join(BASE, 'r6-no-parent', 'staging');
+      const g3 = await makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: deep, guard: (abs, o2) => core.guard(abs, o2) }).read(r6ctx.paths, 'r6.txt', { stage: { dir: path.join(deep, 'alpha') } });
+      A.ok(!g3.ok && !fs.existsSync(path.join(BASE, 'r6-no-parent')), 'R6: the root is never made recursively (a missing parent refuses, nothing is created): ' + (g3.ok ? 'STAGED' : g3.error));
+
+      // BLOCKER (1): the staged copy carries the sha256 of the bytes written, and verifyStaged re-hashes. An in-place
+      // overwrite to the same size with its mtime put back keeps dev/ino/nlink/size, so only the bytes give it away.
+      fs.rmSync(SR, { recursive: true, force: true });
+      const rd = r6reader();
+      const s1 = await stage(rd);
+      A.ok(s1.ok && s1.sha256 === sha(OWN) && s1.nlink === 1, 'R6 BLOCKER: the staged copy carries the sha256 of the bytes written and its one name (' + (s1.ok ? s1.sha256 : s1.error) + ')');
+      A.ok((await rd.verifyStaged(s1.abs, s1)).ok, 'R6 BLOCKER: an unchanged staged copy re-verifies, bytes included');
+      const t1 = fs.statSync(s1.abs);
+      fs.writeFileSync(s1.abs, 'SECRET-OF-THE-USER-0000'); fs.utimesSync(s1.abs, t1.atime, t1.mtime);
+      const v1 = await rd.verifyStaged(s1.abs, s1);
+      A.ok(!v1.ok && /bytes changed/.test(v1.error), 'R6 BLOCKER: an in-place overwrite to the same size, mtime restored, is caught by the re-hash (' + (v1.ok ? 'PASSED' : v1.error) + ')');
+      const s2 = await stage(rd);
+      const secret = path.join(HOME, 'r6-secret');
+      put(secret, 'SECRET-OF-THE-USER-1111');
+      const t2 = fs.statSync(s2.abs);
+      fs.utimesSync(secret, t2.atime, t2.mtime);
+      let linked = false;
+      try { fs.unlinkSync(s2.abs); fs.linkSync(secret, s2.abs); linked = true; } catch (e) { console.log('[skip] hard link: ' + e.message); }
+      if (linked) {
+        const v2 = await rd.verifyStaged(s2.abs, s2);
+        A.ok(!v2.ok, 'R6 BLOCKER: a hard-link swap to a secret (same size, mtime aligned) is caught (' + (v2.ok ? 'PASSED' : v2.error) + ')');
+      }
+      for (const s of [s1, s2]) await rd.unstage(s.staged, path.basename(s.abs));
+      A.eq(fs.readFileSync(secret, 'utf8'), 'SECRET-OF-THE-USER-1111', 'R6 BLOCKER: dropping the swapped copy unlinks the name only; the secret is untouched');
+
+      // MINOR (rr6-dropstaged-race.js A): unstage with the name known, the copy folder swapped for a junction to a VICTIM
+      // right after its first proof (at the lstat of folder/<name>): nothing in the victim is deleted
+      {
+        const victim = path.join(BASE, 'r6-victim');
+        fs.mkdirSync(victim, { recursive: true }); put(path.join(victim, 'r6.txt'), 'TAXES'); put(path.join(victim, 'thesis.docx'), 'THESIS');
+        let armed = null, fired = false;
+        const racy = Object.assign({}, fsp, { lstat: async (p, o) => {
+          if (armed && !fired && path.resolve(p) === path.resolve(path.join(armed, 'r6.txt'))) {
+            fired = true;
+            for (const n of fs.readdirSync(armed)) fs.unlinkSync(path.join(armed, n));
+            fs.rmdirSync(armed);
+            linkDir(armed, victim);
+          }
+          return fsp.lstat(p, o);
+        } });
+        const rr = r6reader({ fsp: racy });
+        const g = await stage(rr);
+        A.ok(g.ok, 'R6 minor: a file stages for the bounded unstage (' + (g.ok ? 'ok' : g.error) + ')');
+        if (g.ok) {
+          armed = g.staged;
+          await rr.unstage(g.staged, 'r6.txt');
+          A.ok(fired, 'R6 minor: the junction swap fired after the folder was first proven');
+          A.eq(fs.readdirSync(victim).sort(), ['r6.txt', 'thesis.docx'], 'R6 minor: unstage (known name) deletes NOTHING in the victim a junction swapped in points to');
+          let gone = true;
+          try { fs.lstatSync(g.staged); gone = false; } catch (e) { if (e.code !== 'ENOENT') throw e; }
+          if (!gone) unlinkDir(g.staged);
+          A.ok(gone, 'R6 minor: the junction swapped in is removed as a link');
+        }
+      }
+
+      // INFO: the boot sweep runs ONCE per root, at host start whoever started the host
+      {
+        const { sweepUploadStagingOnce } = require('../sidecar/egress-files.js');
+        const SO = path.join(BASE, 'r6-once'), first = path.join(SO, 'alpha', 'b1b2c3d4e5f6a1b2c3d4e5f6'), second = path.join(SO, 'alpha', 'c1b2c3d4e5f6a1b2c3d4e5f6');
+        fs.mkdirSync(first, { recursive: true }); put(path.join(first, 'x.txt'), 'CRASHED');
+        const n1 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO }) : -1;
+        fs.mkdirSync(second, { recursive: true }); put(path.join(second, 'x.txt'), 'LIVE RUN');
+        const n2 = typeof sweepUploadStagingOnce === 'function' ? await sweepUploadStagingOnce({ fsp, pathMod: path, stagingRoot: SO }) : -1;
+        A.ok(n1 === 1 && !fs.existsSync(first) && n2 === 0 && fs.existsSync(path.join(second, 'x.txt')), 'R6 info: the boot sweep runs once per staging root; a second call never sweeps a live run\'s copy (' + n1 + ', ' + n2 + ')');
+        const src = require('./helpers/source.js').readSidecarSource();
+        const at = src.indexOf('sweepUploadStagingOnce({');
+        const nextFile = src.indexOf('\n/* ---- sidecar/', 1);
+        const line = at < 0 ? '' : src.slice(src.lastIndexOf('\n', at) + 1, src.indexOf('\n', at));
+        A.ok(at > 0 && at < nextFile && /^require\('\.\/egress-files\.js'\)\.sweepUploadStagingOnce\(\{ fsp, pathMod: path, workspaces: WORKSPACES \}\)/.test(line),
+          'R6 info: index.js sweeps at module load, a top-level statement (no require.main === module guard): ' + JSON.stringify(line.slice(0, 120)));
+        A.ok(src.slice(0, nextFile).indexOf('require.main === module) require(\'./egress-files.js\').sweepUploadStaging') < 0, 'R6 info: the require.main-only boot sweep is gone');
+      }
+      fs.rmSync(SR, { recursive: true, force: true });
     }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target
