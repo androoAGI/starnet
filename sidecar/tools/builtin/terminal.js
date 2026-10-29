@@ -3,6 +3,7 @@
 
 const Shell = require('./shell.js');
 const RunPaths = require('../../run-paths.js');
+const { hardlineReason } = require('../../pathtrust.js');
 
 function makeTerminalTools(deps) {
   deps = deps || {};
@@ -134,6 +135,9 @@ function makeTerminalTools(deps) {
           catch (e) { require('../../failopen.js').note('terminal.root.real', e); }
         }
         if (!inJail && !inRoot) throw new Error('the terminal folder is outside your workspace' + (paths.root ? ' and this run\'s project folder' : '') + ' by its real path (a link inside points out), so nothing was started');
+        // NOT IN A PROTECTED FOLDER (review round 3): a cwd of ".git" (or ~/.ssh, a credential store) inside the run's own
+        // folders opened the PTY there. The real folder the PTY would start in meets the same floor a file does.
+        if (hardlineReason(realCwd, realCwd)) throw new Error('the terminal folder is a protected folder (repository internals or credentials), so nothing was started; start it in the project or workspace folder instead');
       }
       const result = fail(manager.start({
         agentId, name: args.name, command, cwd: realCwd, cols: args.cols, rows: args.rows,

@@ -90,6 +90,22 @@ const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
     try { spelled = await start2.run({ name: 'p1', command: 'echo hi', cwd: 'src' }, runIn(proj + path.sep)); } catch (e) { spelled = { content: 'refused: ' + e.message }; }
     A.ok(/Started/.test(spelled.content), 'a still-approved root spelled with a trailing separator is still approved (' + spelled.content.slice(0, 80) + ')');
     A.eq(calls.filter(x => x[0] === 'start').pop()[1].cwd, path.join(approved, 'src'), 'and the terminal opens in its real folder');
+    /* REVIEW ROUND 3 (minor-5): a cwd of ".git" inside the project or the private workspace's repo opened the PTY there.
+       The real folder meets the floor; the remote-owner path keeps its own authority. */
+    fs.mkdirSync(path.join(proj, '.git', 'hooks'), { recursive: true });
+    fs.mkdirSync(path.join(workspace, 'repo', '.git'), { recursive: true });
+    const floorBefore = calls.filter(x => x[0] === 'start').length;
+    for (const [label, cwd, ctx2] of [['the project .git', '.git', runIn(proj)], ['a folder inside the project .git', '.git/hooks', runIn(proj)],
+      ['the private workspace repo .git', 'repo/.git', runIn('')], ['the project .git by a case variant', '.GIT', runIn(proj)]]) {
+      if (cwd === '.GIT' && process.platform !== 'win32') continue;
+      let why = '';
+      try { await start2.run({ name: 'g' + floorBefore, command: 'echo hi', cwd }, ctx2); why = 'STARTED'; } catch (e) { why = e.message; }
+      A.ok(/protected folder/.test(why), 'terminal.start in ' + label + ' is refused (' + why + ')');
+    }
+    A.eq(calls.filter(x => x[0] === 'start').length, floorBefore, 'no protected folder reached the manager');
+    let repoOk = null;
+    try { repoOk = await start2.run({ name: 'r1', command: 'echo hi', cwd: 'repo' }, runIn('')); } catch (e) { repoOk = { content: 'refused: ' + e.message }; }
+    A.ok(/Started/.test(repoOk.content), 'the repo folder itself still opens a terminal (' + repoOk.content.slice(0, 80) + ')');
     if (planted) fs.unlinkSync(path.join(workspace, 'jx'));
     fs.rmSync(ext, { recursive: true, force: true });
     // and the run host hands every run's terminal tools that live check (sliced to runOnceCore, where the tools are built)
