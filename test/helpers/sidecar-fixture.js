@@ -2,38 +2,16 @@
 
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
-const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { bootToken } = require('../_httpToken.js');
+const { allocatePort, portBindable, BIND_REFUSED } = require('./ports.js');
 
 const HOST = '127.0.0.1';
 const DEFAULT_ENTRY = path.resolve(__dirname, '..', '..', 'sidecar', 'index.js');
 const active = new Set();
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-function allocatePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.once('error', reject);
-    server.listen(0, HOST, () => {
-      const address = server.address();
-      const port = address && address.port;
-      server.close(error => error ? reject(error) : resolve(port));
-    });
-  });
-}
-
-function portBindable(port) {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.unref();
-    server.once('error', () => resolve(false));
-    server.listen(port, HOST, () => server.close(() => resolve(true)));
-  });
-}
 
 function processAlive(pid) {
   if (!pid) return false;
@@ -137,7 +115,7 @@ class SidecarFixture {
       return this;
     } catch (error) {
       const output = this._output;
-      if (/EADDRINUSE|already in use/i.test(output) && attempt < this.bindRetries) {
+      if (BIND_REFUSED.test(output) && attempt < this.bindRetries) {
         await this.stop();
         return this.start(extraEnv, attempt + 1);
       }
@@ -151,7 +129,7 @@ class SidecarFixture {
     const child = this.child;
     const deadline = Date.now() + this.timeoutMs;
     while (Date.now() < deadline) {
-      if (/EADDRINUSE|already in use/i.test(this._output)) {
+      if (BIND_REFUSED.test(this._output)) {
         throw new Error('sidecar port bind failed');
       }
       if (!child || child.exitCode !== null || child.signalCode) {
