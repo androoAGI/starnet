@@ -48,7 +48,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 use credentials::{
     channel_keychain_entry, credits_keychain_entry, delete_credential_honest, is_known_channel,
-    keychain_entry, keychain_entry_for, keychain_pool_entry_for,
+    keychain_entry, keychain_entry_for, keychain_pool_entry_for, known_provider,
     migrate_channel_tokens_from_plaintext, migrate_credits_token_from_plaintext,
     normalize_provider, read_channel_token, read_credits_token, read_key, read_key_for,
     read_key_pool_for, read_telegram_bot_tokens, restore_credential, rollback_error,
@@ -3877,18 +3877,24 @@ fn harness_store_provider_key(
     base_url: Option<String>,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let provider_id = normalize_provider(&provider);
+    // A provider id this shell does not know is refused: read as "openrouter" (normalize_provider), its key landed in the
+    // OpenRouter keychain slot and went out as the OpenRouter key.
+    let provider_id = known_provider(&provider).ok_or_else(|| {
+        let shown: String = provider.trim().chars().take(40).collect();
+        format!("\"{shown}\" is not a provider this app knows, so nothing was stored")
+    })?;
     let key_trimmed = key.as_ref().map(|k| k.trim().to_string());
     let mut rollback: Option<(keyring::Entry, Option<String>)> = None;
     if let Some(ref key_value) = key_trimmed {
         // codex + the device-OAuth providers (grok/kimi) authenticate by OAuth token (sidecar-owned), not a
-        // keychain API key; ollama and claude-cli (the local CLI's own sign-in) are keyless. None of them get a
-        // keychain entry.
+        // keychain API key; ollama and claude-cli (the local CLI's own sign-in) are keyless; starnet's bearer is the
+        // station's device link (its own credits entry). None of them get a keychain entry.
         if provider_id != "codex"
             && provider_id != "ollama"
             && provider_id != "claude-cli"
             && provider_id != "grok"
             && provider_id != "kimi"
+            && provider_id != "starnet"
         {
             let entry = keychain_entry_for(provider_id).map_err(|e| e.to_string())?;
             let previous = entry.get_password().ok().filter(|v| !v.trim().is_empty());
@@ -3936,7 +3942,8 @@ fn harness_store_provider_key_pool(
     state: State<AppState>,
 ) -> Result<usize, String> {
     let provider_id = normalize_provider(&provider);
-    if !KEYCHAIN_PROVIDERS.contains(&provider_id) {
+    // an id this shell does not know is refused too (read as "openrouter" it replaced the OpenRouter pool)
+    if known_provider(&provider).is_none() || !KEYCHAIN_PROVIDERS.contains(&provider_id) {
         return Err("this provider does not support alternate API keys".to_string());
     }
     let mut cleaned: Vec<String> = Vec::new();

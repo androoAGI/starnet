@@ -102,14 +102,20 @@ pub(crate) const SIDECAR_PROVIDER_KEY_ENVS: [(&str, &str); 12] = [
     ("custom", "SKYNET_CUSTOM_OPENAI_KEY"),
 ];
 
-pub(crate) fn normalize_provider(provider: &str) -> &'static str {
-    match provider.trim().to_ascii_lowercase().as_str() {
+/// The runtime id for a provider id or alias this shell knows, or `None` for one it does not. The same table as the
+/// sidecar registry (sidecar/providers/registry.js) and the page's normalizeProviderId: test/provider-aliases-parity.test.js
+/// reads all three. A command that STORES a credential refuses `None` (harness_store_provider_key), so a key the page
+/// pushes for a provider this table lacks never lands in the OpenRouter keychain slot.
+pub(crate) fn known_provider(provider: &str) -> Option<&'static str> {
+    Some(match provider.trim().to_ascii_lowercase().as_str() {
+        "openrouter" | "or" => "openrouter",
         "codex" | "openai-codex" => "codex",
         "openai" | "openai-api" => "openai",
         "anthropic" | "claude" => "anthropic",
         "gemini" | "google" | "google-ai" | "google-gemini" => "gemini",
-        "grok" | "grok-oauth" | "xai-oauth" => "grok",
-        "kimi" | "moonshot" | "kimi-code" | "kimi-oauth" => "kimi",
+        "grok" | "grok-oauth" | "xai-oauth" | "supergrok" => "grok",
+        "kimi" | "moonshot" | "kimi-code" | "kimi-oauth" | "kimi-for-coding" => "kimi",
+        "starnet" | "starnet-cloud" | "managed" => "starnet",
         "xai" | "x-ai" => "xai",
         "groq" => "groq",
         "mistral" | "mistralai" => "mistral",
@@ -121,8 +127,14 @@ pub(crate) fn normalize_provider(provider: &str) -> &'static str {
         "ollama" | "ollama-local" => "ollama",
         "claude-cli" | "claude-code" | "claude-code-cli" => "claude-cli",
         "custom" | "openai-compatible" | "local" | "vllm" | "lmstudio" => "custom",
-        _ => "openrouter",
-    }
+        _ => return None,
+    })
+}
+
+/// `known_provider`, with an id it does not know read as "openrouter": the READ paths (the legacy keychain account an
+/// existing OpenRouter key lives at, a status probe) keep their historical answer.
+pub(crate) fn normalize_provider(provider: &str) -> &'static str {
+    known_provider(provider).unwrap_or("openrouter")
 }
 
 pub(crate) fn keychain_account_for(provider: &str) -> String {
@@ -564,11 +576,24 @@ mod tests {
             ("ollama-local", "ollama"),
             ("claude-code", "claude-cli"),
             ("lmstudio", "custom"),
+            ("supergrok", "grok"),
+            ("kimi-for-coding", "kimi"),
+            ("starnet", "starnet"),
+            ("managed", "starnet"),
+            ("or", "openrouter"),
             ("unknown-provider", "openrouter"),
         ];
         for (input, expected) in cases {
             assert_eq!(normalize_provider(input), expected, "alias {input}");
         }
+    }
+
+    #[test]
+    fn unknown_provider_ids_are_none_never_openrouter() {
+        assert_eq!(known_provider("supergrok"), Some("grok"));
+        assert_eq!(known_provider(" OpenRouter "), Some("openrouter"));
+        assert_eq!(known_provider("antrhopic"), None);
+        assert_eq!(known_provider(""), None);
     }
 
     #[test]
