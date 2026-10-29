@@ -997,6 +997,7 @@ test/channels.slack.test.js
 test/channels.matrix.test.js
 test/channels.signal.test.js
 test/channels.generic-wire.test.js
+test/channels.connect-provider-switch.test.js
 test/channels.registry.test.js
 test/channels.reach.test.js
 test/channels.fire-store.test.js
