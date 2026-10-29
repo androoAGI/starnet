@@ -5,7 +5,7 @@
    and told the Commander to DM the bot. Lock both halves of the repair: connect returns the one-time local code,
    and the panel renders the unpaired poller as blocked rather than operational. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -45,7 +45,18 @@ A.ok((sidecar.match(/streamReplies:\s*false/g) || []).length >= 2,
   'station and agent Telegram bots publish final answers only instead of exposing raw token deltas');
 A.ok(/const provider = \(ag && ag\.provider\)/.test(ui) && /const model = \(ag && ag\.model\)/.test(ui),
   'agent-bot setup sends the selected roster agent provider/model, not the globally focused provider/model');
-A.ok(/channelRunConfigFor\(agentId,[\s\S]*?probeChannelRunConfig\(runConfig/.test(sidecar.slice(sidecar.indexOf('async function handleTelegramBotAdd'))),
+// Read the add route's OWN body (sliced to its closing brace) and compare offsets inside it: resolve the bound agent,
+// then probe that same runConfig (the run-wire lane hands the probe runConfig with only the channelConnectCredential
+// key/endpoint pair laid over it), and only then persist. A bare regex over the tail of the joined source proved
+// neither the order against persistence nor that both anchors live in this one route.
+const botAddSrc = sidecarTopLevelFunction('handleTelegramBotAdd');
+const botAddResolve = botAddSrc.search(/const runConfig = channelRunConfigFor\(agentId,/);
+const botAddProbe = botAddSrc.search(/await probeChannelRunConfig\((?:runConfig\b|Object\.assign\(\{\},\s*runConfig,\s*\{\s*key:\s*cred\.key,\s*baseUrl:\s*cred\.baseUrl\s*\}\))/);
+const botAddRefuse = botAddSrc.search(/if \(!runProbe\.ok\) return json\(400,/);
+const botAddPersist = botAddSrc.indexOf('saveTelegramBotRecord(botId,');
+A.ok(botAddSrc.startsWith('async function handleTelegramBotAdd(') && botAddSrc.length < 12000
+  && botAddResolve >= 0 && botAddProbe > botAddResolve && botAddRefuse > botAddProbe && botAddPersist > botAddRefuse
+  && botAddSrc.indexOf('saveTelegramBotRecord(') === botAddPersist && botAddSrc.indexOf('startTelegramBot(') > botAddPersist,
   'the add route resolves and probes the bound agent configuration before persistence');
 A.ok(/providerVerified:\s*true/.test(sidecar) && /j\.providerVerified/.test(ui),
   'setup success identifies the agent model as verified only after the backend inference proof');
