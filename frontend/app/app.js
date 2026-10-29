@@ -783,9 +783,14 @@ const App = (() => {
     saved.reasoningMigrated = REASONING_MIGRATION;
     return true;
   }
+  /* THE PAGE'S COPY of the station's one run-wire rule (sidecar/run-wire.js resolveRunWire): a pin runs its own model, a
+     bare model borrows the station's provider, an unpinned agent follows the station default; the effort is the agent's
+     own (its pin's, else its class loadout's) and the Overseer's only when it follows the station. FOLLOW-UP (needs the
+     shared/ owner): run-wire.js is already UMD and serveShared exists, so moving it into shared/ would let this page call
+     the one implementation instead of keeping this copy — test/run-wire.invariant.test.js holds the two together until then. */
   function focusWire(a) {
     const station = stationDefaultWire();
-    if (!(a && a.model)) return station;
+    if (!(a && a.model)) return Object.assign({}, station, { effort: (a && a.reasoningEffort) || station.effort });
     return { model: a.model, provider: a.provider || station.provider, effort: a.reasoningEffort || '', owner: a.id };
   }
   // The crew agent whose OWN pin the global model wire holds ('' = the station's model). With an Overseer that has no
