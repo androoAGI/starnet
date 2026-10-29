@@ -24541,11 +24541,10 @@ async function runOnceCore(o) {
     // verdict: every artifact predicate resolves through the RUN's path object (the folder this run's fs.write wrote
     // into: the project in a project run, the private workspace otherwise), reads are bounded, digests streamed.
     // Postcondition paths are relative-only (task-postconditions.js), so this reads, and never asks about, a folder; an
-    // absolute or drive-relative one is refused HERE too, before any resolve could route it to path trust (review minor).
+    // absolute or drive-relative one is refused HERE too, before any resolve could route it to path trust (review minor;
+    // RunPaths.readRelative, the one reader the quest artifact sweep uses too).
     const readPostconditionArtifact = async requirement => {
-      if (/^(?:[a-z]:|[\\/])/i.test(String((requirement && requirement.path) || ''))) throw new Error('postcondition paths are relative to the run\'s folder');
-      const resolved = runPaths ? await runPaths.resolve(requirement.path, { scope: 'read' })
-        : await fsJail.resolveInside(agentId, requirement.path, { scope: 'read' });
+      const resolved = await RunPaths.readRelative(runPaths, requirement && requirement.path, k => fsJail.resolveInside(agentId, k, { scope: 'read' }));
       const stat = await fsp.stat(resolved.abs);
       if (!stat.isFile()) return { exists: true, isFile: false };
       const observed = { exists: true, isFile: true, bytes: stat.size };
@@ -24925,8 +24924,7 @@ async function runOnceCore(o) {
     (async () => {
       for (const _aq of QuestSweeps.artifactQuestKeys(questStore.openForAgent(agentId, Date.now()), agentId)) {
         try {
-          if (/^(?:[a-z]:|[\\/])/i.test(String(_aq.key))) continue;
-          const { abs: _aAbs } = runPaths ? await runPaths.resolve(_aq.key, { scope: 'read' }) : await fsJail.resolveInside(agentId, _aq.key);
+          const { abs: _aAbs } = await RunPaths.readRelative(runPaths, _aq.key, k => fsJail.resolveInside(agentId, k));   // relative keys only, never path trust
           if (fs.existsSync(_aAbs)) await completeQuestRecommendationIds(await questStore.completeByContract('artifact', _aq.key, Date.now()));
         } catch (_) { /* a non-path or escaping key simply never completes — truthful telemetry */ }
       }

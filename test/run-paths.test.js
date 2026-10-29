@@ -232,6 +232,20 @@ function plant(linkAt, target) {
         located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: '', jail: JAIL, list: [{ path: path.join(JAIL, 'link', 'secret.txt') }] });
         A.eq(located, [], 'locateProduced: an absolute name through a link in the jail is proven by its real path');
       }
+      // readRelative (review round 2): the host's ONE reader of a relative key (a postcondition path, a quest artifact key).
+      // An absolute, drive-relative or network key is refused before ANY resolve, so path trust is never even asked.
+      let asked = 0;
+      const spyTrust = (abs, o2) => { asked++; return trustCore.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: AID }); };
+      const spied = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS, pathTrust: spyTrust }), { agentId: AID, projectRoot: PROJECT });
+      for (const k of [path.join(PROJECT, 'handed.md'), 'C:handed.md', 'c:\\x\\y.md', '/etc/passwd', '\\\\srv\\share\\x.md', '//srv/share/x.md', '', 'a\0b']) {
+        let refused = false;
+        try { await RunPaths.readRelative(spied, k, () => { throw new Error('orElse must not run'); }); } catch (e) { refused = /relative to the run's folder/.test(e.message); }
+        A.ok(refused, 'readRelative refuses ' + JSON.stringify(k) + ' before any resolve');
+      }
+      A.eq(asked, 0, 'readRelative: path trust was never asked about a refused key');
+      A.eq((await RunPaths.readRelative(spied, 'handed.md')).abs, path.join(PROJECT, 'handed.md'), 'readRelative: a relative key resolves through the run path object (the project here)');
+      A.ok(asked > 0, 'readRelative: and that one does meet path trust');
+      A.eq(await RunPaths.readRelative(null, 'x.md', k => ({ abs: 'jail:' + k })), { abs: 'jail:x.md' }, 'readRelative: with no path object, the caller\'s legacy jail reads it');
     }
 
     // ---- 5. the fs receipt text is unchanged: pinned to the PRE-LANE receipt, literally (review minor: this used to

@@ -308,4 +308,16 @@ function pathsFor(ctx, resolver, agentId) {
   return p;
 }
 
-module.exports = { makeResolver, makeRunPaths, pathsFor, isRunPaths, rootOf, safeAgentId, producedPath, locateProduced };
+/* readRelative(paths, key, orElse?) -> { base, abs } — the HOST reading a key that names a file relative to the run's folder
+   (a postcondition path, a quest's artifact key), read scope. An absolute, drive-relative (C:foo) or network key is
+   refused BEFORE any resolve, so it never reaches path trust: such a key proves nothing, and path trust could ask about
+   a folder (a card at run end). Through the run's path object; without one, through orElse(key) (the legacy jail). */
+async function readRelative(paths, key, orElse) {
+  const k = String(key == null ? '' : key);
+  if (!k.trim() || k.indexOf('\0') >= 0 || /^(?:[a-z]:|[\\/])/i.test(k)) throw new Error('paths here are relative to the run\'s folder: ' + JSON.stringify(k.slice(0, 120)));
+  if (isRunPaths(paths)) return paths.resolve(k, { scope: 'read' });
+  if (typeof orElse === 'function') return orElse(k);
+  throw new Error('this run has no path object to read with');
+}
+
+module.exports = { makeResolver, makeRunPaths, pathsFor, isRunPaths, rootOf, safeAgentId, producedPath, locateProduced, readRelative };

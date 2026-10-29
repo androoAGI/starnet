@@ -574,9 +574,10 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('HOST: the tool ctx carries it as ctx.paths', /\bpaths: runPaths\b/.test(core));
       row('HOST: projectCwd is gone from the tool ctx', !/\bprojectCwd:/.test(core));
       row('HOST: the park pointer is placed by the run path object', /parked\.path = runPaths\.placeJail\(parked\.path\)/.test(core));
-      row('HOST: the postcondition reader resolves through the run path object', /readPostconditionArtifact[\s\S]{0,700}runPaths\.resolve\(requirement\.path/.test(core));
-      row('HOST: the postcondition reader refuses an absolute or drive-relative path before any resolve', /readPostconditionArtifact = async requirement => \{\s*if \(\/\^\(\?:\[a-z\]:\|\[\\\\\/\]\)\/i\.test/.test(core));
-      row('HOST: the quest artifact sweep resolves through the run path object (a project run\'s deliverable counts)', /runPaths \? await runPaths\.resolve\(_aq\.key, \{ scope: 'read' \}\)/.test(core));
+      // both host readers go through the ONE relative-key reader (run-paths.js readRelative, review round 2), whose refusal
+      // of an absolute, drive-relative or network key before any resolve is proven behaviourally in run-paths.test.js
+      row('HOST: the postcondition reader resolves through the run path object, relative keys only (RunPaths.readRelative first)', /readPostconditionArtifact = async requirement => \{\s*const resolved = await RunPaths\.readRelative\(runPaths, requirement && requirement\.path,/.test(core));
+      row('HOST: the quest artifact sweep resolves through the run path object, relative keys only (a project run\'s deliverable counts)', /const \{ abs: _aAbs \} = await RunPaths\.readRelative\(runPaths, _aq\.key,/.test(core));
       // (M3) one expansion, in the run host, once the root is final; no surface expands before runOnce any more
       row('HOST: runOnceCore expands every surface\'s attachments once the run root is final', /messages = await attachments\.expandForRun\(messages, agentId, o\.projectRoot\)/.test(core));
       row('HOST: no surface (COMMS, the channel hubs) expands attachments before runOnce', !/attachments\.expandUserAttachments\(messages/.test(src));
