@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const net = require('net');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
@@ -197,35 +198,49 @@ function exited(child, ms) {
     const ownerFile = path.join(wsOwn, '.starnet-workspace-owner.json');
     const ownerDoc = JSON.stringify({ version: 1, pid: process.pid, nonce: 'test-holder-nonce', startedAt: Date.now(), executable: process.execPath });
     fs.writeFileSync(ownerFile, ownerDoc);
-    const bootAny = (port) => new Promise((resolve) => {
+    // Each life takes its own port from the OS as it boots (one port shared by all three lives sat unbound for the
+    // seconds lives 1 and 2 spent loading and exiting). Only a tripped life binds: its holding listener. If that bind is
+    // refused ("could not bind :N (EACCES) — exiting 73", BIND_REFUSED) the life is booted again on a fresh port, and
+    // resolves with the port it holds and how many refused binds it took (rebinds). Every boot is one more refusal in
+    // the workspace's crash ledger, so the loop count the health line names is 3 + rebinds, not a fixed 3.
+    const bootAny = (port, attemptsLeft = 3, rebinds = 0) => new Promise((resolve) => {
       const c = spawn(process.execPath, [INDEX], {
         env: Object.assign({}, process.env, { STARNET_PORT: String(port), STARNET_WORKSPACES: wsOwn, STARNET_DEV: '1', SKYNET_DEV: '1', SKYNET_CRON_ENABLED: '', STARNET_CRON_ENABLED: '' }),
         stdio: ['ignore', 'pipe', 'pipe']
       });
       let out = '', done = false;
-      const fin = (v) => { if (!done) { done = true; resolve(Object.assign({ child: c, output: () => out }, v)); } };
+      const fin = (v) => { if (!done) { done = true; resolve(Object.assign({ child: c, port, rebinds, output: () => out }, v)); } };
       const onData = d => { out += d.toString(); if (out.indexOf('http://' + HOST + ':' + port) >= 0) fin({ listening: true, code: null }); };
       c.stdout.on('data', onData); c.stderr.on('data', onData);
-      c.on('exit', code => setTimeout(() => fin({ listening: false, code }), 50));
+      c.on('exit', code => setTimeout(() => {
+        if (!done && code === 73 && BIND_REFUSED.test(out) && attemptsLeft > 0) {
+          done = true;
+          resolve(allocatePort().then(next => bootAny(next, attemptsLeft - 1, rebinds + 1)));
+          return;
+        }
+        fin({ listening: false, code });
+      }, 50));
       setTimeout(() => { try { c.kill(); } catch (_) {} fin({ listening: false, code: 'timeout' }); }, 30000);
     });
-    const portO = await allocatePort();   // one port for all three owner lives
+    let ownerBoots = 0;   // refusals the crash ledger has recorded for wsOwn
     for (let life = 1; life <= 2; life++) {
-      const r = await bootAny(portO);
+      const r = await bootAny(await allocatePort());
+      ownerBoots += 1 + r.rebinds;
       A.eq(r.code, 73, 'owner life ' + life + ': refused with exit 73 (got ' + r.code + ')');
       A.ok(/safety code: WORKSPACE_BUSY/.test(r.output()), 'owner life ' + life + ': safety code printed');
     }
     A.eq(fs.readFileSync(ownerFile, 'utf8'), ownerDoc, 'owner file untouched after two refusals');
     {
-      const r = await bootAny(portO);
+      const r = await bootAny(await allocatePort());
+      ownerBoots += 1 + r.rebinds;
       child = r.child;
       A.eq(r.listening, true, 'owner life 3: a degraded HOLDING listener came up instead of exit 73');
       A.eq(r.code, null, 'owner life 3: process alive');
-      const BO = 'http://' + HOST + ':' + portO;
+      const BO = 'http://' + HOST + ':' + r.port;
       const h = await fetch(BO + '/api/health');
       const htxt = await h.text();
       A.eq(h.status, 503, 'owner life 3: /api/health 503');
-      A.ok(/^degraded: workspace owner unavailable — another process may own /.test(htxt) && /holder PID \d+/.test(htxt) && /crash-loop: 3 faults in 10m/.test(htxt), 'owner life 3: health carries the owner reason + recovery guidance + loop count: ' + htxt);
+      A.ok(/^degraded: workspace owner unavailable — another process may own /.test(htxt) && /holder PID \d+/.test(htxt) && htxt.indexOf('crash-loop: ' + ownerBoots + ' faults in 10m') >= 0, 'owner life 3: health carries the owner reason + recovery guidance + loop count (' + ownerBoots + '): ' + htxt);
       const sv = await fetch(BO + '/api/save?agent=agent');
       A.eq(sv.status, 503, 'owner life 3: every other route is 503 (the frontend lands on STATION DATA UNREACHABLE)');
       const svj = await sv.json();
@@ -235,6 +250,30 @@ function exited(child, ms) {
       A.ok(/holding a degraded listener on :/.test(r.output()), 'owner life 3: boot log names the hold');
       try { child.kill(); } catch (_) {}
       child = null;
+    }
+    // ---- 5b. a refused HOLDING bind retries on a fresh port; that boot is one more refusal in the ledger ----
+    // The port this life is handed is already taken, so its holding listener prints "could not bind :N (EADDRINUSE) —
+    // exiting 73". bootAny reads that as a refused bind and boots the life again on a fresh OS port, where it holds.
+    {
+      const blocker = net.createServer();
+      await new Promise((resolve, reject) => { blocker.once('error', reject); blocker.listen(0, HOST, resolve); });
+      const blocked = blocker.address().port;
+      try {
+        const r = await bootAny(blocked);
+        ownerBoots += 1 + r.rebinds;
+        child = r.child;
+        A.eq(r.rebinds, 1, 'rebind: the refused holding bind was retried exactly once (got ' + r.rebinds + ')');
+        A.ok(r.listening === true && r.port !== blocked, 'rebind: the retried life holds on its own fresh port, not the refused one (' + blocked + ' -> ' + r.port + ')');
+        const h = await fetch('http://' + HOST + ':' + r.port + '/api/health');
+        const htxt = await h.text();
+        A.eq(h.status, 503, 'rebind: /api/health on the fresh port answers 503 degraded');
+        A.ok(htxt.indexOf('crash-loop: ' + ownerBoots + ' faults in 10m') >= 0, 'rebind: the ledger counted the refused boot too (' + ownerBoots + '): ' + htxt);
+        A.eq(fs.readFileSync(ownerFile, 'utf8'), ownerDoc, 'rebind: the owner claim is still untouched');
+        try { child.kill(); } catch (_) {}
+        child = null;
+      } finally {
+        blocker.close();
+      }
     }
   } finally {
     if (child) { try { child.kill(); } catch (_) {} }
