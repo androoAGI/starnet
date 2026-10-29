@@ -161,8 +161,9 @@ const settle = () => new Promise(r => setTimeout(r, 10));
   {
     const idx = readSidecarSource();
     const starts = [];
-    // a construction (`= makeChannelHub({` / `return makeChannelHub({`), never the signature quoted in hub.js's header
-    const re = /(?:=|\breturn)\s*makeChannelHub\(\{|wireChannel\([^\n]*\{\s*\n\s*hub: \{/g;
+    // a construction (`= makeChannelHub({` / `return makeChannelHub({`), never the signature quoted in hub.js's header;
+    // a registry hub's wireChannel deps may lead with the host-path scrub (`outbound: scrubOutbound,`, run-paths lane)
+    const re = /(?:=|\breturn)\s*makeChannelHub\(\{|wireChannel\([^\n]*\{\s*\n(?:\s*outbound: [\w$.]+,[^\n]*\n)?\s*hub: \{/g;
     let m;
     while ((m = re.exec(idx))) starts.push(m.index);
     // every messenger hub — not the sample-crate route or a line trigger, which have no chat senders to type one
