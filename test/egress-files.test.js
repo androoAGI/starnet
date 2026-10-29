@@ -11,7 +11,14 @@
    Built as index.js wires it: the REAL path-trust core, a run's ctx.paths minted with runPathTrust's options (posture,
    grants and a live prompt included), and makeEgressReader({ guard: pathTrustCore.guard }). Every row below that is
    "refused" was SENT before this fix (scratchpad probes r2-egress.js, r2-jailfloor.js, r2-routine.js; section 6, review
-   round 3: rr3-egress.js — hard links, a jail that is a junction, a stale single-holder fallback). */
+   round 3: rr3-egress.js — hard links, a jail that is a junction, a stale single-holder fallback).
+
+   Review round 4: section 7 (MAJOR-2, rr4-routine.js) the routine's OWN folders send what they hold however old, another
+   agent's stale file is still refused, and a refusal is told apart from a plain "not found"; section 8 (minor-6,
+   rr4-unc.js) a file on a network share is refused for the true reason; a workspace folder that is a link is trunk's on
+   the station and refused for egress with a fix-it hint (minor-2).
+   NOT DONE, owner decision (minor-5): a hard link stays refused for egress even when it is a build output the agent made
+   itself; with MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');

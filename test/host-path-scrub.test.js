@@ -15,7 +15,16 @@
         `outbound` (as index.js wires Discord and the generic channels), so a send that never passes a hub (channel.send,
         a routine delivery, the notifier, a loop notice, a step-in nudge) is scrubbed too;
      4. channel.send chunks its body itself: wired as the host wires it, the body is scrubbed whole first;
-     5. the host wires every one of those surfaces through the chokepoint (source locks over sidecar/index.js). */
+     5. the host wires every one of those surfaces through the chokepoint (source locks over sidecar/index.js).
+   Review round 4 (scratchpad rr4-redos*.js, rr4-scrub.js, rr4-scrub-locale.js): 1b. linear time on any text (a
+   separator-led form never starts inside a separator run; a long text in bounded, overlapping windows); 1c. the
+   localized separators, the admin-share and file:///C| drive spellings, and the %VAR% / $env: / $VAR / ~ forms of the
+   variables that prefix the root; 3. the guard also scrubs keyboards, album captions, file names and the status line;
+   the placeholder is [workspace] (Slack reads <…> as a control sequence).
+
+   TODO (follow-up, owner rule 3, no code in this lane): these surfaces also show text to someone off the station and are
+   NOT behind this scrub yet: StarNet Remote push notifications, the phone feed, the /v1 API, ACP, the MCP messaging
+   tools, and web_request posting to a chat webhook (Slack / Discord incoming webhooks). */
 'use strict';
 const A = require('./_assert.js');
 const { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER } = require('../sidecar/host-path-scrub.js');
