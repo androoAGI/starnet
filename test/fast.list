@@ -466,6 +466,7 @@ test/transcript-proof-reads.test.js
 test/fs.jail.test.js
 test/run-paths.test.js
 test/egress-files.test.js
+test/host-path-scrub.test.js
 test/path-coherence.contract.test.js
 test/fs.search-gitignore.test.js
 test/fs.search-budget.test.js

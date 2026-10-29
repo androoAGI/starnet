@@ -30,6 +30,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (hubMod, tgMod, dcMod, slMod, mxMod, sgMod) {
   'use strict';
   const makeChannelHubDefault = hubMod && hubMod.makeChannelHub;
+  const HostPathScrub = (typeof require === 'function') ? require('../host-path-scrub.js') : null;   // node only (the host scrub)
   // failopen.note — a teardown fault is never invisible (the per-tag count + throttled warn), as in hub.js
   const failNote = (typeof require === 'function') ? require('../failopen.js').note : function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); };
 
@@ -82,8 +83,14 @@
     deps = deps || {};
     const makeHub = deps.makeHub || makeChannelHubDefault;
     if (typeof makeHub !== 'function') throw new Error('wireChannel: makeChannelHub unavailable');
+    /* OUTBOUND HOST-PATH SCRUB (run-paths review round 3): deps.outbound is the host's ONE scrub (host-path-scrub.js). The
+       hub runs it on the WHOLE text before it chunks, and the adapter's own send / editMessage / answerCallback are
+       wrapped in place, so a send that never passes the hub (channel.send, a routine delivery, the notifier, a loop
+       notice) reaches the wire through it too. */
+    const outbound = typeof deps.outbound === 'function' ? deps.outbound : null;
+    if (outbound && !(HostPathScrub && typeof HostPathScrub.guardOutbound === 'function')) throw new Error('wireChannel: the outbound scrub needs host-path-scrub.js');
     let adapterRef = null;
-    const hub = makeHub(Object.assign({
+    const hub = makeHub(Object.assign(outbound ? { scrubOutbound: outbound } : {}, {
       channel: descriptor.id,
       maxMessageLength: descriptor.maxMessageLength,
       send: (chatId, text, o) => adapterRef ? adapterRef.send(chatId, text, o) : Promise.resolve({ ok: false, error: 'no adapter' }),
@@ -114,6 +121,7 @@
       allowedChats: (deps.adapter && deps.adapter.allowedChats) || (typeof hub.chatAdmitted === 'function' ? hub.chatAdmitted : undefined)
     });
     const adapter = descriptor.makeAdapter(adapterOpts);
+    if (outbound) HostPathScrub.guardOutbound(adapter, outbound);
     adapterRef = adapter;
     return { hub, adapter };
   }

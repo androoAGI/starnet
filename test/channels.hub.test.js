@@ -604,12 +604,14 @@ async function run() {
     const last = lastRun.messages[lastRun.messages.length - 1];
     A.ok(Array.isArray(last.attachments) && last.attachments[0].path === '.attachments/take.ogg', 'M3: the references reach runOnce unexpanded, for the run host to place');
     const reply = sent.join('\n');
-    A.ok(reply.indexOf('Saved at .attachments/take.ogg and shots/s.png.') >= 0 && !/station/i.test(reply), 'round 2: the chat never sees the host path a reply echoed: ' + JSON.stringify(reply));
-    // and the host wires it so: no durable-path hook names the stored turn absolutely, and every hub gets the guard
+    // round 3: the root becomes a readable placeholder (deleting it mangled "cd <root>\alpha && npm test" to "cd  && npm test")
+    A.ok(reply.indexOf('Saved at <workspace>/tg_79/.attachments/take.ogg and <workspace>/tg_79/shots/s.png.') >= 0 && !/station/i.test(reply), 'the chat never sees the host path a reply echoed: ' + JSON.stringify(reply));
+    // and the host wires it so: no durable-path hook names the stored turn absolutely, and every hub gets the ONE scrub
+    // (the full wiring lock, every surface and every hub, is test/host-path-scrub.test.js section 5)
     const { readSidecarSource } = require('./helpers/source');
     const host = readSidecarSource();
     A.ok(!/attachmentPath\s*:/.test(host) && !/function attachmentDurablePath\(/.test(host), 'round 2: no host hook names a stored turn\'s file by its absolute path');
-    A.eq((host.match(/hostPathPrefixes: \(\) => \[WORKSPACES\]/g) || []).length, 3, 'round 2: every channel hub the host builds cuts the workspaces root from what it sends');
+    A.ok((host.match(/scrubOutbound: scrubOutbound/g) || []).length >= 4 && !/hostPathPrefixes: \(\) =>/.test(host), 'round 3: the host\'s hubs take the one scrub, not a per-hub prefix list');
   }
 
   // ---- M2. media-only message (no caption) is still admitted; download failure degrades to an honest note ----

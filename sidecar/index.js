@@ -6925,6 +6925,16 @@ const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egres
 // browser.upload proves a file in probe mode and hands the browser its real path: no byte is read here, so no size cap
 const uploadEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps });
 async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egressReader.readFor(agentId, rel, ctx, projectRoot); }
+/* THE ONE OUTBOUND HOST-PATH SCRUB (run-paths review round 3, sidecar/host-path-scrub.js). A chat is never shown an
+   absolute host path: every live channel adapter's send / editMessage / answerCallback is wrapped in place
+   (guardOutbound: the station and agent Telegram bots here, Discord / Slack / Matrix / Signal through wireChannel's
+   `outbound`), so the hubs, channel.send, a routine delivery and its missed-file note, the notifier, a loop notice and
+   a step-in nudge all reach the wire through it; every caller that chunks (the hubs, channel.send, a routine delivery)
+   scrubs the WHOLE text first. The workspaces root by every spelling (its real path, /c/, /mnt/c/, 8.3, percent-
+   encoded) becomes "<workspace>". Fail closed: the configured root is always scrubbed, even if its realpath throws. */
+const HostPathScrub = require('./host-path-scrub.js');
+const scrubOutbound = HostPathScrub.makeHostPathScrub({ fixed: [WORKSPACES], prefixes: () => HostPathScrub.hostPathForms(WORKSPACES, { realpath: (p) => fs.realpathSync.native(p) }) });
+const guardOutbound = (adapter) => HostPathScrub.guardOutbound(adapter, scrubOutbound);
 function liveChannelFor(channel) {
   /* The DEV channel is a REAL channel — it has a hub and a working send (it captures replies for
      GET/POST /api/dev/inbound) — it just has no bot server behind it, so it never appears in genericChannels.
@@ -6934,7 +6944,7 @@ function liveChannelFor(channel) {
   if (channel === 'dev') {
     if (!DEV_MODE) return null;
     const hub = getDevHub();
-    return { hub: hub, adapter: { ownerSurface: true, send: (chatId, text) => devCaptureReply(chatId, text) } };
+    return { hub: hub, adapter: { ownerSurface: true, send: (chatId, text) => devCaptureReply(chatId, scrubOutbound(text)) } };
   }
   if (channel === 'discord') return discord;
   if (typeof channel === 'string' && channel.indexOf('telegram:') === 0) return telegramBots.get(channel.slice('telegram:'.length)) || null;
@@ -7249,7 +7259,8 @@ async function deliverCronResult(job, result) {
         // replies before calling it). Sent whole, a digest past Telegram's 4096 was refused "message is too long" on the
         // fire and on every retry — the chat never saw it (2026-10-20). Split it under the platform's ceiling, in order.
         const desc = channelRegistry.get(channel.split(':')[0]);
-        const parts = hubChunkText(redact(chatText), Number(desc && desc.maxMessageLength) > 200 ? Number(desc.maxMessageLength) : 1900);
+        // the host-path scrub runs on the WHOLE text before it is split (a path cut at a part boundary went out in halves)
+        const parts = hubChunkText(scrubOutbound(redact(chatText)), Number(desc && desc.maxMessageLength) > 200 ? Number(desc.maxMessageLength) : 1900);
         for (let i = 0; i < parts.length; i++) {
           const sent = await cronSendPart(live.adapter, chatId, parts[i], route);
           if (sent && sent.ok === false) throw new Error((sent.error || 'send failed') + (i ? ' (after ' + i + ' of ' + parts.length + ' parts)' : ''));
@@ -10847,8 +10858,8 @@ function startTelegram(token, key, model, agentCfg) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
-    hostPathPrefixes: () => [WORKSPACES]
+    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
+    scrubOutbound: scrubOutbound
   });
   const adapter = makeTelegramAdapter({
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
@@ -10938,6 +10949,7 @@ function startTelegram(token, key, model, agentCfg) {
       } });
     }
   });
+  guardOutbound(adapter);   // every send / edit this bot makes, hub or not, passes the host-path scrub
   adapterRef = adapter;
   telegram = { adapter: adapter, hub: hub };
   // start HONEST: 'connecting' (not an optimistic 'up') — the adapter's onStatus flips it to 'up' the moment its
@@ -11128,8 +11140,8 @@ function startTelegramBot(botId) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
-    hostPathPrefixes: () => [WORKSPACES],
+    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
+    scrubOutbound: scrubOutbound,
     // INLINE KEYBOARDS (C6) — same wiring as the station bot, with its OWN registry so tokens minted for this
     // bot's messages can never address another bot's chat. /approvals is per-chat here too.
     prompts: makePromptRegistry({ newId: () => crypto.randomUUID() }),
@@ -11190,6 +11202,7 @@ function startTelegramBot(botId) {
       } });
     }
   });
+  guardOutbound(adapter);   // every send / edit this bot makes, hub or not, passes the host-path scrub
   adapterRef = adapter;
   entry.adapter = adapter; entry.hub = hub;
   telegramBots.set(botId, entry);
@@ -11226,6 +11239,7 @@ function startDiscord(token, key, model, agentCfg) {
   } });
   const secretsPersisted = saveChannelSecrets(channelSecrets);   // read-back-proven; surfaced by the connect route
   const wired = wireChannel(channelRegistry.get('discord'), {
+    outbound: scrubOutbound,   // the host-path scrub: the hub before it chunks, and the adapter's own sends (round 3)
     hub: {
       runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
       historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
@@ -11378,8 +11392,8 @@ function getDevHub() {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
     expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the hub cuts the workspaces root from every text it sends (review round 2)
-    hostPathPrefixes: () => [WORKSPACES]
+    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
+    scrubOutbound: scrubOutbound
   });
   return devHub;
 }
@@ -11522,6 +11536,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
     adapterOpts.account = record.account;
   }
   const wired = wireChannel(desc, {
+    outbound: scrubOutbound,   // the host-path scrub: the hub before it chunks, and the adapter's own sends (round 3)
     hub: {
       runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
       historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
@@ -13807,6 +13822,7 @@ function makeTriggerHub(hooks) {
     historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
     bindChats: false,   // every fire is UNADDRESSED: the line's own doors decide the dock, never a remembered chat binding
     send: (chatId, text) => { hooks.send(text); return Promise.resolve({ ok: true }); },
+    scrubOutbound: scrubOutbound,   // a fire's replies leave as its job's output: never an absolute host path (round 3)
     secrets: () => ({}),
     // only the dock the LINE routed to may run: a hub fallback agent gets no configuration, so no run and no spend
     resolveEntryRunConfig: (agentId) => hooks.entryAllowed(agentId) ? sampleRunConfigFor(agentId) : { ok: false, error: 'this trigger\'s line routed the work to no crewed dock' },
@@ -22402,7 +22418,8 @@ async function runOnceCore(o) {
     // Upload through the SAME target-key resolution sendTo uses, so an agent can attach a file exactly where it
     // may already send words — known-targets-only is unchanged by this feature.
     sendMediaTo: (target, item) => commsSendMediaTo(target, item),
-    redact: redact,
+    // the tool chunks the body itself, so the host-path scrub runs on the whole body first (round 3)
+    redact: (t) => scrubOutbound(redact(t)),
     emit: chanEmit
   }).register(registry);
   throttleSearch(registry);

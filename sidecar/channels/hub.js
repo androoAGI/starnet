@@ -385,26 +385,15 @@
     const channel = o.channel || 'telegram';
     const runOnce = o.runOnce;
     const store = o.store;
-    /* OUTBOUND HOST-PATH GUARD (run-paths review round 2). A project-scoped run is told where a saved file is by its
+    /* OUTBOUND HOST-PATH GUARD (run-paths review rounds 2 + 3). A project-scoped run is told where a saved file is by its
        absolute path in the agent's private workspace (attachments.js expandForRun), and a model will echo it. A chat is
-       never shown an absolute host path: hostPathPrefixes() (the host's workspaces root) is cut from every text this
-       hub puts on the wire, with the agent's own folder name after it, so "<workspaces>/alpha/.attachments/x.ogg" reads
-       ".attachments/x.ogg". Absent, the text goes as written (a host that wires nothing is unchanged). */
-    const hostPathPrefixes = typeof o.hostPathPrefixes === 'function' ? o.hostPathPrefixes : null;
-    const escapeRe = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    function scrubHostPaths(text) {
-      if (!hostPathPrefixes || typeof text !== 'string' || !text) return text;
-      let roots = [];
-      try { roots = hostPathPrefixes() || []; } catch (e) { failNote('channels.hub.hostPaths', e); return text; }
-      let out = text;
-      for (const r of (Array.isArray(roots) ? roots : [])) {
-        const root = String(r || '').replace(/[\\/]+$/, '');
-        if (root.length < 4) continue;
-        const body = root.split(/[\\/]+/).map(escapeRe).join('[\\\\/]+');
-        out = out.replace(new RegExp(body + '(?:[\\\\/]+[A-Za-z0-9_-]{1,40})?(?:[\\\\/]+|(?![\\w.-]))', /^[A-Za-z]:/.test(root) ? 'gi' : 'g'), '');
-      }
-      return out;
-    }
+       never shown an absolute host path: o.scrubOutbound (the host's ONE scrub, sidecar/host-path-scrub.js) runs on the
+       WHOLE text before deliver() or the outbox chunks it (a path cut at a chunk boundary went out in two halves), and
+       again on every send / edit, so "<workspaces>\alpha\x.png" reads "<workspace>\alpha\x.png". A rig may pass
+       hostPathPrefixes() instead and gets the same scrub over those prefixes. Absent both, the text goes as written. */
+    const HostPathScrub = (typeof require === 'function') ? require('../host-path-scrub.js') : null;
+    const scrubHostPaths = typeof o.scrubOutbound === 'function' ? o.scrubOutbound
+      : (typeof o.hostPathPrefixes === 'function' && HostPathScrub ? HostPathScrub.makeHostPathScrub({ prefixes: o.hostPathPrefixes }) : (t) => t);
     const rawSend = o.send;
     const send = typeof rawSend === 'function' ? (chatId, text, sendOpts) => rawSend(chatId, scrubHostPaths(text), sendOpts) : rawSend;
     const secrets = typeof o.secrets === 'function' ? o.secrets : () => ({});
@@ -985,8 +974,9 @@
     // chunk's messageId too, which is what a keyboard needs in order to be edited/stripped once it is tapped.
     async function deliver(chatId, text, runId, reason, agentId, sendOpts, seedId) {
       // `send` is what goes on the wire; remainderOf(parts, at) rebuilds any undelivered REMAINDER from `raw` (see chunkTextParts — joining the
-      // fence-doctored chunks bakes synthetic ``` markers into the stored text, re-fenced on every redelivery).
-      const parts = chunkTextParts(text, maxMessageLength);
+      // fence-doctored chunks bakes synthetic ``` markers into the stored text, re-fenced on every redelivery). The host
+      // path scrub runs on the WHOLE text first: chunked, a path cut at the boundary would go out as two halves.
+      const parts = chunkTextParts(scrubHostPaths(text), maxMessageLength);
       const chunks = parts.send;
       let ok = true, failedAt = -1, messageId = '', lastFail = null;
       // A message the stream already put in the chat. Chunk 0 REPLACES it rather than being sent again — that
@@ -1126,7 +1116,7 @@
           let dead = false;
           try { const r0 = typeof store.getChatRecord === 'function' ? store.getChatRecord(String(it.chatId)) : null; dead = !!(r0 && r0.unreachable); } catch (_) {}
           if (dead) { try { store.removeOutbox(it.id); } catch (e) { failNote('channels.hub.outbox.remove', e); } continue; }
-          const parts = chunkTextParts(it.text, maxMessageLength);
+          const parts = chunkTextParts(scrubHostPaths(it.text), maxMessageLength);   // whole text first, as deliver() does
           const chunks = parts.send;
           let ok = true, sentUpTo = 0;
           for (let ci = 0; ci < chunks.length; ci++) {
