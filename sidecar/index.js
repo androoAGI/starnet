@@ -1162,19 +1162,25 @@ const engineKeys = engineCredential.makeEngineKeys({
    phone run before the window handed the endpoint over again, failed "no CUSTOM base URL is saved on this station". So
    a station whose shell pushes its provider config (the per-launch IPC token is set) keeps the endpoints it was pushed
    (URLs only, never a key) in .secrets/ (station-recovery skips it, /api/file cannot reach it) and reads them back at
-   boot, before the scheduler's launch catch-up. Only the endpoints of the Commander's OWN servers (CUSTOM, Ollama) are
-   kept: a cloud provider has a working default, and its endpoint override stays as it was (this session only).
+   boot, before the scheduler's launch catch-up. Every API-key provider's endpoint is kept — the Commander's own servers
+   (CUSTOM, Ollama) and a cloud provider's override (an OpenRouter-compatible proxy, a corporate gateway) alike: the page
+   sends no key on the desktop, so a per-run endpoint never rides the keychain key (providerRuntimeBaseUrl), and a cloud
+   override held for this session only sent every chat after a respawn to the provider's default until the window's
+   hand-over landed. A sign-in (ChatGPT, Grok, Kimi) and StarNet's linked account resolve their own endpoints: never kept.
    Main AND .bak are written and read back: an endpoint the Commander replaced or cleared (a URL can carry a token in
    its query) must not survive in the recovery copy. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
-const KEPT_ENDPOINT_PROVIDERS = new Set(['custom', 'ollama']);
+function keptEndpointProvider(id) {
+  const profile = getProviderProfile(id);
+  return !!profile && id !== 'starnet' && profile.authType !== 'oauth_device_code';
+}
 let desktopEndpointsOnDisk = '{}';
 function desktopEndpointsHeld() {
   const out = {};
   for (const id of Object.keys(runtimeBaseUrls).sort()) {
     const u = String(runtimeBaseUrls[id] || '').trim();
-    if (u && KEPT_ENDPOINT_PROVIDERS.has(id)) out[id] = u;
+    if (u && keptEndpointProvider(id)) out[id] = u;
   }
   return out;
 }
@@ -1186,7 +1192,7 @@ function desktopEndpointsHeld() {
   for (const p of Object.keys(urls)) {
     const id = normalizeProviderIdFromRegistry(p, '');
     const u = typeof urls[p] === 'string' ? urls[p].trim() : '';
-    if (KEPT_ENDPOINT_PROVIDERS.has(id) && getProviderProfile(id) && u && !runtimeBaseUrls[id]) runtimeBaseUrls[id] = u;
+    if (keptEndpointProvider(id) && u && !runtimeBaseUrls[id]) runtimeBaseUrls[id] = u;
   }
   desktopEndpointsOnDisk = JSON.stringify(desktopEndpointsHeld());
 })();

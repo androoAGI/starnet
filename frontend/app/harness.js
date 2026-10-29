@@ -1457,6 +1457,10 @@ const Harness = (() => {
         try { reqBody.stream = { id: await shared.ready, key: shared.key }; }
         catch (_) { shared.drop(); shared = null; }
       }
+      // DESKTOP: a run sent while the endpoint hand-over is in flight (a respawn, a boot) waits for it — the station never
+      // sends its keychain key to the endpoint this body names, so until the hand-over lands it would run on the provider's
+      // default. The hand-over never rejects (each push resolves its own failure).
+      if (DESKTOP && endpointHandOver) await endpointHandOver;
       const post = () => fetch('/api/run', {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
