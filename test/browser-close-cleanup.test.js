@@ -3,7 +3,9 @@
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../sidecar/tools/builtin/browser.js'), 'utf8');
+const { sidecarSourceFiles } = require('./helpers/source');
+const EgressFiles = require('../sidecar/egress-files.js');
+const source = sidecarSourceFiles().find(f => f.rel === 'sidecar/tools/builtin/browser.js').text;
 const closeSource = A.fnBody(source, 'async function close(opts)');
 const pidSource = A.fnBody(source, 'function ownedPid()');
 if (!closeSource || closeSource.length > 6500 || !pidSource || pidSource.length > 300) throw Error('Invalid lifecycle source slice');
@@ -53,13 +55,18 @@ async function uploadFixture(closeError, serverError) {
       if (id === 'node:http') return { createServer: () => server };
       if (id === '../sidecar/tools/builtin/browser.js') return {
         _internals: { findChrome: () => 'fake-chrome', makeCdpDriver: () => driver },
-        makeBrowserTools: () => ({ tools: [{ name: 'browser.upload' }], session: { async navigate() { throw bodyError; } } })
+        makeBrowserTools: () => ({ tools: [{ name: 'browser.upload' }], session: { async navigate() { throw bodyError; } }, async releaseUploads() { calls.push('releaseUploads'); } })
       };
+      // the REAL module: defaultStagingRoot only names a path and makeEgressReader touches no filesystem until a read,
+      // which the failing navigate never reaches; the fixture's staging-root rmSync still lands in the fake fs above
+      if (id === '../sidecar/egress-files.js') return EgressFiles;
       throw Error('Unexpected fixture dependency: ' + id);
     }
   };
   await vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'browser-upload.e2e.test.js'), 'utf8'), scope);
-  return { calls, errors, removed, simulatedProcess, bodyError };
+  // what the fixture's fake mkdtempSync handed it, and the station staging root its uploads would have used
+  const scratch = path.join(os.tmpdir(), 'starnet-upload-live-') + 'owned';
+  return { calls, errors, removed, simulatedProcess, bodyError, scratch, stagingRoot: EgressFiles.defaultStagingRoot(path, path.join(scratch, 'workspaces')) };
 }
 
 (async () => {
@@ -148,12 +155,20 @@ async function uploadFixture(closeError, serverError) {
   await attached.close();
   A.eq(attached.calls, ['cdp.close'], 'attached user browser is neither sent Browser.close nor killed');
   A.eq(attached.removed, [], 'attached profile is never removed');
+  // the run's OWN browser takes its staged upload copies with it when it closes, in a finally: a close that rejects
+  // (the stuck-Chromium path above) still releases them; the host also releases at run end (sidecar/index.js)
+  A.ok(/if \(!deps\.session && session && typeof session\.close === 'function'\) \{\s*const closeSession = session\.close;\s*session\.close = async function \(\) \{ try \{ return await closeSession\.apply\(session, arguments\); \} finally \{ await releaseUploads\(\); \} \};/.test(source),
+    'closing the run\'s own browser releases its staged uploads even when the close fails');
+  A.ok(/const releaseUploads = \(\) => unstageAll\(Array\.from\(stagedUploads\)\);/.test(source), 'releaseUploads unstages every copy this browser was handed');
 
   for (const [closeFailure, serverFailure] of [[new Error('owned close failed'), null], [new Error('owned close failed'), new Error('server close failed')], [null, new Error('server close failed')], [null, null]]) {
     const r = await uploadFixture(closeFailure, serverFailure);
     A.eq(r.calls, ['listen', 'driver.close', 'server.close', 'server.connections.close'], 'fixture always closes its server and never reaches the success report after failure');
     A.eq(r.simulatedProcess.exitCode, 1, 'fixture failure remains nonzero');
-    A.eq(r.removed.length, closeFailure || serverFailure ? 0 : 1, 'cleanup failure retains scratch; confirmed cleanup permits removal');
+    A.eq(r.removed.filter(p => p === r.scratch).length, closeFailure || serverFailure ? 0 : 1, 'cleanup failure retains scratch; confirmed cleanup permits removal');
+    A.ok(/starnet-upload-staging-[0-9a-f]{16}$/.test(r.stagingRoot) && path.dirname(r.stagingRoot) === path.resolve(os.tmpdir()), 'the fixture\'s upload staging root is the station root under os.tmpdir(), outside scratch');
+    A.eq(r.removed.filter(p => p === r.stagingRoot).length, 1, 'the fixture clears its own upload staging root on every exit, so no staged copy outlives it');
+    A.eq(r.removed.filter(p => p !== r.scratch && p !== r.stagingRoot), [], 'the fixture removes nothing but its scratch and its own staging root');
     const terminal = r.errors[r.errors.length - 1][0];
     A.ok(String(terminal).includes((closeFailure || serverFailure || r.bodyError).message), 'fixture reports its primary failure');
     if (serverFailure && closeFailure) A.ok(r.errors[0][1] === serverFailure, 'secondary fixture cleanup failure is also visible');
