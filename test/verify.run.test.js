@@ -80,17 +80,24 @@ const { makeVerifyTool } = require('../sidecar/tools/builtin/verify.js');
     fs.writeFileSync(path.join(nested, 'package.json'), JSON.stringify({
       name: 'unsafe-nested', scripts: { test: 'node scripts/smoke.mjs' }
     }));
+    // (run-paths review M5) The run's `cd` lives on its path object (ctx.paths.setShellCwd), not in environment.getCwd, so
+    // the nested folder is reached the way a real run reaches it — and the fake has every method verify.run calls, so the
+    // refusal asserted below is the user-control floor's, never a TypeError from a missing fake method.
     let nestedExecCalls = 0;
-    const nestedTool = makeVerifyTool({
-      fs, pathMod: path,
-      environment: {
-        backendId: 'local',
-        getCwd: () => nested,
-        workspaceRoot: () => path.join(root, 'a1'),
-        execute: () => { nestedExecCalls++; return Promise.resolve({ exitCode: 0, out: '', ms: 0 }); }
-      }
-    }).verifyTool;
-    A.throws(() => nestedTool.run({ cmd: 'npm test' }, ctx), 'verify.run scans the nested project that will execute');
+    const nestedEnv = {
+      backendId: 'local',
+      ensureWorkspace: () => path.join(root, 'a1'),
+      getCwd: () => path.join(root, 'a1'),
+      workspaceRoot: () => path.join(root, 'a1'),
+      execute: () => { nestedExecCalls++; return Promise.resolve({ exitCode: 0, out: '', ms: 0 }); }
+    };
+    const nestedTool = makeVerifyTool({ fs, pathMod: path, root, environment: nestedEnv }).verifyTool;
+    const RunPaths = require('../sidecar/run-paths.js');
+    const nestedPaths = RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root, environment: nestedEnv }), { agentId: 'a1' });
+    nestedPaths.setShellCwd(nested);
+    let nestedErr = null;
+    try { nestedTool.run({ cmd: 'npm test' }, { ...ctx, paths: nestedPaths }); } catch (e) { nestedErr = e; }
+    A.ok(nestedErr && /refused \[user-control\]/.test(nestedErr.message), 'verify.run scans the nested project that will execute (refused [user-control]): ' + (nestedErr && nestedErr.message));
     A.eq(nestedExecCalls, 0, 'unsafe nested verification is refused before process creation');
 
     const project = path.join(root, 'a1', 'selected-project');

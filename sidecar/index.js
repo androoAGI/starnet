@@ -22006,6 +22006,8 @@ async function runOnceCore(o) {
   makeShellTool({ spawn: childSpawn, fs: fs, pathMod: path, root: WORKSPACES, environment: executionEnvironment, redact: redact, clock: { now: () => Date.now() }, bg: shellBg }).register(registry);
   makeTerminalTools({
     manager: terminalSessions, environment: executionEnvironment, fs: fs, pathMod: path, root: WORKSPACES,
+    // a cwd argument inside the run's project root is honoured only while that root is still approved (live check)
+    rootApproved: (root) => isBlessedRoot(root),
     // sanitizeChildEnv strips every *_API_KEY, so the KEYS-tab vars are merged back exactly as shell.exec gets them
     // (servicekeys.runEnv: same surface rule — an unattended run only receives keys granted for unattended use).
     platform: process.platform, envFor: (surface) => Object.assign(sanitizeChildEnv(process.env), executionEnvironmentDeps.serviceEnv(surface))

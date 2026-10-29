@@ -15,6 +15,10 @@ function makeTerminalTools(deps) {
   const isWin = platform === 'win32';
   const envFor = typeof deps.envFor === 'function' ? deps.envFor : (() => process.env);
   if (!manager || !environment || !fs || !P || !ROOT) throw new Error('terminal tools require manager, environment, fs, pathMod, and root');
+  // the host's LIVE answer to "is this project root still approved?" (index.js isBlessedRoot). A cwd argument inside the
+  // run's root is honoured only while it is; a rig without the check keeps the run's host-minted root as its authority.
+  const rootApproved = typeof deps.rootApproved === 'function' ? deps.rootApproved : null;
+  const realOf = (p) => (typeof fs.realpathSync === 'function' ? fs.realpathSync(p) : p);
 
   function aid(ctx) { return Shell.safeAgentId((ctx && ctx.agentId) || 'agent'); }
   function remoteOwner(ctx) { return Shell.unrestrictedHost(ctx); }
@@ -31,16 +35,20 @@ function makeTerminalTools(deps) {
     // (host-minted, re-validated before it entered the run) or the private workspace, then the run's own `cd`. It
     // read the run's projectCwd field alone, so a project conversation's terminal opened in the private workspace
     // while its shell and fs.* worked in the project. A PTY runs on the host only, so the backend here is always local.
-    let cwd = Shell.runShellCwd({ paths, environment, backendId: 'local', agentId, jailRoot, pathMod: P, fs, root: ROOT, isWin, remoteOwner: remoteOwner(ctx) });
+    // confine: an inherited shell `cd` outside the private workspace and the project root (by real path) is not
+    // followed — a plain shell.exec {cwd:"<any folder>"} must not become where this terminal opens (review S1)
+    let cwd = Shell.runShellCwd({ paths, environment, backendId: 'local', agentId, jailRoot, pathMod: P, fs, root: ROOT, isWin, remoteOwner: remoteOwner(ctx), confine: true });
     // User/model args stay inside the private workspace, or inside the run's own project root — the folder this
     // run's shell and fs.* already work in — unless a separately minted remote-owner authority exists.
     if (args && args.cwd != null) {
       const wanted = String(args.cwd).trim();
       const norm = Shell.normalizeWinCwd(P, wanted, isWin);
       const lexical = P.isAbsolute(norm) || /^[A-Za-z]:[\\/]/.test(norm) ? P.resolve(norm) : P.resolve(cwd, norm);
-      // inside the project by its REAL path too: a link or junction planted in the project cannot carry the cwd out
+      // inside the project by its REAL path too: a link or junction planted in the project cannot carry the cwd out,
+      // and only while the host still approves that root (a revoked project stops being a place to open terminals)
       let inRoot = false;
-      if (paths.root && !/^\\\\/.test(wanted) && Shell.withinJail(P, lexical, paths.root) && typeof fs.realpathSync === 'function') {
+      if (paths.root && !/^[\\/]{2}/.test(wanted) && Shell.withinJail(P, lexical, paths.root) && typeof fs.realpathSync === 'function'
+        && (!rootApproved || rootApproved(paths.root) === true)) {
         try { inRoot = Shell.withinJail(P, fs.realpathSync(lexical), fs.realpathSync(paths.root)); }
         catch (e) { require('../../failopen.js').note('terminal.cwd.real', e); }   // not there: resolveShellCwd names why
       }
@@ -96,8 +104,15 @@ function makeTerminalTools(deps) {
       if (ctx && typeof ctx.checkpointMutation === 'function') {
         try { await ctx.checkpointMutation(where.cwd, 'terminal.start', { always: true }); } catch (_) {}
       }
+      /* CHECK, THEN USE THE SAME FOLDER (review minor). The checkpoint await is a window in which a folder proven inside
+         the project could be swapped for a link pointing out. Prove it again after the await, and start the PTY in the
+         REAL folder that proof saw, never in a name that could be re-pointed between the check and the spawn. */
+      const again = resolveCwd(args, ctx || {}, agentId);
+      let realCwd;
+      try { realCwd = realOf(again.cwd); if (realOf(where.cwd) !== realCwd) throw new Error('changed'); }
+      catch (e) { throw new Error('the terminal folder changed while the session was being prepared, so nothing was started — try again (' + ((e && e.message) || e) + ')'); }
       const result = fail(manager.start({
-        agentId, name: args.name, command, cwd: where.cwd, cols: args.cols, rows: args.rows,
+        agentId, name: args.name, command, cwd: realCwd, cols: args.cols, rows: args.rows,
         env: envFor(ctx && ctx.surface)
       }));
       const durable = result.persisted ? ' Metadata is durable.' : ' WARNING: metadata could not be persisted; this session exists only in the current sidecar life.';

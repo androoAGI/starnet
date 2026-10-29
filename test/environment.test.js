@@ -588,7 +588,7 @@ function makeFakeSpawn() {
         execute: (o) => {
           calls.push(o);
           return Promise.resolve({
-            out: 'hello\n__SK_CWD__/workspace/app__SK_EC__7__SK_END__',
+            out: 'hello\n' + require('./helpers/shell-marker.js').echoMarker(o.cmd, '/workspace/app', 7),   // per-call nonce (run-paths S1)
             exitCode: 0,
             ms: 0,
             truncated: false,
@@ -599,7 +599,7 @@ function makeFakeSpawn() {
       };
       const shell = makeShellTool({ environment: fakeEnv, clock, platform: 'win32' }).execTool;
       const r = await shell.run({ cmd: 'cd app; exit 7' }, { agentId: 'a3' });
-      A.ok(calls[0].cmd.indexOf('printf "\\n__SK_CWD__%s__SK_EC__%s__SK_END__"') >= 0, 'docker backend uses POSIX marker command');
+      A.ok(/printf "\\n__SK_CWD_[0-9a-f]+__%s__SK_EC_[0-9a-f]+__%s__SK_END_[0-9a-f]+__"/.test(calls[0].cmd), 'docker backend uses POSIX marker command');
       A.ok(calls[0].cmd.indexOf('%CD%') < 0, 'docker backend does not inherit Windows marker syntax from host');
       A.eq(remembered, '/workspace/app', 'shell persists container cwd through environment');
       A.ok(/\[exit 7/.test(r.content), 'shell reports marker exit code from environment output');

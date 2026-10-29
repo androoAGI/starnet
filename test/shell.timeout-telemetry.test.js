@@ -32,7 +32,8 @@ function fakeSpawn(cmd) {
   child.killed = false;
   child.kill = () => { if (child.killed) return; child.killed = true; setImmediate(() => child.emit('close', null)); };
   spawned.push({ cmd: String(cmd), child });
-  const marker = (ec) => '\n__SK_CWD__/ws/a1__SK_EC__' + ec + '__SK_END__';
+  // the marker the shell echoes, with this call's nonce read back off the marked command (run-paths S1)
+  const marker = (ec) => '\n' + require('./helpers/shell-marker.js').echoMarker(cmd, '/ws/a1', ec);
   setImmediate(() => {
     if (/LONGJOB/.test(cmd)) { child.stdout.emit('data', Buffer.from('partial-output-line\n')); return; }
     if (/FAILJOB/.test(cmd)) { child.stdout.emit('data', Buffer.from('boom happened' + marker(3))); child.emit('close', 3); return; }

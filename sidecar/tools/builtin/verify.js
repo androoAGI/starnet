@@ -64,7 +64,7 @@
         const jailRoot = environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid);
         if (!pathsResolver) pathsResolver = RunPaths.makeResolver({ pathMod: P, root: ROOT, environment });
         const cwd = shell.runShellCwd({ paths: RunPaths.pathsFor(ctx, pathsResolver, aid), environment: environment, backendId: environmentBackendId,
-          agentId: aid, jailRoot: jailRoot, pathMod: P, fs: fs, root: ROOT, isWin: isWin, remoteOwner: shell.unrestrictedHost(ctx) });
+          agentId: aid, jailRoot: jailRoot, pathMod: P, fs: fs, root: ROOT, isWin: isWin, remoteOwner: shell.unrestrictedHost(ctx), confine: true });
         // Local execution may be inside a nested project after shell.cd. Inspect the
         // exact directory that will execute; only mapped backends need the host root.
         const hostCwd = environment && environmentBackendId !== 'local' && typeof environment.workspaceRoot === 'function'

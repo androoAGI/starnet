@@ -604,23 +604,47 @@
   /* H2.1 — persistent session cwd. A command runs in one shell invocation, so a `cd` only survives if we
      RECOVER the final cwd from that same invocation. We append a marker that prints the working dir + the real
      exit code (captured BEFORE the marker so the appended echo can't mask it), parse it back, strip it from the
-     shown output, and persist the cwd PER AGENT — clamped to the fs jail so it can never drift outside. */
+     shown output, and keep the cwd on THIS RUN's path object (ctx.paths.setShellCwd; a sandbox backend keeps its
+     container cwd per agent, the recorded exception at the call site), clamped to the allowed envelope.
+     THE MARKER CANNOT BE FORGED (run-paths review S1, 2026-10-28). The output is whatever the command printed, so a
+     file shown with `type README.md` that contained a literal marker line used to BE the marker: it set the run's
+     remembered cwd (which verify.run and terminal.start inherit) and the exit code the routine script gate reads. Each
+     call now carries a fresh random nonce inside every marker token (__SK_CWD_<nonce>__ …), which printed content
+     cannot know, and the parser takes the LAST match: the one the shell appended after the command finished. */
   const MARK_A = '__SK_CWD__', MARK_EC = '__SK_EC__', MARK_END = '__SK_END__';
+  function markTokens(nonce) {
+    const n = nonce == null || nonce === '' ? '' : '_' + String(nonce).replace(/[^0-9A-Za-z]/g, '');
+    return n ? { a: '__SK_CWD' + n + '__', ec: '__SK_EC' + n + '__', end: '__SK_END' + n + '__' } : { a: MARK_A, ec: MARK_EC, end: MARK_END };
+  }
+  // a fresh per-call nonce (a rig may inject a deterministic one: makeShellTool deps.markerNonce)
+  const nodeCrypto = (typeof require === 'function') ? require('node:crypto') : null;
+  function freshNonce() {
+    if (nodeCrypto && typeof nodeCrypto.randomBytes === 'function') return nodeCrypto.randomBytes(8).toString('hex');
+    const c = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+    if (c && typeof c.getRandomValues === 'function') return Array.from(c.getRandomValues(new Uint8Array(8)), b => (b + 256).toString(16).slice(1)).join('');
+    throw new Error('no randomness source for the shell marker');
+  }
   /* WINDOWS: THE CARET IS LOAD-BEARING (h1 F5, 2026-09-22). cmd.exe expands %VAR% for the WHOLE line when it PARSES it
      — before the user's command runs — so the original `call echo …%CD%…%ERRORLEVEL%` printed the PRE-command cwd and
      errorlevel: every Windows shell.exec reported [exit 0] even when the command failed, and a `cd` never persisted
      (bug since e72ee0b00, 2026-06-23). `%^ERRORLEVEL%` survives the parse-time pass (no variable is named ^ERRORLEVEL),
      the caret is then consumed, and `call` performs a SECOND expansion at run time — after the command finished.
      Proven with Node's own spawn mode (shell:true -> cmd.exe /d /s /c "…"): `cmd /c exit 3 & call echo %^ERRORLEVEL%`
-     prints 3 and `cd sub & call echo %^CD%` prints …\sub. Output format unchanged, so parseMarker is untouched. */
-  function buildMarkedCmd(cmd, isWin) {
-    if (isWin) return cmd + ' & call echo ' + MARK_A + '%^CD%' + MARK_EC + '%^ERRORLEVEL%' + MARK_END;
-    return cmd + '\n__sk_ec=$?; printf "\\n' + MARK_A + '%s' + MARK_EC + '%s' + MARK_END + '" "$(pwd)" "$__sk_ec"';
+     prints 3 and `cd sub & call echo %^CD%` prints …\sub. Output format unchanged, so parseMarker is untouched.
+     nonce: this call's token (freshNonce, S1); omitted, the historic un-nonced marker (helpers and old rigs). */
+  function buildMarkedCmd(cmd, isWin, nonce) {
+    const t = markTokens(nonce);
+    if (isWin) return cmd + ' & call echo ' + t.a + '%^CD%' + t.ec + '%^ERRORLEVEL%' + t.end;
+    return cmd + '\n__sk_ec=$?; printf "\\n' + t.a + '%s' + t.ec + '%s' + t.end + '" "$(pwd)" "$__sk_ec"';
   }
-  function parseMarker(out) {
+  // the LAST marker carrying this call's nonce: the one the shell appended after the command (S1)
+  function parseMarker(out, nonce) {
     out = String(out == null ? '' : out);
-    const re = new RegExp(MARK_A + '([\\s\\S]*?)' + MARK_EC + '(-?\\d+)' + MARK_END);
-    const m = out.match(re);
+    const t = markTokens(nonce);
+    // the cwd never spans another start token, so a stray earlier one cannot swallow the real marker into its cwd
+    const re = new RegExp(t.a + '((?:(?!' + t.a + ')[\\s\\S])*?)' + t.ec + '(-?\\d+)' + t.end, 'g');
+    let m = null, hit;
+    while ((hit = re.exec(out)) !== null) m = hit;
     if (!m) return { cwd: null, ec: null, cleanOut: out };
     const ec = parseInt(m[2], 10);
     const cleanOut = (out.slice(0, m.index).replace(/\n$/, '')) + out.slice(m.index + m[0].length);
@@ -662,8 +686,11 @@
     let raw = String(requested == null ? '' : requested).trim();
     if (!raw) return current;
     if (/[\0\r\n]/.test(raw)) throw new Error('cwd contains a control character');
-    if (/^\\\\[^\s\\]/.test(raw)) throw new Error('UNC cwd paths are not allowed');
+    // BOTH spellings, as pathtrust.js refuses them (run-paths review S2): `//host/share` reached fs.existsSync below,
+    // and on Windows that lookup is an outbound SMB connection that hands the host the user's NTLM hash
+    if (/^[\\/]{2}/.test(raw)) throw new Error('UNC cwd paths are not allowed');
     raw = normalizeWinCwd(P, raw, isWin);
+    if (/^[\\/]{2}/.test(raw)) throw new Error('UNC cwd paths are not allowed');
     const abs = P.isAbsolute(raw) || /^[A-Za-z]:[\\/]/.test(raw) ? P.resolve(raw) : P.resolve(current, raw);
     if (!withinJail(P, abs, jailRoot) && !allowExternal) throw new Error('cwd must stay inside your workspace');
     if (!allowProtected && !withinJail(P, abs, jailRoot) && root && pathInside(P, abs, root))
@@ -680,14 +707,28 @@
      workspace, then THIS run's remembered `cd` (paths.shellCwd), re-proven on every read. It used to be three hand
      copies: the shell read the run's projectCwd field, else its projectRoot; terminal.start read projectCwd only (a
      project chat's terminal opened in the private workspace), verify.run ignored a `cd`, and an unscoped `cd` was kept per
-     AGENT (environment.rememberCwd), so a `cd` in one chat moved every other chat of that agent. A sandbox backend
-     keeps its own container cwd (validated by the backend), exactly as before.
-     o: { paths, environment, backendId, agentId, jailRoot, pathMod, fs, root, isWin, remoteOwner } */
+     AGENT (environment.rememberCwd), so a `cd` in one chat moved every other chat of that agent. RECORDED EXCEPTION
+     (owner decision 2026-10-28): a docker/ssh sandbox keeps its container cwd PER AGENT (environment.getCwd, validated by
+     the backend against the container root), exactly as before; see the marker read-back in makeShellTool.
+     o.confine (verify.run, terminal.start — run-paths review S1): on the host, an INHERITED `cd` is followed only while
+     it lies, by its real path, inside the private workspace or the run's project root. The local shell may `cd` (or take
+     cwd:) anywhere the local backend allows, but that must not become where an unattended check runs `npm test` or a
+     terminal opens without either tool ever being asked for that folder; outside it, they start from the run's base.
+     o: { paths, environment, backendId, agentId, jailRoot, pathMod, fs, root, isWin, remoteOwner, confine } */
+  function confinedCwd(o, kept) {
+    const P = o.pathMod, fs = o.fs, real = fs && typeof fs.realpathSync === 'function' ? (p) => fs.realpathSync(p) : (p) => P.resolve(p);
+    try {
+      const at = real(kept);
+      if (withinJail(P, at, real(o.jailRoot))) return true;
+      return !!(o.paths.root && withinJail(P, at, real(o.paths.root)));
+    } catch (e) { shellFailNote('shell.cwd.confine', e); return false; }   // cannot prove it: start from the base
+  }
   function runShellCwd(o) {
     const P = o.pathMod, paths = o.paths, local = o.backendId === 'local';
     let cwd = o.environment && !local ? o.environment.getCwd(o.agentId) : o.jailRoot;
     if (paths.root) cwd = resolveShellCwd({ pathMod: P, fs: o.fs, requested: paths.root, current: cwd, jailRoot: o.jailRoot, root: o.root, isWin: o.isWin, allowExternal: local });
-    const kept = paths.shellCwd();
+    let kept = paths.shellCwd();
+    if (kept && o.confine && (!o.environment || local) && !confinedCwd(o, kept)) kept = null;
     if (kept) {
       try { cwd = resolveShellCwd({ pathMod: P, fs: o.fs, requested: kept, current: cwd, jailRoot: o.jailRoot, root: o.root, isWin: o.isWin, allowExternal: o.remoteOwner || local, allowProtected: o.remoteOwner }); }
       catch (e) { shellFailNote('shell.cwd.kept', e); }   // a folder deleted since the `cd`: start from the base instead
@@ -843,6 +884,8 @@
     const environment = deps.environment || null;
     const spawn = deps.spawn, fs = deps.fs || null, P = deps.pathMod || (typeof require === 'function' ? require('node:path') : null), ROOT = deps.root || '';
     const bg = deps.bg || null;   // H2.2: the singleton background-process manager (shellbg.js); null -> bg disabled
+    // the marker's per-call nonce (S1): random by default; a deterministic rig may inject its own
+    const markerNonce = typeof deps.markerNonce === 'function' ? () => String(deps.markerNonce()) : freshNonce;
     // THE RUN'S PATH OBJECT (sidecar/run-paths.js): its project root, private workspace, receipt placement and THIS
     // run's `cd`. ctx.paths in a real run; a rig without one gets the same object minted from these deps.
     let pathsResolver = null;
@@ -935,7 +978,7 @@
           ? Promise.resolve().then(function () { return ctx.checkpointMutation(hostCwd, 'shell.exec', { always: true }); }).catch(function () { return null; })
           : Promise.resolve(null);
         // H2.2: a long-running process — hand it to the singleton bg manager (detached, ring-buffered, capped)
-        // and return immediately. Inherits the persisted cwd. Still consent-gated (this IS shell.exec).
+        // and return immediately. Inherits this run's cwd. Still consent-gated (this IS shell.exec).
         if (args && args.background) return checkpoint.then(function () {
           if (!environment && !bg) return { content: 'Background processes are not available in this build.', summary: 'unavailable' };
           const started = environment && typeof environment.startBackground === 'function'
@@ -964,17 +1007,20 @@
            THEIR app: on Windows it runs outside the station's job (sidecar/breakaway.js), so quitting or crashing StarNet
            never closes what it opened. Every other command stays the station's and ends with it. */
         const forPerson = isWin && remoteOwner && (!environment || environmentBackendId === 'local') && !!opensVisibleWindow(cmd, shellDialect);
+        const nonce = markerNonce();   // S1: this call's marker token — printed content cannot forge the cwd or exit code
         const run = checkpoint.then(function () {
           return environment && typeof environment.execute === 'function'
-            ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })
-            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
+            ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })
+            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
         });
         return run.then(function (res) {
-          // recover the final cwd + the REAL exit code from the marker; persist the cwd only if it stayed in-jail.
-          const pm = parseMarker(res.fullOut || res.out);
-          const preview = parseMarker(res.out);
-          // a sandbox's container cwd stays the backend's own (it validates it against the container root); a local
-          // `cd` is kept on THIS run's path object — never per agent, where it moved every other chat's shell
+          // recover the final cwd + the REAL exit code from THIS call's marker; keep the cwd only inside the allowed envelope.
+          const pm = parseMarker(res.fullOut || res.out, nonce);
+          const preview = parseMarker(res.out, nonce);
+          /* `cd` STAYS PER RUN (spec), with ONE RECORDED EXCEPTION (owner decision 2026-10-28): a docker/ssh sandbox keeps
+             its container cwd PER AGENT (environment.rememberCwd / getCwd). The container is that agent's own, and its
+             backend validates the cwd against the container root, so a `cd` inside a sandbox carries across that agent's
+             runs. Every host-side `cd` is kept on THIS run's path object, never per agent (where it moved every other chat). */
           if (environment && pm.cwd && environmentBackendId !== 'local') environment.rememberCwd(aid, pm.cwd);
           else if (environment && pm.cwd && withinJail(P, pm.cwd, jailRoot)) paths.setShellCwd(pm.cwd);
           else if (environment && pm.cwd && environmentBackendId === 'local') {
