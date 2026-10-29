@@ -1546,10 +1546,13 @@ const App = (() => {
   }
   function pushRoster() {
     try {
-      // An unpinned row follows the STATION DEFAULT (the Overseer's provider), never the global wire — that is the
-      // focused agent's pin, and stamping it onto every unpinned agent sent their routines/channel runs to it (#24).
+      // A PINNED row with no provider of its own pairs its model with the STATION DEFAULT's provider (the Overseer's, the
+      // focusWire rule), never the global wire — that is the focused agent's pin, and stamping it sent other agents' runs to
+      // it (#24). An UNPINNED crew row (no model) carries NO provider: it follows the station default on every surface, and a
+      // stamped provider only went stale the moment the station switched (run-wire-resolver lane; sidecar/run-wire.js). The
+      // Overseer's row always keeps its provider: that IS the station's provider choice, model or not.
       const fallbackProv = stationDefaultWire().provider || ((typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : 'openrouter');
-      const list = liveAgents().map(a => ({ agentId: a.id, system: a.systemPrompt || '', name: a.name || a.id, model: a.model || '', provider: a.provider || fallbackProv, role: rosterRole(a), approvalMode: (a.approvalMode === 'full' ? 'full' : 'ask'), executionProfile: executionProfileOf(a),
+      const list = liveAgents().map(a => ({ agentId: a.id, system: a.systemPrompt || '', name: a.name || a.id, model: a.model || '', provider: (a.model || a.id === 'agent') ? (a.provider || fallbackProv) : '', role: rosterRole(a), approvalMode: (a.approvalMode === 'full' ? 'full' : 'ask'), executionProfile: executionProfileOf(a),
         track: rosterTrack(a),    // S3: this agent's EARNED track record, so the lead's dispatch briefing can pick on evidence (see rosterTrack)
         workshop: !!a.workshop,   // W3: the away-build grant travels with the roster so the consent broker can honor it
         skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null }));   // #4: each agent's OWN provider; Class Loadouts S1: per-agent skill package + applied effort

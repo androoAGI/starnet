@@ -147,7 +147,7 @@ const DeskScreen = (() => {
   }
   const OUTCOME = { done: 'DONE', cancelled: 'STOPPED', error: 'FAILED', budget: 'HIT ITS BUDGET', max_iters: 'HIT ITS STEP LIMIT', refusal: 'REFUSED', empty: 'EMPTY REPLY', clarifying: 'ASKED YOU A QUESTION' };
   const outcomeState = r => r === 'done' ? 'done' : (r === 'error' || r === 'refusal' || r === 'empty') ? 'failed' : 'idle';
-  const TRIGGER = { schedule: 'A scheduled routine', event: 'An incoming event', loop: 'A loop iteration', nightshift: 'Autonomy' };   // 'nightshift' stays the internal trigger id; the user-facing name is Autonomy
+  const TRIGGER = { schedule: 'A scheduled routine', manual: 'A routine you ran by hand', event: 'An incoming event', loop: 'A loop iteration', nightshift: 'Autonomy' };   // 'nightshift' stays the internal trigger id; the user-facing name is Autonomy
 
   // the task this run is working: the Commander's own words when this page launched it (the workstream whose live
   // run IS this run — Channels.runIdOf), else an honest label for what started it. Never a guess.
