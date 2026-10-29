@@ -26637,8 +26637,11 @@ async function handleChannelConnect(req, res) {
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: the token comes from the keychain/runtime layer, NOT the plaintext record; a fresh paste still wins.
   const token = channelToken('telegram', body.token, saved);
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  // the saved key and endpoint are reused only for the provider they were saved for: a reconnect that switched provider
+  // with no key in the body sent the OLD provider's key to the new one (an OpenRouter key went to api.anthropic.com)
+  const own = (saved && normalizeProvider(saved.provider) === normalizeProvider(provider)) ? saved : {};
+  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(own.key || ''));
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || own.baseUrl || own.base_url || '');
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   // the app's REAL agent identity, so Telegram runs as the same agent (shared memory) with the same voice.
@@ -26688,6 +26691,8 @@ async function handleChannelSync(req, res) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(t.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { telegram: Object.assign({}, t, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -26925,8 +26930,10 @@ async function handleDiscordConnect(req, res) {
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: token from the keychain/runtime layer, not the plaintext record; a fresh paste still wins.
   const token = channelToken('discord', body.token, saved);
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  // the saved key and endpoint ride only the provider they were saved for (see handleChannelConnect)
+  const own = (saved && normalizeProvider(saved.provider) === normalizeProvider(provider)) ? saved : {};
+  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(own.key || ''));
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || own.baseUrl || own.base_url || '');
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -26953,6 +26960,8 @@ async function handleDiscordSync(req, res) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(d.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { discord: Object.assign({}, d, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -27087,8 +27096,10 @@ async function handleGenericChannelConnect(req, res, id) {
   const saved = (channelSecrets && channelSecrets[id]) || {};
   const provider = normalizeProvider(body.provider || saved.provider);
   const token = channelToken(id, body.token, saved);   // keychain/runtime (desktop) or plaintext record (bare); fresh paste wins
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  // the saved key and endpoint ride only the provider they were saved for (see handleChannelConnect)
+  const own = (saved && normalizeProvider(saved.provider) === normalizeProvider(provider)) ? saved : {};
+  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(own.key || ''));
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || own.baseUrl || own.base_url || '');
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -27141,6 +27152,8 @@ async function handleGenericChannelSync(req, res, id) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(rec.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   const p = {}; p[id] = Object.assign({}, rec, patch);
   channelSecrets = Object.assign({}, channelSecrets, p);
