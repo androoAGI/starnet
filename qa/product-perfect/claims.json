@@ -3360,12 +3360,25 @@
       "authorityChecks": [
         {
           "kind": "contains",
-          "path": "sidecar/tools/builtin/fs.js",
+          "path": "sidecar/run-paths.js",
           "needle": "deepestExisting"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/tools/builtin/fs.js",
+          "needle": "RunPaths.makeResolver("
         },
         {
           "kind": "absent",
           "path": "sidecar/tools/builtin/fs.js",
+          "needles": [
+            "O_NOFOLLOW",
+            "FILE_FLAG_OPEN_REPARSE_POINT"
+          ]
+        },
+        {
+          "kind": "absent",
+          "path": "sidecar/run-paths.js",
           "needles": [
             "O_NOFOLLOW",
             "FILE_FLAG_OPEN_REPARSE_POINT"
@@ -3375,7 +3388,8 @@
       "refsChecked": [
         "trunk@ef16fa087ad872f9d266ecde8b72ef813cb9ca82",
         "branches@agent/pp-fs-root 6cf56c14",
-        "worktrees@git-worktree-list audited 2026-07-12"
+        "worktrees@git-worktree-list audited 2026-07-12",
+        "branch@agent/run-paths-1028 7ac9e128 (the containment proof, deepestExisting, moved out of fs.js into sidecar/run-paths.js; fs.js resolves through RunPaths.makeResolver)"
       ]
     },
     {
