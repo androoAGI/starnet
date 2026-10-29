@@ -1170,9 +1170,14 @@ function runDashboard(station, opts) {
     const a = model.state.agents.get(ui.focus);
     if (!a) return sayHere(cmd, ['No agent shown.'], false);
     if (!a.model) return sayHere(cmd, [a.name + ' has no model set — /model picks one first.'], false);
-    // a FOLLOWER's model is the station default it runs (station-model.js), not a pin of its own: saving the effort through
-    // /api/agent/model would pin that model on it, and it would stop following the station
-    if (a.followsStation) return sayHere(cmd, [a.name + ' follows the station default (' + (a.provider || 'the station\'s provider') + ' · ' + a.model + '), so its effort is the station\'s. Pin a model with /model first, or set its effort in the app.'], false);
+    // a model that is not the agent's OWN pin (station-model.js wireSource: the station default it follows, the environment
+    // default, …) is not one to save an effort with: /api/agent/model would pin that model on it. An older station sends no
+    // source: its raw row's model is the pin.
+    const ownPin = a.wireSource ? a.wireSource === 'agent' : !a.followsStation;
+    if (!ownPin) {
+      const from = a.followsStation || a.wireSource === 'station' ? 'follows the station default' : a.wireSource === 'env' ? 'runs the environment default' : 'runs a model that is not its own pin';
+      return sayHere(cmd, [a.name + ' ' + from + ' (' + (a.provider || 'the station\'s provider') + ' · ' + a.model + '), so its effort is its own class effort, else the station\'s. Pin a model with /model first, or set its effort in the app.'], false);
+    }
     const cur = a.reasoningEffort || 'the provider\'s default';
     if (want === a.reasoningEffort) return sayHere(cmd, ['Reasoning effort is already ' + want + '.']);
     const r = await client.request('POST', '/api/agent/model', { agentId: a.id, model: a.model, provider: a.provider, effort: want }, { timeoutMs: 15000 });

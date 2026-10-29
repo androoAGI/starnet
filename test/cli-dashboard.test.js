@@ -63,7 +63,9 @@ function crew() {
   const rt = { agents: [
     { agentId: 'agent', name: 'Nova', model: 'gpt-5.5', provider: 'codex', reasoningEffort: 'high', wire: { provider: 'codex', model: 'gpt-5.5', source: 'agent', followsStation: false, reasoningEffort: 'high' } },
     { agentId: 'scout', name: 'Scout', model: null, provider: 'openrouter', reasoningEffort: null, wire: { provider: 'codex', model: 'gpt-5.5', source: 'station', followsStation: true, reasoningEffort: 'high' } },
-    { agentId: 'old', name: 'Old', model: 'm/o', provider: 'openrouter' }   // an older station: no wire, the raw row is all there is
+    { agentId: 'old', name: 'Old', model: 'm/o', provider: 'openrouter' },   // an older station: no wire, the raw row is all there is
+    // an unpinned agent on a station whose Overseer has no model either: it runs the ENVIRONMENT default (not a follower)
+    { agentId: 'envy', name: 'Envy', model: null, provider: '', reasoningEffort: 'low', wire: { provider: 'openrouter', model: 'env/model', source: 'env', followsStation: false, reasoningEffort: 'low' } }
   ] };
   const m = makeStation();
   m.setRoster(rt);
@@ -96,10 +98,20 @@ function crew() {
   for (const [cmd, want] of [['/reasoning', 'low'], ['/fast', 'minimal']]) {
     const f = dial('scout', cmd, want);
     A.eq(f.posted.filter(p => p.url === '/api/agent/model').length, 0, cmd + ' on a follower sends no /api/agent/model (it would pin the station model on it)');
-    A.ok(/^SCOUT follows the station default \(codex · gpt-5\.5\), so its effort is the station's\. Pin a model with \/model first, or set its effort in the app\.$/.test(f.said), '...and says why and both ways out: ' + f.said);
+    A.ok(/^SCOUT follows the station default \(codex · gpt-5\.5\), so its effort is its own class effort, else the station's\. Pin a model with \/model first, or set its effort in the app\.$/.test(f.said), '...and says why and both ways out: ' + f.said);
+  }
+  // (review round 4) the guard reads WHERE the pair comes from (runPairOf's source), not only "follows the station": an
+  // agent on the environment default has no pin of its own either, and saving an effort would pin env/model on it
+  A.eq(m.state.agents.get('envy').wireSource, 'env', 'the dashboard keeps where each pair comes from');
+  for (const [cmd, want] of [['/reasoning', 'high'], ['/fast', 'minimal']]) {
+    const f = dial('envy', cmd, want);
+    A.eq(f.posted.filter(p => p.url === '/api/agent/model').length, 0, cmd + ' on an agent running the environment default sends no /api/agent/model');
+    A.ok(/^ENVY runs the environment default \(openrouter · env\/model\), so its effort is its own class effort, else the station's\. Pin a model with \/model first, or set its effort in the app\.$/.test(f.said), '...and says why: ' + f.said);
   }
   const pinned = dial('agent', '/reasoning', 'low');
   A.eq(pinned.posted.map(x => [x.url, x.body.model, x.body.effort]), [['/api/agent/model', 'gpt-5.5', 'low']], 'a pinned agent saves its effort with its own pin');
+  const older = dial('old', '/reasoning', 'low');
+  A.eq(older.posted.map(x => [x.url, x.body.model, x.body.effort]), [['/api/agent/model', 'm/o', 'low']], 'an older station (no wire, no source) saves on the raw row, its pin');
 }
 {
   const m = crew();

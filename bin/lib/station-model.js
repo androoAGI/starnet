@@ -165,6 +165,7 @@ function makeStation() {
       // the PAIR its runs really go out on (runPairOf: the row's resolved wire, else the raw row on an older station)
       const pair = runPairOf(r), w = pair.wire;
       a.model = pair.model; a.provider = pair.provider; a.followsStation = pair.followsStation; a.inRoster = true;
+      a.wireSource = pair.source;   // where that pair comes from ('agent' = its own pin; '' = an older station: the raw row)
       // what its runs are held to, when the station says (an older station does not: the app's save is read instead)
       // a station that says the field says it whole: null is the Commander clearing it (the provider's default), never
       // "keep what the terminal last heard" — a cleared effort is not sent on the terminal's runs. The wire's effort is the
