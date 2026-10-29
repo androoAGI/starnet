@@ -53,6 +53,7 @@ function makeEgressReader(deps) {
   const fold = s => (P.sep === '\\' ? String(s).toLowerCase() : String(s));
   const inside = (a, b) => { const x = fold(P.resolve(a)), y = fold(P.resolve(b)); return x === y || x.indexOf(y + P.sep) === 0; };
   const missing = e => !!(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR'));
+  const unc = s => /^[\\/]{2}/.test(String(s || ''));
 
   // what a CHAT may be told about a name: a relative name as written, an absolute one inside the private workspace by
   // its jail-relative form, anything else only by its file name
@@ -74,6 +75,18 @@ function makeEgressReader(deps) {
   async function ownFolder(dir, dirReal) {
     const d = P.resolve(dir);
     return fold(dirReal) === fold(P.join(await fsp.realpath(P.dirname(d)), P.basename(d)));
+  }
+
+  // the chat-facing reason a file on a network share is refused, naming no server; the detail goes to the console
+  async function shareRefusal(paths, q, real) {
+    let jailReal = null;
+    try { jailReal = unc(paths.jail) ? paths.jail : await realBase(paths.jail); }
+    catch (e) { console.warn('[egress] could not resolve the workspace folder of ' + q + ': ' + ((e && e.code) || (e && e.message) || e)); }
+    const where = unc(jailReal) ? 'this station\'s workspaces live on a network share (\\\\server\\…)'
+      : paths.root && unc(paths.root) ? 'this run\'s project folder is on a network share (\\\\server\\…)'
+        : 'its real path is on a network share (\\\\server\\…)';
+    console.warn('[egress] ' + q + ' refused: its real path ' + real + ' is on a network share' + (unc(jailReal) ? ' (the workspace folder is ' + jailReal + ')' : ''));
+    return q + ' cannot be sent: ' + where + ', and files on network shares never leave the station';
   }
 
   // opts.allowEmpty: an empty file is a legal request part (web_request); a chat upload refuses it.
@@ -108,6 +121,10 @@ function makeEgressReader(deps) {
       if (missing(e)) return gone(q + ' is not in ' + where + (absolute(n) ? '' : ' (a relative path means ' + where + ' in this run)'));
       return no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
     }
+    // A NETWORK SHARE (review round 4, minor-6): the floor refuses every UNC path, so a file on a share never leaves,
+    // but "a protected file" was the wrong reason when the station's workspaces (or the project) live on a NAS. Still
+    // refused; the chat is told the true reason with the shown name only, and the share's path goes to the console.
+    if (unc(real)) return no(await shareRefusal(paths, q, real));
     if (hardlineReason(real, real)) return no(floored);
     // 4. CONTAINMENT by real path: this run's own private workspace, or this run's own project root. Nothing else.
     let inJail = false, inRoot = false, inLinkedJail = false;

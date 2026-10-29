@@ -269,6 +269,43 @@ function plant(linkAt, target) {
       const floored = await reader.readFor('alpha', '.env', unscoped);
       A.ok(!floored.ok && floored.notFound !== true, 'and a refusal is never notFound');
     }
+
+    // ---- 8. review round 4, minor-6 (scratchpad rr4-unc.js): WORKSPACES on a network share ----
+    // A file on a share never leaves (the floor refuses every UNC path), but the reason given was "a protected file
+    // (credentials or repository internals)". The chat is told the real reason in shown names only; the console gets
+    // the share's path.
+    {
+      const warned = [];
+      const warn0 = console.warn;
+      const onShare = (p) => { const r = path.relative(WS, p); return r && !r.startsWith('..') && !path.isAbsolute(r) ? '\\\\nas01\\starnet-data\\workspaces\\' + r : null; };
+      const nasFsp = Object.assign({}, fsp, { realpath: async (p) => { const r = await fsp.realpath(p); return onShare(r) || r; } });
+      const nas = makeEgressReader({ fsp: nasFsp, pathMod: path, workspaces: WS, guard: (abs, o2) => core.guard(abs, o2) });
+      console.warn = (...a) => { warned.push(a.join(' ')); };
+      let got;
+      try { got = await nas.read(unscoped.paths, 'shots/x.png'); } finally { console.warn = warn0; }
+      A.ok(!got.ok && /this station's workspaces live on a network share/.test(got.error) && /files on network shares never leave the station/.test(got.error), 'workspaces on a share: the refusal says so (' + (got.ok ? 'SENT' : got.error) + ')');
+      A.ok(!got.ok && !/protected file/.test(got.error), 'and no longer calls it a protected file');
+      A.ok(!got.ok && got.error.indexOf('nas01') < 0 && got.error.indexOf('starnet-data') < 0 && noHostPath(got), 'the chat-facing refusal names neither the server nor any host path: ' + (got.error || ''));
+      A.ok(warned.some(w => w.indexOf('\\\\nas01\\starnet-data\\workspaces\\alpha\\shots\\x.png') >= 0), 'the full path goes to the console: ' + JSON.stringify(warned));
+      const probe = await nas.read(unscoped.paths, 'shots/x.png', { probe: true });
+      A.ok(!probe.ok && /network share/.test(probe.error), 'a probe (browser.upload) says the same');
+      // a project folder on a share, and a link out to one, are refused with the same true reason
+      const projShare = Object.assign({}, fsp, { realpath: async (p) => { const r = await fsp.realpath(p); const rel = path.relative(PA, r); return !rel.startsWith('..') && !path.isAbsolute(rel) ? '\\\\nas01\\projects\\a\\' + rel : r; } });
+      console.warn = () => {};
+      try { got = await makeEgressReader({ fsp: projShare, pathMod: path, workspaces: WS, guard: (abs, o2) => core.guard(abs, o2) }).read(inA.paths, 'report.md'); } finally { console.warn = warn0; }
+      A.ok(!got.ok && /network share/.test(got.error) && !/protected file/.test(got.error) && got.error.indexOf('nas01') < 0, 'a file whose real path is on a share: the same true reason (' + (got.ok ? 'SENT' : got.error) + ')');
+      // the machine's own admin share, when this account can reach it: WORKSPACES spelled \\localhost\c$\…
+      const m = /^([A-Za-z]):\\(.*)$/.exec(WS);
+      const shareWs = isWin && m ? '\\\\localhost\\' + m[1].toLowerCase() + '$\\' + m[2] : '';
+      let reachable = false;
+      try { if (shareWs) { fs.accessSync(path.join(shareWs, 'alpha', 'shots', 'x.png')); reachable = true; } } catch (e) { console.log('[skip] the admin share is not reachable here: ' + e.code); }
+      if (reachable) {
+        const shareCtx = { agentId: 'alpha', paths: RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: shareWs }), { agentId: 'alpha' }) };
+        console.warn = () => {};
+        try { got = await makeEgressReader({ fsp, pathMod: path, workspaces: shareWs }).read(shareCtx.paths, 'shots/x.png'); } finally { console.warn = warn0; }
+        A.ok(!got.ok && /this station's workspaces live on a network share/.test(got.error) && got.error.indexOf('localhost') < 0, 'a real \\\\localhost\\c$ workspaces root: refused for the true reason (' + (got.ok ? 'SENT' : got.error) + ')');
+      }
+    }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target
     for (const l of [path.join(JAIL, 'notes'), path.join(JAIL, 'jx'), path.join(PA, 'px'), path.join(WS, 'delta')]) {
