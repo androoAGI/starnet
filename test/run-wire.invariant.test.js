@@ -161,18 +161,58 @@ function expect(entry, sc, agentId, got, opts) {
 
 (async () => {
   // ================================================ 1. COMMS ===========================================================
-  // The page decides the pair and the effort (app.js focusWire), POSTs them to /api/run, and runOnceCore runs them. The
-  // run row must say WHERE the pair came from (station default vs the agent's own pin): runStore.record's wireSource.
+  // The page decides the pair and the effort on FOCUS (app.js focusWire -> applyWire, into the harness's per-provider
+  // stores), and a run POSTs what the harness then holds (harness.js runAgent: getModel, getProv, getReasoningEffort) to
+  // /api/run, where runOnceCore runs it. A per-provider effort slot outlives the focus that wrote it, so the ORDER of focus
+  // matters: each order below runs through the real applyWire. The run row must say WHERE the pair came from (station
+  // default vs the agent's own pin): runStore.record's wireSource.
   {
     const appjs = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'app.js'), 'utf8');
     const lift = name => { const s = appjs.indexOf('  function ' + name + '('); return s < 0 ? '' : appjs.slice(s, appjs.indexOf('\n  }\n', s) + 4); };
-    const page = new Function('agents', lift('stationDefaultWire') + lift('focusWire') + '\nreturn { focusWire };');
-    const host = makeHost(SCENARIOS.A);
-    const agents = new Map([...host.agentRoster].map(([id, a]) => [id, Object.assign({ id }, a)]));
-    const { focusWire } = page(agents);
-    for (const id of Object.keys(SCENARIOS.A.want)) {
-      const w = focusWire(agents.get(id));
-      expect('COMMS', 'A', id, reach(host, { agentId: id, provider: host.deps.normalizeProvider(w.provider), model: w.model, reasoningEffort: w.effort || undefined }), { source: true });
+    A.ok(!!lift('applyWire'), "fixture: the page's applyWire is lifted");
+    const page = new Function('agents', 'Harness', "let wirePinOwner = '';\n" + lift('stationDefaultWire') + lift('focusWire') + lift('applyWire') + '\nreturn { focusWire, applyWire };');
+    // the harness's stores, shaped like harness.js (readScoped / writeScoped per provider): an empty slot reads as the
+    // provider default, which is what the run then sends
+    const makeHarness = () => {
+      const slots = {}; let prov = 'openrouter', model = '';
+      return {
+        setProv: p => { prov = p; }, getProv: () => prov, setModel: m => { model = m; }, getModel: () => model,
+        setReasoningEffort: (e, p) => { slots[p || prov] = e; }, clearReasoningEffort: p => { slots[p || prov] = ''; },
+        getReasoningEffort: p => slots[p || prov] || 'default'
+      };
+    };
+    const comms = (host, order, wants) => {
+      const agents = new Map([...host.agentRoster].map(([id, a]) => [id, Object.assign({ id }, a)]));
+      const Harness = makeHarness();
+      const { focusWire, applyWire } = page(agents, Harness);
+      for (const id of order) {
+        applyWire(focusWire(agents.get(id)));
+        const run = reach(host, { agentId: id, provider: host.deps.normalizeProvider(Harness.getProv()), model: Harness.getModel(), reasoningEffort: Harness.getReasoningEffort(Harness.getProv()) });
+        expect('COMMS', 'A', id, run, { source: true, want: wants && wants[id] });
+      }
+    };
+    comms(makeHost(SCENARIOS.A), Object.keys(SCENARIOS.A.want));   // the roster order: crew (its own low) is focused right before pin
+    comms(makeHost(SCENARIOS.A), ['agent', 'pin']);                 // the Overseer's effort never rides into a pinned agent with none
+    // an Overseer with no effort of its own, focused after a crew member with one: it runs the provider default
+    const quiet = Object.assign({}, SCENARIOS.A, { roster: Object.assign({}, SCENARIOS.A.roster, { agent: Object.assign({}, SCENARIOS.A.roster.agent, { reasoningEffort: null }) }) });
+    comms(makeHost(quiet), ['crew', 'agent'], { crew: ['codex', 'gpt-5.5', 'station', 'low'], agent: ['codex', 'gpt-5.5', 'agent', 'default'] });
+    // a pin cleared through the 3-argument agent.model command (stationcommands.js with no effort) drops the old pin's
+    // effort with it: the agent then follows the station default at the Overseer's effort, never at its dropped pin's
+    {
+      const cmds = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'stationcommands.js'), 'utf8');
+      A.ok(/a\.effort != null \? cfg\.setModel\(x\.id, model, provider, String\(a\.effort\)\) : cfg\.setModel\(x\.id, model, provider\)/.test(cmds),
+        'fixture: agent.model with no effort sets the pin through the 3-argument setModel');
+      const host = makeHost(SCENARIOS.A);
+      host.agentRoster.set('smith', Object.assign({}, host.agentRoster.get('smith'), { reasoningEffort: 'xhigh' }));   // smith's pin has its own effort
+      const agents = new Map([...host.agentRoster].map(([id, a]) => [id, Object.assign({ id }, a)]));
+      const Harness = makeHarness();
+      const pushRoster = () => { for (const [id, a] of agents) host.agentRoster.set(id, Object.assign({}, a)); };   // what reaches the sidecar
+      const p = new Function('agents', 'Harness', 'pushRoster', "let agent = null; let wirePinOwner = ''; const noteWirePin = () => {}; const persist = () => {};\n"
+        + lift('stationDefaultWire') + lift('focusWire') + lift('applyWire') + lift('setAgentModelPin') + '\nreturn { focusWire, applyWire, setAgentModelPin };')(agents, Harness, pushRoster);
+      A.ok(p.setAgentModelPin('smith', '', ''), 'the 3-argument clear is accepted');
+      p.applyWire(p.focusWire(agents.get('smith')));
+      const run = reach(host, { agentId: 'smith', provider: host.deps.normalizeProvider(Harness.getProv()), model: Harness.getModel(), reasoningEffort: Harness.getReasoningEffort(Harness.getProv()) });
+      expect('COMMS', 'A', 'smith', run, { source: true, want: ['codex', 'gpt-5.5', 'station', 'high'] });
     }
   }
 
