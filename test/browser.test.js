@@ -1585,9 +1585,10 @@ function fakeDriver() {
   // upload posts must come through the SAME jail as fs.* - an upload is an exfiltration primitive
   // if it can reach outside the agent's workspace.
   {
-    // real-pathed (macOS tmpdir is /var -> /private/var). The browser is handed a STAGED COPY of the proven bytes in the
-    // agent's own workspace (review round 4, minor-1: <jail>/.upload-staging/<rand>/<name>), never the path as written
+    // real-pathed (macOS tmpdir is /var -> /private/var). The browser is handed a STAGED COPY of the proven bytes in a
+    // STATION-OWNED root OUTSIDE the jail (review round 5: <stagingRoot>/<agent>/<rand>/<name>), never the path as written
     const ws = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-')));
+    const stagingRoot = require('../sidecar/egress-files.js').defaultStagingRoot(path, ws);
     try {
       const fsp = require('node:fs/promises');
       fs.mkdirSync(path.join(ws, 'ag'), { recursive: true });
@@ -1596,7 +1597,7 @@ function fakeDriver() {
 
       const d = fakeDriver();
       d.upload = async (node, abs, expected) => { d.log.uploaded = [node.text, abs, abs.map(p => fs.readFileSync(p, 'utf8'))]; return { status: 'selected', files: expected, retained: true, events: ['change'], evidence: 'FileList readback' }; };
-      const staged = (u) => !!u && u[1].length === 1 && path.dirname(path.dirname(u[1][0])) === path.join(ws, 'ag', '.upload-staging') && path.basename(u[1][0]) === 'resume.pdf' && u[2][0] === 'PDF';
+      const staged = (u) => !!u && u[1].length === 1 && path.dirname(path.dirname(u[1][0])) === path.join(stagingRoot, 'ag') && path.basename(u[1][0]) === 'resume.pdf' && u[2][0] === 'PDF';
       const U = makeBrowserTools({ driver: d, fsp, pathMod: path, root: ws });
       const snap = await U.session.snapshot();
       const ref = snap[0].ref;
@@ -1612,7 +1613,8 @@ function fakeDriver() {
       await rejects(up.run({ ref, paths: ['nope.txt'] }, { agentId: 'ag' }), /is not in your workspace/i, 'a missing file fails loudly here, not silently inside the page');
       A.ok(d.log.uploaded === first, 'no refused upload ever reached the driver');
       A.eq(up.requiresConsent, true, 'upload is consent-gated');
-    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+      await U.releaseUploads();
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); if (/starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRoot)) { try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } } }
   }
 
   // AGENT INPUT NEVER BECOMES PAGE CODE: browser.select embeds the requested value as a string

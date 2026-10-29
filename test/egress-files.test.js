@@ -27,7 +27,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 const RunPaths = require('../sidecar/run-paths.js');
-const { makeEgressReader } = require('../sidecar/egress-files.js');
+const { makeEgressReader, sweepUploadStaging } = require('../sidecar/egress-files.js');
 const RoutineMedia = require('../sidecar/routine-media.js');
 
 const isWin = process.platform === 'win32';
@@ -312,6 +312,56 @@ function plant(linkAt, target) {
         try { got = await makeEgressReader({ fsp, pathMod: path, workspaces: shareWs }).read(shareCtx.paths, 'shots/x.png'); } finally { console.warn = warn0; }
         A.ok(!got.ok && /this station's workspaces live on a network share/.test(got.error) && got.error.indexOf('localhost') < 0, 'a real \\\\localhost\\c$ workspaces root: refused for the true reason (' + (got.ok ? 'SENT' : got.error) + ')');
       }
+    }
+
+    // ---- review round 5 MAJOR (scratchpad rr5r-stage-race.js S4): dropStaged must never delete OUTSIDE the staging
+    //      root when a per-copy folder is swapped for a junction to a VICTIM folder between its lstat and its readdir.
+    //      Tested with a racy fsp that swaps during readdir exactly as the probe does, for both the unstage path (run
+    //      end / browser close) and the boot-sweep path; the victim directory stays untouched. ----
+    {
+      const cp = require('node:child_process');
+      const sh = c => { try { cp.execSync(c, { stdio: 'pipe' }); return true; } catch (e) { return false; } };
+      const stagingRoot = path.join(BASE, 'upload-staging');
+      const AG = path.join(stagingRoot, 'alpha');
+      const victim = path.join(BASE, 'Documents');
+      const s4ctx = runCtx({ agentId: 'alpha' });
+      const sreader = (fspX) => makeEgressReader({ fsp: fspX, pathMod: path, workspaces: WS, stagingRoot, guard: (abs, o2) => core.guard(abs, o2) });
+      put(path.join(JAIL, 's4.txt'), 'ORIGINAL-S4');
+      const linkToVictim = (folder) => { try { fs.unlinkSync(folder); } catch (_) {} if (isWin) sh('cmd /c mklink /J "' + folder + '" "' + victim + '"'); else try { fs.symlinkSync(victim, folder, 'dir'); } catch (e) { console.log('[skip] symlink: ' + e.message); } };
+      const madeVictim = () => { fs.rmSync(victim, { recursive: true, force: true }); fs.mkdirSync(victim, { recursive: true }); put(path.join(victim, 'taxes.pdf'), 'TAXES'); put(path.join(victim, 'thesis.docx'), 'THESIS'); };
+      // the FIRST readdir of the armed folder swaps it (its one file removed, the folder rmdir'd, a junction to the victim
+      // put in its place), then the real readdir runs — so readdir returns the victim's children, as the probe showed
+      const racyFsp = (armedRef) => Object.assign({}, fsp, { readdir: async (p, o) => {
+        if (armedRef.folder && path.resolve(p) === path.resolve(armedRef.folder)) {
+          const f = armedRef.folder; armedRef.folder = null;
+          for (const n of fs.readdirSync(f)) fs.unlinkSync(path.join(f, n));
+          fs.rmdirSync(f); linkToVictim(f);
+        }
+        return fsp.readdir(p, o);
+      } });
+      const stageS4 = async (rd) => rd.read(s4ctx.paths, 's4.txt', { stage: { dir: AG } });
+      const victimIntact = () => fs.readdirSync(victim).sort();
+      // (a) UNSTAGE with no known name (the probe's call path — readdir driven): the mid-readdir swap reaches nothing
+      { madeVictim(); const armed = { folder: null }; const rd = sreader(racyFsp(armed));
+        const g = await stageS4(rd); A.ok(g.ok && g.staged, 'S4: a file stages into the station root for unstage (' + (g.ok ? 'ok' : g.error) + ')');
+        armed.folder = g.staged; await rd.unstage(g.staged);
+        A.eq(victimIntact(), ['taxes.pdf', 'thesis.docx'], 'S4 unstage: a junction swapped in mid-readdir deletes NOTHING outside the staging root'); }
+      // (b) UNSTAGE bounded to the known file name (the production call path): a copy folder that is already a junction
+      { madeVictim(); const rd = sreader(fsp); const g = await stageS4(rd); A.ok(g.ok && g.staged, 'S4: a file stages for bounded unstage');
+        linkToVictim(g.staged); await rd.unstage(g.staged, 's4.txt');
+        A.eq(victimIntact(), ['taxes.pdf', 'thesis.docx'], 'S4 unstage (bounded, name known): a junctioned copy folder deletes nothing in the victim'); }
+      // (c) BOOT SWEEP: the same mid-readdir swap reaches nothing
+      { madeVictim(); const rd = sreader(fsp); const g = await stageS4(rd); A.ok(g.ok && g.staged, 'S4: a file stages for the boot sweep');
+        const armed = { folder: g.staged }; const n = await sweepUploadStaging({ fsp: racyFsp(armed), pathMod: path, stagingRoot });
+        A.eq(victimIntact(), ['taxes.pdf', 'thesis.docx'], 'S4 boot sweep: a junction swapped in mid-readdir deletes NOTHING outside the staging root (removed ' + n + ')'); }
+      // clean the staging tree, junctions first so rm never walks through one into the victim
+      try {
+        for (const ag of (fs.existsSync(stagingRoot) ? fs.readdirSync(stagingRoot) : [])) {
+          const agd = path.join(stagingRoot, ag);
+          for (const c of (fs.existsSync(agd) ? fs.readdirSync(agd) : [])) { const f = path.join(agd, c); let st = null; try { st = fs.lstatSync(f); } catch (_) {} if (st && st.isSymbolicLink()) { try { fs.unlinkSync(f); } catch (e) { try { fs.rmdirSync(f); } catch (_) {} } } }
+        }
+        fs.rmSync(stagingRoot, { recursive: true, force: true });
+      } catch (e) { console.log('[cleanup] ' + e.message); }
     }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target

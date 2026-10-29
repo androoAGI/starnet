@@ -4,6 +4,7 @@
 const A = require('./_assert.js'), fs = require('node:fs'), http = require('node:http'), path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { _internals: T } = require('../sidecar/tools/builtin/browser.js');
+const { defaultStagingRoot } = require('../sidecar/egress-files.js');
 const MODEL = 'test/browser-upload';
 function reply(res, call) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -89,9 +90,9 @@ function reply(res, call) {
     const result = id => results.find(m => m.tool_call_id === id)?.content || '';
     A.ok(/File selection verified/.test(result('upload')) && /"size":19/.test(result('upload')), 'production browser deps resolve and select project bytes, not the private decoy');
     A.ok(/Remote upload\/server acceptance is not verified/.test(result('upload')), 'model receives an honest selection-only receipt');
-    // review round 4, minor-1: the page was handed a staged copy in the agent's own workspace, and the copy never
-    // outlives the run (index.js runOnceCore releases this run's uploads when it ends)
-    const staging = path.join(fixture.workspace, 'upload-agent', '.upload-staging');
+    // review round 4 minor-1 / round 5: the page was handed a staged copy in the STATION staging root OUTSIDE the jail,
+    // and the copy never outlives the run (index.js runOnceCore releases this run's uploads when it ends)
+    const staging = path.join(defaultStagingRoot(path, require('node:path').resolve(fixture.workspace)), 'upload-agent');
     let leftover = null;
     for (let i = 0; i < 50; i++) {
       leftover = fs.existsSync(staging) ? fs.readdirSync(staging) : [];

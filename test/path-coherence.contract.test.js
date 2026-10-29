@@ -112,8 +112,10 @@ const fakeSession = {
   // what the browser READS from the path it is handed (round 4 minor-1: a staged copy of the proven bytes)
   upload: async (ref, abs, expected) => { uploads.push(abs.slice()); uploadBytes.push(abs.map(p => fs.readFileSync(p))); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; }
 };
-// a browser.upload hands the page a STAGED COPY of the proven file (review round 4, minor-1): <jail>/.upload-staging/<rand>/<name>
-const stagedCopyOf = (handed, bytes, at) => !!handed && path.dirname(path.dirname(handed)) === path.join(JAIL, '.upload-staging') && path.basename(handed) === path.basename(at) && !!bytes && bytes.equals(fs.readFileSync(at));
+// a browser.upload hands the page a STAGED COPY of the proven file (round 4 minor-1; round 5: a STATION-OWNED root
+// OUTSIDE the jail, <stagingRoot>/<agent>/<rand>/<name>)
+const UPLOAD_STAGE = Egress ? path.join(Egress.defaultStagingRoot(path, WS), AID) : path.join(JAIL, '.upload-staging');
+const stagedCopyOf = (handed, bytes, at) => !!handed && path.dirname(path.dirname(handed)) === UPLOAD_STAGE && path.basename(handed) === path.basename(at) && !!bytes && bytes.equals(fs.readFileSync(at));
 // browser.upload is a file LEAVING the station (review round 3): index.js hands it the host's egress reader (station guard)
 const uploadEgress = Egress ? Egress.makeEgressReader({ fsp, pathMod: path, workspaces: WS, guard: (abs, o2) => trustCore.guard(abs, Object.assign({}, o2, { surface: 'autonomous' })) }) : null;
 const browser = makeBrowserTools({ session: fakeSession, fsp, pathMod: path, root: WS, pathTrust, egress: uploadEgress || undefined });
@@ -590,6 +592,8 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
     }
   } finally {
     fs.rmSync(BASE, { recursive: true, force: true });
+    // the station staging root lives under os.tmpdir(), OUTSIDE BASE
+    if (Egress) { const sr = Egress.defaultStagingRoot(path, WS); if (/starnet-upload-staging-[0-9a-f]{16}$/.test(sr)) { try { fs.rmSync(sr, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } } }
   }
   const failed = rows.filter(r => !r.pass);
   console.log('path coherence: ' + (rows.length - failed.length) + '/' + rows.length + ' rows hold' + (failed.length ? '; failing:\n  ' + failed.map(r => r.name).join('\n  ') : ''));

@@ -4,20 +4,25 @@
    reach, Full Power ~/.ssh, a floored file and a hard link are refused (each was uploaded before, with no card under
    Full Power), and the run's fs.read guard is never asked. No CDP ack-only success.
    Review round 4, minor-1 (scratchpad rr4-egress.js section G): the browser opens the path it is handed AFTER the proof,
-   so a folder swapped for a junction in between changed the bytes uploaded. The browser is now handed a STAGED COPY of
-   the proven bytes (a fresh random folder of <jail>/.upload-staging, the original name), dropped when the run ends or
-   its own browser closes, bounded in size, and swept at boot without ever entering a link. */
+   so a folder swapped for a junction in between changed the bytes uploaded. The browser is handed a STAGED COPY of the
+   proven bytes (a fresh random folder, the original name), dropped when the run ends or its own browser closes, bounded
+   in size, and swept at boot without ever entering a link.
+   Review round 5 (scratchpad rr5r-stage-race.js): the staged copy lived in the agent's OWN jail, so a same-run process
+   could find and swap it (hard link / junction) between staging and Chrome's read. The copy now lives in a station-owned
+   root OUTSIDE every jail (egress-files.js defaultStagingRoot: os.tmpdir()/starnet-upload-staging-<id>/<agent>/<rand>),
+   is locked owner-only, and is re-verified around the hand-off. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const { makeBrowserTools } = require('../sidecar/tools/builtin/browser.js');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
-const { makeEgressReader } = require('../sidecar/egress-files.js');
+const { makeEgressReader, defaultStagingRoot } = require('../sidecar/egress-files.js');
 const RunPaths = require('../sidecar/run-paths.js');
 const { selectFiles } = require('../sidecar/tools/builtin/browser-upload.js');
 const rejects = async (p, re, message) => { try { await p; A.ok(false, message + ': did not refuse'); } catch (e) { A.ok(re.test(e.message), message + ': ' + e.message); } };
 (async () => {
   const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-unit-')));
+  let stagingRootForCleanup = null;   // the station staging root lives under os.tmpdir(), OUTSIDE scratch
   try {
     const project = path.join(scratch, 'project'), other = path.join(scratch, 'other-project'), outside = path.join(scratch, 'outside'), root = path.join(scratch, 'workspaces');
     const home = path.join(scratch, 'home');
@@ -56,10 +61,26 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     // a run's ctx.paths exactly as runOnceCore mints it, posture in its guard (Full Power: unrestrictedHost)
     const minted = (o) => ({ agentId: 'agent', paths: RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root,
       pathTrust: (abs, o2) => trust.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: 'agent', fullAccess: !!o.fullAccess, unrestrictedHost: !!o.unrestrictedHost }) }), { agentId: 'agent', projectRoot: o.projectRoot || '' }) });
-    // the browser is handed a STAGED COPY (round 4, minor-1): <jail>/.upload-staging/<24 hex>/<the file's own name>,
-    // holding the proven bytes
-    const STAGE = path.join(root, 'agent', '.upload-staging');
+    // the browser is handed a STAGED COPY (round 4, minor-1; round 5 relocation): a station-owned root OUTSIDE the jail,
+    // <stagingRoot>/<agent>/<24 hex>/<the file's own name>, holding the proven bytes
+    const stagingRoot = defaultStagingRoot(path, root);
+    stagingRootForCleanup = stagingRoot;
+    const STAGE = path.join(stagingRoot, 'agent');
     const stagedCopy = (p, name) => !!p && path.dirname(path.dirname(p)) === STAGE && /^[0-9a-f]{24}$/.test(path.basename(path.dirname(p))) && path.basename(p) === (name || 'photo.txt');
+    // review round 5 (3): the station staging root is OUTSIDE every jail and blessed root, so neither the fs.* path
+    // trust nor the shell's absolute-path floor can reach it by a LITERAL path. (HONEST: a shell with the user's rights
+    // can still COMPUTE a temp dir and owner-only ACLs do not stop the same user — the header's remaining defences.)
+    {
+      const litPath = path.join(STAGE, 'deadbeefdeadbeefdeadbeef', 'photo.txt');
+      for (const scope of ['read', 'write']) {
+        let denied = null;
+        try { await trust.guard(litPath, { scope, surface: 'autonomous', agentId: 'agent' }); } catch (e) { denied = e; }
+        A.ok(denied && /outside the agent workspace|no project root grant/.test(denied.message), 'fs.' + scope + ' cannot reach the staging root by a literal path: ' + (denied && denied.message));
+      }
+      const shell = require('../sidecar/tools/builtin/shell.js').makeShellTool({ spawn: () => { throw new Error('a refused command must never spawn'); }, fs, pathMod: path, root });
+      await rejects(Promise.resolve().then(() => shell.execTool.run({ cmd: 'echo hi', cwd: STAGE }, { agentId: 'agent' })), /cwd must stay inside your workspace/, 'shell.exec refuses the staging root as cwd');
+      if (process.platform === 'win32') await rejects(Promise.resolve().then(() => shell.execTool.run({ cmd: 'type ' + path.join(STAGE, 'x.txt') }, { agentId: 'agent' })), /drive-absolute paths/, 'shell.exec refuses the drive-absolute staging path as a command argument');
+    }
     const handed = (bytes, name) => stagedCopy(calls.at(-1) && calls.at(-1)[0], name) && calls.at(-1).length === 1 && seen.at(-1)[0] === bytes;
     const said = () => JSON.stringify(calls.at(-1)) + ' = ' + JSON.stringify(seen.at(-1));
     let r = await run(['photo.txt']);
@@ -150,16 +171,17 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       await rejects(small.tools.find(t => t.name === 'browser.upload').run({ ref: (await small.session.snapshot())[0].ref, paths: ['photo.txt'] }, { agentId: 'agent' }), /"photo\.txt" is 7 bytes; a browser upload takes at most 4 bytes/, 'a file over the upload limit is refused, saying the limit');
       A.eq(folders(), [], 'and nothing was staged for it');
       A.eq(require('../sidecar/egress-files.js').STAGE_MAX_BYTES, 200 * 1024 * 1024, 'the default limit is 200 MB');
-      // a staging folder that is a link is never written through
+      // a per-agent staging folder that is a link is never written through (now in the station root, not the jail)
       const away = path.join(scratch, 'away');
       fs.mkdirSync(away, { recursive: true });
-      fs.rmdirSync(STAGE);
+      try { fs.rmdirSync(STAGE); } catch (e) { fs.rmSync(STAGE, { recursive: true, force: true }); }
       fs.symlinkSync(away, STAGE, isWin ? 'junction' : 'dir');
       try {
-        await rejects(run(['photo.txt'], { agentId: 'agent' }), /staging folder \.upload-staging in your workspace is a link to somewhere else/, 'a staging folder that is a link is refused');
+        await rejects(run(['photo.txt'], { agentId: 'agent' }), /upload staging folder is a link to somewhere else/, 'a staging folder that is a link is refused');
         A.eq(fs.readdirSync(away), [], 'and nothing was written through it');
-      } finally { try { fs.unlinkSync(STAGE); } catch (e) { fs.rmdirSync(STAGE); } }
-      // THE BOOT SWEEP: a crash's leftovers go; a link is unlinked, never entered; a moved agent folder is never walked
+      } finally { try { fs.unlinkSync(STAGE); } catch (e) { try { fs.rmdirSync(STAGE); } catch (e2) { console.log('[cleanup] ' + e2.message); } } }
+      // THE BOOT SWEEP walks the STATION staging root <root-id>/<agent>/<copy>: a crash's leftovers go; a link is
+      // unlinked never entered; an agent folder that is itself a link is never walked
       const { sweepUploadStaging } = require('../sidecar/egress-files.js');
       const left = path.join(STAGE, 'a1b2c3d4e5f6a1b2c3d4e5f6');
       fs.mkdirSync(left, { recursive: true });
@@ -167,19 +189,69 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       fs.symlinkSync(path.join(home, 'sub'), path.join(left, 'trap'), isWin ? 'junction' : 'dir');
       fs.symlinkSync(path.join(home, 'sub'), path.join(STAGE, 'trap2'), isWin ? 'junction' : 'dir');
       const zeta = path.join(scratch, 'zeta-real');
-      fs.mkdirSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00'), { recursive: true });
-      fs.writeFileSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00', 'keep.txt'), 'KEEP');
-      fs.symlinkSync(zeta, path.join(root, 'zeta'), isWin ? 'junction' : 'dir');
+      fs.mkdirSync(path.join(zeta, 'f00f00f00f00f00f00f00f00'), { recursive: true });
+      fs.writeFileSync(path.join(zeta, 'f00f00f00f00f00f00f00f00', 'keep.txt'), 'KEEP');
+      fs.symlinkSync(zeta, path.join(stagingRoot, 'zeta'), isWin ? 'junction' : 'dir');
       try {
         const n = await sweepUploadStaging({ fsp, pathMod: path, workspaces: root });
         A.ok(n === 1 && !fs.existsSync(left), 'the boot sweep removes a crashed run\'s staged copy (' + n + ')');
         A.eq(fs.readFileSync(path.join(home, 'sub', 'x.txt'), 'utf8'), 'HOME-SECRET-X', 'a link inside a staged folder is unlinked, never followed');
         A.ok(fs.existsSync(path.join(STAGE, 'trap2')), 'a link in the staging folder is never entered');
-        A.ok(fs.existsSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00', 'keep.txt')), 'an agent folder that is a link is never walked');
-        A.eq(await sweepUploadStaging({ fsp, pathMod: path, workspaces: path.join(scratch, 'no-such-dir') }), 0, 'no workspaces folder: nothing to sweep');
+        A.ok(fs.existsSync(path.join(zeta, 'f00f00f00f00f00f00f00f00', 'keep.txt')), 'an agent folder that is a link is never walked');
+        A.eq(await sweepUploadStaging({ fsp, pathMod: path, workspaces: path.join(scratch, 'no-such-dir') }), 0, 'no staging root: nothing to sweep');
       } finally {
-        for (const l of [path.join(STAGE, 'trap2'), path.join(root, 'zeta')]) { try { fs.unlinkSync(l); } catch (e) { try { fs.rmdirSync(l); } catch (e2) { console.log('[cleanup] ' + e2.message); } } }
+        for (const l of [path.join(STAGE, 'trap2'), path.join(stagingRoot, 'zeta')]) { try { fs.unlinkSync(l); } catch (e) { try { fs.rmdirSync(l); } catch (e2) { console.log('[cleanup] ' + e2.message); } } }
+        try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); }
       }
+    }
+
+    /* ---- review round 5 (scratchpad rr5r-stage-race.js): a CONCURRENT SAME-RUN PROCESS (a forked writer, as the probe
+       does) that computes the station staging root and swaps the staged copy for a hard link / junction to a secret
+       between staging and the browser's read. Each scenario must now REFUSE and cancel the selection, and the secret
+       must never be what sat at the staged path when the browser was handed it. ---- */
+    {
+      const cp = require('node:child_process');
+      const WRITER = path.join(__dirname, 'helpers', 'upload-race-writer.js');
+      fs.mkdirSync(path.join(root, 'racer'), { recursive: true });
+      fs.mkdirSync(path.join(home, 'secrets'), { recursive: true });
+      const raceSecret = path.join(home, 'secrets', 'id_rsa');   // a credential OUTSIDE every jail and root, like ~/.ssh/id_rsa
+      const SECRET_BYTES = 'BEGIN OPENSSH PRIVATE KEY SECRET';   // 32 bytes; contains SECRET
+      fs.writeFileSync(raceSecret, SECRET_BYTES);
+      const RSTAGE = path.join(stagingRoot, 'racer');
+      async function raceScenario(label, mode, fileName, fileBytes) {
+        fs.writeFileSync(path.join(root, 'racer', fileName), fileBytes);
+        const writer = cp.fork(WRITER, [mode, RSTAGE, fileName, raceSecret, path.dirname(raceSecret)], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+        try {
+          await new Promise(r => writer.once('message', r));   // ready
+          const swap = () => new Promise(res => { writer.once('message', m => res(m)); writer.send({ go: true }); });
+          let cleared = false, handoff = null;
+          const d = {
+            snapshot: async () => [{ role: 'button', text: 'Choose', x: 1, y: 1, w: 10, h: 10 }],
+            clearUpload: async () => { cleared = true; return { cleared: true }; },
+            upload: async (_n, abs, expected) => {
+              handoff = abs.map(p => { try { return fs.readFileSync(p, 'latin1'); } catch (e) { return ''; } });   // what sat there when handed (pre-swap)
+              await swap();                                                                                        // the fork swaps the copy DURING the hand-off
+              return { status: 'selected', files: expected, retained: true, events: ['change'] };
+            }
+          };
+          const rb = makeBrowserTools({ driver: d, fsp, pathMod: path, root, egress });
+          const rref = (await rb.session.snapshot())[0].ref;
+          const rup = rb.tools.find(t => t.name === 'browser.upload');
+          let threw = null;
+          try { await rup.run({ ref: rref, paths: [fileName] }, { agentId: 'racer' }); } catch (e) { threw = e; }
+          await rb.releaseUploads();
+          A.ok(threw && /changed .*after it was selected/.test(threw.message), label + ': the swapped staged copy is refused: ' + (threw && threw.message));
+          A.ok(cleared, label + ': the file input is cleared, so a form submitted later sends nothing');
+          A.ok(handoff && handoff.join('').indexOf('SECRET') < 0, label + ': only the proven bytes ever sat at the staged path (no secret): ' + JSON.stringify(handoff));
+          A.eq(fs.readFileSync(raceSecret, 'utf8'), SECRET_BYTES, label + ': the secret file itself is untouched');
+        } finally { try { writer.kill(); } catch (e) { console.log('[cleanup] ' + e.message); } }
+      }
+      await raceScenario('S1 hard-link swap of the staged copy', 'hardlink', 'a.txt', 'A'.repeat(64));
+      await raceScenario('S1s hard-link swap, copy padded to the secret size', 'hardlink', 'pad.txt', 'B'.repeat(SECRET_BYTES.length));
+      await raceScenario('S2 hard-link swap around a delayed page read', 'hardlink', 's2.txt', 'C'.repeat(40));
+      await raceScenario('S2b hard-link swap before a later form submit', 'hardlink', 's2b.txt', 'D'.repeat(40));
+      await raceScenario('S3 staged folder swapped for a junction to the secret', 'junction', 'id_rsa', 'DECOY-IN-MY-OWN-WORKSPACE');
+      try { fs.rmSync(stagingRoot, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); }
     }
 
     replyMode = 'ack';
@@ -235,6 +307,7 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     A.eq(closed && closed.code, 'REF_TAB_CLOSED', 'tab loss during readback propagates unchanged');
   } finally {
     if (path.dirname(scratch) === path.resolve(os.tmpdir()) && path.basename(scratch).startsWith('starnet-upload-unit-')) fs.rmSync(scratch, { recursive: true, force: true });
+    if (stagingRootForCleanup && /starnet-upload-staging-[0-9a-f]{16}$/.test(stagingRootForCleanup)) { try { fs.rmSync(stagingRootForCleanup, { recursive: true, force: true }); } catch (e) { console.log('[cleanup] ' + e.message); } }
   }
   A.report('browser-upload');
 })().catch(e => { console.error(e.stack || e); process.exitCode = 1; });
