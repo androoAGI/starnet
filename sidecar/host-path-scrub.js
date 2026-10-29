@@ -16,7 +16,9 @@
        root at a sentence's end ("…\workspaces.") is cut, and another folder ("…\workspaces-old", "…\workspaces.bak")
        is not.
    A match becomes a readable placeholder plus the separators as written, never nothing: `cd <root>\alpha && npm test`
-   reads `cd <workspace>\alpha && npm test` (round 2 deleted it to `cd  && npm test`).
+   reads `cd [workspace]\alpha && npm test` (round 2 deleted it to `cd  && npm test`). The placeholder is in square
+   brackets, never angle brackets: Slack reads <…> as a control sequence (a link, a mention; review round 4, minor-7).
+   It names no prefix, so scrubbing it again is a no-op.
 
    FAIL CLOSED: the fixed prefixes the scrub was built with are always scrubbed; a live prefix list that throws loses
    only its extra spellings, and the failure is noted. Pure apart from that note: no fs, no clock (the host hands in
@@ -25,11 +27,11 @@
      makeHostPathScrub({ fixed: string[], prefixes?: () => string[] }) -> scrub(text) -> text   (idempotent)
      hostPathForms(root, { realpath? }) -> string[]   the root, its real path, and the /c/, /mnt/c/, /cygdrive/c/ forms
      guardOutbound(adapter, scrub) -> adapter         wraps the adapter's outbound text in place (idempotent)
-     PLACEHOLDER                                      '<workspace>' */
+     PLACEHOLDER                                      '[workspace]' */
 'use strict';
 const { note: failNote } = require('./failopen.js');
 
-const PLACEHOLDER = '<workspace>';
+const PLACEHOLDER = '[workspace]';
 
 const escapeRe = (t) => String(t).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 // a percent-encoded byte, its hex digits in either case

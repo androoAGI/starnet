@@ -6931,7 +6931,7 @@ async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egress
    `outbound`), so the hubs, channel.send, a routine delivery and its missed-file note, the notifier, a loop notice and
    a step-in nudge all reach the wire through it; every caller that chunks (the hubs, channel.send, a routine delivery)
    scrubs the WHOLE text first. The workspaces root by every spelling (its real path, /c/, /mnt/c/, 8.3, percent-
-   encoded) becomes "<workspace>". Fail closed: the configured root is always scrubbed, even if its realpath throws. */
+   encoded) becomes "[workspace]". Fail closed: the configured root is always scrubbed, even if its realpath throws. */
 const HostPathScrub = require('./host-path-scrub.js');
 const scrubOutbound = HostPathScrub.makeHostPathScrub({ fixed: [WORKSPACES], prefixes: () => HostPathScrub.hostPathForms(WORKSPACES, { realpath: (p) => fs.realpathSync.native(p) }) });
 const guardOutbound = (adapter) => HostPathScrub.guardOutbound(adapter, scrubOutbound);

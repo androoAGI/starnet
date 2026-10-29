@@ -6,7 +6,7 @@
    Signal and the trigger hub sent it as written. Every row marked (was: …) below leaked before this fix (scratchpad
    probe rr3-scrub.js). Proves:
      1. the ONE scrub: every spelling of the root (case, separators, JSON escapes, percent-encoding, 8.3, \\?\, the
-        Git Bash / WSL / Cygwin forms, its real path) becomes a readable "<workspace>", another folder is left alone,
+        Git Bash / WSL / Cygwin forms, its real path) becomes a readable "[workspace]", another folder is left alone,
         it is idempotent, and it fails CLOSED (a throwing prefix list still scrubs the configured root);
      2. the real hub scrubs the WHOLE text before it chunks (deliver and the outbox), so a path cut at a chunk boundary
         never goes out in halves, and a rig's hostPathPrefixes gets the same scrub;
@@ -32,24 +32,24 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
 (async () => {
   // ---- 1. the scrub itself ----
   const bypass = [
-    ['backslash', 'Saved at ' + WS + '\\alpha\\shots\\x.png.', 'Saved at <workspace>\\alpha\\shots\\x.png.'],
-    ['forward slash', 'Saved at C:/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/shots/x.png', 'Saved at <workspace>/alpha/shots/x.png'],
-    ['lower case', 'saved at c:\\users\\andro\\appdata\\roaming\\starnet\\workspaces\\alpha\\x.png', 'saved at <workspace>\\alpha\\x.png'],
-    ['JSON-escaped', '{"path":"C:\\\\Users\\\\andro\\\\AppData\\\\Roaming\\\\StarNet\\\\workspaces\\\\alpha\\\\x.png"}', '{"path":"<workspace>\\\\alpha\\\\x.png"}'],
-    ['file URL', 'open file:///C:/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x.png', 'open file:///<workspace>/alpha/x.png'],
-    ['URL-encoded (was: sent as written)', 'C%3A%5CUsers%5Candro%5CAppData%5CRoaming%5CStarNet%5Cworkspaces%5Calpha%5Cx.png', '<workspace>%5Calpha%5Cx.png'],
-    ['partly URL-encoded (was: sent)', 'file:///C:/Users/andro/AppData/Roaming/StarNet/work%73paces/alpha/x.png', 'file:///<workspace>/alpha/x.png'],
-    ['lower-case hex, + for a space', 'c%3a%5cusers%5candro%5cappdata%5croaming%5cstarnet%5cworkspaces%2falpha', '<workspace>%2falpha'],
-    ['8.3 short form (was: sent)', 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\WORKSP~1\\alpha\\x.png', '<workspace>\\alpha\\x.png'],
-    ['8.3 hashed form (was: sent)', 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\WO3F2A~1\\alpha\\x.png', '<workspace>\\alpha\\x.png'],
-    ['\\\\?\\ prefix', '\\\\?\\C:\\Users\\andro\\AppData\\Roaming\\StarNet\\workspaces\\alpha\\x.png', '\\\\?\\<workspace>\\alpha\\x.png'],
-    ['WSL form (was: sent)', '/mnt/c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x.png', '<workspace>/alpha/x.png'],
-    ['Git Bash form (was: sent)', 'cd /c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha', 'cd <workspace>/alpha'],
-    ['Cygwin form', '/cygdrive/c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x', '<workspace>/alpha/x'],
-    ['mixed separators', 'C:\\Users//andro\\\\AppData/Roaming\\StarNet/workspaces\\alpha/x.png', '<workspace>\\alpha/x.png'],
-    ['legible, not deleted (was: `cd  && npm test`)', '`cd ' + WS + '\\alpha && npm test`', '`cd <workspace>\\alpha && npm test`'],
-    ['the root then a full stop (was: sent)', 'Your workspaces live in ' + WS + '.', 'Your workspaces live in <workspace>.'],
-    ['the root then an agent id and a full stop', 'see ' + WS + '\\alpha.', 'see <workspace>\\alpha.']
+    ['backslash', 'Saved at ' + WS + '\\alpha\\shots\\x.png.', 'Saved at [workspace]\\alpha\\shots\\x.png.'],
+    ['forward slash', 'Saved at C:/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/shots/x.png', 'Saved at [workspace]/alpha/shots/x.png'],
+    ['lower case', 'saved at c:\\users\\andro\\appdata\\roaming\\starnet\\workspaces\\alpha\\x.png', 'saved at [workspace]\\alpha\\x.png'],
+    ['JSON-escaped', '{"path":"C:\\\\Users\\\\andro\\\\AppData\\\\Roaming\\\\StarNet\\\\workspaces\\\\alpha\\\\x.png"}', '{"path":"[workspace]\\\\alpha\\\\x.png"}'],
+    ['file URL', 'open file:///C:/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x.png', 'open file:///[workspace]/alpha/x.png'],
+    ['URL-encoded (was: sent as written)', 'C%3A%5CUsers%5Candro%5CAppData%5CRoaming%5CStarNet%5Cworkspaces%5Calpha%5Cx.png', '[workspace]%5Calpha%5Cx.png'],
+    ['partly URL-encoded (was: sent)', 'file:///C:/Users/andro/AppData/Roaming/StarNet/work%73paces/alpha/x.png', 'file:///[workspace]/alpha/x.png'],
+    ['lower-case hex, + for a space', 'c%3a%5cusers%5candro%5cappdata%5croaming%5cstarnet%5cworkspaces%2falpha', '[workspace]%2falpha'],
+    ['8.3 short form (was: sent)', 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\WORKSP~1\\alpha\\x.png', '[workspace]\\alpha\\x.png'],
+    ['8.3 hashed form (was: sent)', 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\WO3F2A~1\\alpha\\x.png', '[workspace]\\alpha\\x.png'],
+    ['\\\\?\\ prefix', '\\\\?\\C:\\Users\\andro\\AppData\\Roaming\\StarNet\\workspaces\\alpha\\x.png', '\\\\?\\[workspace]\\alpha\\x.png'],
+    ['WSL form (was: sent)', '/mnt/c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x.png', '[workspace]/alpha/x.png'],
+    ['Git Bash form (was: sent)', 'cd /c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha', 'cd [workspace]/alpha'],
+    ['Cygwin form', '/cygdrive/c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x', '[workspace]/alpha/x'],
+    ['mixed separators', 'C:\\Users//andro\\\\AppData/Roaming\\StarNet/workspaces\\alpha/x.png', '[workspace]\\alpha/x.png'],
+    ['legible, not deleted (was: `cd  && npm test`)', '`cd ' + WS + '\\alpha && npm test`', '`cd [workspace]\\alpha && npm test`'],
+    ['the root then a full stop (was: sent)', 'Your workspaces live in ' + WS + '.', 'Your workspaces live in [workspace].'],
+    ['the root then an agent id and a full stop', 'see ' + WS + '\\alpha.', 'see [workspace]\\alpha.']
   ];
   for (const [label, text, want] of bypass) {
     const got = scrub(text);
@@ -64,19 +64,25 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     ['a project path', 'Wrote C:\\Users\\andro\\code\\proj\\report.md'],
     ['plain prose', 'nothing to see here']
   ]) A.eq(scrub(text), text, 'scrub leaves alone: ' + label);
-  A.eq(PLACEHOLDER, '<workspace>', 'the placeholder is the readable "<workspace>"');
+  A.eq(PLACEHOLDER, '[workspace]', 'the placeholder is the readable "[workspace]"');
+  // minor-7 (review round 4): Slack reads <…> as a control sequence (a link or a mention), so the placeholder never uses
+  // angle brackets, and it can never recurse: scrubbing it, or a text already scrubbed, changes nothing
+  A.ok(!/[<>]/.test(PLACEHOLDER), 'the placeholder carries no angle brackets (was: "<workspace>", a Slack control sequence)');
+  for (const t of [PLACEHOLDER, PLACEHOLDER + '\\alpha\\x.png', 'cd ' + PLACEHOLDER + '/alpha && ' + PLACEHOLDER + '.', '[' + PLACEHOLDER + ']']) {
+    A.eq(scrub(t), t, 'scrubbing the placeholder is a no-op: ' + JSON.stringify(t));
+  }
   {
     const posix = makeHostPathScrub({ fixed: ['/home/me/.config/StarNet/workspaces'] });
-    A.eq(posix('wrote /home/me/.config/StarNet/workspaces/alpha/x.md and /home/me/.config/StarNet/workspaces.bak/y'), 'wrote <workspace>/alpha/x.md and /home/me/.config/StarNet/workspaces.bak/y', 'a POSIX root is scrubbed the same way');
+    A.eq(posix('wrote /home/me/.config/StarNet/workspaces/alpha/x.md and /home/me/.config/StarNet/workspaces.bak/y'), 'wrote [workspace]/alpha/x.md and /home/me/.config/StarNet/workspaces.bak/y', 'a POSIX root is scrubbed the same way');
   }
   {
     // the real path (a junctioned data folder) by every spelling, and FAIL CLOSED
     const forms = hostPathForms(WS, { realpath: () => 'D:\\Data\\StarNet\\ws' });
     A.ok(forms.indexOf('D:\\Data\\StarNet\\ws') >= 0 && forms.indexOf('/d/Data/StarNet/ws') >= 0 && forms.indexOf('/mnt/c/Users/andro/AppData/Roaming/StarNet/workspaces') >= 0, 'hostPathForms: the root, its real path, and their shell forms (' + forms.join(' | ') + ')');
     const live = makeHostPathScrub({ fixed: [WS], prefixes: () => hostPathForms(WS, { realpath: () => 'D:\\Data\\StarNet\\ws' }) });
-    A.eq(live('at D:\\Data\\StarNet\\ws\\alpha\\x and /d/Data/StarNet/ws/alpha'), 'at <workspace>\\alpha\\x and <workspace>/alpha', 'the real path is scrubbed too');
+    A.eq(live('at D:\\Data\\StarNet\\ws\\alpha\\x and /d/Data/StarNet/ws/alpha'), 'at [workspace]\\alpha\\x and [workspace]/alpha', 'the real path is scrubbed too');
     const throwing = makeHostPathScrub({ fixed: [WS], prefixes: () => { throw new Error('realpath exploded'); } });
-    A.eq(throwing('at ' + WS + '\\alpha\\x'), 'at <workspace>\\alpha\\x', 'fail closed: a throwing prefix list still scrubs the configured root');
+    A.eq(throwing('at ' + WS + '\\alpha\\x'), 'at [workspace]\\alpha\\x', 'fail closed: a throwing prefix list still scrubs the configured root');
     const badReal = hostPathForms(WS, { realpath: () => { const e = new Error('EPERM'); e.code = 'EPERM'; throw e; } });
     A.ok(badReal.indexOf(WS) === 0 && badReal.length === 4, 'hostPathForms: a realpath that throws still returns the root\'s spellings');
   }
@@ -93,7 +99,7 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     const hub = hubWith({ scrubOutbound: scrub }, sent);
     await hub._internals.deliver('chat1', atEdge, 'r1', 'done');
     A.ok(sent.length >= 1 && !sent.some(leaks), 'hub deliver: a path at the chunk boundary never goes out in halves (was: "…C:\\Users\\andro\\AppData\\Ro" + "aming…")');
-    A.ok(sent.join('').indexOf('<workspace>\\alpha\\shots\\x') >= 0, 'hub deliver: the placeholder stands where the path was');
+    A.ok(sent.join('').indexOf('[workspace]\\alpha\\shots\\x') >= 0, 'hub deliver: the placeholder stands where the path was');
   }
   {
     const sent = [];
@@ -107,7 +113,7 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     await hub._internals.deliver('chat1', atEdge, 'r2', 'done');
     A.ok(sent.length >= 1 && !sent.some(leaks), 'hub with a rig\'s hostPathPrefixes: the same whole-text scrub');
     await hub._internals.deliver('chat1', 'final at /c/Users/andro/AppData/Roaming/StarNet/workspaces/alpha/x', 'r3', 'done', '', null, 'seed-1');
-    A.ok(edits.length === 1 && !leaks(edits[0]) && /<workspace>\/alpha\/x/.test(edits[0]), 'hub editMessage (a streamed reply replaced in place) is scrubbed: ' + JSON.stringify(edits));
+    A.ok(edits.length === 1 && !leaks(edits[0]) && edits[0].indexOf(PLACEHOLDER + '/alpha/x') >= 0, 'hub editMessage (a streamed reply replaced in place) is scrubbed: ' + JSON.stringify(edits));
   }
 
   // ---- 3. guardOutbound on REAL adapters: the sends that never pass a hub ----

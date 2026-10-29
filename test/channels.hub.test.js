@@ -605,7 +605,7 @@ async function run() {
     A.ok(Array.isArray(last.attachments) && last.attachments[0].path === '.attachments/take.ogg', 'M3: the references reach runOnce unexpanded, for the run host to place');
     const reply = sent.join('\n');
     // round 3: the root becomes a readable placeholder (deleting it mangled "cd <root>\alpha && npm test" to "cd  && npm test")
-    A.ok(reply.indexOf('Saved at <workspace>/tg_79/.attachments/take.ogg and <workspace>/tg_79/shots/s.png.') >= 0 && !/station/i.test(reply), 'the chat never sees the host path a reply echoed: ' + JSON.stringify(reply));
+    A.ok(reply.indexOf('Saved at [workspace]/tg_79/.attachments/take.ogg and [workspace]/tg_79/shots/s.png.') >= 0 && !/station/i.test(reply), 'the chat never sees the host path a reply echoed: ' + JSON.stringify(reply));
     // and the host wires it so: no durable-path hook names the stored turn absolutely, and every hub gets the ONE scrub
     // (the full wiring lock, every surface and every hub, is test/host-path-scrub.test.js section 5)
     const { readSidecarSource } = require('./helpers/source');

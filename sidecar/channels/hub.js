@@ -389,7 +389,7 @@
        absolute path in the agent's private workspace (attachments.js expandForRun), and a model will echo it. A chat is
        never shown an absolute host path: o.scrubOutbound (the host's ONE scrub, sidecar/host-path-scrub.js) runs on the
        WHOLE text before deliver() or the outbox chunks it (a path cut at a chunk boundary went out in two halves), and
-       again on every send / edit, so "<workspaces>\alpha\x.png" reads "<workspace>\alpha\x.png". A rig may pass
+       again on every send / edit, so "<workspaces>\alpha\x.png" reads "[workspace]\alpha\x.png". A rig may pass
        hostPathPrefixes() instead and gets the same scrub over those prefixes. Absent both, the text goes as written. */
     const HostPathScrub = (typeof require === 'function') ? require('../host-path-scrub.js') : null;
     const scrubHostPaths = typeof o.scrubOutbound === 'function' ? o.scrubOutbound
