@@ -186,7 +186,13 @@ const lineage = require('../sidecar/workspace-lineage.js');
   const aliasModel = core.pickAgent(rt, { agent: 'agent', provider: 'OR', model: 'x/y' });
   A.eq([aliasModel.provider, aliasModel.model], ['openrouter', 'x/y'], '--provider resolves its alias with --model too');
   const unknownProv = core.pickAgent(rt, { agent: 'researcher', provider: 'not-a-provider' });
-  A.ok(!unknownProv.ok && /needs --model too/.test(unknownProv.error), 'an unknown bare --provider is still refused: ' + JSON.stringify(unknownProv));
+  A.ok(!unknownProv.ok && /--provider "not-a-provider" is not a provider this station knows/.test(unknownProv.error), 'an unknown bare --provider is still refused: ' + JSON.stringify(unknownProv));
+  // (review round 4) ...and so is an unknown --provider WITH --model: it was sent as typed, and the station's /api/run ran
+  // it on openrouter with its own key (`starnet run --provider olama --model llama3` ran openrouter/llama3)
+  for (const typo of ['olama', 'open-router', 'chatgpt']) {
+    const sel = core.pickAgent(rt, { agent: 'researcher', provider: typo, model: 'llama3' });
+    A.ok(!sel.ok && sel.error === '--provider "' + typo + '" is not a provider this station knows', '--provider ' + typo + ' --model llama3 is refused: ' + JSON.stringify(sel));
+  }
   // the help says what --model / --provider really do (the run-wire rule), not "override the agent's provider"
   const help = core.USAGE;
   A.ok(!/override the agent's provider/.test(help) && /a provider alone names no/.test(help) && /--model <slug>\s+run this model instead of the agent's \(on the agent's provider unless --provider names one\)/.test(help),

@@ -20820,6 +20820,11 @@ async function handleRun(req, res) {
   if (terminalClient) body.system = String(body.system || '') + TERMINAL_NOTE;
   else if (body && typeof body === 'object' && body.client === 'editor') body.system = String(body.system || '') + EDITOR_NOTE;
   const { model, system, messages = [], agentId = 'agent', isTask = false, provider, fallbackModels, fallbackProviders } = body || {};
+  // a provider this station does not know is refused (run-wire.js, the explicit level), never re-homed on OpenRouter with
+  // the station's key: normalizeProvider below falls back to openrouter for any id it does not know
+  if (provider != null && String(provider).trim() && !normalizeProviderId(provider)) {
+    res.writeHead(400); return res.end('provider "' + String(provider).trim().slice(0, 80) + '" is not a provider this station knows');
+  }
   const recurring = !!(body && body.recurring);   // the browser's mint detector saw this task SHAPE before → salience boost for reflection
   // REASON-ONLY SELF-TALK (retitle / goal-judge / pitch / autopilot): the caller composed a complete strict-format
   // prompt and parses the raw reply. runOnce keeps that system prompt VERBATIM (no manual/capability/skill/memory

@@ -321,7 +321,8 @@ const APP_EXIT_START_CANCELLED = 3;
    model, so it is refused unless it is the provider the agent already runs on. An empty roster is fine only when a model
    is given explicitly or the station reports one (the bare 'agent' identity — the cron driver's roster-less grace).
    Provider ids resolve through the station's own alias map (sidecar/providers/registry.js), so `--provider openai-codex`
-   is the 'codex' the agent runs on; an id the registry does not know is kept as typed, so a bare one is still refused. */
+   is the 'codex' the agent runs on. A --provider the registry does not know ('olama') is refused, with or without --model:
+   the station would otherwise run it on OpenRouter with its own key. A roster row's provider id is kept as typed. */
 const RunWire = require('../../sidecar/run-wire.js');
 const ProviderRegistry = require('../../sidecar/providers/registry.js');
 function cliProviderId(p) { return ProviderRegistry.normalizeProviderId(p, '') || String(p || '').trim().toLowerCase(); }
@@ -337,6 +338,9 @@ function pickAgent(runtime, want) {
     rec = agents.find(a => a && a.agentId === DEFAULT_AGENT_ID) || agents[0] || null;
   }
   const agentId = rec ? rec.agentId : DEFAULT_AGENT_ID;
+  if (w.provider && !ProviderRegistry.normalizeProviderId(w.provider, '')) {
+    return { ok: false, error: '--provider ' + JSON.stringify(String(w.provider)) + ' is not a provider this station knows' };
+  }
   const own = (rec && rec.wire && rec.wire.model) ? rec.wire : rec;
   const wire = RunWire.resolveRunWire({
     agentId: 'cli-target',   // not the hero's id: the row and the station default stay two levels

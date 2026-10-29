@@ -11,7 +11,9 @@
      - a resolved provider the station holds no credential for (STARNET_V1_PROVIDER=anthropic, no Anthropic key) answers
        503 provider_not_configured before any run starts — the prompt used to go out unauthenticated;
      - a session-header request that selects a roster agent runs as 'api-<session>' (not on the roster), so the run now
-       carries that agent's effort as its own: runOnceCore's resolution used to give it the Overseer's. */
+       carries that agent's effort as its own: runOnceCore's resolution used to give it the Overseer's;
+     - POST /api/run (the same family, review round 4) refuses a body's provider this station does not know with a 400,
+       where its normalizeProvider re-homed it on openrouter with the station's key. */
 'use strict';
 const A = require('./_assert.js');
 const http = require('http');
@@ -135,6 +137,34 @@ const readBody = async req => { let s = ''; for await (const c of req) s += c; r
     for (let i = 0; i < 50 && !ran.length; i++) await new Promise(r => setTimeout(r, 10));
     A.eq([ran[0] && ran[0].agentId, ran[0] && host.runWireOfRun(ran[0]).reasoningEffort], ['scout', 'high'], 'a /v1/runs request with no session runs as scout, at the same effort');
   } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); }
+
+  // ---- 5. POST /api/run (COMMS, `starnet run`, ACP) refuses a provider this station does not know (review round 4) ----
+  // handleRun's own source, run until it refuses or passes the provider check. Its normalizeProvider falls back to
+  // openrouter, so `starnet run --provider olama --model llama3` ran openrouter/llama3 on the station's own key before
+  // runOnceCore could refuse it (r4-unknown-provider.js). Past the check, a stub `require` stops it with a marker.
+  {
+    const PAST = 'past the provider check';
+    let sent = {};
+    const handleRun = new Function('readBody', 'agentRoster', 'normalizeProviderId', 'normalizeProvider', 'runWireFor', 'overseer', 'runStore', 'require',
+      sidecarFunctionSource('handleRun') + '\nreturn handleRun;')(
+      async () => JSON.stringify(sent), agentRoster, normalizeProviderId, normalizeProvider, (id, ex) => host.runWireFor(id, ex),
+      { resumeReviews() {} }, { all: () => [] }, () => { throw new Error(PAST); });
+    const apiRun = async body => {
+      sent = body;
+      let status = 0, text = '';
+      await handleRun({}, { headersSent: false, writeHead(s) { status = s; }, end(t) { text = String(t == null ? '' : t); } });
+      return { status, text };
+    };
+    for (const typo of ['olama', 'open-router', 'chatgpt']) {
+      const r = await apiRun({ provider: typo, model: 'llama3', agentId: 'agent', messages: [{ role: 'user', content: 'hi' }] });
+      A.eq(r.status, 400, '/api/run with provider ' + JSON.stringify(typo) + ' is refused (400), never run on openrouter');
+      A.eq(r.text, 'provider "' + typo + '" is not a provider this station knows', '...and says which provider: ' + r.text);
+    }
+    for (const known of ['openrouter', 'OpenRouter', ' codex ', 'openai-codex', '', undefined]) {
+      const r = await apiRun({ provider: known, model: 'llama3', agentId: 'agent', messages: [] });
+      A.ok(r.status === 409 && r.text.indexOf(PAST) >= 0, '/api/run with provider ' + JSON.stringify(known) + ' passes the provider check: ' + r.status + ' ' + r.text);
+    }
+  }
 
   A.report('run-wire.v1: /v1 refuses a pair it cannot run, and runs the selected agent\'s effort');
 })().catch(e => { A.ok(false, 'run-wire.v1 threw: ' + ((e && e.stack) || e)); A.report('run-wire.v1'); });
