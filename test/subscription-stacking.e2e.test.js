@@ -17,13 +17,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 
 const FAKE_CLI = String.raw`'use strict';
 const fs = require('fs'), path = require('path');
-const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const args = process.argv.slice(2);
 const dir = process.env.CLAUDE_CONFIG_DIR || '';
 const who = dir ? path.basename(dir) : 'primary';
