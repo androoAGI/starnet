@@ -1025,11 +1025,12 @@
        REFERENCE (${file:relative/path}, or a multipart part naming a file), the host resolves it at send
        time, and the payload never enters model context in either direction. Files resolve through
        deps.readWorkspaceFile(agentId, path, ctx). It was the per-agent jail alone, so in a project run the file
-       fs.write had just made (report.md -> the project) was missed or swapped for a stale private one. That
-       widening was a decision, and the owner made it (run-paths review S3, 2026-10-28): the name resolves through
-       the RUN's path object, read scope, exactly what fs.read in this run opens (path trust and the .env/.git floor
-       on every target, no fallback to another folder). A run that can already read a file adds no reach by sending
-       it. Lowercase 'file:' can never collide with SECRET_REF's [A-Z] names. */
+       fs.write had just made (report.md -> the project) was missed or swapped for a stale private one. The owner
+       decided the reach (run-paths review round 2, 2026-10-28, final): a file leaves only if its real path is inside
+       THIS run's own private workspace or its own approved project root. Reading is not sending: another blessed
+       folder, a hand-off grant, This Computer or Full Power reach is never sent, the .env/.git/credential floor
+       always holds, and a send never raises a path card (the host's sidecar/egress-files.js). Lowercase 'file:'
+       can never collide with SECRET_REF's [A-Z] names. */
     const FILE_REF_RE = /\$\{file:([^}]*)\}/g;
     const FILE_REF_TEST = /\$\{file:/;
     const FILE_MAX_BYTES = 20 * 1024 * 1024;      // one referenced file
@@ -1279,7 +1280,7 @@
           const rr = String(rel == null ? '' : rel).trim();
           if (!rr) throw new Error('a file reference needs a workspace-relative path');
           if (typeof deps.readWorkspaceFile !== 'function') throw new Error('this run has no workspace, so it cannot attach files');
-          // throws on a refused path (path trust, the floor, '..', a link out) and on a missing file — fail loudly pre-send
+          // throws on a refused path (outside this run's own folders, the floor, '..', a link out) and on a missing file — fail loudly pre-send
           const buf = await deps.readWorkspaceFile((ctx && ctx.agentId) || 'agent', rr, ctx);
           if (buf.length > FILE_MAX_BYTES) throw new Error('"' + rr + '" is ' + (buf.length / (1024 * 1024)).toFixed(1) + 'MB — the per-file limit is ' + (FILE_MAX_BYTES / (1024 * 1024)) + 'MB');
           payloadBytes += buf.length;

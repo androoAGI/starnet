@@ -51,6 +51,49 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /* THE CREDENTIAL FLOOR (2026-10-10 security pass). The THIS COMPUTER profile gives every run — scheduled and
+     chat-driven ones included — read access to any non-hardline path with no card, and fs.read never asks. So a
+     prompt-injected routine could read the user's SSH keys, cloud CLI logins, other AI CLIs' tokens, release
+     signing keys or browser profiles and fetch them out. These well-known credential stores are part of the
+     floor: no project grant or Full Access reaches them; only host-wide Full Power (unrestrictedHost, which
+     bypasses this whole function) does — the operator's explicit "this agent is me" switch. Matched on path
+     SEGMENTS (forward-slashed, case-folded), so a name merely containing ".ssh" is not caught. */
+  const CREDENTIAL_STORES = [
+    [/(^|\/)\.(ssh|gnupg|aws|azure|kube|tauri|starnet-signing|starnet-keys|fly|codex)(\/|$)/, 'SSH, GPG, cloud CLI and signing keys'],
+    [/(^|\/)(\.netrc|_netrc|\.git-credentials|\.pypirc|\.pgpass|\.npmrc)$|(^|\/)\.cargo\/credentials(\.toml)?$/, 'saved login credentials'],
+    // gcloud and the GitHub CLI keep their logins under %APPDATA% on Windows, ~/.config elsewhere
+    [/(^|\/)\.docker\/config\.json$|(^|\/)\.config\/(gcloud|gh)(\/|$)|(^|\/)appdata\/roaming\/(gcloud|github cli)(\/|$)|(^|\/)\.claude\/\.credentials\.json$/, 'cloud and developer CLI logins'],
+    [/(^|\/)microsoft\/(credentials|protect|vault)(\/|$)|(^|\/)library\/keychains(\/|$)|(^|\/)\.local\/share\/keyrings(\/|$)/, 'the operating system credential store'],
+    // browser profiles are matched under their real parent folders (AppData, ~/.config and its snap/flatpak
+    // twins, ~/Library) — a project folder merely NAMED chromium or vivaldi is an ordinary project. The [^\/]*
+    // suffix keeps the Beta/Dev/SxS/Stable siblings ("Chrome SxS", "Edge Beta", "google-chrome-beta").
+    // A Microsoft Store (MSIX) browser keeps its AppData under Packages/<pkg>/LocalCache/{Local,Roaming}.
+    // Opera's ~/.config folders are named exactly, so ~/.config/operator or .config/operations stay readable.
+    [/(^|\/)(appdata|localcache)\/(local|roaming)\/(google\/chrome|chromium|microsoft\/edge|bravesoftware\/brave-browser|vivaldi|opera software|mozilla\/firefox)[^\/]*(\/|$)|(^|\/)\.mozilla\/firefox(\/|$)|(^|\/)(\.config|\.var\/app\/[^\/]+\/config|snap\/chromium\/common)\/(google-chrome[^\/]*|chromium|vivaldi[^\/]*|brave-?software|opera(-beta|-developer|-gx)?|microsoft-edge[^\/]*)(\/|$)|(^|\/)library\/(cookies|application support\/(google\/chrome[^\/]*|chromium|vivaldi|firefox|microsoft edge[^\/]*|bravesoftware|com\.operasoftware\.opera[^\/]*))(\/|$)/, 'browser profiles (cookies and saved passwords)']
+  ];
+  function credentialFloor(p) {
+    const s = String(p || '').replace(/\\/g, '/').toLowerCase();
+    for (const [rx, what] of CREDENTIAL_STORES) if (rx.test(s)) return what;
+    return null;
+  }
+
+  /* the unconditional floor: a reason if the path is illegal or protected regardless of any grant, else null. Pure (no
+     deps), and exported: a file LEAVING the station (sidecar/egress-files.js) checks this same floor on every spelling
+     of its name, whatever the run's access posture. */
+  function hardlineReason(rawAbs, resolvedAbs) {
+    if (rawAbs.indexOf('\0') >= 0) return 'illegal path (NUL): ' + rawAbs;
+    // UNC / network path — off-host, never blessable. Check the RAW string (P.resolve can mangle it).
+    if (/^[\\/]{2}/.test(rawAbs)) return 'network paths (UNC) are not permitted: ' + rawAbs;
+    const probe = resolvedAbs || rawAbs;
+    // `:` too: NTFS stream syntax (`.env::$DATA`, `.git::$INDEX_ALLOCATION\hooks`) opens the protected file itself, and the
+    // guard's realpath re-proof only canonicalizes a target that already exists
+    if (/(^|[\\/])\.env(\.|:|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.env)';
+    if (/(^|[\\/])\.git([\\/:]|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.git)';
+    const cred = credentialFloor(probe);
+    if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — only Full Power reaches it';
+    return null;
+  }
+
   function makePathTrust(deps) {
     deps = deps || {};
     const fsp = deps.fsp, P = deps.pathMod;
@@ -96,47 +139,6 @@
     // the grant key, the projects-store key, and this comparison are ONE string. Case is left as realpath
     // returns it; pathInside is case-insensitive on win32, so any residual case difference still matches.
     function normalizeRoot(abs) { return P.resolve(String(abs == null ? '' : abs)); }
-
-    /* THE CREDENTIAL FLOOR (2026-10-10 security pass). The THIS COMPUTER profile gives every run — scheduled and
-       chat-driven ones included — read access to any non-hardline path with no card, and fs.read never asks. So a
-       prompt-injected routine could read the user's SSH keys, cloud CLI logins, other AI CLIs' tokens, release
-       signing keys or browser profiles and fetch them out. These well-known credential stores are part of the
-       floor: no project grant or Full Access reaches them; only host-wide Full Power (unrestrictedHost, which
-       bypasses this whole function) does — the operator's explicit "this agent is me" switch. Matched on path
-       SEGMENTS (forward-slashed, case-folded), so a name merely containing ".ssh" is not caught. */
-    const CREDENTIAL_STORES = [
-      [/(^|\/)\.(ssh|gnupg|aws|azure|kube|tauri|starnet-signing|starnet-keys|fly|codex)(\/|$)/, 'SSH, GPG, cloud CLI and signing keys'],
-      [/(^|\/)(\.netrc|_netrc|\.git-credentials|\.pypirc|\.pgpass|\.npmrc)$|(^|\/)\.cargo\/credentials(\.toml)?$/, 'saved login credentials'],
-      // gcloud and the GitHub CLI keep their logins under %APPDATA% on Windows, ~/.config elsewhere
-      [/(^|\/)\.docker\/config\.json$|(^|\/)\.config\/(gcloud|gh)(\/|$)|(^|\/)appdata\/roaming\/(gcloud|github cli)(\/|$)|(^|\/)\.claude\/\.credentials\.json$/, 'cloud and developer CLI logins'],
-      [/(^|\/)microsoft\/(credentials|protect|vault)(\/|$)|(^|\/)library\/keychains(\/|$)|(^|\/)\.local\/share\/keyrings(\/|$)/, 'the operating system credential store'],
-      // browser profiles are matched under their real parent folders (AppData, ~/.config and its snap/flatpak
-      // twins, ~/Library) — a project folder merely NAMED chromium or vivaldi is an ordinary project. The [^\/]*
-      // suffix keeps the Beta/Dev/SxS/Stable siblings ("Chrome SxS", "Edge Beta", "google-chrome-beta").
-      // A Microsoft Store (MSIX) browser keeps its AppData under Packages/<pkg>/LocalCache/{Local,Roaming}.
-      // Opera's ~/.config folders are named exactly, so ~/.config/operator or .config/operations stay readable.
-      [/(^|\/)(appdata|localcache)\/(local|roaming)\/(google\/chrome|chromium|microsoft\/edge|bravesoftware\/brave-browser|vivaldi|opera software|mozilla\/firefox)[^\/]*(\/|$)|(^|\/)\.mozilla\/firefox(\/|$)|(^|\/)(\.config|\.var\/app\/[^\/]+\/config|snap\/chromium\/common)\/(google-chrome[^\/]*|chromium|vivaldi[^\/]*|brave-?software|opera(-beta|-developer|-gx)?|microsoft-edge[^\/]*)(\/|$)|(^|\/)library\/(cookies|application support\/(google\/chrome[^\/]*|chromium|vivaldi|firefox|microsoft edge[^\/]*|bravesoftware|com\.operasoftware\.opera[^\/]*))(\/|$)/, 'browser profiles (cookies and saved passwords)']
-    ];
-    function credentialFloor(p) {
-      const s = String(p || '').replace(/\\/g, '/').toLowerCase();
-      for (const [rx, what] of CREDENTIAL_STORES) if (rx.test(s)) return what;
-      return null;
-    }
-
-    // the unconditional floor — throws a reason if the path is illegal or protected regardless of any grant.
-    function hardlineReason(rawAbs, resolvedAbs) {
-      if (rawAbs.indexOf('\0') >= 0) return 'illegal path (NUL): ' + rawAbs;
-      // UNC / network path — off-host, never blessable. Check the RAW string (P.resolve can mangle it).
-      if (/^[\\/]{2}/.test(rawAbs)) return 'network paths (UNC) are not permitted: ' + rawAbs;
-      const probe = resolvedAbs || rawAbs;
-      // `:` too: NTFS stream syntax (`.env::$DATA`, `.git::$INDEX_ALLOCATION\hooks`) opens the protected file itself, and the
-      // realpath re-proof below only canonicalizes a target that already exists
-      if (/(^|[\\/])\.env(\.|:|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.env)';
-      if (/(^|[\\/])\.git([\\/:]|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.git)';
-      const cred = credentialFloor(probe);
-      if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — only Full Power reaches it';
-      return null;
-    }
 
     // propose the project root to bless for a referenced path: the nearest ancestor that is a git repo
     // (natural project boundary), else the directory containing the file. Bounded ancestor walk.
@@ -286,5 +288,5 @@
     return { guard, detectRoot, normalizeRoot, _internals: { pathInside, realpathDeepest, hardlineReason } };
   }
 
-  return { makePathTrust };
+  return { makePathTrust, hardlineReason };
 });

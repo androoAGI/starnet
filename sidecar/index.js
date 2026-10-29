@@ -6910,11 +6910,11 @@ const cronEmit = (name, payload) => { try { return cronEmitValidated(name, redac
    wrong platform or silently nowhere. */
 /* readChannelUpload(agentId, rel, ctx?, projectRoot?) -> { ok, buffer, name, mime, shown } | { ok:false, error, shown } —
    the ONE READ for every file that leaves the station for a chat (channel.send's `files`, a routine delivery's
-   attachments). OWNER DECISION (run-paths review S3, 2026-10-28): the name resolves through the PRODUCING run's path
-   object, read scope — the live run's ctx.paths, or, for a finished run (a routine's delivery), one minted from its row's
-   agent and project root under the unattended trust rule. So it opens exactly what fs.read in that run opens: path trust
-   and the .env/.git floor on every target, the symlink re-proof, no fallback to a same-named file in another folder.
-   `shown` is the name a chat may see (never an absolute host path). Never throws (sidecar/egress-files.js). */
+   attachments). OWNER DECISION (run-paths review round 2, 2026-10-28, final): a file leaves only if its real path is
+   inside the PRODUCING run's own private workspace or its own approved project root (the live run's ctx.paths, or, for
+   a finished run, one minted from its row's agent and project root). Never another blessed root, a session root, a
+   hand-off grant, This Computer or Full Power reach; the .env/.git/credential floor always holds; a send never raises a
+   path card. `shown` is the name a chat may see (never an absolute host path). Never throws (sidecar/egress-files.js). */
 const egressDeps = { fsp, pathMod: path, mimeFor: mimeForPath, workspaces: WORKSPACES, guard: (abs, o2) => pathTrustCore.guard(abs, o2) };
 const egressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: CHANNEL_UPLOAD_MAX_BYTES });
 const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: 20 * 1024 * 1024 });   // web.js FILE_MAX_BYTES
@@ -21766,8 +21766,8 @@ async function runOnceCore(o) {
     // reservedEnv lets web_request tell a model-provider key apart from a missing one: KEYS refuses provider
     // keys, so "add it in KEYS" would send the Commander round a loop they can never finish.
     resolveServiceKey: (name, sfc) => serviceKeysMod.resolveForRequest(liveServiceKeys(), name, sfc, { reservedEnv: SERVICEKEYS_RESERVED_ENV }),
-    // workspace files in outbound requests (${file:...} body refs / multipart parts): resolved through THIS run's path
-    // object, read scope — what fs.read here opens, floor included (owner decision, run-paths review S3; egress-files.js)
+    // workspace files in outbound requests (${file:...} body refs / multipart parts): only a file inside THIS run's own
+    // private workspace or approved project root, the floor always (owner decision, run-paths review round 2; egress-files.js)
     readWorkspaceFile: async (aid, rel, ctx) => {
       const got = await webEgressReader.readFor(aid, rel, ctx, '', { allowEmpty: true });
       if (!got.ok) throw new Error(got.error);

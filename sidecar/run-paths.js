@@ -37,6 +37,7 @@
 'use strict';
 const { note: failNote } = require('./failopen');
 const { assertWorkspaceId } = require('./workspace-reserved.js');
+const { hardlineReason } = require('./pathtrust.js');   // the pure floor: the private workspace meets it too (M1)
 
 // The brand is MODULE-PRIVATE: only makeRunPaths below can mint an object isRunPaths accepts. A Symbol.for() key was
 // forgeable by any code that could build a plain object ({ [Symbol.for('starnet.runPaths')]: true, root: '/' }).
@@ -143,6 +144,15 @@ function makeResolver(deps) {
     const existing = await deepestExisting(abs, base);
     const existingReal = await realpathExisting(existing);
     if (!pathInside(existingReal, baseReal)) throw new Error('path escapes workspace via symlink');
+    /* THE FLOOR HOLDS IN THE PRIVATE WORKSPACE TOO (review round 2, M1). The same file named absolutely goes through path
+       trust and meets the .env / .git / credential floor; named jail-relative ("repo/.env") it skipped the floor, so the
+       spelling decided. A floor hit is answered exactly as its absolute spelling is: by the run's guard when one is wired
+       (only host-wide Full Power passes it), else refused. Every other jail name resolves as before, guard untouched. */
+    const floor = hardlineReason(rel, abs) || hardlineReason(existingReal, existingReal);
+    if (floor) {
+      if (!pathTrust) throw new Error(floor);
+      await pathTrust(abs, { scope: opts.scope === 'write' ? 'write' : 'read', agentId: agentId, ctx: opts.ctx });
+    }
     await checkpointResolvedRoot(base, opts);
     return { base, abs };
   }

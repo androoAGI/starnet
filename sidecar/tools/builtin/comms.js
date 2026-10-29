@@ -130,9 +130,9 @@
     // carry a key-shaped string, and this is the one tool that would hand it to a third party.
     const redact = typeof deps.redact === 'function' ? deps.redact : function (t) { return t; };
     const emit = typeof deps.emit === 'function' ? deps.emit : function () {};
-    // OUTBOUND FILES (2026-07-29). Both injected: readFile(agentId, path, ctx) resolves the path through the RUN's path
-    // object (ctx.paths, read scope: what fs.read in this run opens, the .env/.git floor included — the host owns that
-    // proof, sidecar/egress-files.js), sendMediaTo uploads through the channel's transport. Absent either one,
+    // OUTBOUND FILES (2026-07-29). Both injected: readFile(agentId, path, ctx) reads a file only from inside the RUN's own
+    // private workspace or approved project root (ctx.paths), the .env/.git/credential floor always, never with a path
+    // card (the host owns that proof, sidecar/egress-files.js); sendMediaTo uploads through the channel's transport. Absent either one,
     // `files` is refused with a reason rather than silently ignored — an agent told "sent" about a file that
     // never moved is the exact lie this file exists to prevent.
     const readFile = typeof deps.readFile === 'function' ? deps.readFile : null;

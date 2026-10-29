@@ -77,6 +77,32 @@ function plant(linkAt, target) {
     if (plant(path.join(JAIL, 'link'), OUTSIDE)) {
       A.ok(await refuses(jailed, 'link/secret.txt', 'read', /via symlink/), 'private workspace: a planted link out of the jail is refused');
     }
+    /* M1 (review round 2): the floor holds for a JAIL-relative name too. A repo cloned into the private workspace has a
+       .env and a .git; named absolutely they met the floor, named "repo/.env" they did not. Every spelling now gets the
+       absolute spelling's answer: refused under ordinary posture (and by a resolver with no guard at all), and passed
+       only where the guard itself passes it, host-wide Full Power. */
+    {
+      fs.mkdirSync(path.join(JAIL, 'repo', '.git'), { recursive: true });
+      fs.writeFileSync(path.join(JAIL, 'repo', '.env'), 'OPENAI_API_KEY=sk-jail');
+      fs.writeFileSync(path.join(JAIL, 'repo', '.git', 'config'), '[remote] url=https://tok@x');
+      fs.writeFileSync(path.join(JAIL, 'repo', 'notes.txt'), 'fine');
+      const bare = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS }), { agentId: AID });
+      for (const [label, p] of [['private workspace', jailed], ['private workspace, no guard wired', bare]]) {
+        for (const scope of ['read', 'write']) {
+          for (const n of ['repo/.env', 'repo/.git/config', 'repo/.git/hooks/pre-commit', 'repo/.env::$DATA', 'repo\\.git\\config', 'fresh/.env']) {
+            A.ok(await refuses(p, n, scope, /floor/), label + ' ' + scope + ': the floor holds for the jail-relative ' + n);
+          }
+        }
+        A.ok(!!(await p.resolve('repo/notes.txt', { scope: 'read' })), label + ': an ordinary file beside them still resolves');
+        A.ok(!!(await p.resolve('repo/.github/ci.yml', { scope: 'write' })), label + ': .github is not .git');
+      }
+      if (plant(path.join(JAIL, 'innocent'), path.join(JAIL, 'repo', '.git'))) {
+        A.ok(await refuses(jailed, 'innocent/config', 'read', /floor/), 'private workspace: a link named innocently onto .git meets the floor on its real path');
+      }
+      const fullPower = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS,
+        pathTrust: (abs, o2) => trustCore.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: AID, unrestrictedHost: true }) }), { agentId: AID });
+      A.eq((await fullPower.resolve('repo/.env', { scope: 'read' })).abs, path.join(JAIL, 'repo', '.env'), 'Full Power: the jail-relative .env gets what its absolute spelling gets (the guard passes it)');
+    }
     // what was reachable stays reachable
     fs.writeFileSync(path.join(PROJECT, 'ok.txt'), 'in the project');
     const inProj = await scoped.resolve('ok.txt', { scope: 'read' });

@@ -7,10 +7,10 @@
    Telegram never received the picture.
 
    THE FIX rides the delivery that is ALREADY approved. The Commander chose the destination when the routine was
-   saved; the files go to that same chat, read the way channel.send reads them (the host's readFile: through the
-   PRODUCING run's path object, so a project routine's relative name means its project — sidecar/egress-files.js),
-   uploaded with the same transport call. No new reach: a file can only go where the routine's words already go,
-   and only what a run of this fire could itself read.
+   saved; the files go to that same chat, read the way channel.send reads them (the host's readFile: only from inside
+   the PRODUCING run's own private workspace or approved project root, so a project routine's relative name means its
+   project — sidecar/egress-files.js), uploaded with the same transport call. No new reach: a file can only go where the
+   routine's words already go, and only from the folders the run that made it worked in.
 
    Which files (capped at MAX_FILES, the same 4 channel.send allows):
      1. ATTACH lines in the final reply — "ATTACH: charts/today.png", one per line. The agent's explicit choice,
