@@ -729,5 +729,26 @@ function world(opts) {
     A.eq(w2.drv._internals.standDownRuns(), 0, 'a deleted loop\'s run is pruned — the memory stays bounded');
   }
 
+  // ---- (run-paths review round 2, F8) a loop whose folder lapsed says so: the LOOP's folder, gone or no longer approved,
+  // never the routine's wording and never a raw ENOENT naming the host path. The host's own helper, run as it ships, over
+  // the real errors cronCanonicalWorkdir raises; and runOnceCore raises it for the run's workdir.
+  {
+    const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source');
+    const helper = sidecarFunctionSource('workdirLapsedError');
+    A.ok(helper.length > 0 && helper.length < 2000, 'the host defines workdirLapsedError');
+    const lapsed = new Function(helper + '\nreturn workdirLapsedError;')();
+    const fsx = require('fs'), osx = require('os'), px = require('path');
+    let enoent = null;
+    try { fsx.realpathSync(px.join(osx.tmpdir(), 'starnet-no-such-loop-folder-' + process.pid)); } catch (e) { enoent = e; }
+    const gone = lapsed('loop', enoent);
+    A.ok(/^This loop's folder no longer exists/.test(gone.message) && /resume the loop/.test(gone.message) && gone.code === 'WORKDIR_GONE', 'a deleted loop folder: ' + gone.message);
+    A.ok(gone.message.indexOf(osx.tmpdir()) < 0 && !/ENOENT|routine/.test(gone.message), 'no raw ENOENT, no host path, no routine wording');
+    const revoked = lapsed('loop', new Error('routine workdir must be a currently approved project folder'));
+    A.ok(/^This loop's folder is no longer an approved project folder/.test(revoked.message) && !/routine/.test(revoked.message) && revoked.code === 'WORKDIR_UNAPPROVED', 'a revoked loop folder: ' + revoked.message);
+    A.ok(/^This routine's folder is no longer an approved/.test(lapsed('schedule', new Error('x')).message), 'a routine still says routine');
+    const core = sidecarTopLevelFunction('runOnceCore');
+    A.ok(/try \{ cronRoot = cronCanonicalWorkdir\(o\.workdir\); \}[^\n]*\n\s*catch \(e\) \{ throw workdirLapsedError\(o\.trigger, e\); \}/.test(core), 'runOnceCore raises it when the run\'s workdir lapsed');
+  }
+
   A.report('loopjob-driver (LOOP tick driver)');
 })().catch(e => { console.log('FAIL: unexpected throw — ' + (e && e.stack || e)); process.exit(1); });

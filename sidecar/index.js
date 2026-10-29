@@ -5641,6 +5641,17 @@ function cronCanonicalWorkdir(raw) {
   if (!isBlessedRoot(abs)) throw new Error('routine workdir must be a currently approved project folder');
   return abs;
 }
+/* A run whose working folder lapsed says WHOSE folder and WHY (run-paths review round 2, F8). A loop used to stop with the
+   routine's wording ("routine workdir must be a currently approved project folder"), or with a raw ENOENT that quoted
+   the host path, when its folder was revoked or deleted between the precheck and the run. */
+function workdirLapsedError(trigger, e) {
+  const whose = trigger === 'loop' ? "This loop's folder" : (trigger === 'schedule' ? "This routine's folder" : "This run's working folder");
+  const gone = !!(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR' || /existing directory/.test(String(e.message || ''))));
+  const err = new Error(whose + (gone ? ' no longer exists' : ' is no longer an approved project folder') + ', so nothing ran: '
+    + (gone ? 'restore it, or pick another folder,' : 'approve it again') + (trigger === 'loop' ? ' and resume the loop' : ' and run it again'));
+  err.code = gone ? 'WORKDIR_GONE' : 'WORKDIR_UNAPPROVED';
+  return err;
+}
 function cronScriptSpec(job) {
   if (!job || !job.script) return null;
   if (!Array.isArray(job.unattendedGrants) || job.unattendedGrants.indexOf('workbench') < 0) throw new Error('routine scripts require the unattended workbench grant');
@@ -21273,7 +21284,9 @@ async function runOnceCore(o) {
      persona comes back as the identical string (no prompt-cache change). */
   let system = PromptScrub.scrubStored(rawSystem);
   if (o.workdir) {
-    const cronRoot = cronCanonicalWorkdir(o.workdir); // re-check at every fire; revocation is immediate
+    let cronRoot;
+    try { cronRoot = cronCanonicalWorkdir(o.workdir); }   // re-check at every fire; revocation is immediate
+    catch (e) { throw workdirLapsedError(o.trigger, e); }   // whose folder, and why: never the routine wording for a loop, never a raw ENOENT
     let rules = '';
     try { rules = (await projectInstructions.load(cronRoot, true)).text || ''; } catch (_) {}
     system = String(system || '') + '\n' + projectScopeLine(cronRoot, true) + rules;
