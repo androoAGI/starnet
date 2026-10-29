@@ -464,9 +464,10 @@ A.ok(/o\.reasoningEffort[\s\S]{0,120}rosterIdent && rosterIdent\.reasoningEffort
   'runOnce effort precedence: explicit run-option, then the roster (class) record, then provider default');
 // the dispatch worker MUST resolve effort from the WORKER's roster identity — else the class effort is dead
 // (the lead always passes a truthy effort, which would shadow the roster fallback). Both dispatch paths fixed.
-A.ok(/reasoningEffort:\s*\(job\.ident && job\.ident\.reasoningEffort\)\s*\|\|\s*reasoningEffort/.test(orch),
+// (run-wire-resolver lane) between the worker's own effort and the lead's: the station default's, when the worker follows it
+A.ok(/reasoningEffort:\s*\(job\.ident && job\.ident\.reasoningEffort\)\s*\|\|\s*(wire\.reasoningEffort\s*\|\|\s*)?reasoningEffort/.test(orch),
   'team.dispatch (immediate) runs each worker at its OWN class reasoning effort, not the lead\'s');
-A.ok(/reasoningEffort:\s*\(ident && ident\.reasoningEffort\)\s*\|\|\s*reasoningEffort/.test(orch),
+A.ok(/reasoningEffort:\s*\(ident && ident\.reasoningEffort\)\s*\|\|\s*(wire\.reasoningEffort\s*\|\|\s*)?reasoningEffort/.test(orch),
   'team.dispatch (queued/recap) runs each worker at its OWN class reasoning effort, not the lead\'s');
 
 /* ---------- 6. OLD-SAVE COMPAT: rosters/records without the new fields load unchanged ---------- */

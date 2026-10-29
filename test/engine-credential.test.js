@@ -237,7 +237,8 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   const src = readSidecarSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const body = name => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)); };
   A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
-  A.ok(/const runKey = providerRuntimeKey\(providerId, key\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, o\.baseUrl \|\| o\.base_url \|\| '', runKey\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key)');
+  // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
+  A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key)');
   A.ok(/providerRuntimeKeyPool\(providerId, Array\.isArray\(o\.keyPool\) \? o\.keyPool : undefined, runKey\)/.test(src), 'and its backup keys for ITS key');
   A.ok(/const ENGINE_KEYS_FILE = path\.join\(WORKSPACES, '\.secrets', 'provider-keys\.json'\);/.test(src), 'the copy lives in the protected .secrets/ sibling of the fs jail');
   A.ok(/load: \(\) => DESKTOP_SHELL \? undefined :/.test(src) && /if \(DESKTOP_SHELL\) return json\(409/.test(body('handleEngineKeySet')), 'the desktop app (OS keychain) never reads or writes the plaintext copy');
