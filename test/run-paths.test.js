@@ -13,7 +13,9 @@
      4. place() / placeJail() name only paths resolve() maps back to the same file, and leave every unscoped name
         byte-for-byte as it was;
      5. the fs receipt text is unchanged: the same write through ctx.paths and through the pre-lane ctx shape reads
-        identically. */
+        exactly the pre-lane receipt, pinned literally;
+     6. a FINISHED run's file is named against that run's one base (producedPath) and located only when it exists inside
+        it (locateProduced), never by probing another folder for a same-named file (review round 1). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');

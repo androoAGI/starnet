@@ -221,7 +221,8 @@ function harness(at, extra) {
     A.ok(/memcore\.mergeReceipts\(prev && prev\.agentId === agentId \? prev\.proposals : \[\], items\)/.test(idx), 'a later stash MERGES into the run\'s batch instead of overwriting it');
     // both anchors must exist: a renamed capture call (indexOf -1) must not pass the ordering check (review tests-09)
     const captureAt = idx.indexOf("TrustedLearning.capture(messages, 'interactive-owner')");
-    const expandAt = idx.indexOf('await attachments.expandUserAttachments(messages, agentId');   // + the run-paths placement arg
+    // the files expand in the run host (runOnceCore, run-paths review M3), which runs after handleRun captured the words
+    const expandAt = idx.indexOf('messages = await attachments.expandForRun(messages, agentId');
     A.ok(idx.includes('TrustedLearning.eligible(') && idx.includes('const commanderWords = trustedLearningInput ? trustedLearningInput.content') && captureAt >= 0 && expandAt > captureAt && /ownerTrusted, commanderWords,/.test(idx),
       'commanderWords reach the tool ctx only from the owner\'s own surfaces (never a worker, a group transcript or a guest)');
     // COMMS: each save renders once per run, and a later save of the same run is not swallowed

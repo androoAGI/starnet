@@ -78,7 +78,10 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
   A.ok(/require\('\.\/voice-chat-route\.js'\)/.test(idx), 'host requires the planner');
   A.ok(/exact: '\/api\/voice\/chat-model', h: handleVoiceChatStatus/.test(idx) && /exact: '\/api\/voice\/chat-model', h: handleVoiceChatSet/.test(idx), 'GET + POST routes registered');
   A.ok(/VOICE_CHAT_FILE = path\.join\(WORKSPACES, 'voice-chat\.json'\)/.test(idx) && /makeDomainStore\(\{\s*fs, path, file: VOICE_CHAT_FILE/.test(idx), 'persisted through the durable domain store');
-  const core = idx.slice(idx.indexOf('async function runOnceCore('), idx.indexOf('const { key, system: rawSystem, messages = [], agentId = \'agent\', signal, runId } = o;'));
+  // the route locals are destructured here (messages became a `let` beside it: the run host expands attachments later)
+  const routeLocals = idx.indexOf('const { key, system: rawSystem, agentId = \'agent\', signal, runId } = o;');
+  A.ok(routeLocals > idx.indexOf('async function runOnceCore('), 'runOnceCore destructures its route locals');
+  const core = idx.slice(idx.indexOf('async function runOnceCore('), routeLocals);
   A.ok(/o\.voiceTurn === true && !o\.voiceRoute && !o\.recovery && !o\.internal/.test(core) && /o = await applyVoiceTurnRoute\(o\)/.test(core), 'runOnceCore resolves the route once, before any route local is read');
   A.ok(/runStartExtra\.voiceRoute = \{/.test(idx), 'the decision rides agent.run.start');
   A.ok(/name === 'agent\.run\.start' && payload && payload\.runId === runId && \([^)]*runStartExtra\.voiceRoute\)\) payload = Object\.assign\(\{\}, payload, runStartExtra\)/.test(idx),
