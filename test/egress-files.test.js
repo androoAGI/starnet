@@ -208,7 +208,10 @@ function plant(linkAt, target) {
     // minor-1: the private workspace must BE its folder. workspaces/delta as a junction to the home folder sent its files.
     if (plant(path.join(WS, 'delta'), HOME)) {
       const delta = runCtx({ agentId: 'delta' });
-      await refuses('a jail that is a junction to the home folder, relative taxes.pdf', 'taxes.pdf', delta, '', /workspace folder is a link/);
+      // round 4, minor-2: on the station that folder is trunk's (fs.* works in it); only what leaves is refused, and the
+      // refusal says how to fix it
+      await refuses('a jail that is a junction to the home folder, relative taxes.pdf', 'taxes.pdf', delta, '', /workspace folder is a link to somewhere else, so files in it never leave the station; move the folder back or unlink it/);
+      A.eq((await delta.paths.resolve('taxes.pdf', { scope: 'read' })).abs, path.join(WS, 'delta', 'taxes.pdf'), 'a jail that is a junction: fs.* on the station resolves in it, as on trunk');
       await refuses('a jail that is a junction, the same file by absolute path', path.join(HOME, 'taxes.pdf'), delta, '', /workspace folder is a link|outside/);
       const fromRow = await reader.readFor('delta', 'taxes.pdf', null, '');
       A.ok(!fromRow.ok && /workspace folder is a link/.test(fromRow.error), 'a jail that is a junction, a routine delivery of its row (' + (fromRow.ok ? 'SENT' : fromRow.error) + ')');

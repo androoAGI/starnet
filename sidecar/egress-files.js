@@ -22,7 +22,8 @@
    any file on the volume: a file with more than one name never leaves. The open handle is checked against the proven
    path by inode AND volume (as bigints), and at most the proven size plus one byte is read, so a file that grew after
    the check is refused, never sent whole. The private workspace must BE its folder: a workspaces/<id> that is itself
-   a link to another folder holds nothing sendable.
+   a link to another folder holds nothing sendable, and the refusal says how to fix it. That check lives HERE only, on
+   what leaves (owner decision, review round 4 minor-2): on the station such a folder is trunk's, fs.* works in it.
 
    makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard }) -> {
      read(paths, name, { allowEmpty, probe }?) a name through THIS path object's jail and root; probe: every check, no
@@ -118,7 +119,7 @@ function makeEgressReader(deps) {
       }
       if (!inJail && paths.root) { const rootReal = await realBase(paths.root); inRoot = !!rootReal && inside(real, rootReal); }
     } catch (e) { return no(q + ' cannot be proven inside ' + reach + ' (' + ((e && e.code) || 'error') + ')'); }
-    if (!inJail && !inRoot && inLinkedJail) return no(q + ' cannot be sent: your workspace folder is a link to another folder, so nothing in it leaves the station');
+    if (!inJail && !inRoot && inLinkedJail) return no(q + ' cannot be sent: this agent\'s workspace folder is a link to somewhere else, so files in it never leave the station; move the folder back or unlink it');
     if (!inJail && !inRoot) return no(q + ' is outside ' + reach + '; only a file there can be sent');
     // 5. A PROJECT FILE ONLY WHILE ITS FOLDER IS STILL APPROVED: the station guard in its strictest form. No prompt (a
     //    send never raises a card), no hand-off grants or session roots, no This Computer / Full Power posture, so only a

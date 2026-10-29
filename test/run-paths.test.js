@@ -120,8 +120,10 @@ function plant(linkAt, target) {
         A.ok(fine.ok && fine.buffer.toString() === 'fine', label + ': an ordinary file beside them still leaves');
       }
     }
-    /* THE WORKSPACE IS ITS OWN FOLDER (review round 3, minor-1): a workspaces/<id> that is itself a junction to another
-       folder made that folder the agent's jail (fs.* resolved into it, and the egress reader sent from it). */
+    /* A WORKSPACE FOLDER THAT IS A LINK (review round 3 minor-1; round 4 minor-2, owner decision). A workspaces/<id> that
+       is itself a junction (a user who moved one agent's folder to a bigger disk) is on-station trunk parity: fs.* reads
+       and writes in it exactly as trunk's resolveInside does (owner rule 2), and round 3's refusal here is removed. What
+       LEAVES the station is the egress reader's business: it sends nothing from such a folder, and says how to fix it. */
     {
       const elsewhere = path.join(BASE, 'home');
       fs.mkdirSync(elsewhere, { recursive: true });
@@ -129,11 +131,18 @@ function plant(linkAt, target) {
       if (plant(path.join(WS, 'delta'), elsewhere)) {
         const delta = RunPaths.makeRunPaths(resolver, { agentId: 'delta' });
         for (const scope of ['read', 'write']) {
-          A.ok(await refuses(delta, 'taxes.pdf', scope, /workspace folder is a link/), 'a junction jail: fs.* ' + scope + ' of taxes.pdf is refused');
+          let r = null, err = '';
+          try { r = await delta.resolve('taxes.pdf', { scope }); } catch (e) { err = e.message; }
+          A.ok(r && r.abs === path.join(WS, 'delta', 'taxes.pdf'), 'a junction jail: fs.* ' + scope + ' of taxes.pdf resolves, as on trunk (was: ' + (err || 'ok') + ')');
         }
+        let escaped = '';
+        try { await delta.resolve('../outside/secret.txt', { scope: 'read' }); } catch (e) { escaped = e.message; }
+        A.ok(/illegal path/.test(escaped), 'a junction jail: `..` out of it is still refused');
+        const trunkFs = makeFsTools({ fsp, pathMod: path, root: WS })._internals;
+        A.eq((await trunkFs.resolveInside('delta', 'taxes.pdf', { scope: 'read' })).abs, path.join(WS, 'delta', 'taxes.pdf'), 'the fs.* tool\'s own resolver agrees (trunk parity)');
         const { makeEgressReader } = require('../sidecar/egress-files.js');
         const got = await makeEgressReader({ fsp, pathMod: path, workspaces: WS }).read(delta, 'taxes.pdf');
-        A.ok(!got.ok && /workspace folder is a link/.test(got.error), 'a junction jail: nothing in it leaves the station (' + (got.ok ? 'SENT' : got.error) + ')');
+        A.ok(!got.ok && /workspace folder is a link to somewhere else/.test(got.error) && /move the folder back or unlink it/.test(got.error), 'a junction jail: nothing in it leaves the station, and the refusal says how to fix it (' + (got.ok ? 'SENT' : got.error) + ')');
       }
     }
     // what was reachable stays reachable

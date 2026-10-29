@@ -74,11 +74,6 @@ function makeResolver(deps) {
     if (P.sep === '\\') { a = a.toLowerCase(); b = b.toLowerCase(); }
     return a === b || a.indexOf(b + P.sep) === 0;
   }
-  function pathEqual(x, y) {
-    let a = P.resolve(x), b = P.resolve(y);
-    if (P.sep === '\\') { a = a.toLowerCase(); b = b.toLowerCase(); }
-    return a === b;
-  }
   async function realpathExisting(p) {
     try { return await fsp.realpath(p); }
     catch (e) { throw new Error('cannot resolve filesystem path (possibly a dangling symlink): ' + p + ': ' + ((e && e.message) || e)); }
@@ -144,11 +139,10 @@ function makeResolver(deps) {
     const abs = P.resolve(base, rel || '.');
     if (!pathInside(abs, base)) throw new Error('path escapes workspace');
     const baseReal = await realpathExisting(base);
-    // THE WORKSPACE IS ITS OWN FOLDER (review round 3): a workspaces/<id> that is itself a junction to another folder
-    // (the home folder) passed every check below, because the containment is measured against the jail's real path
-    if (!pathEqual(baseReal, P.join(await realpathExisting(P.dirname(P.resolve(base))), P.basename(P.resolve(base))))) {
-      throw new Error('path escapes workspace: the workspace folder is a link to another folder');
-    }
+    /* A WORKSPACE FOLDER THAT IS A LINK is trunk's (owner decision, review round 4 minor-2; rule 2: on-station fs.* in
+       the agent's own workspace equals trunk). A user who moved one agent's folder to a bigger disk keeps fs.* there;
+       round 3's refusal here is removed. Nothing in such a folder LEAVES the station: the egress reader refuses it
+       (sidecar/egress-files.js, "this agent's workspace folder is a link to somewhere else"). */
     const existing = await deepestExisting(abs, base);
     const existingReal = await realpathExisting(existing);
     if (!pathInside(existingReal, baseReal)) throw new Error('path escapes workspace via symlink');
