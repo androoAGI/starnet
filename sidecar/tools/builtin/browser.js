@@ -3751,11 +3751,32 @@
        anything fs.read reached: another blessed root, This Computer, and under Full Power ~/.ssh, with no card. Every
        upload path now goes through the ONE egress reader (sidecar/egress-files.js) in its probe mode: the file's real
        path must lie in this run's own private workspace or its own approved project root, the credential / repository
-       floor holds on every spelling, a file with more than one name (a hard link) is refused, and the proven REAL path
-       is what the browser is handed. deps.egress is the host's reader (its guard re-checks the root's approval); a rig
-       without one gets a reader with no guard, which sends from the private workspace only. */
+       floor holds on every spelling, and a file with more than one name (a hard link) is refused. deps.egress is the
+       host's reader (its guard re-checks the root's approval); a rig without one gets a reader with no guard, which sends
+       from the private workspace only.
+       THE BROWSER GETS A COPY (review round 4, minor-1). The browser opens the path it is handed later, outside the
+       reader's verified handle, so a folder swapped for a junction after the proof changed the bytes uploaded. The
+       reader's stage mode copies the proven bytes, through that handle, into a fresh random folder of the station-owned
+       staging folder in the agent's private workspace (one fresh file, the original name), and the browser is handed
+       that copy. At most uploadMaxBytes (200 MB) a file. The copies go when this run's own browser closes, when the run
+       ends (releaseUploads, called by the host), and at boot for any a crash left behind. */
+    const EgressFiles = require('../../egress-files.js');
     const uploadEgress = deps.egress && typeof deps.egress.readFor === 'function' ? deps.egress
-      : (canSaveShots ? require('../../egress-files.js').makeEgressReader({ fsp: shotFsp, pathMod: shotPath, workspaces: shotRoot }) : null);
+      : (canSaveShots ? EgressFiles.makeEgressReader({ fsp: shotFsp, pathMod: shotPath, workspaces: shotRoot }) : null);
+    const uploadMaxBytes = Number(deps.uploadMaxBytes) > 0 ? Number(deps.uploadMaxBytes) : EgressFiles.STAGE_MAX_BYTES;
+    const stagedUploads = new Set();   // the staged copies' folders this browser was handed
+    async function unstageAll(folders) {
+      for (const f of folders) {
+        stagedUploads.delete(f);
+        try { await uploadEgress.unstage(f); } catch (e) { failNote('browser.upload.unstage', e); }
+      }
+    }
+    const releaseUploads = () => unstageAll(Array.from(stagedUploads));
+    // this run's OWN browser: its copies go with it (a station browser outlives the run; the host releases at run end)
+    if (!deps.session && session && typeof session.close === 'function') {
+      const closeSession = session.close;
+      session.close = async function () { try { return await closeSession.apply(session, arguments); } finally { await releaseUploads(); } };
+    }
     /* THE RECEIPT NAMES A PATH THE NEXT TOOL CAN OPEN (run-paths lane). A frame, a PDF or a download is saved on the
        private shelf and named relative to it. In a project run a relative path means the PROJECT, so fs.read of
        "shots/x.png" looked there and failed. The run's path object places the name: unchanged outside a project, the
@@ -3995,14 +4016,23 @@
           const aid = (ctx && ctx.agentId) || 'agent';
           const rels = Array.isArray(a.paths) ? a.paths : [a.paths];
           if (!rels.length || rels.some(p => typeof p !== 'string' || !p.trim())) throw new Error('browser.upload needs at least one non-empty file path');
-          const abs = [], expected = [];
-          for (const rel of rels) {
-            // proven by the egress reader through THIS run's path object; the probe reads no byte, and the browser is
-            // handed the real path it proved (never the name as written)
-            const got = await uploadEgress.readFor(aid, rel, ctx, RunPaths.rootOf(ctx), { probe: true, allowEmpty: true });
-            if (!got || !got.ok) throw new Error('browser.upload: ' + ((got && got.error) || 'that file cannot be uploaded'));
-            abs.push(got.abs); expected.push({ name: shotPath.basename(got.abs), size: got.size });
-          }
+          const shelf = runPathsOf(ctx) || (ctx && RunPaths.isRunPaths(ctx.paths) ? ctx.paths : null);
+          if (!shelf || !shelf.jail) throw new Error('browser.upload needs a workspace; this run has none');
+          const P = shotPath || require('node:path');
+          const stageDir = P.join(shelf.jail, EgressFiles.STAGE_DIR);
+          const abs = [], expected = [], staged = [];
+          try {
+            for (const rel of rels) {
+              // proven by the egress reader through THIS run's path object, then copied through its verified handle: the
+              // browser is handed the staged copy (never the name as written, never a path a later swap can redirect)
+              const got = await uploadEgress.readFor(aid, rel, ctx, RunPaths.rootOf(ctx), { stage: { dir: stageDir, maxBytes: uploadMaxBytes }, allowEmpty: true });
+              if (!got || !got.ok) throw new Error('browser.upload: ' + ((got && got.error) || 'that file cannot be uploaded'));
+              if (!got.staged) throw new Error('browser.upload: that file could not be staged for the browser');
+              staged.push(got.staged);
+              abs.push(got.abs); expected.push({ name: P.basename(got.abs), size: got.size });
+            }
+          } catch (e) { await unstageAll(staged); throw e; }   // a refused selection leaves no copy behind
+          for (const f of staged) stagedUploads.add(f);
           const receipt = await session.upload(a.ref, abs, expected);
           if (!receipt || receipt.status !== 'selected' || !Array.isArray(receipt.files)
             || receipt.files.length !== expected.length || receipt.files.some((f, i) => f.name !== expected[i].name || f.size !== expected[i].size)) {
@@ -4256,7 +4286,7 @@
         return run(args, ctx);
       };
     }
-    return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
+    return { tools, session, releaseUploads, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
   return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };

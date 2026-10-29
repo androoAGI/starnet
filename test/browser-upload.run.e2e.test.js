@@ -89,6 +89,16 @@ function reply(res, call) {
     const result = id => results.find(m => m.tool_call_id === id)?.content || '';
     A.ok(/File selection verified/.test(result('upload')) && /"size":19/.test(result('upload')), 'production browser deps resolve and select project bytes, not the private decoy');
     A.ok(/Remote upload\/server acceptance is not verified/.test(result('upload')), 'model receives an honest selection-only receipt');
+    // review round 4, minor-1: the page was handed a staged copy in the agent's own workspace, and the copy never
+    // outlives the run (index.js runOnceCore releases this run's uploads when it ends)
+    const staging = path.join(fixture.workspace, 'upload-agent', '.upload-staging');
+    let leftover = null;
+    for (let i = 0; i < 50; i++) {
+      leftover = fs.existsSync(staging) ? fs.readdirSync(staging) : [];
+      if (!leftover.length) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    A.ok(fs.existsSync(staging) && leftover.length === 0, 'the staged upload copy is gone once the run ends (' + JSON.stringify(leftover) + ')');
     A.ok(/photo.txt/.test(result('readback')) && /size\\?":19/.test(result('readback')), 'local website change handler independently reads project FileList size');
     A.ok(/Killed background process|already exited/i.test(result('stop')), 'owned fixture server is stopped with a receipt');
     const errors = fixture.output().split('\n').filter(s => /uncaught|unhandled|ReferenceError|TypeError:/.test(s));

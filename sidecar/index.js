@@ -6922,8 +6922,11 @@ const cronEmit = (name, payload) => { try { return cronEmitValidated(name, redac
 const egressDeps = { fsp, pathMod: path, mimeFor: mimeForPath, workspaces: WORKSPACES, guard: (abs, o2) => pathTrustCore.guard(abs, o2) };
 const egressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: CHANNEL_UPLOAD_MAX_BYTES });
 const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: 20 * 1024 * 1024 });   // web.js FILE_MAX_BYTES
-// browser.upload proves a file in probe mode and hands the browser its real path: no byte is read here, so no size cap
+// browser.upload proves a file and copies its bytes, through the verified handle, into a staged copy in the agent's
+// private workspace; the browser is handed that copy (egress-files.js stage mode, 200 MB a file). A crashed run's copies
+// are swept at boot (real host boot only: unit tests require() this file)
 const uploadEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps });
+if (require.main === module) require('./egress-files.js').sweepUploadStaging({ fsp, pathMod: path, workspaces: WORKSPACES }).then(n => { if (n) console.log('[browser.upload] boot sweep removed ' + n + ' staged upload cop' + (n === 1 ? 'y' : 'ies')); }).catch(e => failNote('browser.upload.bootsweep', e));
 async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egressReader.readFor(agentId, rel, ctx, projectRoot); }
 /* THE ONE OUTBOUND HOST-PATH SCRUB (run-paths review round 3, sidecar/host-path-scrub.js). A chat is never shown an
    absolute host path: every live channel adapter's send / editMessage / answerCallback is wrapped in place
@@ -25222,6 +25225,7 @@ async function runOnceCore(o) {
     // The station browser OUTLIVES the run: the page stays for the Commander (and the next run). Only a private one closes.
     if (runStationBrowser) { try { browserViews.releaseRun(runId); } catch (e) { failNote('browser-view.release', e); } }
     else if (runBrowser) { try { await runBrowser.session.close(); } catch (_) {} }
+    if (runBrowser) { try { await runBrowser.releaseUploads(); } catch (e) { failNote('browser.upload.release', e); } }   // staged upload copies never outlive the run
     if (runComputer?.close) { try { await runComputer.close(); } catch (_) { failNote('computer.run.close', 'Native run cleanup failed'); } }
     computerRuns.delete(runComputer);
     concurrencyGate.leave(agentId);   // release the admission slot on EVERY exit (normal, early-return, or throw)

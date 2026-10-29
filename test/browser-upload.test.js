@@ -2,7 +2,11 @@
    through the ONE egress reader (sidecar/egress-files.js, probe mode) and hands the browser the proven REAL path. Only
    a file in the run's own private workspace or its own approved project root goes; another blessed root, This Computer
    reach, Full Power ~/.ssh, a floored file and a hard link are refused (each was uploaded before, with no card under
-   Full Power), and the run's fs.read guard is never asked. No CDP ack-only success. */
+   Full Power), and the run's fs.read guard is never asked. No CDP ack-only success.
+   Review round 4, minor-1 (scratchpad rr4-egress.js section G): the browser opens the path it is handed AFTER the proof,
+   so a folder swapped for a junction in between changed the bytes uploaded. The browser is now handed a STAGED COPY of
+   the proven bytes (a fresh random folder of <jail>/.upload-staging, the original name), dropped when the run ends or
+   its own browser closes, bounded in size, and swept at boot without ever entering a link. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
@@ -25,13 +29,15 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     fs.writeFileSync(path.join(outside, 'photo.txt'), 'OUTSIDE');
     fs.writeFileSync(path.join(project, '.env'), 'PRIVATE_TEST_SECRET');
     fs.writeFileSync(path.join(home, '.ssh', 'id_ed25519'), 'SSH-KEY');
-    const roots = new Set([project, other]), calls = [];
-    let fullAccess = false, replyMode = 'selected';
+    const roots = new Set([project, other]), calls = [], seen = [];
+    let fullAccess = false, replyMode = 'selected', onUpload = null;
     const trust = makePathTrust({ fsp, pathMod: path, roots: () => [...roots], workspaceRoot: root });
     const driver = {
       snapshot: async () => [{ role: 'button', text: 'Choose photo', x: 1, y: 1, w: 10, h: 10 }],
       upload: async (_node, abs, expected) => {
         calls.push(abs);
+        if (onUpload) await onUpload(abs);
+        seen.push(abs.map(p => fs.readFileSync(p, 'utf8')));   // what the browser reads when it opens the path, later
         if (replyMode === 'ack') return '1 file(s) attached';
         return { status: 'selected', files: expected, retained: true, input: { id: '<script>untrusted</script>' }, events: ['change'], evidence: 'FileList readback' };
       }
@@ -50,17 +56,23 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     // a run's ctx.paths exactly as runOnceCore mints it, posture in its guard (Full Power: unrestrictedHost)
     const minted = (o) => ({ agentId: 'agent', paths: RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root,
       pathTrust: (abs, o2) => trust.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: 'agent', fullAccess: !!o.fullAccess, unrestrictedHost: !!o.unrestrictedHost }) }), { agentId: 'agent', projectRoot: o.projectRoot || '' }) });
+    // the browser is handed a STAGED COPY (round 4, minor-1): <jail>/.upload-staging/<24 hex>/<the file's own name>,
+    // holding the proven bytes
+    const STAGE = path.join(root, 'agent', '.upload-staging');
+    const stagedCopy = (p, name) => !!p && path.dirname(path.dirname(p)) === STAGE && /^[0-9a-f]{24}$/.test(path.basename(path.dirname(p))) && path.basename(p) === (name || 'photo.txt');
+    const handed = (bytes, name) => stagedCopy(calls.at(-1) && calls.at(-1)[0], name) && calls.at(-1).length === 1 && seen.at(-1)[0] === bytes;
+    const said = () => JSON.stringify(calls.at(-1)) + ' = ' + JSON.stringify(seen.at(-1));
     let r = await run(['photo.txt']);
-    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'project-relative file reaches the browser from the active project');
+    A.ok(handed('PROJECT'), 'project-relative file reaches the browser from the active project, as a staged copy: ' + said());
     A.ok(/BEGIN EXTERNAL WEB CONTENT/.test(r.content) && /Remote upload\/server acceptance is not verified/.test(r.content), 'page-authored input identity is fenced and remote acceptance is unproven');
     await run(['photo.txt'], { agentId: 'agent' });
-    A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'unscoped relative file retains private workspace behavior');
+    A.ok(handed('PRIVATE'), 'unscoped relative file retains private workspace behavior: ' + said());
     await run([path.join(project, 'photo.txt')]);
-    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'the run\'s own root by absolute path works');
+    A.ok(handed('PROJECT'), 'the run\'s own root by absolute path works: ' + said());
     await run([path.join(root, 'agent', 'photo.txt')]);
-    A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'a project run\'s own private workspace by absolute path works');
+    A.ok(handed('PRIVATE'), 'a project run\'s own private workspace by absolute path works: ' + said());
     await run([path.join(project.toUpperCase(), 'PHOTO.TXT')].map(p => (process.platform === 'win32' ? p : path.join(project, 'photo.txt'))));
-    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'the browser is handed the proven REAL path, never the name as written');
+    A.ok(handed('PROJECT', 'photo.txt'), 'the copy carries the proven file\'s own name, never the name as written: ' + said());
     A.eq(guardCalls.length, 0, 'the run\'s fs.read guard is never asked (an upload never raises a path card)');
     let before = calls.length;
     for (const p of ['../outside/photo.txt', '.env', '.', 'missing.txt']) await rejects(run([p]), /climbs out|protected|not a file|cannot be read|is not in/i, 'refuses ' + p);
@@ -95,8 +107,81 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     const rigUp = rig.tools.find(t => t.name === 'browser.upload');
     const rigRef = (await rig.session.snapshot())[0].ref;
     await rigUp.run({ ref: rigRef, paths: ['photo.txt'] }, { agentId: 'agent' });
-    A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'a rig without the host reader still uploads from the private workspace');
+    A.ok(handed('PRIVATE'), 'a rig without the host reader still uploads from the private workspace: ' + said());
     await rejects(rigUp.run({ ref: rigRef, paths: ['photo.txt'] }, ctx), /cannot prove the project folder is still approved/, 'and refuses a project file it cannot prove approved (fail closed)');
+
+    // ---- review round 4, minor-1: the bytes uploaded are the bytes proven, whatever the folder becomes afterwards ----
+    {
+      const isWin = process.platform === 'win32';
+      const sub = path.join(root, 'agent', 'sub');
+      fs.mkdirSync(sub, { recursive: true }); fs.writeFileSync(path.join(sub, 'x.txt'), 'JAIL-SUB-X');
+      fs.mkdirSync(path.join(home, 'sub'), { recursive: true }); fs.writeFileSync(path.join(home, 'sub', 'x.txt'), 'HOME-SECRET-X');
+      let swapped = false;
+      onUpload = async () => {   // after the proof, before the browser opens the path: the folder becomes a junction
+        fs.renameSync(sub, sub + '-real');
+        fs.symlinkSync(path.join(home, 'sub'), sub, isWin ? 'junction' : 'dir');
+        swapped = true;
+      };
+      try { await run(['sub/x.txt'], { agentId: 'agent' }); } finally {
+        onUpload = null;
+        if (swapped) { try { fs.unlinkSync(sub); } catch (e) { fs.rmdirSync(sub); } fs.renameSync(sub + '-real', sub); }
+      }
+      A.ok(swapped && handed('JAIL-SUB-X', 'x.txt'), 'swapping the proven folder for a junction after the proof cannot change the bytes uploaded (was: HOME-SECRET-X): ' + said());
+      // the copies go: releaseUploads (the host calls it when the run ends) removes every one this browser was handed
+      const copy = calls.at(-1)[0];
+      const folders = () => (fs.existsSync(STAGE) ? fs.readdirSync(STAGE) : []);
+      A.ok(fs.existsSync(copy) && folders().length >= 5, 'the copies stay while the run may still submit the form (' + folders().length + ')');
+      await b.releaseUploads();
+      A.ok(!fs.existsSync(copy) && !fs.existsSync(path.dirname(copy)), 'releaseUploads removes the staged copy and its folder');
+      await rig.releaseUploads();
+      A.eq(folders(), [], 'every staged copy of both browsers is gone at run end');
+      A.eq(fs.readFileSync(path.join(sub, 'x.txt'), 'utf8') + fs.readFileSync(path.join(root, 'agent', 'photo.txt'), 'utf8'), 'JAIL-SUB-XPRIVATE', 'and the source files are untouched');
+      // a selection that is refused part-way leaves no copy behind
+      await rejects(run(['photo.txt', '.env']), /protected/i, 'one refused path refuses the whole selection');
+      A.eq(folders(), [], 'a refused selection leaves no staged copy');
+      // this run's OWN browser takes its copies with it when it closes
+      const own = makeBrowserTools({ driver, fsp, pathMod: path, root, egress });
+      await own.tools.find(t => t.name === 'browser.upload').run({ ref: (await own.session.snapshot())[0].ref, paths: ['photo.txt'] }, { agentId: 'agent' });
+      A.ok(handed('PRIVATE') && folders().length === 1, 'a private browser\'s upload is staged');
+      await own.session.close();
+      A.eq(folders(), [], 'closing the run\'s own browser removes its staged copies');
+      // bounded: a file over the limit is refused with a clear message, and nothing is copied
+      const small = makeBrowserTools({ driver, fsp, pathMod: path, root, egress, uploadMaxBytes: 4 });
+      await rejects(small.tools.find(t => t.name === 'browser.upload').run({ ref: (await small.session.snapshot())[0].ref, paths: ['photo.txt'] }, { agentId: 'agent' }), /"photo\.txt" is 7 bytes; a browser upload takes at most 4 bytes/, 'a file over the upload limit is refused, saying the limit');
+      A.eq(folders(), [], 'and nothing was staged for it');
+      A.eq(require('../sidecar/egress-files.js').STAGE_MAX_BYTES, 200 * 1024 * 1024, 'the default limit is 200 MB');
+      // a staging folder that is a link is never written through
+      const away = path.join(scratch, 'away');
+      fs.mkdirSync(away, { recursive: true });
+      fs.rmdirSync(STAGE);
+      fs.symlinkSync(away, STAGE, isWin ? 'junction' : 'dir');
+      try {
+        await rejects(run(['photo.txt'], { agentId: 'agent' }), /staging folder \.upload-staging in your workspace is a link to somewhere else/, 'a staging folder that is a link is refused');
+        A.eq(fs.readdirSync(away), [], 'and nothing was written through it');
+      } finally { try { fs.unlinkSync(STAGE); } catch (e) { fs.rmdirSync(STAGE); } }
+      // THE BOOT SWEEP: a crash's leftovers go; a link is unlinked, never entered; a moved agent folder is never walked
+      const { sweepUploadStaging } = require('../sidecar/egress-files.js');
+      const left = path.join(STAGE, 'a1b2c3d4e5f6a1b2c3d4e5f6');
+      fs.mkdirSync(left, { recursive: true });
+      fs.writeFileSync(path.join(left, 'photo.txt'), 'LEFT BEHIND');
+      fs.symlinkSync(path.join(home, 'sub'), path.join(left, 'trap'), isWin ? 'junction' : 'dir');
+      fs.symlinkSync(path.join(home, 'sub'), path.join(STAGE, 'trap2'), isWin ? 'junction' : 'dir');
+      const zeta = path.join(scratch, 'zeta-real');
+      fs.mkdirSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00'), { recursive: true });
+      fs.writeFileSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00', 'keep.txt'), 'KEEP');
+      fs.symlinkSync(zeta, path.join(root, 'zeta'), isWin ? 'junction' : 'dir');
+      try {
+        const n = await sweepUploadStaging({ fsp, pathMod: path, workspaces: root });
+        A.ok(n === 1 && !fs.existsSync(left), 'the boot sweep removes a crashed run\'s staged copy (' + n + ')');
+        A.eq(fs.readFileSync(path.join(home, 'sub', 'x.txt'), 'utf8'), 'HOME-SECRET-X', 'a link inside a staged folder is unlinked, never followed');
+        A.ok(fs.existsSync(path.join(STAGE, 'trap2')), 'a link in the staging folder is never entered');
+        A.ok(fs.existsSync(path.join(zeta, '.upload-staging', 'f00f00f00f00f00f00f00f00', 'keep.txt')), 'an agent folder that is a link is never walked');
+        A.eq(await sweepUploadStaging({ fsp, pathMod: path, workspaces: path.join(scratch, 'no-such-dir') }), 0, 'no workspaces folder: nothing to sweep');
+      } finally {
+        for (const l of [path.join(STAGE, 'trap2'), path.join(root, 'zeta')]) { try { fs.unlinkSync(l); } catch (e) { try { fs.rmdirSync(l); } catch (e2) { console.log('[cleanup] ' + e2.message); } } }
+      }
+    }
+
     replyMode = 'ack';
     await rejects(run(['photo.txt']), /verified file-selection evidence/i, 'legacy acknowledgement never becomes an upload-success claim');
 

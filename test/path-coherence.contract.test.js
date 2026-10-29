@@ -105,12 +105,15 @@ const terminalManager = {
 const terminal = makeTerminalTools({ manager: terminalManager, environment: env, fs, pathMod: path, root: WS, platform: process.platform });
 const termStart = terminal.tools.find(t => t.name === 'terminal.start');
 const termRead = terminal.tools.find(t => t.name === 'terminal.read');
-const uploads = [];
+const uploads = [], uploadBytes = [];
 const fakeSession = {
   screenshot: async () => PNG_B64,
   pdf: async () => Buffer.from('%PDF-1.4 contract').toString('base64'),
-  upload: async (ref, abs, expected) => { uploads.push(abs.slice()); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; }
+  // what the browser READS from the path it is handed (round 4 minor-1: a staged copy of the proven bytes)
+  upload: async (ref, abs, expected) => { uploads.push(abs.slice()); uploadBytes.push(abs.map(p => fs.readFileSync(p))); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; }
 };
+// a browser.upload hands the page a STAGED COPY of the proven file (review round 4, minor-1): <jail>/.upload-staging/<rand>/<name>
+const stagedCopyOf = (handed, bytes, at) => !!handed && path.dirname(path.dirname(handed)) === path.join(JAIL, '.upload-staging') && path.basename(handed) === path.basename(at) && !!bytes && bytes.equals(fs.readFileSync(at));
 // browser.upload is a file LEAVING the station (review round 3): index.js hands it the host's egress reader (station guard)
 const uploadEgress = Egress ? Egress.makeEgressReader({ fsp, pathMod: path, workspaces: WS, guard: (abs, o2) => trustCore.guard(abs, Object.assign({}, o2, { surface: 'autonomous' })) }) : null;
 const browser = makeBrowserTools({ session: fakeSession, fsp, pathMod: path, root: WS, pathTrust, egress: uploadEgress || undefined });
@@ -225,8 +228,8 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       'verify.run test -f': async (ctx, n) => { const r = await attempt(() => verifyTool.run({ cmd: 'test -f ' + n }, ctx)); return r.ok && /PASSED/.test(String(r.v.content)); },
       // WHICH file went, not only how many (review minor): the real path handed to the page is the producer's file
       'browser.upload': async (ctx, n, at) => {
-        uploads.length = 0; const r = await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: [n] }, ctx));
-        return r.ok && uploads.length === 1 && uploads[0].length === 1 && fs.realpathSync(uploads[0][0]) === fs.realpathSync(at);
+        uploads.length = 0; uploadBytes.length = 0; const r = await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: [n] }, ctx));
+        return r.ok && uploads.length === 1 && uploads[0].length === 1 && stagedCopyOf(uploads[0][0], uploadBytes[0][0], at);
       },
       'terminal.start cwd': async (ctx, n) => {
         terminalStarts.length = 0;
@@ -283,9 +286,9 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('ONE SOURCE image_analyze reads from ctx.paths root', seen.ok, seen.e && seen.e.message);
       await attempt(() => voice.generateTool.run({ text: 'x', path: 'one-voice' }, one()));
       row('ONE SOURCE voice_generate places in ctx.paths root', inProject('one-voice.mp3') && !inDecoy('one-voice.mp3'));
-      fs.writeFileSync(path.join(PROJECT, 'up.txt'), 'upload me'); uploads.length = 0;
+      fs.writeFileSync(path.join(PROJECT, 'up.txt'), 'upload me'); uploads.length = 0; uploadBytes.length = 0;
       await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: ['up.txt'] }, one()));
-      row('ONE SOURCE browser.upload reads from ctx.paths root', uploads.length === 1 && uploads[0][0] === path.join(PROJECT, 'up.txt'), uploads[0] && uploads[0][0]);
+      row('ONE SOURCE browser.upload reads from ctx.paths root (a staged copy of its bytes)', uploads.length === 1 && stagedCopyOf(uploads[0][0], uploadBytes[0][0], path.join(PROJECT, 'up.txt')), uploads[0] && uploads[0][0]);
       // DaVinci Resolve: a timeline reads its media and writes its .fcpxml through the same resolver (no ffprobe here)
       const resolveTimeline = makeResolveTools({ fsp, pathMod: path, root: WS, pathTrust, spawn: () => { throw new Error('no ffprobe in this rig'); } }).tools.find(t => t.name === 'resolve_timeline_file');
       fs.writeFileSync(path.join(PROJECT, 'clip.mp4'), 'not really a video');

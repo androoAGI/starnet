@@ -25,9 +25,24 @@
    a link to another folder holds nothing sendable, and the refusal says how to fix it. That check lives HERE only, on
    what leaves (owner decision, review round 4 minor-2): on the station such a folder is trunk's, fs.* works in it.
 
+   A STAGED COPY FOR THE BROWSER (review round 4, minor-1). browser.upload hands a website a PATH, and the browser opens
+   it later, outside the verified handle, so a folder swapped for a junction after the proof changed the bytes uploaded.
+   In stage mode the proven bytes are copied, through the verified open handle, into a station-owned staging folder in
+   the agent's private workspace (STAGE_DIR): a fresh random folder holding one fresh file under the original name, its
+   one name and its size checked after the write. That copy is what the browser gets. Bounded: a file over
+   STAGE_MAX_BYTES is refused. The browser tools drop their copies when the run ends or their own browser closes
+   (unstage), and the host sweeps any a crash left behind at boot (sweepUploadStaging).
+
+   NOT DONE (owner decision, review round 4 minor-5): a hard link stays refused for egress even when it is a build
+   output the agent made itself (a compiler or a package manager linking an artifact into place). With round 4's
+   MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible and never silent.
+
    makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard }) -> {
-     read(paths, name, { allowEmpty, probe }?) a name through THIS path object's jail and root; probe: every check, no
-                                               bytes read (browser.upload hands the proven real path to the browser)
+     read(paths, name, { allowEmpty, probe, stage }?) a name through THIS path object's jail and root; probe: every
+                                               check, no bytes read; stage: { dir, maxBytes? } every check, then the
+                                               proven bytes copied into a fresh folder of `dir` (abs: the copy, staged:
+                                               its folder, for unstage)
+     unstage(folder)                           removes one staged copy's folder (never recursive, never through a link)
      readFor(agentId, name, ctx?, projectRoot?, opts?)
                                                through the live run's ctx.paths (same agent), else a path object minted
                                                for a FINISHED run (its agent + its row's project root)
@@ -40,7 +55,55 @@
 'use strict';
 const RunPaths = require('./run-paths.js');
 const { hardlineReason } = require('./pathtrust.js');
+const { note: failNote } = require('./failopen.js');
 const FIRE_MTIME_SLACK_MS = 2000;   // a coarse-clock volume (FAT: 2 s) may stamp a file a fire just made a little early
+const STAGE_DIR = '.upload-staging';             // in the agent's private workspace, beside shots/, pdf/, downloads/
+const STAGE_MAX_BYTES = 200 * 1024 * 1024;
+const STAGE_CHUNK = 1024 * 1024;                 // the copy streams: a 200 MB upload never sits in memory
+
+// ONE staged copy's folder away: its files (a link is unlinked, never followed), then the folder. Never recursive: a
+// folder inside it is not the station's, and is left (rmdir then fails, and the caller notes it).
+async function dropStaged(fsp, P, folder) {
+  let st;
+  try { st = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
+  if (!st.isDirectory() || st.isSymbolicLink()) { await unlinkOne(fsp, folder); return; }
+  for (const name of await fsp.readdir(folder)) {
+    const p = P.join(folder, name);
+    const s = await fsp.lstat(p);
+    if (s.isDirectory() && !s.isSymbolicLink()) continue;
+    await unlinkOne(fsp, p);
+  }
+  await fsp.rmdir(folder);
+}
+async function unlinkOne(fsp, p) {
+  try { await fsp.unlink(p); }
+  catch (e) {
+    if (e && e.code === 'ENOENT') return;
+    if (e && (e.code === 'EPERM' || e.code === 'EISDIR')) { await fsp.rmdir(p); return; }   // a directory link on Windows
+    throw e;
+  }
+}
+
+/* At boot (nothing is uploading yet): every <workspaces>/<agent>/.upload-staging/<folder> a crashed run left behind.
+   Only real folders are walked; an agent folder or a staging folder that is a link is never entered. -> count removed */
+async function sweepUploadStaging(deps) {
+  const fsp = deps.fsp, P = deps.pathMod || require('node:path');
+  let agents, removed = 0;
+  try { agents = await fsp.readdir(deps.workspaces, { withFileTypes: true }); }
+  catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
+  for (const a of agents) {
+    if (!a.isDirectory() || !/^[A-Za-z0-9_-]{1,40}$/.test(a.name)) continue;
+    const dir = P.join(deps.workspaces, a.name, STAGE_DIR);
+    let st;
+    try { st = await fsp.lstat(dir); } catch (e) { if (e && e.code === 'ENOENT') continue; throw e; }
+    if (!st.isDirectory() || st.isSymbolicLink()) continue;
+    for (const s of await fsp.readdir(dir, { withFileTypes: true })) {
+      if (!s.isDirectory()) continue;
+      try { await dropStaged(fsp, P, P.join(dir, s.name)); removed++; } catch (e) { failNote('egress.stage.sweep', e); }
+    }
+  }
+  return removed;
+}
 
 function makeEgressReader(deps) {
   deps = deps || {};
@@ -77,6 +140,48 @@ function makeEgressReader(deps) {
     return fold(dirReal) === fold(P.join(await fsp.realpath(P.dirname(d)), P.basename(d)));
   }
 
+  // write all of buf[0, n) to a handle (a short write is continued, never dropped)
+  async function writeAll(out, buf, n) {
+    let off = 0;
+    while (off < n) { const w = await out.write(buf, off, n - off); off += w.bytesWritten; if (!w.bytesWritten) throw new Error('short write'); }
+  }
+  // stage mode: the proven bytes, through the verified handle, into a fresh folder of the staging folder -> { ok, path, dir }
+  async function stageCopy(fh, size, name, dir) {
+    let sub = null;
+    try {
+      await fsp.mkdir(dir, { recursive: true });
+      const st = await fsp.lstat(dir);
+      const dirReal = await fsp.realpath(dir);
+      if (!st.isDirectory() || st.isSymbolicLink() || !(await ownFolder(dir, dirReal))) return { ok: false, error: 'cannot be staged for the browser: the staging folder ' + STAGE_DIR + ' in your workspace is a link to somewhere else; remove it' };
+      sub = P.join(dir, require('node:crypto').randomBytes(12).toString('hex'));
+      await fsp.mkdir(sub);
+      const dest = P.join(sub, name);
+      const out = await fsp.open(dest, 'wx');
+      let got = 0;
+      try {
+        const buf = Buffer.alloc(Math.max(1, Math.min(STAGE_CHUNK, size + 1)));
+        while (got <= size) {
+          const r = await fh.read(buf, 0, Math.min(buf.length, size + 1 - got), got);
+          if (!r.bytesRead) break;
+          await writeAll(out, buf, r.bytesRead);
+          got += r.bytesRead;
+        }
+      } finally { await out.close(); }
+      if (got !== size) { await dropStaged(fsp, P, sub); return { ok: false, error: 'changed while it was being read; nothing was uploaded' }; }
+      // the copy has one name, its proven size, and sits where it was written
+      const cst = await fsp.lstat(dest, { bigint: true });
+      const again = await fsp.realpath(dest);
+      if (!cst.isFile() || cst.nlink !== 1n || Number(cst.size) !== size || fold(again) !== fold(P.join(dirReal, P.basename(sub), name))) {
+        await dropStaged(fsp, P, sub);
+        return { ok: false, error: 'could not be staged for the browser; nothing was uploaded' };
+      }
+      return { ok: true, path: dest, dir: sub };
+    } catch (e) {
+      if (sub) { try { await dropStaged(fsp, P, sub); } catch (e2) { failNote('egress.stage.drop', e2); } }
+      return { ok: false, error: 'could not be staged for the browser (' + ((e && e.code) || 'error') + ')' };
+    }
+  }
+
   // the chat-facing reason a file on a network share is refused, naming no server; the detail goes to the console
   async function shareRefusal(paths, q, real) {
     let jailReal = null;
@@ -90,9 +195,11 @@ function makeEgressReader(deps) {
   }
 
   // opts.allowEmpty: an empty file is a legal request part (web_request); a chat upload refuses it.
-  // opts.probe: run every check and return the proven real path without reading a byte (browser.upload)
+  // opts.probe: run every check and return the proven real path without reading a byte
+  // opts.stage: { dir, maxBytes? } run every check, then copy the proven bytes into a fresh folder of dir (browser.upload)
   async function read(paths, name, opts) {
     const allowEmpty = !!(opts && opts.allowEmpty), probe = !!(opts && opts.probe);
+    const stage = opts && opts.stage && typeof opts.stage.dir === 'string' && opts.stage.dir ? opts.stage : null;
     const n = String(name == null ? '' : name).trim();
     const shown = shownName(paths, n);
     const no = error => ({ ok: false, error, shown });
@@ -169,6 +276,15 @@ function makeEgressReader(deps) {
       if (probe) {
         if (!size && !allowEmpty) return no(q + ' is empty');
         return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: real, shown, size, mtimeMs };
+      }
+      if (stage) {
+        if (!size && !allowEmpty) return no(q + ' is empty');
+        const cap = Number(stage.maxBytes) > 0 ? Number(stage.maxBytes) : STAGE_MAX_BYTES;
+        const sized = (n) => (n >= 1024 * 1024 ? Math.round(n / (1024 * 1024)) + ' MB' : n + ' bytes');
+        if (size > cap) return no(q + ' is ' + sized(size) + '; a browser upload takes at most ' + sized(cap));
+        const copy = await stageCopy(fh, size, P.basename(real), stage.dir);
+        if (!copy.ok) return no(q + ' ' + copy.error);
+        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, shown, size, mtimeMs };
       }
       // at most the proven size plus one byte, through this handle (readFile would stat again): an extra byte means the
       // file grew after the check and a short read that it shrank; either way it is not the file that was proven
@@ -268,7 +384,7 @@ function makeEgressReader(deps) {
     };
   }
 
-  return { read, readFor, fireReader, shownName, pathsFor };
+  return { read, readFor, fireReader, shownName, pathsFor, unstage: (folder) => dropStaged(fsp, P, folder) };
 }
 
-module.exports = { makeEgressReader };
+module.exports = { makeEgressReader, sweepUploadStaging, STAGE_DIR, STAGE_MAX_BYTES };

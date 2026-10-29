@@ -1585,7 +1585,8 @@ function fakeDriver() {
   // upload posts must come through the SAME jail as fs.* - an upload is an exfiltration primitive
   // if it can reach outside the agent's workspace.
   {
-    // real-pathed: the browser is handed the egress reader's PROVEN real path (macOS tmpdir is /var -> /private/var)
+    // real-pathed (macOS tmpdir is /var -> /private/var). The browser is handed a STAGED COPY of the proven bytes in the
+    // agent's own workspace (review round 4, minor-1: <jail>/.upload-staging/<rand>/<name>), never the path as written
     const ws = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-')));
     try {
       const fsp = require('node:fs/promises');
@@ -1594,20 +1595,22 @@ function fakeDriver() {
       fs.writeFileSync(path.join(ws, 'secret.txt'), 'not yours');   // OUTSIDE the agent's folder
 
       const d = fakeDriver();
-      d.upload = async (node, abs, expected) => { d.log.uploaded = [node.text, abs]; return { status: 'selected', files: expected, retained: true, events: ['change'], evidence: 'FileList readback' }; };
+      d.upload = async (node, abs, expected) => { d.log.uploaded = [node.text, abs, abs.map(p => fs.readFileSync(p, 'utf8'))]; return { status: 'selected', files: expected, retained: true, events: ['change'], evidence: 'FileList readback' }; };
+      const staged = (u) => !!u && u[1].length === 1 && path.dirname(path.dirname(u[1][0])) === path.join(ws, 'ag', '.upload-staging') && path.basename(u[1][0]) === 'resume.pdf' && u[2][0] === 'PDF';
       const U = makeBrowserTools({ driver: d, fsp, pathMod: path, root: ws });
       const snap = await U.session.snapshot();
       const ref = snap[0].ref;
       const up = U.tools.find(t => t.name === 'browser.upload');
 
       const ok = await up.run({ ref, paths: ['resume.pdf'] }, { agentId: 'ag' });
-      A.eq(d.log.uploaded[1], [path.join(ws, 'ag', 'resume.pdf')], 'the driver receives an ABSOLUTE path inside the agent workspace');
+      const first = d.log.uploaded;
+      A.ok(staged(first), 'the driver receives an ABSOLUTE path inside the agent workspace: a staged copy of resume.pdf (' + JSON.stringify(first) + ')');
       A.ok(/Submit the form only when the task requires it/.test(ok.content), 'the agent is told attaching is not submitting');
 
       await rejects(up.run({ ref, paths: ['../secret.txt'] }, { agentId: 'ag' }), /climbs out of your workspace/i, 'a path escaping the workspace is refused');
       await rejects(up.run({ ref, paths: [path.join(ws, 'secret.txt')] }, { agentId: 'ag' }), /outside your workspace/i, 'an absolute path outside the jail is refused (an upload leaves the station: egress-files.js)');
       await rejects(up.run({ ref, paths: ['nope.txt'] }, { agentId: 'ag' }), /is not in your workspace/i, 'a missing file fails loudly here, not silently inside the page');
-      A.eq(d.log.uploaded[1], [path.join(ws, 'ag', 'resume.pdf')], 'no refused upload ever reached the driver');
+      A.ok(d.log.uploaded === first, 'no refused upload ever reached the driver');
       A.eq(up.requiresConsent, true, 'upload is consent-gated');
     } finally { fs.rmSync(ws, { recursive: true, force: true }); }
   }
