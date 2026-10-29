@@ -226,7 +226,7 @@ function stubFetch(routes) {
     const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED.concat([OR_HIT])), lookup: null, reader: r, openrouter: { apiKey: 'k', model: 'm' } });
     const res = await w.searchTool.run({ query: 'q' }, {});
     A.ok(/via openrouter/.test(res.summary), 'N: the search still answers through the next rung: ' + res.summary);
-    A.ok(/station browser could not start/.test(res.summary) && /station browser could not start/.test(res.content), 'N: and says the station browser could not start: ' + res.summary);
+    A.ok(/web search's background browser could not start/.test(res.summary) && /web search's background browser could not start/.test(res.content), 'N: and says web search\'s background browser could not start: ' + res.summary);
   }
   {
     // a browser stuck starting: the rung gives up within its budget when OpenRouter can still answer
@@ -236,10 +236,10 @@ function stubFetch(routes) {
     const t0 = Date.now();
     const res = await w.searchTool.run({ query: 'q' }, {});
     A.ok(Date.now() - t0 < 3000 && /via openrouter/.test(res.summary), 'O: a browser that does not answer in time is passed over: ' + res.summary);
-    A.ok(/station browser was not ready within/.test(res.summary), 'O: and the answer says so: ' + res.summary);
+    A.ok(/web search's background browser was not ready within/.test(res.summary), 'O: and the answer says so: ' + res.summary);
     const t1 = Date.now();
     const again = await w.searchTool.run({ query: 'q2' }, {});
-    A.ok(Date.now() - t1 < 6000 && made === 1 && /station browser is still starting/.test(again.summary), 'O: the next search does not queue behind the stuck browser (the engines keep their polite spacing): ' + again.summary + ' ms=' + (Date.now() - t1) + ' made=' + made);
+    A.ok(Date.now() - t1 < 6000 && made === 1 && /web search's background browser is still starting/.test(again.summary), 'O: the next search does not queue behind the stuck browser (the engines keep their polite spacing): ' + again.summary + ' ms=' + (Date.now() - t1) + ' made=' + made);
   }
   {
     // with no later rung the reader keeps its full time: a slow-but-healthy browser still answers
@@ -271,10 +271,27 @@ function stubFetch(routes) {
     const r = makeWebReader({ makeDriver: () => deadDriver(), idleMs: 3600000 });
     const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED), lookup: null, reader: r });
     const res = await w.searchTool.run({ query: 'q' }, {});
-    A.ok(/station browser could not start/.test(res.summary) && !/throttled/.test(res.summary), 'R: the summary names the dead browser: ' + res.summary);
-    A.ok(/station browser could not start/.test(res.content) && !/not a malfunction/.test(res.content), 'R: the content says so too, and does not call it a non-fault: ' + res.content);
+    A.ok(/web search's background browser could not start/.test(res.summary) && !/throttled/.test(res.summary), 'R: the summary names the dead browser: ' + res.summary);
+    A.ok(/web search's background browser could not start/.test(res.content) && !/not a malfunction/.test(res.content), 'R: the content says so too, and does not call it a non-fault: ' + res.content);
     const again = await w.searchTool.run({ query: 'q2' }, {});
-    A.ok(/station browser could not start/.test(again.summary), 'R: a later search during the cooldown says so at once: ' + again.summary);
+    A.ok(/web search's background browser could not start/.test(again.summary), 'R: a later search during the cooldown says so at once: ' + again.summary);
+    /* R2 (user report 10-28): the run stopped with "browser startup" blocking research while browser.navigate, a
+       separate browser, was never tried. The answer says that browser is web_search's own and points at the browser tool. */
+    A.ok(!/station browser/.test(res.content), 'R2: the dead search helper is never called the station browser: ' + res.content);
+    A.ok(/belongs to web_search only: if you have the browser tool, browser\.navigate opens pages in its own, separate browser/.test(res.content),
+      'R2: the agent is told the browser tool is a separate browser: ' + res.content);
+  }
+  {
+    /* R3 (user report 10-28): Chrome that quits at launch was reported only as "spawned Chromium exited before CDP
+       ownership was established" — no exit code, so nobody could say why. The reason is plain and keeps how it exited. */
+    const quits = () => ({ navigate: async () => { throw new Error('spawned Chromium exited before CDP ownership was established: exit code 21'); },
+      lastResponse: () => null, evalPublic: async () => ({ value: [] }), getText: async () => '', close: async () => {} });
+    const r = makeWebReader({ makeDriver: quits, idleMs: 3600000 });
+    const out = await r.search('q');
+    A.eq(out.reason, 'web search\'s background browser could not start (Chrome closed right after it was launched, exit code 21)',
+      'R3: plain words, and the exit code stays: ' + out.reason);
+    const bare = makeWebReader({ makeDriver: () => Object.assign(quits(), { navigate: async () => { throw new Error('spawned Chromium exited before CDP ownership was established'); } }), idleMs: 3600000 });
+    A.eq((await bare.search('q')).reason, 'web search\'s background browser could not start (Chrome closed right after it was launched)', 'R3: with no exit detail, no empty clause');
   }
   {
     /* S: the reader never reads ambient time (lint-determinism): the station's ONE reader gets the real clock from the

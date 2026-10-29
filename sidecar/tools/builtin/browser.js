@@ -642,10 +642,11 @@
      Resolution fails closed. The owned browser's proxy pins each validated DNS answer to its TCP dial,
      including page subresources. Pass lookup:null only in injected driver tests. */
   function nodeLookup(host) { const dns = require('node:dns'); return dns.promises.lookup(host, { all: true }); }
-  async function assertResolvedSafe(u, lookup) {
-    if (!lookup) return;
+  // every address the lookup answered, each one checked — [] for an IP literal or no lookup
+  async function resolveVerified(u, lookup) {
+    if (!lookup) return [];
     const h = hostOf(u);
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return;   // already a literal
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return [];   // already a literal
     const addrs = await lookup(h);
     if (!Array.isArray(addrs) || !addrs.length) throw new Error('no verified DNS address for ' + h);
     for (const a of (addrs || [])) {
@@ -653,8 +654,9 @@
       if (!NET.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
       if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing to navigate: ' + h + ' resolves to private address ' + ip);
     }
-    return addrs[0];
+    return addrs;
   }
+  async function assertResolvedSafe(u, lookup) { return (await resolveVerified(u, lookup))[0]; }
   /* The proxy's refusal behind a tunnel failure: the one for the host this navigation asked for, else the latest (a
      redirect hop, e.g. etsy.com -> www.etsy.com, is refused under ITS name). */
   function pickRefusal(list, url) {
@@ -684,8 +686,9 @@
         'if it keeps failing, check this computer\'s DNS or VPN settings.' };
     }
     if (r && r.code === 'DIAL_FAILED') {
-      return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: the address was found but did not answer. A firewall, VPN or security app ' +
-        'may be blocking StarNet\'s connection to ' + host + '.' };
+      const every = /^could not reach any of /.test(reason);
+      return { code: 'NAVIGATION_FAILED', text: reason + ' from this computer: ' + (every ? 'every address its DNS gave was tried and none answered' : 'the address was found but did not answer') +
+        '. A firewall, VPN or security app may be blocking StarNet\'s connection to ' + host + '.' };
     }
     return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: ' + reason };
   }
@@ -1367,7 +1370,7 @@
       if (spawn === CP.spawn && deps.networkProxy !== false) {
         networkProxy = await startPinnedProxy({
           validate: assertSafeUrl,
-          resolve: u => assertResolvedSafe(u, ('lookup' in deps) ? deps.lookup : nodeLookup)
+          resolve: u => resolveVerified(u, ('lookup' in deps) ? deps.lookup : nodeLookup)
         });
         for (const origin of allowedLocalOrigins) networkProxy.allowLocal(origin);
       }
@@ -1399,7 +1402,12 @@
       args.push('about:blank');
       proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
       procClosePromise = new Promise(resolve => {
-        if (proc && proc.on) proc.on('close', () => { procExited = true; resolve(true); });
+        // how it exited rides the launch error (procError): "exited before CDP ownership" alone never said why (user report, 10-28)
+        const child = proc;
+        if (proc && proc.on) proc.on('close', (code, signal) => {
+          if (proc === child && procError === null && (code !== null || signal)) procError = signal ? 'ended by ' + signal : 'exit code ' + code;
+          procExited = true; resolve(true);
+        });
         else resolve(true);
         if (proc && proc.on) proc.on('error', e => { procError = (e && e.message) || String(e); procExited = true; resolve(true); });
       });
@@ -4221,5 +4229,5 @@
     return { tools, session, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
-  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
+  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
 });
