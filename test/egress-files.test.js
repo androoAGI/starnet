@@ -288,7 +288,9 @@ function plant(linkAt, target) {
     {
       const warned = [];
       const warn0 = console.warn;
-      const onShare = (p) => { const r = path.relative(WS, p); return r && !r.startsWith('..') && !path.isAbsolute(r) ? '\\\\nas01\\starnet-data\\workspaces\\' + r : null; };
+      // a share's real path is spelled with \ on any host (path.relative gives / on Linux, which the console line would carry)
+      const unc = rel => rel.split(/[\\/]/).join('\\');
+      const onShare = (p) => { const r = path.relative(WS, p); return r && !r.startsWith('..') && !path.isAbsolute(r) ? '\\\\nas01\\starnet-data\\workspaces\\' + unc(r) : null; };
       const nasFsp = Object.assign({}, fsp, { realpath: async (p) => { const r = await fsp.realpath(p); return onShare(r) || r; } });
       const nas = makeEgressReader({ fsp: nasFsp, pathMod: path, workspaces: WS, guard: (abs, o2) => core.guard(abs, o2) });
       console.warn = (...a) => { warned.push(a.join(' ')); };
@@ -301,7 +303,7 @@ function plant(linkAt, target) {
       const probe = await nas.read(unscoped.paths, 'shots/x.png', { probe: true });
       A.ok(!probe.ok && /network share/.test(probe.error), 'a probe (browser.upload) says the same');
       // a project folder on a share, and a link out to one, are refused with the same true reason
-      const projShare = Object.assign({}, fsp, { realpath: async (p) => { const r = await fsp.realpath(p); const rel = path.relative(PA, r); return !rel.startsWith('..') && !path.isAbsolute(rel) ? '\\\\nas01\\projects\\a\\' + rel : r; } });
+      const projShare = Object.assign({}, fsp, { realpath: async (p) => { const r = await fsp.realpath(p); const rel = path.relative(PA, r); return !rel.startsWith('..') && !path.isAbsolute(rel) ? '\\\\nas01\\projects\\a\\' + unc(rel) : r; } });
       console.warn = () => {};
       try { got = await makeEgressReader({ fsp: projShare, pathMod: path, workspaces: WS, guard: (abs, o2) => core.guard(abs, o2) }).read(inA.paths, 'report.md'); } finally { console.warn = warn0; }
       A.ok(!got.ok && /network share/.test(got.error) && !/protected file/.test(got.error) && got.error.indexOf('nas01') < 0, 'a file whose real path is on a share: the same true reason (' + (got.ok ? 'SENT' : got.error) + ')');
