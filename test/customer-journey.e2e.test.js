@@ -25,6 +25,8 @@ test('customer journey: connect, select, tool, output, restart and repeat on all
       const send = o => res.write('data: ' + JSON.stringify(o) + '\n\n');
       try {
         if (req.method !== 'POST' || /\/(debit|credit)$/.test(req.url)) {
+          // OpenAI-shaped /models rows (no supported_parameters), on purpose: the kept OpenRouter endpoint warms the boot
+          // catalog after the restart, and a row that names no parameters must not read as toolless (providers/openrouter.js)
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ ok: true, balanceUsd: 100, data: [{ id: modelFor(p), context_length: 8000 }] })); return;
         }

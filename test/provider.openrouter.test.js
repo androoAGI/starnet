@@ -211,13 +211,18 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     const modelsFetch = async () => new Response(JSON.stringify({ data: [
       { id: 'tooly', supported_parameters: ['tools'], top_provider: { max_completion_tokens: 64000 } },
       { id: 'brainy', supported_parameters: ['tools', 'reasoning_effort'], reasoningEfforts: ['low', 'high'] },
-      { id: 'plain', supported_parameters: [] }
+      { id: 'plain', supported_parameters: [] },
+      // an OpenAI-shaped row (an OpenRouter-compatible proxy, a gateway): no parameter list at all
+      { id: 'unsaid', context_length: 8000 }
     ] }), { status: 200 });
     const p = makeOpenRouterProvider({ fetch: modelsFetch });
-    await p.listModels();
+    const rows = await p.listModels();
     A.eq(p.supportsTools('tooly'), true, 'tool-capable model -> true');
     A.eq(p.supportsTools('plain'), false, 'non-tool model -> false');
     A.eq(p.supportsTools('unknown-xyz'), null, 'unknown model -> null (do not false-refuse)');
+    A.eq(p.supportsTools('unsaid'), null, 'a row that lists no parameters says nothing about tools -> null, never a toolless refusal of every task');
+    A.eq(rows.find(m => m.id === 'unsaid').supportsTools, null, 'the listed row carries the same unknown, not false');
+    A.eq(rows.find(m => m.id === 'plain').supportsTools, false, 'a row that lists its parameters without tools is still false');
     A.eq(p.outputLimit('tooly'), 64000, 'output limit from top_provider.max_completion_tokens (bug d3a76db3: what a call can bill)');
     A.eq(p.outputLimit('plain'), 0, 'a model with no published output ceiling -> 0 (unknown)');
     A.eq(p.reasoningEfforts('brainy'), ['low', 'high'], 'declared reasoning efforts are exposed');

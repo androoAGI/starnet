@@ -57,7 +57,10 @@
         max_completion_tokens: (m.top_provider && m.top_provider.max_completion_tokens) || null,
         pricing: m.pricing,
         supported_parameters: Array.isArray(m.supported_parameters) ? m.supported_parameters.slice() : [],
-        supportsTools: !!(m.supported_parameters && m.supported_parameters.indexOf('tools') >= 0),
+        // the row's word when it lists its parameters (OpenRouter always does); null when it lists none at all — an
+        // OpenAI-shaped list (an OpenRouter-compatible proxy, a gateway) says nothing about tools, and false there refused
+        // every task as toolless (openai-compatible.js reads the same silence as unknown)
+        supportsTools: Array.isArray(m.supported_parameters) ? m.supported_parameters.indexOf('tools') >= 0 : null,
         supportsReasoning: !!(m.supported_parameters && (m.supported_parameters.indexOf('reasoning') >= 0 || m.supported_parameters.indexOf('reasoning_effort') >= 0 || m.supported_parameters.indexOf('include_reasoning') >= 0)),
         reasoningEfforts: normalizeEffortList(m.reasoningEfforts || m.reasoning_efforts || m.supportedReasoningEfforts || m.supported_reasoning_efforts),
         // architecture.input_modalities: true/false when the catalog says, null when it does not (provider.imageInputOf)
@@ -477,8 +480,8 @@
       const i = parseFloat(m.pricing.prompt) * 1e6, o = parseFloat(m.pricing.completion) * 1e6;
       return (isFinite(i) && isFinite(o)) ? { in: i, out: o } : null;
     }
-    // true/false once the catalog is warm; null = unknown (cold catalog) so callers don't false-refuse.
-    function supportsTools(id) { const m = findModel(id); return m ? !!m.supportsTools : null; }
+    // true/false once the catalog is warm; null = unknown (cold catalog, or a row that lists no parameters) so callers don't false-refuse.
+    function supportsTools(id) { const m = findModel(id); return (m && typeof m.supportsTools === 'boolean') ? m.supportsTools : null; }
     // Image input: false once this model refused an image here, else the catalog's word (true/false), else null (unknown).
     function supportsImages(id) {
       if (provider.refusedImages(baseUrl, id)) return false;
