@@ -36,7 +36,6 @@
 'use strict';
 const { note: failNote } = require('./failopen');
 const { assertWorkspaceId } = require('./workspace-reserved.js');
-const { hardlineReason } = require('./pathtrust.js');   // the pure floor: the private workspace meets it too (M1)
 
 // The brand is MODULE-PRIVATE: only makeRunPaths below can mint an object isRunPaths accepts. A Symbol.for() key was
 // forgeable by any code that could build a plain object ({ [Symbol.for('starnet.runPaths')]: true, root: '/' }).
@@ -74,6 +73,11 @@ function makeResolver(deps) {
     let a = P.resolve(abs), b = P.resolve(base);
     if (P.sep === '\\') { a = a.toLowerCase(); b = b.toLowerCase(); }
     return a === b || a.indexOf(b + P.sep) === 0;
+  }
+  function pathEqual(x, y) {
+    let a = P.resolve(x), b = P.resolve(y);
+    if (P.sep === '\\') { a = a.toLowerCase(); b = b.toLowerCase(); }
+    return a === b;
   }
   async function realpathExisting(p) {
     try { return await fsp.realpath(p); }
@@ -140,18 +144,19 @@ function makeResolver(deps) {
     const abs = P.resolve(base, rel || '.');
     if (!pathInside(abs, base)) throw new Error('path escapes workspace');
     const baseReal = await realpathExisting(base);
+    // THE WORKSPACE IS ITS OWN FOLDER (review round 3): a workspaces/<id> that is itself a junction to another folder
+    // (the home folder) passed every check below, because the containment is measured against the jail's real path
+    if (!pathEqual(baseReal, P.join(await realpathExisting(P.dirname(P.resolve(base))), P.basename(P.resolve(base))))) {
+      throw new Error('path escapes workspace: the workspace folder is a link to another folder');
+    }
     const existing = await deepestExisting(abs, base);
     const existingReal = await realpathExisting(existing);
     if (!pathInside(existingReal, baseReal)) throw new Error('path escapes workspace via symlink');
-    /* THE FLOOR HOLDS IN THE PRIVATE WORKSPACE TOO (review round 2, M1). The same file named absolutely goes through path
-       trust and meets the .env / .git / credential floor; named jail-relative ("repo/.env") it skipped the floor, so the
-       spelling decided. A floor hit is answered exactly as its absolute spelling is: by the run's guard when one is wired
-       (only host-wide Full Power passes it), else refused. Every other jail name resolves as before, guard untouched. */
-    const floor = hardlineReason(rel, abs) || hardlineReason(existingReal, existingReal);
-    if (floor) {
-      if (!pathTrust) throw new Error(floor);
-      await pathTrust(abs, { scope: opts.scope === 'write' ? 'write' : 'read', agentId: agentId, ctx: opts.ctx });
-    }
+    /* NO FLOOR HERE, ON THE STATION (owner decision, review round 3: round 2's floor on this branch is reverted). A repo the
+       agent cloned into its own private workspace keeps its .env.example, .env.local and .git for fs.*, the workshop
+       manifest, Keep, a continued folder and /api/file, exactly as on trunk. The credential / repository floor binds what
+       LEAVES the station instead, on every spelling: sidecar/egress-files.js (channel.send, a routine's files,
+       web_request ${file:}) and browser.upload, which reads through it. */
     await checkpointResolvedRoot(base, opts);
     return { base, abs };
   }

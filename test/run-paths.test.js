@@ -77,31 +77,64 @@ function plant(linkAt, target) {
     if (plant(path.join(JAIL, 'link'), OUTSIDE)) {
       A.ok(await refuses(jailed, 'link/secret.txt', 'read', /via symlink/), 'private workspace: a planted link out of the jail is refused');
     }
-    /* M1 (review round 2): the floor holds for a JAIL-relative name too. A repo cloned into the private workspace has a
-       .env and a .git; named absolutely they met the floor, named "repo/.env" they did not. Every spelling now gets the
-       absolute spelling's answer: refused under ordinary posture (and by a resolver with no guard at all), and passed
-       only where the guard itself passes it, host-wide Full Power. */
+    /* THE PRIVATE WORKSPACE ON THE STATION vs. WHAT LEAVES IT (owner decision, review round 3: round 2's jail floor is
+       reverted). A repo the agent cloned into its own workspace keeps .env.example, .env.local, .env and .git/* for fs.*
+       reads and writes, exactly as on trunk (where this proof lived in fs.js resolveInside and never asked path trust),
+       with or without a guard wired, so the workshop manifest, Keep, a continued folder and /api/file work there again.
+       The floor binds what LEAVES: the very same names through the egress reader are refused, Full Power included. */
     {
-      fs.mkdirSync(path.join(JAIL, 'repo', '.git'), { recursive: true });
+      fs.mkdirSync(path.join(JAIL, 'repo', '.git', 'hooks'), { recursive: true });
       fs.writeFileSync(path.join(JAIL, 'repo', '.env'), 'OPENAI_API_KEY=sk-jail');
+      fs.writeFileSync(path.join(JAIL, 'repo', '.env.example'), 'OPENAI_API_KEY=');
       fs.writeFileSync(path.join(JAIL, 'repo', '.git', 'config'), '[remote] url=https://tok@x');
+      fs.writeFileSync(path.join(JAIL, 'repo', '.git', 'HEAD'), 'ref: refs/heads/main');
       fs.writeFileSync(path.join(JAIL, 'repo', 'notes.txt'), 'fine');
+      let asked = 0;
+      const counted = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS, pathTrust: (abs, o2) => { asked++; return pathTrust(abs, o2); } }), { agentId: AID });
       const bare = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS }), { agentId: AID });
-      for (const [label, p] of [['private workspace', jailed], ['private workspace, no guard wired', bare]]) {
+      const names = ['repo/.env', 'repo/.env.example', 'repo/.env.local', 'repo/.git/config', 'repo/.git/HEAD', 'repo/.git/hooks/pre-commit', 'repo\\.git\\config', 'fresh/.env', 'repo/notes.txt', 'repo/.github/ci.yml'];
+      for (const [label, p] of [['private workspace', counted], ['private workspace, no guard wired', bare]]) {
         for (const scope of ['read', 'write']) {
-          for (const n of ['repo/.env', 'repo/.git/config', 'repo/.git/hooks/pre-commit', 'repo/.env::$DATA', 'repo\\.git\\config', 'fresh/.env']) {
-            A.ok(await refuses(p, n, scope, /floor/), label + ' ' + scope + ': the floor holds for the jail-relative ' + n);
+          for (const n of names) {
+            let got = null;
+            try { got = (await p.resolve(n, { scope })).abs; } catch (e) { got = 'REFUSED: ' + e.message; }
+            A.eq(got, path.join(JAIL, ...n.split(/[\\/]/)), label + ' ' + scope + ': trunk parity, the jail-relative ' + n + ' resolves on the station');
           }
         }
-        A.ok(!!(await p.resolve('repo/notes.txt', { scope: 'read' })), label + ': an ordinary file beside them still resolves');
-        A.ok(!!(await p.resolve('repo/.github/ci.yml', { scope: 'write' })), label + ': .github is not .git');
       }
-      if (plant(path.join(JAIL, 'innocent'), path.join(JAIL, 'repo', '.git'))) {
-        A.ok(await refuses(jailed, 'innocent/config', 'read', /floor/), 'private workspace: a link named innocently onto .git meets the floor on its real path');
-      }
+      A.eq(asked, 0, 'trunk parity: a jail-relative name never asks path trust (the jail branch decides it alone)');
+      const innocent = plant(path.join(JAIL, 'innocent'), path.join(JAIL, 'repo', '.git'));
+      if (innocent) A.eq((await jailed.resolve('innocent/config', { scope: 'read' })).abs, path.join(JAIL, 'innocent', 'config'), 'trunk parity: a link inside the jail onto its own .git resolves on the station');
+      // ...and none of them leaves the station, whatever the posture (sidecar/egress-files.js is the floor for egress)
+      const { makeEgressReader } = require('../sidecar/egress-files.js');
+      const egress = makeEgressReader({ fsp, pathMod: path, workspaces: WS, guard: (abs, o2) => trustCore.guard(abs, o2) });
       const fullPower = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS,
         pathTrust: (abs, o2) => trustCore.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: AID, unrestrictedHost: true }) }), { agentId: AID });
-      A.eq((await fullPower.resolve('repo/.env', { scope: 'read' })).abs, path.join(JAIL, 'repo', '.env'), 'Full Power: the jail-relative .env gets what its absolute spelling gets (the guard passes it)');
+      const leaving = ['repo/.env', 'repo/.env.example', 'repo/.git/config', 'repo/.git/HEAD', path.join(JAIL, 'repo', '.env'), path.join(JAIL, 'repo', '.git', 'config')].concat(innocent ? ['innocent/config'] : []);
+      for (const [label, p] of [['ordinary run', jailed], ['Full Power run', fullPower]]) {
+        for (const n of leaving) {
+          const got = await egress.read(p, n);
+          A.ok(!got.ok && /protected file/.test(got.error), label + ': ' + n + ' never leaves the station (' + (got.ok ? 'SENT' : got.error) + ')');
+        }
+        const fine = await egress.read(p, 'repo/notes.txt');
+        A.ok(fine.ok && fine.buffer.toString() === 'fine', label + ': an ordinary file beside them still leaves');
+      }
+    }
+    /* THE WORKSPACE IS ITS OWN FOLDER (review round 3, minor-1): a workspaces/<id> that is itself a junction to another
+       folder made that folder the agent's jail (fs.* resolved into it, and the egress reader sent from it). */
+    {
+      const elsewhere = path.join(BASE, 'home');
+      fs.mkdirSync(elsewhere, { recursive: true });
+      fs.writeFileSync(path.join(elsewhere, 'taxes.pdf'), 'HOME-TAXES');
+      if (plant(path.join(WS, 'delta'), elsewhere)) {
+        const delta = RunPaths.makeRunPaths(resolver, { agentId: 'delta' });
+        for (const scope of ['read', 'write']) {
+          A.ok(await refuses(delta, 'taxes.pdf', scope, /workspace folder is a link/), 'a junction jail: fs.* ' + scope + ' of taxes.pdf is refused');
+        }
+        const { makeEgressReader } = require('../sidecar/egress-files.js');
+        const got = await makeEgressReader({ fsp, pathMod: path, workspaces: WS }).read(delta, 'taxes.pdf');
+        A.ok(!got.ok && /workspace folder is a link/.test(got.error), 'a junction jail: nothing in it leaves the station (' + (got.ok ? 'SENT' : got.error) + ')');
+      }
     }
     // what was reachable stays reachable
     fs.writeFileSync(path.join(PROJECT, 'ok.txt'), 'in the project');
