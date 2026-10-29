@@ -26691,6 +26691,8 @@ async function handleChannelSync(req, res) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(t.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { telegram: Object.assign({}, t, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -26958,6 +26960,8 @@ async function handleDiscordSync(req, res) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(d.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   channelSecrets = Object.assign({}, channelSecrets, { discord: Object.assign({}, d, patch) });
   const persisted = saveChannelSecrets(channelSecrets);
@@ -27148,6 +27152,8 @@ async function handleGenericChannelSync(req, res, id) {
   if (typeof body.provider === 'string' && body.provider.trim()) patch.provider = normalizeProvider(body.provider.trim());
   if (body.reasoningEffort || body.reasoning_effort) patch.reasoningEffort = normalizeReasoningEffort(body.reasoningEffort || body.reasoning_effort);
   if (typeof body.key === 'string' && body.key.trim()) patch.key = body.key.trim();
+  // a sync that moves the record to another provider carries no old key or endpoint across, as a reconnect (bug 61bb1c7d)
+  if (patch.provider && patch.provider !== normalizeProvider(rec.provider)) { if (!patch.key) patch.key = undefined; patch.baseUrl = ''; patch.base_url = undefined; }
   if (typeof body.agentName === 'string') patch.name = body.agentName;
   const p = {}; p[id] = Object.assign({}, rec, patch);
   channelSecrets = Object.assign({}, channelSecrets, p);
