@@ -21602,6 +21602,10 @@ async function runOnceCore(o) {
   }
   if (o.dockId) runStartExtra.dockId = String(o.dockId);
   if (o.workitemId) runStartExtra.workitemId = String(o.workitemId);
+  // and one-line NOTICES about how the run was resolved (additive): an endpoint the caller named that it could not use,
+  // a fallback it skipped. A script reading the stream learns why, never silently.
+  const runNotices = (Array.isArray(o.runNotices) ? o.runNotices : []).map(n => String(n || '').trim()).filter(Boolean).slice(0, 4);
+  if (runNotices.length) runStartExtra.notices = runNotices;
   // and WHICH stream it runs on (additive, 2026-09-29): a line test's run (a step test's steptest-…, RUN ONE REAL JOB's
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
   if (o.streamId) runStartExtra.streamId = String(o.streamId);
@@ -23368,6 +23372,13 @@ async function runOnceCore(o) {
   const rawProviderFallbacks = savedProviderFallbacks.concat(Array.isArray(o.fallbackProviders) ? o.fallbackProviders : []);
   for (const fb of rawProviderFallbacks) {
     if (!fb || typeof fb !== 'object') continue;
+    // a fallback on a provider this station does not know is skipped and said, never re-homed on OpenRouter's credential
+    const fbUnknown = unknownProviderError(fb.provider);
+    if (fbUnknown) {
+      runNotices.push('a fallback was skipped: ' + fbUnknown);
+      runStartExtra.notices = runNotices;
+      continue;
+    }
     const fbProviderId = normalizeProvider(fb.provider || providerId);
     const fbModel = chatModelId(fbProviderId, String(fb.model || '').trim());   // a batch-only id runs on its base model, like the primary's
     if (!fbModel || (fbProviderId === providerId && fbModel === model)) continue;
@@ -24863,7 +24874,7 @@ async function runOnceCore(o) {
     // LINE WATCH: the loop's own run.start is the normal path's — it must name the bay/crate like every early-exit
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     // (and a voice turn's route, so COMMS can say once why a voice model was passed over)
-    if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.dockId || runStartExtra.workitemId || runStartExtra.voiceRoute)) payload = Object.assign({}, payload, runStartExtra);
+    if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.dockId || runStartExtra.workitemId || runStartExtra.notices || runStartExtra.voiceRoute)) payload = Object.assign({}, payload, runStartExtra);
     // BALANCE CEILING (additive, like completionVerdict below): this run's per-run stop fired at the ceiling admission
     // clamped to the StarNet balance, so every stop line names the balance + the top-up door, not a cap to raise.
     // A failover's own (lower) ceiling or the unpriced-token seatbelt carries a different cap and is left alone.

@@ -13,7 +13,8 @@
    secrets() block, the owner-revoke restart, the boot auto-start block and the load-time scrub. The start functions are
    stood in for by their own persistence line, which a source lock below pins. Every section fails on the commit before.
    The same station also proves, on the same real source:
-     · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5). */
+     · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5);
+     · runOnceCore's fallback loop skips a fallback on one, with a run notice (minor 6). */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
@@ -275,6 +276,29 @@ function station(opts) {
     A.eq(s.get().telegram.provider, 'anthropic', 'the record keeps its provider (never re-homed on openrouter)');
     const fine = await s.call('handleChannelSync', { provider: 'claude', model: 'claude-y' });
     A.eq([fine.status, s.get().telegram.provider], [200, 'anthropic'], 'a known alias still syncs');
+  }
+
+  // ================================ minor-6: an unknown fallback provider is skipped, with a notice ======================
+  {
+    const core = sidecarTopLevelFunction('runOnceCore');
+    const from = core.indexOf('  const providerFallbacks = [];');
+    const to = core.indexOf('  const fallbacks = rotationFallbacks', from);
+    A.ok(from > 0 && to > from && to - from < 6000, "fixture: runOnceCore's fallback loop is sliced");
+    const s = station({ runtimeKeys: { openrouter: STATION_OR }, env: { ANTHROPIC_API_KEY: 'sk-ant-OPERATOR' } });
+    const runNotices = [], runStartExtra = {};
+    const fbs = new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
+      'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId',
+      core.slice(from, to) + '\nreturn providerFallbacks;')(
+      [], { fallbackProviders: [{ provider: 'antrhopic', model: 'claude-typo' }, { provider: 'anthropic', model: 'claude-x' }] }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
+      s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
+      cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
+      s.unknownProviderError || (() => ''),
+      runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''));
+    A.eq(fbs.map(f => f.providerId + '/' + f.model), ['anthropic/claude-x'], 'a fallback on a provider this station does not know is skipped, never re-homed on openrouter');
+    A.eq(runNotices, ['a fallback was skipped: provider "antrhopic" is not a provider this station knows'], '...and the run says so');
+    A.eq(runStartExtra.notices, runNotices, '...on agent.run.start');
+    A.ok(/const fbUnknown = unknownProviderError\(fb\.provider\);/.test(core), 'the loop uses the one unknown-provider rule (unknownProviderError)');
   }
 
   A.report('channels.station-key: a channel record never holds the station key, and a per-run endpoint never carries it');
