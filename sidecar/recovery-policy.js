@@ -19,8 +19,9 @@ const RETRY_JITTER = 0.2;
 /* Classes a loop may keep retrying AFTER an adapter exhausted its own pre-stream ladder. Deliberately the
    genuinely transient ones only: auth / billing / quota_exhausted / content-policy / format / output_cap are
    non-retryable anyway, and `unknown` is excluded because "the same unrecognized refusal three times in a row"
-   is evidence, not a blip. */
-const PRESTREAM_CONTINUABLE = { overloaded: 1, server_error: 1, timeout: 1, rate_limit: 1 };
+   is evidence, not a blip. `unreachable` continues as `timeout` did in 0.14.1: a public host rides the ladder, and a local
+   one is held to its retryBudget of one (errorClass unreachableIsLocal), which the adapter has already spent. */
+const PRESTREAM_CONTINUABLE = { overloaded: 1, server_error: 1, timeout: 1, rate_limit: 1, unreachable: 1 };
 
 function finite(v, fallback) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
 
