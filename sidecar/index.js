@@ -22050,22 +22050,13 @@ async function runOnceCore(o) {
     runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
     // the dispatcher classifies a worker's brief with the SAME file probe that worker's own run uses (one brief, one answer)
     fileProbe: runFileExists,
-    // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them
-    handoffFiles: async (aid, list) => {
-      const out = [];
-      if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(aid || ''))) return out;
-      const bases = [path.join(WORKSPACES, String(aid))].concat(o.projectRoot ? [String(o.projectRoot)] : []);
-      for (const a of (Array.isArray(list) ? list : []).slice(0, 20)) {
-        const p = a && typeof a.path === 'string' ? a.path : '';
-        if (!p) continue;
-        for (const base of (path.isAbsolute(p) ? [''] : bases)) {
-          let real = null;
-          try { real = await fsp.realpath(base ? path.resolve(base, p) : path.resolve(p)); if (!(await fsp.stat(real)).isFile()) real = null; }
-          catch (_) { real = null; }   // not there (yet): nothing to hand on, never a guessed path
-          if (real) { out.push({ path: p, abs: real }); break; }
-        }
-      }
-      return out;
+    // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them.
+    // Each name resolves against the WORKER run's one base (where.projectRoot: its run row's root, which orchestration
+    // looks up; '' = its private workspace), never by probing the private workspace and then the lead's project
+    // (run-paths review M2: a stale private report.md won). sidecar/run-paths.js locateProduced proves each by realpath.
+    handoffFiles: async (aid, list, where) => {
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(aid || ''))) return [];
+      return RunPaths.locateProduced({ fsp, pathMod: path, list, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(aid)) });
     },
     grantReads: (paths) => { for (const p of (Array.isArray(paths) ? paths : [])) if (runReadGrants.size < 64 && p) runReadGrants.add(String(p)); },
     coordinateResults: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface }),

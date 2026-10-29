@@ -228,10 +228,13 @@ const { note: failNote } = require('../../failopen');
     }
     // Resolve a path and PROVE it is reachable (run-paths.js resolveFor). opts.scope ('read' | 'write') is threaded
     // to the guard so writes can stay consent-gated; opts.ctx is passed through.
+    // Only the run's ROOT (and its agent binding) comes from ctx.paths: the containment proof runs with THIS tool's own
+    // resolver and trust guard, so a tool built with a narrower guard is never widened by the run's (review minor).
     async function resolveInside(agentId, rel, opts) {
       opts = opts || {};
       if (!pathTrust) return resolver.resolveFor(agentId, rel, Object.assign({}, opts, { projectRoot: RunPaths.rootOf(opts.ctx) }));
-      return RunPaths.pathsFor(opts.ctx, resolver, agentId || 'agent').resolve(rel, opts);
+      const paths = RunPaths.pathsFor(opts.ctx, resolver, agentId || 'agent');   // throws when ctx.paths is another agent's
+      return resolver.resolveFor(agentId || 'agent', rel, Object.assign({}, opts, { projectRoot: paths.root || '' }));
     }
 
     async function beginEditDiagnostics(aid, files, ctx) {

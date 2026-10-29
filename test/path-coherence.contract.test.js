@@ -205,7 +205,11 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       'fs.read': async (ctx, n) => { const r = await attempt(() => fsTools.readTool.run({ path: n }, ctx)); return r.ok; },
       'shell test -f': async (ctx, n) => { const r = await attempt(() => shellTool.run({ cmd: 'test -f ' + n }, ctx)); return r.ok && /\[exit 0\]/.test(String(r.v.content)); },
       'verify.run test -f': async (ctx, n) => { const r = await attempt(() => verifyTool.run({ cmd: 'test -f ' + n }, ctx)); return r.ok && /PASSED/.test(String(r.v.content)); },
-      'browser.upload': async (ctx, n) => { uploads.length = 0; const r = await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: [n] }, ctx)); return r.ok && uploads.length === 1; },
+      // WHICH file went, not only how many (review minor): the real path handed to the page is the producer's file
+      'browser.upload': async (ctx, n, at) => {
+        uploads.length = 0; const r = await attempt(() => btool('browser.upload').run({ ref: 'f1', paths: [n] }, ctx));
+        return r.ok && uploads.length === 1 && uploads[0].length === 1 && fs.realpathSync(uploads[0][0]) === fs.realpathSync(at);
+      },
       'terminal.start cwd': async (ctx, n) => {
         terminalStarts.length = 0;
         const r = await attempt(() => termStart.run({ name: 't' + fileSeq, command: 'node' }, ctx));
@@ -221,8 +225,13 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
         // In a project run a file on the PRIVATE shelf (a frame, a PDF, a download, a spill) lies outside the run's base,
         // so its receipt is absolute. The path-taking tools open it (path trust serves the agent's own workspace); the
         // shell's floor refuses an absolute path in a command and that floor must STAY — nothing here may widen it.
+        // A relative receipt must name a file that really is at <run base>/<name> (review minor: this row used to be
+        // `true` for every relative name).
+        const runBase = sname === 'ordinary chat' ? JAIL : PROJECT;
+        const at = absolute ? made.v : path.join(runBase, made.v);
+        const outside = p => !fs.realpathSync(path.dirname(p)).toLowerCase().startsWith(runBase.toLowerCase() + path.sep);
         row(pname + ' names its file relative to the run base, or absolutely only outside it @ ' + sname + ' (' + made.v + ')',
-          absolute ? !fs.realpathSync(path.dirname(made.v)).toLowerCase().startsWith((sname === 'ordinary chat' ? JAIL : PROJECT).toLowerCase() + path.sep) : true);
+          fs.existsSync(at) && (absolute ? outside(at) : true), at);
         for (const [cname, consume] of Object.entries(consumers)) {
           if (absolute && cname === 'terminal.start cwd') continue;   // a cwd meets relative names only
           if (absolute && /^(shell|verify)/.test(cname)) {
@@ -230,7 +239,7 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
             row(pname + ' -> ' + cname + ' @ ' + sname + ': the absolute-path floor still refuses it', !refused.ok && /refused/.test(String(refused.e && refused.e.message)));
             continue;
           }
-          row(pname + ' -> ' + cname + ' @ ' + sname + ' (' + made.v + ')', await consume(ctx, made.v));
+          row(pname + ' -> ' + cname + ' @ ' + sname + ' (' + made.v + ')', await consume(ctx, made.v, at));
         }
       }
     }
@@ -429,6 +438,69 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
         const openedTxt = await attempt(() => fsTools.readTool.run({ path: txtAt }, ctx));
         row('ATTACH ' + label + ': an inlined text attachment names where it is saved, and fs.read opens it', !!txtAt && openedTxt.ok && /from the chat/.test(String(openedTxt.v && openedTxt.v.content)), txtAt || 'no saved-at line');
         row('ATTACH ' + label + ': the references never reach the provider', !('attachments' in expanded[0]));
+      }
+    }
+
+    // ================= G. ACROSS RUNS AND AGENTS in one trusted project (review M6: gh#81/gh#25, cc760146, c68d5c40; M2) =================
+    {
+      const OTHER = 'helper';
+      fs.mkdirSync(path.join(WS, OTHER), { recursive: true });
+      const ctxOf = (agentId, root) => {
+        const c = { agentId, runId: 'run-' + (++runSeq), projectRoot: root || null, emit() {} };
+        if (RunPaths) c.paths = RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root: WS, environment: env, pathTrust }), { agentId, projectRoot: root || '' });
+        return c;
+      };
+      // stage 1 (run A, agent X) writes; stage 2 (run B, agent Y, same project) reads, runs, opens a terminal there
+      const stage1 = ctxOf(AID, PROJECT);
+      const n = freshName('stage1');
+      await fsTools.writeTool.run({ path: n, content: 'stage one output' }, stage1);
+      const img = await attempt(() => image.generateTool.run({ prompt: 'p', path: 'stage-' + (++fileSeq) + '.png' }, stage1));
+      const imgAt = img.ok ? savedAt(img.v.content, /^Generated and saved (.+?) \(/m) : '';
+      const stage2 = () => ctxOf(OTHER, PROJECT);
+      const read = await attempt(() => fsTools.readTool.run({ path: n }, stage2()));
+      row('CROSS-RUN run A (agent X) fs.write -> run B (agent Y, same project) fs.read', read.ok && /stage one output/.test(String(read.v.content)), read.e && read.e.message);
+      const readImg = await attempt(() => image.analyzeTool.run({ image: imgAt, prompt: 'what' }, stage2()));
+      row('CROSS-RUN run A image_generate -> run B image_analyze opens the same image (' + imgAt + ')', !!imgAt && readImg.ok, readImg.e && readImg.e.message);
+      const sh = await attempt(() => shellTool.run({ cmd: 'test -f ' + n }, stage2()));
+      row('CROSS-RUN run A fs.write -> run B shell test -f', sh.ok && /\[exit 0\]/.test(String(sh.v.content)), sh.ok ? sh.v.content : sh.e.message);
+      terminalStarts.length = 0;
+      await attempt(() => termStart.run({ name: 'xrun', command: 'node' }, stage2()));
+      row('CROSS-RUN run A fs.write -> run B terminal.start opens where the file is', terminalStarts[0] && fs.existsSync(path.resolve(terminalStarts[0].cwd, n)), terminalStarts[0] && terminalStarts[0].cwd);
+
+      // worker -> lead (M2): the worker's run row says its root; a stale same-named file in its private workspace is the decoy
+      fs.writeFileSync(path.join(WS, OTHER, 'report.md'), 'STALE PRIVATE REPORT');
+      const preFixHandoff = async (aid, list, leadRoot) => {   // the pre-fix host: [worker private, LEAD root], first hit wins
+        const out = [];
+        for (const a of list) for (const base of [path.join(WS, aid)].concat(leadRoot ? [leadRoot] : [])) {
+          try { const real = fs.realpathSync(path.resolve(base, a.path)); if (fs.statSync(real).isFile()) { out.push({ path: a.path, abs: real }); break; } } catch (e) { /* not in this base */ void e; }
+        }
+        return out;
+      };
+      for (const [label, leadRoot, workerRoot] of [['a project lead', PROJECT, PROJECT], ['an unscoped lead whose worker ran in the project', '', PROJECT]]) {
+        const runs = [], granted = [];
+        const rows = new Map();
+        const orchestration = makeOrchestrationTools({
+          runOnce: async (o) => {
+            runs.push(o);
+            const wctx = ctxOf(o.agentId, workerRoot);
+            await fsTools.writeTool.run({ path: 'report.md', content: 'WORKER REPORT ' + label }, wctx);
+            rows.set(o.runId, { runId: o.runId, agentId: o.agentId, projectRoot: workerRoot });   // runOnceCore's runStore.record
+            return { reason: 'done', messages: [{ role: 'assistant', content: 'wrote report.md' }], usd: 0, artifacts: [{ kind: 'file', path: 'report.md' }] };
+          },
+          roster: () => new Map([[OTHER, { system: 'S', name: 'HELPER' }]]), key: 'k', model: 'm', perWorker: 1, newId: () => 'w' + (++runSeq),
+          runRecord: (id) => rows.get(id) || null,
+          handoffFiles: RunPaths && RunPaths.locateProduced
+            ? (aid, list, where) => RunPaths.locateProduced({ fsp, pathMod: path, list, projectRoot: (where && where.projectRoot) || '', jail: path.join(WS, aid) })
+            : (aid, list) => preFixHandoff(aid, list, leadRoot),
+          grantReads: (p) => granted.push(...p)
+        });
+        const lead = leadRoot ? ctxOf(AID, leadRoot) : ctxOf(AID, '');
+        const res = await attempt(() => orchestration.dispatchTool.run({ workers: [{ agentId: OTHER, prompt: 'write the report' }] }, Object.assign(lead, { signal: { aborted: false }, consent: { _isLeadConsent: true } })));
+        const out = res.ok ? JSON.parse(res.v.content) : [];
+        const abs = out[0] && out[0].artifacts && out[0].artifacts[0] && out[0].artifacts[0].abs;
+        const bytes = abs ? fs.readFileSync(abs, 'utf8') : '';
+        row('HAND-OFF worker -> lead (' + label + '): the lead is handed the worker run\'s file, not its stale private decoy', bytes === 'WORKER REPORT ' + label && granted.indexOf(abs) >= 0, abs + ' = ' + bytes);
+        if (abs) { const leadRead = await attempt(() => fsTools.readTool.run({ path: abs }, lead)); row('HAND-OFF (' + label + '): the lead\'s fs.read opens that exact handed path', leadRead.ok, leadRead.e && leadRead.e.message); }
       }
     }
 

@@ -526,9 +526,21 @@
     const userTextOf = (row) => shownText.has(row) ? shownText.get(row) : String((row && row.result) || '');
     const workerName = (aid) => { const id = (crewNow && crewNow.get && crewNow.get(aid)) || null; return String((id && id.name) || aid || 'worker').toUpperCase(); };
     let crewNow = null;
-    async function resolveHandoffFiles(aid, artifacts) {
+    /* A WORKER'S FILES ARE WHERE ITS RUN PUT THEM (run-paths review M2). A worker names a saved file relative to ITS run's
+       base, so the hand-off resolves it against that ONE base: the worker run's own row (its host-recorded project root,
+       '' = its private workspace), else the root this dispatch handed it. The host used to probe [the worker's private
+       workspace, the LEAD's project] in turn, so a stale private report.md beat the project file the worker just wrote,
+       and the second folder was not even the worker's. deps.handoffFiles(aid, artifacts, { projectRoot }) resolves
+       (sidecar/run-paths.js locateProduced). */
+    const handedRoot = new WeakMap();   // row -> the project root this dispatch handed that worker's run
+    function workerRoot(aid, runId, handed) {
+      const rec = runId && runRecord ? runRecord(String(runId)) : null;
+      if (rec && String(rec.agentId || '') === String(aid || '')) return String(rec.projectRoot || '');
+      return typeof handed === 'string' ? handed : '';
+    }
+    async function resolveHandoffFiles(aid, artifacts, runId, handed) {
       if (typeof deps.handoffFiles !== 'function' || !Array.isArray(artifacts) || !artifacts.length) return [];
-      try { const got = await deps.handoffFiles(aid, artifacts); return Array.isArray(got) ? got.filter(f => f && f.abs) : []; }
+      try { const got = await deps.handoffFiles(aid, artifacts, { projectRoot: workerRoot(aid, runId, handed) }); return Array.isArray(got) ? got.filter(f => f && f.abs) : []; }
       catch (e) { failNote('dispatch.handoff-files', e); return []; }
     }
     async function earlierHandoff(rows) {
@@ -536,7 +548,7 @@
       if (!usable.length) return null;
       const reads = [], blocks = [];
       for (const r of usable) {
-        const files = await resolveHandoffFiles(r.agentId, r.artifacts);
+        const files = await resolveHandoffFiles(r.agentId, r.artifacts, r.runId, handedRoot.get(r));
         for (const f of files) reads.push(String(f.abs));
         const text = userTextOf(r).trim();
         const clipped = text.length > EARLIER_EACH_MAX ? text.slice(0, EARLIER_EACH_MAX) + ' …(cut — read the file for the rest)' : text;
@@ -932,6 +944,7 @@
           const workerRunId = o2.runId || newId();
           const finish = async (row, deliver) => {
             row.runId = workerRunId;
+            handedRoot.set(row, projectOptions(job.sessionContext || ctx).projectRoot || '');   // a later worker reads this one's files from ITS base
             const envelope = await finalizeWorkerDelivery(workerRunId, row);
             // The execution loop ending is not completion: validation and any bounded repair finish first.
             noteSessionActivity('station.dispatch_end', job, workerRunId, envelope);
@@ -1104,14 +1117,14 @@
           if (rowTaint) row.taintedBy = rowTaint;
           if (wire.note) row.note = wire.note;   // honest credential-fallback disclosure (never silent)
           // WORK VISIBILITY (ghost-file fix): what the worker PROVABLY produced (its runOnce artifact ledger),
-          // stamped with the OWNING agentId. Files live in the WORKER's private workspace — the lead cannot
-          // fs.read them and must reference them as the worker's (they are already shown to the Commander as
-          // cards via the forwarded deliverable events). Never invent paths beyond this list.
+          // stamped with the OWNING agentId. Each name is relative to the WORKER's run base (its project, else its
+          // private workspace) — the lead reads them only at the host-resolved real paths below (they are already shown
+          // to the Commander as cards via the forwarded deliverable events). Never invent paths beyond this list.
           if (artifacts.length) {
             row.artifacts = artifacts.map(a => Object.assign({}, a, { agentId: job.agentId, workspace: job.agentId }));
-            // the REAL location of each saved file (host-resolved, existing files only), and the lead may now read
-            // exactly those — it used to guess "/tmp/<worker>/…" paths and ask the Commander to approve them
-            const files = await resolveHandoffFiles(job.agentId, row.artifacts);
+            // the REAL location of each saved file (host-resolved against the worker run's own base, existing files only),
+            // and the lead may now read exactly those — it used to guess "/tmp/<worker>/…" paths and ask to approve them
+            const files = await resolveHandoffFiles(job.agentId, row.artifacts, workerRunId, projectOptions(job.sessionContext || ctx).projectRoot || '');
             for (const f of files) {
               const a = row.artifacts.find(x => x && x.path === f.path);
               if (a) a.abs = f.abs;

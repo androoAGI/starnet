@@ -115,6 +115,20 @@ function plant(linkAt, target) {
       try { await bare.readTool.run({ path: 'ok.txt' }, { agentId: AID, paths: scoped }); } catch (e) { e2 = e; }
       A.ok(e1 && /illegal path/.test(e1.message), 'a guard-less resolver still refuses an absolute path even when the ctx carries a trusted path object');
       A.ok(e2 && /requires the project trust guard/.test(e2.message), 'and still refuses a project-relative path');
+      // (review minor) a tool built with a NARROWER guard keeps it: only the run's root comes from ctx.paths
+      const refusing = (abs) => { if (String(abs).toLowerCase().indexOf(PROJECT.toLowerCase()) === 0) throw new Error('narrow guard: not this project'); return pathTrust(abs, { scope: 'read' }); };
+      const narrow = makeFsTools({ fsp, pathMod: path, root: WS, pathTrust: refusing });
+      let e3 = null;
+      try { await narrow.readTool.run({ path: 'ok.txt' }, { agentId: AID, paths: scoped }); } catch (e) { e3 = e; }
+      A.ok(e3 && /narrow guard/.test(e3.message), 'a tool\'s own narrower guard is never widened by the run\'s path object (' + (e3 && e3.message) + ')');
+      // (review minor) the brand is module-private: a hand-built object carrying the old Symbol.for key is not a path object
+      const forged = { [Symbol.for('starnet.runPaths')]: true, agentId: AID, root: OUTSIDE, jail: JAIL, base: () => OUTSIDE,
+        resolve: async (rel) => ({ base: OUTSIDE, abs: path.join(OUTSIDE, rel) }), place: (a) => a, placeJail: (r) => r, shellCwd: () => null, setShellCwd: () => null };
+      A.eq(RunPaths.isRunPaths(forged), false, 'a forged object with the public Symbol.for brand is not a run path object');
+      let e4 = null, got = null;
+      try { got = await fsTrusted.readTool.run({ path: 'secret.txt' }, { agentId: AID, paths: forged }); } catch (e) { e4 = e; }
+      A.ok(!(got && /outside the trust/.test(String(got.content))), 'a forged ctx.paths never roots a read outside the trust (' + (e4 ? e4.message : 'read: ' + String(got && got.content).slice(0, 60)) + ')');
+      A.eq(RunPaths.isRunPaths(scoped), true, 'a minted object is one');
     }
 
     // ---- 4. placement names only what resolve() maps back ----
@@ -143,23 +157,66 @@ function plant(linkAt, target) {
       A.eq(jailed.jailFile('.attachments/a.ogg'), path.join(JAIL, '.attachments/a.ogg'), 'jailFile: absolute even in an unscoped run');
       A.eq(scoped.jailFile('../x'), '../x', 'jailFile never builds a path out of a `..` name');
       A.eq(scoped.shellCwd(), null, 'a fresh run starts with no remembered `cd`');
-      scoped.setShellCwd(path.join(PROJECT, 'sub'));
-      A.eq(jailed.shellCwd(), null, 'one run\'s `cd` is invisible to another run\'s object');
-      scoped.setShellCwd(null);
+      // (review minor: the old row compared two independently minted objects, which could not fail) two runs of the SAME
+      // agent in the SAME project, each reached the way every tool reaches it (pathsFor over its own ctx)
+      const chatA = { agentId: AID, runId: 'chat-a', paths: RunPaths.makeRunPaths(resolver, { agentId: AID, projectRoot: PROJECT }) };
+      const chatB = { agentId: AID, runId: 'chat-b', paths: RunPaths.makeRunPaths(resolver, { agentId: AID, projectRoot: PROJECT }) };
+      const viaA = RunPaths.pathsFor(chatA, resolver, AID), viaB = RunPaths.pathsFor(chatB, resolver, AID);
+      viaA.setShellCwd(path.join(PROJECT, 'sub'));
+      A.ok(viaA !== viaB && viaB.shellCwd() === null && RunPaths.pathsFor(chatA, resolver, AID).shellCwd() === path.join(PROJECT, 'sub'),
+        'one chat\'s `cd` stays on its own run: the same agent\'s other chat in the same project never sees it');
+      // a rig with NO ctx.paths keeps the historic per-scope memo (one project run id, one cd)
+      const rig1 = { agentId: AID, runId: 'rig-1', projectRoot: PROJECT }, rig2 = { agentId: AID, runId: 'rig-2', projectRoot: PROJECT };
+      RunPaths.pathsFor(rig1, resolver, AID).setShellCwd(path.join(PROJECT, 'sub'));
+      A.eq(RunPaths.pathsFor(rig2, resolver, AID).shellCwd(), null, 'two project runs of one agent never share a `cd`, even in a rig');
     }
 
-    // ---- 5. the fs receipt text is unchanged ----
+    // ---- 6. a FINISHED run's file is named against that run's one base (review M2, handoff-runner, routine delivery) ----
+    {
+      const W = path.win32, X = path.posix;
+      A.eq(RunPaths.producedPath('report.md', { projectRoot: '/proj', jail: '/ws/a' }).path, '/proj/report.md', 'producedPath: a project run\'s relative name means its project');
+      A.eq(RunPaths.producedPath('report.md', { projectRoot: '', jail: '/ws/a' }).path, '/ws/a/report.md', 'producedPath: an unscoped run\'s means its workspace');
+      A.eq(RunPaths.producedPath('notes\\r.md', { projectRoot: 'D:\\proj' }).path, W.resolve('D:\\proj', 'notes\\r.md'), 'producedPath: a Windows row reads as Windows on any host');
+      A.eq(RunPaths.producedPath('../x.md', { projectRoot: '/proj' }), { path: null, reason: 'escapes' }, 'producedPath: a name that climbs out of its base is refused');
+      A.eq(RunPaths.producedPath('C:x.md', { projectRoot: 'C:\\proj' }).reason, 'drive-relative', 'producedPath: a drive-relative name is refused');
+      A.eq(RunPaths.producedPath('r.md', {}).reason, 'unknown-root', 'producedPath: no known base, no guess');
+      A.eq(RunPaths.producedPath('\\\\srv\\share\\r.md', { projectRoot: '/proj' }).path, '\\\\srv\\share\\r.md', 'producedPath: an absolute name is kept as named (naming only)');
+      void X;
+      fs.writeFileSync(path.join(PROJECT, 'handed.md'), 'project copy');
+      fs.writeFileSync(path.join(JAIL, 'handed.md'), 'STALE private copy');
+      let located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: PROJECT, jail: JAIL, list: [{ path: 'handed.md' }, { path: 'missing.md' }, { path: '\\\\srv\\share\\x.md' }, { path: '../outside/secret.txt' }] });
+      A.eq(located.map(f => f.abs), [fs.realpathSync(path.join(PROJECT, 'handed.md'))], 'locateProduced: the project run\'s file, never the private decoy; missing, network and climbing names are left out');
+      located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: '', jail: JAIL, list: [{ path: 'handed.md' }] });
+      A.eq(located.map(f => f.abs), [fs.realpathSync(path.join(JAIL, 'handed.md'))], 'locateProduced: an unscoped run\'s file is in its workspace');
+      if (fs.existsSync(path.join(PROJECT, 'link'))) {
+        located = await RunPaths.locateProduced({ fsp, pathMod: path, projectRoot: PROJECT, jail: JAIL, list: [{ path: 'link/secret.txt' }] });
+        A.eq(located, [], 'locateProduced: a link planted in the base cannot carry a relative name out of it');
+      }
+    }
+
+    // ---- 5. the fs receipt text is unchanged: pinned to the PRE-LANE receipt, literally (review minor: this used to
+    //      compare the post-lane tool with itself). The strings below are what c9ab0f8a5's fs.write printed for the same
+    //      write (only the sha256 of the bytes and the temp root are filled in). ----
     {
       const fsTools = makeFsTools({ fsp, pathMod: path, root: WS, pathTrust });
+      const sha = require('node:crypto').createHash('sha256').update('same bytes').digest('hex');
+      const golden = {
+        'project run': 'Wrote receipt-a.txt (10 bytes).\n[mutation receipt: read-back-verified; attempted 10 bytes; written 10; verified 10; sha256 ' + sha + ']\n'
+          + '[location: ' + path.join(PROJECT, 'receipt-a.txt') + ']',
+        'private workspace': 'Wrote receipt-a.txt (10 bytes).\n[mutation receipt: read-back-verified; attempted 10 bytes; written 10; verified 10; sha256 ' + sha + ']\n'
+          + '[location: ' + path.join(JAIL, 'receipt-a.txt') + ' (your private workspace, not a project folder; a shell working in a project will not find it here. '
+          + 'To write into a project folder, give "path" as an absolute path inside it, or work from a conversation scoped to that project)]'
+      };
       for (const [name, viaPaths, legacy] of [
         ['project run', { agentId: AID, projectRoot: PROJECT, paths: scoped }, { agentId: AID, projectRoot: PROJECT }],
         ['private workspace', { agentId: AID, paths: jailed }, { agentId: AID }]
       ]) {
-        const a = await fsTools.writeTool.run({ path: 'receipt-a.txt', content: 'same bytes' }, viaPaths);
-        const b = await fsTools.writeTool.run({ path: 'receipt-b.txt', content: 'same bytes' }, legacy);
-        const norm = r => String(r.content).split('receipt-b.txt').join('receipt-a.txt');
-        A.eq(norm(b), String(a.content), name + ': the fs.write receipt reads the same through ctx.paths as through the pre-lane ctx');
-        A.eq(String(b.summary).split('receipt-b.txt').join('receipt-a.txt'), String(a.summary), name + ': and so does its summary');
+        for (const [shape, ctx] of [['through ctx.paths', viaPaths], ['through the pre-lane ctx shape', legacy]]) {
+          try { fs.rmSync(path.join(name === 'project run' ? PROJECT : JAIL, 'receipt-a.txt'), { force: true }); } catch (e) { console.log('[cleanup] ' + e.message); }
+          const r = await fsTools.writeTool.run({ path: 'receipt-a.txt', content: 'same bytes' }, ctx);
+          A.eq(String(r.content), golden[name], name + ': the fs.write receipt is the pre-lane receipt, ' + shape);
+          A.eq(String(r.summary), 'wrote receipt-a.txt (10 B)', name + ': and so is its summary, ' + shape);
+        }
       }
     }
   } finally {

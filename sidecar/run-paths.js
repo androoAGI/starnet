@@ -31,7 +31,9 @@
 const { note: failNote } = require('./failopen');
 const { assertWorkspaceId } = require('./workspace-reserved.js');
 
-const RUN_PATHS = Symbol.for('starnet.runPaths');
+// The brand is MODULE-PRIVATE: only makeRunPaths below can mint an object isRunPaths accepts. A Symbol.for() key was
+// forgeable by any code that could build a plain object ({ [Symbol.for('starnet.runPaths')]: true, root: '/' }).
+const BRANDED = new WeakSet();
 
 function safeAgentId(id) {
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id || '')) throw new Error('bad agentId');
@@ -141,7 +143,7 @@ function makeResolver(deps) {
   return { resolveFor, workspaceRoot, jailPath, pathInside, realpathExisting, deepestExisting, safeAgentId, pathMod: P, trusted: !!pathTrust };
 }
 
-function isRunPaths(p) { return !!(p && p[RUN_PATHS] === true); }
+function isRunPaths(p) { return !!(p && typeof p === 'object' && BRANDED.has(p)); }
 function rootOf(ctx) {
   if (!ctx) return '';
   if (isRunPaths(ctx.paths)) return ctx.paths.root || '';
@@ -194,11 +196,72 @@ function makeRunPaths(resolver, o) {
       if (!resolver.pathInside(a, jail)) return null;
       return P.relative(P.resolve(jail), a).split(P.sep).join('/') || '.';
     },
+    // the absolute file a name THIS run produced points at, named without touching the disk (producedPath below)
+    produced: (name) => producedPath(name, { projectRoot: root, jail }),
     shellCwd: () => shellCwd,
     setShellCwd: (cwd) => { shellCwd = cwd ? String(cwd) : null; return shellCwd; }
   };
-  Object.defineProperty(paths, RUN_PATHS, { value: true });
-  return Object.freeze(paths);
+  const frozen = Object.freeze(paths);
+  BRANDED.add(frozen);
+  return frozen;
+}
+
+/* WHERE A FINISHED RUN'S FILE IS (run-paths lane, review round 1). A run names a produced file relative to ITS base (its
+   project root, else its private workspace) or absolutely. Whoever reads that name after the run ended (a lead taking a
+   worker's hand-off, a work line's SEND TO, a routine's delivery) must resolve it against the PRODUCING run's single
+   base, never against its own folder and never by probing several folders (a stale same-named file in another one
+   would win). This names the file only: it touches no disk and grants nothing (the reader still proves the file).
+   name: the produced name; o: { projectRoot, jail } of the producing run. The platform follows the base's spelling,
+   so a Windows run's row reads the same on any host.
+   -> { path } | { path: null, reason: 'empty' | 'drive-relative' | 'unknown-root' | 'escapes' } */
+function producedPath(name, o) {
+  o = o || {};
+  const n = String(name == null ? '' : name).trim();
+  if (!n || n.indexOf('\0') >= 0) return { path: null, reason: 'empty' };
+  const W = require('node:path').win32, X = require('node:path').posix;
+  if (/^[A-Za-z]:(?![\\/])/.test(n)) return { path: null, reason: 'drive-relative' };   // C:foo is relative to a drive's cwd
+  if (W.isAbsolute(n) || X.isAbsolute(n)) return { path: n };   // already absolute on its own platform (UNC included)
+  const root = typeof o.projectRoot === 'string' ? o.projectRoot.trim() : '';
+  const base = root || (typeof o.jail === 'string' ? o.jail.trim() : '');
+  const P = /^[A-Za-z]:[\\/]|^\\\\/.test(base) ? W : X;
+  if (!base || !P.isAbsolute(base)) return { path: null, reason: 'unknown-root' };
+  const abs = P.resolve(base, n);
+  let a = abs, b = P.resolve(base);
+  if (P === W) { a = a.toLowerCase(); b = b.toLowerCase(); }
+  if (a !== b && a.indexOf(b + P.sep) !== 0) return { path: null, reason: 'escapes' };
+  return { path: abs };
+}
+
+/* locateProduced({ fsp, pathMod, projectRoot, jail, list }) -> [{ path, abs }] — the EXISTING files among a finished
+   run's produced names (its artifact ledger), each resolved against that run's ONE base (producedPath) and proven by
+   realpath: a relative name must still lie inside the real base (a link planted in the folder cannot carry it out), a
+   network path is never touched (an SMB lookup leaks the user's NTLM hash), and a missing file is left out, never
+   guessed. The caller decides what reading it means (team.dispatch grants the lead exactly these paths). */
+async function locateProduced(o) {
+  o = o || {};
+  const fsp = o.fsp, P = o.pathMod || require('node:path');
+  const out = [];
+  for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, 20)) {
+    const name = a && typeof a.path === 'string' ? a.path : '';
+    const at = producedPath(name, { projectRoot: o.projectRoot, jail: o.jail }).path;
+    if (!at || /^[\\/]{2}/.test(at)) continue;
+    const relative = !(P.win32.isAbsolute(name.trim()) || P.posix.isAbsolute(name.trim()));
+    let real = null;
+    try {
+      real = await fsp.realpath(at);
+      if (!(await fsp.stat(real)).isFile()) real = null;
+      if (real && relative) {
+        let r = real, b = await fsp.realpath(String(o.projectRoot || o.jail).trim());
+        if (P.sep === '\\') { r = r.toLowerCase(); b = b.toLowerCase(); }
+        if (r !== b && r.indexOf(b + P.sep) !== 0) real = null;
+      }
+    } catch (e) {
+      if (!e || (e.code !== 'ENOENT' && e.code !== 'ENOTDIR')) failNote('runpaths.locate', e);
+      real = null;   // not there (yet): nothing to hand on, never a guessed path
+    }
+    if (real) out.push({ path: name, abs: real });
+  }
+  return out;
 }
 
 /* How a tool reaches the run's path object: ctx.paths (host-minted) when present. Without it (a bare rig, a route
@@ -226,4 +289,4 @@ function pathsFor(ctx, resolver, agentId) {
   return p;
 }
 
-module.exports = { makeResolver, makeRunPaths, pathsFor, isRunPaths, rootOf, safeAgentId };
+module.exports = { makeResolver, makeRunPaths, pathsFor, isRunPaths, rootOf, safeAgentId, producedPath, locateProduced };

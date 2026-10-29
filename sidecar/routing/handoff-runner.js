@@ -36,6 +36,7 @@
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
 const path = require('node:path');
+const RunPaths = require('../run-paths.js');   // producedPath: where a finished run's file is (one base per run)
 const { crewedDocksOnLine } = require('./trigger-runner.js');
 
 const MAX_PENDING = 5;   // hand-offs waiting per target line behind the one in flight
@@ -265,25 +266,24 @@ function makeHandoffRunner(deps) {
       return refuse(item, say(plan, item.fromLine) + '’s job did not finish cleanly (a step ended “' + (bad.reason || 'unknown') + '”)');
     }
     const files = [];
-    // A relative file belongs to its PRODUCING run, never to the receiving line's project or agent.
-    // Preserve absolute paths from either platform (including UNC); only resolve against a known absolute base.
+    // A relative file belongs to its PRODUCING run, never to the receiving line's project or agent: the run's ONE base
+    // (its project root, else its agent's workspace), by the same rule every reader of a finished run's file uses
+    // (sidecar/run-paths.js producedPath). Absolute paths from either platform (UNC included) are kept as named; a name
+    // with no known base, a drive-relative one or one that climbs out of its base is omitted and said, never guessed.
     for (const x of sr.rows) for (const a of (Array.isArray(x.artifacts) ? x.artifacts : [])) {
       if (!a || !a.path) continue;
-      let file = String(a.path);
-      if (!path.win32.isAbsolute(file) && !path.posix.isAbsolute(file)) {
-        let base = typeof x.projectRoot === 'string' ? x.projectRoot.trim() : '';
-        if (!base) {
-          try { base = workspaceOf(x.agentId) || ''; }
-          catch (e) { warn('[handoff] source workspace unavailable: ' + ((e && e.message) || e)); }
-        }
-        const p = /^[A-Za-z]:[\\/]|^\\\\/.test(base) ? path.win32 : path.posix;
-        if (!p.isAbsolute(base) || /^[A-Za-z]:/.test(file)) {
-          warn('[handoff] omitted file with unknown source folder: ' + file);
-          continue;
-        }
-        file = p.resolve(base, file);
+      const named = String(a.path);
+      let jail = '';
+      if (!(typeof x.projectRoot === 'string' && x.projectRoot.trim()) && !path.win32.isAbsolute(named) && !path.posix.isAbsolute(named)) {
+        try { jail = workspaceOf(x.agentId) || ''; }
+        catch (e) { warn('[handoff] source workspace unavailable: ' + ((e && e.message) || e)); }
       }
-      if (files.indexOf(file) < 0) files.push(file);
+      const at = RunPaths.producedPath(named, { projectRoot: x.projectRoot, jail });
+      if (!at.path) {
+        warn(at.reason === 'escapes' ? '[handoff] omitted file that leaves its source folder: ' + named : '[handoff] omitted file with unknown source folder: ' + named);
+        continue;
+      }
+      if (files.indexOf(at.path) < 0) files.push(at.path);
     }
     const input = Pipeline.handoffInput({ fromName: item.fromName, original: item.original, output: item.output, files, unapproved: item.unapproved });
 
