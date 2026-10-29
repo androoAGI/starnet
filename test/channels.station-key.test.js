@@ -23,12 +23,16 @@
      · F2/F3: a key the station already holds (the runtime push, the operator's env key, the #89 page copy) is never written
        into a record (connect, sync, bots/connect), so the record follows it live: a rotated or removed page key strands no old
        copy, and the boot scrub has nothing to drop (no store / scrub / re-store churn: a bot runs the same pair before and
-       after a restart).
+       after a restart, or is refused the same way before and after it: B2, TODO 4).
      · F4: a key that arrived in THIS /api/run body is the caller's own, so the body's endpoint rides with it (the page copy can
        lag the page's last change), in handleRun and in runOnceCore; a key read from a record or held by the station keeps the
-       page-copy rule. (engine-credential.test.js runs runOnceCore's own lines.)
+       page-copy rule. (engine-credential.test.js runs runOnceCore's own lines.) NOT yet on the voice route (applyVoiceTurnRoute:
+       its hop, the main fallback it builds, the fallback loop's line) nor /api/providers/probe and /validate: there a body key
+       equal to the page copy's still rides the copy's endpoint (open: review r8 minors 1-2). A lock below pins the two callers.
      · F6 (i): a desktop run naming an endpoint the station has not been handed yet (its only answer is the provider default)
-       is refused for a retry, never run on that default. F5 (keptEndpoints names the provider only) and F6 (i) on a real
+       is refused for a retry, never run on that default. A sign-in's and StarNet's endpoint is never handed over, so never
+       theirs (keptEndpointProvider). A FAILED hand-over is tried again only at the next come-back (a station silence, a
+       restart): the retry alone starts none (open: review r8 minor 6). F5 (keptEndpoints names the provider only) and F6 (i) on a real
        desktop sidecar: desktop-endpoint-handover.e2e.test.js; F6 (ii) endpointPersisted:false: set-key-body.test.js; the
        shell's refusal of a starnet key: provider-aliases-parity.test.js.
    TODO — handed to the wave-3 credential-store lane (found here, they predate this lane, deliberately NOT fixed here):
@@ -40,7 +44,12 @@
         The page copy's store (engine-keys) writes main + .bak verified for exactly this reason.
      3. A record key handed over while it was the caller's own, which LATER becomes station-held (the page saves the same key
         as its copy after the channel sync landed), stays in the record until the next boot scrub; until then a page-copy
-        rotation with no channel sync strands it the way F2 closes for every new write. */
+        rotation with no channel sync strands it the way F2 closes for every new write.
+     4. On a browser/headless station with the operator's CUSTOM env key E and no env URL, E outranks the page copy {K, its
+        endpoint} (providerRuntimeKey), so a CUSTOM record that follows the station resolves {E, ''} and is refused ('configure
+        the CUSTOM base URL') from the page's sync onward (B2). Before r8 the record kept K and ran it at the copy's endpoint
+        until the next boot scrub. Wave-3 decides whether a record may follow the page copy's own pair, or the refusal says
+        the env key is the one with no endpoint. */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
@@ -564,6 +573,12 @@ function station(opts) {
     // a LINKED station: the stray slot is not "an endpoint this run named" (StarNet's endpoint is the linked account's)
     const linked = handle(station({ credits: { url: 'https://cloud.starnet.invalid', apiKey: 'dev-token' } }), 'starnet', { provider: 'starnet', baseUrl: 'http://stray-slot.invalid' });
     A.eq([linked.status, linked.out && linked.out.baseUrl, linked.out && linked.out.notices.length], [200, 'https://cloud.starnet.invalid/v1', 0], 'a linked StarNet run carries no endpoint notice: ' + JSON.stringify(linked.out));
+    // review r8 F6 (keptEndpointProvider): the same two on the DESKTOP. The window never hands StarNet's endpoint over (it is
+    // the linked account's), so the not-handed-over refusal is never theirs: no 503 retry for either
+    const dUnlinked = handle(station({ desktop: true }), 'starnet', { provider: 'starnet', baseUrl: 'http://stray-slot.invalid' });
+    A.ok(dUnlinked.status === 400 && /link this station to a StarNet account/.test(dUnlinked.text), 'desktop: an unlinked StarNet run gets the link door, not a retry: ' + JSON.stringify([dUnlinked.status, dUnlinked.text]));
+    const dLinked = handle(station({ desktop: true, credits: { url: 'https://cloud.starnet.invalid', apiKey: 'dev-token' } }), 'starnet', { provider: 'starnet', baseUrl: 'http://stray-slot.invalid' });
+    A.eq([dLinked.status, dLinked.out && dLinked.out.baseUrl, dLinked.out && dLinked.out.notices.length], [200, 'https://cloud.starnet.invalid/v1', 0], 'desktop: a linked StarNet run with a stray slot runs, no notice, no retry: ' + JSON.stringify(dLinked.out || dLinked.text));
   }
 
   // ================================ review r7 m9: a bots/connect rebind keeps the bot's own pair ===========================
@@ -675,6 +690,7 @@ function station(opts) {
     A.eq([before, keyOf()], ['sk-E-ENV|https://openrouter.ai/api/v1', 'sk-E-ENV|https://openrouter.ai/api/v1'], ch + ": B) ...and after the page's next sync: the station's own key (the env key outranks the page copy)");
     // B2) CUSTOM: env key E with no env URL, page copy {K, page-llm}. The record kept K (it ran at page-llm), the boot scrub
     // dropped it and the bot went offline. Now it runs what the station resolves, before and after: E never goes to page-llm.
+    // What the station resolves is {E, ''}: the bot is REFUSED from the sync onward (header TODO 4).
     const c = station({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pageCopy: { custom: { key: 'sk-K-PAGE', keyPool: [], baseUrl: 'http://page-llm/v1' } },
       roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider: 'custom' } },
       secrets: { [ch]: { token: 'tok', provider: 'custom', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
@@ -684,6 +700,14 @@ function station(opts) {
     A.eq((c.scrubChannelStationKeys ? c.scrubChannelStationKeys() : {}).scrubbed, [], ch + ': B2) the boot scrub has nothing to drop');
     A.eq(s2k(c.stationHubRunConfig('agent', recOf(c, ch))), b2, ch + ': B2) the bot is the same after a restart as before it: ' + b2);
     A.ok(b2 !== 'sk-E-ENV|http://page-llm/v1', ch + ": B2) the env key never goes to the page copy's endpoint");
+    A.ok(/^refused: /.test(b2), ch + ': B2) ...the station holds no endpoint for E, so the bot is refused, the same before and after: ' + b2);
+  }
+  // ...and the real refusal sentence for that state names the missing endpoint, not a key (the fixture stubs it as "connect a key")
+  {
+    const pce = new Function('normalizeProvider', 'getProviderProfile', 'providerSignInExpired', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth', 'providerRequiresBaseUrl', 'providerRequiresKey',
+      lift('providerCredentialError') + '\nreturn providerCredentialError;')(v => Reg.normalizeProviderId(v, 'openrouter'), Reg.getProviderProfile, () => false, id => id === 'codex',
+      Reg.providerUsesDeviceOAuth, Reg.providerRequiresBaseUrl, Reg.providerRequiresKey);
+    A.eq(pce('custom'), 'configure the CUSTOM base URL', 'B2: a CUSTOM bot refused for {E, \'\'} is told to configure the base URL');
   }
 
   // ================================ review r8 F4 + F6: /api/run's body key, and a desktop endpoint not handed over yet ===
@@ -720,8 +744,23 @@ function station(opts) {
     A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, '', true), 'https://openrouter.ai/api/v1', '...never when it sent no key');
     A.eq(desk.providerRuntimeBaseUrl('openrouter', EVIL, STATION_OR, 'sk-other', true), 'https://openrouter.ai/api/v1', '...nor when the run goes out on another key than the one sent');
     // runOnceCore re-resolves the pair: handleRun tells it the key came from this body, and nothing else does
-    const SRC = require('./helpers/source.js').readSidecarIndex();
-    A.eq((SRC.match(/keyInRequest/g) || []).length, 2, 'keyInRequest is set in exactly one place and read in exactly one');
+    // counted over the WHOLE sidecar: channels/hub.js and cron-driver.js call runOnce too, and must never claim a body key
+    const SRC = require('./helpers/source.js').readSidecarSource();
+    A.eq((SRC.match(/keyInRequest/g) || []).length, 2, 'keyInRequest is set in exactly one place and read in exactly one, across every sidecar file');
+    // ...and only those two pass providerRuntimeBaseUrl its 5th argument (inRequest): one each in handleRun and runOnceCore
+    const fifthArgCalls = text => {
+      let n = 0;
+      const re = /providerRuntimeBaseUrl\(/g;
+      for (let m; (m = re.exec(text));) {
+        if (/function\s+$/.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;   // the declaration
+        let d = 0, args = 1;
+        for (let i = m.index + m[0].length; i < text.length; i++) { const ch = text[i]; if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; }
+        if (args >= 5) n++;
+      }
+      return n;
+    };
+    A.eq([fifthArgCalls(SRC), fifthArgCalls(run), fifthArgCalls(sidecarTopLevelFunction('runOnceCore'))], [2, 1, 1],
+      'only handleRun and runOnceCore tell the resolver a key came in this request (no other caller, in any sidecar file)');
     A.ok(/ provider: runProvider, baseUrl, keyInRequest: !!\(bodyCredential && String\(\(body && body\.key\) \|\| ''\)\.trim\(\)\), reasoningEffort,/.test(run), 'handleRun hands runOnce keyInRequest only for a key in its body');
     A.ok(/const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(sidecarTopLevelFunction('runOnceCore')),
       "runOnceCore resolves the endpoint with the body's key as the caller's own (and only on the provider the caller named)");
@@ -744,6 +783,12 @@ function station(opts) {
     A.eq([envUrl.status, envUrl.out && envUrl.out.baseUrl], [200, PROXY2], "F6: ...as does one with the operator's env URL");
     const plain = handle(station({ desktop: true, runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter' });
     A.eq([plain.status, plain.out && plain.out.baseUrl, plain.out && plain.out.notices.length], [200, 'https://openrouter.ai/api/v1', 0], 'F6: a desktop run naming no endpoint runs on the default as before');
+    // a sign-in (Grok, Kimi) resolves its own endpoint and the hand-over never pushes one for it: a run naming one is never
+    // refused for a retry; it runs on the sign-in's endpoint and says the named one was not used (keptEndpointProvider)
+    for (const id of ['grok', 'kimi']) {
+      const so = handle(station({ desktop: true }), id, { provider: id, baseUrl: PROXY });
+      A.eq([so.status, so.out && so.out.baseUrl, so.out && so.out.notices.length], [200, Reg.getProviderProfile(id).baseUrl, 1], 'F6: a desktop ' + id + ' sign-in run naming an endpoint is not a 503: ' + JSON.stringify(so.out || so.text));
+    }
     const browser = handle(station({ runtimeKeys: { openrouter: STATION_OR } }), 'openrouter', { provider: 'openrouter', baseUrl: PROXY });
     A.eq([browser.status, browser.out && browser.out.notices.length], [200, 1], 'F6: a station no window pushes to (browser, headless) runs on and says so, as before');
   }
