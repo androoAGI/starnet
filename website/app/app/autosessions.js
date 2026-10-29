@@ -1,7 +1,8 @@
 /* STARNET — autosessions.js : surface an UNATTENDED cron/routine run as a readable SESSION.
 
    THE BUG THIS CLOSES. A cron routine fires headless (cron-driver.js fireJob → runOnce with
-   surface:'autonomous', trigger:'schedule'). Its reply text is buffered server-side and only an
+   surface:'autonomous', trigger:'schedule'; RUN NOW — POST /api/cron/run — runs the same unattended
+   path and stream, labelled trigger:'manual'). Its reply text is buffered server-side and only an
    OUTCOME enum escapes on cron.result — so the Commander hears the HUD chime + the away-digest
    toast but can never READ what the routine actually produced. There was no session, no thread,
    no output. This module makes an unattended run appear as a real workstream the instant it fires
