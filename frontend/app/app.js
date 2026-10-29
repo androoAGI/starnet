@@ -3730,8 +3730,10 @@ const App = (() => {
       // mid-run send silently no-ops and callers that record a launch (the outcome loop's attribution stamp)
       // must never count one that never happened.
       launchDirective: (text) => { const ws = (typeof Workstreams !== 'undefined') ? Workstreams.create((Workstreams.deriveTitle && Workstreams.deriveTitle(text)) || 'Goal milestone', { kind: 'task' }) : null; if (ws && typeof Chat !== 'undefined' && Chat.load) Chat.load(ws); let sent = false; if (typeof Chat !== 'undefined' && Chat.send && !Chat.isBusy()) { Chat.send(text); sent = true; } persist(); return sent; },
-      getRunSummary: (runId) => { const m = (runId && typeof Chat !== 'undefined' && Chat.runMeta) ? Chat.runMeta(runId) : null; return (m && m.title) ? m.title : ''; }
-    });
+      getRunSummary: (runId) => { const m = (runId && typeof Chat !== 'undefined' && Chat.runMeta) ? Chat.runMeta(runId) : null; return (m && m.title) ? m.title : ''; },
+      // Phase A only: the sidecar may provide immutable, explicitly associated evidence rows. No settlement API is called.
+      relatedWork: () => (typeof HistoricalEvidenceProjection !== 'undefined' && HistoricalEvidenceProjection.rows) ? HistoricalEvidenceProjection.rows() : []
+      });
     // UNDERSTANDING: the one honest, adaptive "how well the station understands the Commander" read
     // (understanding.js engine) composed from the live dossier beliefs + work-observation count + active goal.
     // No surface of its own — it AIMS the earned curiosity question at the weakest dimension and upgrades the
@@ -6002,6 +6004,9 @@ const App = (() => {
   /* ---------- boot ---------- */
   async function init() {
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
+    if (typeof HistoricalEvidenceProjection !== 'undefined' && Harness.api && Harness.api.get) {
+      Harness.api.get('/api/historical-evidence').then(r => { if (r && Array.isArray(r.items)) HistoricalEvidenceProjection.setSnapshot(r); }).catch(() => {});
+    }
     if (typeof StationUI !== 'undefined') StationUI.init();   // applies saved theme/CRT settings, wires the bottom bar
     if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: StationUI.rerender });
 

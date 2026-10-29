@@ -11344,8 +11344,25 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + goals.map(g => {
         const focus = active && active.id === g.id;
         const ms = g.milestones || [], done = ms.filter(m => m.status === 'done').length;
+        const related = (typeof GoalStore !== 'undefined' && GoalStore.relatedWork) ? GoalStore.relatedWork().filter(r => r && String(r.goalId) === String(g.id)) : [];
+        const relatedByRun = [], relatedSeen = new Set();
+        related.forEach(r => { if (r.runId && !relatedSeen.has(String(r.runId))) { relatedSeen.add(String(r.runId)); relatedByRun.push(r); } });
+        const relatedHtml = relatedByRun.length
+          ? '<details class="q-related-work"><summary>Related work observed — not yet settled as milestone completion (' + relatedByRun.length + ')</summary><div class="q-related-work-list">'
+            + relatedByRun.map(r => {
+                const outcome = r.validation && (r.validation.outcome || r.validation.status || r.validation.controller || r.validation.result);
+                const status = outcome ? String(outcome).replace(/_/g, ' ') : 'observed activity';
+                const evidence = Array.isArray(r.artifacts) && r.artifacts.length ? '<div class="sub">Artifacts: ' + r.artifacts.map(esc).join(', ') + '</div>' : '';
+                const validation = r.validation ? '<div class="sub">Validation: ' + esc(status) + '</div>' : '<div class="sub">Validation: not assessed</div>';
+                return '<article class="q-related-work-card" data-run-id="' + esc(r.runId) + '" data-goal-id="' + esc(r.goalId) + '" data-milestone-id="' + esc(r.milestoneId) + '">'
+                  + '<div class="q-hd"><span class="nm">' + esc(r.title || r.runId) + '</span><span class="q-section-note">' + esc(status.toUpperCase()) + '</span></div>'
+                  + '<div class="sub">Related work observed — not accepted milestone completion.</div>'
+                  + '<div class="sub">Run: ' + esc(r.runId) + (r.controllerExecutionId ? ' · Controller: ' + esc(r.controllerExecutionId) : '') + '</div>'
+                  + validation + evidence + '</article>';
+              }).join('') + '</div></details>' : '';
         return '<details class="q-direction q-life-goal" data-gid="' + esc(g.id) + '"><summary><span>' + (focus ? '◆ ' : '◇ ') + esc(g.text) + '</span><span class="q-section-note">' + (focus ? 'FOCUS' : esc(g.status.toUpperCase())) + ' · ' + done + '/' + ms.length + ' STEPS</span></summary>'
           + '<p class="sub">Success: ' + esc(g.successCondition || 'Define the result you want') + '</p>'
+          + relatedHtml
           + (g.status === 'active' && !focus ? '<button class="consent-btn q-goal-focus" data-gid="' + esc(g.id) + '">MAKE THIS MY FOCUS</button>' : '')
           + '<div class="q-journey-actions"><button class="consent-btn q-goal-review" data-gid="' + esc(g.id) + '">REVIEW WITH MY CREW</button>'
           + (g.status === 'active' ? '<button class="consent-btn q-goal-disposition" data-state="paused">PAUSE</button>' : '<button class="consent-btn q-goal-disposition" data-state="active">RESUME &amp; FOCUS</button>')
