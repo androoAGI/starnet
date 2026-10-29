@@ -200,6 +200,13 @@ function bareApproval(reply) {
 }
 function loopDecision(step, ctx, n, visited, text, reviewed) {
   const byVerdict = Verdict.isVerdictWord(step.when);
+  /* A REVIEWER'S VERDICT: blocked HOLDS the work at a verdict-keyed gate (typed-outcomes, GitHub #122): never 'revise' (another
+     paid pass), never the done lane or the escalation lane (work nobody approved moving on). held: the walk stops here, says
+     why, and spends nothing more; the durable hold and its resume are the line-hold lane's. */
+  if (byVerdict && ctx && ctx.verdict === Verdict.BLOCKED) {
+    const why = 'the reviewer at the gate ' + step.loop + ' answered VERDICT: blocked, so the work is held there — not sent on, not shipped';
+    return { again: false, target: null, text, exhausted: false, held: true, why };
+  }
   const wants = !step.when ? true : byVerdict ? (ctx.verdict !== String(step.when).toLowerCase()) : (ctx.tag === step.when);
   const again = step.backTo && n < step.max && wants;
   const handed = (typeof reviewed === 'string' && reviewed.trim()) ? reviewedWork(reviewed) : null;
@@ -754,6 +761,8 @@ function makeChainRunner(o) {
           // a gate whose back lane re-enters the dock that just ran: lastHanded is that dock's previous loop turn, not a draft under review
           const selfLoop = !!step.backTo && nodeKey(asNode(step.backTo)) === nodeKey(cur);
           const d = loopDecision(step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
+          // a BLOCKED verdict holds the job at this gate: the line ends here, nothing more is bought (out.blocked: line facts)
+          if (d.held) { out.text = d.text; out.blocked = d.why; out.stopped = d.why; return out; }
           target = asNode(d.target); out.text = d.text;
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
           else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }

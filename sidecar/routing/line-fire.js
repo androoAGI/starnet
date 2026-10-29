@@ -25,7 +25,7 @@ function lineStopNote(res) {
 function lineFacts(line) {
   if (!line || typeof line !== 'object') return null;
   const facts = {};
-  for (const k of ['stopped', 'unapproved', 'partial']) {
+  for (const k of ['stopped', 'unapproved', 'partial', 'blocked']) {   // blocked (additive): a reviewer's VERDICT: blocked held the job
     if (line[k]) facts[k] = String(line[k]).slice(0, FACT_MAX);
   }
   return Object.keys(facts).length ? facts : null;

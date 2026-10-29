@@ -11,14 +11,21 @@
 'use strict';
 
 const VERDICT_WORDS = ['approved', 'revise'];
+/* BLOCKED — the THIRD canonical verdict (typed-outcomes, 2026-10-29; shared with the line-hold lane). A reviewer that answers
+   VERDICT: BLOCKED is saying the work must NOT move on. It is never a gate KEY (VERDICT_WORDS stays approved | revise: a gate
+   waits on one of those), so parseVerdict returning null for it made every verdict-keyed gate read it as "not approved" —
+   'revise' — and, passes later, ship the work DONE unapproved (GitHub #122). A verdict-keyed gate now HOLDS it
+   (chain.js loopDecision): the line stops at that gate with zero further spend and says why. */
+const BLOCKED = 'blocked';
 // synonyms the model may reach for; each maps to the ONE canonical word the gate compares against
 const SYN = { approved: 'approved', approve: 'approved', accepted: 'approved', pass: 'approved', lgtm: 'approved',
-              revise: 'revise', revision: 'revise', rejected: 'revise', reject: 'revise', 'needs-work': 'revise', 'needs_work': 'revise' };
+              revise: 'revise', revision: 'revise', rejected: 'revise', reject: 'revise', 'needs-work': 'revise', 'needs_work': 'revise',
+              blocked: BLOCKED, block: BLOCKED, blocker: BLOCKED, blocking: BLOCKED, 'do-not-ship': BLOCKED, 'do_not_ship': BLOCKED };
 const TAIL_LINES = 3;   // how many trailing non-empty lines may carry the verdict
 
 function isVerdictWord(w) { return typeof w === 'string' && VERDICT_WORDS.indexOf(w.toLowerCase()) >= 0; }
 
-/* parseVerdict(text) -> 'approved' | 'revise' | null. The LAST verdict line within the tail wins. */
+/* parseVerdict(text) -> 'approved' | 'revise' | 'blocked' | null. The LAST verdict line within the tail wins. */
 function parseVerdict(text) {
   if (typeof text !== 'string' || !text) return null;
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -70,4 +77,4 @@ function verdictBrief(when, handsOn) {
         + 'applied), and keep review notes short.');
 }
 
-module.exports = { parseVerdict, stripVerdict, isVerdictWord, verdictBrief, VERDICT_WORDS };
+module.exports = { parseVerdict, stripVerdict, isVerdictWord, verdictBrief, VERDICT_WORDS, BLOCKED };

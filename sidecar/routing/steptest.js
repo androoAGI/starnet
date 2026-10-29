@@ -215,6 +215,8 @@ function makeStepTest(o) {
       // a gate whose back lane re-enters the dock that just ran: W.handed is that dock's previous loop turn, not a draft (chain.js)
       const selfLoop = !!step.backTo && nodeKey(asNode(step.backTo)) === nodeKey({ agentId: cur, dockId: curDock });
       const d = loopDecision(step, ctx, n, W.visited, raw, selfLoop ? '' : W.handed);
+      // a BLOCKED verdict holds the job at this gate, exactly as the line runner does (chain.js loopDecision): the step ends here
+      if (d.held) return { next: { kind: 'end', reason: d.why }, text: d.text, end: d.why, held: true };
       target = asNode(d.target); text = d.text; again = d.again; exhausted = d.exhausted;
       if (d.again) open[step.loop] = true; else delete open[step.loop];
       looping = Object.keys(open).length > 0;
