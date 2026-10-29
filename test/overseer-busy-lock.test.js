@@ -50,6 +50,8 @@ function station(file, opts) {
     runStore: { all: () => proofs.slice() }, isBlessedRoot: () => true,
     agentRoster: new Map([['agent', { provider: 'openrouter', model: 'test/model', system: 'You coordinate work.' }]]),
     normalizeProvider: p => p, providerRuntimeKey: () => 'sk-test', providerRuntimeBaseUrl: () => '', providerHasCredential: () => o.credential !== false,
+    // the reviewer's ONE pair (run-wire-resolver lane: index.js runWireFor), here the roster row as a pinned pair
+    runWireFor: id => { const a = deps.agentRoster.get(id) || {}; return { ok: !!a.model, provider: a.provider, model: a.model, source: 'agent' }; },
     crypto, runs, runsMeta,
     delegatedReportPrompt: () => 'Review the background work you delegated for this conversation.',
     runOnceCoreCounted: o => {

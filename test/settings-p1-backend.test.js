@@ -18,8 +18,10 @@ let n = 0; const ok = (c, m) => { assert.ok(c, m); n++; };
 
 // ---- P1-6 per-agent model override honored at run time ----
 ok(/rosterIdent = agentRoster\.get\(/.test(src), 'P1-6: runOnce looks up the per-agent roster identity');
-ok(/rosterIdent && rosterIdent\.model/.test(src), 'P1-6: the roster model is used as a fallback for a run with no explicit model');
-ok(/o\.provider \|\| \(rosterIdent && rosterIdent\.provider\)/.test(src), 'P1-6: the roster provider is used when the run carries none');
+// (run-wire-resolver lane) the fallback is the ONE resolution (runWireFor): the run's own pair, else the agent's roster pin,
+// else the station default — as a pair, never the roster's provider beside another level's model (behaviour: run-wire.invariant)
+ok(/const runWire = runWireOfRun\(o\);/.test(src) && /let model = String\(runWire\.model \|\| ''\)\.trim\(\)/.test(src), 'P1-6: the roster model is used as a fallback for a run with no explicit model');
+ok(/agent: agentRoster\.get\(id\) \|\| null, hero: agentRoster\.get\('agent'\) \|\| null/.test(src) && /const providerId = normalizeProvider\(runWire\.provider \|\| ''\);/.test(src), 'P1-6: the roster provider is used when the run carries none');
 
 // ---- P1-7 config export/import/reset ----
 ok(/require\('\.\/configexport\.js'\)/.test(src), 'P1-7: the configexport module is required');
