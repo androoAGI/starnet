@@ -118,6 +118,38 @@ async function drain(res) { const rd = res.body.getReader(); const dec = new Tex
     A.eq(runs[0].title, attachmentText, 'the attachment run title uses its own typed text');
     A.eq(runs[1].title, priorText, 'the prior run keeps its original title');
 
+    // 5b. (run-paths review round 2) a PROJECT chat: the folder is trusted through the real /api/projects/bless, and the
+    // run host expands the attachment once, naming the saved file the way this run's tools resolve it (the absolute path
+    // in the private workspace, since a relative path means the project here). The provider sees one note and never
+    // the raw `attachments` key.
+    const fs = require('fs'), os = require('os'), path = require('path');
+    const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-attach-proj-'));
+    try {
+      const bless = await fetch(B + '/api/projects/bless', { method: 'POST', headers: H, body: JSON.stringify({ path: fs.realpathSync.native(proj) }) });
+      const blessed = await bless.json();
+      A.ok(bless.status === 200 && blessed.ok && blessed.root, 'the project folder is trusted through /api/projects/bless: ' + JSON.stringify(blessed));
+      const upTxt = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ agent: 'e2e', name: 'brief.md', dataUrl: 'data:text/markdown;base64,' + Buffer.from('# the brief\nship it').toString('base64') }) });
+      const txtRef = await upTxt.json();
+      A.ok(txtRef.ok && txtRef.kind === 'file', 'a text attachment is saved: ' + JSON.stringify(txtRef));
+      const before = mock.requests.length;
+      const projRes = await fetch(B + '/api/run', { method: 'POST', headers: H, body: JSON.stringify({
+        key: 'sk-or-v1-e2e-fake', model: 'test/model', agentId: 'e2e', streamId: 'attachment-e2e-project', projectRoot: blessed.root,
+        messages: [{ role: 'user', content: 'read the brief', attachments: [{ id: txtRef.id, name: 'brief.md', path: txtRef.path, mediaType: 'text/markdown', kind: 'file' }] }]
+      }) });
+      A.eq(projRes.status, 200, 'the project-chat run streams 200');
+      const projEnds = (await drain(projRes)).filter(e => e.name === 'agent.run.end');
+      A.ok(projEnds.length === 1 && projEnds[0].payload.reason === 'done', 'the project-chat run completes cleanly');
+      const sent = mock.requests.slice(before);
+      A.ok(sent.length > 0, 'the project-chat run reached the provider');
+      const userTexts = sent.map(r => (r.messages || []).filter(m => m && m.role === 'user').map(m => Array.isArray(m.content) ? m.content.map(p => (p && p.text) || '').join('') : String(m.content || '')).join('\n'));
+      const last = userTexts[userTexts.length - 1] || '';
+      A.eq((last.match(/\[saved in your workspace at /g) || []).length, 1, 'exactly one "[saved in your workspace at …]" note reaches the provider: ' + last.slice(0, 300));
+      const at = (/\[saved in your workspace at ([^\]]+)\]/.exec(last) || [])[1] || '';
+      A.ok(path.isAbsolute(at) && at.replace(/\\/g, '/').endsWith(txtRef.path) && at.indexOf(proj) < 0, 'in a project run it names the saved file absolutely, in the private workspace: ' + at);
+      A.ok(/ship it/.test(last), 'and the file\'s text is inlined');
+      A.ok(sent.every(r => (r.messages || []).every(m => !(m && Object.prototype.hasOwnProperty.call(m, 'attachments')))), 'no raw attachments key reaches the provider');
+    } finally { fs.rmSync(proj, { recursive: true, force: true }); }
+
     // 6. DELETE the attachment (composer remove-before-send) prunes the workspace file.
     const del = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ op: 'delete', agent: 'e2e', path: ref.path }) });
     A.eq(del.status, 200, 'POST /api/attachments {op:delete} -> 200');
