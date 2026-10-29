@@ -3884,6 +3884,14 @@ fn harness_store_provider_key(
         format!("\"{shown}\" is not a provider this app knows, so nothing was stored")
     })?;
     let key_trimmed = key.as_ref().map(|k| k.trim().to_string());
+    // starnet's bearer is the station's device link (its own credits entry), never a key the window hands over: refused
+    // here, so it is not pushed into the sidecar's runtime key table either
+    if provider_id == "starnet" && matches!(key_trimmed.as_deref(), Some(k) if !k.is_empty()) {
+        return Err(
+            "StarNet runs on this station's account link, not an API key, so nothing was stored"
+                .to_string(),
+        );
+    }
     let mut rollback: Option<(keyring::Entry, Option<String>)> = None;
     if let Some(ref key_value) = key_trimmed {
         // codex + the device-OAuth providers (grok/kimi) authenticate by OAuth token (sidecar-owned), not a

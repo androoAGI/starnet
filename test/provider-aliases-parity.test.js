@@ -74,6 +74,11 @@ const cmd = cmdAt >= 0 ? main.slice(cmdAt, main.indexOf('\n}\n', cmdAt)) : '';
 A.ok(/let provider_id = known_provider\(&provider\)\s*\.ok_or_else\(/.test(cmd) && !/normalize_provider\(/.test(cmd),
   'harness_store_provider_key refuses a provider id it does not know (an error, never the OpenRouter slot)');
 A.ok(/provider_id != "starnet"/.test(cmd), "harness_store_provider_key writes no keychain key for starnet (its bearer is the station's device link)");
+// review r8: ...and REFUSES a starnet key before anything is pushed — it never lands in the sidecar's runtime key table
+{
+  const refuse = /\n    if provider_id == "starnet" && matches!\(key_trimmed\.as_deref\(\), Some\(k\) if !k\.is_empty\(\)\) \{\n        return Err\(/.exec(cmd);
+  A.ok(!!refuse && refuse.index < cmd.indexOf('push_provider_config('), 'harness_store_provider_key returns an error for a starnet key, before any push_provider_config');
+}
 const uses = (/\nuse credentials::\{([\s\S]*?)\};/.exec(main) || [])[1] || '';
 A.ok(/\bknown_provider\b/.test(uses), 'main.rs imports known_provider from credentials');
 A.report('provider-aliases-parity: every provider alias the page and the desktop shell know normalises in the station registry');
