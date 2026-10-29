@@ -553,7 +553,7 @@ const UP = '\x1b[A', DOWN = '\x1b[B', ESC = '\x1b';
   }
 
   /* 17. /usage: each connected provider and what is left of it, as the station says (a Claude Code sign-in's window, a
-     ChatGPT sign-in no run has used yet, a key with no call yet, the ledger's spend); /connect on a subscription already
+     ChatGPT sign-in nothing was reported for yet, a key with no call yet, the ledger's spend); /connect on a subscription already
      signed in offers ANOTHER account of it, signs it in through the station's /add route (polled with that account), and
      says so; going back from one leaves nothing behind (its empty account is removed) */
   {
