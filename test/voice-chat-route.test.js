@@ -126,6 +126,8 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
     const attachments = require('../sidecar/attachments.js')({ fsp, path, crypto, workspaces: WS, resolveInside: (a, r) => jail.resolveInside(a, r) });
     const saved = await attachments.saveAttachment('agent', 'notes.md', 'data:text/markdown;base64,' + Buffer.from('lorem ipsum dolor sit amet '.repeat(3500)).toString('base64'));
     const { makeContext, RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
+    // this row BUILDS ITS OWN SCOPE for the sliced applyVoiceTurnRoute: every free name it reads must be listed here
+    // (merge note: once agent/run-wire-resolver-1028 lands, RunWire joins this scope)
     const scope = {
       effectiveVoiceChat: () => ({ provider: 'openrouter', model: 'x/fast-voice', reasoningEffort: '' }), agentRoster: new Map(),
       normalizeProvider: p => p || 'openrouter', chatModelId: (p, m) => m, providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'c', CRON_DEFAULT_MODEL: 'd',
