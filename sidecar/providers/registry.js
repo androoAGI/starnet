@@ -77,7 +77,7 @@
       // key). Inference is OpenAI-compatible at api.x.ai/v1 with the OAuth access token riding in AS the Bearer
       // key. Separate id from the API-key 'xai' profile above (same wire, different auth), like codex vs openai.
       id: 'grok',
-      aliases: ['grok-oauth', 'xai-oauth'],
+      aliases: ['grok-oauth', 'xai-oauth', 'supergrok'],   // 'supergrok': the page's name for this sign-in (harness.js, app.js, keycta.js, modeldock.js)
       name: 'Grok (xAI)',
       label: 'GROK OAUTH',
       endpoint: 'OAuth, SuperGrok / X Premium+',
@@ -112,7 +112,7 @@
       // account (this baseUrl, the legacy default) or api.kimi.ai/coding/v1 for a Global one: the host resolves the
       // real base from the sign-in's stored region (providers/kimi-region.js, #70).
       id: 'kimi',
-      aliases: ['moonshot', 'kimi-code', 'kimi-oauth'],
+      aliases: ['moonshot', 'kimi-code', 'kimi-oauth', 'kimi-for-coding'],   // 'kimi-for-coding': the page's name for it (harness.js, app.js, keycta.js, modeldock.js)
       name: 'Kimi for Coding',
       label: 'KIMI OAUTH',
       endpoint: 'OAuth, Kimi subscription',
