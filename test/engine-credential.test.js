@@ -191,7 +191,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     const env = o.env || {};
     const scope = {
       String, Array, Set, Object,
-      runtimeKeys: {}, runtimeKeyPools: {}, runtimeBaseUrls: {}, runtimeKey: '',
+      runtimeKeys: Object.assign({}, o.runtime), runtimeKeyPools: {}, runtimeBaseUrls: Object.assign({}, o.runtimeBase), runtimeKey: '',
       engineKeys: EC.makeEngineKeys({ load: () => ({ version: 1, providers: o.page || {} }) }),
       normalizeProvider: p => String(p || 'openrouter'), registryProviderUsesCodex: () => false, resolveCreditsConfig: () => ({}),
       getProviderProfile: id => PROFILES[id] || null,
@@ -213,7 +213,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.eq(r.providerRuntimeBaseUrl('custom', '', KX), UE, 'nor is it sent to this page copy\'s endpoint');
     A.eq(r.providerRuntimeKeyPool('custom', undefined, KP), ['spare-1'], 'a run on the page key itself keeps its backups');
     A.eq(r.providerRuntimeBaseUrl('custom', '', KP), UP, 'and its endpoint');
-    A.eq(r.providerRuntimeBaseUrl('custom', 'https://explicit.example/v1', KX), 'https://explicit.example/v1', 'an explicit per-run endpoint still wins');
+    A.eq(r.providerRuntimeBaseUrl('custom', 'https://explicit.example/v1', KX, KX), 'https://explicit.example/v1', 'an explicit per-run endpoint still wins with the caller\'s own key');
   }
   // the operator's env KEY outranks the page copy — and never rides the page copy's endpoint or backups
   {
@@ -259,6 +259,44 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.eq(resolvers({ env: { KIMI_BASE_URL: UE } }).providerRuntimeBaseUrl('kimi', evil), UE, "the Commander's own endpoint (env) still applies");
     A.eq(resolvers({}).providerRuntimeBaseUrl('custom', evil), evil, 'a key provider keeps its per-run endpoint');
   }
+  // (review r4, M3) a STATION-HELD API key — the desktop keychain's runtime push, an operator env key, the page copy — never
+  // follows a per-run endpoint the caller names: that endpoint rides only the caller's own key, or a keyless run. Otherwise
+  // the provider's configured endpoint serves. handleRun's own key and endpoint lines, executed over the real resolvers.
+  {
+    const evil = 'https://collector.example/v1';
+    const at = raw.indexOf('\nasync function handleRun(');
+    const run = at < 0 ? '' : raw.slice(at, raw.indexOf('\n}\n', at));
+    const keyLine = (/\n  const key = providerRuntimeKey\(runProvider, [^\n]+;/.exec(run) || [])[0] || '';
+    const baseLine = (/\n  const baseUrl = providerRuntimeBaseUrl\(runProvider, [^\n]+;/.exec(run) || [])[0] || '';
+    const ordered = run.indexOf(keyLine) < run.indexOf(baseLine) ? keyLine + baseLine : baseLine + keyLine;
+    const hr = (r, prov, b) => new Function('body', 'runProvider', 'bodyCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', ordered + '\nreturn { key, baseUrl };')(
+      b, prov, true, r.providerRuntimeKey, r.providerRuntimeBaseUrl);
+    // the probe's body: a provider + an endpoint and NO key (r4-key-follows-endpoint.js)
+    const keychain = resolvers({ runtime: { openrouter: 'sk-or-KEYCHAIN' } });
+    A.eq(hr(keychain, 'openrouter', { provider: 'openrouter', baseUrl: evil }), { key: 'sk-or-KEYCHAIN', baseUrl: 'https://openrouter.ai/api/v1' },
+      "the keychain's key is never sent to an endpoint the body names: the provider's configured one serves");
+    A.eq(hr(resolvers({ env: { OPENROUTER_API_KEY: KE } }), 'openrouter', { provider: 'openrouter', baseUrl: evil }).baseUrl, 'https://openrouter.ai/api/v1', '...nor an operator env key');
+    A.eq(hr(resolvers({ page: { openrouter: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'openrouter', { baseUrl: evil }), { key: KP, baseUrl: UP }, "...nor the page copy's key: it keeps its own saved endpoint");
+    A.eq(keychain.providerRuntimeBaseUrl('openrouter', evil, 'sk-or-KEYCHAIN'), 'https://openrouter.ai/api/v1', 'the rule is the resolver\'s: a run key the caller did not pass ignores the per-run endpoint');
+    // the other direction: the caller's OWN key rides its own endpoint; a keyless run (a local server) keeps its endpoint
+    A.eq(hr(keychain, 'openrouter', { provider: 'openrouter', key: KX, baseUrl: evil }), { key: KX, baseUrl: evil }, "a body's own key still rides the body's own endpoint");
+    A.eq(hr(resolvers({}), 'custom', { provider: 'custom', baseUrl: UL }), { key: '', baseUrl: UL }, 'a keyless custom run keeps its per-run endpoint');
+    A.eq(keychain.providerRuntimeBaseUrl('openrouter', evil, KX, KX), evil, '...and the resolver honours a caller key that is the run key');
+    // THE DESKTOP PAGE'S CUSTOM ENDPOINT: the keychain holds the CUSTOM key and the window handed the station its endpoint
+    // (#137, runtimeBaseUrls); a COMMS run sends the endpoint and no key (the WebView never sees it). It runs there, and a
+    // body naming any other host gets the station's endpoint for that key, never the key at that host.
+    const desk = resolvers({ runtime: { custom: 'sk-custom-keychain' }, runtimeBase: { custom: UP } });
+    A.eq(hr(desk, 'custom', { provider: 'custom', baseUrl: UP }), { key: 'sk-custom-keychain', baseUrl: UP }, "the desktop's CUSTOM run reaches its own saved endpoint with its keychain key");
+    A.eq(hr(desk, 'custom', { provider: 'custom', baseUrl: evil }), { key: 'sk-custom-keychain', baseUrl: UP }, '...and the keychain key never goes to another host the body names');
+    // the BROWSER page's custom endpoint: its own key rides each run with its endpoint
+    A.eq(hr(resolvers({ page: { custom: { key: KP, baseUrl: UP, rev: 'a1' } } }), 'custom', { provider: 'custom', key: KP, baseUrl: UL }), { key: KP, baseUrl: UL }, "a browser page's own CUSTOM key rides the endpoint it sends");
+    // every surface that takes an endpoint from a caller (a channel's record or connect body, a provider check, a model
+    // list, a run's fallback) says whose key that is, so the resolver can apply the rule
+    const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));
+    A.ok(callers.length >= 15, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
+    A.eq(callers.filter(c => { let d = 0, args = 1; for (const ch of c.slice('providerRuntimeBaseUrl('.length)) { if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; } return args < 4; }), [],
+      'every providerRuntimeBaseUrl call that passes a per-run endpoint also passes the caller\'s own key');
+  }
 }
 
 /* ---------- index.js wiring ---------- */
@@ -267,9 +305,10 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   const body = name => { const i = src.indexOf('function ' + name + '('); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)); };
   A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
   // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
-  A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key)');
-  // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses
-  A.ok(/providerRuntimeKeyPool\(providerId, \(callerCredential && Array\.isArray\(o\.keyPool\)\) \? o\.keyPool : undefined, runKey\)/.test(src), 'and its backup keys for ITS key');
+  A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : ''\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key; a caller\'s endpoint only the caller\'s key)');
+  // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses;
+  // (review r4, M3) and the station's pool never rotates onto an endpoint the caller named
+  A.ok(/providerRuntimeKeyPool\(providerId, \(callerCredential && Array\.isArray\(o\.keyPool\)\) \? o\.keyPool : \(baseUrl !== providerRuntimeBaseUrl\(providerId, '', runKey\) \? \[\] : undefined\), runKey\)/.test(src), 'and its backup keys for ITS key, never the station\'s onto a caller\'s endpoint');
   /* POST /api/run, RUN (run-wire-resolver lane): a body that names a model and NO provider runs it on the provider its agent
      resolves to — and the body's key, endpoint and key pool (a page's OpenRouter copy) must never ride a provider it
      borrowed. A provider-less body always meant OpenRouter, so they still serve a run that lands there. handleRun's own

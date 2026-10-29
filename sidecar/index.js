@@ -3011,7 +3011,7 @@ function pageCopyRidesWith(id, runKey) {
   const inUse = runKey === undefined ? providerRuntimeKey(id, '') : String(runKey || '').trim();
   return inUse === String(page.key || '') ? page : null;
 }
-function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
+function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey) {
   const id = normalizeProvider(provider);
 
   // 'starnet' managed provider: baseUrl = the linked cloud URL + '/v1' (the inference proxy lives there).
@@ -3026,7 +3026,15 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
   // ...and for the same reason a SUBSCRIPTION SIGN-IN (ChatGPT, Grok, Kimi: authType oauth_device_code), whose OAuth bearer
   // rides the request: a per-run endpoint (an /api/run body's, a channel snapshot's) never redirects it. The Commander's own
   // endpoint (the runtime push, the env URL) and the profile's still apply.
-  const explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
+  let explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
+  // ...nor does a STATION-HELD API key (the keychain/runtime push, an operator env key, the page copy). A per-run endpoint
+  // rides only the caller's own key (`callerKey`, when it is the key the run goes out on: `runKey`, else this provider's
+  // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves.
+  if (explicit) {
+    const own = String(callerKey || '').trim();
+    const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
+    if (inUse && inUse !== own) explicit = '';
+  }
   if (explicit) return explicit;
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
@@ -3176,7 +3184,7 @@ function channelRunConfigFor(agentId, candidate, opts) {
   const offeredProvider = offered && offered.provider ? normalizeProvider(offered.provider) : provider;
   const sameProvider = offeredProvider === provider;
   const key = providerRuntimeKey(provider, sameProvider && offered ? String(offered.key || '') : '');
-  const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '', key);   // #89: for THIS key
+  const baseUrl = providerRuntimeBaseUrl(provider, sameProvider && offered ? String(offered.baseUrl || offered.base_url || '') : '', key, sameProvider && offered ? String(offered.key || '') : '');   // #89: for THIS key (an offered endpoint only with its own key)
   if (!providerHasCredential(provider, key, baseUrl)) return { ok: false, error: providerCredentialError(provider) + ' for target agent ' + id };
   return {
     ok: true, key, model, provider, baseUrl,
@@ -3254,7 +3262,7 @@ function channelFollowsReady(rec) {
   const provider = normalizeProvider(wire.provider);
   const same = provider === normalizeProvider(r.provider);   // the record's credential serves only its own provider
   const key = providerRuntimeKey(provider, same ? String(r.key || '') : '');
-  return providerHasStoredCredential(provider, key, providerRuntimeBaseUrl(provider, same ? String(r.baseUrl || r.base_url || '') : '', key));
+  return providerHasStoredCredential(provider, key, providerRuntimeBaseUrl(provider, same ? String(r.baseUrl || r.base_url || '') : '', key, same ? String(r.key || '') : ''));
 }
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
@@ -11025,7 +11033,7 @@ function startTelegram(token, key, model, agentCfg) {
       const t = (channelSecrets && channelSecrets.telegram) || {};
       const provider = normalizeProvider(t.provider);
       const key = providerRuntimeKey(provider, t.key || '');
-      const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '');
+      const baseUrl = providerRuntimeBaseUrl(provider, t.baseUrl || t.base_url || '', undefined, t.key || '');
       return { key, model: t.model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, t.reasoningEffort), agentId: t.agentId, system: t.system };
     },
     // the ROUTED agent's live pair for every message (run-wire.js), never the connect-time snapshot above (stationHubRunConfig)
@@ -11449,7 +11457,7 @@ function startDiscord(token, key, model, agentCfg) {
         const d = (channelSecrets && channelSecrets.discord) || {};
         const provider = normalizeProvider(d.provider);
         const k = providerRuntimeKey(provider, d.key || '');
-        const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '');
+        const baseUrl = providerRuntimeBaseUrl(provider, d.baseUrl || d.base_url || '', undefined, d.key || '');
         return { key: k, model: d.model, provider, baseUrl, configured: providerHasCredential(provider, k, baseUrl), error: expiredSignInNote(provider), reasoningEffort: resolveReasoningEffort(provider, d.reasoningEffort), agentId: d.agentId, system: d.system };
       },
       resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets.discord) || {}),   // the routed agent's live pair (run-wire.js)
@@ -11751,7 +11759,7 @@ function startGenericChannel(id, token, key, model, agentCfg) {
         const r = (channelSecrets && channelSecrets[id]) || {};
         const p = normalizeProvider(r.provider);
         const k = providerRuntimeKey(p, r.key || '');
-        const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '');
+        const b = providerRuntimeBaseUrl(p, r.baseUrl || r.base_url || '', undefined, r.key || '');
         return { key: k, model: r.model, provider: p, baseUrl: b, configured: providerHasCredential(p, k, b), error: expiredSignInNote(p), reasoningEffort: resolveReasoningEffort(p, r.reasoningEffort), agentId: r.agentId, system: r.system };
       },
       resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, (channelSecrets && channelSecrets[id]) || {}),   // the routed agent's live pair (run-wire.js)
@@ -13223,7 +13231,7 @@ server.listen(PORT, '127.0.0.1', () => {
     // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
     // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
     // a channel saved with no model of its own (its agent follows the station default) is judged on that live pair
-    if (t.enabled && tgTok && (t.model ? providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || '')) : channelFollowsReady(t))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    if (t.enabled && tgTok && (t.model ? providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || '', undefined, t.key || '')) : channelFollowsReady(t))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
     else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
@@ -13240,7 +13248,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && (d.model ? providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || '')) : channelFollowsReady(d))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    if (d.enabled && dcTok && (d.model ? providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || '', undefined, d.key || '')) : channelFollowsReady(d))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
     else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
@@ -13252,7 +13260,7 @@ server.listen(PORT, '127.0.0.1', () => {
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && (r.model ? providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || '')) : channelFollowsReady(r))) {
+      if (r.enabled && authOk && (r.model ? providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || '', undefined, r.key || '')) : channelFollowsReady(r))) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
@@ -15144,7 +15152,7 @@ async function applyVoiceTurnRoute(o) {
   const sameProvider = tProvider === mainProvider;
   // a key the page sent belongs to the agent's provider; it never crosses to another one
   const tKey = providerRuntimeKey(tProvider, sameProvider ? callerKey : '');
-  const tBaseUrl = providerRuntimeBaseUrl(tProvider, sameProvider ? mainBaseUrl : '', tKey);
+  const tBaseUrl = providerRuntimeBaseUrl(tProvider, sameProvider ? mainBaseUrl : '', tKey, sameProvider ? callerKey : '');
   const credentialOk = !!setting.model && !!getProviderProfile(tProvider) && providerHasCredential(tProvider, tKey, tBaseUrl);
   const swapping = credentialOk && !(sameProvider && setting.model === mainModel);
   const tEntry = swapping ? await voiceCatalogEntry(tProvider, setting.model, tKey, tBaseUrl) : null;
@@ -15170,7 +15178,7 @@ async function applyVoiceTurnRoute(o) {
   if (plan.route === 'main' && plan.reasoningEffort === 'none') {
     // staying on the agent's model with reasoning off: clamp to what THAT model offers
     const mainKey = providerRuntimeKey(mainProvider, callerKey);
-    const mainEntry = await voiceCatalogEntry(mainProvider, mainModel, mainKey, providerRuntimeBaseUrl(mainProvider, mainBaseUrl, mainKey));
+    const mainEntry = await voiceCatalogEntry(mainProvider, mainModel, mainKey, providerRuntimeBaseUrl(mainProvider, mainBaseUrl, mainKey, callerKey));
     plan = voiceChatRoute.planVoiceRoute(Object.assign(facts, { mainEfforts: mainEntry && mainEntry.reasoningEfforts }));
   }
   const next = Object.assign({}, o, {
@@ -20917,7 +20925,7 @@ async function handleRun(req, res) {
   // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
   // via /api/key). The browser build still sends body.key, which wins.
   const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
-  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key);   // #89: the endpoint for THIS key
+  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key, bodyCredential ? (body && body.key) : '');   // #89: the endpoint for THIS key; the body's own only with the body's own key
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
   // signed out of GROK OAUTH as "add a provider key (or sign in with ChatGPT)": wrong provider, wrong door
   // (2026-09-27). The "missing key/model" prefix stays; older pages and tests classify on it.
@@ -21620,7 +21628,7 @@ async function runOnceCore(o) {
   // history and cost name the model it really used.
   model = chatModelId(providerId, model);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
-  const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey);   // #89: a page copy's endpoint rides only its own key
+  const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '');   // #89: a page copy's endpoint rides only its own key
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -23257,7 +23265,8 @@ async function runOnceCore(o) {
   let activePrimaryKey = runKey;
   const primaryProfile = getProviderProfile(providerId);
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
-    const pool = providerRuntimeKeyPool(providerId, (callerCredential && Array.isArray(o.keyPool)) ? o.keyPool : undefined, runKey)   // a passed-over caller's pool never crosses providers
+    // a passed-over caller's pool never crosses providers; the station's pool never rotates onto an endpoint the caller named
+    const pool = providerRuntimeKeyPool(providerId, (callerCredential && Array.isArray(o.keyPool)) ? o.keyPool : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
       .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
@@ -23310,7 +23319,7 @@ async function runOnceCore(o) {
     const fbProviderId = normalizeProvider(fb.provider || providerId);
     const fbModel = chatModelId(fbProviderId, String(fb.model || '').trim());   // a batch-only id runs on its base model, like the primary's
     if (!fbModel || (fbProviderId === providerId && fbModel === model)) continue;
-    const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '');
+    const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '', undefined, fb.key || fb.apiKey || fb.api_key || '');
     const fbKey = providerRuntimeKey(fbProviderId, fb.key || fb.apiKey || fb.api_key || '');
     if (!providerHasCredential(fbProviderId, fbKey, fbBaseUrl)) continue;
     const fbUnmetered = !!getProviderProfile(fbProviderId)?.unmetered;
@@ -26899,7 +26908,7 @@ async function handleChannelConnect(req, res) {
   // desktop: the token comes from the keychain/runtime layer, NOT the plaintext record; a fresh paste still wins.
   const token = channelToken('telegram', body.token, saved);
   const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   // the app's REAL agent identity, so Telegram runs as the same agent (shared memory) with the same voice.
@@ -27187,7 +27196,7 @@ async function handleDiscordConnect(req, res) {
   // desktop: token from the keychain/runtime layer, not the plaintext record; a fresh paste still wins.
   const token = channelToken('discord', body.token, saved);
   const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -27349,7 +27358,7 @@ async function handleGenericChannelConnect(req, res, id) {
   const provider = normalizeProvider(body.provider || saved.provider);
   const token = channelToken(id, body.token, saved);   // keychain/runtime (desktop) or plaintext record (bare); fresh paste wins
   const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '');
+  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -27600,7 +27609,7 @@ async function handleProviderProbe(req, res) {
     if (profile.credentialProbePath && key) {
       // Re-check the current credential at the same authenticated endpoint used when saving it.
       // OpenRouter's public/cached catalog alone can never prove or disprove this key.
-      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '') || profile.baseUrl;
+      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', undefined, String(body.key || '')) || profile.baseUrl;
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
       try {
@@ -27635,7 +27644,7 @@ async function handleProviderValidate(req, res) {
   const profile = getProviderProfile(id);
   if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
   candidate = cleanProviderKey(body.key);
-  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '');
+  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidate, candidate);   // only the candidate is ever sent
   if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
   if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
   const ctrl = new AbortController();
@@ -27685,7 +27694,7 @@ async function listModelsForProvider(providerId, opts) {
   opts = opts || {};
   const id = normalizeProvider(providerId);
   const profile = getProviderProfile(id);
-  const baseUrl = providerRuntimeBaseUrl(id, opts.baseUrl || '');
+  const baseUrl = providerRuntimeBaseUrl(id, opts.baseUrl || '', undefined, opts.key || '');
   const key = providerRuntimeKey(id, opts.key || '');
   const needsKey = providerRequiresKey(id) && (!profile || profile.modelsRequireAuth !== false);
   if ((providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) || (needsKey && !String(key || '').trim())) {
