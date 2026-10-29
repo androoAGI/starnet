@@ -2374,6 +2374,8 @@
       return require('./browser-upload.js').selectFiles({ cdp: await pinTab(), node, paths: absPaths, expected: expectedFiles,
         settle: c => waitForSettle(c, { budgetMs: settleActionBudgetMs }) });
     }
+    // cancel a selection (hand the input an empty FileList) when the staged copy changed around the hand-off
+    async function clearUpload(node) { return require('./browser-upload.js').clearFiles({ cdp: await pinTab(), node }); }
     async function testInput(action) {
       const a = Object.assign({}, action || {});
       const c = await page();
@@ -2863,7 +2865,7 @@
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
+    return { navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, clearUpload, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -3337,6 +3339,7 @@
     }
     async function forward() { const d = ensureDriver(); version++; navEpoch++; return driverFn(d, 'forward')(); }
     async function upload(ref, absPaths, expectedFiles) { const d = ensureDriver(); return actOnRef(ref, n => driverFn(d, 'upload')(n, absPaths, expectedFiles)); }
+    async function clearUpload(ref) { const d = ensureDriver(); return actOnRef(ref, n => driverFn(d, 'clearUpload')(n)); }
     async function inspect(ref) { const d = ensureDriver(); return actOnRef(ref, n => driverFn(d, 'inspect')(n)); }
     // wait() is READ-ONLY and takes no ref, so it needs no recovery — it is the tool an agent reaches for
     // precisely when it does NOT yet know what is on the page.
@@ -3725,7 +3728,7 @@
       const d = driver || null;
       return d && typeof d.attachedPort === 'function' ? d.attachedPort() : null;
     }
-    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, profileNote, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
+    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, clearUpload, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, profileNote, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
   }
 
   function makeBrowserTools(deps) {
@@ -3764,11 +3767,11 @@
     const uploadEgress = deps.egress && typeof deps.egress.readFor === 'function' ? deps.egress
       : (canSaveShots ? EgressFiles.makeEgressReader({ fsp: shotFsp, pathMod: shotPath, workspaces: shotRoot }) : null);
     const uploadMaxBytes = Number(deps.uploadMaxBytes) > 0 ? Number(deps.uploadMaxBytes) : EgressFiles.STAGE_MAX_BYTES;
-    const stagedUploads = new Set();   // the staged copies' folders this browser was handed
-    async function unstageAll(folders) {
-      for (const f of folders) {
-        stagedUploads.delete(f);
-        try { await uploadEgress.unstage(f); } catch (e) { failNote('browser.upload.unstage', e); }
+    const stagedUploads = new Set();   // the staged copies this browser was handed: { dir, name } (name bounds the delete)
+    async function unstageAll(copies) {
+      for (const c of copies) {
+        stagedUploads.delete(c);
+        try { await uploadEgress.unstage(c.dir, c.name); } catch (e) { failNote('browser.upload.unstage', e); }
       }
     }
     const releaseUploads = () => unstageAll(Array.from(stagedUploads));
@@ -4019,21 +4022,43 @@
           const shelf = runPathsOf(ctx) || (ctx && RunPaths.isRunPaths(ctx.paths) ? ctx.paths : null);
           if (!shelf || !shelf.jail) throw new Error('browser.upload needs a workspace; this run has none');
           const P = shotPath || require('node:path');
-          const stageDir = P.join(shelf.jail, EgressFiles.STAGE_DIR);
-          const abs = [], expected = [], staged = [];
+          // the staged copy lives in a STATION-OWNED root OUTSIDE this agent's jail (review round 5), under a per-agent
+          // subfolder — never <jail>/.upload-staging, a folder a same-run process could find and swap
+          const stageDir = typeof uploadEgress.stageDirFor === 'function' ? uploadEgress.stageDirFor(aid) : null;
+          if (!stageDir) throw new Error('browser.upload needs a workspace; this run has none');
+          const abs = [], expected = [], staged = [], copies = [];
           try {
             for (const rel of rels) {
-              // proven by the egress reader through THIS run's path object, then copied through its verified handle: the
-              // browser is handed the staged copy (never the name as written, never a path a later swap can redirect)
+              // proven by the egress reader through THIS run's path object, then copied through its verified handle into
+              // the station staging root: the browser is handed the staged copy (never the name as written, never a path
+              // a later swap can redirect), and copies[] keeps its identity so it is re-proven around the hand-off
               const got = await uploadEgress.readFor(aid, rel, ctx, RunPaths.rootOf(ctx), { stage: { dir: stageDir, maxBytes: uploadMaxBytes }, allowEmpty: true });
               if (!got || !got.ok) throw new Error('browser.upload: ' + ((got && got.error) || 'that file cannot be uploaded'));
               if (!got.staged) throw new Error('browser.upload: that file could not be staged for the browser');
-              staged.push(got.staged);
-              abs.push(got.abs); expected.push({ name: P.basename(got.abs), size: got.size });
+              const name = P.basename(got.abs);
+              staged.push({ dir: got.staged, name });
+              copies.push({ path: got.abs, size: got.size, ino: got.ino, dev: got.dev });
+              abs.push(got.abs); expected.push({ name, size: got.size });
             }
           } catch (e) { await unstageAll(staged); throw e; }   // a refused selection leaves no copy behind
-          for (const f of staged) stagedUploads.add(f);
+          for (const c of staged) stagedUploads.add(c);
+          // RE-PROVE EACH STAGED COPY IS UNCHANGED immediately before the hand-off: a same-run process that found the
+          // staging root and swapped a copy for a hard link / junction between staging and now is caught here.
+          const reverify = async (when) => {
+            for (let i = 0; i < copies.length; i++) {
+              const v = await uploadEgress.verifyStaged(copies[i].path, copies[i]);
+              if (!v.ok) {
+                try { if (typeof session.clearUpload === 'function') await session.clearUpload(a.ref); } catch (e) { failNote('browser.upload.clear', e); }
+                await unstageAll(staged.slice());
+                throw new Error('browser.upload: the file to upload changed ' + when + ' it was selected (' + v.error + '); the selection was cancelled and nothing was uploaded');
+              }
+            }
+          };
+          await reverify('before');
           const receipt = await session.upload(a.ref, abs, expected);
+          // ...and again right after the hand-off returns, before any success is reported (the browser opens the path
+          // later, at submit): a swap during the hand-off cancels the selection rather than letting the page read it
+          await reverify('after');
           if (!receipt || receipt.status !== 'selected' || !Array.isArray(receipt.files)
             || receipt.files.length !== expected.length || receipt.files.some((f, i) => f.name !== expected[i].name || f.size !== expected[i].size)) {
             throw new Error('browser.upload did not return verified file-selection evidence; inspect the page before retrying');

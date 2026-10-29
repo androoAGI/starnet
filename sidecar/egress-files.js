@@ -25,24 +25,42 @@
    a link to another folder holds nothing sendable, and the refusal says how to fix it. That check lives HERE only, on
    what leaves (owner decision, review round 4 minor-2): on the station such a folder is trunk's, fs.* works in it.
 
-   A STAGED COPY FOR THE BROWSER (review round 4, minor-1). browser.upload hands a website a PATH, and the browser opens
-   it later, outside the verified handle, so a folder swapped for a junction after the proof changed the bytes uploaded.
-   In stage mode the proven bytes are copied, through the verified open handle, into a station-owned staging folder in
-   the agent's private workspace (STAGE_DIR): a fresh random folder holding one fresh file under the original name, its
-   one name and its size checked after the write. That copy is what the browser gets. Bounded: a file over
-   STAGE_MAX_BYTES is refused. The browser tools drop their copies when the run ends or their own browser closes
-   (unstage), and the host sweeps any a crash left behind at boot (sweepUploadStaging).
+   A STAGED COPY FOR THE BROWSER (review round 4, minor-1; HARDENED review round 5). browser.upload hands a website a
+   PATH, and the browser opens it later, outside the verified handle. In round 4 the copy lived in the agent's OWN jail
+   (<jail>/.upload-staging), so a concurrent same-run process (a shell.exec background child, a terminal) that knew that
+   path could replace the staged file — or its folder — with a hard link or a junction to a secret between the checks
+   and Chrome's read (scratchpad rr5r-stage-race.js: S1/S1s/S2/S2b/S3 leaked ~/.ssh/id_rsa). The staged copy now lives
+   OUTSIDE every agent jail and every blessed project root, in a station-owned scratch root the run is never told about
+   and never works in: os.tmpdir()/starnet-upload-staging-<station id> (the same os.tmpdir() the host already uses for
+   its own station-owned browser-profile scratch), a per-agent subfolder under it, and a fresh crypto-random folder per
+   copy holding one fresh file under the original name. The per-agent folder is locked owner-only (Windows icacls
+   /inheritance:r /grant:r, else mode 0o700), fail-closed. The proven bytes are copied through the verified open handle;
+   one name and size are checked after the write. Bounded: a file over STAGE_MAX_BYTES is refused. This is a station
+   root, so neither fs.* (pathtrust: an outside path is a hard deny on the autonomous surface, and a path under the
+   workspace parent that is not the agent's own is denied) nor the shell's absolute-path floor can reach it by a literal
+   path. HONEST LIMIT: a shell with the user's full rights can still COMPUTE the temp dir, and owner-only ACLs do not
+   stop the SAME user; so the remaining defences are (a) the stage, the handle check and the hand-off happen in quick
+   succession, (b) the copy is not in a folder the run is told about or works in, and (c) the copy is re-verified
+   (realpath, nlink===1, dev/ino, size) immediately before AND after the hand-off, and the selection cancelled if it
+   changed. The browser tools drop their copies when the run ends or their own browser closes (unstage), and the host
+   sweeps any a crash left behind at boot (sweepUploadStaging). unstage/sweep never descend through a reparse point and
+   prove the folder really lies inside the staging root before removing anything (review round 5 MAJOR, dropStaged).
 
    NOT DONE (owner decision, review round 4 minor-5): a hard link stays refused for egress even when it is a build
    output the agent made itself (a compiler or a package manager linking an artifact into place). With round 4's
    MAJOR-2 a routine's refused file is now named in the chat, so the refusal is visible and never silent.
 
-   makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard }) -> {
+   makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard, stagingRoot?, hardenStagingDir? }) -> {
      read(paths, name, { allowEmpty, probe, stage }?) a name through THIS path object's jail and root; probe: every
                                                check, no bytes read; stage: { dir, maxBytes? } every check, then the
                                                proven bytes copied into a fresh folder of `dir` (abs: the copy, staged:
-                                               its folder, for unstage)
-     unstage(folder)                           removes one staged copy's folder (never recursive, never through a link)
+                                               its folder, ino/dev: the copy's identity for re-verification, for unstage)
+     stageDirFor(agentId)                      the per-agent staging folder under the station staging root (what
+                                               browser.upload passes as stage.dir); null when no root is known
+     verifyStaged(absPath, { size, ino, dev }) re-prove a staged copy is unchanged (realpath, plain file, nlink===1,
+                                               dev/ino, size) -> { ok } | { ok:false, error }
+     unstage(folder, name?)                    removes one staged copy's folder (never recursive, never through a link,
+                                               only when it really lies inside the staging root; bounded to `name`)
      readFor(agentId, name, ctx?, projectRoot?, opts?)
                                                through the live run's ctx.paths (same agent), else a path object minted
                                                for a FINISHED run (its agent + its row's project root)
@@ -57,23 +75,76 @@ const RunPaths = require('./run-paths.js');
 const { hardlineReason } = require('./pathtrust.js');
 const { note: failNote } = require('./failopen.js');
 const FIRE_MTIME_SLACK_MS = 2000;   // a coarse-clock volume (FAT: 2 s) may stamp a file a fire just made a little early
-const STAGE_DIR = '.upload-staging';             // in the agent's private workspace, beside shots/, pdf/, downloads/
+const STAGE_DIR = '.upload-staging';             // LEGACY: round-4 per-agent subfolder name; staging now lives OUTSIDE the jail (defaultStagingRoot)
 const STAGE_MAX_BYTES = 200 * 1024 * 1024;
 const STAGE_CHUNK = 1024 * 1024;                 // the copy streams: a 200 MB upload never sits in memory
+const AGENT_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
-// ONE staged copy's folder away: its files (a link is unlinked, never followed), then the folder. Never recursive: a
-// folder inside it is not the station's, and is left (rmdir then fails, and the caller notes it).
-async function dropStaged(fsp, P, folder) {
+// path helpers usable by the module-level dropStaged/sweep as well as the reader (same case-folding as pathtrust)
+function mfold(P, s) { return (P.sep === '\\' ? String(s).toLowerCase() : String(s)); }
+function minside(P, a, b) { const x = mfold(P, P.resolve(a)), y = mfold(P, P.resolve(b)); return x === y || x.indexOf(y + P.sep) === 0; }
+
+/* THE STATION-OWNED STAGING ROOT (review round 5 BLOCKER): os.tmpdir()/starnet-upload-staging-<station id>, OUTSIDE
+   every agent jail and every blessed project root — the host already stages its browser profiles under the same
+   os.tmpdir(). The station id is a short stable hash of this station's workspaces root, so two stations sharing one
+   os.tmpdir() never collide and the SAME station finds its own leftovers at boot (sweepUploadStaging). */
+function defaultStagingRoot(P, workspaces, tmp) {
+  const crypto = require('node:crypto');
+  const id = crypto.createHash('sha256').update(String(workspaces == null ? '' : workspaces)).digest('hex').slice(0, 16);
+  return P.join(tmp || require('node:os').tmpdir(), 'starnet-upload-staging-' + id);
+}
+
+// owner-only ACLs on the per-agent staging folder: Windows icacls (no shell, fail-closed), else mode 0o700.
+function defaultHardenStagingDir(fsp, dir) {
+  if (process.platform !== 'win32') return fsp.chmod(dir, 0o700);
+  return new Promise((resolve, reject) => {
+    let user = String(process.env.USERNAME || '').trim();
+    if (!user) { try { user = require('node:os').userInfo().username; } catch (_) { user = ''; } }
+    if (!user) return reject(new Error('no current user to grant staging ACLs to'));
+    require('node:child_process').execFile('icacls', [dir, '/inheritance:r', '/grant:r', user + ':(OI)(CI)F'],
+      { windowsHide: true, timeout: 15000 }, (err) => err ? reject(err) : resolve());
+  });
+}
+
+/* ONE staged copy's folder away (review round 5 MAJOR). A junction swapped in between lstat and readdir used to make
+   readdir return a VICTIM folder's children, which were then unlinked (rr5r-stage-race.js S4). Now: a reparse point /
+   symlink is unlinked as a link and NEVER descended into (a Windows directory junction is removed by unlink/rmdir of
+   the link, never recursively); a folder is proven to really lie inside the staging root (realpath on the lstat-proven
+   directory) before its entries are touched; the delete is bounded to the one known staged name where we have it, and
+   the folder is RE-PROVEN unchanged after the readdir before anything is removed, so a mid-readdir swap is refused.
+   boundRoot: the staging root `folder` must really lie inside (and never be). knownName: the single staged file. */
+async function dropStaged(fsp, P, folder, boundRoot, knownName) {
   let st;
   try { st = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
-  if (!st.isDirectory() || st.isSymbolicLink()) { await unlinkOne(fsp, folder); return; }
-  for (const name of await fsp.readdir(folder)) {
+  if (st.isSymbolicLink() || !st.isDirectory()) { await unlinkOne(fsp, folder); return; }   // a reparse point: unlink the link, never enter
+  if (!(await provenInside(fsp, P, folder, boundRoot))) return;                              // not a per-copy folder inside the root: touch nothing
+  let names;
+  if (knownName) names = [knownName];
+  else {
+    try { names = await fsp.readdir(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
+    if (!(await provenInside(fsp, P, folder, boundRoot))) { await unlinkOne(fsp, folder); return; }   // swapped DURING the readdir: its victim entries are never trusted
+  }
+  for (const name of names) {
     const p = P.join(folder, name);
-    const s = await fsp.lstat(p);
-    if (s.isDirectory() && !s.isSymbolicLink()) continue;
+    let s;
+    try { s = await fsp.lstat(p); } catch (e) { if (e && e.code === 'ENOENT') continue; throw e; }
+    if (s.isDirectory() && !s.isSymbolicLink()) continue;   // a real subdirectory is not a staged file; leave it (rmdir then fails, caller notes it)
     await unlinkOne(fsp, p);
   }
+  // re-prove once more before removing the folder itself: a junction swapped in now is unlinked as a link, not entered
+  let st2;
+  try { st2 = await fsp.lstat(folder); } catch (e) { if (e && e.code === 'ENOENT') return; throw e; }
+  if (st2.isSymbolicLink() || !st2.isDirectory()) { await unlinkOne(fsp, folder); return; }
+  if (!(await provenInside(fsp, P, folder, boundRoot))) return;
   await fsp.rmdir(folder);
+}
+// the lstat-proven directory `folder` really resolves inside boundRoot (and is not boundRoot itself). No boundRoot => refuse.
+async function provenInside(fsp, P, folder, boundRoot) {
+  if (!boundRoot) return false;
+  let real, rootReal;
+  try { real = await fsp.realpath(folder); rootReal = await fsp.realpath(boundRoot); }
+  catch (e) { return false; }
+  return mfold(P, real) !== mfold(P, rootReal) && minside(P, real, rootReal);
 }
 async function unlinkOne(fsp, p) {
   try { await fsp.unlink(p); }
@@ -84,22 +155,26 @@ async function unlinkOne(fsp, p) {
   }
 }
 
-/* At boot (nothing is uploading yet): every <workspaces>/<agent>/.upload-staging/<folder> a crashed run left behind.
-   Only real folders are walked; an agent folder or a staging folder that is a link is never entered. -> count removed */
+/* At boot (nothing is uploading yet): every <stagingRoot>/<agent>/<folder> a crashed run left behind. Only real folders
+   are walked; an agent folder or a per-copy folder that is a link is never entered, and dropStaged proves each per-copy
+   folder really lies inside the staging root before removing it. deps: { fsp, pathMod, stagingRoot | workspaces, tmpdir? }
+   -> count removed. */
 async function sweepUploadStaging(deps) {
   const fsp = deps.fsp, P = deps.pathMod || require('node:path');
+  const root = deps.stagingRoot ? String(deps.stagingRoot) : (deps.workspaces ? defaultStagingRoot(P, deps.workspaces, deps.tmpdir) : null);
+  if (!root) return 0;
   let agents, removed = 0;
-  try { agents = await fsp.readdir(deps.workspaces, { withFileTypes: true }); }
+  try { agents = await fsp.readdir(root, { withFileTypes: true }); }
   catch (e) { if (e && e.code === 'ENOENT') return 0; throw e; }
   for (const a of agents) {
-    if (!a.isDirectory() || !/^[A-Za-z0-9_-]{1,40}$/.test(a.name)) continue;
-    const dir = P.join(deps.workspaces, a.name, STAGE_DIR);
+    if (!a.isDirectory() || !AGENT_ID_RE.test(a.name)) continue;
+    const dir = P.join(root, a.name);
     let st;
     try { st = await fsp.lstat(dir); } catch (e) { if (e && e.code === 'ENOENT') continue; throw e; }
     if (!st.isDirectory() || st.isSymbolicLink()) continue;
     for (const s of await fsp.readdir(dir, { withFileTypes: true })) {
       if (!s.isDirectory()) continue;
-      try { await dropStaged(fsp, P, P.join(dir, s.name)); removed++; } catch (e) { failNote('egress.stage.sweep', e); }
+      try { await dropStaged(fsp, P, P.join(dir, s.name), root); removed++; } catch (e) { failNote('egress.stage.sweep', e); }
     }
   }
   return removed;
@@ -117,6 +192,15 @@ function makeEgressReader(deps) {
   const inside = (a, b) => { const x = fold(P.resolve(a)), y = fold(P.resolve(b)); return x === y || x.indexOf(y + P.sep) === 0; };
   const missing = e => !!(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR'));
   const unc = s => /^[\\/]{2}/.test(String(s || ''));
+  // the station-owned staging root (OUTSIDE every jail and project root), its per-agent folders, and the owner-only lock
+  const stagingRoot = deps.stagingRoot ? String(deps.stagingRoot) : (deps.workspaces ? defaultStagingRoot(P, deps.workspaces, deps.tmpdir) : null);
+  const hardenDir = typeof deps.hardenStagingDir === 'function' ? deps.hardenStagingDir : (dir => defaultHardenStagingDir(fsp, dir));
+  const hardened = new Set();   // per-agent staging folders already locked owner-only this process (icacls once per folder)
+  function stageDirFor(agentId) {
+    const aid = String(agentId == null ? '' : agentId);
+    if (!stagingRoot || !AGENT_ID_RE.test(aid)) return null;
+    return P.join(stagingRoot, aid);
+  }
 
   // what a CHAT may be told about a name: a relative name as written, an absolute one inside the private workspace by
   // its jail-relative form, anything else only by its file name
@@ -145,14 +229,22 @@ function makeEgressReader(deps) {
     let off = 0;
     while (off < n) { const w = await out.write(buf, off, n - off); off += w.bytesWritten; if (!w.bytesWritten) throw new Error('short write'); }
   }
-  // stage mode: the proven bytes, through the verified handle, into a fresh folder of the staging folder -> { ok, path, dir }
+  // stage mode: the proven bytes, through the verified handle, into a fresh folder of the per-agent staging folder.
+  // The per-agent folder is locked owner-only once per process (fail-closed). -> { ok, path, dir, ino, dev }
   async function stageCopy(fh, size, name, dir) {
     let sub = null;
     try {
       await fsp.mkdir(dir, { recursive: true });
       const st = await fsp.lstat(dir);
       const dirReal = await fsp.realpath(dir);
-      if (!st.isDirectory() || st.isSymbolicLink() || !(await ownFolder(dir, dirReal))) return { ok: false, error: 'cannot be staged for the browser: the staging folder ' + STAGE_DIR + ' in your workspace is a link to somewhere else; remove it' };
+      if (!st.isDirectory() || st.isSymbolicLink() || !(await ownFolder(dir, dirReal))) return { ok: false, error: 'cannot be staged for the browser: the upload staging folder is a link to somewhere else' };
+      // owner-only ACLs on the (proven-real) per-agent staging folder, once per folder; a failure refuses the upload
+      // (fail closed — never stage into a folder we could not lock to this user)
+      if (!hardened.has(fold(dirReal))) {
+        try { await hardenDir(dir); }
+        catch (e) { return { ok: false, error: 'could not be staged for the browser: the upload staging folder could not be locked to you (' + ((e && e.code) || (e && e.message) || 'error') + ')' }; }
+        hardened.add(fold(dirReal));
+      }
       sub = P.join(dir, require('node:crypto').randomBytes(12).toString('hex'));
       await fsp.mkdir(sub);
       const dest = P.join(sub, name);
@@ -167,19 +259,37 @@ function makeEgressReader(deps) {
           got += r.bytesRead;
         }
       } finally { await out.close(); }
-      if (got !== size) { await dropStaged(fsp, P, sub); return { ok: false, error: 'changed while it was being read; nothing was uploaded' }; }
+      if (got !== size) { await dropStaged(fsp, P, sub, stagingRoot, name); return { ok: false, error: 'changed while it was being read; nothing was uploaded' }; }
       // the copy has one name, its proven size, and sits where it was written
       const cst = await fsp.lstat(dest, { bigint: true });
       const again = await fsp.realpath(dest);
       if (!cst.isFile() || cst.nlink !== 1n || Number(cst.size) !== size || fold(again) !== fold(P.join(dirReal, P.basename(sub), name))) {
-        await dropStaged(fsp, P, sub);
+        await dropStaged(fsp, P, sub, stagingRoot, name);
         return { ok: false, error: 'could not be staged for the browser; nothing was uploaded' };
       }
-      return { ok: true, path: dest, dir: sub };
+      // the copy's identity (dev/ino), so the hand-off can re-prove it is still this exact file before and after
+      return { ok: true, path: again, dir: sub, ino: cst.ino, dev: cst.dev };
     } catch (e) {
-      if (sub) { try { await dropStaged(fsp, P, sub); } catch (e2) { failNote('egress.stage.drop', e2); } }
+      if (sub) { try { await dropStaged(fsp, P, sub, stagingRoot, name); } catch (e2) { failNote('egress.stage.drop', e2); } }
       return { ok: false, error: 'could not be staged for the browser (' + ((e && e.code) || 'error') + ')' };
     }
+  }
+
+  // re-prove a staged copy is unchanged: a plain file, one name, the same dev/ino, the same size, whose realpath is
+  // still itself (a folder or file swapped for a link/junction changes the realpath or dev/ino). -> { ok } | { ok:false, error }
+  async function verifyStaged(absPath, expected) {
+    expected = expected || {};
+    try {
+      const st = await fsp.lstat(absPath, { bigint: true });
+      if (st.isSymbolicLink() || !st.isFile()) return { ok: false, error: 'the staged upload is no longer a plain file' };
+      if (st.nlink !== 1n) return { ok: false, error: 'the staged upload gained another name on disk' };
+      if (expected.size != null && Number(st.size) !== Number(expected.size)) return { ok: false, error: 'the staged upload changed size' };
+      if (expected.ino != null && st.ino !== expected.ino) return { ok: false, error: 'the staged upload was replaced' };
+      if (expected.dev != null && st.dev !== expected.dev) return { ok: false, error: 'the staged upload moved to another volume' };
+      const real = await fsp.realpath(absPath);
+      if (fold(real) !== fold(P.resolve(absPath))) return { ok: false, error: 'the staged upload path now resolves elsewhere' };
+      return { ok: true };
+    } catch (e) { return { ok: false, error: 'the staged upload could not be re-verified (' + ((e && e.code) || 'error') + ')' }; }
   }
 
   // the chat-facing reason a file on a network share is refused, naming no server; the detail goes to the console
@@ -284,7 +394,7 @@ function makeEgressReader(deps) {
         if (size > cap) return no(q + ' is ' + sized(size) + '; a browser upload takes at most ' + sized(cap));
         const copy = await stageCopy(fh, size, P.basename(real), stage.dir);
         if (!copy.ok) return no(q + ' ' + copy.error);
-        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, shown, size, mtimeMs };
+        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: copy.path, staged: copy.dir, ino: copy.ino, dev: copy.dev, shown, size, mtimeMs };
       }
       // at most the proven size plus one byte, through this handle (readFile would stat again): an extra byte means the
       // file grew after the check and a short read that it shrank; either way it is not the file that was proven
@@ -384,7 +494,10 @@ function makeEgressReader(deps) {
     };
   }
 
-  return { read, readFor, fireReader, shownName, pathsFor, unstage: (folder) => dropStaged(fsp, P, folder) };
+  return {
+    read, readFor, fireReader, shownName, pathsFor, stageDirFor, verifyStaged, stagingRoot,
+    unstage: (folder, name) => dropStaged(fsp, P, folder, stagingRoot, name)
+  };
 }
 
-module.exports = { makeEgressReader, sweepUploadStaging, STAGE_DIR, STAGE_MAX_BYTES };
+module.exports = { makeEgressReader, sweepUploadStaging, defaultStagingRoot, STAGE_DIR, STAGE_MAX_BYTES };

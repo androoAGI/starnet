@@ -104,4 +104,18 @@ async function selectFiles({ cdp: c, node, paths, expected, settle }) {
     await c.send('Runtime.releaseObject', { objectId }).catch(e => failNote('browser.upload.object-cleanup', e));
   }
 }
-module.exports = { selectFiles, _internals: { inputAtPoint, observeSelection, matches } };
+/* Cancel a selection: hand the resolved file input an EMPTY FileList (DOM.setFileInputFiles with no files). Called when
+   the staged copy was found to have changed around the hand-off, so a later form submit sends nothing. */
+async function clearFiles({ cdp: c, node }) {
+  await c.send('DOM.enable');
+  const x = node.x + Math.max(1, Math.floor(node.w / 2)), y = node.y + Math.max(1, Math.floor(node.h / 2));
+  const resolved = await c.send('Runtime.evaluate', { expression: '(' + inputAtPoint.toString() + ')(' + [x, y, 1].map(v => JSON.stringify(v)).join(',') + ')' });
+  const problem = pageError(resolved, 'upload control could not be resolved');
+  if (problem) throw problem;
+  const objectId = resolved && resolved.result && resolved.result.objectId;
+  if (!objectId) throw new Error('upload control could not be resolved; the selection was not cleared');
+  try { await c.send('DOM.setFileInputFiles', { files: [], objectId }); }
+  finally { await c.send('Runtime.releaseObject', { objectId }).catch(e => failNote('browser.upload.object-cleanup', e)); }
+  return { cleared: true };
+}
+module.exports = { selectFiles, clearFiles, _internals: { inputAtPoint, observeSelection, matches } };

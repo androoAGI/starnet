@@ -6922,9 +6922,10 @@ const cronEmit = (name, payload) => { try { return cronEmitValidated(name, redac
 const egressDeps = { fsp, pathMod: path, mimeFor: mimeForPath, workspaces: WORKSPACES, guard: (abs, o2) => pathTrustCore.guard(abs, o2) };
 const egressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: CHANNEL_UPLOAD_MAX_BYTES });
 const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: 20 * 1024 * 1024 });   // web.js FILE_MAX_BYTES
-// browser.upload proves a file and copies its bytes, through the verified handle, into a staged copy in the agent's
-// private workspace; the browser is handed that copy (egress-files.js stage mode, 200 MB a file). A crashed run's copies
-// are swept at boot (real host boot only: unit tests require() this file)
+// browser.upload proves a file and copies its bytes, through the verified handle, into a staged copy in a STATION-OWNED
+// scratch root OUTSIDE every agent jail and project root (egress-files.js defaultStagingRoot: os.tmpdir()/starnet-upload
+// -staging-<station id>, 200 MB a file; review round 5). A crashed run's copies are swept at boot, walking that same
+// root derived from WORKSPACES (real host boot only: unit tests require() this file)
 const uploadEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps });
 if (require.main === module) require('./egress-files.js').sweepUploadStaging({ fsp, pathMod: path, workspaces: WORKSPACES }).then(n => { if (n) console.log('[browser.upload] boot sweep removed ' + n + ' staged upload cop' + (n === 1 ? 'y' : 'ies')); }).catch(e => failNote('browser.upload.bootsweep', e));
 async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egressReader.readFor(agentId, rel, ctx, projectRoot); }
