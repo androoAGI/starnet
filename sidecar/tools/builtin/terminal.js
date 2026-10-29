@@ -152,13 +152,23 @@ function makeTerminalTools(deps) {
     }
   };
 
-  /* IMPACT (declared, never inferred: an undeclared tool fails closed to external-unknown, which withheld these from
-     every unattended run, granted terminal or not, and asked a per-call confirmation for each read on a watched one).
-     start/write are workspace-process: they run commands. status/read/resize/interrupt/stop are none: they act only
-     on THIS agent's own sessions (manager calls are keyed by aid(ctx)), start nothing, send no input a shell could
-     run and reach no network. Ctrl-C and stop end work, like shell.bg.kill; resize only redraws. */
+  /* IMPACT (declared, never inferred). start/write are workspace-process: they run commands. resize/interrupt/stop are
+     none: they act only on THIS agent's own sessions (manager calls are keyed by aid(ctx)), start nothing, send no input
+     a shell could run and reach no network. Ctrl-C and stop end work, like shell.bg.kill; resize only redraws.
+     status and read are external-unknown, DECLARED, and deliberately the lane they always fell into. They hand back
+     what a session holds (read: its scrollback; status: its command line, folder and output file), and sessions are
+     keyed by AGENT, not by run, so as impact none they were offered, with no grant, to every run of that agent whose
+     station holds the WORKBENCH (a delegated worker's kit, a bay room with one placed), on any surface and tainted or
+     not, which could then read and repeat the output of a terminal the Commander had that agent open. In this lane a
+     watched run asks an exact per-call confirmation, an unattended ASK run (a routine granted the terminal included)
+     is not offered them, a tainted run loses them, and an owner DM or Full Access keeps them. Declaring them none
+     (quick win 8) was reverted in review; a rule scoped to the run that started the session waits for Andrew's
+     security sign-off. briefExempt keeps them what they were in 0.14.1 before the Task Brief settles: a read the model
+     may make while it researches (taskbrief-policy canMutate holds a scope-read tool only when it DECLARES
+     external-unknown, the rule for MCP reads; undeclared, these passed). */
   const statusTool = {
-    name: 'terminal.status', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
+    name: 'terminal.status', capability: 'workbench', impact: 'external-unknown', scope: 'read', requiresConsent: false,
+    briefExempt: true,
     description: 'List your terminal sessions, or inspect one by name/id. Lifecycle truth includes whether the '
       + 'process is attached in this sidecar life; prior-life sessions are reported unknown, never falsely running.',
     schema: { type: 'object', properties: { session: { type: 'string' } } },
@@ -177,7 +187,8 @@ function makeTerminalTools(deps) {
   };
 
   const readTool = {
-    name: 'terminal.read', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
+    name: 'terminal.read', capability: 'workbench', impact: 'external-unknown', scope: 'read', requiresConsent: false,
+    briefExempt: true,
     description: 'Read bounded scrollback from one terminal. Pass the returned nextOffset on the next call to '
       + 'continue without duplicates. If old output fell out of the bounded ring, truncatedStart says so explicitly.',
     schema: {

@@ -1165,9 +1165,18 @@
        up?" and useless for "why did it fail": the stack trace that matters is usually hundreds of lines back,
        and the only way to reach it used to be re-running the whole command in the foreground. */
     const bgReadTool = {
-      // impact none, like shell.bg.status/wait: it reads the log of a process this agent already started; it can start
-      // nothing, write nothing and reach no network (an undeclared tool fails closed to external-unknown)
-      name: 'shell.bg.read', capability: 'workbench', impact: 'none', scope: 'read', requiresConsent: false,
+      /* impact external-unknown, DECLARED, and deliberately the lane it always fell into. It pages the whole output log
+         of a background process, and those are keyed by AGENT, not by run, so as impact none it was offered, with no
+         grant, to every run of that agent whose station holds the WORKBENCH (a delegated worker's kit, a bay room with
+         one placed), on any surface and tainted or not, which could then page and repeat the log of a command the
+         Commander had that agent start. In this lane a watched run asks an exact per-call confirmation, an unattended
+         ASK run is not offered it, a tainted run loses it, and an owner DM or Full Access keeps it. Declaring it none
+         (quick win 8) was reverted in review and waits for Andrew's security sign-off. shell.bg.status/wait keep the
+         impact none they had in 0.14.1 (each can show a short output tail); that lane is not changed here. briefExempt
+         keeps it a read the model may make before the Task Brief settles, as in 0.14.1 (taskbrief-policy canMutate holds
+         a scope-read tool only when it DECLARES external-unknown, the rule for MCP reads; undeclared, it passed). */
+      name: 'shell.bg.read', capability: 'workbench', impact: 'external-unknown', scope: 'read', requiresConsent: false,
+      briefExempt: true,
       description: 'Read the output log of one of your background processes by line, instead of the short tail that '
         + 'shell.bg.status shows. Defaults to the LAST 200 lines. Pass offset (0-based; negative counts back from the '
         + 'end) and limit to page, or grep to return only lines containing a string — use grep to find an error, then '
