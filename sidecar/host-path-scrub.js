@@ -265,26 +265,51 @@ function envForms(forms, env) {
   return out;
 }
 
-/* Wrap an adapter's outbound TEXT in place: send(chatId, text, …), editMessage(chatId, messageId, text, …),
-   answerCallback(callbackId, text) and a media item's caption. In place, so every holder of the adapter (its hub's
-   send closure, the live-channel registry, a routine delivery) goes through the scrub. Idempotent. */
+/* Wrap an adapter's outbound TEXT in place: send(chatId, text, opts), editMessage(chatId, messageId, text, opts),
+   answerCallback(callbackId, text), sendMedia(chatId, item, opts), sendMediaGroup(chatId, items, opts) and
+   setShortDescription(text). Every string the chat can see is scrubbed (review round 4, minor-4): the text, every string
+   inside opts.reply_markup (an inline keyboard's labels and URLs, on a send and on an edit, or the whole keyboard when it
+   is already JSON), a media item's caption and file name, each item of an album, and the bot's status line. Copies,
+   never the caller's objects in place. In place on the ADAPTER, so every holder of it (its hub's send closure, the
+   live-channel registry, a routine delivery) goes through the scrub. Idempotent. */
 const guarded = new WeakSet();
 function guardOutbound(adapter, scrub) {
   if (!adapter || typeof adapter !== 'object' || typeof scrub !== 'function' || guarded.has(adapter)) return adapter;
-  const wrap = (name, at, fix) => {
+  const wrap = (name, fixes) => {
     const f = adapter[name];
     if (typeof f !== 'function') return;
     adapter[name] = function () {
       const args = Array.prototype.slice.call(arguments);
-      args[at] = fix(args[at]);
+      for (const at of Object.keys(fixes)) if (Number(at) < args.length) args[at] = fixes[at](args[at]);
       return f.apply(adapter, args);
     };
   };
   const text = (t) => (typeof t === 'string' ? scrub(t) : t);
-  wrap('send', 1, text);
-  wrap('editMessage', 2, text);
-  wrap('answerCallback', 1, text);
-  wrap('sendMedia', 1, (item) => (item && typeof item === 'object' && typeof item.caption === 'string' ? Object.assign({}, item, { caption: scrub(item.caption) }) : item));
+  // every string in a plain structure (arrays and plain objects, a bounded depth); anything else as it is
+  const deep = (v, depth) => {
+    if (typeof v === 'string') return scrub(v);
+    if (!v || typeof v !== 'object' || depth > 8) return v;
+    if (Array.isArray(v)) return v.map((x) => deep(x, depth + 1));
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) return v;
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = deep(v[k], depth + 1);
+    return o;
+  };
+  const opts = (o) => (o && typeof o === 'object' && o.reply_markup != null ? Object.assign({}, o, { reply_markup: deep(o.reply_markup, 0) }) : o);
+  const media = (item) => {
+    if (!item || typeof item !== 'object') return item;
+    const out = Object.assign({}, item);
+    if (typeof item.caption === 'string') out.caption = scrub(item.caption);
+    if (typeof item.filename === 'string') out.filename = scrub(item.filename);
+    return out;
+  };
+  wrap('send', { 1: text, 2: opts });
+  wrap('editMessage', { 2: text, 3: opts });
+  wrap('answerCallback', { 1: text });
+  wrap('sendMedia', { 1: media, 2: opts });
+  wrap('sendMediaGroup', { 1: (items) => (Array.isArray(items) ? items.map(media) : items), 2: opts });
+  wrap('setShortDescription', { 0: text });
   guarded.add(adapter);
   return adapter;
 }

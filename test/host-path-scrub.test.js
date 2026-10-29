@@ -262,6 +262,44 @@ const scrub = makeHostPathScrub({ fixed: [WS] });
     A.ok(bodies.length === 3 && !bodies.some(leaks), 'telegram: send / editMessage / answerCallback reach the wire scrubbed (' + bodies.map(b => b.slice(0, 80)).join(' || ') + ')');
     A.ok(bodies[0].indexOf('workspace') >= 0, 'telegram: the placeholder reached the wire');
   }
+  {
+    // minor-4 (review round 4, scratchpad rr4-scrub.js): the guard missed the text that is not the message body. An
+    // inline keyboard's labels (send and edit), an album's captions, the bot's status line and a file's name all reached
+    // the wire as written. The fake fetch records every Bot API call, multipart bodies included.
+    const calls = [];
+    const fetch = async (url, init) => {
+      let body = init && init.body;
+      if (body && typeof body !== 'string') body = Buffer.isBuffer(body) ? body.toString('latin1') : String(body);
+      calls.push({ method: String(url).split('/').pop(), body: String(body || '') });
+      return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ ok: true, result: { message_id: 7 } }) };
+    };
+    const tg = makeTelegramAdapter({ fetch, token: '1:abc', apiBase: 'http://x', clock: { now: () => 0 } });
+    guardOutbound(tg, scrub);
+    const P = WS + '\\alpha\\x.png';
+    const kb = () => ({ reply_markup: { inline_keyboard: [[{ text: '1. ' + P, callback_data: 'c:1' }], [{ text: 'open', url: 'file:///' + P.replace(/\\/g, '/') }]] } });
+    const asked = kb();
+    const wire = (s) => { try { return decodeURIComponent(s.replace(/%(?![0-9A-Fa-f]{2})/g, '%25')); } catch (e) { return s; } };
+    const probes = [
+      ['send: an inline keyboard label', () => tg.send('1', 'pick one', asked)],
+      ['editMessage: an inline keyboard label', () => tg.editMessage('1', '7', 'pick', kb())],
+      ['editMessage: a keyboard sent as a JSON string', () => tg.editMessage('1', '7', 'pick', { reply_markup: JSON.stringify(kb().reply_markup) })],
+      ['sendMedia: the caption', () => tg.sendMedia('1', { kind: 'document', buffer: Buffer.from('x'), filename: 'x.txt', caption: 'saved ' + P })],
+      ['sendMedia: the file name', () => tg.sendMedia('1', { kind: 'document', buffer: Buffer.from('x'), filename: 'C%3A%5CUsers%5Candro%5CAppData%5CRoaming%5CStarNet%5Cworkspaces%5Cx.txt', caption: '' })],
+      ['sendMedia: a keyboard under the file', () => tg.sendMedia('1', { kind: 'document', buffer: Buffer.from('x'), filename: 'x.txt' }, kb())],
+      ['sendMediaGroup: the captions and file names', () => tg.sendMediaGroup('1', [{ kind: 'photo', buffer: Buffer.from('x'), filename: 'a.png', caption: 'saved ' + P }, { kind: 'photo', buffer: Buffer.from('y'), filename: WS + '\\b.png' }])],
+      ['setShortDescription: the bot\'s status line', () => tg.setShortDescription('status ' + P)]
+    ];
+    for (const [label, f] of probes) {
+      calls.length = 0;
+      await f();
+      const all = calls.map(c => c.body).join(' | ');
+      A.ok(calls.length >= 1 && !leaks(all) && !leaks(wire(all)), 'telegram ' + label + ' reaches the wire scrubbed (' + (calls.map(c => c.method).join(',') || 'no call') + ': ' + all.slice(0, 160) + ')');
+    }
+    A.ok(JSON.stringify(asked).indexOf(WS.replace(/\\/g, '\\\\')) >= 0, 'the caller\'s keyboard object is copied, never rewritten in place');
+    calls.length = 0;
+    await tg.send('1', 'pick one', { reply_markup: { inline_keyboard: [[{ text: 'Approve', callback_data: 'ok:1' }]] } });
+    A.ok(/"callback_data":"ok:1"/.test(wire(calls[0].body)) && /Approve/.test(calls[0].body), 'a keyboard that names no host path goes as it was');
+  }
   const reg = makeChannelRegistry();
   for (const id of ['slack', 'matrix', 'signal']) {
     const sent = [];
