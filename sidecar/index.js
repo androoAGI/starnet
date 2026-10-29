@@ -14907,7 +14907,10 @@ async function applyVoiceTurnRoute(o) {
   let promptTokens = 0;
   if (limit) {
     const est = makeContext(Object.assign({ contextLimit: limit }, RUN_CONTEXT_DEFAULTS));
-    promptTokens = est.estimateMessages(Array.isArray(o.messages) ? o.messages : []) + est.estimateTokens(String(o.system || ''));
+    // sized as the provider will get it: the attachment references are expanded later in runOnceCore (expandForRun), so
+    // unexpanded a 94 KB attached file counted as a few tokens and a large turn was routed to a small voice model
+    const sized = await attachments.expandForRun(Array.isArray(o.messages) ? o.messages : [], o.agentId || 'agent', o.projectRoot || '');
+    promptTokens = est.estimateMessages(sized) + est.estimateTokens(String(o.system || ''));
   }
   const facts = {
     setting, main: { provider: mainProvider, model: mainModel },
