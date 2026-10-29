@@ -128,7 +128,8 @@ function defaultHardenStagingDir(fsp, dir) {
     let user = String(process.env.USERNAME || '').trim();
     if (!user) { try { user = require('node:os').userInfo().username; } catch (_) { user = ''; } }
     if (!user) return reject(new Error('no current user to grant staging ACLs to'));
-    require('node:child_process').execFile('icacls', [dir, '/inheritance:r', '/grant:r', user + ':(OI)(CI)F'],
+    // through the guard: icacls never inherits station secrets (STARNET_/SKYNET_ keys stripped from its env)
+    require('./child-env.js').guardChildProcess(require('node:child_process')).execFile('icacls', [dir, '/inheritance:r', '/grant:r', user + ':(OI)(CI)F'],
       { windowsHide: true, timeout: 15000 }, (err) => err ? reject(err) : resolve());
   });
 }
