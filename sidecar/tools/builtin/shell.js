@@ -610,7 +610,11 @@
      file shown with `type README.md` that contained a literal marker line used to BE the marker: it set the run's
      remembered cwd (which verify.run and terminal.start inherit) and the exit code the routine script gate reads. Each
      call now carries a fresh random nonce inside every marker token (__SK_CWD_<nonce>__ …), which printed content
-     cannot know, and the parser takes the LAST match: the one the shell appended after the command finished. */
+     cannot know, and the parser takes the LAST match: the one the shell appended after the command finished.
+     WHAT IT DEFEATS, AND WHAT IT DOES NOT: the nonce defeats PRINTED CONTENT only (a file, a web page, a tool's output
+     echoed through the command). Code the command itself runs already has full shell reach in that cwd: it can read the
+     nonce off its own command line and print a valid marker, but it could equally just `cd` and do the work there. The
+     remembered cwd is still clamped to the allowed envelope afterwards, whoever printed it. */
   const MARK_A = '__SK_CWD__', MARK_EC = '__SK_EC__', MARK_END = '__SK_END__';
   function markTokens(nonce) {
     const n = nonce == null || nonce === '' ? '' : '_' + String(nonce).replace(/[^0-9A-Za-z]/g, '');
@@ -1007,7 +1011,7 @@
            THEIR app: on Windows it runs outside the station's job (sidecar/breakaway.js), so quitting or crashing StarNet
            never closes what it opened. Every other command stays the station's and ends with it. */
         const forPerson = isWin && remoteOwner && (!environment || environmentBackendId === 'local') && !!opensVisibleWindow(cmd, shellDialect);
-        const nonce = markerNonce();   // S1: this call's marker token — printed content cannot forge the cwd or exit code
+        const nonce = markerNonce();   // S1: this call's marker token — printed content cannot forge the cwd or exit code (code the command runs could; it already has shell reach)
         const run = checkpoint.then(function () {
           return environment && typeof environment.execute === 'function'
             ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })

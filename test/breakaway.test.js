@@ -92,7 +92,14 @@ function fakeChild(out, code) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-breakaway-shell-'));
     try {
       const spawned = [];
-      const spawn = (file, a, o) => { spawned.push({ file, args: Array.isArray(a) ? a : null }); return fakeChild('__SK_CWD__' + root + '__SK_EC__0__SK_END__', 0); };
+      // the fake prints the marker a real shell would: with THIS call's nonce, read back off the marked command it was
+      // handed (directly as the command line, or inside the launcher's spec)
+      const { echoMarker } = require('./helpers/shell-marker.js');
+      const spawn = (file, a, o) => {
+        spawned.push({ file, args: Array.isArray(a) ? a : null });
+        const marked = Array.isArray(a) ? decodeSpec(a).args.join(' ') : String(file);
+        return fakeChild(echoMarker(marked, path.join(root, 'agent'), 0), 0);   // the agent's own workspace, where it ran
+      };
       const tool = makeShellTool({ spawn, fs, pathMod: path, root, platform: 'win32', breakaway: makeBreakaway({ env: winEnv, platform: 'win32' }) }).execTool;
       A.ok(!!tool, 'shell.exec is built');
       const full = { agentId: 'agent', unrestrictedHost: true };

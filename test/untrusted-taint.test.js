@@ -14,7 +14,7 @@
    The behavioral end-to-end proof (hostile MCP text -> model obeys -> host blocks the shell anyway) is the
    scratchpad repro; this suite locks the LAW and the wiring, which is where a defence silently dies. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -135,9 +135,10 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   const initialTaint = attachmentEntry.match(/initialTaint: ([^\r\n]+),/);
   A.ok(attachmentStart > 0 && captureStart >= 0 && captureEnd > captureStart && !!initialTaint, 'attachment entry classification exists');
   // the files expand in the run host (runOnceCore expandForRun, run-paths review M3), after this entry captured the words:
-  // nothing in the entry expands them first
-  A.ok(attachmentEntry.indexOf('TrustedLearning.capture(') >= 0 && attachmentEntry.indexOf('expandUserAttachments(') < 0 && attachmentEntry.indexOf('expandForRun(') < 0
-    && src.indexOf('messages = await attachments.expandForRun(messages, agentId') > src.indexOf('// USER ATTACHMENTS:'), 'owner words are captured before files expand');
+  // nothing in the entry expands them first, and the expansion lives inside runOnceCore itself (sliced, never an offset
+  // compared across functions: that ordering held vacuously once either anchor moved, review round 2 F6)
+  A.ok(attachmentEntry.indexOf('TrustedLearning.capture(') >= 0 && attachmentEntry.indexOf('expandUserAttachments(') < 0 && attachmentEntry.indexOf('expandForRun(') < 0, 'owner words are captured before files expand (the entry never expands them)');
+  A.ok(sidecarTopLevelFunction('runOnceCore').indexOf('messages = await attachments.expandForRun(messages, agentId') >= 0, 'the run host expands the files, inside runOnceCore');
   A.ok(/\n\s*learningInput,/.test(attachmentEntry) && !/body\.learningInput/.test(attachmentEntry), 'run receives host-captured input rather than request metadata');
   A.ok(/\n\s*quotedOwnerInput,/.test(attachmentEntry) && !/body\.quotedOwnerInput/.test(attachmentEntry), 'the quoted-material learning flag is host-computed, never request metadata');
   A.ok(/const quotedLearning = o\.quotedOwnerInput === true \|\| replayedQuoted;/.test(src) &&

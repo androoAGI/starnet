@@ -20909,7 +20909,7 @@ async function handleRun(req, res) {
     // rest of the conversation. Host-computed from the messages, never from request metadata.
     const quotedOwnerInput = TrustedLearning.quotedInLearningTail(messages);
     // The attachment references ride into runOnce unexpanded: runOnceCore expands them once the run's project root is
-    // final, so the note names the path the way THIS run's tools resolve it (run-paths review M3, expandRunAttachments).
+    // final, so the note names the path the way THIS run's tools resolve it (run-paths review M3, attachments.expandForRun).
     const runMessages = messages;
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.

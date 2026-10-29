@@ -13,7 +13,7 @@
      8. an "unhelpful" rating trust cannot absorb becomes bounded distrust that really demotes the memory
    (6 = the dossier seed and 9 = backup import live in test/dossier.test.js and test/notebookrestore.test.js.) */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -221,9 +221,13 @@ function harness(at, extra) {
     A.ok(/memcore\.mergeReceipts\(prev && prev\.agentId === agentId \? prev\.proposals : \[\], items\)/.test(idx), 'a later stash MERGES into the run\'s batch instead of overwriting it');
     // both anchors must exist: a renamed capture call (indexOf -1) must not pass the ordering check (review tests-09)
     const captureAt = idx.indexOf("TrustedLearning.capture(messages, 'interactive-owner')");
-    // the files expand in the run host (runOnceCore, run-paths review M3), which runs after handleRun captured the words
-    const expandAt = idx.indexOf('messages = await attachments.expandForRun(messages, agentId');
-    A.ok(idx.includes('TrustedLearning.eligible(') && idx.includes('const commanderWords = trustedLearningInput ? trustedLearningInput.content') && captureAt >= 0 && expandAt > captureAt && /ownerTrusted, commanderWords,/.test(idx),
+    // the files expand in the run host (runOnceCore, run-paths review M3), which runs after handleRun captured the words:
+    // handleRun captures and never expands, and the expansion lives inside runOnceCore (sliced per function, never an
+    // offset compared across functions, review round 2 F6)
+    const entry = sidecarTopLevelFunction('handleRun');
+    const expands = sidecarTopLevelFunction('runOnceCore').indexOf('messages = await attachments.expandForRun(messages, agentId') >= 0;
+    A.ok(entry.indexOf("TrustedLearning.capture(messages, 'interactive-owner')") >= 0 && entry.indexOf('expandForRun(') < 0 && entry.indexOf('expandUserAttachments(') < 0 && expands, 'handleRun captures the owner words and never expands; runOnceCore expands');
+    A.ok(idx.includes('TrustedLearning.eligible(') && idx.includes('const commanderWords = trustedLearningInput ? trustedLearningInput.content') && captureAt >= 0 && /ownerTrusted, commanderWords,/.test(idx),
       'commanderWords reach the tool ctx only from the owner\'s own surfaces (never a worker, a group transcript or a guest)');
     // COMMS: each save renders once per run, and a later save of the same run is not swallowed
     const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
