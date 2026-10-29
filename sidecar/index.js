@@ -11839,6 +11839,9 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
   log: message => console.warn('[groups]', message),
   isBusy: agentId => [...runsMeta.values()].some(r => r.agentId === agentId),
   roster: () => [...agentRoster].map(([id, a]) => ({ id, name: a.name, model: a.model, provider: a.provider })),
+  // The private jail IS a group run's base: group runs are never project-scoped (execute below passes runOnce no
+  // projectRoot or workdir), so their relative names and receipts are jail-relative, the rule ctx.paths applies. If a
+  // group run ever takes a project, route this through egressReader.readFor with that run's paths (run-paths review S3).
   readFile: async (agentId, rel) => {
     const { abs } = await fsJail.resolveInside(agentId, rel, { scope: 'read' });
     const st = await fsp.stat(abs);
@@ -24524,8 +24527,10 @@ async function runOnceCore(o) {
     // TYPED POSTCONDITIONS READER — one host reader for both the mid-run acceptance probe and the end-of-run
     // verdict: every artifact predicate resolves through the RUN's path object (the folder this run's fs.write wrote
     // into: the project in a project run, the private workspace otherwise), reads are bounded, digests streamed.
-    // Postcondition paths are relative-only (task-postconditions.js), so this reads, and never asks about, a folder.
+    // Postcondition paths are relative-only (task-postconditions.js), so this reads, and never asks about, a folder; an
+    // absolute or drive-relative one is refused HERE too, before any resolve could route it to path trust (review minor).
     const readPostconditionArtifact = async requirement => {
+      if (/^(?:[a-z]:|[\\/])/i.test(String((requirement && requirement.path) || ''))) throw new Error('postcondition paths are relative to the run\'s folder');
       const resolved = runPaths ? await runPaths.resolve(requirement.path, { scope: 'read' })
         : await fsJail.resolveInside(agentId, requirement.path, { scope: 'read' });
       const stat = await fsp.stat(resolved.abs);
@@ -24899,14 +24904,16 @@ async function runOnceCore(o) {
       else questStore.stallRun(runId, _qReason, Date.now()).catch(swallow('quest.stall'));
     } catch (_) {}
     // QUEST V2 §A — the ARTIFACT-contract sweep: a quest keyed to a deliverable completes ONLY when that file
-    // provably exists inside the CALLING agent's fs jail (fsJail.resolveInside — the same proof /api/file uses;
-    // '..'/absolute/symlink escapes throw and prove nothing). Checked at every run end regardless of reason —
-    // the file existing is the truth, not the run outcome — and workshop/night-shift builds ride this same
-    // runOnce host, so a validated manifest's files land under this sweep too. Fire-and-forget + fail-open.
+    // provably exists where THIS run's relative paths land (its path object: the project in a project run, the private
+    // jail otherwise — run-paths review; the jail alone missed every deliverable a project run wrote). '..'/absolute/
+    // drive-relative keys and symlink escapes prove nothing, and never reach path trust (no prompt at run end). Checked
+    // at every run end regardless of reason — the file existing is the truth, not the run outcome — and workshop/night-
+    // shift builds ride this same runOnce host, so a validated manifest's files land under this sweep too. Fire-and-forget + fail-open.
     (async () => {
       for (const _aq of QuestSweeps.artifactQuestKeys(questStore.openForAgent(agentId, Date.now()), agentId)) {
         try {
-          const { abs: _aAbs } = await fsJail.resolveInside(agentId, _aq.key);
+          if (/^(?:[a-z]:|[\\/])/i.test(String(_aq.key))) continue;
+          const { abs: _aAbs } = runPaths ? await runPaths.resolve(_aq.key, { scope: 'read' }) : await fsJail.resolveInside(agentId, _aq.key);
           if (fs.existsSync(_aAbs)) await completeQuestRecommendationIds(await questStore.completeByContract('artifact', _aq.key, Date.now()));
         } catch (_) { /* a non-path or escaping key simply never completes — truthful telemetry */ }
       }

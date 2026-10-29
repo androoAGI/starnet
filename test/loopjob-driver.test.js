@@ -357,12 +357,15 @@ function world(opts) {
   // src/cart.js". The loop knew its workdir and the path grant allowed it; the agent was simply never told the
   // path existed, and relative paths resolve inside its own jail.
   {
+    // (run-paths review) the folder rides as the run's WORKDIR: runOnceCore re-proves it by real path, makes it the run's
+    // root, and writes the project anchor line itself (as for a routine), so the persona carries no second copy of it
     const w = world({ projectLine: (l) => l.workdir ? '\n\nPROJECT FOLDER: ' + l.workdir : '' });
     w.seed({ workdir: 'C:/proj/cart', checkCmd: 'node test/run.js' });
     w.tick(T0);
     const sys = w.calls[0].system;
-    A.ok(/PROJECT FOLDER: C:\/proj\/cart/.test(sys), 'the project folder is injected into the system prompt');
-    A.ok(/STATION PERSONA/.test(sys), 'and it is APPENDED to the persona, never replacing it');
+    A.eq(w.calls[0].workdir, 'C:/proj/cart', 'the project folder is handed to the run as its workdir (the run host anchors the prompt to it)');
+    A.eq(w.calls[0].projectRoot, undefined, 'never as a raw projectRoot: the run host derives the root from the re-proven workdir');
+    A.ok(/STATION PERSONA/.test(sys) && !/PROJECT FOLDER/.test(sys), 'the persona stays intact and carries no duplicate of the anchor');
 
     // a loop with no folder must inject nothing — never assert access we cannot prove
     const w2 = world({ projectLine: (l) => l.workdir ? '\n\nPROJECT FOLDER: ' + l.workdir : '' });
@@ -374,6 +377,11 @@ function world(opts) {
     const w3 = world(); w3.seed({ workdir: 'C:/proj' });
     w3.tick(T0);
     A.eq(w3.calls[0].system, 'STATION PERSONA', 'the dep is optional');
+    A.ok(w3.calls[0].workdir === undefined && w3.calls[0].projectRoot === undefined, 'but a host that cannot re-prove the folder hands the run NO folder (fail closed)');
+    // and a host whose check says the folder lapsed hands none either
+    const w4 = world({ projectLine: () => '' }); w4.seed({ workdir: 'C:/revoked' });
+    w4.tick(T0);
+    A.ok(w4.calls[0].workdir === undefined && w4.calls[0].projectRoot === undefined, 'a folder whose approval lapsed is never handed to the run');
   }
 
   /* ---- 13. THE PROJECT SNAPSHOT: anchor the agent, and NEVER converge on a project we could not read ------

@@ -547,9 +547,10 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       drv.applyTick(1700006400000);
       await new Promise(r => setImmediate(() => setImmediate(r)));
       const opts = calls[0] || {};
-      row('LOOP entry: the run is handed the loop\'s folder as its projectRoot', opts.projectRoot === PROJECT, String(opts.projectRoot));
-      // and the run built from those opts resolves where the loop's prompt says it works
-      const loopCtx = hostCtx({ projectRoot: opts.projectRoot || '', workdir: opts.workdir || '' });
+      // as its WORKDIR (review minor): runOnceCore re-proves it by real path (cronCanonicalWorkdir) and makes it the root
+      row('LOOP entry: the run is handed the loop\'s folder as its workdir, for the run host to re-prove', opts.workdir === PROJECT && !opts.projectRoot, String(opts.workdir) + ' / ' + String(opts.projectRoot));
+      // and the run built from those opts resolves where the loop's prompt says it works (runOnceCore: workdir -> root)
+      const loopCtx = hostCtx({ projectRoot: opts.projectRoot || opts.workdir || '', workdir: opts.workdir || '' });
       const n = freshName('loop'); await attempt(() => fsTools.writeTool.run({ path: n, content: 'x' }, loopCtx));
       row('LOOP entry: fs.write in a loop lands in the loop\'s folder', fs.existsSync(path.join(PROJECT, n)));
       const t = await attempt(() => shellTool.run({ cmd: 'test -f ' + n }, loopCtx));
@@ -573,7 +574,9 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('HOST: the tool ctx carries it as ctx.paths', /\bpaths: runPaths\b/.test(core));
       row('HOST: projectCwd is gone from the tool ctx', !/\bprojectCwd:/.test(core));
       row('HOST: the park pointer is placed by the run path object', /parked\.path = runPaths\.placeJail\(parked\.path\)/.test(core));
-      row('HOST: the postcondition reader resolves through the run path object', /readPostconditionArtifact[\s\S]{0,400}runPaths\.resolve\(requirement\.path/.test(core));
+      row('HOST: the postcondition reader resolves through the run path object', /readPostconditionArtifact[\s\S]{0,700}runPaths\.resolve\(requirement\.path/.test(core));
+      row('HOST: the postcondition reader refuses an absolute or drive-relative path before any resolve', /readPostconditionArtifact = async requirement => \{\s*if \(\/\^\(\?:\[a-z\]:\|\[\\\\\/\]\)\/i\.test/.test(core));
+      row('HOST: the quest artifact sweep resolves through the run path object (a project run\'s deliverable counts)', /runPaths \? await runPaths\.resolve\(_aq\.key, \{ scope: 'read' \}\)/.test(core));
       // (M3) one expansion, in the run host, once the root is final; no surface expands before runOnce any more
       row('HOST: runOnceCore expands every surface\'s attachments once the run root is final', /messages = await attachments\.expandForRun\(messages, agentId, o\.projectRoot\)/.test(core));
       row('HOST: no surface (COMMS, the channel hubs) expands attachments before runOnce', !/attachments\.expandUserAttachments\(messages/.test(src));

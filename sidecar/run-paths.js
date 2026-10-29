@@ -17,7 +17,14 @@
      resolve(rel, {scope,ctx})  -> { base, abs }  the containment proof, moved here from fs.js unchanged
      place(abs)               a receipt path for a produced file: resolve() maps it back to the same file
      placeJail(rel)           the same for a file a tool named relative to the private workspace
+     jailFile(rel)            a jail name's durable absolute spelling, for text that outlives the run (a channel's turn)
+     unplaceJail(abs)         the jail-relative name of an absolute private-workspace path, else null (what a CHAT may see)
+     produced(name)           where a name this run produced is, named without touching the disk (producedPath)
      shellCwd() / setShellCwd(cwd)   this RUN's shell working directory (validated by shell.js on every read)
+
+   For a FINISHED run (a worker's hand-off, a SEND TO, a routine delivery): producedPath(name, { projectRoot, jail })
+   names its file against that run's one base, and locateProduced({ fsp, list, projectRoot, jail }) proves the ones that
+   exist (review round 1, 2026-10-28). isRunPaths is a module-private brand (a WeakSet), so no hand-built object passes.
 
    pathsFor(ctx, resolver, agentId) is how a tool gets it: the host-minted ctx.paths when there is one, otherwise one
    minted from the tool's own resolver and ctx.projectRoot (bare rigs, route helpers, tests), memoized per ctx object.

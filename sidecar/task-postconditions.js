@@ -46,7 +46,9 @@ function normalizeContract(raw) {
     if (type.indexOf('artifact_') === 0) {
       const path = bounded(item.path, MAX_PATH);
       if (!path || path.indexOf('\0') >= 0 || path.replace(/\\/g, '/').split('/').includes('..')) { errors.push(id + ': safe relative path required'); return; }
-      if (/^(?:[a-z]:[\\/]|[\\/])/i.test(path)) { errors.push(id + ': absolute paths are not allowed'); return; }
+      // drive-relative too (C:foo means "foo in drive C's current folder", not a path in the run's folder): the reader
+      // resolves through the run's path object, which routes any drive-prefixed name to path trust (run-paths review)
+      if (/^(?:[a-z]:|[\\/])/i.test(path)) { errors.push(id + ': absolute paths are not allowed'); return; }
       const out = { id, type, path };
       if (type === 'artifact_contains') {
         const text = bounded(item.text, MAX_TEXT);

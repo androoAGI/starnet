@@ -9,6 +9,11 @@ async function main() {
   A.eq(normalizeContract(null), { contract: null, errors: [] }, 'absent contract stays absent');
   A.ok(normalizeContract({ requirements: [{ type: 'artifact_exists', path: '../escape' }] }).errors.length === 1, 'parent traversal is rejected');
   A.ok(normalizeContract({ requirements: [{ type: 'artifact_exists', path: 'C:\\escape.txt' }] }).errors.length === 1, 'absolute Windows path is rejected');
+  // (run-paths review) a drive-relative name is not relative to the run's folder: it was accepted, then routed to path trust
+  for (const p of ['C:foo.txt', 'c:Users/me/x', 'D:report.md']) {
+    A.eq(normalizeContract({ requirements: [{ type: 'artifact_exists', path: p }] }).errors, ['pc-1: absolute paths are not allowed'], 'drive-relative ' + JSON.stringify(p) + ' is rejected');
+  }
+  A.eq(normalizeContract({ requirements: [{ type: 'artifact_exists', path: 'notes/a:b.txt' }] }).errors, [], 'a colon later in a relative name is still a relative name');
   A.ok(normalizeContract({ requirements: [{ id: 'x', type: 'artifact_exists', path: 'a' }, { id: 'x', type: 'artifact_exists', path: 'b' }] }).errors.length === 1, 'duplicate requirement ids are rejected');
 
   let r = await assessPostconditions({

@@ -418,19 +418,22 @@
       function launch(snapshotText) {
       const currentLease = leases.get(loop.id);
       if (!currentLease || currentLease.runId !== runId || (ac.signal && ac.signal.aborted)) return false;
-      /* THE TOOLS WORK WHERE THE AGENT IS TOLD IT WORKS (run-paths lane). The project line below tells the agent this
-         loop works in its folder, but the run was never given that folder, so fs.* and shell.* resolved relative
-         paths in the private workspace. The folder rides as projectRoot exactly when the host's projectLine names it
-         (the host re-proves the approval at launch), so a folder whose approval lapsed is never handed to the tools. */
+      /* THE TOOLS WORK WHERE THE AGENT IS TOLD IT WORKS (run-paths lane). The project line tells the agent this loop
+         works in its folder, but the run was never given that folder, so fs.* and shell.* resolved relative paths in
+         the private workspace. The folder rides as the run's WORKDIR exactly when the host's projectLine names it (the
+         host re-proves the approval at launch); a host without that check hands no folder at all (fail closed, review
+         minor). As a workdir, runOnceCore re-proves it once more by REAL path (cronCanonicalWorkdir: a folder swapped
+         for a link since its approval is refused), makes it the run's root, and writes the project anchor line itself
+         (with the project's own instructions), exactly as for a routine, so the persona carries no second copy. */
       const folderLine = projectLine ? String(projectLine(fresh) || '') : '';
-      const folder = fresh.workdir && (!projectLine || folderLine) ? String(fresh.workdir) : '';
+      const folder = fresh.workdir && projectLine && folderLine ? String(fresh.workdir) : '';
       const opts = {
         key: key,
         model: fresh.model || ident.model || deps.defaultModel,
         provider: provider,
-        // the persona, plus the project-folder anchor when this loop works in a real folder
-        system: (ident.system || personaOf()) + folderLine,
-        projectRoot: folder || undefined,
+        // the persona; a loop in a real folder gets its project anchor from runOnceCore (the workdir below)
+        system: (ident.system || personaOf()) + (folder ? '' : folderLine),
+        workdir: folder || undefined,
         stationEvidence: true,   // the station's observed evidence rides the run context, so this persona is the same every iteration
         messages: buildMessages(fresh, snapshotText),
         agentId: fresh.agentId,
