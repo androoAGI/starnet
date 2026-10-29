@@ -3029,11 +3029,14 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey) {
   let explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
   // ...nor does a STATION-HELD API key (the keychain/runtime push, an operator env key, the page copy). A per-run endpoint
   // rides only the caller's own key (`callerKey`, when it is the key the run goes out on: `runKey`, else this provider's
-  // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves.
+  // resolution of it) or a keyless run; otherwise it is ignored and the configured endpoint below serves. A key the station
+  // itself holds (the keychain/runtime push, the operator's env key) is never "the caller's own", even when a caller hands
+  // it back as callerKey: a channel record an older build saved with the station's key in it must not carry it elsewhere.
   if (explicit) {
     const own = String(callerKey || '').trim();
     const inUse = runKey === undefined ? providerRuntimeKey(id, own) : String(runKey || '').trim();
-    if (inUse && inUse !== own) explicit = '';
+    const stationHeld = !!inUse && (inUse === String(runtimeKeys[id] || '').trim() || inUse === providerOperatorKey(id));
+    if (inUse && (inUse !== own || stationHeld)) explicit = '';
   }
   if (explicit) return explicit;
   const runtime = String(runtimeBaseUrls[id] || '').trim();
@@ -3207,6 +3210,26 @@ function stationHubRunConfig(agentId, snap) {
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
   return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
+}
+/* THE CREDENTIAL A CHANNEL CONNECT SAVES (Telegram, Discord, the generic channels). The record keeps ONLY a key the caller
+   handed over (this body's, else the one an earlier connect saved), never providerRuntimeKey's resolution of it: a saved
+   station key (the keychain/runtime push, the operator's env key) counted as "the caller's own" on the next connect, so a
+   later body naming an endpoint and no key was honoured, saved, and every inbound message sent the station's key there;
+   it also wrote a headless station's env key into secrets.json in plaintext. An endpoint rides only the key it came with —
+   the body's with the body's key, the saved one with the saved key — each checked against the key this run really goes
+   out on (runKey), so a keyless body endpoint can carry neither the saved key nor the station's; when the body's is not
+   used, the saved pair stands. The endpoint is saved only when it is not the one the station would resolve for that key
+   anyway (ownBase ''), so the bot follows a proxy the Commander configures later instead of freezing the endpoint of the
+   day it connected. key/baseUrl are what the run goes out on now (the connect gate's pair). */
+function channelConnectCredential(provider, body, saved) {
+  const bodyKey = String(body.key || '').trim(), bodyBase = String(body.baseUrl || body.base_url || '').trim();
+  const savedKey = String(saved.key || '').trim(), savedBase = String(saved.baseUrl || saved.base_url || '').trim();
+  const recordKey = bodyKey || savedKey;   // never providerRuntimeKey's resolution
+  const key = providerRuntimeKey(provider, recordKey);
+  const asked = bodyBase ? providerRuntimeBaseUrl(provider, bodyBase, key, bodyKey) : '';
+  const baseUrl = (bodyBase && asked === bodyBase) ? asked : providerRuntimeBaseUrl(provider, savedBase, key, savedKey);
+  const ownBase = baseUrl === providerRuntimeBaseUrl(provider, '', key) ? '' : baseUrl;
+  return { recordKey, key, baseUrl, ownBase };
 }
 /* THE /v1 PAIR (openai-compat resolveWire). A request that selects a ROSTER agent (its id or name in `model`) runs that
    agent's own pair, the one it runs on every surface. The GENERIC target ('starnet-agent', or a value that matches no
@@ -5092,6 +5115,28 @@ let channelSecrets = loadChannelSecrets();
     scrubChannelSecretsBak();
   } catch (e) { console.warn('[channels] secret migration skipped:', (e && e.message) || e); }
 })();
+/* A CHANNEL RECORD NEVER HOLDS THE STATION'S OWN KEY (channels/secrets.js scrubStationKeys). An older build saved the key the
+   station resolved at connect (the keychain/runtime push, the operator's env key) into the record, where it counted as the
+   caller's own (channelConnectCredential); it is dropped here, at load, and a key the caller handed over stays. No bot
+   stops working: a record with no key runs on providerRuntimeKey's live resolution — the same station key — and follows it
+   when the Commander changes it. Saved twice: saveResilient snapshots the pre-scrub main into .bak, and the second save
+   replaces that copy with the scrubbed one, so the key leaves the recovery copy too (a headless station's env key sat
+   there in plaintext). */
+function channelKeyIsStationHeld(provider, key) {
+  const id = normalizeProvider(provider);
+  const k = String(key || '').trim();
+  return !!k && (k === String(runtimeKeys[id] || '').trim() || k === providerOperatorKey(id));
+}
+function scrubChannelStationKeys() {
+  const res = channelSecretsMod.scrubStationKeys(channelSecrets, channelKeyIsStationHeld);
+  if (!res.changed) return res;
+  channelSecrets = res.config;
+  res.persisted = saveChannelSecrets(channelSecrets) && saveChannelSecrets(channelSecrets);
+  console.warn('[channels] dropped the station\'s own provider key from ' + res.scrubbed.join(', ') + ' (it resolves live per message) — '
+    + (res.persisted ? 'saved' : 'NOT proven saved: dropped for this session'));
+  return res;
+}
+scrubChannelStationKeys();
 const channelStore = makeChannelStore({ fs, pathMod: path, root: CHANNELS_DIR, clock: { now: () => Date.now() }, writeDurable: writeFileDurable, onRecover: (file) => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.') });
 
 // ---- Codex (personal ChatGPT subscription) OAuth tokens — a protected sibling of the fs jail, SAME posture
@@ -13232,7 +13277,7 @@ server.listen(PORT, '127.0.0.1', () => {
     // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
     // a channel saved with no model of its own (its agent follows the station default) is judged on that live pair
     if (t.enabled && tgTok && (t.model ? providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || '', undefined, t.key || '')) : channelFollowsReady(t))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
-    else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
+    else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, '', envModel, {}); console.log('  · telegram auto-started from env'); }   // the env key resolves live per message, never saved into secrets.json
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
   // token must never keep the others, or the station bot, offline).
@@ -13249,7 +13294,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
     if (d.enabled && dcTok && (d.model ? providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || '', undefined, d.key || '')) : channelFollowsReady(d))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
-    else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
+    else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, '', envModel, {}); console.log('  · discord auto-started from env'); }   // the env key resolves live, never saved
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
   // env-provided token (headless deploys; signal is config-only so env auto-start doesn't apply to it).
@@ -13264,7 +13309,7 @@ server.listen(PORT, '127.0.0.1', () => {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
-        startGenericChannel(gid, channelTokenRuntime[gid], envKey, envModel, { endpoint: r.endpoint, account: r.account });
+        startGenericChannel(gid, channelTokenRuntime[gid], '', envModel, { endpoint: r.endpoint, account: r.account });   // the env key resolves live, never saved
         console.log('  · ' + gid + ' auto-started from env');
       }
     } catch (e) { console.warn('[channels] ' + gid + ' auto-start failed:', (e && e.message) || e); }
@@ -26907,8 +26952,9 @@ async function handleChannelConnect(req, res) {
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: the token comes from the keychain/runtime layer, NOT the plaintext record; a fresh paste still wins.
   const token = channelToken('telegram', body.token, saved);
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
+  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  const cred = channelConnectCredential(provider, body, saved);
+  const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   // the app's REAL agent identity, so Telegram runs as the same agent (shared memory) with the same voice.
@@ -26918,7 +26964,7 @@ async function handleChannelConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startTelegram(token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
+  let started; try { started = startTelegram(token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // Poll health is not DM readiness. A fresh bot rejects every ordinary DM until the authenticated local app
   // pairs an owner, so return a new one-time command as part of connect instead of ending on a deaf false-green.
   const live = (channelSecrets && channelSecrets.telegram) || {};
@@ -27018,7 +27064,8 @@ function restartTelegramAfterOwnerRevoke(rec) {
   const token = channelToken('telegram', '', rec);
   if (!token || !(rec.model || channelFollowsReady(rec))) { stopTelegram(); return; }   // a model-less channel follows its agent's live pair
   const provider = normalizeProvider(rec.provider);
-  const key = providerUsesCodex(provider) ? '' : providerRuntimeKey(provider, rec.key || '');
+  // the record's own key only (channelConnectCredential): the station's key resolves live per message, never saved
+  const key = providerUsesCodex(provider) ? '' : String(rec.key || '');
   startTelegram(token, key, rec.model, Object.assign({}, rec, { ownerId: '', ownerPairing: undefined }));
 }
 
@@ -27195,8 +27242,9 @@ async function handleDiscordConnect(req, res) {
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: token from the keychain/runtime layer, not the plaintext record; a fresh paste still wins.
   const token = channelToken('discord', body.token, saved);
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
+  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  const cred = channelConnectCredential(provider, body, saved);
+  const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -27205,7 +27253,7 @@ async function handleDiscordConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create a bot in the Discord Developer Portal and paste its token here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startDiscord(token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
+  let started; try { started = startDiscord(token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status ('connecting' until the gateway reaches READY) — the panel repaints from /status.
   json(200, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) }));
 }
@@ -27357,8 +27405,9 @@ async function handleGenericChannelConnect(req, res, id) {
   const saved = (channelSecrets && channelSecrets[id]) || {};
   const provider = normalizeProvider(body.provider || saved.provider);
   const token = channelToken(id, body.token, saved);   // keychain/runtime (desktop) or plaintext record (bare); fresh paste wins
-  const key = providerRuntimeKey(provider, String(body.key || '').trim() || String(saved.key || ''));
-  const baseUrl = providerRuntimeBaseUrl(provider, body.baseUrl || body.base_url || saved.baseUrl || saved.base_url || '', undefined, String(body.key || '').trim() || String(saved.key || ''));
+  // the record keeps only the caller's own key, and an endpoint only with its own key (channelConnectCredential)
+  const cred = channelConnectCredential(provider, body, saved);
+  const key = cred.key, baseUrl = cred.baseUrl;
   const model = String(body.model || '').trim() || String(saved.model || '');
   const reasoningEffort = resolveReasoningEffort(provider, body.reasoningEffort || body.reasoning_effort || saved.reasoningEffort);
   const agentId = String(body.agentId || '').trim() || String(saved.agentId || '');
@@ -27378,7 +27427,7 @@ async function handleGenericChannelConnect(req, res, id) {
   }
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
-  let started; try { started = startGenericChannel(id, token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl, endpoint, account }); }
+  let started; try { started = startGenericChannel(id, token, providerUsesCodex(provider) ? '' : cred.recordKey, model, { agentId, system, name, provider, reasoningEffort, baseUrl: cred.ownBase, endpoint, account }); }
   catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status.
   json(200, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) }));

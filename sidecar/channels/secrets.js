@@ -30,6 +30,7 @@
                                           copy is the honest last-known-good fallback, exactly like the bare sidecar.
      migratePlaintext(secrets, { keychainMode, hasChannelToken }) ->
          { config, imports, changed }  // config to persist; imports=[{id,token}] to hand the keychain; changed=did we strip anything
+     scrubStationKeys(secrets, isStationKey) -> { config, changed, scrubbed }  // drop a saved STATION key (any mode)
 
    `keychainMode` = "is this the desktop shell?" (host passes STARNET_DESKTOP_SHELL === '1'). When false the record
    is returned untouched (browser/dev keeps its plaintext secrets). When true, any plaintext bot token is reported
@@ -179,6 +180,39 @@
     return { config, imports, changed };
   }
 
+  /* A channel record never holds the STATION'S OWN provider key (review r5). Connect, the owner-revoke restart and the env
+     auto-starts used to save the key the station resolved (the keychain/runtime push, the operator's env key) into the
+     record, where it then counted as the caller's own key: a later connect naming an endpoint and no key was honoured and
+     every inbound message sent the station's key there. scrubStationKeys drops such a key from every channel record and
+     every agent-bound Telegram bot record; a key the caller handed over (isStationKey false) stays. The bot keeps running:
+     the host resolves the station's key live for a record with none.
+       isStationKey(provider, key) -> bool   (host-injected: the key equals the station's runtime or operator key)
+     Returns { config, changed, scrubbed: [record ids] } (a bot as 'telegramBots:<botId>'). */
+  function scrubStationKeys(secrets, isStationKey) {
+    const src = (secrets && typeof secrets === 'object') ? secrets : {};
+    const held = (typeof isStationKey === 'function') ? isStationKey : function () { return false; };
+    const scrubbed = [];
+    function scrub(id, record) {
+      if (!isChannelRecord(record)) return record;
+      const key = typeof record.key === 'string' ? record.key.trim() : '';
+      if (!key || !held(record.provider, key)) return record;
+      const next = Object.assign({}, record);
+      delete next.key;
+      scrubbed.push(id);
+      return next;
+    }
+    const config = {};
+    for (const k of Object.keys(src)) {
+      if (CHANNEL_IDS.indexOf(k) >= 0) config[k] = scrub(k, src[k]);
+      else if (k === 'telegramBots' && isChannelRecord(src[k])) {
+        const bots = {};
+        for (const botId of Object.keys(src[k])) bots[botId] = scrub('telegramBots:' + botId, src[k][botId]);
+        config[k] = bots;
+      } else config[k] = src[k];
+    }
+    return { config: scrubbed.length ? config : src, changed: scrubbed.length > 0, scrubbed };
+  }
+
   /* Verified channel-secrets persist (the saveJsonVerified law applied to THIS store). Channel bot tokens were the
      one credential class still persisted fire-and-forget: a swallowed write error loses what is by construction the
      token's LAST surviving copy (see the fallback comment in index.js channelToken) while every route keeps saying
@@ -210,5 +244,5 @@
     };
   }
 
-  return { CHANNEL_IDS, TOKEN_FIELDS, STRIP_FIELDS, telegramBotSecretId, splitSecret, splitKeyOnly, stripTokens, hasStrippableSecret, migratePlaintext, makeVerifiedPersist };
+  return { CHANNEL_IDS, TOKEN_FIELDS, STRIP_FIELDS, telegramBotSecretId, splitSecret, splitKeyOnly, stripTokens, hasStrippableSecret, migratePlaintext, scrubStationKeys, makeVerifiedPersist };
 });

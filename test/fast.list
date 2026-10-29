@@ -796,6 +796,7 @@ test/run-wire.unit.test.js
 test/run-wire.invariant.test.js
 test/run-wire.routine-pair.test.js
 test/run-wire.v1.test.js
+test/channels.station-key.test.js
 test/provider-aliases-parity.test.js
 test/tool-withheld-message.test.js
 test/cron-guard.test.js
