@@ -13,6 +13,13 @@ const active = new Set();
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+// The sidecar's own listening line, printed from its server.listen callback (sidecar/index.js):
+// "     Open in your browser:  http://127.0.0.1:<port>". dev/seed.js prints its own "open : <url>" before it starts the
+// sidecar, which is why the match is on the sidecar's wording and not on the bare URL.
+function printedListening(output, port) {
+  return new RegExp('Open in your browser:\\s+http://127\\.0\\.0\\.1:' + Number(port) + '(?!\\d)').test(String(output || ''));
+}
+
 function processAlive(pid) {
   if (!pid) return false;
   try { process.kill(pid, 0); return true; } catch (_) { return false; }
@@ -125,9 +132,15 @@ class SidecarFixture {
     }
   }
 
+  /* Ready means THIS child serves the port: it printed its own listening line, and /api/health on the port says 200.
+     A 200 alone proves only that something answers there. Between the probe in start() and the child's bind, another
+     process can take the port (another test's sidecar, say); the child then fails its bind seconds later, after its
+     module load, while that other process answers /api/health. The listening line comes from the sidecar's own
+     server.listen callback and names the port, and only this child's output is read, so it ties the port to it. */
   async _waitUntilReady() {
     const child = this.child;
     const deadline = Date.now() + this.timeoutMs;
+    let foreignHealth = false;
     while (Date.now() < deadline) {
       if (BIND_REFUSED.test(this._output)) {
         throw new Error('sidecar port bind failed');
@@ -137,11 +150,16 @@ class SidecarFixture {
       }
       try {
         const response = await fetch(this.baseUrl + '/api/health', { signal: AbortSignal.timeout(250) });
-        if (response.status === 200) return;
+        if (response.status === 200) {
+          if (printedListening(this._output, this.port)) return;
+          foreignHealth = true;
+        }
       } catch (_) {}
       await sleep(25);
     }
-    throw new Error('sidecar readiness timed out after ' + this.timeoutMs + 'ms');
+    throw new Error('sidecar readiness timed out after ' + this.timeoutMs + 'ms' + (foreignHealth
+      ? ' (/api/health on :' + this.port + ' answered 200, but this child never printed its listening line: another process holds the port)'
+      : ''));
   }
 
   async restart(extraEnv) {
@@ -197,4 +215,4 @@ process.once('exit', () => {
   }
 });
 
-module.exports = { SidecarFixture, allocatePort, processAlive, portBindable };
+module.exports = { SidecarFixture, allocatePort, processAlive, portBindable, printedListening };
