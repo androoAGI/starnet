@@ -3747,9 +3747,15 @@
     const shotFsp = deps.fsp, shotPath = deps.pathMod, shotRoot = deps.root;
     const canSaveShots = !!(shotFsp && shotPath && shotRoot);
     const shotJail = canSaveShots ? require('./fs.js').makeFsTools({ fsp: shotFsp, pathMod: shotPath, root: shotRoot })._internals : null;
-    // Upload reads share fs.read authority; screenshot/PDF outputs retain their private workspace shelf.
-    const uploadJail = canSaveShots ? require('./fs.js').makeFsTools({ fsp: shotFsp, pathMod: shotPath, root: shotRoot,
-      pathTrust: typeof deps.pathTrust === 'function' ? deps.pathTrust : undefined })._internals : null;
+    /* AN UPLOAD IS A FILE LEAVING THE STATION (review round 3, M-B). It used fs.read's authority, so a website received
+       anything fs.read reached: another blessed root, This Computer, and under Full Power ~/.ssh, with no card. Every
+       upload path now goes through the ONE egress reader (sidecar/egress-files.js) in its probe mode: the file's real
+       path must lie in this run's own private workspace or its own approved project root, the credential / repository
+       floor holds on every spelling, a file with more than one name (a hard link) is refused, and the proven REAL path
+       is what the browser is handed. deps.egress is the host's reader (its guard re-checks the root's approval); a rig
+       without one gets a reader with no guard, which sends from the private workspace only. */
+    const uploadEgress = deps.egress && typeof deps.egress.readFor === 'function' ? deps.egress
+      : (canSaveShots ? require('../../egress-files.js').makeEgressReader({ fsp: shotFsp, pathMod: shotPath, workspaces: shotRoot }) : null);
     /* THE RECEIPT NAMES A PATH THE NEXT TOOL CAN OPEN (run-paths lane). A frame, a PDF or a download is saved on the
        private shelf and named relative to it. In a project run a relative path means the PROJECT, so fs.read of
        "shots/x.png" looked there and failed. The run's path object places the name: unchanged outside a project, the
@@ -3983,19 +3989,19 @@
         async a => ({ content: 'Now on tab ' + a.index + ': ' + await session.selectTab(a.index) + ' — take a fresh browser.snapshot.', summary: 'tab ' + a.index }), false),
       exec('browser.tab_close', 'Close a tab by index from browser.tabs. Tab 0 cannot be closed.', { type: 'object', required: ['index'], properties: { index: { type: 'number' } } },
         async a => ({ content: await session.closeTab(a.index), summary: 'tab closed' })),
-      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s trusted project, otherwise its private workspace; absolute paths use the same path permission check as fs.read. "ref" is the file input, its associated label, or a control beside exactly one file input from the latest browser.snapshot. This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
+      exec('browser.upload', 'Select files in a page file input and read back the selection. A relative path resolves in this run\'s project, otherwise its private workspace; only a file inside one of those two can be uploaded. "ref" is the file input, its associated label, or a control beside exactly one file input from the latest browser.snapshot. This may trigger the website\'s upload handler, but the receipt proves selection only: inspect its thumbnail/status or network response before claiming the website received the file.', { type: 'object', required: ['ref', 'paths'], properties: { ref: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } } },
         async (a, ctx) => {
-          if (!uploadJail) throw new Error('browser.upload needs a workspace; this run has none');
+          if (!uploadEgress) throw new Error('browser.upload needs a workspace; this run has none');
           const aid = (ctx && ctx.agentId) || 'agent';
           const rels = Array.isArray(a.paths) ? a.paths : [a.paths];
           if (!rels.length || rels.some(p => typeof p !== 'string' || !p.trim())) throw new Error('browser.upload needs at least one non-empty file path');
           const abs = [], expected = [];
           for (const rel of rels) {
-            const r = await uploadJail.resolveInside(aid, rel, { scope: 'read', ctx });
-            const stat = await shotFsp.stat(r.abs);
-            if (!stat.isFile()) throw new Error('browser.upload needs a regular file: ' + rel);
-            await shotFsp.access(r.abs, FS.constants.R_OK);
-            abs.push(r.abs); expected.push({ name: shotPath.basename(r.abs), size: stat.size });
+            // proven by the egress reader through THIS run's path object; the probe reads no byte, and the browser is
+            // handed the real path it proved (never the name as written)
+            const got = await uploadEgress.readFor(aid, rel, ctx, RunPaths.rootOf(ctx), { probe: true, allowEmpty: true });
+            if (!got || !got.ok) throw new Error('browser.upload: ' + ((got && got.error) || 'that file cannot be uploaded'));
+            abs.push(got.abs); expected.push({ name: shotPath.basename(got.abs), size: got.size });
           }
           const receipt = await session.upload(a.ref, abs, expected);
           if (!receipt || receipt.status !== 'selected' || !Array.isArray(receipt.files)

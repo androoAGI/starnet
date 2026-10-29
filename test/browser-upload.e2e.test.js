@@ -36,11 +36,15 @@ const { makeBrowserTools, _internals: T } = require('../sidecar/tools/builtin/br
   const base = 'http://127.0.0.1:' + server.address().port;
   const driver = T.makeCdpDriver({ chrome: typeof found === 'string' ? found : found.path, forceHeadless: true, syntheticInputOnly: true, profileDir: path.join(scratch, 'chrome'), cdpPort: 0, timeoutMs: 20000 });
   driver.allowLocal(base);
-  const browser = makeBrowserTools({ driver, fsp, pathMod: path, root: workspace, pathTrust: async abs => {
-    const rel = path.relative(project, abs);
+  // an upload leaves the station: browser.upload proves it through the egress reader (run-paths review round 3), whose
+  // guard is the station's root-approval check; this fixture approves the one project folder
+  const approved = async abs => {
+    const rel = path.relative(fs.realpathSync.native(project), abs);
     if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error('outside trusted project');
     return { base: project, abs };
-  } });
+  };
+  const egress = require('../sidecar/egress-files.js').makeEgressReader({ fsp, pathMod: path, workspaces: workspace, guard: approved });
+  const browser = makeBrowserTools({ driver, fsp, pathMod: path, root: workspace, egress });
   const tool = browser.tools.find(t => t.name === 'browser.upload');
   const ctx = { agentId: 'agent', projectRoot: project };
   const open = async route => {
@@ -69,8 +73,8 @@ const { makeBrowserTools, _internals: T } = require('../sidecar/tools/builtin/br
     await refused('/disabled', ['photo.txt'], /disabled/i);
     await refused('/label', ['photo.txt', 'second.txt'], /multiple|one file/i);
     ref = await open('/unique');
-    const unique = await tool.run({ ref, paths: [path.join(project, 'photo.txt')] }, { agentId: 'agent' });
-    A.ok(/selected/i.test(unique.summary), 'explicit absolute trusted project path works on unique nearby input');
+    const unique = await tool.run({ ref, paths: [path.join(project, 'photo.txt')] }, ctx);
+    A.ok(/selected/i.test(unique.summary), 'the run\'s own project file by absolute path works on unique nearby input');
     ref = await open('/multiple');
     await tool.run({ ref, paths: ['photo.txt', 'second.txt'] }, ctx);
     events = await driver.testEval('selections');

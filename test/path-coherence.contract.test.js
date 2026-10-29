@@ -111,7 +111,9 @@ const fakeSession = {
   pdf: async () => Buffer.from('%PDF-1.4 contract').toString('base64'),
   upload: async (ref, abs, expected) => { uploads.push(abs.slice()); return { status: 'selected', retained: true, files: expected.map(e => ({ name: e.name, size: e.size })) }; }
 };
-const browser = makeBrowserTools({ session: fakeSession, fsp, pathMod: path, root: WS, pathTrust });
+// browser.upload is a file LEAVING the station (review round 3): index.js hands it the host's egress reader (station guard)
+const uploadEgress = Egress ? Egress.makeEgressReader({ fsp, pathMod: path, workspaces: WS, guard: (abs, o2) => trustCore.guard(abs, Object.assign({}, o2, { surface: 'autonomous' })) }) : null;
+const browser = makeBrowserTools({ session: fakeSession, fsp, pathMod: path, root: WS, pathTrust, egress: uploadEgress || undefined });
 const btool = name => browser.tools.find(t => t.name === name);
 // ---- downloads through the REAL session (review M4: the fake session used to copy the driver's wording, so clickOn,
 // the session.click pass-through and the "did not complete" branch never ran). The fake is only the DRIVER: it drives

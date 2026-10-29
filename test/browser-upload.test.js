@@ -1,22 +1,31 @@
-/* #104: browser file reads must keep the same authority as fs.read; no CDP ack-only success. */
+/* #104 + run-paths review round 3 (M-B): an upload is a file LEAVING the station, so browser.upload proves every path
+   through the ONE egress reader (sidecar/egress-files.js, probe mode) and hands the browser the proven REAL path. Only
+   a file in the run's own private workspace or its own approved project root goes; another blessed root, This Computer
+   reach, Full Power ~/.ssh, a floored file and a hard link are refused (each was uploaded before, with no card under
+   Full Power), and the run's fs.read guard is never asked. No CDP ack-only success. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs'), fsp = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const { makeBrowserTools } = require('../sidecar/tools/builtin/browser.js');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
+const { makeEgressReader } = require('../sidecar/egress-files.js');
+const RunPaths = require('../sidecar/run-paths.js');
 const { selectFiles } = require('../sidecar/tools/builtin/browser-upload.js');
 const rejects = async (p, re, message) => { try { await p; A.ok(false, message + ': did not refuse'); } catch (e) { A.ok(re.test(e.message), message + ': ' + e.message); } };
 (async () => {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-unit-'));
+  const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-unit-')));
   try {
-    const project = path.join(scratch, 'project'), outside = path.join(scratch, 'outside'), root = path.join(scratch, 'workspaces');
-    for (const p of [project, outside, path.join(root, 'agent'), path.join(root, 'other')]) fs.mkdirSync(p, { recursive: true });
+    const project = path.join(scratch, 'project'), other = path.join(scratch, 'other-project'), outside = path.join(scratch, 'outside'), root = path.join(scratch, 'workspaces');
+    const home = path.join(scratch, 'home');
+    for (const p of [project, other, outside, path.join(root, 'agent'), path.join(root, 'other'), path.join(home, '.ssh')]) fs.mkdirSync(p, { recursive: true });
     fs.writeFileSync(path.join(project, 'photo.txt'), 'PROJECT');
+    fs.writeFileSync(path.join(other, 'photo.txt'), 'OTHER-ROOT');
     fs.writeFileSync(path.join(root, 'agent', 'photo.txt'), 'PRIVATE');
     fs.writeFileSync(path.join(root, 'other', 'photo.txt'), 'OTHER');
     fs.writeFileSync(path.join(outside, 'photo.txt'), 'OUTSIDE');
     fs.writeFileSync(path.join(project, '.env'), 'PRIVATE_TEST_SECRET');
-    const roots = new Set([project]), calls = [];
+    fs.writeFileSync(path.join(home, '.ssh', 'id_ed25519'), 'SSH-KEY');
+    const roots = new Set([project, other]), calls = [];
     let fullAccess = false, replyMode = 'selected';
     const trust = makePathTrust({ fsp, pathMod: path, roots: () => [...roots], workspaceRoot: root });
     const driver = {
@@ -28,7 +37,9 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
       }
     };
     const guardCalls = [];
-    const b = makeBrowserTools({ driver, fsp, pathMod: path, root, pathTrust: (abs, opts) => {
+    // wired as index.js wires it: the host's egress reader (its guard is the station guard, asked in its strictest form)
+    const egress = makeEgressReader({ fsp, pathMod: path, workspaces: root, guard: (abs, o2) => trust.guard(abs, o2) });
+    const b = makeBrowserTools({ driver, fsp, pathMod: path, root, egress, pathTrust: (abs, opts) => {
       guardCalls.push(opts);
       return trust.guard(abs, { ...opts, surface: 'autonomous', fullAccess });
     } });
@@ -36,30 +47,56 @@ const rejects = async (p, re, message) => { try { await p; A.ok(false, message +
     const up = b.tools.find(t => t.name === 'browser.upload');
     const ctx = { agentId: 'agent', projectRoot: project };
     const run = (paths, context = ctx) => up.run({ ref, paths }, context);
+    // a run's ctx.paths exactly as runOnceCore mints it, posture in its guard (Full Power: unrestrictedHost)
+    const minted = (o) => ({ agentId: 'agent', paths: RunPaths.makeRunPaths(RunPaths.makeResolver({ fsp, pathMod: path, root,
+      pathTrust: (abs, o2) => trust.guard(abs, { scope: (o2 && o2.scope) || 'read', surface: 'autonomous', agentId: 'agent', fullAccess: !!o.fullAccess, unrestrictedHost: !!o.unrestrictedHost }) }), { agentId: 'agent', projectRoot: o.projectRoot || '' }) });
     let r = await run(['photo.txt']);
     A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'project-relative file reaches the browser from the active project');
-    A.eq(guardCalls.at(-1).scope, 'read', 'file disclosure uses fs.read authority');
-    A.eq(guardCalls.at(-1).agentId, 'agent', 'file disclosure retains owner identity');
     A.ok(/BEGIN EXTERNAL WEB CONTENT/.test(r.content) && /Remote upload\/server acceptance is not verified/.test(r.content), 'page-authored input identity is fenced and remote acceptance is unproven');
     await run(['photo.txt'], { agentId: 'agent' });
     A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'unscoped relative file retains private workspace behavior');
-    await run([path.join(project, 'photo.txt')], { agentId: 'agent' });
-    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'explicit absolute trusted path works');
+    await run([path.join(project, 'photo.txt')]);
+    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'the run\'s own root by absolute path works');
+    await run([path.join(root, 'agent', 'photo.txt')]);
+    A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'a project run\'s own private workspace by absolute path works');
+    await run([path.join(project.toUpperCase(), 'PHOTO.TXT')].map(p => (process.platform === 'win32' ? p : path.join(project, 'photo.txt'))));
+    A.eq(calls.at(-1), [path.join(project, 'photo.txt')], 'the browser is handed the proven REAL path, never the name as written');
+    A.eq(guardCalls.length, 0, 'the run\'s fs.read guard is never asked (an upload never raises a path card)');
     let before = calls.length;
-    for (const p of ['../outside/photo.txt', '.env', '.', 'missing.txt']) await rejects(run([p]), /illegal|protected|regular file|ENOENT|not found/i, 'refuses ' + p);
+    for (const p of ['../outside/photo.txt', '.env', '.', 'missing.txt']) await rejects(run([p]), /climbs out|protected|not a file|cannot be read|is not in/i, 'refuses ' + p);
     await rejects(run(['photo.txt', '']), /non-empty/i, 'rejects invalid lists atomically');
+    await rejects(run(['photo.txt', '.env']), /protected/i, 'one refused path refuses the whole selection');
     A.eq(calls.length, before, 'refused paths never reach browser');
-    roots.clear();
-    await rejects(run(['photo.txt']), /trust|bless|outside|unattended/i, 'revoked project cannot silently fall back to private same-name file');
+    // M-B: everything fs.read could reach but the run's own folders (each of these was uploaded before round 3)
+    await rejects(run([path.join(other, 'photo.txt')]), /outside this run's project folder/, 'another blessed root is refused');
+    await rejects(run([path.join(project, 'photo.txt')], { agentId: 'agent' }), /outside your workspace/, 'an unscoped run cannot upload from a blessed root it does not work in');
     fullAccess = true;
-    await run([path.join(outside, 'photo.txt')], { agentId: 'agent' });
-    A.eq(calls.at(-1), [path.join(outside, 'photo.txt')], 'existing Full Access read scope is preserved');
-    await rejects(run([path.join(root, 'other', 'photo.txt')]), /another|other|ownership|workspace/i, 'Full Access retains private-workspace ownership floor');
-    await rejects(run(['.env']), /protected/i, 'Full Access retains protected-file floor');
-    fullAccess = false; roots.add(project);
+    await rejects(run([path.join(outside, 'photo.txt')], { agentId: 'agent' }), /outside your workspace/, 'This Computer (Full Access) reach is refused');
+    await rejects(run([path.join(outside, 'photo.txt')], minted({ fullAccess: true })), /outside your workspace/, 'This Computer, through a minted run path object, is refused');
+    fullAccess = false;
+    await rejects(run([path.join(home, '.ssh', 'id_ed25519')], minted({ unrestrictedHost: true })), /protected file/, 'Full Power ~/.ssh is refused (the credential floor, no card)');
+    await rejects(run([path.join(root, 'other', 'photo.txt')], minted({ unrestrictedHost: true })), /outside your workspace/, 'Full Power: another agent\'s workspace is refused');
+    await rejects(run(['.env'], minted({ projectRoot: project, unrestrictedHost: true })), /protected file/, 'Full Power: the project .env is refused (the floor)');
+    let linked = false;
+    try { fs.linkSync(path.join(home, '.ssh', 'id_ed25519'), path.join(root, 'agent', 'notes.txt')); linked = true; } catch (e) { console.log('[skip] hard link: ' + e.message); }
+    if (linked) {
+      await rejects(run(['notes.txt'], { agentId: 'agent' }), /hard link/, 'a jail hard link to ~/.ssh is refused');
+      await rejects(run([path.join(root, 'agent', 'notes.txt')]), /hard link/, 'and by absolute path from a project run');
+    }
+    A.eq(calls.length, before, 'none of them reached the browser');
+    roots.delete(project);
+    await rejects(run(['photo.txt']), /no longer approved/i, 'revoked project cannot silently fall back to private same-name file');
+    roots.add(project);
     const link = path.join(project, 'escape');
     fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
-    await rejects(run(['escape/photo.txt']), /symlink|escapes|outside/i, 'project junction cannot disclose an untrusted sibling file');
+    await rejects(run(['escape/photo.txt']), /outside this run's project folder/i, 'project junction cannot disclose an untrusted sibling file');
+    // a rig with no host egress reader sends from the private workspace only (no guard to prove a root still approved)
+    const rig = makeBrowserTools({ driver, fsp, pathMod: path, root });
+    const rigUp = rig.tools.find(t => t.name === 'browser.upload');
+    const rigRef = (await rig.session.snapshot())[0].ref;
+    await rigUp.run({ ref: rigRef, paths: ['photo.txt'] }, { agentId: 'agent' });
+    A.eq(calls.at(-1), [path.join(root, 'agent', 'photo.txt')], 'a rig without the host reader still uploads from the private workspace');
+    await rejects(rigUp.run({ ref: rigRef, paths: ['photo.txt'] }, ctx), /cannot prove the project folder is still approved/, 'and refuses a project file it cannot prove approved (fail closed)');
     replyMode = 'ack';
     await rejects(run(['photo.txt']), /verified file-selection evidence/i, 'legacy acknowledgement never becomes an upload-success claim');
 

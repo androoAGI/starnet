@@ -1585,7 +1585,8 @@ function fakeDriver() {
   // upload posts must come through the SAME jail as fs.* - an upload is an exfiltration primitive
   // if it can reach outside the agent's workspace.
   {
-    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-'));
+    // real-pathed: the browser is handed the egress reader's PROVEN real path (macOS tmpdir is /var -> /private/var)
+    const ws = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-upload-')));
     try {
       const fsp = require('node:fs/promises');
       fs.mkdirSync(path.join(ws, 'ag'), { recursive: true });
@@ -1603,9 +1604,9 @@ function fakeDriver() {
       A.eq(d.log.uploaded[1], [path.join(ws, 'ag', 'resume.pdf')], 'the driver receives an ABSOLUTE path inside the agent workspace');
       A.ok(/Submit the form only when the task requires it/.test(ok.content), 'the agent is told attaching is not submitting');
 
-      await rejects(up.run({ ref, paths: ['../secret.txt'] }, { agentId: 'ag' }), /illegal path|escapes workspace/i, 'a path escaping the workspace is refused');
-      await rejects(up.run({ ref, paths: [path.join(ws, 'secret.txt')] }, { agentId: 'ag' }), /illegal path/i, 'an absolute path outside the jail is refused');
-      await rejects(up.run({ ref, paths: ['nope.txt'] }, { agentId: 'ag' }), /ENOENT|not found/i, 'a missing file fails loudly here, not silently inside the page');
+      await rejects(up.run({ ref, paths: ['../secret.txt'] }, { agentId: 'ag' }), /climbs out of your workspace/i, 'a path escaping the workspace is refused');
+      await rejects(up.run({ ref, paths: [path.join(ws, 'secret.txt')] }, { agentId: 'ag' }), /outside your workspace/i, 'an absolute path outside the jail is refused (an upload leaves the station: egress-files.js)');
+      await rejects(up.run({ ref, paths: ['nope.txt'] }, { agentId: 'ag' }), /is not in your workspace/i, 'a missing file fails loudly here, not silently inside the page');
       A.eq(d.log.uploaded[1], [path.join(ws, 'ag', 'resume.pdf')], 'no refused upload ever reached the driver');
       A.eq(up.requiresConsent, true, 'upload is consent-gated');
     } finally { fs.rmSync(ws, { recursive: true, force: true }); }
