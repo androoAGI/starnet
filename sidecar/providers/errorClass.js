@@ -427,7 +427,10 @@
      container service), 'public' for anything else, '' when there is no host. Only what the name proves: a public
      name that resolves to a LAN address still reads 'public'. */
   function hostScope(host) {
-    const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/:\d+$/, '');
+    // a port comes off "name:port" and "[v6]:port" only: a bare IPv6 address keeps its last group (undici names a refused
+    // [::1] as address '::1', which the old strip read as ':' — public)
+    const raw = String(host || '').trim().toLowerCase();
+    const h = /^\[/.test(raw) ? raw.replace(/^\[([^\]]*)\](?::\d+)?$/, '$1') : raw.split(':').length === 2 ? raw.replace(/:\d+$/, '') : raw;
     if (!h) return '';
     if (h === 'localhost' || /\.localhost$/.test(h) || /^127(?:\.\d+){3}$/.test(h) || h === '::1' || h === '0.0.0.0' || h === '::') return 'loopback';
     if (/^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(h) || /^169\.254\./.test(h)

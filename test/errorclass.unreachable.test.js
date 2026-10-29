@@ -56,6 +56,9 @@ function unresolved(host, code) {
     A.eq(hosted.reason, 'unreachable', 'a refused hosted address is unreachable too');
     A.ok(/the connection to 104\.18\.1\.1:443 was refused/.test(hosted.message) && /firewall, proxy or VPN/.test(hosted.message), 'hosted: it says the connection was refused and points at the network');
     A.ok(!/nothing is listening|Ollama|LM Studio/.test(hosted.message), 'hosted: never "nothing is listening", never "start Ollama"');
+    // an IPv6 loopback is this computer too: undici names a refused [::1] as address '::1' (hostScope used to strip its ':1')
+    const v6 = classifyApiError(refused('::1', 11434), {});
+    A.ok(v6.retryBudget === 1 && /nothing is listening at ::1 on this computer/.test(v6.message), 'a refused ::1 is this computer: one retry, and the sentence says so');
     const lan = classifyApiError(refused('192.168.1.20', 1234), {});
     A.ok(/the connection to 192\.168\.1\.20:1234 was refused/.test(lan.message) && /not running/.test(lan.message) && !/nothing is listening/.test(lan.message), 'a LAN server: refused, not running there');
     const d = classifyApiError(unresolved('api.nowhere.test'), {});
