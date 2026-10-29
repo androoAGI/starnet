@@ -20,6 +20,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const KEY = 'e2e-strong-key-0123456789abcdef';   // >=16 chars so /v1 is allowed to enable
@@ -76,8 +77,8 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -99,7 +100,7 @@ async function drain(res) {
   // ---- (a) NO key configured -> /v1/* is disabled (403) ----------------------------------------------------
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-v1-nokey-'));
-    const { child, port } = await boot(8940 + (process.pid % 40), Object.assign({ SKYNET_WORKSPACES: ws }, baseEnv), 20);
+    const { child, port } = await boot(await allocatePort(), Object.assign({ SKYNET_WORKSPACES: ws }, baseEnv), 20);
     const B = 'http://' + HOST + ':' + port;
     try {
       const models = await fetch(B + '/v1/models');
@@ -118,7 +119,7 @@ async function drain(res) {
   // ---- keyed sidecar for (b)-(g). max-concurrent 1 so the 429 path is cheap to induce. ---------------------
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-v1-'));
   const env = Object.assign({ SKYNET_WORKSPACES: ws, STARNET_API_KEY: KEY, STARNET_V1_MAX_CONCURRENT: '1' }, baseEnv);
-  const { child, port } = await boot(8970 + (process.pid % 40), env, 20);
+  const { child, port } = await boot(await allocatePort(), env, 20);
   const B = 'http://' + HOST + ':' + port;
   const auth = { Authorization: 'Bearer ' + KEY };
   try {

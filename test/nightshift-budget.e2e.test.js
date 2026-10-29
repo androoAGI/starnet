@@ -21,6 +21,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -41,7 +42,7 @@ function boot(port, env, attemptsLeft, injectBudgetFault) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1, injectBudgetFault)); else reject(new Error('no free port')); }
+      else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1, injectBudgetFault))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
@@ -66,7 +67,7 @@ async function armAndStatus(B) {
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-noprov-'));
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1' };
-    let { child, port } = await boot(8940 + (process.pid % 25), env, 20);
+    let { child, port } = await boot(await allocatePort(), env, 20);
     const B = 'http://' + HOST + ':' + port;
     try {
       const s = await armAndStatus(B);
@@ -87,7 +88,7 @@ async function armAndStatus(B) {
     const rec = { runId: 'seed-exhaust', agentId: 'agent', turns: 1, usd: 999, tokens: 1000, model: 'seed', ts: Date.now() };
     fs.writeFileSync(path.join(ws, 'ledger.jsonl'), JSON.stringify(rec) + '\n');
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_BUDGET_PER_AGENT: '5', SKYNET_BUDGET_PER_DAY: '40', SKYNET_BUDGET_GLOBAL: '100' };
-    let { child, port } = await boot(8980 + (process.pid % 25), env, 20);
+    let { child, port } = await boot(await allocatePort(), env, 20);
     const B = 'http://' + HOST + ':' + port;
     try {
       const s = await armAndStatus(B);
@@ -107,7 +108,7 @@ async function armAndStatus(B) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, require('crypto').createHash('sha256').update('interrupted').digest('hex') + '.json'), JSON.stringify({ runId: 'interrupted', agentId: 'agent' }));
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_BUDGET_PER_DAY: '40' };
-    let { child, port } = await boot(9000 + (process.pid % 25), env, 20);
+    let { child, port } = await boot(await allocatePort(), env, 20);
     const B = 'http://' + HOST + ':' + port;
     try {
       const s = await armAndStatus(B);
@@ -123,7 +124,7 @@ async function armAndStatus(B) {
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-precheck-fault-'));
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_NIGHTSHIFT_TICK_MS: '10' };
-    let { child, port } = await boot(9020 + (process.pid % 25), env, 20, true);
+    let { child, port } = await boot(await allocatePort(), env, 20, true);
     const B = 'http://' + HOST + ':' + port;
     try {
       const s = await armAndStatus(B);

@@ -14,6 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { bootToken } = require('./_httpToken.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -34,9 +35,9 @@ function bootSidecar(port, workspaces, attempts) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.includes('http://' + HOST + ':' + port)) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attempts > 0) resolve(bootSidecar(port + 1, workspaces, attempts - 1));
+        if (attempts > 0) resolve(allocatePort().then(next => bootSidecar(next, workspaces, attempts - 1)));
         else reject(new Error('no free sidecar port'));
       }
     };
@@ -51,7 +52,7 @@ function bootSidecar(port, workspaces, attempts) {
   let child = null;
   try {
     let port;
-    ({ child, port } = await bootSidecar(9250 + (process.pid % 150), ws, 30));
+    ({ child, port } = await bootSidecar(await allocatePort(), ws, 30));
     const B = 'http://' + HOST + ':' + port;
     const token = await bootToken(B, B);
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };

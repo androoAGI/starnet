@@ -23,6 +23,7 @@ const { makeSkillStore } = require('../sidecar/skillstore.js');
 const { digestOf } = require('../sidecar/skills/gate.js');
 const skillGuard = require('../sidecar/skills/guard.js');
 const skillPackages = require('../sidecar/skills/package.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -44,9 +45,9 @@ function boot(port, workspaces, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
-      if (!settled && /already in use/i.test(out)) {
+      if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, workspaces, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, workspaces, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -99,7 +100,7 @@ function seedSkills(ws) {
   const seeded = seedSkills(ws);
   A.eq(seeded.length, 4, 'seeded four skills (three through the real store, one imported)');
 
-  let booted = await boot(8960 + (process.pid % 40), ws, 20);
+  let booted = await boot(await allocatePort(), ws, 20);
   let child = booted.child;
   let B = 'http://' + HOST + ':' + booted.port;
   let apiToken = await bootToken(B);
@@ -174,7 +175,7 @@ function seedSkills(ws) {
     // ---- 5. the approval SURVIVES A RESTART, and an edit re-asks ----
     try { child.kill(); } catch (_) {}
     await new Promise(r => setTimeout(r, 400));
-    booted = await boot(booted.port + 1, ws, 20);
+    booted = await boot(await allocatePort(), ws, 20);
     child = booted.child; B = 'http://' + HOST + ':' + booted.port; apiToken = await bootToken(B);
     L = await list();
     A.eq(L.by['Risky Deploy'].withheld, false, 'after a restart the approval still stands (round-tripped through the file)');
@@ -200,7 +201,7 @@ function seedSkills(ws) {
     fs.writeFileSync(approvalFile, durableBeforeFailure);
     try { child.kill(); } catch (_) {}
     await new Promise(r => setTimeout(r, 400));
-    booted = await boot(booted.port + 1, ws, 20);
+    booted = await boot(await allocatePort(), ws, 20);
     child = booted.child; B = 'http://' + HOST + ':' + booted.port; apiToken = await bootToken(B);
     L = await list();
     A.eq(L.by['Risky Deploy'].withheld, true, 'a real restart confirms the failed approval never became durable');
@@ -256,7 +257,7 @@ function seedSkills(ws) {
     fs.appendFileSync(path.join(ws, 'skills.jsonl'), [JSON.stringify(noVerdict), JSON.stringify(askNoDigest)].concat(hubLines).join('\n') + '\n', 'utf8');
     const hubMd = path.join(ws, 'skill-packages', 'agent', hubId, 'SKILL.md');
     fs.writeFileSync(hubMd, fs.readFileSync(hubMd, 'utf8').replace('2. done', '2. ' + NASTY), 'utf8');
-    booted = await boot(booted.port + 1, ws, 20);
+    booted = await boot(await allocatePort(), ws, 20);
     child = booted.child; B = 'http://' + HOST + ':' + booted.port; apiToken = await bootToken(B);
     const metaList = async () => {
       const r = await api('/api/agent-skills?agent=agent&archived=1');
@@ -280,7 +281,7 @@ function seedSkills(ws) {
     A.eq(meta['Legacy Ask'].withheld, false, 'the metadata-only surface (the prompt index\'s decision) agrees it is approved');
     try { child.kill(); } catch (_) {}
     await new Promise(r => setTimeout(r, 400));
-    booted = await boot(booted.port + 1, ws, 20);
+    booted = await boot(await allocatePort(), ws, 20);
     child = booted.child; B = 'http://' + HOST + ':' + booted.port; apiToken = await bootToken(B);
     A.eq((await list()).by['Legacy Ask'].withheld, false, 'the approval survives a restart');
     // negative: the approval binds those bytes — an edit re-asks

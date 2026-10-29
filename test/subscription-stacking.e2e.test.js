@@ -23,6 +23,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 
 const FAKE_CLI = String.raw`'use strict';
 const fs = require('fs'), path = require('path');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const args = process.argv.slice(2);
 const dir = process.env.CLAUDE_CONFIG_DIR || '';
 const who = dir ? path.basename(dir) : 'primary';
@@ -69,10 +70,10 @@ function boot(port, env, attemptsLeft) {
     const onData = (data) => {
       output += data.toString();
       if (!settled && output.includes(`http://${HOST}:${port}`)) { settled = true; resolve({ child, port }); }
-      else if (!settled && /already in use/i.test(output)) {
+      else if (!settled && BIND_REFUSED.test(output)) {
         settled = true;
         try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1)); else reject(new Error('no free port'));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port'));
       }
     };
     child.stdout.on('data', onData);
@@ -87,7 +88,7 @@ function boot(port, env, attemptsLeft) {
   const fakeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-fakeclaude-'));
   const logFile = path.join(fakeRoot, 'calls.log');
   fs.writeFileSync(logFile, '');
-  const { child, port } = await boot(9010 + (process.pid % 30), {
+  const { child, port } = await boot(await allocatePort(), {
     SKYNET_WORKSPACES: workspace,
     STARNET_CLAUDE_BIN: makeFakeClaude(fakeRoot),
     FAKE_CLAUDE_LOG: logFile,

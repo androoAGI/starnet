@@ -19,6 +19,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -40,9 +41,9 @@ function boot(port, env, attemptsLeft) {
     const onData = d => {
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port, out: () => out }); }
-      else if (!settled && /already in use/i.test(out)) {
+      else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
-        if (attemptsLeft > 0) resolve(boot(port + 1, env, attemptsLeft - 1));
+        if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1)));
         else reject(new Error('no free port'));
       }
     };
@@ -91,7 +92,7 @@ function cyclicPlan() {
   const FILE = path.join(ws, 'routing.plan.json');
   const env = { SKYNET_WORKSPACES: ws };
   const readFile = () => JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  let b = await boot(8960 + (process.pid % 50), env, 20);
+  let b = await boot(await allocatePort(), env, 20);
   try {
     let B = 'http://' + HOST + ':' + b.port;
     let token = await bootToken(B, B);
