@@ -230,6 +230,35 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   }
   // a page key with no endpoint of its own follows the same order chat does (operator URL > profile default)
   A.eq(resolvers({ page: { openrouter: { key: KP, rev: 'a1' } } }).providerRuntimeBaseUrl('openrouter', ''), 'https://openrouter.ai/api/v1', 'no page endpoint = the profile default');
+  // (review r3) handleRun resolves the run's endpoint for the run's OWN key: a body key that is not the page copy's
+  // (another page, a script) never rides the page copy's saved endpoint. handleRun's own key and endpoint lines, executed
+  // in the order they are written, over the real resolvers.
+  {
+    const at = raw.indexOf('\nasync function handleRun(');
+    const run = at < 0 ? '' : raw.slice(at, raw.indexOf('\n}\n', at));
+    const keyLine = (/\n  const key = providerRuntimeKey\(runProvider, [^\n]+;/.exec(run) || [])[0] || '';
+    const baseLine = (/\n  const baseUrl = providerRuntimeBaseUrl\(runProvider, [^\n]+;/.exec(run) || [])[0] || '';
+    A.ok(!!(keyLine && baseLine), "fixture: handleRun's key and endpoint lines are found");
+    const ordered = run.indexOf(keyLine) < run.indexOf(baseLine) ? keyLine + baseLine : baseLine + keyLine;
+    const r = resolvers({ page: { openrouter: { key: KP, baseUrl: UP, rev: 'a1' } } });
+    const hr = b => new Function('body', 'runProvider', 'bodyCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', ordered + '\nreturn { key, baseUrl };')(
+      b, 'openrouter', true, r.providerRuntimeKey, r.providerRuntimeBaseUrl);
+    A.eq(hr({ key: KX }), { key: KX, baseUrl: 'https://openrouter.ai/api/v1' }, "a body key that is not the page copy's never rides the page copy's endpoint");
+    A.eq(hr({ key: KP }), { key: KP, baseUrl: UP }, "...the page copy's own key does");
+    A.eq(hr({}), { key: KP, baseUrl: UP }, "...and so does a run on the station's own key (the page copy)");
+    A.eq(hr({ key: KX, baseUrl: 'https://explicit.example/v1' }), { key: KX, baseUrl: 'https://explicit.example/v1' }, "a body's own endpoint still rides its own key");
+  }
+  // (review r3) a SUBSCRIPTION sign-in's OAuth bearer (ChatGPT, Grok, Kimi) never follows a per-run endpoint — an
+  // /api/run body's, a channel snapshot's — as the managed StarNet credential never does; the Commander's own still applies
+  {
+    PROFILES.codex = { authType: 'oauth_device_code', keyEnv: [], baseUrlEnv: [], baseUrl: '' };
+    PROFILES.kimi = { authType: 'oauth_device_code', keyEnv: [], baseUrlEnv: ['KIMI_BASE_URL'], baseUrl: 'https://api.kimi.example/v1' };
+    const evil = 'https://third-party.example/v1';
+    A.eq(resolvers({}).providerRuntimeBaseUrl('codex', evil), '', "a per-run endpoint never carries the ChatGPT sign-in's bearer");
+    A.eq(resolvers({}).providerRuntimeBaseUrl('kimi', evil), 'https://api.kimi.example/v1', "...nor a device sign-in's: the profile endpoint");
+    A.eq(resolvers({ env: { KIMI_BASE_URL: UE } }).providerRuntimeBaseUrl('kimi', evil), UE, "the Commander's own endpoint (env) still applies");
+    A.eq(resolvers({}).providerRuntimeBaseUrl('custom', evil), evil, 'a key provider keeps its per-run endpoint');
+  }
 }
 
 /* ---------- index.js wiring ---------- */
@@ -248,10 +277,12 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   {
     const run = body('handleRun');
     const line = re => (re.exec(run) || [])[0] || '';
+    // in the order handleRun writes them (the endpoint is resolved for the key, so the key comes first)
     const lines = [line(/\n  const runProvider = [^\n]+;/), line(/\n  const bodyCredential = [^\n]+;/),
-      line(/\n  const baseUrl = providerRuntimeBaseUrl\(runProvider, [^\n]+;/), line(/\n  const key = providerRuntimeKey\(runProvider, [^\n]+;/)];
+      line(/\n  const baseUrl = providerRuntimeBaseUrl\(runProvider, [^\n]+;/), line(/\n  const key = providerRuntimeKey\(runProvider, [^\n]+;/)]
+      .sort((a, b) => run.indexOf(a) - run.indexOf(b));
     const pool = (/\n      key, keyPool: ([^\n]+?), model, system:/.exec(run) || [])[1] || 'undefined';
-    A.ok(!!(lines[0] && lines[2] && lines[3]), 'fixture: handleRun\'s provider / endpoint / key lines are found');
+    A.ok(lines.every(Boolean), 'fixture: handleRun\'s provider / endpoint / key lines are found');
     const handle = (agentProvider, b) => new Function('body', 'provider', 'model', 'agentId', 'normalizeProvider', 'runWireFor', 'providerRuntimeKey', 'providerRuntimeBaseUrl',
       lines.join('\n') + '\nreturn { runProvider, key, baseUrl, keyPool: (' + pool + ') };')(
       b, b.provider, b.model, 'scout', p => String(p || '') || 'openrouter', () => ({ provider: agentProvider }),

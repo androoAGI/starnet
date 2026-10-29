@@ -3022,11 +3022,14 @@ function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey) {
   }
   // Managed credentials and destination belong to the same linked account. A stale per-run
   // BYOK endpoint must never redirect the device token away from that account's service.
-  const explicit = String(explicitBaseUrl || '').trim();
+  const profile = getProviderProfile(id);
+  // ...and for the same reason a SUBSCRIPTION SIGN-IN (ChatGPT, Grok, Kimi: authType oauth_device_code), whose OAuth bearer
+  // rides the request: a per-run endpoint (an /api/run body's, a channel snapshot's) never redirects it. The Commander's own
+  // endpoint (the runtime push, the env URL) and the profile's still apply.
+  const explicit = (profile && profile.authType === 'oauth_device_code') ? '' : String(explicitBaseUrl || '').trim();
   if (explicit) return explicit;
   const runtime = String(runtimeBaseUrls[id] || '').trim();
   if (runtime) return runtime;
-  const profile = getProviderProfile(id);
   // #89: the page's endpoint (a CUSTOM base URL saved in the browser) goes with the page's key — over the operator's
   // env URL when the run is on that key, never under an env key. A keyless page endpoint (a local server) ranks under
   // the operator's env URL and over the profile default, the same order the key follows.
@@ -20885,8 +20888,8 @@ async function handleRun(req, res) {
   const usingCodex = providerUsesCodex(runProvider);   // Codex authenticates by OAuth token, not an API key
   // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
   // via /api/key). The browser build still sends body.key, which wins.
-  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '');
   const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
+  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '', key);   // #89: the endpoint for THIS key
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
   // signed out of GROK OAUTH as "add a provider key (or sign in with ChatGPT)": wrong provider, wrong door
   // (2026-09-27). The "missing key/model" prefix stays; older pages and tests classify on it.
