@@ -94,7 +94,8 @@
        bare "fetch failed". ONE retry covers a blip (`retryBudget`, read by the adapters' pre-stream ladders and by
        recovery-policy), then the turn ends naming the host and what to check. No fallback, exactly as `timeout` before
        it (review 2026-10-27): a local server that is simply not started must not send the conversation to a cloud
-       fallback, nor to another model on the same dead server; whether it should is Andrew's call. */
+       fallback, nor to another model on the same dead server; whether it should is Andrew's call. The one-retry budget is
+       for an address on this computer or this network only (unreachableIsLocal): a public host keeps the ladder. */
     unreachable:            { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false, retryBudget: 1 },
     unknown:                { retryable: true,  shouldRotateCredential: false, shouldFallback: false, shouldCompress: false }
   };
@@ -427,7 +428,10 @@
      container service), 'public' for anything else, '' when there is no host. Only what the name proves: a public
      name that resolves to a LAN address still reads 'public'. */
   function hostScope(host) {
-    const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/:\d+$/, '');
+    // a port comes off "name:port" and "[v6]:port" only: a bare IPv6 address keeps its last group (undici names a refused
+    // [::1] as address '::1', which the old strip read as ':' — public)
+    const raw = String(host || '').trim().toLowerCase();
+    const h = /^\[/.test(raw) ? raw.replace(/^\[([^\]]*)\](?::\d+)?$/, '$1') : raw.split(':').length === 2 ? raw.replace(/:\d+$/, '') : raw;
     if (!h) return '';
     if (h === 'localhost' || /\.localhost$/.test(h) || /^127(?:\.\d+){3}$/.test(h) || h === '::1' || h === '0.0.0.0' || h === '::') return 'loopback';
     if (/^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(?:1[6-9]|2\d|3[01])\./.test(h) || /^169\.254\./.test(h)
@@ -441,10 +445,14 @@
      hostname the adapter stamped. A refused connection on THIS computer means nothing is listening on that port; on
      this network the server there is not running or refused it; anywhere else a firewall, proxy or VPN can refuse a
      connection as well as a stopped server can, so it says "refused" and points at the network, never "start Ollama". */
+  function unreachableHost(err) {
+    const cause = (err && err.cause) || {};
+    return String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+  }
   function unreachableNote(err) {
     const code = String(transportCode(err) || '').toUpperCase();
     const cause = (err && err.cause) || {};
-    const name = String(cause.hostname || cause.address || cause.host || refusalHost(err) || '').trim();
+    const name = unreachableHost(err);
     let host = name;
     const port = Number(cause.port) > 0 ? String(cause.port) : '';
     if (host && port && host.indexOf(':') < 0) host += ':' + port;
@@ -464,6 +472,16 @@
      this long first, so that one retry outlasts a blip instead of landing inside it. Read by every adapter's pre-stream
      ladder and by recovery-policy (provider.runtime.retryDelay, the classification's retryDelayMs). */
   const DNS_RETRY_DELAY_MS = 4000;
+  /* …AND ONLY FOR AN ADDRESS ON THIS COMPUTER OR THIS NETWORK (0.14.2 release review, B5). The one retry is for what the class
+     fixed: a local server (Ollama, LM Studio, a machine on the LAN) that is not started, where a ladder only delays the
+     sentence that names it. A PUBLIC host that does not answer is what a Wi-Fi drop, a VPN reconnect or sleep/wake looks
+     like for a while, and a reply cut mid-stream reconnects with the network still down, so one retry ended hosted-model
+     tasks in about half a second. A public host, or one the error does not name, keeps the ladder it rode as `timeout` in
+     0.14.1 (retryBudget and retryDelayMs null; no fallback, as timeout); the sentence naming the address stays either way. */
+  function unreachableIsLocal(err) {
+    const scope = hostScope(unreachableHost(err));
+    return scope === 'loopback' || scope === 'private';
+  }
 
   /* A 429 is not always "wait a few seconds". A ChatGPT-subscription user who has burned their WEEKLY quota
      gets a 429 whose body says exactly that and whose reset is days away — so the honest class is a spent
@@ -593,6 +611,7 @@
     const low = String(message).toLowerCase();
     const reason = pickReason(status, code, low, err, ctx);
     const f = REASONS[reason] || REASONS.unknown;
+    const localUnreachable = reason === 'unreachable' && unreachableIsLocal(err);   // one retry here; a public host: the ladder
     const wait = extractRetryAfter(err, body, message);
     let text = annotateTransport(message, err);
     if (reason === 'local_error') {
@@ -626,11 +645,12 @@
       // model_not_found only: the model cannot take a PART of this request (image input, tool use, a parameter) —
       // a request without that part still reaches it (UNSUPPORTED_PART_RE). False for every other verdict.
       unsupportedPart: reason === 'model_not_found' && UNSUPPORTED_PART_RE.test(low),
-      // the most re-sends this class is worth, when it is fewer than a ladder's (unreachable: 1); null = the ladder's own
-      retryBudget: typeof f.retryBudget === 'number' ? f.retryBudget : null,
-      // unreachable only: a name that did not resolve waits DNS_RETRY_DELAY_MS before its one retry (a blip outlasted);
-      // null = the ladder's own rung
-      retryDelayMs: reason === 'unreachable' && /^(?:ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || '')) ? DNS_RETRY_DELAY_MS : null,
+      // the most re-sends this class is worth, when it is fewer than a ladder's (unreachable at a local address: 1); null = the
+      // ladder's own
+      retryBudget: typeof f.retryBudget === 'number' && (reason !== 'unreachable' || localUnreachable) ? f.retryBudget : null,
+      // unreachable at a local address only: a name that did not resolve waits DNS_RETRY_DELAY_MS before its one retry (a blip
+      // outlasted); null = the ladder's own rung
+      retryDelayMs: localUnreachable && /^(?:ENOTFOUND|EAI_AGAIN)$/i.test(String(transportCode(err) || '')) ? DNS_RETRY_DELAY_MS : null,
       // `reason` above was already picked from the RAW message, so annotating here cannot move the verdict — it
       // only makes the text a human can act on ("fetch failed" -> "fetch failed (ENOTFOUND api.openai.com)").
       // This is the message the loop emits as agent.run.error, which is what lands in the diagnostics ring.
@@ -639,5 +659,5 @@
   }
 
   return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal, isTemplateRefusal,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote, hostScope, templateRefusalText } };
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote, unreachableIsLocal, hostScope, templateRefusalText } };
 });
