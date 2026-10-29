@@ -22,7 +22,8 @@
      readFor(agentId, name, ctx?, projectRoot?, opts?)
                                                through the live run's ctx.paths (same agent), else a path object minted
                                                for a FINISHED run (its agent + its row's project root)
-     fireReader(runs, ownAgentId, ownFolder)   (agentId, name) -> readFor: each agent of a routine fire through ITS run
+     fireReader(runs, ownAgentId, ownFolder)   (agentId, name, where?) -> readFor: each name through the ONE row of a
+                                               routine fire that produced it
      shownName(paths, name), pathsFor(agentId, ctx?, projectRoot?)
    }  read/readFor -> { ok:true, buffer, name, mime, abs, shown } | { ok:false, error, shown }   (never throw; abs is the
    real path, for the host only) */
@@ -145,14 +146,53 @@ function makeEgressReader(deps) {
     return read(paths, name, opts);
   }
 
-  /* A routine fire's files: each agent's name is read through ITS run (the newest row of that agent in this fire, so
-     its project root), the routine's own agent through the routine's folder when no row of it exists. No row's root is
-     ever tried for another agent, and no second folder is probed for the same agent. runs: NEWEST first. */
+  /* A routine fire's files (review round 2). A name is read through the ONE row of this fire that produced it, never
+     by trying every agent's folder newest first (a stale same-named file in another agent's private workspace used to
+     win):
+       - a pick that carries its row (a generated image: where.root, with that row's agent) reads through that row;
+       - else the NEWEST row whose artifact ledger names the file (relative to that row's base, or by absolute path);
+       - else the one file the fire's bases hold under that name (each row's agent + root; the routine's own agent
+         through its folder when no row of it exists). Two DIFFERENT files under one name are refused, never guessed.
+     runs: NEWEST first. -> (agentId, name, where?) => readFor's answer */
   function fireReader(runs, ownAgentId, ownFolder) {
-    const roots = new Map();
-    for (const r of (Array.isArray(runs) ? runs : [])) if (r && r.agentId && !roots.has(String(r.agentId))) roots.set(String(r.agentId), String(r.projectRoot || ''));
-    if (ownAgentId && !roots.has(String(ownAgentId))) roots.set(String(ownAgentId), ownFolder ? String(ownFolder) : '');
-    return (aid, name) => readFor(aid, name, null, roots.get(String(aid)) || '');
+    const rows = (Array.isArray(runs) ? runs : []).filter(r => r && typeof r === 'object' && r.agentId);
+    const bases = [];
+    const addBase = (agentId, root) => { if (!bases.some(b => b.agentId === agentId && b.root === root)) bases.push({ agentId, root }); };
+    for (const r of rows) addBase(String(r.agentId), String(r.projectRoot || ''));
+    if (ownAgentId && !rows.some(r => String(r.agentId) === String(ownAgentId))) addBase(String(ownAgentId), ownFolder ? String(ownFolder) : '');
+    const jailOf = aid => (deps.workspaces && /^[A-Za-z0-9_-]{1,40}$/.test(aid) ? P.join(deps.workspaces, aid) : '');
+    const at = (name, r) => RunPaths.producedPath(name, { projectRoot: String(r.projectRoot || ''), jail: jailOf(String(r.agentId)) }).path;
+    const same = (a, b) => fold(P.resolve(a)) === fold(P.resolve(b));
+    function producerOf(name) {
+      for (const r of rows) {
+        const want = at(name, r);
+        if (!want) continue;
+        for (const a of (Array.isArray(r.artifacts) ? r.artifacts : [])) {
+          const made = a && typeof a.path === 'string' && a.path.trim() ? at(a.path, r) : null;
+          if (made && same(made, want)) return { agentId: String(r.agentId), root: String(r.projectRoot || '') };
+        }
+      }
+      return null;
+    }
+    return async (aid, name, where) => {
+      if (where && typeof where.root === 'string') return readFor(aid, name, null, where.root);
+      const made = producerOf(name);
+      if (made) return readFor(made.agentId, name, null, made.root);
+      let first = null;
+      const hits = [];
+      for (const b of bases) {
+        const got = await readFor(b.agentId, name, null, b.root);
+        if (!got.ok) { first = first || got; continue; }
+        if (!hits.some(h => same(h.abs, got.abs))) hits.push(got);
+      }
+      if (hits.length === 1) return hits[0];
+      if (hits.length > 1) {
+        const shown = hits[0].shown;
+        return { ok: false, error: '"' + shown + '" names a different file in more than one folder this routine worked in, so none was sent; name it by its folder', shown };
+      }
+      const shown = absolute(String(name || '')) ? fileName(name) : String(name || '');
+      return first || { ok: false, error: 'this routine fire has no run to read "' + shown + '" through', shown };
+    };
   }
 
   return { read, readFor, fireReader, shownName, pathsFor };

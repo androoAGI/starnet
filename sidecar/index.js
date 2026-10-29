@@ -7210,13 +7210,14 @@ async function deliverCronResult(job, result) {
   if (result.outcome !== 'failed') {
     const candidates = RoutineMedia.parseReply(result.text).files;
     try { runs = runStore.list(null, { streamId: 'cron-' + result.runId, limit: 50 }) || []; } catch (_) { runs = []; }
-    // Each agent's file is read through ITS run's path object (the newest row's project root in this fire, else the
-    // routine's own folder): a project routine's `ATTACH: report.md` names the project's file, never a stale same-named
-    // one in the private workspace (run-paths review S3, egress-files.js fireReader).
+    // Each name is read through the ONE row of this fire that produced it (its artifact ledger, else the one folder of
+    // the fire that holds it; two different files under one name are refused): a project routine's `ATTACH: report.md`
+    // names the project's file, never a stale same-named one in another agent's private workspace (egress-files.js
+    // fireReader). The fire reader picks the row itself, so the name is asked once, not once per agent.
     fireRead = egressReader.fireReader(runs, job.agentId, job.workdir || '');
     // A named path is an instruction only if the file is really there: read it first (before any word is sent), so a
     // line naming nothing on the station ("MEDIA: N/A") stays in the message as written, with no missing-file note.
-    const found = candidates.length ? (await RoutineMedia.readNamed(candidates, RoutineMedia.fireAgents(runs, job.agentId), fireRead)).found : [];
+    const found = candidates.length ? (await RoutineMedia.readNamed(candidates, [job.agentId], fireRead)).found : [];
     named = found.map(f => f.path);
     // generated images ride unasked only for a routine holding ALLOW IMAGES (the studio grant) — never for one that
     // makes pictures for another purpose (routine-media.js pickFiles)

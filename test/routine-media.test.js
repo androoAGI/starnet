@@ -95,7 +95,14 @@ const { MAX_FILES } = require('../sidecar/tools/builtin/comms.js');
     const auto = M.pickFiles({ named: [], runs: runs, agentId: 'agent', generatedImages: true });
     A.eq(auto.files.map(f => f.path), ['images/draft.png', 'images/final.png'], 'with nothing named, the generated images ride in the order they were made');
     A.eq(auto.files.map(f => f.agents[0]), ['agent', 'writer'], 'each read from the workspace of the agent that made it');
+    A.eq(auto.files.map(f => f.root), ['', ''], 'and through THAT row\'s base (its project root, here none)');
     A.ok(auto.files.every(f => f.path !== 'notes.md'), 'a plain written file is never auto-sent — only images');
+    // review round 2 (m-routine-root): a pick carries its row's root, and the read is asked through that row alone
+    const rooted = M.pickFiles({ named: [], runs: [{ agentId: 'writer', projectRoot: '/proj/a', artifacts: [{ kind: 'image', path: 'images/p.png' }] }], agentId: 'agent', generatedImages: true });
+    A.eq(rooted.files, [{ path: 'images/p.png', agents: ['writer'], root: '/proj/a' }], 'a generated image names the row that made it');
+    const asked = [];
+    await M.sendFiles(rooted.files, { read: async (aid, rel, where) => { asked.push([aid, rel, where]); return { ok: true, buffer: Buffer.from('x'), name: 'p.png', mime: 'image/png' }; }, send: async () => ({ ok: true }) });
+    A.eq(asked, [['writer', 'images/p.png', { root: '/proj/a' }]], 'the read goes through that row (where.root), once');
 
     // upgrade review 2026-10-23: only a routine granted ALLOW IMAGES has its generated pictures sent unasked; a
     // routine that makes images for another purpose (wallpapers into a folder) keeps its chat words-only

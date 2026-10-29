@@ -10,7 +10,7 @@
 
    Built as index.js wires it: the REAL path-trust core, a run's ctx.paths minted with runPathTrust's options (posture,
    grants and a live prompt included), and makeEgressReader({ guard: pathTrustCore.guard }). Every row below that is
-   "refused" was SENT before this fix (scratchpad probes r2-egress.js, r2-jailfloor.js). */
+   "refused" was SENT before this fix (scratchpad probes r2-egress.js, r2-jailfloor.js, r2-routine.js). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -20,6 +20,7 @@ const os = require('node:os');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 const RunPaths = require('../sidecar/run-paths.js');
 const { makeEgressReader } = require('../sidecar/egress-files.js');
+const RoutineMedia = require('../sidecar/routine-media.js');
 
 const isWin = process.platform === 'win32';
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-egress-')));
@@ -128,6 +129,39 @@ function plant(linkAt, target) {
     blessed = [PA, PB];
     await refuses('a missing file', 'nope.md', inA, '', /is not in this run's project folder/);
 
+    // ---- 5. a routine fire reads each name through the ONE row that produced it (m-routine-root) ----
+    put(path.join(WS, 'beta', 'report.md'), 'BETA-STALE-DECOY');
+    const reply = 'Daily digest done.\nATTACH: report.md\nATTACH: ' + path.join(PB, 'credentials.json');
+    async function fire(runs, generatedImages) {
+      const fireRead = reader.fireReader(runs, 'alpha', PA);
+      const named = RoutineMedia.parseReply(reply).files;
+      // every agent of the fire is asked, as the host asked before this fix: the fire reader must answer the same for each
+      const found = (await RoutineMedia.readNamed(named, RoutineMedia.fireAgents(runs, 'alpha'), fireRead)).found;
+      const attach = RoutineMedia.pickFiles({ named: found, runs, agentId: 'alpha', generatedImages: !!generatedImages });
+      const sent = [];
+      const out = await RoutineMedia.sendFiles(attach.files, { read: fireRead, send: async (item) => { sent.push(item.buffer.toString()); return { ok: true }; } });
+      return { sent, out, found };
+    }
+    let r = await fire([{ agentId: 'beta', projectRoot: PA }, { agentId: 'alpha', projectRoot: PA }]);
+    A.eq(r.sent, ['A-REPORT'], 'scheduled fire (hops carry the routine folder): the project report, and never the other root\'s secret');
+    r = await fire([{ agentId: 'beta', projectRoot: '' }, { agentId: 'alpha', projectRoot: PA }]);
+    A.ok(r.sent.indexOf('BETA-STALE-DECOY') < 0 && r.sent.indexOf('{"private_key":"B"}') < 0, 'Run Now, newer unscoped hop: the stale decoy in beta\'s workspace never wins (sent ' + JSON.stringify(r.sent) + ')');
+    r = await fire([{ agentId: 'beta', projectRoot: '' }, { agentId: 'alpha', projectRoot: PA, artifacts: [{ kind: 'file', path: 'report.md' }] }]);
+    A.eq(r.sent, ['A-REPORT'], 'the row whose ledger names report.md is the one it is read through');
+    r = await fire([{ agentId: 'alpha', projectRoot: '' }, { agentId: 'beta', projectRoot: '', artifacts: [{ kind: 'file', path: 'report.md' }] }, { agentId: 'alpha', projectRoot: PA }]);
+    A.eq(r.sent, ['BETA-STALE-DECOY'], 'the ledger decides even for another agent: beta made report.md, so beta\'s is the one');
+    // a generated image is read through the row that generated it, never another row's same-named file
+    fs.mkdirSync(path.join(WS, 'beta', 'images'), { recursive: true });
+    fs.mkdirSync(path.join(PA, 'images'), { recursive: true });
+    put(path.join(PA, 'images', 'pic.png'), 'ALPHA-PROJECT-PIC');
+    put(path.join(WS, 'beta', 'images', 'pic.png'), 'BETA-PIC');
+    const imgRuns = [{ agentId: 'beta', projectRoot: '' }, { agentId: 'alpha', projectRoot: PA, artifacts: [{ kind: 'image', path: 'images/pic.png' }] }];
+    const fireRead = reader.fireReader(imgRuns, 'alpha', PA);
+    const picks = RoutineMedia.pickFiles({ named: [], runs: imgRuns, agentId: 'alpha', generatedImages: true });
+    A.eq(picks.files.map(f => [f.path, f.agents[0], f.root === PA]), [['images/pic.png', 'alpha', true]], 'a generated-image pick carries its row (agent and root)');
+    const sentImgs = [];
+    await RoutineMedia.sendFiles(picks.files, { read: fireRead, send: async (item) => { sentImgs.push(item.buffer.toString()); return { ok: true }; } });
+    A.eq(sentImgs, ['ALPHA-PROJECT-PIC'], 'the generated image goes from the row that made it');
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target
     for (const l of [path.join(JAIL, 'notes'), path.join(JAIL, 'jx'), path.join(PA, 'px')]) {

@@ -93,12 +93,11 @@
     }));
   }
 
-  /* pickFiles({ named, runs, agentId, generatedImages }) -> { files:[{ path, agents:[agentId…] }], dropped:[path…] }
-     runs = the fire's run rows ({ agentId, artifacts }), NEWEST first. A named path is tried in the workspace of
-     every agent that ran in this fire, newest first (on a work line the delivered words are the LAST stage's),
-     then the routine's own agent. With nothing named and `generatedImages` true, each image the fire generated is
-     read from the workspace of the agent that generated it, in the order they were made. `dropped` is what the cap
-     left behind.
+  /* pickFiles({ named, runs, agentId, generatedImages }) -> { files:[{ path, agents:[agentId…], root? }], dropped:[path…] }
+     runs = the fire's run rows ({ agentId, projectRoot, artifacts }), NEWEST first. A named path goes as readNamed
+     found it (the host's fire reader picks the row that produced it). With nothing named and `generatedImages` true,
+     each image the fire generated is read through the ROW that generated it (its agent and its project root, `root`),
+     in the order they were made, never through another row's folder. `dropped` is what the cap left behind.
      `generatedImages` is the host's answer to "does this routine hold the ALLOW IMAGES (studio) grant": a routine
      that makes pictures for some other purpose ("render wallpapers into /wallpapers") never had them posted to its
      chat before 0.14, and must not start now (upgrade review 2026-10-23). Absent -> false. */
@@ -132,22 +131,24 @@
           if (!a || a.kind !== 'image' || !a.path) continue;
           const p = String(a.path);
           if (all.some(f => f.path === p)) continue;
-          all.push({ path: p, agents: [String(r.agentId || own)].filter(Boolean) });
+          all.push({ path: p, agents: [String(r.agentId || own)].filter(Boolean), root: String(r.projectRoot || '') });
         }
       }
     }
     return { files: all.slice(0, MAX_FILES), dropped: all.slice(MAX_FILES).map(f => f.path) };
   }
 
-  /* sendFiles(files, { read(agentId, rel), send(item) }) -> Promise<{ attached:[path], failed:[{ path, error }] }>
-     Sequential, never throws. read answers { ok, buffer, name, mime } | { ok:false, error } (the host's jail proof);
-     send answers the transport's SendResult. The first agent whose workspace holds the file wins. */
-  // One file from the first workspace that holds it -> { got } | { error }. Never throws.
+  /* sendFiles(files, { read(agentId, rel, where?), send(item) }) -> Promise<{ attached:[path], failed:[{ path, error }] }>
+     Sequential, never throws. read answers { ok, buffer, name, mime } | { ok:false, error } (the host's proof);
+     send answers the transport's SendResult. A file that carries its row (`root`) is read through that row alone
+     (where = { root }); otherwise the first agent whose read answers wins. */
+  // One file -> { got } | { error }. Never throws.
   async function readOne(f, read) {
     let readError = '';
+    const where = typeof f.root === 'string' ? { root: f.root } : undefined;
     for (const agentId of (f.agents && f.agents.length ? f.agents : [''])) {
       let got;
-      try { got = await read(agentId, f.path); } catch (e) { got = { ok: false, error: (e && e.message) || 'read threw' }; }
+      try { got = await read(agentId, f.path, where); } catch (e) { got = { ok: false, error: (e && e.message) || 'read threw' }; }
       if (got && got.ok !== false && got.buffer && got.buffer.length) return { got: got };
       readError = readError || (got && got.error) || 'not found';
     }
@@ -155,7 +156,8 @@
   }
 
   /* readNamed(paths, agents, read) -> Promise<{ found:[{ path, agents, got }], missing:[{ path, error }] }>
-     Reads each path an ATTACH line names, in the fire's workspaces (fireAgents order). Only a FOUND file makes its line
+     Reads each path an ATTACH line names, through `read` for each agent in order (the host's fire reader picks the row
+     that produced the name itself, so the host passes the routine's own agent alone). Only a FOUND file makes its line
      an instruction (the host strips it and attaches the file, or says it could not be attached — true, the file is on
      the station); a missing one leaves the line in the message as the routine wrote it, with no note: prose such as
      "MEDIA: N/A" names nothing, and the station never claims a file it never saw (upgrade review 2026-10-23). Only the
