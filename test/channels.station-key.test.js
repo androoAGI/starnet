@@ -11,7 +11,9 @@
    (providerRuntimeKey, providerOperatorKey, pageCopyRidesWith, providerRuntimeBaseUrl), the three connect handlers and the
    connect gate (stationHubConnectError -> stationHubRunConfig -> channelRunConfigFor), each start function's own per-message
    secrets() block, the owner-revoke restart, the boot auto-start block and the load-time scrub. The start functions are
-   stood in for by their own persistence line, which a source lock below pins. Every section fails on the commit before. */
+   stood in for by their own persistence line, which a source lock below pins. Every section fails on the commit before.
+   The same station also proves, on the same real source:
+     · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5). */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
@@ -188,6 +190,10 @@ function station(opts) {
     // a NEW key in the body never inherits the endpoint an earlier connect saved for another key
     await bare.call(handler, { provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: 'sk-or-NEW' }, ...extra);
     A.eq([bare.get()[ch].key, bare.get()[ch].baseUrl], ['sk-or-NEW', ''], ch + ': a new key is saved without the endpoint the old key was saved with');
+    // minor-5: a provider this station does not know is refused, never re-homed on OpenRouter
+    const typo = await s.call(handler, { token: 'tok', provider: 'antrhopic', model: 'claude-x', agentId: 'agent' }, ...extra);
+    A.eq(typo.status, 400, ch + ': connect refuses an unknown provider');
+    A.ok(/provider "antrhopic" is not a provider this station knows/.test(String(typo.body.error)), ch + ': ...and names it: ' + JSON.stringify(typo.body));
   }
 
   // ================================ the owner-revoke restart hands over the record's key only ===========================
@@ -256,6 +262,19 @@ function station(opts) {
     const s = station({ runtimeKeys: { openrouter: STATION_OR }, secrets: { telegram: { token: 'tg', key: STATION_OR, model: 'openai/gpt-5', provider: 'openrouter', baseUrl: EVIL, agentId: 'agent' } } });
     A.eq(s.stationHubRunConfig('agent', s.get().telegram).baseUrl, 'https://openrouter.ai/api/v1', 'a legacy record holding the station key never sends it to its saved endpoint (stationHubRunConfig)');
     A.eq(s.perMessage.telegram().baseUrl, 'https://openrouter.ai/api/v1', '...nor through secrets()');
+  }
+
+  // ================================ minor-5: sync and bots/connect refuse an unknown provider ============================
+  {
+    const s = station({ secrets: { telegram: { token: 'tg', provider: 'anthropic', model: 'claude-x' }, discord: { token: 'dc', provider: 'anthropic' }, slack: { token: 'xoxb', provider: 'anthropic' } } });
+    for (const [h, extra] of [['handleChannelSync', []], ['handleDiscordSync', []], ['handleGenericChannelSync', ['slack']], ['handleTelegramBotAdd', []]]) {
+      const r = await s.call(h, { provider: 'olama', model: 'llama3', token: 'tok', agentId: 'agent' }, ...extra);
+      A.eq(r.status, 400, h + ': an unknown provider is refused');
+      A.ok(/provider "olama" is not a provider this station knows/.test(String(r.body.error)), h + ': ...and named: ' + JSON.stringify(r.body));
+    }
+    A.eq(s.get().telegram.provider, 'anthropic', 'the record keeps its provider (never re-homed on openrouter)');
+    const fine = await s.call('handleChannelSync', { provider: 'claude', model: 'claude-y' });
+    A.eq([fine.status, s.get().telegram.provider], [200, 'anthropic'], 'a known alias still syncs');
   }
 
   A.report('channels.station-key: a channel record never holds the station key, and a per-run endpoint never carries it');

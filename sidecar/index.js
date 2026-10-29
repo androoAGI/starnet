@@ -2953,6 +2953,13 @@ function cronModelFor(job) {
 function normalizeProviderId(value) {
   return normalizeProviderIdFromRegistry(value, '');
 }
+// a body that NAMES a provider this station does not know is refused (run-wire.js, the explicit level): normalizeProvider
+// falls back to openrouter for any id it does not know, so a typo would be re-homed there on OpenRouter's credential.
+// '' when the body names no provider or a known one.
+function unknownProviderError(raw) {
+  const s = raw == null ? '' : String(raw).trim();
+  return (s && !normalizeProviderId(s)) ? 'provider "' + s.slice(0, 80) + '" is not a provider this station knows' : '';
+}
 function envFirst(names) {
   for (const name of (Array.isArray(names) ? names : [])) {
     const direct = process.env[name];
@@ -26947,6 +26954,7 @@ function handleHalt(req, res) {
 async function handleChannelConnect(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }   // room for the composed system prompt
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   // reuse the saved values when the request omits them, so RECONNECT is one click (no re-pasting the token).
   const saved = (channelSecrets && channelSecrets.telegram) || {};
   const provider = normalizeProvider(body.provider || saved.provider);
@@ -26992,6 +27000,7 @@ async function handleChannelConnect(req, res) {
 async function handleChannelSync(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const t = (channelSecrets && channelSecrets.telegram) || null;
   // Desktop deliberately removes a keychain-durable token from the plaintext record. Resolve through the same
   // runtime/keychain-or-fallback seam as connect/status, or a correctly saved one-time connection can never sync
@@ -27093,6 +27102,7 @@ async function handleTelegramOwnerRevoke(req, res) {
 async function handleTelegramBotAdd(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const token = String(body.token || '').trim();
   const agentId = String(body.agentId || '').trim();
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
@@ -27238,6 +27248,7 @@ async function handleTelegramBotOwner(req, res, botId, verb) {
 async function handleDiscordConnect(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const saved = (channelSecrets && channelSecrets.discord) || {};
   const provider = normalizeProvider(body.provider || saved.provider);
   // desktop: token from the keychain/runtime layer, not the plaintext record; a fresh paste still wins.
@@ -27262,6 +27273,7 @@ async function handleDiscordConnect(req, res) {
 async function handleDiscordSync(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const d = (channelSecrets && channelSecrets.discord) || null;
   if (!d || !d.token) return json(200, { synced: false });
   const patch = {};
@@ -27402,6 +27414,7 @@ function handleGenericChannelStatus(req, res, id) {
 async function handleGenericChannelConnect(req, res, id) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const saved = (channelSecrets && channelSecrets[id]) || {};
   const provider = normalizeProvider(body.provider || saved.provider);
   const token = channelToken(id, body.token, saved);   // keychain/runtime (desktop) or plaintext record (bare); fresh paste wins
@@ -27450,6 +27463,7 @@ async function handleChannelOwnerPair(req, res, id) {
 async function handleGenericChannelSync(req, res, id) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, CHANNEL_BODY_MAX)) || {}; } catch (e) { return json(e && e.tooLarge ? 413 : 400, { error: channelBodyError(e) }); }
+  { const unknown = unknownProviderError(body.provider); if (unknown) return json(400, { error: unknown }); }
   const rec = (channelSecrets && channelSecrets[id]) || null;
   const hasAuth = rec && (id === 'signal' ? (rec.endpoint && rec.account) : (rec.token || channelTokenRuntime[id]));
   if (!hasAuth) return json(200, { synced: false });   // nothing connected/configured — ignore quietly
