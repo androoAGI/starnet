@@ -4,7 +4,8 @@ import { spawn } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
-import { allocatePort, SidecarFixture } from '../../test/helpers/sidecar-fixture.js';
+import { SidecarFixture } from '../../test/helpers/sidecar-fixture.js';
+import { allocatePorts } from '../../test/helpers/ports.js';
 import { launchChrome, connectCDP, evalJS, sleep } from '../lib/cdp.mjs';
 import { waitDevReady } from '../lib/seed.mjs';
 import { createScratch } from '../lib/scratch.mjs';
@@ -15,7 +16,8 @@ mkdirSync(out, { recursive: true });
 // not evidence: they live under os.tmpdir() and are removed in the finally below (scripts/lib/scratch.mjs says why).
 const scratch = createScratch('session-reliability');
 const seedWorkspace = scratch.dir('workspace');
-const port = await allocatePort(), cdpPort = await allocatePort();
+// both ports at once (test/helpers/ports.js allocatePorts): two allocatePort() calls in a row can return the same port
+const [port, cdpPort] = await allocatePorts(2);
 const url = `http://127.0.0.1:${port}/`;
 let app, browser, cdp, log = '';
 const installedRoot = process.env.STARNET_SESSION_INSTALLED_ROOT;

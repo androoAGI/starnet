@@ -146,9 +146,10 @@ const scratch = mkdtempSync(join(tmpdir(), 'obproof2-'));
 const home = join(scratch, 'home'); mkdirSync(home);
 const wsDir = materializeSeedWorkspace(join(scratch, 'ws'), MODEL);
 const mock = await startMock();
-// both ports come from the OS (test/helpers/ports.js): a fixed or PID-derived pick can land on a reserved port
-const { allocatePort } = requireRepo(join(REPO, 'test', 'helpers', 'ports.js'));
-const port = await allocatePort(), cdpPort = await allocatePort();
+// both ports come from the OS (test/helpers/ports.js): a fixed or PID-derived pick can land on a reserved port. They
+// are taken together (allocatePorts), because two allocatePort() calls in a row can return the same port.
+const { allocatePorts } = requireRepo(join(REPO, 'test', 'helpers', 'ports.js'));
+const [port, cdpPort] = await allocatePorts(2);
 const SIDELOG = openSync(join(OUT, 'sidecar.log'), 'w');
 const bootWith = extra => require_cp.spawn(process.execPath, [join(REPO, 'sidecar', 'index.js')], { cwd: REPO, stdio: ['ignore', SIDELOG, SIDELOG],
   env: Object.assign({}, process.env, extra, { SKYNET_DEV: '1', SKYNET_FULL_ACCESS: '1', SKYNET_WORKSPACES: wsDir, SKYNET_PORT: String(port), SKYNET_DEFAULT_MODEL: MODEL, SKYNET_OPENROUTER_KEY: 'sk-or-v1-obproof-fake' }) });

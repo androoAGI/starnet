@@ -5,6 +5,7 @@ import { performance } from 'node:perf_hooks';
 import { spawn, spawnSync } from 'node:child_process';
 import { spawnAcpClient } from './acp-client.mjs';
 import { observeFixture } from './fixture-host.mjs';
+import { allocatePort } from '../../../test/helpers/ports.js';
 
 const sleep = ms => new Promise(done => setTimeout(done, ms));
 const MODEL = 'gpt-5.6-luna';
@@ -117,7 +118,9 @@ async function readStarNetRun(response, base, token) {
 export async function startStarNetDriver(opts) {
   const root = resolve(opts.root), workspaces = resolve(opts.workspaces), fixtureUrl = String(opts.fixtureUrl);
   const runTimeoutMs = Number(opts.timeoutMs || 300000);
-  let port = Number(opts.port || (19200 + (process.pid % 600)));
+  // an explicit --port wins; otherwise the OS picks one (test/helpers/ports.js): 19200 + pid % 600 was a guess that
+  // can land on a Windows-reserved port or on a parallel run's sidecar. The desktop build reports its own port below.
+  let port = Number(opts.port) || await allocatePort();
   const stdout = createWriteStream(resolve(opts.outputDir, 'campaign-starnet.out.log'), { flags: 'a' });
   const stderr = createWriteStream(resolve(opts.outputDir, 'campaign-starnet.err.log'), { flags: 'a' });
   const desktopExecutable = opts.desktopExecutable ? resolve(opts.desktopExecutable) : null;

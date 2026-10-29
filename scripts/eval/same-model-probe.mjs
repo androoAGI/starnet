@@ -4,6 +4,7 @@ import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { spawn } from 'node:child_process';
+import { allocatePort } from '../../test/helpers/ports.js';
 
 function argsOf(argv) {
   const out = {};
@@ -27,7 +28,8 @@ async function waitHealth(base, child) {
 
 async function starnetProbe(opts, prompt, model) {
   const root = resolve(opts.starnetRoot), workspaces = resolve(opts.starnetHome);
-  const port = 19000 + (process.pid % 1000), base = `http://127.0.0.1:${port}`;
+  // the OS picks the port (test/helpers/ports.js): 19000 + pid % 1000 can land on a reserved or a taken port
+  const port = await allocatePort(), base = `http://127.0.0.1:${port}`;
   const bearer = randomBytes(32).toString('hex');
   const out = createWriteStream(resolve(opts.outputDir, 'same-model-starnet.out.log'));
   const err = createWriteStream(resolve(opts.outputDir, 'same-model-starnet.err.log'));
