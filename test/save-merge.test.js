@@ -107,7 +107,12 @@ const merge = (station, base, mine) => SaveMerge.merge(station, mine, Core.merge
   const mergeNoticeLine = new Function(app.slice(at, app.indexOf('\n  }\n', at) + 4) + '\nreturn mergeNoticeLine;')();
   const head = mergeNoticeLine({ inSession: true, first: true, lost: [] });
   A.ok(r.overrode.length > 0 && !/without undoing/.test(head), 'notice: never "without undoing the other window’s" — a same-field change of the other window was just replaced: ' + head);
-  A.ok(/where both windows changed the same thing, this window’s version is used/.test(head) && /what only the other window changed stays/.test(head), 'notice: says what stays and what this window replaces');
+  A.ok(/where you changed the same setting, name or crew detail in both windows, this window’s version is used/.test(head) && /what only the other window changed stays/.test(head), 'notice: says what stays and what this window replaces');
+  // both windows' new turns are in General ('theirs 1' and 'mine 1', above), the counters kept both additions and the stamp
+  // is the other window's: the notice says the messages are all kept and never that every both-changed thing is this window's
+  const kept = contents(sess(r.doc, 'general'));
+  A.ok(kept.indexOf('theirs 1') !== -1 && kept.indexOf('mine 1') !== -1 && /messages both windows added to one session are all kept/.test(head), 'notice: says the messages both windows added to one session are all kept, as the merge just kept them: ' + head);
+  A.ok(!/where both windows changed the same thing/.test(head), 'notice: never that everything both windows changed is this window’s (usage kept both additions, lastActiveAt is the other window’s)');
 }
 
 // ---- a shared session written by two windows, round after round: no copies, no duplicates, no turn lost ----
