@@ -15,7 +15,25 @@
    The same station also proves, on the same real source:
      · the connect, sync and bots/connect routes refuse a provider this station does not know (review r5, minor 5);
      · runOnceCore's fallback loop skips a fallback on one, with a run notice (minor 6);
-     · handleRun refuses a CUSTOM run whose named endpoint it cannot use, and notes any other endpoint it ignores (minor 3). */
+     · handleRun refuses a CUSTOM run whose named endpoint it cannot use, and notes any other endpoint it ignores (minor 3).
+   Review r8 (the last two sections, each failing on the commit before):
+     · F1 (major): a reconnect that switched provider with no key in the body saved the OLD provider's key under the new one
+       (channelConnectCredential read saved.key whatever saved.provider was): an OpenRouter key went to a LAN CUSTOM server or
+       to api.anthropic.com. A saved credential is reused only for the provider it was saved for.
+     · F2/F3: a key the station already holds (the runtime push, the operator's env key, the #89 page copy) is never written
+       into a record (connect, sync, bots/connect), so the record follows it live: a rotated or removed page key strands no old
+       copy, and the boot scrub has nothing to drop (no store / scrub / re-store churn: a bot runs the same pair before and
+       after a restart).
+   TODO — handed to the wave-3 credential-store lane (found here, they predate this lane, deliberately NOT fixed here):
+     1. On the desktop, a channel record's OWN provider key (a connect or bots/connect body key the station does not hold) is
+        stripped from secrets.json (channels/secrets.js stripTokens drops every `key`) and never reaches the keychain: it lives
+        in memory only, so after a restart the bot runs on whatever the station resolves, or stops.
+     2. On a browser/headless station that key stays in plaintext in .secrets/channels/secrets.json, and a REPLACED one
+        survives in secrets.json.bak (the resilient save snapshots the old main; the boot scrub drops only station-held keys).
+        The page copy's store (engine-keys) writes main + .bak verified for exactly this reason.
+     3. A record key handed over while it was the caller's own, which LATER becomes station-held (the page saves the same key
+        as its copy after the channel sync landed), stays in the record until the next boot scrub; until then a page-copy
+        rotation with no channel sync strands it the way F2 closes for every new write. */
 'use strict';
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
@@ -557,6 +575,105 @@ function station(opts) {
     const u = station({ runtimeKeys: { openrouter: STATION_OR }, bots: { 777: { token: 'bot-token', key: 'sk-or-BOT-OWN', provider: 'openrouter', baseUrl: PROXY, agentId: 'agent', ownerId: 1 } } });
     await u.call('handleTelegramBotAdd', { token: 'bot-token', agentId: 'agent', provider: 'openrouter', key: 'sk-or-NEW', baseUrl: PROXY2 });
     A.eq([u.probes[0], u.bots['777'].key, u.bots['777'].baseUrl], [{ key: 'sk-or-NEW', baseUrl: PROXY2 }, 'sk-or-NEW', PROXY2], 'a body key and its endpoint are probed and saved together');
+  }
+
+  // ================================ review r8 F1 (MAJOR): a reconnect that switches provider ============================
+  // r8-connect-provider-switch*.js: the record holds the page's OpenRouter key; the Commander moves the agent to a keyless LAN
+  // CUSTOM server (the operator's env URL), or to Anthropic (an env key), and reconnects with no key in the body.
+  const R8 = [['handleChannelConnect', 'handleChannelSync', 'telegram', []], ['handleDiscordConnect', 'handleDiscordSync', 'discord', []],
+    ['handleGenericChannelConnect', 'handleGenericChannelSync', 'slack', ['slack']]];
+  const recOf = (s, ch) => s.get()[ch] || {};
+  const s2k = c => (c && c.ok) ? c.key + '|' + c.baseUrl : 'refused: ' + (c && c.error);
+  const LAN = 'http://192.168.1.40:1234/v1';
+  for (const [connect, , ch, extra] of R8) {
+    for (const [provider, model, env, want] of [['custom', 'local/qwen', { CUSTOM_OPENAI_BASE_URL: LAN }, ['', LAN]],
+      ['anthropic', 'claude-x', { ANTHROPIC_API_KEY: 'sk-ant-ENV-OPERATOR' }, ['sk-ant-ENV-OPERATOR', 'https://api.anthropic.com/v1']]]) {
+      const s = station({ env, roster: { agent: { name: 'NOVA', model, provider } },
+        secrets: { [ch]: { token: 'tok', key: 'sk-or-COMMANDER', provider: 'openrouter', model: 'openai/gpt-5', baseUrl: '', enabled: true, agentId: 'agent' } } });
+      const tag = ch + ' -> ' + provider;
+      const r = await s.call(connect, { provider, model, agentId: 'agent' }, ...extra);
+      A.eq([r.status, recOf(s, ch).provider], [200, provider], tag + ': fixture: the reconnect lands: ' + JSON.stringify(r.body));
+      A.ok(!recOf(s, ch).key, tag + ': the OpenRouter key is not saved under ' + provider + ': ' + JSON.stringify(recOf(s, ch).key));
+      const live = s.stationHubRunConfig('agent', recOf(s, ch)), msg = s.perMessage[ch]();
+      A.ok(live.key !== 'sk-or-COMMANDER' && msg.key !== 'sk-or-COMMANDER', tag + ': no message sends the OpenRouter key to ' + (live.baseUrl || msg.baseUrl));
+      A.eq([live.key, live.baseUrl], want, tag + ': each message runs what the station holds for ' + provider);
+    }
+  }
+
+  // ================================ review r8 F2/F3: a key the station holds is never written into a record ============
+  // r8-pagecopy-follow.js. A) a BROWSER station's page copy {K_OLD, PROXY}: the page syncs {K_OLD, PROXY}; the record kept
+  // K_OLD with no endpoint, so a rotated page key sent K_OLD to the provider default, and a removed one kept it running.
+  for (const [connect, sync, ch, extra] of R8) {
+    for (const provider of ['openrouter', 'custom']) {
+      const page = { [provider]: { key: 'sk-K_OLD', keyPool: [], baseUrl: PROXY } };
+      const s = station({ pageCopy: page, roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider } },
+        secrets: { [ch]: { token: 'tok', provider, model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
+      const tag = ch + ' (' + provider + ')';
+      const synced = await s.call(sync, { agentId: 'agent', provider, model: 'openai/gpt-5', key: 'sk-K_OLD', baseUrl: PROXY }, ...extra);
+      A.eq(synced.status, 200, tag + ': fixture: the page sync lands');
+      A.ok(!recOf(s, ch).key && !recOf(s, ch).baseUrl, tag + ': the page copy key is not written into the record: ' + JSON.stringify({ key: recOf(s, ch).key, baseUrl: recOf(s, ch).baseUrl }));
+      const pair = () => { const c = s.stationHubRunConfig('agent', recOf(s, ch)); const m = s.perMessage[ch](); return [c.ok ? c.key : 'refused', c.ok ? c.baseUrl : '', m.configured ? m.key : 'refused']; };
+      A.eq(pair(), ['sk-K_OLD', PROXY, 'sk-K_OLD'], tag + ': each message runs the page copy on its own endpoint');
+      page[provider] = { key: 'sk-K_NEW', keyPool: [], baseUrl: PROXY };
+      A.eq(pair(), ['sk-K_NEW', PROXY, 'sk-K_NEW'], tag + ': the page key rotated with no channel sync: the record follows it (K_NEW at its endpoint)');
+      delete page[provider];
+      A.ok(pair().every(v => v !== 'sk-K_OLD' && v !== 'sk-K_NEW'), tag + ': the page key removed with no channel sync: no message runs the old key: ' + JSON.stringify(pair()));
+      if (provider === 'openrouter') {
+        page.openrouter = { key: 'sk-K_OLD', keyPool: [], baseUrl: '' };
+        A.eq(pair(), ['sk-K_OLD', 'https://openrouter.ai/api/v1', 'sk-K_OLD'], tag + ': the copy re-saved on the default endpoint: its messages follow it there');
+      }
+    }
+    // the connect hands the page key too (the page's own connect body): nothing written, the record follows the copy
+    const page = { openrouter: { key: PAGE_KEY, keyPool: [], baseUrl: PROXY } };
+    const c = station({ pageCopy: page });
+    await c.call(connect, { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: PAGE_KEY, baseUrl: PROXY }, ...extra);
+    A.ok(!recOf(c, ch).key && !recOf(c, ch).baseUrl, ch + ': a connect handing the page copy key writes neither it nor its endpoint into the record: ' + JSON.stringify(recOf(c, ch)));
+    A.eq(c.started[c.started.length - 1].key, '', ch + ': ...and its start function is handed no key');
+    page.openrouter = { key: 'sk-or-PAGE-ROTATED', keyPool: [], baseUrl: PROXY };
+    A.eq([c.stationHubRunConfig('agent', recOf(c, ch)).key, c.perMessage[ch]().key], ['sk-or-PAGE-ROTATED', 'sk-or-PAGE-ROTATED'], ch + ': ...so its messages follow a rotation');
+    // the desktop: a body handing the keychain key back is not "the caller's own" either
+    const d = station({ runtimeKeys: { openrouter: STATION_OR }, desktop: true });
+    await d.call(connect, { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: STATION_OR }, ...extra);
+    A.ok(!recOf(d, ch).key, ch + ': a connect handing the keychain key back writes it into no record');
+    // control (r8-fix-sim.js): a caller's OWN key, which the station does not hold, is still saved with its endpoint
+    const own = station({});
+    await own.call(connect, { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', key: 'sk-or-CALLER', baseUrl: PROXY }, ...extra);
+    A.eq([recOf(own, ch).key, recOf(own, ch).baseUrl], ['sk-or-CALLER', PROXY], ch + ": a caller's own key and endpoint are still saved together");
+  }
+  // ...and bots/connect: an agent bot handed the page key keeps none, and runs the copy live
+  {
+    const s = station({ pageCopy: { openrouter: { key: PAGE_KEY, keyPool: [], baseUrl: PROXY } } });
+    const r = await s.call('handleTelegramBotAdd', { token: 'bot-token', agentId: 'agent', provider: 'openrouter', key: PAGE_KEY, baseUrl: PROXY });
+    A.eq(r.status, 200, 'bots/connect: fixture: the bot connects: ' + JSON.stringify(r.body));
+    A.eq(s.probes[0], { key: PAGE_KEY, baseUrl: PROXY }, 'bots/connect: the probe proves the page copy on its own endpoint');
+    A.ok(s.bots['777'] && !s.bots['777'].key && !s.bots['777'].baseUrl, 'bots/connect: the bot record keeps neither the page key nor its endpoint: ' + JSON.stringify(s.bots['777']));
+  }
+  // B) the boot churn: the operator's env key E and the page copy K. The record kept K from a sync, the boot scrub dropped it
+  // (E ran), the next page sync stored it again (K ran). Now nothing is stored, nothing is scrubbed, and each message runs the
+  // station's own resolution — the same before and after a restart, as every routine on this station does.
+  for (const [, sync, ch, extra] of R8) {
+    const b = station({ env: { OPENROUTER_API_KEY: 'sk-E-ENV' }, pageCopy: { openrouter: { key: 'sk-K-PAGE', keyPool: [], baseUrl: '' } },
+      secrets: { [ch]: { token: 'tok', provider: 'openrouter', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
+    const keyOf = () => s2k(b.stationHubRunConfig('agent', recOf(b, ch)));
+    await b.call(sync, { agentId: 'agent', provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-K-PAGE' }, ...extra);
+    A.ok(!recOf(b, ch).key, ch + ': B) the synced page key is not stored');
+    const before = keyOf();
+    const scrub = b.scrubChannelStationKeys ? b.scrubChannelStationKeys() : {};
+    A.eq(scrub.scrubbed, [], ch + ': B) the boot scrub has nothing to drop');
+    A.eq(keyOf(), before, ch + ': B) each message runs the same key after the restart as before it: ' + before);
+    await b.call(sync, { agentId: 'agent', provider: 'openrouter', model: 'openai/gpt-5', key: 'sk-K-PAGE' }, ...extra);
+    A.eq([before, keyOf()], ['sk-E-ENV|https://openrouter.ai/api/v1', 'sk-E-ENV|https://openrouter.ai/api/v1'], ch + ": B) ...and after the page's next sync: the station's own key (the env key outranks the page copy)");
+    // B2) CUSTOM: env key E with no env URL, page copy {K, page-llm}. The record kept K (it ran at page-llm), the boot scrub
+    // dropped it and the bot went offline. Now it runs what the station resolves, before and after: E never goes to page-llm.
+    const c = station({ env: { CUSTOM_OPENAI_KEY: 'sk-E-ENV' }, pageCopy: { custom: { key: 'sk-K-PAGE', keyPool: [], baseUrl: 'http://page-llm/v1' } },
+      roster: { agent: { name: 'NOVA', model: 'openai/gpt-5', provider: 'custom' } },
+      secrets: { [ch]: { token: 'tok', provider: 'custom', model: 'openai/gpt-5', agentId: 'agent', enabled: true } } });
+    await c.call(sync, { agentId: 'agent', provider: 'custom', model: 'openai/gpt-5', key: 'sk-K-PAGE', baseUrl: 'http://page-llm/v1' }, ...extra);
+    A.ok(!recOf(c, ch).key && !recOf(c, ch).baseUrl, ch + ': B2) neither the page key nor its endpoint is stored');
+    const b2 = s2k(c.stationHubRunConfig('agent', recOf(c, ch)));
+    A.eq((c.scrubChannelStationKeys ? c.scrubChannelStationKeys() : {}).scrubbed, [], ch + ': B2) the boot scrub has nothing to drop');
+    A.eq(s2k(c.stationHubRunConfig('agent', recOf(c, ch))), b2, ch + ': B2) the bot is the same after a restart as before it: ' + b2);
+    A.ok(b2 !== 'sk-E-ENV|http://page-llm/v1', ch + ": B2) the env key never goes to the page copy's endpoint");
   }
 
   A.report('channels.station-key: a channel record never holds the station key, and a per-run endpoint never carries it');

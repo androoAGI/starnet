@@ -3235,11 +3235,18 @@ function stationHubRunConfig(agentId, snap) {
    out on (runKey), so a keyless body endpoint can carry neither the saved key nor the station's; when the body's is not
    used, the saved pair stands. The endpoint is saved only when it is not the one the station would resolve for that key
    anyway (ownBase ''), so the bot follows a proxy the Commander configures later instead of freezing the endpoint of the
-   day it connected. key/baseUrl are what the run goes out on now (the connect gate's pair). */
+   day it connected. key/baseUrl are what the run goes out on now (the connect gate's pair).
+   Review r8: the saved pair is reused only for the provider it was saved for — a reconnect that switched provider with no
+   key in the body saved the OLD provider's key under the new one (an OpenRouter key went to a LAN CUSTOM server, or to
+   api.anthropic.com). And a key the station already holds (channelKeyIsStationHeld: the runtime push, the operator's env
+   key, the #89 page copy) is never written into the record: the record follows it live, so a rotated or removed page key
+   strands no old copy and the boot scrub has nothing to drop. */
 function channelConnectCredential(provider, body, saved) {
   const bodyKey = String(body.key || '').trim(), bodyBase = String(body.baseUrl || body.base_url || '').trim();
-  const savedKey = String(saved.key || '').trim(), savedBase = String(saved.baseUrl || saved.base_url || '').trim();
-  const recordKey = bodyKey || savedKey;   // never providerRuntimeKey's resolution
+  const own = (saved && normalizeProvider(saved.provider) === normalizeProvider(provider)) ? saved : {};
+  const savedKey = String(own.key || '').trim(), savedBase = String(own.baseUrl || own.base_url || '').trim();
+  const handed = bodyKey || savedKey;   // never providerRuntimeKey's resolution
+  const recordKey = (handed && channelKeyIsStationHeld(provider, handed)) ? '' : handed;
   const key = providerRuntimeKey(provider, recordKey);
   const asked = bodyBase ? providerRuntimeBaseUrl(provider, bodyBase, key, bodyKey) : '';
   const baseUrl = (bodyBase && asked === bodyBase) ? asked : providerRuntimeBaseUrl(provider, savedBase, key, savedKey);
