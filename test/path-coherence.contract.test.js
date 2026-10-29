@@ -43,8 +43,13 @@ const { makeEnvironmentManager } = require('../sidecar/environment.js');
 const { makeLoopDriver } = require('../sidecar/loopjob-driver.js');
 const LoopStore = require('../sidecar/loopjob-store.js');
 const { makeOrchestrationTools } = require('../sidecar/tools/builtin/orchestration.js');
+const { makeCommsTools } = require('../sidecar/tools/builtin/comms.js');
+const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+const RoutineMedia = require('../sidecar/routine-media.js');
 let RunPaths = null;
 try { RunPaths = require('../sidecar/run-paths.js'); } catch (e) { console.log('[pre-fix tree] no sidecar/run-paths.js: ' + e.message); }
+let Egress = null;
+try { Egress = require('../sidecar/egress-files.js'); } catch (e) { console.log('[pre-fix tree] no sidecar/egress-files.js: ' + e.message); }
 
 const isWin = process.platform === 'win32';
 const BASE = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-path-coherence-')));
@@ -126,6 +131,30 @@ const imageFetch = async () => ({ status: 200, headers: { get: () => 'applicatio
   json: async () => ({ choices: [{ message: { images: [{ image_url: { url: 'data:image/png;base64,' + PNG_B64 } }] } }] }) });
 const image = makeImageTools({ openrouter: { apiKey: 'sk-test' }, fsp, pathMod: path, root: WS, fetchImpl: imageFetch, pathTrust, auxVision: async () => 'a one-pixel image' });
 const voice = makeVoiceTools({ synth: async () => ({ ok: true, buf: Buffer.from([0x49, 0x44, 0x33, 4]), ext: 'mp3', mime: 'audio/mpeg' }), fsp, pathMod: path, root: WS, pathTrust });
+
+// ---- the host's EGRESS reads (channel.send files, a routine delivery, web_request ${file:}), built the way index.js
+// builds them at this commit: egress-files.js over the station's trust core, or the pre-fix per-agent jail proof ----
+const egress = Egress ? Egress.makeEgressReader({ fsp, pathMod: path, maxBytes: 50 << 20, workspaces: WS, mimeFor: () => 'application/octet-stream',
+  guard: (abs, o2) => trustCore.guard(abs, Object.assign({}, o2, { surface: 'autonomous' })) }) : null;
+const jailProof = makeFsTools({ fsp, pathMod: path, root: WS })._internals;   // the pre-fix host's fsJail
+async function preFixRead(aid, rel) {
+  try { const r = await jailProof.resolveInside(aid, rel, { scope: 'read' }); const b = await fsp.readFile(r.abs); return { ok: true, buffer: b, name: path.basename(r.abs) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+}
+const hostChannelRead = egress ? (aid, rel, ctx) => egress.readFor(aid, rel, ctx) : (aid, rel) => preFixRead(aid, rel);
+const hostFireReader = (runs, own, folder) => (egress ? egress.fireReader(runs, own, folder) : (aid, rel) => preFixRead(aid, rel));
+const hostWebRead = egress
+  ? async (aid, rel, ctx) => { const g = await egress.readFor(aid, rel, ctx, '', { allowEmpty: true }); if (!g.ok) throw new Error(g.error); return g.buffer; }
+  : async (aid, rel) => { const r = await jailProof.resolveInside(aid, rel, { scope: 'read' }); return fsp.readFile(r.abs); };
+const chatLines = [], chatMedia = [];
+const comms = makeCommsTools({ listTargets: () => [{ target: 'tg:1', channel: 'telegram', chatId: '1', agentId: AID, connected: true }],
+  sendTo: async (t, text) => { chatLines.push(String(text)); return { ok: true }; },
+  sendMediaTo: async (t, item) => { chatMedia.push(item); return { ok: true }; },
+  readFile: hostChannelRead }).sendTool;
+async function channelSend(files, ctx) { chatLines.length = 0; chatMedia.length = 0; return attempt(() => comms.run({ target: 'tg:1', text: 'here it is', files }, ctx)); }
+const wire = [];
+const webRequest = makeWebTools({ lookup: null, surface: 'interactive', redact: s => s, readWorkspaceFile: hostWebRead,
+  fetchImpl: async (url, opts) => { wire.push({ url, opts }); return { status: 200, headers: { get: () => 'application/json' }, text: async () => '{}' }; } }).requestTool;
 
 // ---- the host ctx, minted the way runOnce mints it at this commit ----
 let runSeq = 0;
@@ -325,6 +354,84 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('S1 the exit code is the real one (a printed `__SK_EC__0` cannot report a failed command as success)', shown.ok && failing.ok && /\[exit 1\]$/.test(String(failing.v.content)), failing.ok ? failing.v.content : failing.e && failing.e.message);
     }
 
+    // ================= E. EGRESS: what a run made is what it sends (review S3, owner decision 2026-10-28) =================
+    // A file leaving the station (channel.send, a routine's delivery, web_request ${file:}) resolves through the
+    // PRODUCING run's path object — exactly what fs.read in that run opens. A stale same-named file in the private
+    // workspace is the decoy a wrong base would send without an error; the .env floor and "no fallback" must hold, and a
+    // chat is never told an absolute host path.
+    {
+      const bytesOf = item => item && item.buffer ? Buffer.from(item.buffer).toString('utf8') : '';
+      const noHostPath = s => s.indexOf(BASE) < 0 && s.indexOf(BASE.replace(/\\/g, '/')) < 0 && s.indexOf(JAIL) < 0;
+      fs.writeFileSync(path.join(JAIL, 'report.md'), 'STALE PRIVATE');   // the decoy
+      const proj = hostCtx({ projectRoot: PROJECT });
+      await fsTools.writeTool.run({ path: 'report.md', content: 'PROJECT REPORT' }, proj);
+      let sent = await channelSend(['report.md'], proj);
+      row('EGRESS project-run fs.write -> channel.send attaches the PROJECT file, not the private decoy', sent.ok && chatMedia.length === 1 && bytesOf(chatMedia[0]) === 'PROJECT REPORT', sent.ok ? bytesOf(chatMedia[0]) || chatLines.join(' | ') : sent.e.message);
+      const img = await attempt(() => image.generateTool.run({ prompt: 'p', path: 'images/egress-' + (++fileSeq) + '.png' }, proj));
+      const imgAt = img.ok ? savedAt(img.v.content, /^Generated and saved (.+?) \(/m) : '';
+      sent = await channelSend([imgAt], proj);
+      row('EGRESS project-run image_generate -> channel.send attaches the image it named (' + imgAt + ')', !!imgAt && sent.ok && chatMedia.length === 1 && Buffer.from(chatMedia[0].buffer).equals(Buffer.from(PNG_B64, 'base64')), sent.ok ? chatLines.join(' | ') : sent.e.message);
+      const shot = await attempt(() => btool('browser.screenshot').run({}, proj));
+      const shotAt = shot.ok ? savedAt(shot.v.content, /^Screenshot saved to (.+?) \(\d+ KB\)/m) : '';
+      sent = await channelSend([shotAt], proj);
+      row('EGRESS a project-run screenshot receipt (absolute, private shelf) attached via channel.send', !!shotAt && sent.ok && chatMedia.length === 1 && chatLines.every(noHostPath), sent.ok ? chatLines.join(' | ') : sent.e.message);
+      const ghost = path.join(JAIL, 'shots', 'never-made.png');
+      sent = await channelSend([ghost], proj);
+      const note = chatLines.slice(1).join(' | ');
+      row('EGRESS a missing file\'s chat note names it without an absolute host path', sent.ok && chatMedia.length === 0 && /never-made\.png/.test(note) && noHostPath(note), note);
+      fs.writeFileSync(path.join(PROJECT, '.env'), 'API_KEY=SECRET');
+      sent = await channelSend(['.env'], proj);
+      row('EGRESS the .env floor holds for channel.send in a project run', sent.ok && chatMedia.length === 0 && !chatMedia.some(m => /SECRET/.test(bytesOf(m))), sent.ok ? chatLines.join(' | ') : sent.e.message);
+      fs.writeFileSync(path.join(JAIL, 'only-private.txt'), 'PRIVATE ONLY');
+      sent = await channelSend(['only-private.txt'], proj);
+      row('EGRESS no fallback: a relative name missing from the project is refused, never read from the private workspace', sent.ok && chatMedia.length === 0 && chatLines.slice(1).join(' ').indexOf('only-private.txt') >= 0, sent.ok ? bytesOf(chatMedia[0]) || chatLines.join(' | ') : sent.e.message);
+      const own = await channelSend(['only-private.txt'], hostCtx({}));
+      row('EGRESS an ordinary chat still sends from its private workspace', own.ok && chatMedia.length === 1 && bytesOf(chatMedia[0]) === 'PRIVATE ONLY', own.ok ? chatLines.join(' | ') : own.e.message);
+      // a routine's delivery, after the run ended: the fire's run row is { agentId, projectRoot } (runstore.js)
+      const routine = hostCtx({ projectRoot: PROJECT, workdir: PROJECT });
+      await fsTools.writeTool.run({ path: 'routine-out.md', content: 'ROUTINE OUTPUT' }, routine);
+      fs.writeFileSync(path.join(JAIL, 'routine-out.md'), 'STALE PRIVATE');
+      const runs = [{ agentId: AID, projectRoot: PROJECT, artifacts: [{ kind: 'file', path: 'routine-out.md' }] }];
+      const got = await RoutineMedia.readNamed(['routine-out.md'], RoutineMedia.fireAgents(runs, AID), hostFireReader(runs, AID, PROJECT));
+      const gotBytes = got.found[0] && got.found[0].got ? Buffer.from(got.found[0].got.buffer).toString('utf8') : '';
+      row('EGRESS routine fs.write -> its chat delivery attaches the routine folder\'s file, not the private decoy', gotBytes === 'ROUTINE OUTPUT', gotBytes || JSON.stringify(got.missing));
+      const missed = RoutineMedia.missedNote([path.join(JAIL, 'shots', 'x.png')], egress ? (p => egress.shownName(egress.pathsFor(AID), p)) : undefined);
+      row('EGRESS a routine\'s missed-file note never quotes an absolute host path', noHostPath(missed) && /x\.png/.test(missed), missed);
+      // web_request ${file:} in a project run
+      wire.length = 0;
+      const posted = await attempt(() => webRequest.run({ url: 'https://api.example.com/v1/upload', method: 'POST', body: '{"f":"${file:report.md}"}' }, Object.assign(hostCtx({ projectRoot: PROJECT }), { callId: 'c1' })));
+      const body = wire[0] ? String(wire[0].opts.body) : '';
+      row('EGRESS project-run fs.write -> web_request ${file:report.md} carries the PROJECT file', posted.ok && body.indexOf(Buffer.from('PROJECT REPORT').toString('base64')) >= 0, posted.ok ? body.slice(0, 80) : posted.e.message);
+    }
+
+    // ================= F. ATTACHMENTS are named by the RUN that reads them (review M3, m8) =================
+    // A channel message's file (a line-bound channel run is project-scoped), a COMMS project chat's, a queued coordinated
+    // turn re-scoped to its thread's folder: the run host expands the references once the run's root is final.
+    {
+      const makeAttachments = require('../sidecar/attachments.js');
+      const jailFs = makeFsTools({ fsp, pathMod: path, root: WS })._internals;
+      const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: WS, resolveInside: (aid, rel) => jailFs.resolveInside(aid, rel) });
+      const expand = (messages, root) => (typeof att.expandForRun === 'function' ? att.expandForRun(messages, AID, root)
+        : att.expandUserAttachments(messages, AID));   // the pre-fix hub: expanded before runOnce, with no root
+      const noteOf = (expanded, re) => { const b = (expanded[0].content || []).find(x => x && re.test(String(x.text || ''))); const m = b && re.exec(b.text); return m ? m[1] : ''; };
+      for (const [label, root] of [['a line-bound channel run (project-scoped)', PROJECT], ['an ordinary channel chat', '']]) {
+        const bin = await att.saveAttachment(AID, 'clip.mp4', 'data:video/mp4;base64,' + Buffer.from('not really a video').toString('base64'));
+        const txt = await att.saveAttachment(AID, 'notes.md', 'data:text/markdown;base64,' + Buffer.from('# notes\nfrom the chat').toString('base64'));
+        const msgs = [{ role: 'user', content: 'see these', attachments: [
+          { id: bin.id, name: bin.name, path: bin.path, mediaType: bin.mediaType, kind: bin.kind },
+          { id: txt.id, name: txt.name, path: txt.path, mediaType: txt.mediaType, kind: txt.kind }] }];
+        const expanded = await expand(msgs, root);
+        const ctx = root ? hostCtx({ projectRoot: root }) : hostCtx({});
+        const binAt = noteOf(expanded, /saved in your workspace at (.+?) and your file\/shell tools/);
+        const opened = await attempt(() => fsTools.readTool.run({ path: binAt }, ctx));
+        row('ATTACH ' + label + ': the binary attachment note names a path fs.read in that run opens (' + binAt + ')', !!binAt && opened.ok, opened.e && opened.e.message);
+        const txtAt = noteOf(expanded, /\[saved in your workspace at (.+?)\]/);
+        const openedTxt = await attempt(() => fsTools.readTool.run({ path: txtAt }, ctx));
+        row('ATTACH ' + label + ': an inlined text attachment names where it is saved, and fs.read opens it', !!txtAt && openedTxt.ok && /from the chat/.test(String(openedTxt.v && openedTxt.v.content)), txtAt || 'no saved-at line');
+        row('ATTACH ' + label + ': the references never reach the provider', !('attachments' in expanded[0]));
+      }
+    }
+
     // ================= D. entry points =================
     // D1. the LOOP driver hands its folder to the run (it told the agent "you work in <folder>" and gave the tools none)
     {
@@ -367,7 +474,9 @@ const freshName = stem => stem + '-' + (++fileSeq) + '.txt';
       row('HOST: projectCwd is gone from the tool ctx', !/\bprojectCwd:/.test(core));
       row('HOST: the park pointer is placed by the run path object', /parked\.path = runPaths\.placeJail\(parked\.path\)/.test(core));
       row('HOST: the postcondition reader resolves through the run path object', /readPostconditionArtifact[\s\S]{0,400}runPaths\.resolve\(requirement\.path/.test(core));
-      row('HOST: a project chat\'s attachment note is placed by the same rule', /expandUserAttachments\(messages, agentId, attachPlace/.test(src));
+      // (M3) one expansion, in the run host, once the root is final; no surface expands before runOnce any more
+      row('HOST: runOnceCore expands every surface\'s attachments once the run root is final', /messages = await attachments\.expandForRun\(messages, agentId, o\.projectRoot\)/.test(core));
+      row('HOST: no surface (COMMS, the channel hubs) expands attachments before runOnce', !/attachments\.expandUserAttachments\(messages/.test(src));
       row('TOOLS: no sidecar code reads ctx.projectCwd', !/ctx\.projectCwd/.test(src));
     }
   } finally {

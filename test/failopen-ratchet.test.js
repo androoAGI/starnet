@@ -22,7 +22,7 @@ const SILENT_CATCH = /\.catch\(\s*\(?\s*_?\w*\s*\)?\s*=>\s*(\{\s*\}|null|undefin
 const BASELINE = {
   'acp/serve.js': 1,                  // run-cancel relay on an already-torn-down session
   'channels/hub.js': 3,               // reaction cosmetics + message delete (documented best-effort)
-  'index.js': 11,                     // shutdown reaps, inputGuard diagnostics, value defaults, 1 comment
+  'index.js': 10,                     // shutdown reaps, inputGuard diagnostics, value defaults, 1 comment (readChannelUpload's stat default left with the egress reader, 2026-10-28)
   'local-voice.js': 2,                // ASR/TTS serialization tails (the queued run carries its own errors)
   'loopjob-driver.js': 1,             // snapshot degrade -> loopcheck already treats null as "cannot prove"
   'lsp-manager.js': 3,                // idle-close / pid-pin / closeAll teardown

@@ -1024,10 +1024,12 @@
        not carry the byte-bearing step of any API workflow. Same cure as ${KEY} headers: the model writes a
        REFERENCE (${file:relative/path}, or a multipart part naming a file), the host resolves it at send
        time, and the payload never enters model context in either direction. Files resolve through
-       deps.readWorkspaceFile: the per-agent workspace jail only (no project root, no absolute paths, no
-       path-trust), so a request can only ever carry the agent's own workspace. This is deliberately narrower
-       than fs.read and browser.upload, which also reach the run's trusted project: widening an outbound-network
-       tool is a decision, not a polish fix. Lowercase 'file:' can never collide with SECRET_REF's [A-Z] names. */
+       deps.readWorkspaceFile(agentId, path, ctx). It was the per-agent jail alone, so in a project run the file
+       fs.write had just made (report.md -> the project) was missed or swapped for a stale private one. That
+       widening was a decision, and the owner made it (run-paths review S3, 2026-10-28): the name resolves through
+       the RUN's path object, read scope, exactly what fs.read in this run opens (path trust and the .env/.git floor
+       on every target, no fallback to another folder). A run that can already read a file adds no reach by sending
+       it. Lowercase 'file:' can never collide with SECRET_REF's [A-Z] names. */
     const FILE_REF_RE = /\$\{file:([^}]*)\}/g;
     const FILE_REF_TEST = /\$\{file:/;
     const FILE_MAX_BYTES = 20 * 1024 * 1024;      // one referenced file
@@ -1190,7 +1192,7 @@
               type: 'object', required: ['name'],
               properties: {
                 name: { type: 'string', description: 'Form field name.' },
-                file: { type: 'string', description: 'Workspace-relative file to attach (curl -F style).' },
+                file: { type: 'string', description: 'File (fs_read path) to attach (curl -F style).' },
                 value: { type: 'string', description: 'Text of a plain field; give file OR value, not both.' },
                 filename: { type: 'string', description: 'Filename to present (defaults to the file\'s own name).' },
                 contentType: { type: 'string', description: 'Part content-type (defaults from the file extension).' }
@@ -1277,8 +1279,8 @@
           const rr = String(rel == null ? '' : rel).trim();
           if (!rr) throw new Error('a file reference needs a workspace-relative path');
           if (typeof deps.readWorkspaceFile !== 'function') throw new Error('this run has no workspace, so it cannot attach files');
-          // throws on jail escape ('..', absolute, symlink out) and on a missing file — fail loudly pre-send
-          const buf = await deps.readWorkspaceFile((ctx && ctx.agentId) || 'agent', rr);
+          // throws on a refused path (path trust, the floor, '..', a link out) and on a missing file — fail loudly pre-send
+          const buf = await deps.readWorkspaceFile((ctx && ctx.agentId) || 'agent', rr, ctx);
           if (buf.length > FILE_MAX_BYTES) throw new Error('"' + rr + '" is ' + (buf.length / (1024 * 1024)).toFixed(1) + 'MB — the per-file limit is ' + (FILE_MAX_BYTES / (1024 * 1024)) + 'MB');
           payloadBytes += buf.length;
           if (payloadBytes > PAYLOAD_MAX_BYTES) throw new Error('the request payload exceeds the ' + (PAYLOAD_MAX_BYTES / (1024 * 1024)) + 'MB total limit');

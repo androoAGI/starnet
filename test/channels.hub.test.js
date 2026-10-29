@@ -582,6 +582,27 @@ async function run() {
     A.eq('attachments' in last, false, 'no raw attachments field leaks to the provider after expansion');
   }
 
+  // ---- M1b. (run-paths review M3) wired as the host wires it: the hub hands the references to runOnce UNEXPANDED (the run
+  // host expands them once the run's root is final), and the stored turn names the saved file by the host's DURABLE path,
+  // because a line's run is project-scoped and the jail-relative name would mean a project file there ----
+  {
+    const store = fakeStore(); let lastRun = null;
+    const runOnce = async (o) => { lastRun = o; o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId, trigger: 'event', model: o.model }); o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'ok' }); o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 }); };
+    const hub = makeChannelHub({
+      runOnce, store, send: () => Promise.resolve({ ok: true }), secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen(),
+      fetchMedia: () => Promise.resolve({ ok: true, buffer: Buffer.from('OGG') }),
+      saveAttachment: (agentId, name) => Promise.resolve({ ok: true, id: 'id-' + name, name, path: '.attachments/' + name, mediaType: 'audio/ogg', kind: 'file' }),
+      expandAttachments: (messages) => messages,
+      attachmentPath: (agentId, rel) => '/station/workspaces/' + agentId + '/' + rel
+    });
+    const msg = dm('listen', '79'); msg.media = [{ kind: 'audio', fileId: 'a1', name: 'take.ogg', mime: 'audio/ogg', size: 3 }];
+    await hub.onInbound(msg);
+    const turn = store.appends.find(x => x.role === 'user');
+    A.ok(turn && turn.content.indexOf('saved to /station/workspaces/tg_79/.attachments/take.ogg') >= 0, 'M3: the stored turn names the saved file by its durable path: ' + (turn && turn.content));
+    const last = lastRun.messages[lastRun.messages.length - 1];
+    A.ok(Array.isArray(last.attachments) && last.attachments[0].path === '.attachments/take.ogg', 'M3: the references reach runOnce unexpanded, for the run host to place');
+  }
+
   // ---- M2. media-only message (no caption) is still admitted; download failure degrades to an honest note ----
   {
     const store = fakeStore(); let lastRun = null; const sends = [];

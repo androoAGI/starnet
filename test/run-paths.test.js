@@ -132,6 +132,16 @@ function plant(linkAt, target) {
       A.eq(scoped.placeJail('.output/x.txt'), path.join(JAIL, '.output/x.txt'), 'project run: a jail name becomes the absolute jail path');
       A.eq(scoped.placeJail('../escape.txt'), '../escape.txt', 'placeJail never builds a path out of a `..` name');
       A.eq(scoped.placeJail(path.join(OUTSIDE, 'a')), path.join(OUTSIDE, 'a'), 'placeJail leaves an absolute name as it was');
+      // unplaceJail (review S3): the name a CHAT may be told — jail-relative inside the private workspace, else null
+      A.eq(scoped.unplaceJail(path.join(JAIL, 'shots', 's.png')), 'shots/s.png', 'unplaceJail: a private-shelf receipt becomes its jail-relative name');
+      A.eq(jailed.unplaceJail(path.join(JAIL.toUpperCase(), 'shots', 's.png')), isWin ? 'shots/s.png' : null, 'unplaceJail: case-folds on Windows only');
+      A.eq(scoped.unplaceJail(path.join(PROJECT, 'made.txt')), null, 'unplaceJail: a project file is not a jail name');
+      A.eq(scoped.unplaceJail(path.join(WS, 'other', 'theirs.txt')), null, 'unplaceJail: another agent\'s workspace is not this jail');
+      A.eq(scoped.unplaceJail(JAIL + '-evil' + path.sep + 'x.txt'), null, 'unplaceJail: a sibling that merely starts with the jail\'s name is outside');
+      A.eq(scoped.unplaceJail('shots/s.png'), null, 'unplaceJail: a relative name is not absolute, so not unplaced');
+      // jailFile (review M3): the durable absolute spelling, in every run
+      A.eq(jailed.jailFile('.attachments/a.ogg'), path.join(JAIL, '.attachments/a.ogg'), 'jailFile: absolute even in an unscoped run');
+      A.eq(scoped.jailFile('../x'), '../x', 'jailFile never builds a path out of a `..` name');
       A.eq(scoped.shellCwd(), null, 'a fresh run starts with no remembered `cd`');
       scoped.setShellCwd(path.join(PROJECT, 'sub'));
       A.eq(jailed.shellCwd(), null, 'one run\'s `cd` is invisible to another run\'s object');

@@ -7,9 +7,10 @@
    Telegram never received the picture.
 
    THE FIX rides the delivery that is ALREADY approved. The Commander chose the destination when the routine was
-   saved; the files go to that same chat, read through the same workspace jail channel.send uses (the host's
-   readFile), uploaded with the same transport call. No new reach: a file can only go where the routine's words
-   already go, and only from the workspace of an agent that ran in this fire.
+   saved; the files go to that same chat, read the way channel.send reads them (the host's readFile: through the
+   PRODUCING run's path object, so a project routine's relative name means its project — sidecar/egress-files.js),
+   uploaded with the same transport call. No new reach: a file can only go where the routine's words already go,
+   and only what a run of this fire could itself read.
 
    Which files (capped at MAX_FILES, the same 4 channel.send allows):
      1. ATTACH lines in the final reply — "ATTACH: charts/today.png", one per line. The agent's explicit choice,
@@ -194,11 +195,19 @@
   }
 
   // The chat line for files that did not come — channel.send's own wording, so both paths read the same.
-  function missedNote(paths) {
+  // shown(path) (the host's): the name the chat may see. An absolute host path is never quoted into a chat (run-paths
+  // review S3): without the host's mapping it is named by its file name only.
+  function missedNote(paths, shown) {
     const list = (Array.isArray(paths) ? paths : []).filter(Boolean);
     if (!list.length) return '';
+    const abs = s => /^(?:[A-Za-z]:|[\\/])/.test(String(s));
+    const name = p => {
+      const s = typeof shown === 'function' ? String(shown(p) || '') : '';
+      if (s && !abs(s)) return s;
+      return abs(p) ? (String(p).split(/[\\/]/).filter(Boolean).pop() || 'file') : String(p);
+    };
     return 'Note: ' + (list.length === 1 ? 'this file' : 'these files') + ' could not be attached here — '
-      + list.map(p => '"' + p + '"').join(', ') + '. ' + (list.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.';
+      + list.map(p => '"' + name(p) + '"').join(', ') + '. ' + (list.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.';
   }
 
   /* deliveryNote(platforms) -> the system-prompt paragraph for a routine whose reply goes to a chat ('' otherwise).

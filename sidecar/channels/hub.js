@@ -553,6 +553,11 @@
     const transcribe = typeof o.transcribe === 'function' ? o.transcribe : null;
     const saveAttachmentFn = typeof o.saveAttachment === 'function' ? o.saveAttachment : null;
     const expandAttachments = typeof o.expandAttachments === 'function' ? o.expandAttachments : null;
+    //   attachmentPath(agentId, rel) -> the saved file's DURABLE name for the stored turn (run-paths review M3): the
+    //   note outlives this run, and a line's run works in its project (a relative name would mean the project there),
+    //   so the host names the file absolutely in the agent's private workspace, which every run of the agent opens.
+    //   Absent, the jail-relative name stands (the historic note).
+    const attachmentPath = typeof o.attachmentPath === 'function' ? o.attachmentPath : null;
     // TYPING INDICATOR (ref-parity): chatAction(chatId) fires ONE platform "typing…" action (adapter.chatAction
     // -> Telegram sendChatAction). Optional — absent means the channel simply shows no typing bubble, exactly the
     // old behavior. Telegram's bubble expires ~5s after each action, so the keep-alive loop below refreshes every
@@ -1528,7 +1533,11 @@
         let saved; try { saved = await saveAttachmentFn(agentId, name, dataUrl); } catch (e) { saved = { ok: false, error: (e && e.message) || 'save threw' }; }
         if (!saved || saved.ok === false) { notes.push('[could not store the ' + kind + ' "' + name + '"' + from + ': ' + ((saved && saved.error) || 'unknown error') + ']'); continue; }
         refs.push({ id: saved.id, name: saved.name, path: saved.path, mediaType: saved.mediaType, kind: saved.kind, srcKind: kind });
-        if (saved.kind !== 'image') notes.push('[' + kind + ' "' + name + '"' + from + ' received and saved to ' + saved.path + ' in your workspace]');
+        // the stored turn names the file DURABLY (attachmentPath above, run-paths review M3): a line's run is project-scoped,
+        // where the jail-relative name meant a project file that does not exist
+        let savedAt = String(saved.path || '');
+        if (attachmentPath) { try { savedAt = String(attachmentPath(agentId, saved.path) || savedAt); } catch (e) { failNote('channels.hub.attachmentPath', e); } }
+        if (saved.kind !== 'image') notes.push('[' + kind + ' "' + name + '"' + from + ' received and saved to ' + savedAt + ' in your workspace]');
         else if (from) notes.push('[the image "' + name + '"' + from + ' is attached to this turn]');
 
         /* VOICE NOTES WERE DEAD INPUT. We saved the .ogg and told the model "saved to <path>" — a path it
@@ -1545,7 +1554,7 @@
           catch (e) { tr = { ok: false, reason: (e && e.message) || 'transcribe threw' }; }
           if (tr && tr.ok && String(tr.text || '').trim()) transcripts.push(String(tr.text).trim());
           else if (tr && tr.ok) notes.push('[the voice message "' + name + '" contained no speech we could make out — ask them to resend it]');
-          else notes.push('[the voice message "' + name + '" could not be transcribed (' + ((tr && tr.reason) || 'no transcription engine configured') + ') — the audio file is saved at ' + saved.path + ', and you can ask them to type it instead]');
+          else notes.push('[the voice message "' + name + '" could not be transcribed (' + ((tr && tr.reason) || 'no transcription engine configured') + ') — the audio file is saved at ' + savedAt + ', and you can ask them to type it instead]');
         }
       }
       // truthful cross-reference: only claim a visible video still when BOTH the clip and its frame actually saved

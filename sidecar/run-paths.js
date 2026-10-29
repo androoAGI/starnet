@@ -178,6 +178,22 @@ function makeRunPaths(resolver, o) {
       if (!root || !r || absolute(r) || /(^|[\\/])\.\.([\\/]|$)/.test(r)) return r;
       return P.join(jail, r);
     },
+    // a jail name's DURABLE spelling, for text that outlives this run (a channel's stored turn): the absolute path in
+    // the private workspace, which every run of this agent opens whatever folder it works in. `..`/absolute: unchanged.
+    jailFile: (rel) => {
+      const r = String(rel == null ? '' : rel);
+      if (!r || absolute(r) || /(^|[\\/])\.\.([\\/]|$)/.test(r)) return r;
+      return P.join(jail, r);
+    },
+    // placeJail's inverse, for a name that LEAVES the station (a chat note, a delivery line): the jail-relative form
+    // ('shots/x.png') of a path inside the private workspace, else null. A chat is never told an absolute host path.
+    unplaceJail: (abs) => {
+      const s = String(abs == null ? '' : abs);
+      if (!s || !absolute(s)) return null;
+      const a = P.resolve(s);
+      if (!resolver.pathInside(a, jail)) return null;
+      return P.relative(P.resolve(jail), a).split(P.sep).join('/') || '.';
+    },
     shellCwd: () => shellCwd,
     setShellCwd: (cwd) => { shellCwd = cwd ? String(cwd) : null; return shellCwd; }
   };

@@ -130,8 +130,9 @@
     // carry a key-shaped string, and this is the one tool that would hand it to a third party.
     const redact = typeof deps.redact === 'function' ? deps.redact : function (t) { return t; };
     const emit = typeof deps.emit === 'function' ? deps.emit : function () {};
-    // OUTBOUND FILES (2026-07-29). Both injected: readFile proves the path stays in the agent's own workspace
-    // jail (the host owns that proof), sendMediaTo uploads through the channel's transport. Absent either one,
+    // OUTBOUND FILES (2026-07-29). Both injected: readFile(agentId, path, ctx) resolves the path through the RUN's path
+    // object (ctx.paths, read scope: what fs.read in this run opens, the .env/.git floor included — the host owns that
+    // proof, sidecar/egress-files.js), sendMediaTo uploads through the channel's transport. Absent either one,
     // `files` is refused with a reason rather than silently ignored — an agent told "sent" about a file that
     // never moved is the exact lie this file exists to prevent.
     const readFile = typeof deps.readFile === 'function' ? deps.readFile : null;
@@ -177,7 +178,7 @@
           files: {
             type: 'array', maxItems: MAX_FILES,
             items: { type: 'string' },
-            description: 'Workspace-relative files to attach (images inline, the rest as documents), up to ' + MAX_FILES + '. A channel that cannot carry files still gets the message, naming the path.'
+            description: 'Files (fs_read paths) to attach (images inline, the rest as documents), up to ' + MAX_FILES + '. A channel that cannot carry files still gets the message, naming the path.'
           }
         }
       },
@@ -231,11 +232,17 @@
           if (wanted.length > MAX_FILES) {
             fileNotes.push(wanted.length + ' files requested (limit ' + MAX_FILES + ') — only the first ' + MAX_FILES + ' were attempted');
           }
+          // the name the CHAT is told: the host's shown form (a jail-relative name, never an absolute host path), else
+          // the file name of an absolute path (run-paths review S3: a refused absolute receipt was quoted into the chat)
+          const shown = {};
+          const chatName = f => shown[f] || (/^(?:[A-Za-z]:|[\\/])/.test(f) ? (String(f).split(/[\\/]/).filter(Boolean).pop() || 'file') : f);
           for (const rel of wanted.slice(0, MAX_FILES)) {
             if (!readFile || !sendMediaTo) { fileNotes.push('"' + rel + '" was not sent — attaching files is not wired on this host'); continue; }
             let got;
-            try { got = await readFile(String((ctx && ctx.agentId) || ''), rel); }
+            // ctx rides along: the host resolves the name through THIS run's path object (ctx.paths), as fs.read would
+            try { got = await readFile(String((ctx && ctx.agentId) || ''), rel, ctx); }
             catch (e) { got = { ok: false, error: (e && e.message) || 'read threw' }; }
+            if (got && typeof got.shown === 'string' && got.shown) shown[rel] = got.shown;
             if (!got || got.ok === false || !got.buffer || !got.buffer.length) {
               unreadable.push(rel);
               fileNotes.push('"' + rel + '" could not be read from your workspace (' + ((got && got.error) || 'not found') + ') — nothing was attached');
@@ -254,9 +261,9 @@
           const missed = wanted.slice(0, MAX_FILES).filter(f => attached.indexOf(f) === -1 && unreadable.indexOf(f) === -1);
           const lines = [];
           if (missed.length) lines.push((missed.length === 1 ? 'this file' : 'these files') + ' could not be attached here — '
-            + missed.map(f => '"' + f + '"').join(', ') + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
+            + missed.map(f => '"' + chatName(f) + '"').join(', ') + '. ' + (missed.length === 1 ? 'It is' : 'They are') + ' saved in the workspace on the station.');
           if (unreadable.length) lines.push((unreadable.length === 1 ? 'this file' : 'these files') + ' could not be found in the workspace, so nothing was attached — '
-            + unreadable.map(f => '"' + f + '"').join(', ') + '.');
+            + unreadable.map(f => '"' + chatName(f) + '"').join(', ') + '.');
           if (lines.length) {
             try { await sendTo(t.target, 'Note: ' + lines.join('\nNote: ')); } catch (_) { /* the note is a courtesy; never fail the send over it */ }
           }

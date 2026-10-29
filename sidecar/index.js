@@ -2458,7 +2458,13 @@ const fsJail = makeFsTools({ fsp, pathMod: path, root: WORKSPACES })._internals;
 
 // USER ATTACHMENTS (COMMS): save Commander-attached photos/files into the workspace + expand their history
 // references into provider content blocks at run time. Jailed writes/reads reuse the same resolveInside proof.
-const attachments = require('./attachments.js')({ fsp, path, crypto, resolveInside: (aid, rel) => fsJail.resolveInside(aid, rel) });
+const attachments = require('./attachments.js')({ fsp, path, crypto, workspaces: WORKSPACES, resolveInside: (aid, rel) => fsJail.resolveInside(aid, rel) });
+// a saved attachment's DURABLE name for a channel's stored turn (run-paths review M3): its absolute path in the agent's
+// private workspace, which every run of that agent opens, whatever folder the run works in (run-paths jailFile)
+function attachmentDurablePath(agentId, rel) {
+  try { return RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root: WORKSPACES }), { agentId }).jailFile(rel); }
+  catch (e) { failNote('attachments.durable-path', e); return rel; }
+}
 
 // Roots the read-only /api/fs/dirstat probe is allowed to stat (audit P2): the user's own HOME (covers every
 // realistic Keep destination — Desktop/Documents/Downloads all live under it) and the WORKSPACES root. Anything
@@ -6902,26 +6908,17 @@ const cronEmit = (name, payload) => { try { return cronEmitValidated(name, redac
    Shared by the autonomous notifier and the agent's channel.send tool: a second copy of this fan-out would
    eventually disagree about which adapter serves a channel, and the failure mode is a message going to the
    wrong platform or silently nowhere. */
-/* readChannelUpload(agentId, rel) -> { ok, buffer, name, mime } | { ok:false, error } — the JAIL PROOF for every file
-   that leaves the station for a chat: channel.send's `files` and a routine delivery's attachments (routine-media.js)
-   both read through it. resolveInside is the same proof the fs.* tools and user attachments use, so only a file
-   inside the agent's OWN workspace can go — `../` or an absolute path is a refusal, not a traversal. Never throws:
-   a miss is { ok:false, error } the caller reports honestly. */
-async function readChannelUpload(agentId, rel) {
-  try {
-    // resolveInside THROWS on a jail violation ('illegal path' / 'path escapes workspace') and otherwise
-    // answers { base, abs } — the catch below turns a violation into an honest refusal, never a traversal.
-    const r = await fsJail.resolveInside(String(agentId || ''), String(rel || ''), { scope: 'read' });
-    const abs = r && r.abs;
-    if (!abs) return { ok: false, error: 'that path is outside your workspace' };
-    const st = await fsp.stat(abs).catch(() => null);
-    if (!st || !st.isFile()) return { ok: false, error: 'not a file' };
-    if (st.size > CHANNEL_UPLOAD_MAX_BYTES) return { ok: false, error: 'file is ' + Math.round(st.size / (1024 * 1024)) + 'MB (limit ' + Math.round(CHANNEL_UPLOAD_MAX_BYTES / (1024 * 1024)) + 'MB)' };
-    const buffer = await fsp.readFile(abs);
-    if (!buffer.length) return { ok: false, error: 'file is empty' };
-    return { ok: true, buffer: buffer, name: path.basename(abs), mime: mimeForPath(abs) };
-  } catch (e) { return { ok: false, error: (e && e.message) || 'read failed' }; }
-}
+/* readChannelUpload(agentId, rel, ctx?, projectRoot?) -> { ok, buffer, name, mime, shown } | { ok:false, error, shown } —
+   the ONE READ for every file that leaves the station for a chat (channel.send's `files`, a routine delivery's
+   attachments). OWNER DECISION (run-paths review S3, 2026-10-28): the name resolves through the PRODUCING run's path
+   object, read scope — the live run's ctx.paths, or, for a finished run (a routine's delivery), one minted from its row's
+   agent and project root under the unattended trust rule. So it opens exactly what fs.read in that run opens: path trust
+   and the .env/.git floor on every target, the symlink re-proof, no fallback to a same-named file in another folder.
+   `shown` is the name a chat may see (never an absolute host path). Never throws (sidecar/egress-files.js). */
+const egressDeps = { fsp, pathMod: path, mimeFor: mimeForPath, workspaces: WORKSPACES, guard: (abs, o2) => pathTrustCore.guard(abs, o2) };
+const egressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: CHANNEL_UPLOAD_MAX_BYTES });
+const webEgressReader = require('./egress-files.js').makeEgressReader({ ...egressDeps, maxBytes: 20 * 1024 * 1024 });   // web.js FILE_MAX_BYTES
+async function readChannelUpload(agentId, rel, ctx, projectRoot) { return egressReader.readFor(agentId, rel, ctx, projectRoot); }
 function liveChannelFor(channel) {
   /* The DEV channel is a REAL channel — it has a hub and a working send (it captures replies for
      GET/POST /api/dev/inbound) — it just has no bot server behind it, so it never appears in genericChannels.
@@ -7206,15 +7203,20 @@ async function deliverCronResult(job, result) {
   /* FILES RIDE THE CHAT DELIVERY (routine-media.js, 2026-10-18). An unattended run cannot channel.send (the exec
      lockout), so this is the only way a routine's image or chart reaches the chat: the ATTACH lines its reply names,
      else the images the fire generated (its run rows' artifacts — durable, so a retried delivery finds them too).
-     Same approved target, same workspace jail as channel.send. A reply with no ATTACH line and no generated image
+     Same approved target, same read as channel.send. A reply with no ATTACH line and no generated image
      delivers byte-identically to before. */
   let chatBody = String(result.text || ''), chatText = text, attach = { files: [], dropped: [] }, named = [], runs = [];
+  let fireRead = readChannelUpload;
   if (result.outcome !== 'failed') {
     const candidates = RoutineMedia.parseReply(result.text).files;
     try { runs = runStore.list(null, { streamId: 'cron-' + result.runId, limit: 50 }) || []; } catch (_) { runs = []; }
+    // Each agent's file is read through ITS run's path object (the newest row's project root in this fire, else the
+    // routine's own folder): a project routine's `ATTACH: report.md` names the project's file, never a stale same-named
+    // one in the private workspace (run-paths review S3, egress-files.js fireReader).
+    fireRead = egressReader.fireReader(runs, job.agentId, job.workdir || '');
     // A named path is an instruction only if the file is really there: read it first (before any word is sent), so a
     // line naming nothing on the station ("MEDIA: N/A") stays in the message as written, with no missing-file note.
-    const found = candidates.length ? (await RoutineMedia.readNamed(candidates, RoutineMedia.fireAgents(runs, job.agentId), readChannelUpload)).found : [];
+    const found = candidates.length ? (await RoutineMedia.readNamed(candidates, RoutineMedia.fireAgents(runs, job.agentId), fireRead)).found : [];
     named = found.map(f => f.path);
     // generated images ride unasked only for a routine holding ALLOW IMAGES (the studio grant) — never for one that
     // makes pictures for another purpose (routine-media.js pickFiles)
@@ -7256,7 +7258,7 @@ async function deliverCronResult(job, result) {
       // A Full Access fire may already have put its own files here with channel.send — never the same picture twice.
       if ((attach.files.length || (named.length && attach.dropped.length)) && !RoutineMedia.filesAlreadySent(runs, target, chatId)) {
         const files = await RoutineMedia.sendFiles(attach.files, {
-          read: readChannelUpload,
+          read: fireRead,
           send: (item) => typeof live.adapter.sendMedia === 'function'
             ? live.adapter.sendMedia(chatId, item, route)
             : Promise.resolve({ ok: false, error: channel + ' cannot carry files' })
@@ -7264,7 +7266,9 @@ async function deliverCronResult(job, result) {
         for (const f of files.failed) console.warn('[cron] routine ' + job.id + ' file "' + f.path + '" not attached [' + channel + ']: ' + f.error);
         const missed = files.failed.map(f => f.path).concat(named.length ? attach.dropped : []);
         if (missed.length) {
-          try { await live.adapter.send(chatId, RoutineMedia.missedNote(missed), route); } catch (e) { failNote('cron.delivery.missedNote', e); }
+          // the chat sees a jail-relative name or a file name, never an absolute host path (egress-files.js shownName)
+          const shown = (p) => { try { return egressReader.shownName(egressReader.pathsFor(job.agentId), p); } catch (e) { failNote('cron.delivery.shownName', e); return ''; } };
+          try { await live.adapter.send(chatId, RoutineMedia.missedNote(missed, shown), route); } catch (e) { failNote('cron.delivery.missedNote', e); }
         }
       }
     });
@@ -10834,7 +10838,9 @@ function startTelegram(token, key, model, agentCfg) {
     // failure degrades to a note naming the saved .ogg, exactly the old behaviour.
     transcribe: media.transcribeForMime,
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    expandAttachments: (messages, agentId) => attachments.expandUserAttachments(messages, agentId)
+    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
+    expandAttachments: (messages) => messages,
+    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel)
   });
   const adapter = makeTelegramAdapter({
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
@@ -11112,7 +11118,9 @@ function startTelegramBot(botId) {
     // failure degrades to a note naming the saved .ogg, exactly the old behaviour.
     transcribe: media.transcribeForMime,
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    expandAttachments: (messages, agentId) => attachments.expandUserAttachments(messages, agentId),
+    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
+    expandAttachments: (messages) => messages,
+    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel),
     // INLINE KEYBOARDS (C6) — same wiring as the station bot, with its OWN registry so tokens minted for this
     // bot's messages can never address another bot's chat. /approvals is per-chat here too.
     prompts: makePromptRegistry({ newId: () => crypto.randomUUID() }),
@@ -11359,7 +11367,9 @@ function getDevHub() {
       catch (e) { return Promise.resolve({ ok: false, error: 'bad base64' }); }
     },
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    expandAttachments: (messages, agentId) => attachments.expandUserAttachments(messages, agentId)
+    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
+    expandAttachments: (messages) => messages,
+    attachmentPath: (agentId, rel) => attachmentDurablePath(agentId, rel)
   });
   return devHub;
 }
@@ -20895,16 +20905,9 @@ async function handleRun(req, res) {
     // read it: an earlier quote inside that tail counts, one that scrolled past it no longer turns learning off for the
     // rest of the conversation. Host-computed from the messages, never from request metadata.
     const quotedOwnerInput = TrustedLearning.quotedInLearningTail(messages);
-    let runMessages = messages;
-    // A binary attachment's note names its path the way this run's tools resolve it (run-paths placeJail, the rule
-    // runOnce's ctx.paths applies): in a project conversation a relative path means the PROJECT, so it is absolute there.
-    let attachPlace;
-    if (projectBlessed) {
-      try { attachPlace = RunPaths.makeRunPaths(RunPaths.makeResolver({ pathMod: path, root: WORKSPACES }), { agentId, projectRoot: projectRootRaw }).placeJail; }
-      catch (e) { failNote('run.attachments.place', e); }
-    }
-    try { runMessages = await attachments.expandUserAttachments(messages, agentId, attachPlace ? { place: attachPlace } : undefined); }
-    catch (e) { failNote('run.attachments.expand', e); runMessages = messages; }
+    // The attachment references ride into runOnce unexpanded: runOnceCore expands them once the run's project root is
+    // final, so the note names the path the way THIS run's tools resolve it (run-paths review M3, expandRunAttachments).
+    const runMessages = messages;
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
@@ -21243,7 +21246,8 @@ async function runOnceCore(o) {
   if (o.voiceTurn === true && !o.voiceRoute && !o.recovery && !o.internal) {
     try { o = await applyVoiceTurnRoute(o); } catch (e) { failNote('voiceChat.route', e); }
   }
-  const { key, system: rawSystem, messages = [], agentId = 'agent', signal, runId } = o;
+  const { key, system: rawSystem, agentId = 'agent', signal, runId } = o;
+  let messages = o.messages === undefined ? [] : o.messages;   // let: the attachment references are expanded below, once the root is final
   // LINE WATCH (additive, sweep 2026-09-25): WHICH bay this run works at, and the crate it picked up when the host
   // knows it — so the floor lights the right bay for an agent that crews several (never the oldest crate's bay).
   // Extra fields on agent.run.start validate against the frozen contract (obj() has no additionalProperties:false).
@@ -21281,6 +21285,10 @@ async function runOnceCore(o) {
   // a workflow stage with NO working folder says where its relative paths really land (#60/#81 follow-up) —
   // workflow runs only; reason-only self-talk keeps its system prompt verbatim
   if (workflowLine && !o.internal && !o.outputOnly) system = String(system || '') + workflowNoFolderLine(!!(o.workdir || o.projectRoot));
+  // EVERY SURFACE'S ATTACHMENTS ARE EXPANDED HERE (run-paths review M3), now that this run's root is final (a line's or
+  // routine's folder, a re-scoped coordinated thread, a project chat): the note names the saved file the way THIS run's
+  // tools resolve it. COMMS and the channel hubs used to expand before runOnce, with no root or a stale one.
+  messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
   // A short channel reply such as "operators" is not independently task-shaped. Durable brief continuity is
@@ -21755,11 +21763,12 @@ async function runOnceCore(o) {
     // reservedEnv lets web_request tell a model-provider key apart from a missing one: KEYS refuses provider
     // keys, so "add it in KEYS" would send the Commander round a loop they can never finish.
     resolveServiceKey: (name, sfc) => serviceKeysMod.resolveForRequest(liveServiceKeys(), name, sfc, { reservedEnv: SERVICEKEYS_RESERVED_ENV }),
-    // workspace files in outbound requests (${file:...} body refs / multipart parts): resolved through the
-    // per-agent workspace jail only (no ctx/pathTrust, unlike fs.read and browser.upload), so a request can only carry this agent's own workspace files.
-    readWorkspaceFile: async (aid, rel) => {
-      const { abs } = await fsJail.resolveInside(aid, rel, { scope: 'read' });
-      return fsp.readFile(abs);
+    // workspace files in outbound requests (${file:...} body refs / multipart parts): resolved through THIS run's path
+    // object, read scope — what fs.read here opens, floor included (owner decision, run-paths review S3; egress-files.js)
+    readWorkspaceFile: async (aid, rel, ctx) => {
+      const got = await webEgressReader.readFor(aid, rel, ctx, '', { allowEmpty: true });
+      if (!got.ok) throw new Error(got.error);
+      return got.buffer;
     },
     // web_fetch's clean-extraction path is keyed now (r.jina.ai 401s without a token), so it is attempted
     // ONLY when the Commander has actually connected one. Resolved through the same grant as any other key,
@@ -22377,7 +22386,8 @@ async function runOnceCore(o) {
       // stay just under the true ceiling: the transport may add its own prefix/footer to a chunk.
       return (isFinite(n) && n > 200) ? (n - 100) : 1900;
     },
-    // OUTBOUND FILES (2026-07-29): the jail proof lives in the host (readChannelUpload), never in the pure tool.
+    // OUTBOUND FILES (2026-07-29): the read lives in the host (readChannelUpload: through this run's ctx.paths, which the
+    // tool hands in), never in the pure tool.
     readFile: readChannelUpload,
     // Upload through the SAME target-key resolution sendTo uses, so an agent can attach a file exactly where it
     // may already send words — known-targets-only is unchanged by this feature.
