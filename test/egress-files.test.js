@@ -10,7 +10,8 @@
 
    Built as index.js wires it: the REAL path-trust core, a run's ctx.paths minted with runPathTrust's options (posture,
    grants and a live prompt included), and makeEgressReader({ guard: pathTrustCore.guard }). Every row below that is
-   "refused" was SENT before this fix (scratchpad probes r2-egress.js, r2-jailfloor.js, r2-routine.js). */
+   "refused" was SENT before this fix (scratchpad probes r2-egress.js, r2-jailfloor.js, r2-routine.js; section 6, review
+   round 3: rr3-egress.js — hard links, a jail that is a junction, a stale single-holder fallback). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -162,9 +163,73 @@ function plant(linkAt, target) {
     const sentImgs = [];
     await RoutineMedia.sendFiles(picks.files, { read: fireRead, send: async (item) => { sentImgs.push(item.buffer.toString()); return { ok: true }; } });
     A.eq(sentImgs, ['ALPHA-PROJECT-PIC'], 'the generated image goes from the row that made it');
+
+    // ---- 6. review round 3: ONE name, ONE file, the bytes that were proven ----
+    // M-A: a HARD LINK is the same file under a second name; `mklink /H` (fs.linkSync) needs no admin on NTFS. Every one of
+    // these was SENT (scratchpad rr3-egress.js section 1): the name is innocent and its real path is inside the folder.
+    const linkRefused = /has other names on this disk \(a hard link\)/;
+    const hardlinks = [
+      [path.join(JAIL, 'hl-ssh.txt'), path.join(HOME, '.ssh', 'id_ed25519'), 'hl-ssh.txt', unscoped, 'a jail hard link to ~/.ssh/id_ed25519 (a floored file)'],
+      [path.join(JAIL, 'hl-taxes.pdf'), path.join(HOME, 'taxes.pdf'), 'hl-taxes.pdf', unscoped, 'a jail hard link to a file outside every folder of the run'],
+      [path.join(JAIL, 'hl-env.txt'), path.join(PA, '.env'), path.join(JAIL, 'hl-env.txt'), inA, 'a project run naming its own jail\'s hard link to the project .env (floored)'],
+      [path.join(PA, 'notes.txt'), path.join(HOME, '.ssh', 'id_ed25519'), 'notes.txt', inA, 'a project-root hard link to ~/.ssh/id_ed25519']
+    ];
+    for (const [at, target, name, ctx, label] of hardlinks) {
+      try { fs.linkSync(target, at); } catch (e) { console.log('[skip] hard link ' + label + ': ' + e.message); continue; }
+      await refuses(label, name, ctx, '', linkRefused);
+      await refuses(label + ', Full Power', name, runCtx({ projectRoot: ctx.paths.root || '', unrestrictedHost: true }), '', linkRefused);
+      await refuses(label + ', routine delivery', name, null, ctx.paths.root || '', linkRefused);
+      const probed = await reader.read(ctx.paths, name, { probe: true });
+      A.ok(!probed.ok && linkRefused.test(probed.error), label + ': a probe (browser.upload) is refused too');
+    }
+    // the bytes read are bounded by what was proven: a handle whose size was understated (the file grew after the check)
+    // is refused, and so is a handle whose inode differs from the path's (bigint compare, never a rounded double)
+    {
+      put(path.join(JAIL, 'grow.txt'), 'ABCDEFGH');
+      const lying = (patch) => Object.assign({}, fsp, {
+        open: async (p, f) => { const fh = await fsp.open(p, f); const st0 = fh.stat.bind(fh); fh.stat = async (o) => patch(await st0(o)); return fh; }
+      });
+      const grew = makeEgressReader({ fsp: lying(st => Object.assign(Object.create(Object.getPrototypeOf(st)), st, { size: st.size - 1n })), pathMod: path, workspaces: WS });
+      let got = await grew.read(unscoped.paths, 'grow.txt');
+      A.ok(!got.ok && /changed while it was being read/.test(got.error), 'a file larger than its proven size is refused, never sent whole (' + (got.ok ? JSON.stringify(got.buffer.toString()) + ' sent' : got.error) + ')');
+      const swapped = makeEgressReader({ fsp: lying(st => Object.assign(Object.create(Object.getPrototypeOf(st)), st, { ino: st.ino + (1n << 60n) })), pathMod: path, workspaces: WS });
+      got = await swapped.read(unscoped.paths, 'grow.txt');
+      A.ok(!got.ok && /changed while it was being read/.test(got.error), 'an inode differing only above 2^53 is a different file (' + (got.ok ? 'SENT' : got.error) + ')');
+      got = await reader.read(unscoped.paths, 'grow.txt');
+      A.ok(got.ok && got.buffer.toString() === 'ABCDEFGH' && got.size === 8, 'the honest file still sends whole');
+      // the probe: every check, the proven REAL path, no bytes
+      const probed = await reader.read(inA.paths, isWin ? path.join(PA.toUpperCase(), 'REPORT.MD') : path.join(PA, 'report.md'), { probe: true });
+      A.ok(probed.ok && probed.buffer === undefined && probed.abs === fs.realpathSync.native(path.join(PA, 'report.md')) && probed.size === 8, 'a probe names the proven real path (as the disk spells it) and reads nothing (' + JSON.stringify(probed) + ')');
+      for (const n of ['.env', path.join(PB, 'credentials.json'), '../projB/credentials.json']) {
+        const p2 = await reader.read(inA.paths, n, { probe: true });
+        A.ok(!p2.ok, 'a probe refuses what a send refuses: ' + path.basename(n));
+      }
+    }
+    // minor-1: the private workspace must BE its folder. workspaces/delta as a junction to the home folder sent its files.
+    if (plant(path.join(WS, 'delta'), HOME)) {
+      const delta = runCtx({ agentId: 'delta' });
+      await refuses('a jail that is a junction to the home folder, relative taxes.pdf', 'taxes.pdf', delta, '', /workspace folder is a link/);
+      await refuses('a jail that is a junction, the same file by absolute path', path.join(HOME, 'taxes.pdf'), delta, '', /workspace folder is a link|outside/);
+      const fromRow = await reader.readFor('delta', 'taxes.pdf', null, '');
+      A.ok(!fromRow.ok && /workspace folder is a link/.test(fromRow.error), 'a jail that is a junction, a routine delivery of its row (' + (fromRow.ok ? 'SENT' : fromRow.error) + ')');
+    }
+    // minor-4: a fire's single-holder fallback ignores a same-named file older than the fire's first row
+    {
+      put(path.join(WS, 'beta', 'digest.md'), 'BETA-STALE-DIGEST');
+      const old = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+      fs.utimesSync(path.join(WS, 'beta', 'digest.md'), old, old);
+      const fireStart = Date.now() - 60 * 1000;
+      const rows = [{ agentId: 'beta', projectRoot: '', startedAt: fireStart + 1000 }, { agentId: 'alpha', projectRoot: PA, startedAt: fireStart }];
+      let got = await reader.fireReader(rows, 'alpha', PA)('alpha', 'digest.md');
+      A.ok(!got.ok && /older than this routine fire/.test(got.error), 'a stale same-named file that is the only hit is refused (' + (got.ok ? JSON.stringify(got.buffer.toString()) + ' sent' : got.error) + ')');
+      A.ok(noHostPath(got), 'and the refusal names no host path');
+      put(path.join(PA, 'digest.md'), 'A-DIGEST-FROM-THIS-FIRE');
+      got = await reader.fireReader(rows, 'alpha', PA)('alpha', 'digest.md');
+      A.ok(got.ok && got.buffer.toString() === 'A-DIGEST-FROM-THIS-FIRE', 'the file this fire wrote still sends, the stale one never counts against it (' + (got.ok ? 'sent' : got.error) + ')');
+    }
   } finally {
     // unlink the planted links first, so removing the temp tree never walks through one into its target
-    for (const l of [path.join(JAIL, 'notes'), path.join(JAIL, 'jx'), path.join(PA, 'px')]) {
+    for (const l of [path.join(JAIL, 'notes'), path.join(JAIL, 'jx'), path.join(PA, 'px'), path.join(WS, 'delta')]) {
       let st = null;
       try { st = fs.lstatSync(l); } catch (e) { if (e.code !== 'ENOENT') console.log('[cleanup] ' + e.message); }
       if (!st) continue;

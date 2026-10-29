@@ -17,19 +17,28 @@
    strictest form (autonomous, no prompt, no grants, no posture). There is NO fallback to a same-named file in another
    folder, and no refusal quotes an absolute host path (shownName: the jail-relative form, else the file name).
 
+   ONE NAME, ONE FILE, THE BYTES THAT WERE PROVEN (review round 3). A hard link is the same file under a second name
+   (`mklink /H notes.txt %USERPROFILE%\.ssh\id_ed25519` needs no admin), so a name proven inside the jail could carry
+   any file on the volume: a file with more than one name never leaves. The open handle is checked against the proven
+   path by inode AND volume (as bigints), and at most the proven size plus one byte is read, so a file that grew after
+   the check is refused, never sent whole. The private workspace must BE its folder: a workspaces/<id> that is itself
+   a link to another folder holds nothing sendable.
+
    makeEgressReader({ fsp, pathMod, maxBytes, mimeFor, workspaces, guard }) -> {
-     read(paths, name, { allowEmpty }?)        a name through THIS path object's jail and root
+     read(paths, name, { allowEmpty, probe }?) a name through THIS path object's jail and root; probe: every check, no
+                                               bytes read (browser.upload hands the proven real path to the browser)
      readFor(agentId, name, ctx?, projectRoot?, opts?)
                                                through the live run's ctx.paths (same agent), else a path object minted
                                                for a FINISHED run (its agent + its row's project root)
      fireReader(runs, ownAgentId, ownFolder)   (agentId, name, where?) -> readFor: each name through the ONE row of a
                                                routine fire that produced it
      shownName(paths, name), pathsFor(agentId, ctx?, projectRoot?)
-   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown } | { ok:false, error, shown }   (never throw; abs is the
-   real path, for the host only) */
+   }  read/readFor -> { ok:true, buffer, name, mime, abs, shown, size, mtimeMs } | { ok:false, error, shown }   (never
+   throw; abs is the real path, for the host only; a probe carries no buffer) */
 'use strict';
 const RunPaths = require('./run-paths.js');
 const { hardlineReason } = require('./pathtrust.js');
+const FIRE_MTIME_SLACK_MS = 2000;   // a coarse-clock volume (FAT: 2 s) may stamp a file a fire just made a little early
 
 function makeEgressReader(deps) {
   deps = deps || {};
@@ -58,10 +67,17 @@ function makeEgressReader(deps) {
     try { return await fsp.realpath(dir); }
     catch (e) { if (missing(e)) return null; throw e; }
   }
+  // the private workspace IS its folder: its real path is its real parent's real path plus its own name. A
+  // workspaces/<id> that is a junction to another folder (the home folder) is not this agent's workspace.
+  async function ownFolder(dir, dirReal) {
+    const d = P.resolve(dir);
+    return fold(dirReal) === fold(P.join(await fsp.realpath(P.dirname(d)), P.basename(d)));
+  }
 
-  // opts.allowEmpty: an empty file is a legal request part (web_request); a chat upload refuses it
+  // opts.allowEmpty: an empty file is a legal request part (web_request); a chat upload refuses it.
+  // opts.probe: run every check and return the proven real path without reading a byte (browser.upload)
   async function read(paths, name, opts) {
-    const allowEmpty = !!(opts && opts.allowEmpty);
+    const allowEmpty = !!(opts && opts.allowEmpty), probe = !!(opts && opts.probe);
     const n = String(name == null ? '' : name).trim();
     const shown = shownName(paths, n);
     const no = error => ({ ok: false, error, shown });
@@ -91,12 +107,16 @@ function makeEgressReader(deps) {
     }
     if (hardlineReason(real, real)) return no(floored);
     // 4. CONTAINMENT by real path: this run's own private workspace, or this run's own project root. Nothing else.
-    let inJail = false, inRoot = false;
+    let inJail = false, inRoot = false, inLinkedJail = false;
     try {
       const jailReal = await realBase(paths.jail);
-      inJail = !!jailReal && inside(real, jailReal);
+      if (jailReal && inside(real, jailReal)) {
+        if (await ownFolder(paths.jail, jailReal)) inJail = true;
+        else inLinkedJail = true;
+      }
       if (!inJail && paths.root) { const rootReal = await realBase(paths.root); inRoot = !!rootReal && inside(real, rootReal); }
     } catch (e) { return no(q + ' cannot be proven inside ' + reach + ' (' + ((e && e.code) || 'error') + ')'); }
+    if (!inJail && !inRoot && inLinkedJail) return no(q + ' cannot be sent: your workspace folder is a link to another folder, so nothing in it leaves the station');
     if (!inJail && !inRoot) return no(q + ' is outside ' + reach + '; only a file there can be sent');
     // 5. A PROJECT FILE ONLY WHILE ITS FOLDER IS STILL APPROVED: the station guard in its strictest form. No prompt (a
     //    send never raises a card), no hand-off grants or session roots, no This Computer / Full Power posture, so only a
@@ -107,20 +127,42 @@ function makeEgressReader(deps) {
       catch (e) { return no(q + ' cannot be sent: this run\'s project folder is no longer approved'); }
     }
     // 6. read WHAT WAS PROVEN: open the real path, then check the open handle is still that file at that real path (a
-    //    folder swapped for a link between the proof and the open is refused, never followed)
+    //    folder swapped for a link between the proof and the open is refused, never followed). Inode and volume are
+    //    compared as bigints: a 64-bit NTFS file index does not fit a double.
     let fh;
     try { fh = await fsp.open(real, 'r'); }
     catch (e) { return no(missing(e) ? q + ' is not in ' + where : q + ' cannot be read (' + ((e && e.code) || 'error') + ')'); }
     try {
-      const st = await fh.stat();
+      const st = await fh.stat({ bigint: true });
       if (!st.isFile()) return no(q + ' is not a file');
-      if (st.size > maxBytes) return no(q + ' is ' + Math.round(st.size / (1024 * 1024)) + 'MB (limit ' + Math.round(maxBytes / (1024 * 1024)) + 'MB)');
+      // ONE NAME ONLY: every check above proved a NAME, and a hard link is this same file under another name anywhere on
+      // the volume (~/.ssh, another root) that nothing here can see. A file with more than one name never leaves.
+      const linked = q + ' has other names on this disk (a hard link), so it never leaves the station';
+      if (st.nlink > 1n) return no(linked);
+      const size = Number(st.size);
+      if (size > maxBytes) return no(q + ' is ' + Math.round(size / (1024 * 1024)) + 'MB (limit ' + Math.round(maxBytes / (1024 * 1024)) + 'MB)');
       const again = await fsp.realpath(real);
-      const now = await fsp.stat(again);
+      const now = await fsp.stat(again, { bigint: true });
       if (fold(again) !== fold(real) || now.ino !== st.ino || now.dev !== st.dev) return no(q + ' changed while it was being read; nothing was sent');
-      const buffer = await fh.readFile();
+      if (now.nlink > 1n) return no(linked);
+      const mtimeMs = Number(st.mtimeMs);
+      if (probe) {
+        if (!size && !allowEmpty) return no(q + ' is empty');
+        return { ok: true, name: P.basename(real), mime: mimeFor(real), abs: real, shown, size, mtimeMs };
+      }
+      // at most the proven size plus one byte, through this handle (readFile would stat again): an extra byte means the
+      // file grew after the check and a short read that it shrank; either way it is not the file that was proven
+      const buf = Buffer.alloc(size + 1);
+      let got = 0;
+      while (got < buf.length) {
+        const r = await fh.read(buf, got, buf.length - got, got);
+        if (!r.bytesRead) break;
+        got += r.bytesRead;
+      }
+      if (got !== size) return no(q + ' changed while it was being read; nothing was sent');
+      const buffer = buf.subarray(0, size);
       if (!buffer.length && !allowEmpty) return no(q + ' is empty');
-      return { ok: true, buffer, name: P.basename(real), mime: mimeFor(real), abs: real, shown };
+      return { ok: true, buffer, name: P.basename(real), mime: mimeFor(real), abs: real, shown, size, mtimeMs };
     } catch (e) {
       return no(q + ' cannot be read (' + ((e && e.code) || 'error') + ')');
     } finally {
@@ -152,7 +194,9 @@ function makeEgressReader(deps) {
        - a pick that carries its row (a generated image: where.root, with that row's agent) reads through that row;
        - else the NEWEST row whose artifact ledger names the file (relative to that row's base, or by absolute path);
        - else the one file the fire's bases hold under that name (each row's agent + root; the routine's own agent
-         through its folder when no row of it exists). Two DIFFERENT files under one name are refused, never guessed.
+         through its folder when no row of it exists). Two DIFFERENT files under one name are refused, never guessed,
+         and so is a file written before the fire's first row began (review round 3): a same-named file an earlier run
+         left in another row's folder is not this fire's, even when it is the only one.
      runs: NEWEST first. -> (agentId, name, where?) => readFor's answer */
   function fireReader(runs, ownAgentId, ownFolder) {
     const rows = (Array.isArray(runs) ? runs : []).filter(r => r && typeof r === 'object' && r.agentId);
@@ -163,6 +207,9 @@ function makeEgressReader(deps) {
     const jailOf = aid => (deps.workspaces && /^[A-Za-z0-9_-]{1,40}$/.test(aid) ? P.join(deps.workspaces, aid) : '');
     const at = (name, r) => RunPaths.producedPath(name, { projectRoot: String(r.projectRoot || ''), jail: jailOf(String(r.agentId)) }).path;
     const same = (a, b) => fold(P.resolve(a)) === fold(P.resolve(b));
+    // the fire began when its first row did (rows without a start time bound nothing)
+    const starts = rows.map(r => Number(r.startedAt)).filter(n => Number.isFinite(n) && n > 0);
+    const since = starts.length ? Math.min.apply(null, starts) - FIRE_MTIME_SLACK_MS : 0;
     function producerOf(name) {
       for (const r of rows) {
         const want = at(name, r);
@@ -178,11 +225,12 @@ function makeEgressReader(deps) {
       if (where && typeof where.root === 'string') return readFor(aid, name, null, where.root);
       const made = producerOf(name);
       if (made) return readFor(made.agentId, name, null, made.root);
-      let first = null;
+      let first = null, stale = null;
       const hits = [];
       for (const b of bases) {
         const got = await readFor(b.agentId, name, null, b.root);
         if (!got.ok) { first = first || got; continue; }
+        if (since && !(got.mtimeMs >= since)) { stale = stale || got; continue; }
         if (!hits.some(h => same(h.abs, got.abs))) hits.push(got);
       }
       if (hits.length === 1) return hits[0];
@@ -190,6 +238,7 @@ function makeEgressReader(deps) {
         const shown = hits[0].shown;
         return { ok: false, error: '"' + shown + '" names a different file in more than one folder this routine worked in, so none was sent; name it by its folder', shown };
       }
+      if (stale) return { ok: false, error: '"' + stale.shown + '" is older than this routine fire, so it is not a file the fire made; nothing was sent', shown: stale.shown };
       const shown = absolute(String(name || '')) ? fileName(name) : String(name || '');
       return first || { ok: false, error: 'this routine fire has no run to read "' + shown + '" through', shown };
     };
