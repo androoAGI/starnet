@@ -8,6 +8,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 (async () => {
   let calls = [], mode = 'text';
   const key = 'synthetic-router-fallback-key';
+  const IPC = 'saved-provider-fallback-ipc-token-1234567890';
   const upstream = http.createServer((req, res) => {
     let raw = ''; req.on('data', b => raw += b); req.on('end', () => {
       if (req.method !== 'POST') return res.end(JSON.stringify({ data: [] }));
@@ -26,23 +27,31 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
   const fixture = SidecarFixture.create({ timeoutMs: 20000, env: {
     SKYNET_SCOUT: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0', SKYNET_THREAD_MINE: '0',
     OPENROUTER_KEY: key, OPENROUTER_API_KEY: key, SKYNET_OPENROUTER_BASE: base + '/router',
-    SKYNET_FALLBACK_MODELS: 'gpt-5.4', SKYNET_FULL_ACCESS: '0', STARNET_FULL_ACCESS: '0'
+    SKYNET_FALLBACK_MODELS: 'gpt-5.4', SKYNET_FULL_ACCESS: '0', STARNET_FULL_ACCESS: '0', STARNET_IPC_TOKEN: IPC
   } });
+  /* The Codex mock reaches the station the way the desktop hands it an endpoint: the token-gated runtime push. A per-run
+     endpoint never redirects a sign-in (providerRuntimeBaseUrl), and a sign-in's endpoint is not kept across a restart
+     (keptEndpointProvider), so every boot pushes it again — no step of this test can dial chatgpt.com. */
+  async function pushCodexEndpoint() {
+    const r = await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'codex', baseUrl: base + '/codex' }) });
+    assert.equal(r.status, 200, await r.text());
+  }
+  async function restart() { await fixture.restart(); await pushCodexEndpoint(); }
   const jwt = ['eyJhbGciOiJub25lIn0', Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 86400 })).toString('base64url'), 'synthetic'].join('.');
   fs.mkdirSync(path.join(fixture.workspace, 'codex'), { recursive: true });
   fs.writeFileSync(path.join(fixture.workspace, 'codex/tokens.json'), JSON.stringify({ access_token: jwt, refresh_token: 'synthetic-refresh', auth_mode: 'device' }));
   async function run(extra = {}) {
     calls = [];
-    const r = await fixture.json('POST', '/api/run', { provider: 'codex', model: 'gpt-5.5', baseUrl: base + '/codex', agentId: 'agent', internal: true, isTask: true, messages: [{ role: 'user', content: 'Return a short fixture acknowledgement.' }], ...extra });
+    const r = await fixture.json('POST', '/api/run', { provider: 'codex', model: 'gpt-5.5', agentId: 'agent', internal: true, isTask: true, messages: [{ role: 'user', content: 'Return a short fixture acknowledgement.' }], ...extra });
     assert.equal(r.status, 200, r.text);
     return r.text.trim().split('\n').map(x => JSON.parse(x));
   }
   try {
-    await fixture.start();
+    await fixture.start(); await pushCodexEndpoint();
     const saved = await fixture.json('POST', '/api/fallback/chain', { models: ['z-ai/glm-5.3-flash'] });
     assert.equal(saved.status, 200, saved.text);
     for (let boot = 0; boot < 2; boot++) {
-      if (boot) await fixture.restart();
+      if (boot) await restart();
       const events = await run();
       assert.ok(calls.some(c => c.url === '/codex/responses'), 'actual Codex quota failure');
       assert.ok(calls.some(c => c.url === '/router/chat/completions' && c.model === 'z-ai/glm-5.3-flash' && c.auth === 'Bearer ' + key), 'saved OpenRouter fallback uses its own endpoint, model and credential');
@@ -53,6 +62,12 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       assert.equal(row.unmetered, false, 'paid fallback is not labeled as a Codex subscription run');
       assert.equal(row.usd, 0.012, 'actual OpenRouter spend retained');
     }
+    // a per-run endpoint never redirects a sign-in: the one this body names is not dialled, the run goes to the station's
+    // Codex endpoint (the push), and it says the named one was not used
+    const named = await run({ baseUrl: base + '/named' });
+    assert.ok(calls.some(c => c.url === '/codex/responses'), 'the sign-in ran on the station\'s Codex endpoint');
+    assert.ok(!calls.some(c => c.url.startsWith('/named/')), 'the endpoint the run named was never dialled');
+    assert.ok(named.some(e => e.name === 'agent.run.start' && (e.payload.notices || []).some(n => /the endpoint this run named was not used/.test(n))), 'the run says the endpoint it named was not used');
     await run({ fallbackModels: ['gpt-5.4'] });
     assert.ok(calls.some(c => c.url === '/codex/responses' && c.model === 'gpt-5.4'), 'explicit model override stays on primary provider');
     assert.ok(!calls.some(c => c.url.startsWith('/router/')), JSON.stringify(calls.map(c => ({ url: c.url, model: c.model }))));
@@ -62,18 +77,18 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     await run(); assert.ok(calls.some(c => c.model === 'gpt-5.4' && c.url === '/codex/responses'), 'environment default retains primary provider');
     await fixture.json('POST', '/api/fallback/chain', { models: ['z-ai/glm-5.3-flash'] });
     fixture.env.SKYNET_BUDGET_PER_RUN = '0.005';
-    await fixture.restart(); mode = 'cost';
+    await restart(); mode = 'cost';
     const capped = await run();
     assert.equal(capped.findLast(e => e.name === 'agent.run.end')?.payload.reason, 'budget', 'paid fallback activates the opted-in dollar ceiling');
     assert.equal(calls.filter(c => c.url.startsWith('/router/')).length, 1, 'no second paid turn after the cap');
     fixture.env.SKYNET_BUDGET_PER_RUN = '0'; fixture.env.SKYNET_MAX_UNPRICED_TOKENS = '10';
-    await fixture.restart(); mode = 'unpriced';
+    await restart(); mode = 'unpriced';
     const unpriced = await run();
     assert.equal(unpriced.findLast(e => e.name === 'agent.run.end')?.payload.reason, 'budget', 'paid fallback activates the unpriced-token ceiling');
     assert.equal(calls.filter(c => c.url.startsWith('/router/')).length, 1, 'unpriced fallback is bounded');
     mode = 'text';
     fixture.env.OPENROUTER_KEY = ''; fixture.env.OPENROUTER_API_KEY = '';
-    await fixture.restart();
+    await restart();
     const missing = await run();
     assert.ok(!calls.some(c => c.url.startsWith('/router/')), 'missing OpenRouter credential cannot borrow Codex authentication');
     assert.equal(missing.findLast(e => e.name === 'agent.run.end')?.payload.reason, 'error', 'unavailable fallback leaves an honest error');

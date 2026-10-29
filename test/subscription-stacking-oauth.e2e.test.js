@@ -24,6 +24,7 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const jwt = (who) => 'fixture.' + Buffer.from(JSON.stringify({ exp: 4102444800, 'https://api.openai.com/profile': { email: who + '@example.test' } })).toString('base64url') + '.fixture';
 const PRIMARY = jwt('primary'), EXTRA = jwt('extra');
 const ACCT = 'abcdef12';
+const IPC = 'subscription-stacking-oauth-ipc-token-1234567890';
 
 function startMock() {
   const calls = [];
@@ -104,16 +105,27 @@ function boot(port, env, attemptsLeft) {
   fs.writeFileSync(path.join(grokDir, 'account.json'), JSON.stringify({ id: 'feed1234', seq: 1 }));
   fs.writeFileSync(path.join(grokDir, 'tokens.json'), JSON.stringify(Object.assign({ access_token: 'GROK-B', refresh_token: 'grok-rb' }, grokLife)));
 
-  let { child, port } = await boot(await allocatePort(), { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20);
+  const env = { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0', STARNET_IPC_TOKEN: IPC };
+  let { child, port } = await boot(await allocatePort(), env, 20);
   const B = () => `http://${HOST}:${port}`;
+  /* The mock reaches the station the way the desktop hands it an endpoint: the token-gated runtime push. A per-run
+     endpoint never redirects a sign-in (providerRuntimeBaseUrl), and a sign-in's endpoint is not kept across a restart
+     (keptEndpointProvider), so every boot pushes Codex's and Grok's again — no run here can dial chatgpt.com or api.x.ai. */
+  const pushEndpoints = async () => {
+    for (const [provider, baseUrl] of [['codex', mock.base], ['grok', mock.base + '/grok']]) {
+      const r = await fetch(B() + '/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC, Origin: B() }, body: JSON.stringify({ provider, baseUrl }) });
+      A.eq(r.status, 200, 'the ' + provider + ' mock endpoint is pushed to the station');
+    }
+  };
   try {
     let token = await bootToken(B(), B());
+    await pushEndpoints();
     const H = () => ({ 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B() });
     const get = async (p) => (await fetch(B() + p, { headers: H() })).json();
     const post = async (p, body) => (await fetch(B() + p, { method: 'POST', headers: H(), body: JSON.stringify(body || {}) })).json();
     const run = async (marker) => {
       const r = await fetch(B() + '/api/run', { method: 'POST', headers: H(),
-        body: JSON.stringify({ provider: 'codex', model: 'gpt-5.5', baseUrl: mock.base, agentId: 'stacking-oauth-e2e', isTask: false, messages: [{ role: 'user', content: marker }] }) });
+        body: JSON.stringify({ provider: 'codex', model: 'gpt-5.5', agentId: 'stacking-oauth-e2e', isTask: false, messages: [{ role: 'user', content: marker }] }) });
       A.eq(r.status, 200, marker + ' streams through the real /api/run route');
       return await r.text();
     };
@@ -134,7 +146,7 @@ function boot(port, env, attemptsLeft) {
 
     // Grok: the same rotation through the generic device-OAuth account keeper
     const g = await fetch(B() + '/api/run', { method: 'POST', headers: H(),
-      body: JSON.stringify({ provider: 'grok', model: 'grok-4', baseUrl: mock.base + '/grok', agentId: 'stacking-grok-e2e', isTask: false, messages: [{ role: 'user', content: 'STACK-OAUTH-GROK' }] }) });
+      body: JSON.stringify({ provider: 'grok', model: 'grok-4', agentId: 'stacking-grok-e2e', isTask: false, messages: [{ role: 'user', content: 'STACK-OAUTH-GROK' }] }) });
     const gt = await g.text();
     A.eq(mock.calls.filter(c => c.marker === 'STACK-OAUTH-GROK').map(c => c.who), ['GROK-A', 'GROK-B'], 'Grok: the spent primary, then account 2');
     A.ok(/"toAccount":"account 2"/.test(gt) && gt.includes('answered by grok account 2'), 'Grok run finished on account 2');
@@ -144,8 +156,9 @@ function boot(port, env, attemptsLeft) {
     A.eq((await post('/api/auth/codex/logout')).connected, false, 'the primary signs out');
     try { child.kill(); } catch (_) {}
     await new Promise(r => setTimeout(r, 300));
-    ({ child, port } = await boot(await allocatePort(), { SKYNET_WORKSPACES: workspace, SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0' }, 20));
+    ({ child, port } = await boot(await allocatePort(), env, 20));
     token = await bootToken(B(), B());
+    await pushEndpoints();
     await run('STACK-OAUTH-THIRD');
     A.eq(whoRan('STACK-OAUTH-THIRD'), ['extra'], 'with the primary signed out, the run goes straight to the connected account');
 
