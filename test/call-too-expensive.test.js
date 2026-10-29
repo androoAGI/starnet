@@ -89,6 +89,10 @@ function relayErr(text, extraBody) {
   // no status in the text (an in-band relay message): the message ladder still finds it
   A.eq(F.friendlyError(new Error(RELAY_TEXT)).kind, 'call_too_expensive', 'browser ladder with no status');
   A.eq(F._internals.kindFromRaw('openrouter http 400 — bad request', null), 'unknown', 'a plain 400 is unchanged');
+  // ---- 6. the door matches the copy: it says pick a cheaper model from the model dock, so the button opens the dock ----
+  A.ok(/model dock/.test(v.userMessage) && /model dock/.test(F.KINDS.call_too_expensive.msg), 'the copy (and its fallback) names the model dock');
+  A.eq(F.actionButton(v).label, '▸ PICK A MODEL', 'browser: the button opens the model dock, not AI & MODELS');
+  A.eq(require('../frontend/app/friendlyerror.js').actionButton(friendlyError(relayErr(RELAY_TEXT))).label, '▸ PICK A MODEL', 'node: the same door');
 }
 
 A.report('call-too-expensive');

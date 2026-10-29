@@ -61,7 +61,7 @@ const EARLY_ACCESS = true;
 /* SIGN-IN HELD. Early access works for SENSITIVE services because Google shows its unverified-app warning with an
    Advanced way through. For a RESTRICTED service Google shows "This app is blocked" with no way through until the
    app is verified AND assessed (every account tried, personal and Workspace: GitHub #148, Drive report E08). A
-   SIGN IN button there can only ever reach that block, so the card holds it and names what works now. This holds
+   SIGN IN button there can only ever reach that block, so the card holds it and names the alternative to try. This holds
    NEW sign-ins only: a saved connection is not deferred by it. Review/test builds (RELEASE_DEFERRED false) and a
    service released through RELEASED are never held. */
 const HELD_USE = Object.freeze({
@@ -75,10 +75,11 @@ function signInHeld(cfg) {
 }
 function heldUse(cfg) { return HELD_USE[serviceOf(cfg)] || null; }
 // useWorks: the caller's verdict on the alternative in THIS build (Selected Google files needs encrypted storage) —
-// the line only says "works now" when it does.
+// the line only points to it when this build can connect it, and never says it works (that the card exists proves
+// nothing about the account: GitHub #148, on v0.13.5, reports the app-password route failing too).
 function heldMessage(cfg, useWorks) {
   const s = SERVICES[serviceOf(cfg)], use = heldUse(cfg);
-  return 'Google blocks StarNet’s ' + (s ? s.name : 'Google') + ' sign-in until StarNet passes Google’s review.' + (use && useWorks !== false ? ' ' + use.name + ' works now.' : '');
+  return 'Google blocks StarNet’s ' + (s ? s.name : 'Google') + ' sign-in until StarNet passes Google’s review.' + (use && useWorks !== false ? ' Meanwhile you can try ' + use.name + ' instead.' : '');
 }
 function loadEarlyAccess({ readFile }) {
   try { return JSON.parse(readFile() || '{}').earlyAccess === true; }
