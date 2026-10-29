@@ -98,11 +98,15 @@ A.ok(!build({}).providerHasCredential('custom', 'k', ''), 'a base-URL provider w
   const b = text.indexOf('Restore EVERY saved connector into the manager', a);
   A.ok(a > 0 && b > a, 'found the boot channel auto-start block');
   const boot = text.slice(a, b);
-  for (const [ch, re] of [['telegram', /t\.enabled && tgTok && t\.model && providerHasStoredCredential\(t\.provider/],
-    ['discord', /d\.enabled && dcTok && d\.model && providerHasStoredCredential\(d\.provider/],
-    ['generic', /r\.enabled && authOk && r\.model && providerHasStoredCredential\(r\.provider/]])
+  // a channel saved with no model of its own (it follows its agent) is judged on that agent's live pair, still on the
+  // STORED credential (channelFollowsReady, run-wire.invariant runs it)
+  for (const [ch, re] of [['telegram', /t\.enabled && tgTok && \(t\.model \? providerHasStoredCredential\(t\.provider[^\n]*: channelFollowsReady\(t\)\)/],
+    ['discord', /d\.enabled && dcTok && \(d\.model \? providerHasStoredCredential\(d\.provider[^\n]*: channelFollowsReady\(d\)\)/],
+    ['generic', /r\.enabled && authOk && \(r\.model \? providerHasStoredCredential\(r\.provider[^\n]*: channelFollowsReady\(r\)\)/]])
     A.ok(re.test(boot), 'boot auto-start of the ' + ch + ' channel gates on the STORED credential');
   A.ok(!/providerHasCredential\(/.test(boot), 'no boot channel gate reads the live verdict');
+  const follows = sidecarFunctionSource('channelFollowsReady');
+  A.ok(/providerHasStoredCredential\(/.test(follows) && !/providerHasCredential\(/.test(follows), "a model-less channel's boot gate reads the STORED credential too");
   for (const fn of ['startTelegram', 'startDiscord', 'startGenericChannel']) {
     const s = sidecarFunctionSource(fn);
     A.ok(/secrets: \(\) => \{[\s\S]*?configured: providerHasCredential\([^)]*\), error: expiredSignInNote\(/.test(s), fn + '\'s hub secrets carry the expired-sign-in note');

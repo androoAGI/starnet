@@ -3241,6 +3241,21 @@ function stationHubConnectError(agentId, snap) {
     + (cfg.error || 'choose a model for it in Settings → Providers')
     + ". Fix that, or connect the bot as an agent this station can run (a floor route to another agent covers only the messages it routes; the rest run the bot's default agent)";
 }
+/* A CHANNEL SAVED WITHOUT A MODEL of its own (connected while its agent follows the station default: the connect gate
+   proves the pair its messages run, and the page may send no model) comes back after a restart, and after an owner revoke,
+   when that pair still resolves NOW: the bot's default agent's live pair (runWireFor; the roster is restored from disk
+   before the channels start) with a STORED credential — the boot's own leniency, so a sign-in recorded dead still starts
+   the bot, as it does for a channel with a saved model. Requiring the record's own model kept such a channel offline
+   after every restart, and the revoke stopped it. A channel with a saved model is judged as before. */
+function channelFollowsReady(rec) {
+  const r = rec || {};
+  const wire = runWireFor(String(r.agentId || '').trim() || 'agent');
+  if (!wire.ok) return false;
+  const provider = normalizeProvider(wire.provider);
+  const same = provider === normalizeProvider(r.provider);   // the record's credential serves only its own provider
+  const key = providerRuntimeKey(provider, same ? String(r.key || '') : '');
+  return providerHasStoredCredential(provider, key, providerRuntimeBaseUrl(provider, same ? String(r.baseUrl || r.base_url || '') : '', key));
+}
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
    or its poller is announced as usable. Catalog probes are insufficient (OpenRouter's catalog is public), so the
@@ -13200,7 +13215,8 @@ server.listen(PORT, '127.0.0.1', () => {
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
     // the STORED credential (providerHasStoredCredential), like Discord and the generic channels below: a sign-in recorded
     // dead still starts the bot, which answers with the expired-sign-in error and runs again once the Commander reconnects
-    if (t.enabled && tgTok && t.model && providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || ''))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
+    // a channel saved with no model of its own (its agent follows the station default) is judged on that live pair
+    if (t.enabled && tgTok && (t.model ? providerHasStoredCredential(t.provider, providerRuntimeKey(t.provider, t.key || ''), providerRuntimeBaseUrl(t.provider, t.baseUrl || t.base_url || '')) : channelFollowsReady(t))) { startTelegram(tgTok, t.key || '', t.model, { agentId: t.agentId, system: t.system, name: t.name, provider: t.provider, baseUrl: t.baseUrl || t.base_url || '', reasoningEffort: t.reasoningEffort }); console.log('  · telegram auto-started from saved config'); }
     else if (channelTokenRuntime.telegram && envKey && envModel) { startTelegram(channelTokenRuntime.telegram, envKey, envModel, {}); console.log('  · telegram auto-started from env'); }
   } catch (e) { console.warn('[channels] telegram auto-start failed:', (e && e.message) || e); }
   // multi-bot telegram: auto-start every saved+enabled agent-bound bot (each fails independently — one bad
@@ -13217,7 +13233,7 @@ server.listen(PORT, '127.0.0.1', () => {
     const dcTok = channelToken('discord', '', d);   // keychain/runtime token (desktop) or the plaintext record (bare)
     const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
     const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-    if (d.enabled && dcTok && d.model && providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || ''))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
+    if (d.enabled && dcTok && (d.model ? providerHasStoredCredential(d.provider, providerRuntimeKey(d.provider, d.key || ''), providerRuntimeBaseUrl(d.provider, d.baseUrl || d.base_url || '')) : channelFollowsReady(d))) { startDiscord(dcTok, d.key || '', d.model, { agentId: d.agentId, system: d.system, name: d.name, provider: d.provider, baseUrl: d.baseUrl || d.base_url || '', reasoningEffort: d.reasoningEffort }); console.log('  · discord auto-started from saved config'); }
     else if (channelTokenRuntime.discord && envKey && envModel) { startDiscord(channelTokenRuntime.discord, envKey, envModel, {}); console.log('  · discord auto-started from env'); }
   } catch (e) { console.warn('[channels] discord auto-start failed:', (e && e.message) || e); }
   // same auto-start for the generic channels (slack/matrix/signal): a previously-connected saved config, else an
@@ -13229,7 +13245,7 @@ server.listen(PORT, '127.0.0.1', () => {
       const authOk = gid === 'signal' ? !!(r.endpoint && r.account) : gid === 'matrix' ? !!(tok && r.endpoint) : !!tok;
       const envKey = String(ENV('OPENROUTER_KEY') || '').trim();
       const envModel = String(ENV('DEFAULT_MODEL') || '').trim();
-      if (r.enabled && authOk && r.model && providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || ''))) {
+      if (r.enabled && authOk && (r.model ? providerHasStoredCredential(r.provider, providerRuntimeKey(r.provider, r.key || ''), providerRuntimeBaseUrl(r.provider, r.baseUrl || r.base_url || '')) : channelFollowsReady(r))) {
         startGenericChannel(gid, tok, r.key || '', r.model, { agentId: r.agentId, system: r.system, name: r.name, provider: r.provider, baseUrl: r.baseUrl || r.base_url || '', reasoningEffort: r.reasoningEffort, endpoint: r.endpoint, account: r.account });
         console.log('  · ' + gid + ' auto-started from saved config');
       } else if (gid !== 'signal' && channelTokenRuntime[gid] && envKey && envModel && (gid !== 'matrix' || r.endpoint)) {
@@ -26979,7 +26995,7 @@ async function handleTelegramOwnerPair(req, res) {
 function restartTelegramAfterOwnerRevoke(rec) {
   if (!telegram) return;
   const token = channelToken('telegram', '', rec);
-  if (!token || !rec.model) { stopTelegram(); return; }
+  if (!token || !(rec.model || channelFollowsReady(rec))) { stopTelegram(); return; }   // a model-less channel follows its agent's live pair
   const provider = normalizeProvider(rec.provider);
   const key = providerUsesCodex(provider) ? '' : providerRuntimeKey(provider, rec.key || '');
   startTelegram(token, key, rec.model, Object.assign({}, rec, { ownerId: '', ownerPairing: undefined }));

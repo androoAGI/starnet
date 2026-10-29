@@ -82,6 +82,7 @@ function makeHost(sc) {
     providerRuntimeKey: (id, explicit) => String(explicit || '') || ((normalizeProviderId(id) || 'openrouter') === 'openrouter' ? (sc.env.orKey || '') : ''),
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
+    providerHasStoredCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
     providerCredentialError: id => 'connect ' + id,
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',
@@ -91,7 +92,7 @@ function makeHost(sc) {
   // every resolution helper any version declares; null for one this version does not have
   const names = ['runWireEnv', 'runWireFor', 'runWireOfRun', 'routineWireOf', 'cronWireFor', 'stationDefaultFor', 'cronIdentityFor',
     'cronModelFor', 'cronProviderFor', 'channelRunConfigFor', 'stationHubRunConfig', 'rosterWireRows', 'handleRuntimeAgent',
-    'v1WireFor', 'devHubSecrets', 'sampleRunConfigFor', 'stationHubConnectError'];
+    'v1WireFor', 'devHubSecrets', 'sampleRunConfigFor', 'stationHubConnectError', 'channelFollowsReady'];
   const body = names.map(n => sidecarFunctionSource(n)).join('\n') + '\nreturn {' + names.map(n => n + ': typeof ' + n + " === 'function' ? " + n + ' : null').join(', ') + '};';
   const fns = new Function(...Object.keys(deps), body)(...Object.values(deps));
   return Object.assign({ deps, agentRoster }, fns);
@@ -497,6 +498,38 @@ function expect(entry, sc, agentId, got, opts) {
     }
     A.ok(/\*\/\nfunction stationHubConnectError\(/.test(SRC) && /THE CONNECT GATE[^]*?\*\/\nfunction stationHubConnectError\(/.test(SRC.slice(SRC.indexOf('/* THE CONNECT GATE'))),
       'the CONNECT GATE note sits directly above stationHubConnectError');
+  }
+
+  // ================================================ a channel connected WITHOUT a model, after a restart ================
+  // The gate above passes a channel whose agent follows the station default though the page sent no model, and the record
+  // then holds model ''. The boot auto-start (each channel's own condition, executed) and the owner-revoke restart must
+  // bring it back while that live pair still runs — and still refuse one whose agent can no longer run.
+  {
+    const boot = SRC.slice(SRC.indexOf('auto-start a previously-connected Telegram bot'), SRC.indexOf('Restore EVERY saved connector into the manager'));
+    const conds = [['telegram', /if \((t\.enabled && tgTok && .+?)\) \{ startTelegram\(/, 't', 'tgTok'], ['discord', /if \((d\.enabled && dcTok && .+?)\) \{ startDiscord\(/, 'd', 'dcTok'],
+      ['generic', /if \((r\.enabled && authOk && .+?)\) \{\n/, 'r', 'authOk']];
+    const revoke = sidecarTopLevelFunction('restartTelegramAfterOwnerRevoke');
+    A.ok(revoke.length > 50, 'fixture: the owner-revoke restart is declared');
+    for (const [label, sc, rec, want] of [
+      ['an agent that follows the station default', 'A', { enabled: true, model: '', provider: 'openrouter', key: '', agentId: 'scout' }, true],
+      ['the Overseer, no model saved', 'A', { enabled: true, model: '', provider: 'openrouter', agentId: '' }, true],
+      ['an agent pinned to a provider with no credential', 'A', { enabled: true, model: '', provider: 'openrouter', agentId: 'claude' }, false],
+      ['a saved model, as before', 'A', { enabled: true, model: 'x/y', provider: 'openrouter', agentId: 'scout' }, true],
+      ['a station with no model anywhere', 'B0', { enabled: true, model: '', provider: 'openrouter', agentId: 'scout' }, false]]) {
+      const host = sc === 'B0' ? makeHost({ roster: { scout: { name: 'SCOUT', model: null, provider: '' } }, env: {}, codex: false, want: {} }) : makeHost(SCENARIOS[sc]);
+      host.agentRoster.set('claude', { name: 'CLAUDE', system: 'C', model: 'claude-x', provider: 'anthropic' });
+      const d = Object.assign({}, host.deps, { channelFollowsReady: host.channelFollowsReady });
+      for (const [ch, re, recName, tokName] of conds) {
+        const m = re.exec(boot);
+        A.ok(!!m, 'fixture: the ' + ch + ' boot auto-start condition is found');
+        const starts = !!(m && new Function(...Object.keys(d), recName, tokName, 'return (' + m[1] + ');')(...Object.values(d), rec, 'tok'));
+        A.eq(starts, want, 'boot auto-start of the ' + ch + ' channel saved by ' + label + ': ' + (want ? 'starts' : 'stays off'));
+      }
+      let restarted = null;
+      new Function(...Object.keys(d), 'telegram', 'channelToken', 'stopTelegram', 'startTelegram', revoke + '\nreturn restartTelegramAfterOwnerRevoke;')(
+        ...Object.values(d), {}, () => 'tok', () => { restarted = false; }, () => { restarted = true; })(rec);
+      A.eq(restarted, want, 'the owner revoke ' + (want ? 'restarts' : 'stops') + ' the Telegram bot saved by ' + label);
+    }
   }
 
   // ================================================ the verdict, per entry point ========================================
