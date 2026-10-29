@@ -2852,16 +2852,21 @@ function runWireFor(agentId, explicit, fallbacks) {
     fallbacks: fallbacks || [], env: runWireEnv(), normalizeProvider: normalizeProviderId
   });
 }
-// A RUN's pair, as runOnceCore resolves it (and the voice route it must agree with): the caller's own {provider, model} is
-// the explicit level, labelled with the source the caller resolved it from (o.wireSource) when it did the resolving itself.
-// A pair the caller sent unlabelled that IS this agent's own wire (COMMS sends the station default for an unpinned agent)
-// is recorded under that wire's source, so the run row says 'station' rather than 'explicit' for the same pair.
+// A RUN's pair AND effort, as runOnceCore resolves them (and the voice route it must agree with): the caller's own
+// {provider, model} is the explicit level, labelled with the source the caller resolved it from (o.wireSource) when it did
+// the resolving itself; the caller's own per-run effort (reasoningEffort, or the reasoning_effort / reasoning.effort shapes)
+// is that level's effort, the first rung of the ONE effort rule (run-wire.js). A pair the caller sent unlabelled that IS
+// this agent's own wire (COMMS sends the station default for an unpinned agent) is recorded under that wire's source, so the
+// run row says 'station' rather than 'explicit' for the same pair; a LABELLED caller's pair that is the agent's own wire
+// (/v1, group turns, a worker: wireSource 'station' and no effort) keeps that wire's effort (own.reasoningEffort).
 function runWireOfRun(o) {
   const r = o || {};
-  const own = runWireFor(r.agentId);
+  const effort = String(r.reasoningEffort || r.reasoning_effort || (r.reasoning && r.reasoning.effort) || '').trim();
+  const own = runWireFor(r.agentId, effort ? { source: 'explicit', reasoningEffort: effort } : null);
   if (!(r.provider || r.model)) return own;
-  const sent = runWireFor(r.agentId, { source: r.wireSource || 'explicit', provider: r.provider || '', model: r.model || '' });
-  return (!r.wireSource && own.ok && sent.provider === own.provider && sent.model === own.model) ? own : sent;
+  const sent = runWireFor(r.agentId, { source: r.wireSource || 'explicit', provider: r.provider || '', model: r.model || '', reasoningEffort: effort || undefined });
+  if (!(own.ok && sent.provider === own.provider && sent.model === own.model)) return sent;
+  return r.wireSource ? Object.assign({}, sent, { reasoningEffort: own.reasoningEffort }) : own;
 }
 /* READOUTS: each roster agent with the pair its runs really go out on (run-wire.js) — what a chat's /agents, /whoami and
    /model, the phone's agent list, group participants and /v1/models show. A raw row's empty model means "follows the
@@ -2873,11 +2878,19 @@ function rosterWireRows(tag) {
     return { agentId, name: a.name, model, provider: w.provider || null, wireSource: w.source };
   });
 }
-// A routine's own saved pair is its explicit level (cron-store stores it only as a pair — pairCronJobWires below).
+// A routine's own saved model (and provider) is its explicit level: a bare model borrows its provider at run time, and a
+// provider alone is never stored (pairCronJobWires below).
 function routineWireOf(job) {
   return (job && (job.model || job.provider)) ? { source: 'routine', provider: job.provider || '', model: job.model || '' } : null;
 }
 function cronWireFor(job) { return runWireFor(job && job.agentId, routineWireOf(job)); }
+// the READOUT of a routine's resolved pair (GET /api/cron, routine.list): null for a script-only routine, which never calls
+// a model — a pair there would claim a run that never happens
+function routineWireRow(job) {
+  if (!job || job.noAgent === true) return null;
+  const w = cronWireFor(job);
+  return { provider: w.provider || null, model: w.model || null, source: w.source };
+}
 function cronIdentityFor(agentId) {
   const id = String(agentId || 'agent');
   const ident = agentRoster.get(id);
@@ -2890,7 +2903,7 @@ function cronIdentityFor(agentId) {
     model: wire.model || null,
     provider: wire.provider || null,
     followsStation: wire.followsStation,
-    reasoningEffort: wire.followsStation ? wire.reasoningEffort : undefined,
+    reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (run-wire.js): its own, else the station's when it follows
     wireSource: wire.source,
     system: system ? withDossier(system + CRON_ROUTINE_NOTE, dossierWithGoals()) : null,
     name: ident.name || id
@@ -3183,6 +3196,26 @@ function stationHubRunConfig(agentId, snap) {
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
   return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
+}
+/* THE CONNECT GATE (Telegram, Discord, the generic channels): prove the pair the channel's messages will REALLY run —
+   stationHubRunConfig, the configured agent's live pair (run-wire.js) — never the snapshot the page handed. That snapshot
+   is the GLOBAL wire (the focused agent's pin): gating on it refused an agent that follows the station default when the
+   page sent no model, and passed a channel whose agent runs on a provider this station holds no credential for — the
+   DMs then failed on a pair the connect never checked. Returns null when the channel can run, else the honest error. */
+/* THE /v1 PAIR (openai-compat resolveWire). A request that selects a ROSTER agent (its id or name in `model`) runs that
+   agent's own pair, the one it runs on every surface. The GENERIC target ('starnet-agent', or a value that matches no
+   agent; its run agent is an ephemeral or session id that is not on the roster) runs STARNET_V1_MODEL when the operator set
+   it explicitly — on STARNET_V1_PROVIDER, default openrouter — and otherwise the station default every unpinned agent
+   follows, then the environment rule (STARNET_DEFAULT_MODEL on OpenRouter; on a ChatGPT-only station, ChatGPT's own
+   default model). `matched` is openai-compat's target.matched. docs/OPENAI_COMPAT.md says the same. */
+function v1WireFor(agentId, matched) {
+  const v1Model = String(ENV('V1_MODEL') || '').trim();
+  if (!matched && v1Model) return runWireFor(agentId, { source: 'env', provider: String(ENV('V1_PROVIDER') || '').trim() || 'openrouter', model: v1Model });
+  return runWireFor(agentId);
+}
+function stationHubConnectError(agentId, snap) {
+  const cfg = stationHubRunConfig(String(agentId || '').trim() || 'agent', snap);
+  return cfg.ok ? null : (cfg.error || 'connect your agent first — choose a model in Settings → Providers');
 }
 
 /* Prove the exact provider/model/credential tuple a channel bot will use BEFORE its Telegram token is persisted
@@ -6767,7 +6800,7 @@ function loadCronJobs() {
       console.warn('[cron] repaired routine ' + h.id + ' toolset list ' + JSON.stringify(h.from) + ' -> ' + JSON.stringify(h.to) +
         (h.dropped.length ? ' (dropped unknown ' + JSON.stringify(h.dropped) + ')' : ''));
     }
-    // the routine's {provider, model} is stored WHOLE (pairCronJobWires): the same load the toolset repair rides
+    // a routine never stores a provider without a model (pairCronJobWires): the same load the toolset repair rides
     const wires = pairCronJobWires(repaired.jobs);
     cronWiresPairedOnLoad = wires.changed;
     repaired.jobs = wires.jobs;
@@ -6777,26 +6810,34 @@ function loadCronJobs() {
     return Array.isArray(cronJobs) ? cronJobs : [];
   }
 }
-/* ROUTINES STORE THEIR PAIR WHOLE (run-wire-resolver lane). A routine holding HALF a pair — a model with no provider, or a
-   provider with no model (an older routine form stamped the station's provider; routine.create/manage can pass either
-   alone) — ran a tuple the fire path assembled field by field. Normalised on every load and every write, through the one
-   resolver (RunWire.pairSavedWire): a bare model is paired with the provider it has been running on (its agent's resolved
-   provider), so the tuple it ran is the tuple it keeps, now stated; a bare provider named no model, so it is cleared and
-   the routine follows its agent. NOTHING IS LOST: the record keeps what it held in wireMigration { at, was, now, reason }
-   (an earlier note rides on as `previous`), and each routine's change is logged once per boot. A script-only routine
-   never calls a model and is left as it is. Deterministic for the same roster and environment. */
+/* ROUTINES NEVER STORE A PROVIDER WITHOUT A MODEL (run-wire-resolver lane). An older routine form stamped the station's
+   provider onto a routine with no model of its own, and routine.create/manage could pass a provider alone; the fire path
+   then ran the agent's model on that provider, field by field. A provider names no model, so it never pinned anything:
+   normalised on every load and every write through the one resolver (RunWire.pairSavedWire), it is cleared and the routine
+   follows its agent. A routine with a MODEL and no provider is left exactly as it is: resolveRunWire borrows the provider
+   at run time (its agent's, else the station's), so it follows a station provider switch as it always has — nothing is
+   stamped, and a boot with an empty or lost roster can never freeze it on the environment's provider. NOTHING IS LOST:
+   the record keeps what it held in wireMigration { at, was, now, reason, previous: [earlier whole notes, newest first,
+   at most CRON_WIRE_NOTES_KEPT] }, and each routine's change is logged once per boot. A script-only routine never calls a
+   model and is left as it is. Deterministic for the same input. */
 let cronWiresPairedOnLoad = 0;
 const cronWirePairNoted = new Set();
+const CRON_WIRE_NOTES_KEPT = 5;
 function pairCronJobWires(jobs) {
   let changed = 0;
   if (!Array.isArray(jobs)) return { jobs, changed };   // not a job list: handed back untouched, never replaced
   const out = jobs.map(j => {
     if (!j || typeof j !== 'object' || j.noAgent === true) return j;
-    const r = RunWire.pairSavedWire({ provider: j.provider, model: j.model }, runWireFor(j.agentId));
+    const r = RunWire.pairSavedWire({ provider: j.provider, model: j.model });
     if (!r.changed) return j;
     changed++;
     const note = { at: new Date().toISOString(), was: { provider: j.provider || null, model: j.model || null }, now: { provider: r.provider, model: r.model }, reason: r.reason };
-    if (j.wireMigration && typeof j.wireMigration === 'object') note.previous = { at: j.wireMigration.at || null, was: j.wireMigration.was || null };
+    if (j.wireMigration && typeof j.wireMigration === 'object') {
+      // the earlier notes ride on WHOLE (bounded): the last one and the ones it carried, newest first
+      const prior = Object.assign({}, j.wireMigration); delete prior.previous;
+      const older = Array.isArray(j.wireMigration.previous) ? j.wireMigration.previous : (j.wireMigration.previous ? [j.wireMigration.previous] : []);
+      note.previous = [prior].concat(older).filter(n => n && typeof n === 'object').slice(0, CRON_WIRE_NOTES_KEPT);
+    }
     if (!cronWirePairNoted.has(j.id)) {
       cronWirePairNoted.add(j.id);
       console.warn('[run-wire] routine ' + j.id + ' (' + (j.name || 'unnamed') + ') stored half a pair ' + JSON.stringify(note.was) + ' -> ' + JSON.stringify(note.now) + ': ' + r.reason);
@@ -6812,9 +6853,9 @@ if (cronToolsetsRepairedOnLoad) {
   try { saveCronJobs(); console.warn('[cron] saved the repaired toolset list of ' + cronToolsetsRepairedOnLoad + ' routine(s)'); }
   catch (e) { console.warn('[cron] toolset repair persist failed (re-applied on every load until a write lands):', (e && e.message) || e); }
 }
-// ...and a load-time wire pairing the same way (a failed write re-applies on every load, with the same result)
+// ...and a load-time provider clearing the same way (a failed write re-applies on every load, with the same result)
 if (cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad) {
-  try { saveCronJobs(); console.warn('[run-wire] saved the paired {provider, model} of ' + cronWiresPairedOnLoad + ' routine(s)'); }
+  try { saveCronJobs(); console.warn('[run-wire] saved the cleared provider-only {provider, model} of ' + cronWiresPairedOnLoad + ' routine(s)'); }
   catch (e) { failNote('run-wire.routinePair.persist', e); }   // re-applied on every load until a write lands
 }
 /* W6 ONE-TIME SWEEP — on boot, collapse any accidental double-mints (jobs identical in agentId + normalized name
@@ -6972,7 +7013,7 @@ const CRON_WRITE_RETRY_MS = 3;
 async function withCronWrite(mutate) {
   const run = () => {
     const prior = cronJobs;
-    cronJobs = pairCronJobWires(mutate(loadCronJobs())).jobs;   // a write that leaves half a {provider, model} pair stores it whole (pairCronJobWires)
+    cronJobs = pairCronJobWires(mutate(loadCronJobs())).jobs;   // a write never stores a provider without a model (pairCronJobWires)
     try { saveCronJobs(); }
     catch (e) {
       try { cronJobs = loadCronJobs(); } catch (_) { cronJobs = prior; }
@@ -11457,12 +11498,15 @@ function devCaptureReply(chatId, text) {
   while (devReplies.size > DEV_REPLIES_MAX_CHATS) devReplies.delete(devReplies.keys().next().value);
   return Promise.resolve({ ok: true });
 }
+// the dev hub's roster-less config: the ENVIRONMENT rule every surface's last level reads (runWireEnv — STARNET_DEFAULT_MODEL
+// on OpenRouter, or ChatGPT's default model on a ChatGPT-only station), never a hand-copied openrouter + env model
 function devHubSecrets() {
-  const provider = 'openrouter';
+  const env = runWireEnv();
+  const provider = normalizeProvider(env.provider);
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
-  const model = chatModelId(provider, String(ENV('DEFAULT_MODEL') || '').trim());   // a batch-only id runs on its base model; ENV(): STARNET_ wins, as everywhere
-  return { key, model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, ''), agentId: undefined, system: undefined };
+  const model = chatModelId(provider, String(env.model || '').trim());   // a batch-only id runs on its base model
+  return { key, model, provider, baseUrl, configured: providerHasCredential(provider, key, baseUrl), reasoningEffort: resolveReasoningEffort(provider, ''), agentId: undefined, system: undefined, wireSource: 'env' };
 }
 function getDevHub() {
   if (devHub) return devHub;
@@ -11718,12 +11762,9 @@ const openaiCompat = makeOpenAiCompat({
   isAllowedHost: isAllowedHost,
   constTimeEq: apiauth.constTimeEq,
   defaultModel: () => String(ENV('V1_MODEL') || ENV('DEFAULT_MODEL') || '').trim(),
-  // every /v1 run's pair is the one every surface runs (run-wire.js). STARNET_V1_MODEL is this surface's environment
-  // default: below a roster pin and the station default, above STARNET_DEFAULT_MODEL, on the environment's provider
-  resolveWire: (agentId) => {
-    const v1Model = String(ENV('V1_MODEL') || '').trim();
-    return runWireFor(agentId, null, v1Model ? [{ source: 'env', provider: runWireEnv().provider, model: v1Model }] : null);
-  },
+  // every /v1 run's pair (v1WireFor): a selected roster agent's own pair; the generic target runs STARNET_V1_MODEL when it
+  // is set, else the station default
+  resolveWire: (agentId, matched) => v1WireFor(agentId, matched),
   maxConcurrent: () => num(ENV('V1_MAX_CONCURRENT'), 0),
   version: () => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } },
   newId: () => crypto.randomUUID(), now: () => Date.now(),
@@ -13588,8 +13629,9 @@ let sampleInFlight = null;   // { streamId, workitemId, startedAt } — ONE samp
 let sampleLineScope = null;
 const sampleReplies = [];    // outbound text the line delivered for the CURRENT sample (cleared per dispatch)
 function sampleRunConfigFor(agentId) {
-  // Installed stations own their model/provider on the roster. Environment defaults are only
-  // a compatibility fallback for a headless host that has never received a roster.
+  // Installed stations own their model/provider on the roster: the ONE resolution (channelRunConfigFor -> runWireFor), the
+  // agent's pin else the station default. A headless host that has never received a roster runs the environment rule
+  // (devHubSecrets -> runWireEnv), the last level every surface reads — never a hand-copied openrouter + env model.
   if (agentRoster.size) {
     const config = channelRunConfigFor(agentId);
     return Object.assign({}, config, { configured: config.ok === true });
@@ -15427,7 +15469,8 @@ function handleRuntimeAgent(req, res) {
   const key = providerRuntimeKey(provider, '');
   const baseUrl = providerRuntimeBaseUrl(provider, '');
   const model = String(stationWire.model || '').trim();
-  const wireOf = (agentId) => { const w = runWireFor(agentId); return { provider: w.provider || null, model: w.model || null, source: w.source, followsStation: w.followsStation }; };
+  // a row's resolved pair AND the effort its runs use (the ONE effort rule, run-wire.js; null = the provider default)
+  const wireOf = (agentId) => { const w = runWireFor(agentId); return { provider: w.provider || null, model: w.model || null, source: w.source, followsStation: w.followsStation, reasoningEffort: w.reasoningEffort || null }; };
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify({
     ok: true,
@@ -16647,9 +16690,7 @@ function cronStateSnapshot(now) {
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    const w = cronWireFor(j);
-    const wire = { provider: w.provider || null, model: w.model || null, source: w.source };
-    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, { wire });
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, { wire: routineWireRow(j) });   // null: a script-only routine
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
@@ -17393,9 +17434,9 @@ async function handleCronRun(req, res) {
       // routine.notepad key off cronJobId; recipeId keeps a recipe routine's provenance; the idempotency scope (job + this press's
       // fire time) keeps a retried/resumed Run Now from re-sending a connector write it already made (quick win 31)
       ...routineRunIdentity(job, firedAt),
-      // "Follow station default": same effort rule as the scheduled fire (cron-driver.js) — an unpinned agent with
-      // no explicit routine model runs on the Overseer's effort along with its model.
-      reasoningEffort: runWire.followsStation ? runWire.reasoningEffort : undefined,
+      // the ONE effort rule (run-wire.js), as the scheduled fire (cron-driver.js): the agent's own effort, else the
+      // Overseer's when it follows the station default, else the provider default
+      reasoningEffort: runWire.reasoningEffort,
       wireSource: runWire.source,   // where the pair came from, on the run row (same field the scheduled fire records)
       // LINE WATCH: the row records the bay + line this Run Now's crate named (placeCronWorkitem above)
       lineId: (cronItems.get(runId) || {}).lineId || undefined, dockId: (cronItems.get(runId) || {}).dockId || undefined,
@@ -20747,7 +20788,12 @@ async function handleRun(req, res) {
   // a body that names a model and no provider runs that model on the provider its agent resolves to (run-wire.js: a bare
   // model borrows the next level's provider), never on a hard-coded OpenRouter
   const runProvider = normalizeProvider(provider || (model ? runWireFor(agentId, { model: String(model) }).provider : ''));
-  const reasoningEffort = resolveReasoningEffort(runProvider, body && (body.reasoningEffort || body.reasoning_effort || (body.reasoning && body.reasoning.effort)));
+  // the body's key, endpoint and key pool belong to the provider it NAMED. A body that names none meant OpenRouter (what a
+  // provider-less body always ran on), so they serve this run only when it runs there — never a provider it borrowed.
+  const bodyCredential = !!provider || runProvider === normalizeProvider('');
+  // only the body's OWN effort pick rides to runOnce: runOnceCore resolves the rest WITH the pair the run really uses (the
+  // ONE effort rule, run-wire.js) — resolving it here against a provider default would shadow the agent's own effort
+  const reasoningEffort = String((body && (body.reasoningEffort || body.reasoning_effort || (body.reasoning && body.reasoning.effort))) || '').trim() || undefined;
   const preloadSkills = Array.isArray(body && body.preloadSkills) ? body.preloadSkills.map(s => String(s || '').trim()).filter(Boolean).slice(0, 8) : [];
   const streamId = (body && body.streamId && /^[A-Za-z0-9_-]{1,64}$/.test(String(body.streamId))) ? String(body.streamId) : null;   // M-mem.2b: the active workstream (bounded; bad → global)
   let connectorContinuationScope = null;
@@ -20807,8 +20853,8 @@ async function handleRun(req, res) {
   const usingCodex = providerUsesCodex(runProvider);   // Codex authenticates by OAuth token, not an API key
   // Desktop build: the key lives in runtimeKey (from the keychain, seeded via env at spawn and updatable
   // via /api/key). The browser build still sends body.key, which wins.
-  const baseUrl = providerRuntimeBaseUrl(runProvider, body && (body.baseUrl || body.base_url));
-  const key = providerRuntimeKey(runProvider, body && body.key);
+  const baseUrl = providerRuntimeBaseUrl(runProvider, bodyCredential ? (body && (body.baseUrl || body.base_url)) : '');
+  const key = providerRuntimeKey(runProvider, bodyCredential ? (body && body.key) : '');
   // The refusal NAMES what is missing and for which provider. A bare "missing key/model" reached a SuperGrok user
   // signed out of GROK OAUTH as "add a provider key (or sign in with ChatGPT)": wrong provider, wrong door
   // (2026-09-27). The "missing key/model" prefix stays; older pages and tests classify on it.
@@ -21084,7 +21130,7 @@ async function handleRun(req, res) {
     // The browser is WATCHED, so an ungranted mutation asks live (interactive surface + promptConsent) instead
     // of default-denying. The SAME run host (runOnce) is reused by the messaging hub with surface:'autonomous'.
     const continuedResult = await runOnce({
-      key, keyPool: body && body.keyPool, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, reasoningEffort, fallbackModels, fallbackProviders,
+      key, keyPool: bodyCredential ? (body && body.keyPool) : undefined, model, system: (projectLine || projectRules) ? (String(system || '') + projectLine + projectRules) : system, messages: runMessages, agentId, isTask, provider: runProvider, baseUrl, reasoningEffort, fallbackModels, fallbackProviders,
       emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort,
       voiceTurn: !!(body && body.voiceTurn === true),   // the reply will be SPOKEN: the voice chat model may answer it
       initialTaint: hasUserAttachments ? 'user attachment' : null,
@@ -21498,10 +21544,10 @@ async function runOnceCore(o) {
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
   let providerUnmetered = !!((getProviderProfile(providerId) || {}).unmetered);
   let runUnmetered = providerUnmetered;
-  // Class Loadouts S1: reasoning-effort precedence = explicit run-option > this agent's roster record (the class
-  // applied default) > provider default. An explicit per-run choice still wins; the roster only fills a gap. An agent that
-  // follows the station default runs on the Overseer's effort with its model, as a routine or a channel hop does.
-  const reasoningEffort = resolveReasoningEffort(providerId, o.reasoningEffort || o.reasoning_effort || (o.reasoning && o.reasoning.effort) || (runWire.followsStation ? runWire.reasoningEffort : (rosterIdent && rosterIdent.reasoningEffort)));
+  // THE ONE EFFORT RULE (run-wire.js, resolved with the pair by runWireOfRun): the explicit run-option, then this agent's
+  // own roster record (its pin's effort, else the class applied default — Class Loadouts S1), then the Overseer's effort
+  // when the agent follows the station default, then the provider default. Every surface resolves the same rule.
+  const reasoningEffort = resolveReasoningEffort(providerId, runWire.reasoningEffort);
   let model = String(runWire.model || '').trim() || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);
   // A batch-only variant ('<id>:batch') an older build offered and saved can never run on chat/completions (404 on every
   // run); run its base model instead. The sidecar never rewrites the saved roster or routine record (the page's model
@@ -22357,6 +22403,7 @@ async function runOnceCore(o) {
       return { when: when ? when + (job.schedule && job.schedule.kind === 'cron' ? ' (' + tz + ')' : '') : null, next };
     },
     listJobs: () => cronJobs,
+    wireOf: (job) => routineWireRow(job),   // the pair each routine's next run really uses (run-wire.js), as GET /api/cron shows it
     schedulerState: () => cronArmed,
     normalizeProvider: normalizeProviderId,
     // the LIVE provider set drives the tool schema's `provider` enum — a hardcoded pair meant an agent on a
@@ -23145,7 +23192,7 @@ async function runOnceCore(o) {
   let activePrimaryKey = runKey;
   const primaryProfile = getProviderProfile(providerId);
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
-    const pool = providerRuntimeKeyPool(providerId, Array.isArray(o.keyPool) ? o.keyPool : undefined, runKey)
+    const pool = providerRuntimeKeyPool(providerId, (callerCredential && Array.isArray(o.keyPool)) ? o.keyPool : undefined, runKey)   // a passed-over caller's pool never crosses providers
       .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
@@ -26501,7 +26548,9 @@ async function handleLiveDoctor(req, res) {
   const providerId = normalizeProvider(doctorWire.provider || '');
   const model = chatModelId(providerId, String(doctorWire.model || '').trim());   // the model a run really uses (a saved :batch id runs on its base)
   const reasoningEffort = resolveReasoningEffort(providerId, doctorWire.reasoningEffort);
-  targets.push({ kind: 'provider', id: providerId, label: providerId + (model ? ' / ' + model : '') + ' · ' + (RunWire.SOURCE_LABELS[doctorWire.source] || doctorWire.source), probe: async () => {
+  // a provider-only choice the resolution passed over (a stale stamp, a provider with no model) is NAMED, never silent
+  const passedOver = (doctorWire.ignored || []).map(x => x.provider + ' (' + (RunWire.SOURCE_LABELS[x.source] || x.source) + ': ' + x.reason + ')');
+  targets.push({ kind: 'provider', id: providerId, label: providerId + (model ? ' / ' + model : '') + ' · ' + (RunWire.SOURCE_LABELS[doctorWire.source] || doctorWire.source) + (passedOver.length ? ' · passed over ' + passedOver.join(', ') : ''), probe: async () => {
     const profile = getProviderProfile(providerId);
     const baseUrl = providerRuntimeBaseUrl(providerId, '');
     const key = providerRuntimeKey(providerId, '');
@@ -26612,7 +26661,9 @@ async function handleLiveDoctor(req, res) {
     });
     out.report.build = computeVersionSurface();
     // the pair the probe used IS the pair this agent's runs use, and where it came from (no key, no endpoint)
-    out.report.wire = { agentId: agentId || 'agent', provider: providerId, model, source: doctorWire.source, providerSource: doctorWire.providerSource, followsStation: doctorWire.followsStation };
+    // `ignored`: each provider-only level the resolution passed over (run-wire.js never drops one silently); `reasoningEffort`:
+    // the ONE effort rule's answer the probe ran at
+    out.report.wire = { agentId: agentId || 'agent', provider: providerId, model, source: doctorWire.source, providerSource: doctorWire.providerSource, followsStation: doctorWire.followsStation, reasoningEffort, ignored: (doctorWire.ignored || []).map(x => ({ source: x.source, provider: x.provider, reason: x.reason })) };
     return json(200, out);
   } catch (e) { return json(500, { error: 'live doctor failed', detail: redact((e && e.message) || e) }); }
 }
@@ -26791,8 +26842,8 @@ async function handleChannelConnect(req, res) {
   const system = (typeof body.system === 'string' && body.system) ? body.system : String(saved.system || '');
   const name = String(body.agentName || '').trim() || String(saved.name || '');
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
-  if (!model) return json(400, { error: 'connect your agent first — choose a model in Settings → Providers' });
-  if (!providerHasCredential(provider, key, baseUrl)) return json(400, { error: providerCredentialError(provider) });
+  // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
+  { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
   let started; try { started = startTelegram(token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // Poll health is not DM readiness. A fresh bot rejects every ordinary DM until the authenticated local app
   // pairs an owner, so return a new one-time command as part of connect instead of ending on a deaf false-green.
@@ -27078,8 +27129,8 @@ async function handleDiscordConnect(req, res) {
   const system = (typeof body.system === 'string' && body.system) ? body.system : String(saved.system || '');
   const name = String(body.agentName || '').trim() || String(saved.name || '');
   if (!token) return json(400, { error: 'missing bot token — create a bot in the Discord Developer Portal and paste its token here' });
-  if (!model) return json(400, { error: 'connect your agent first — choose a model in Settings → Providers' });
-  if (!providerHasCredential(provider, key, baseUrl)) return json(400, { error: providerCredentialError(provider) });
+  // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
+  { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
   let started; try { started = startDiscord(token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status ('connecting' until the gateway reaches READY) — the panel repaints from /status.
   json(200, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) }));
@@ -27251,8 +27302,8 @@ async function handleGenericChannelConnect(req, res, id) {
     if (!endpoint) return json(400, { error: 'enter your signal-cli REST API URL first (e.g. http://127.0.0.1:8080)' });
     if (!account) return json(400, { error: 'enter the registered Signal number (e.g. +15551234567)' });
   }
-  if (!model) return json(400, { error: 'connect your agent first — choose a model in Settings → Providers' });
-  if (!providerHasCredential(provider, key, baseUrl)) return json(400, { error: providerCredentialError(provider) });
+  // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
+  { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
   let started; try { started = startGenericChannel(id, token, providerUsesCodex(provider) ? '' : key, model, { agentId, system, name, provider, reasoningEffort, baseUrl, endpoint, account }); }
   catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status.
@@ -30253,7 +30304,8 @@ async function serveStatic(req, res) {
       // `hasKey` is the honest half: the page's credential badge assumed a DEV boot meant the host HELD a
       // runtime key for `prov`, so a seeded station with no key at all still rendered "● KEY SAVED". Say
       // whether one actually exists — still no secret crosses, only the boolean.
-      if (DEV_MODE) boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: CRON_DEFAULT_MODEL || '', prov: (!runtimeKey && codexTokens && codexTokens.access_token) ? 'codex' : 'openrouter', hasKey: !!runtimeKey }) + ';';
+      // the seeded pair is the ENVIRONMENT rule every surface's last level reads (runWireEnv), never a hand-copied one
+      if (DEV_MODE) { const envWire = runWireEnv(); boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: envWire.model || '', prov: envWire.provider, hasKey: !!runtimeKey }) + ';'; }
       boot += '</script>';
       data = Buffer.from(String(data).replace(/<\/head>/i, boot + '\n</head>'), 'utf8');
     }

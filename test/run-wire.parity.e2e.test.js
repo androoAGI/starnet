@@ -11,8 +11,9 @@
      agent) · ACP (GET /api/runtime/agent, then the bridge's /api/run body) · `starnet run` (bin/lib/cli-core.js) · the
      Live Doctor's probe, which must also name the pair and its source.
    The run rows name where each pair came from (wireSource), and Run Now says it was pressed (trigger 'manual').
-   team.dispatch is covered in-process by test/run-wire.invariant.test.js (the real orchestration module under index.js's
-   wiring): driving a lead to delegate here would need the whole scripted Task Brief tool loop. */
+   team.dispatch is covered in-process by test/run-wire.invariant.test.js: the real orchestration module, handed the
+   resolveWire / providerAuth seams lifted out of runOnceCore's own makeOrchestrationTools call and executed (a scripted
+   lead delegating here would add a lead tool loop and a station page to this one boot). */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -153,7 +154,7 @@ test('every entry point reaches the provider with the agent\'s one pair', { time
     const rt = (await fixture.json('GET', '/api/runtime/agent')).body;
     assert.deepEqual([rt.provider, rt.model, rt.configured, rt.wireSource], ['custom', 'hero-model', true, 'agent'], 'the runtime route reports the Overseer\'s pair and its source');
     const legacyRow = (rt.agents || []).find(a => a.agentId === 'legacy');
-    assert.deepEqual(legacyRow && legacyRow.wire, { provider: 'custom', model: 'hero-model', source: 'station', followsStation: true }, 'each row carries its own resolved wire');
+    assert.deepEqual(legacyRow && legacyRow.wire, { provider: 'custom', model: 'hero-model', source: 'station', followsStation: true, reasoningEffort: null }, 'each row carries its own resolved wire (and effort: none set, the provider default)');
     const acp = await apiRun({ model: rt.model, provider: rt.provider || 'openrouter', agentId: 'agent', rosterSystem: true, client: 'editor', isTask: true, messages: [{ role: 'user', content: 'ACP_MARK_hello' }] });
     assert.equal(acp.status, 200, 'ACP run: ' + acp.text.slice(0, 200));
     assertReached('ACP_MARK_hello', HERO, 'ACP');
@@ -190,6 +191,7 @@ test('every entry point reaches the provider with the agent\'s one pair', { time
     const doc = await fixture.json('POST', '/api/diagnostics/live', { confirmedLiveProbes: true, agentId: 'legacy' });
     assert.equal(doc.status, 200, 'Live Doctor: ' + doc.text.slice(0, 200));
     assert.deepEqual(doc.body.report && doc.body.report.wire && [doc.body.report.wire.provider, doc.body.report.wire.model, doc.body.report.wire.source], ['custom', 'hero-model', 'station'], 'the report names the tuple and its source');
+    assert.deepEqual((doc.body.report.wire.ignored || []).map(x => [x.source, x.provider]), [['agent', 'openrouter']], 'the report names the stale provider stamp it passed over (never silent)');
     const probe = up.calls.slice(before).filter(c => /Reply exactly OK\./.test(c.text)).map(c => [c.route, c.model]);
     assert.ok(probe.length === 1 && probe[0][0] === 'custom' && probe[0][1] === 'hero-model', 'the probe reached the upstream on the same pair: ' + JSON.stringify(probe));
     assert.ok(/custom \/ hero-model · the station default/.test(String(doc.body.text || '')), 'the receipt text names the pair and its source');

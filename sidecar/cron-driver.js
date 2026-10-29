@@ -556,10 +556,10 @@
           // reconstructs a stream when messages<=1), so cron behavior is byte-identical — the frontend
           // autosessions module reads GET /api/transcript?stream=cron-<runId> to surface the output as a session.
           runId: runId, streamId: 'cron-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider,
-          // "Follow station default": an unpinned agent's routine runs on the Overseer's model AND effort (the
-          // identity resolver supplies both), exactly as a channel hop does. A pinned agent or an explicit routine
-          // model leaves this undefined, so the run's own roster effort applies unchanged.
-          reasoningEffort: wired ? (wired.followsStation ? wired.reasoningEffort : undefined)
+          // the injected resolution carries THE ONE effort rule (run-wire.js): the agent's own effort, else the
+          // Overseer's when it follows the station default, else undefined (the provider default). Legacy host (no
+          // wireForJob): an unpinned agent's routine runs on the Overseer's effort, else the run's own roster effort.
+          reasoningEffort: wired ? (wired.reasoningEffort || undefined)
             : ((!(job.model && String(job.model).trim()) && ident.followsStation) ? ident.reasoningEffort : undefined),
           // WHERE the pair came from (routine / agent / station / env), recorded on the run row (wireSource)
           wireSource: wired ? (wired.source || undefined) : undefined,

@@ -239,7 +239,37 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
   A.ok(/return operator \|\| String\(\(engineKeys\.get\(id\) \|\| \{\}\)\.key \|\| ''\);/.test(body('providerRuntimeKey')), 'providerRuntimeKey: explicit > runtime push > operator env > the page copy');
   // (run-wire-resolver lane) the caller's key and endpoint ride only the provider the caller named (callerCredential)
   A.ok(/const runKey = providerRuntimeKey\(providerId, callerCredential \? key : ''\);\s*const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey\);/.test(src), 'the run path resolves its endpoint for ITS key (a page copy\'s endpoint rides only the page key)');
-  A.ok(/providerRuntimeKeyPool\(providerId, Array\.isArray\(o\.keyPool\) \? o\.keyPool : undefined, runKey\)/.test(src), 'and its backup keys for ITS key');
+  // (run-wire-resolver lane) ...and the caller's backup keys only when its key rides (callerCredential): a pool never crosses
+  A.ok(/providerRuntimeKeyPool\(providerId, \(callerCredential && Array\.isArray\(o\.keyPool\)\) \? o\.keyPool : undefined, runKey\)/.test(src), 'and its backup keys for ITS key');
+  /* POST /api/run, RUN (run-wire-resolver lane): a body that names a model and NO provider runs it on the provider its agent
+     resolves to — and the body's key, endpoint and key pool (a page's OpenRouter copy) must never ride a provider it
+     borrowed. A provider-less body always meant OpenRouter, so they still serve a run that lands there. handleRun's own
+     lines, executed: the provider, the credential rule, the endpoint, the key and the pool it hands runOnce. */
+  {
+    const run = body('handleRun');
+    const line = re => (re.exec(run) || [])[0] || '';
+    const lines = [line(/\n  const runProvider = [^\n]+;/), line(/\n  const bodyCredential = [^\n]+;/),
+      line(/\n  const baseUrl = providerRuntimeBaseUrl\(runProvider, [^\n]+;/), line(/\n  const key = providerRuntimeKey\(runProvider, [^\n]+;/)];
+    const pool = (/\n      key, keyPool: ([^\n]+?), model, system:/.exec(run) || [])[1] || 'undefined';
+    A.ok(!!(lines[0] && lines[2] && lines[3]), 'fixture: handleRun\'s provider / endpoint / key lines are found');
+    const handle = (agentProvider, b) => new Function('body', 'provider', 'model', 'agentId', 'normalizeProvider', 'runWireFor', 'providerRuntimeKey', 'providerRuntimeBaseUrl',
+      lines.join('\n') + '\nreturn { runProvider, key, baseUrl, keyPool: (' + pool + ') };')(
+      b, b.provider, b.model, 'scout', p => String(p || '') || 'openrouter', () => ({ provider: agentProvider }),
+      (id, explicit) => String(explicit || '') || ('server-key-for-' + id), (id, explicit) => String(explicit || '') || ('server-url-for-' + id));
+    const page = { model: 'x/y', key: 'sk-or-page', baseUrl: 'http://page.example/v1', keyPool: ['sk-or-backup'] };
+    const borrowed = handle('codex', page);
+    A.eq([borrowed.runProvider, borrowed.key, borrowed.baseUrl, borrowed.keyPool], ['codex', 'server-key-for-codex', 'server-url-for-codex', undefined],
+      'a provider-less body\'s key, endpoint and pool never ride a provider the run borrowed');
+    const legacy = handle('openrouter', page);
+    A.eq([legacy.runProvider, legacy.key, legacy.baseUrl, legacy.keyPool], ['openrouter', 'sk-or-page', 'http://page.example/v1', ['sk-or-backup']],
+      '...and still serve a run that lands on OpenRouter, the provider a provider-less body always meant');
+    const named = handle('codex', Object.assign({ provider: 'anthropic' }, page));
+    A.eq([named.runProvider, named.key], ['anthropic', 'sk-or-page'], 'a body that NAMES its provider brings its own key for it');
+    const effortLine = line(/\n  const reasoningEffort = [^\n]+;/);
+    const effortOf = b => new Function('body', 'runProvider', 'resolveReasoningEffort', effortLine + '\nreturn reasoningEffort;')(b, 'openrouter', (p, v) => v || 'provider-default');
+    A.eq([effortOf({}), effortOf({ reasoningEffort: 'low' })], [undefined, 'low'],
+      'handleRun hands runOnce only the body\'s own effort pick: the rest is resolved WITH the pair the run uses (the one effort rule)');
+  }
   A.ok(/const ENGINE_KEYS_FILE = path\.join\(WORKSPACES, '\.secrets', 'provider-keys\.json'\);/.test(src), 'the copy lives in the protected .secrets/ sibling of the fs jail');
   A.ok(/load: \(\) => DESKTOP_SHELL \? undefined :/.test(src) && /if \(DESKTOP_SHELL\) return json\(409/.test(body('handleEngineKeySet')), 'the desktop app (OS keychain) never reads or writes the plaintext copy');
   A.ok(/persist: \(envelope\) => saveCredentialRemovalVerified\(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'\)/.test(src), 'main AND .bak are written and read back (a replaced key never lingers in .bak)');

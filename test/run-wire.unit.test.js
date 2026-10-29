@@ -2,12 +2,14 @@
 
    Proves the pair precedence (explicit > agent pin > station default > host fallbacks > env > honest refusal), that
    half a pair resolves deterministically (a bare model borrows the provider of the next level down; a provider with no
-   model is not a pin and is reported in `ignored`), that the Overseer's own pin is the station default, and the stored
-   pair normaliser (pairSavedWire) the routine migration runs: it never drops a saved model and never invents one. */
+   model is not a pin and is reported in `ignored`; a crew row's stale provider stamp lends nothing), that the Overseer's
+   own pin is the station default, THE ONE REASONING-EFFORT RULE (the run's own > the agent's own > the station's when
+   following > the provider default), and the stored pair normaliser (pairSavedWire) the routine migration runs: it
+   clears a provider that names no model, and never drops, invents or stamps anything else. */
 'use strict';
 const A = require('./_assert.js');
 const W = require('../sidecar/run-wire.js');
-const { resolveRunWire, pairSavedWire, describeRunWire } = W;
+const { resolveRunWire, pairSavedWire } = W;
 
 const hero = { model: 'gpt-5.5', provider: 'codex', reasoningEffort: 'high' };
 const env = { provider: 'openrouter', model: 'env/model' };
@@ -60,6 +62,17 @@ A.eq(pick(resolveRunWire({ agentId: '', hero, env })), [true, 'codex', 'gpt-5.5'
   A.eq(pick(stale), [true, 'codex', 'gpt-5.5', 'station', 'station', true], "an unpinned row with a stale stamped provider still follows the station (issue #24)");
   const env2 = resolveRunWire({ agentId: 'scout', agent: { model: 'bare/model' }, hero: {}, env });
   A.eq([env2.provider, env2.providerSource], ['openrouter', 'env'], 'with no station provider, a bare model borrows the env provider');
+  // a CREW row's provider with no model (an older page's stamp) lends nothing to a bare model above it: a routine's, a
+  // loop's, an /api/run body's or a CLI --model run on the station's provider, never on the stamp's
+  const lend = resolveRunWire({ agentId: 'scout', explicit: { source: 'routine', model: 'routine/model' }, agent: { model: '', provider: 'openrouter' }, hero, env });
+  A.eq(pick(lend), [true, 'codex', 'routine/model', 'routine', 'station', false], "a stale stamped crew row does not lend its provider to a bare model");
+  A.eq(lend.ignored, [{ source: 'agent', provider: 'openrouter', reason: 'a provider without a model is not a pin' }], '...and the stamp it passed over is reported');
+  const lendPinned = resolveRunWire({ agentId: 'scout', explicit: { model: 'x/y' }, agent: { model: 'a/b', provider: 'anthropic' }, hero, env });
+  A.eq([lendPinned.provider, lendPinned.providerSource], ['anthropic', 'agent'], "a crew row that pins a WHOLE pair still lends its provider");
+  const lendHero = resolveRunWire({ agentId: 'agent', explicit: { model: 'x/y' }, hero: { model: '', provider: 'codex' }, env });
+  A.eq([lendHero.provider, lendHero.providerSource], ['codex', 'agent'], "the Overseer's provider alone is the station's provider: it lends");
+  const lendStation = resolveRunWire({ agentId: 'scout', explicit: { model: 'x/y' }, agent: { provider: 'openrouter' }, hero: { provider: 'codex' }, env });
+  A.eq([lendStation.provider, lendStation.providerSource], ['codex', 'station'], "...and so does it for a crew member's bare model");
 }
 
 // ---- 4. provider normalisation is the host's ----
@@ -79,26 +92,37 @@ A.eq(pick(resolveRunWire({ agentId: '', hero, env })), [true, 'codex', 'gpt-5.5'
 
 // ---- 6. the stored-pair normaliser (routine migration) ----
 {
-  const inherited = resolveRunWire({ agentId: 'scout', agent: {}, hero, env });
-  A.eq(pairSavedWire({ provider: 'openrouter', model: 'x/y' }, inherited), { provider: 'openrouter', model: 'x/y', changed: false, reason: '' }, 'a whole pair is left as it is');
-  A.eq(pairSavedWire({ provider: null, model: null }, inherited), { provider: null, model: null, changed: false, reason: '' }, 'no pair at all is left as it is (it follows its agent)');
-  const m = pairSavedWire({ provider: null, model: 'r/model' }, inherited);
-  A.eq([m.provider, m.model, m.changed], ['codex', 'r/model', true], 'a bare saved model is paired with the provider it ran on; the model is kept');
-  A.ok(/the station default/.test(m.reason), 'the note says where the provider came from: ' + m.reason);
-  const p = pairSavedWire({ provider: 'openrouter', model: '' }, inherited);
+  A.eq(pairSavedWire({ provider: 'openrouter', model: 'x/y' }), { provider: 'openrouter', model: 'x/y', changed: false, reason: '' }, 'a whole pair is left as it is');
+  A.eq(pairSavedWire({ provider: null, model: null }), { provider: null, model: null, changed: false, reason: '' }, 'no pair at all is left as it is (it follows its agent)');
+  A.eq(pairSavedWire({ provider: null, model: 'r/model' }), { provider: null, model: 'r/model', changed: false, reason: '' },
+    'a bare saved model is left as it is: no provider is stamped on it, the run-time rule borrows one');
+  const p = pairSavedWire({ provider: 'openrouter', model: '' });
   A.eq([p.provider, p.model, p.changed], [null, null, true], 'a saved provider with no model is cleared: it never pinned anything');
   A.ok(/openrouter/.test(p.reason), 'the note names the cleared provider (the caller keeps it on the record): ' + p.reason);
-  A.eq(pairSavedWire({ model: 'r/model' }, { ok: false, provider: '' }), { provider: null, model: 'r/model', changed: false, reason: '' },
-    'nothing to pair a bare model with yet: left for the run-time rule, never guessed');
-  // the migrated record resolves to the SAME tuple it ran before migration
-  const before = resolveRunWire({ agentId: 'scout', explicit: { source: 'routine', model: 'r/model' }, agent: {}, hero, env });
-  const after = resolveRunWire({ agentId: 'scout', explicit: { source: 'routine', provider: m.provider, model: m.model }, agent: {}, hero, env });
-  A.eq([after.provider, after.model], [before.provider, before.model], 'pairing a bare model keeps the tuple the routine already ran');
+  // a bare saved model FOLLOWS a station provider switch, as it did before the lane
+  const ranOn = h => { const w = resolveRunWire({ agentId: 'scout', explicit: { source: 'routine', provider: '', model: 'r/model' }, agent: {}, hero: h, env }); return [w.provider, w.model]; };
+  A.eq(ranOn({ model: 'gpt-5.5', provider: 'codex' }), ['codex', 'r/model'], 'the bare routine model runs on the station provider');
+  A.eq(ranOn({ model: 'gpt-5.5', provider: 'starnet' }), ['starnet', 'r/model'], '...and on the new one after the station switches provider');
 }
 
-// ---- 7. the readout sentence ----
-A.eq(describeRunWire(resolveRunWire({ agentId: 'scout', agent: {}, hero, env })), 'codex / gpt-5.5 (the station default (the Overseer))', 'the readout names the pair and its source');
-A.ok(/provider from the station default/.test(describeRunWire(resolveRunWire({ agentId: 'scout', agent: { model: 'bare/m' }, hero, env }))), 'a borrowed provider is named');
-A.eq(describeRunWire({ ok: false, provider: 'codex' }), 'no model configured (codex)', 'a refusal reads as one');
+// ---- 7. THE ONE REASONING-EFFORT RULE ----
+{
+  const eff = (input) => resolveRunWire(Object.assign({ env }, input)).reasoningEffort;
+  A.eq(eff({ agentId: 'scout', explicit: { reasoningEffort: 'xhigh' }, agent: { model: 'a/b', provider: 'anthropic', reasoningEffort: 'low' }, hero }), 'xhigh', "1. the run's own per-run effort wins");
+  A.eq(eff({ agentId: 'scout', explicit: { provider: 'codex', model: 'gpt-5.5', reasoningEffort: 'minimal' }, agent: {}, hero }), 'minimal', '...even over the station default for a follower');
+  A.eq(eff({ agentId: 'scout', agent: { model: 'a/b', provider: 'anthropic', reasoningEffort: 'low' }, hero }), 'low', "2. a pinned agent runs its pin's effort");
+  A.eq(eff({ agentId: 'scout', agent: { model: '', reasoningEffort: 'low' }, hero }), 'low', "2. an unpinned agent's own class effort beats the station's");
+  A.eq(eff({ agentId: 'scout', agent: {}, hero }), 'high', "3. a follower with no effort of its own runs the Overseer's");
+  A.eq(eff({ agentId: 'tg_1', agent: null, hero }), 'high', '...and so does an unrostered id');
+  A.eq(eff({ agentId: 'scout', agent: { model: 'a/b', provider: 'anthropic' }, hero }), undefined, "a PINNED agent with no effort never borrows the Overseer's: the provider default");
+  A.eq(eff({ agentId: 'scout', agent: { model: 'bare/m' }, hero }), undefined, '...nor does a bare-model pin that only borrows its provider');
+  A.eq(eff({ agentId: 'scout', explicit: { source: 'routine', model: 'r/m' }, agent: {}, hero }), undefined, "a routine's own model is not following the station: the provider default");
+  A.eq(eff({ agentId: 'scout', explicit: { source: 'routine', model: 'r/m' }, agent: { reasoningEffort: 'low' }, hero }), 'low', "...and its agent's own effort rides it");
+  A.eq(eff({ agentId: 'scout', explicit: { source: 'station', provider: 'codex', model: 'gpt-5.5' }, agent: {}, hero }), 'high', "a caller labelled 'station' with no effort keeps the Overseer's");
+  A.eq(eff({ agentId: 'agent', hero }), 'high', "the Overseer runs its own effort");
+  A.eq(eff({ agentId: 'scout', agent: {}, hero: null, fallbacks: [{ source: 'connect', provider: 'openrouter', model: 'conn/m', reasoningEffort: 'low' }] }), 'low', "4. a roster-less station's connect-time choice keeps its effort");
+  A.eq(eff({ agentId: 'scout', agent: {}, hero, fallbacks: [{ source: 'connect', provider: 'openrouter', model: 'conn/m', reasoningEffort: 'low' }] }), 'high', '...but a fallback that did not choose the pair lends no effort');
+  A.eq(eff({ agentId: 'scout', agent: {}, hero: {} }), undefined, '5. nothing names one: the provider default');
+}
 
 A.report('run-wire: one {provider, model} decision');

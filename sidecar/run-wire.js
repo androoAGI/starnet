@@ -17,21 +17,33 @@
      6. none      — an honest refusal: ok:false, model ''.
    HALF A PAIR resolves deterministically, never field by field:
      - a level holding a model but no provider takes the provider of the NEXT level down that names one (an agent pinned to
-       a bare model id runs it on the station's provider, exactly as the page's focusWire does);
+       a bare model id runs it on the station's provider, exactly as the page's focusWire does). A CREW row holding a
+       provider and no model lends nothing: that is the stale stamp an older page wrote on every unpinned row, so a bare
+       model above it (a routine's, a loop's, an /api/run body's, a CLI --model) runs on the station's provider;
      - a level holding a provider but no model is NOT a pin (a provider names no model): resolution moves on, and the
        provider it named is reported in `ignored` when it differs from the one the run uses — visible, never silent.
    The Overseer's own pin IS the station default, so for agentId 'agent' the agent and station levels are one level
    ('agent').
+
+   THE REASONING-EFFORT RULE (one rule for every surface: wire.reasoningEffort), the first that names one:
+     1. the run's own per-run effort (the explicit level's: a COMMS pick, a CLI flag, a labelled caller's choice);
+     2. the agent's own effort — its roster record: the effort its pin carries, else its class loadout's applied
+        default (the roster keeps both in the one field);
+     3. the station (Overseer) effort, ONLY when the agent follows the station (source 'station');
+     4. a host fallback's own effort when that fallback chose the pair (a roster-less station's connect-time choice);
+     5. undefined — the provider default (the host's resolveReasoningEffort fills it in).
+   A pinned agent with no effort of its own never borrows the Overseer's: following the station is what lends it.
 
      resolveRunWire(input) -> wire
        input = { agentId, explicit?: {provider, model, reasoningEffort?, source?}, agent?: rosterRow, hero?: rosterRow,
                  fallbacks?: [{provider, model, reasoningEffort?, source}], env?: {provider, model},
                  normalizeProvider?: (id) -> canonical id or '' }
        wire  = { ok, agentId, provider, model, reasoningEffort, source, providerSource, followsStation, ignored: [], error? }
-     pairSavedWire(saved, inherited) -> { provider, model, changed, reason }
-       the stored-pair normaliser (routines store provider and model only as a pair): `saved` is a record's own
-       {provider, model}, `inherited` the wire its agent resolves to without it. Never drops a saved model.
-     describeRunWire(wire) -> 'codex / gpt-5.5 (station default)' — the one readout sentence.
+       `ignored` lists each provider-only level the resolution passed over that named another provider; the host surfaces
+       it (the Live Doctor's report.wire, the diagnostics snapshot), so a passed-over choice is never silent.
+     pairSavedWire(saved) -> { provider, model, changed, reason }
+       the stored-pair normaliser for a saved record (a routine's own {provider, model}): clears a provider that names no
+       model; never drops a saved model and never stamps a provider onto one.
 
    UMD and dependency-free, so the sidecar, the CLI (bin/) and tests share the one implementation. */
 'use strict';
@@ -69,16 +81,11 @@
       ? (p => (p ? text(i.normalizeProvider(p)) : ''))
       : (p => p.toLowerCase());
     const agentId = text(i.agentId) || 'agent';
-    const levels = [];
-    if (i.explicit) levels.push(levelOf(i.explicit.source || 'explicit', i.explicit, norm));
-    if (agentId === 'agent') levels.push(levelOf('agent', i.hero || i.agent, norm));
-    else {
-      levels.push(levelOf('agent', i.agent, norm));
-      levels.push(levelOf('station', i.hero, norm));
-    }
-    for (const f of (Array.isArray(i.fallbacks) ? i.fallbacks : [])) levels.push(levelOf((f && f.source) || 'connect', f, norm));
-    levels.push(levelOf('env', i.env, norm));
-    const list = levels.filter(Boolean);
+    const explicitLevel = i.explicit ? levelOf(i.explicit.source || 'explicit', i.explicit, norm) : null;
+    const agentLevel = levelOf('agent', agentId === 'agent' ? (i.hero || i.agent) : i.agent, norm);
+    const stationLevel = agentId === 'agent' ? null : levelOf('station', i.hero, norm);
+    const fallbackLevels = (Array.isArray(i.fallbacks) ? i.fallbacks : []).map(f => levelOf((f && f.source) || 'connect', f, norm)).filter(Boolean);
+    const list = [explicitLevel, agentLevel, stationLevel].concat(fallbackLevels, [levelOf('env', i.env, norm)]).filter(Boolean);
 
     const at = list.findIndex(l => l.model);
     if (at < 0) {
@@ -93,52 +100,53 @@
     }
     const won = list[at];
     let provider = won.provider, providerSource = won.source;
+    const skipped = [];
     if (!provider) {
-      const lender = list.slice(at + 1).find(l => l.provider);
+      // a crew row's provider with no model of its own (the stale stamp) lends nothing; the Overseer's provider does
+      const lends = l => l.model || l.source !== 'agent' || agentId === 'agent';
+      let lender = null;
+      for (const l of list.slice(at + 1)) {
+        if (!l.provider) continue;
+        if (lends(l)) { lender = l; break; }
+        skipped.push(l);
+      }
       provider = lender ? lender.provider : '';
       providerSource = lender ? lender.source : 'none';
     }
-    // a provider-only level above the winner was passed over: say so when it named a different provider
-    const ignored = list.slice(0, at).filter(l => l.provider && l.provider !== provider)
+    // a provider-only level above the winner (or a stamp that could not lend) was passed over: say so when it named a
+    // different provider
+    const ignored = list.slice(0, at).concat(skipped).filter(l => l.provider && l.provider !== provider)
       .map(l => ({ source: l.source, provider: l.provider, reason: 'a provider without a model is not a pin' }));
+    const followsStation = won.source === 'station';
+    const effortOf = l => (l && l.reasoningEffort) || undefined;   // THE REASONING-EFFORT RULE (header)
+    const reasoningEffort = effortOf(explicitLevel) || effortOf(agentLevel)
+      || (followsStation ? effortOf(stationLevel) : undefined)
+      || (fallbackLevels.indexOf(won) >= 0 ? effortOf(won) : undefined);
     return {
-      ok: true, agentId, provider, model: won.model, reasoningEffort: won.reasoningEffort,
-      source: won.source, providerSource, followsStation: won.source === 'station', ignored
+      ok: true, agentId, provider, model: won.model, reasoningEffort,
+      source: won.source, providerSource, followsStation, ignored
     };
   }
 
-  /* A saved record (a routine) holds provider and model only as a PAIR. `inherited` is the wire the record's agent
-     resolves to without it (resolveRunWire with no explicit level).
+  /* A saved record (a routine) and the half pairs it may hold:
        both, or neither            -> unchanged
-       a model, no provider        -> the provider it has been running on (the inherited provider): the model is kept, so the
-                                      tuple the record already ran is the tuple it keeps, now stated outright
+       a model, no provider        -> UNCHANGED. The model is the record's own; the provider is not. resolveRunWire borrows
+                                      it at run time (the agent's, else the station's), so the record follows a station
+                                      provider switch exactly as it always has. Stamping the provider it happened to run on
+                                      would freeze it there — and, on a boot with an empty or lost roster, on the
+                                      environment's provider.
        a provider, no model        -> provider cleared: it named no model, so it never pinned anything, and the record
                                       follows its agent. The caller keeps the cleared value in its migration note.
-     Deterministic for the same inputs; never invents a model and never drops one. */
-  function pairSavedWire(saved, inherited) {
+     Deterministic for the same input; never invents a model, never drops one, never stamps a provider. */
+  function pairSavedWire(saved) {
     const s = saved || {};
     const model = text(s.model), provider = text(s.provider);
     const out = { provider: provider || null, model: model || null, changed: false, reason: '' };
-    if ((model && provider) || (!model && !provider)) return out;
-    if (model) {
-      const lent = inherited && text(inherited.provider);
-      if (!lent) return out;   // nothing to pair it with yet: resolveRunWire still borrows at run time, deterministically
-      out.provider = lent; out.changed = true;
-      out.reason = 'model without a provider: paired with ' + lent + ', the provider it ran on (' + (SOURCE_LABELS[inherited.providerSource] || inherited.providerSource || 'inherited') + ')';
-      return out;
-    }
+    if (model || !provider) return out;
     out.provider = null; out.changed = true;
     out.reason = 'provider ' + provider + ' without a model is not a pin: the routine follows its agent';
     return out;
   }
 
-  function describeRunWire(wire) {
-    const w = wire || {};
-    if (!w.ok) return 'no model configured' + (w.provider ? ' (' + w.provider + ')' : '');
-    const borrowed = w.providerSource && w.providerSource !== w.source
-      ? '; provider from ' + (SOURCE_LABELS[w.providerSource] || w.providerSource) : '';
-    return w.provider + ' / ' + w.model + ' (' + (SOURCE_LABELS[w.source] || w.source) + borrowed + ')';
-  }
-
-  return { resolveRunWire, pairSavedWire, describeRunWire, SOURCE_LABELS };
+  return { resolveRunWire, pairSavedWire, SOURCE_LABELS };
 });

@@ -183,10 +183,12 @@ function deriveSessionId(system, firstUser) {
      store                          the channel transcript store (loadHistory/appendTurn) — for app visibility
      isAllowedHost(host)  -> bool   apiauth.isAllowedHost (the loopback pin)
      defaultModel         -> string the run model when the client selects the generic 'starnet-agent' ('' => runOnce default)
-     resolveWire(agentId) -> { ok, provider, model, source } (optional) the host's ONE {provider, model} resolution
-                                    (index.js runWireFor -> sidecar/run-wire.js). When injected it decides every /v1 run's
-                                    pair: a selected roster agent runs its own pair, the generic 'starnet-agent' runs the
-                                    station default; defaultModel / the roster row's raw fields are not consulted.
+     resolveWire(agentId, matched) -> { ok, provider, model, source } (optional) the host's ONE {provider, model}
+                                    resolution (index.js v1WireFor -> sidecar/run-wire.js). When injected it decides every
+                                    /v1 run's pair: `matched` (target.matched) says a roster agent was selected — it runs its
+                                    own pair; the generic 'starnet-agent' runs STARNET_V1_MODEL when the host has it set,
+                                    else the station default. defaultModel / the roster row's raw fields are not consulted,
+                                    and the Idempotency-Key fingerprint binds to this resolved pair.
      maxConcurrent        -> number the cap (env override resolved by index.js); 0 disables
      version              -> string reported by /health + /v1 model created stamp is `now`
      newId()              -> string uuid
@@ -256,11 +258,12 @@ function makeOpenAiCompat(deps) {
 
   /* WHICH PAIR a request runs on. With the host's resolver it is the one every surface runs (run-wire.js): the selected
      roster agent's own pair, or — for the generic 'starnet-agent' (an ephemeral or session agent that is not on the roster)
-     — the station default every unpinned agent follows. Before, the generic model ran openrouter + an env model whatever
+     — the host's STARNET_V1_MODEL when it is set, else the station default every unpinned agent follows (the host decides;
+     `matched` tells it which target this is). Before, the generic model ran openrouter + an env model whatever
      the station ran on, and a selected unpinned agent ran the env model on its stale stamped provider. */
   function runWireOf(agentId, target) {
     if (resolveWire) {
-      const w = resolveWire(target.matched ? target.agentId : agentId) || {};
+      const w = resolveWire(target.matched ? target.agentId : agentId, !!target.matched) || {};
       return { model: String(w.model || ''), provider: String(w.provider || '') || 'openrouter', source: w.source ? String(w.source) : undefined };
     }
     return { model: target.matched ? (target.model || defaultModel()) : defaultModel(), provider: target.provider || 'openrouter', source: undefined };
@@ -505,7 +508,10 @@ function makeOpenAiCompat(deps) {
       res.write(item.chunk); sent+=item.chunk.length;
     };
     try {
-      const result = await d.requestReservations.run({scope, key, onProgress, body:{request:body,target:resolveTarget(body.model),defaultModel:defaultModel()}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async (runId,emitProgress) => {
+      // the fingerprint binds to the PAIR this request resolves to (runWireOf — what the run really goes out on), never to
+      // defaultModel(): a replay after the station default or STARNET_V1_MODEL changed is a different request
+      const fpTarget = resolveTarget(body.model), fpWire = runWireOf('', fpTarget);
+      const result = await d.requestReservations.run({scope, key, onProgress, body:{request:body,target:fpTarget,wire:{provider:fpWire.provider,model:fpWire.model}}, runId:'chatcmpl-' + String(newId()).replace(/-/g, '').slice(0,24)}, async (runId,emitProgress) => {
         const chunks=[];
         const capture={status:200, headers:{}, on(){}, writeHead(status,headers){this.status=status;this.headers=headers;},
           write(value){

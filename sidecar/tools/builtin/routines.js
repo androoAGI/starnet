@@ -129,10 +129,18 @@
 
   // describe (injected by the host) turns a job into plain words: { when, next } on the host's wall clock. The model
   // reports a routine's cadence back to the Commander, and reading `cron 0 10 * * 1` it once told them "bi-weekly".
-  function packJob(job, describe) {
+  // wireOf (injected by the host: index.js routineWireRow -> run-wire.js) is the {provider, model, source} the routine's
+  // next run really goes out on — the raw provider/model fields are what the routine itself saved (a bare model has no
+  // provider of its own; an empty pair follows its agent). null for a script-only routine; absent host -> no `wire`.
+  function packJob(job, describe, wireOf) {
     if (!job) return null;
     let words = null;
     try { words = typeof describe === 'function' ? describe(job) : null; } catch (_) { words = null; }
+    let wire;
+    if (typeof wireOf === 'function') {
+      const w = wireOf(job);
+      wire = w ? { provider: w.provider || null, model: w.model || null, source: w.source || null } : null;
+    }
     return {
       id: job.id,
       name: job.name,
@@ -151,7 +159,8 @@
       deliver: job.deliver || 'local',
       completedRuns: job.repeat && job.repeat.completed || 0,
       provider: job.provider || null,
-      model: job.model || null
+      model: job.model || null,
+      wire
     };
   }
 
@@ -192,10 +201,11 @@
      added to the store later is then withheld by default instead of quietly becoming agent-writable.
      (test/tool-withheld-message.test.js additionally source-greps this file to prove no code path here even
      NAMES that grant field — which is why the sentence above describes it instead of spelling it.) */
-  /* A ROUTINE STORES ITS {provider, model} WHOLE (run-wire-resolver lane, sidecar/run-wire.js). A provider with no model names
-     no model, so the host would store it cleared and the routine would follow its agent — refuse it here instead, so the
-     tool never answers "updated (provider)" over a value that did not stick. A model alone is fine: the host pairs it with
-     the provider the routine's agent runs on, and the job in the reply shows the pair. */
+  /* A ROUTINE NEVER STORES A PROVIDER WITHOUT A MODEL (run-wire-resolver lane, sidecar/run-wire.js). A provider with no
+     model names no model, so the host would store it cleared and the routine would follow its agent — refuse it here
+     instead, so the tool never answers "updated (provider)" over a value that did not stick. A model alone is fine and is
+     stored as it is: each run borrows the provider its agent runs on (so it follows a station provider switch), and the
+     job in the reply names the pair that run uses (`wire`). */
   function providerOnlyRefusal(provider) {
     return 'provider ' + provider + ' needs a model too: a provider alone names no model. Pass both, or omit provider to run on the agent\'s own model';
   }
@@ -231,7 +241,7 @@
       return 'the scheduler is DISARMED — nothing fires until it is armed';
     };
     const roster = typeof deps.roster === 'function' ? deps.roster : function () { return new Map(); };
-    const pack = function (job) { return packJob(job, deps.describeSchedule); };
+    const pack = function (job) { return packJob(job, deps.describeSchedule, deps.wireOf); };
     // W6: the plain anti-retry line + the per-agent "you already maintain: …" summary. Injected so this tool
     // stays node-testable; defaults keep it a no-op when the host doesn't wire the mint ledger.
     const ANTI_RETRY = 'this routine already exists — do not recreate it';

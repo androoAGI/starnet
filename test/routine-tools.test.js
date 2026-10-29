@@ -99,6 +99,31 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
     A.eq(body.jobs.length, 1, 'routine.list returns created routines');
     A.eq(body.jobs[0].agentId, 'researcher-2', 'routine.list includes the target agent');
     A.eq(body.schedulerArmed, true, 'routine.list includes scheduler armed state');
+    A.ok(!('wire' in body.jobs[0]), 'a host that injects no wireOf adds no `wire` to the list');
+  }
+
+  // ---- list: each routine's RESOLVED pair rides the payload (wireOf: index.js routineWireRow -> run-wire.js) ----
+  // The raw provider/model are what the routine saved (a bare model has no provider of its own); `wire` is the pair its
+  // next run really uses, and null for a script-only routine, which never calls a model. The payload only — the tool's
+  // description is untouched (payload.budget).
+  {
+    const wjobs = [
+      { id: 'j-bare', name: 'bare model', agentId: 'agent', enabled: true, model: 'x/y', provider: null },
+      { id: 'j-script', name: 'script', agentId: 'agent', enabled: true, noAgent: true }
+    ];
+    const seen = [];
+    const wt = makeRoutineTools({
+      roster: () => roster, listJobs: () => wjobs, schedulerState: () => true,
+      wireOf: (job) => { seen.push(job.id); return job.noAgent ? null : { provider: 'codex', model: job.model, source: 'routine', extra: 'not copied' }; }
+    });
+    const listed = JSON.parse((await wt.listTool.run({}, { agentId: 'agent' })).content).jobs;
+    A.eq(seen, ['j-bare', 'j-script'], 'the host resolves each listed routine');
+    A.eq([listed[0].provider, listed[0].model], [null, 'x/y'], 'the raw saved fields stay what the routine saved');
+    A.eq(listed[0].wire, { provider: 'codex', model: 'x/y', source: 'routine' }, 'routine.list names the pair the routine really runs, and its source');
+    A.eq(listed[1].wire, null, 'a script-only routine lists wire: null');
+    const idx = require('./helpers/source.js').readSidecarSource();
+    const call = idx.slice(idx.indexOf('  makeRoutineTools({'), idx.indexOf('  makeRoutineTools({') + 2000);
+    A.ok(/\n    wireOf: \(job\) => routineWireRow\(job\),/.test(call), 'index.js hands routine.list the same resolved readout GET /api/cron shows (routineWireRow)');
   }
 
   // ---- explicit unknown agent is rejected instead of silently scheduling a ghost routine ----

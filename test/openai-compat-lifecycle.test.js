@@ -119,6 +119,31 @@ async function serve(api) {
         assert.equal(timers.length, 1, 'with nothing left to expire the sweep does not re-arm'); n++;
       } finally { await s.close(); }
     }
+    // ---- (d) an Idempotency-Key binds to the PAIR the request resolves to (run-wire-resolver lane), not defaultModel() ----
+    // A replay after the station's pair changed would run on another provider/model: it is a different request (409). A
+    // change to the legacy defaultModel the run no longer reads must not make the same request look different.
+    {
+      let wire = { ok: true, provider: 'codex', model: 'gpt-5.5', source: 'station' }, dm = 'env/one';
+      const ran = [];
+      const api = makeOpenAiCompat({ now: () => 1000, newId: () => String(++serial), apiKey: () => KEY, readBody,
+        requestReservations: makeRequestReservations({ fs, path, workspaces: root, now: () => 1000 }),
+        defaultModel: () => dm, resolveWire: () => wire,
+        runOnce: o => { ran.push([o.provider, o.model]); o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'ok' }); o.emit('agent.run.end', { reason: 'done' }); } });
+      const s = await serve(api);
+      try {
+        const post = (key) => fetch(s.base + '/v1/chat/completions', { method: 'POST',
+          headers: { Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Idempotency-Key': key },
+          body: JSON.stringify({ stream: false, messages: [{ role: 'user', content: 'same words' }] }) });
+        assert.equal((await post('wire-bound')).status, 200, 'the keyed request runs'); n++;
+        assert.deepEqual(ran, [['codex', 'gpt-5.5']], 'on the resolved pair'); n++;
+        dm = 'env/two';
+        assert.equal((await post('wire-bound')).status, 200, 'a defaultModel change the run never reads leaves the same request the same (a replay)'); n++;
+        assert.equal(ran.length, 1, '...answered from the stored response, not run again'); n++;
+        wire = { ok: true, provider: 'openrouter', model: 'v1/model', source: 'env' };
+        const changed = await post('wire-bound');
+        assert.equal(changed.status, 409, 'the same key after the resolved pair changed is a different request (409), never the old pair\'s answer'); n++;
+      } finally { await s.close(); }
+    }
     console.log('openai-compat-lifecycle: OK (' + n + ' assertions)');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

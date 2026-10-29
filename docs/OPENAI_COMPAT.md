@@ -18,11 +18,19 @@ dispatches terminal-capable agent work, so a guessable key is remote code execut
 - The sidecar-wide loopback **Host pin** (`apiauth.isAllowedHost`) is applied to `/v1` too.
 - `STARNET_V1_MAX_CONCURRENT` (default 10) caps concurrent runs across all `/v1` run modes;
   over the cap → **429** (`code: rate_limit_exceeded`). `0` disables the cap.
-- Every `/v1` run goes out on the same `{provider, model}` pair the agent runs on every other
-  surface (`sidecar/run-wire.js`): a selected roster agent runs its own pin, or the station default
-  (the Overseer's pin) when it has none; the generic `starnet-agent` runs the station default.
-  `STARNET_V1_MODEL` (then `STARNET_DEFAULT_MODEL`) is the environment default this surface falls
-  back to only when the station has no default model yet.
+- Which `{provider, model}` pair a `/v1` run goes out on (`sidecar/run-wire.js`, `v1WireFor` in
+  `sidecar/index.js`):
+  - **A selected roster agent** (its id or name in `model`) runs the pair it runs on every other
+    surface: its own pin, or the station default (the Overseer's pin) when it has none.
+    `STARNET_V1_MODEL` never overrides it.
+  - **The generic `starnet-agent`** (or a `model` that names no roster agent) runs
+    `STARNET_V1_MODEL` when you set it, on `STARNET_V1_PROVIDER` (default `openrouter`). With
+    `STARNET_V1_MODEL` unset it runs the station default, and with no station default yet the
+    environment rule: `STARNET_DEFAULT_MODEL` on OpenRouter — except on a **ChatGPT-only station**
+    (no OpenRouter key, signed in with ChatGPT), which can only run on ChatGPT, so it runs `codex`
+    with ChatGPT's own default model.
+  - An `Idempotency-Key` request is fingerprinted with the pair it resolves to, so a replay after
+    that pair changed (a new station default, a new `STARNET_V1_MODEL`) is a different request.
 
 ## Endpoints
 

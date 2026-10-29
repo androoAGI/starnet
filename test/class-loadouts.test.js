@@ -376,7 +376,9 @@ const save = idx.slice(idx.indexOf('function saveAgentRoster('), idx.indexOf('fu
 A.ok(/skills:\s*Array\.isArray\(a\.skills\)/.test(save), 'saveAgentRoster persists skills (old rosters without it still load)');
 // injection site passes the roster record's skills as agentSkills; effort precedence adds the roster fallback
 A.ok(/agentSkills:\s*agentSkills/.test(idx), 'the skill-injection site passes the running agent\'s package as agentSkills');
-A.ok(/rosterIdent && rosterIdent\.reasoningEffort/.test(idx), 'reasoning-effort precedence falls back to the roster record');
+// (run-wire-resolver lane) the precedence is the ONE effort rule in sidecar/run-wire.js, resolved with the run's pair
+// (runWireOfRun) — section 5 runs it
+A.ok(/const reasoningEffort = resolveReasoningEffort\(providerId, runWire\.reasoningEffort\);/.test(idx), 'reasoning-effort precedence is the one rule, resolved with the pair (falls back to the roster record: section 5)');
 
 /* ---------- 3. SOURCE-LEVEL: the browser summon path applies the loadout honestly ---------- */
 const app = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8');
@@ -459,16 +461,25 @@ A.ok(!/resolveTools\([^)]*stationObjects/.test(idx), 'stationObjects is NOT fed 
 }
 
 /* ---------- 5. EFFORT PRECEDENCE: a dispatched worker runs at its OWN class effort, not the lead's ---------- */
-// runOnce precedence: explicit run-option > roster (class) > provider default (source).
-A.ok(/o\.reasoningEffort[\s\S]{0,120}rosterIdent && rosterIdent\.reasoningEffort/.test(idx),
-  'runOnce effort precedence: explicit run-option, then the roster (class) record, then provider default');
+// runOnce precedence: explicit run-option > roster (class) > the Overseer's when following > provider default — THE ONE
+// effort rule (sidecar/run-wire.js, run-wire-resolver lane), run here rather than matched in the source
+{
+  const RW = require('../sidecar/run-wire.js');
+  const eff = i => RW.resolveRunWire(Object.assign({ hero: { model: 'h/m', provider: 'openrouter', reasoningEffort: 'high' }, env: {} }, i)).reasoningEffort;
+  A.eq(eff({ agentId: 'w', explicit: { reasoningEffort: 'xhigh' }, agent: { model: 'a/b', reasoningEffort: 'low' } }), 'xhigh', 'runOnce effort precedence: an explicit run-option wins');
+  A.eq(eff({ agentId: 'w', agent: { model: 'a/b', reasoningEffort: 'low' } }), 'low', '...then the roster (class) record');
+  A.eq(eff({ agentId: 'w', agent: { model: 'a/b' } }), undefined, '...then the provider default for a pinned agent');
+  A.ok(/const effort = String\(r\.reasoningEffort \|\| r\.reasoning_effort \|\| \(r\.reasoning && r\.reasoning\.effort\) \|\| ''\)\.trim\(\);/.test(idx),
+    "runOnceCore's resolution carries the run-option's effort as the explicit level (runWireOfRun)");
+}
 // the dispatch worker MUST resolve effort from the WORKER's roster identity — else the class effort is dead
 // (the lead always passes a truthy effort, which would shadow the roster fallback). Both dispatch paths fixed.
-// (run-wire-resolver lane) between the worker's own effort and the lead's: the station default's, when the worker follows it
-A.ok(/reasoningEffort:\s*\(job\.ident && job\.ident\.reasoningEffort\)\s*\|\|\s*(wire\.reasoningEffort\s*\|\|\s*)?reasoningEffort/.test(orch),
-  'team.dispatch (immediate) runs each worker at its OWN class reasoning effort, not the lead\'s');
-A.ok(/reasoningEffort:\s*\(ident && ident\.reasoningEffort\)\s*\|\|\s*(wire\.reasoningEffort\s*\|\|\s*)?reasoningEffort/.test(orch),
-  'team.dispatch (queued/recap) runs each worker at its OWN class reasoning effort, not the lead\'s');
+// (run-wire-resolver lane) the worker's effort is the one rule (workerWire: wire.reasoningEffort — its own class effort,
+// else the station's when it follows the station); a legacy host keeps its own class effort, else the lead's
+A.ok(/const leadEffort = \(ident && ident\.reasoningEffort\) \|\| reasoningEffort;/.test(orch) && /const effort = w\.reasoningEffort \|\| undefined;/.test(orch),
+  'team.dispatch resolves each worker\'s OWN class reasoning effort (the one rule), the lead\'s only on a legacy host or the lead\'s wire');
+A.ok((orch.match(/\n\s*reasoningEffort: wire\.reasoningEffort,/g) || []).length >= 4,
+  'team.dispatch (immediate, repair, queued/recap and its repair) runs each worker at that effort, not the lead\'s');
 
 /* ---------- 6. OLD-SAVE COMPAT: rosters/records without the new fields load unchanged ---------- */
 A.ok(/skills:\s*Array\.isArray\(a && a\.skills\)\s*\?[\s\S]{0,120}:\s*\[\]/.test(repl), 'replaceAgentRoster coerces a missing skills -> [] (old rosters load)');

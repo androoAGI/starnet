@@ -47,8 +47,12 @@ A.eq(envWith({ STARNET_AUX_BUDGET: '0', SKYNET_AUX_BUDGET: '2' })('AUX_BUDGET'),
 A.eq(envWith({ SKYNET_AUX_BUDGET: '2' })('AUX_BUDGET'), '2', 'the legacy SKYNET_ spelling still works alone');
 
 // ---- 4. the dev hub's default model, and the dead CAPS field ----
+// (run-wire-resolver lane) the dev hub reads the environment rule every surface's last level reads (runWireEnv), which
+// resolves STARNET_DEFAULT_MODEL through ENV()
 const dev = sidecarFunctionSource('devHubSecrets');
-A.ok(dev.includes("ENV('DEFAULT_MODEL')") && !/SKYNET_DEFAULT_MODEL/.test(dev), 'the dev hub resolves its default model through ENV(), STARNET_ first: ' + dev.slice(0, 300));
+const envRule = sidecarFunctionSource('runWireEnv');
+A.ok(/const env = runWireEnv\(\);/.test(dev) && envRule.includes("ENV('DEFAULT_MODEL')") && !/SKYNET_DEFAULT_MODEL/.test(dev + envRule),
+  'the dev hub resolves its default model through ENV(), STARNET_ first (runWireEnv): ' + dev.slice(0, 300));
 const caps = decl('CAPS');
 A.ok(caps.startsWith('const CAPS = {') && caps.includes('maxIters') && !caps.includes('maxCostUsd'), 'CAPS carries no dead maxCostUsd');
 A.ok(!/CAPS\.maxCostUsd/.test(all), 'and nothing reads one');

@@ -614,26 +614,30 @@
        every other surface. Without it an unpinned worker ran on the LEAD's model, so the same specialist answered a routine
        on the station default and a team.dispatch on whatever its lead was pinned to. The credential rule is unchanged: a
        pair on another provider runs only with that provider's own server-held credential (providerAuth), else the lead's
-       wire with an honest note. No resolveWire (a bare/legacy host) -> the roster-row rule below. */
+       wire with an honest note. No resolveWire (a bare/legacy host) -> the roster-row rule below.
+       THE WORKER'S EFFORT is the same one rule (run-wire.js, wire.reasoningEffort): its own pin/class effort, the station's
+       when it follows the station, else the provider default — never the lead's. The lead's effort rides only a worker
+       that runs on the lead's own wire (after its own class effort), and a legacy host keeps its own-class-else-lead rule. */
     const resolveWire = (typeof deps.resolveWire === 'function') ? deps.resolveWire : null;
     function workerWire(ident, agentId) {
       const w = (resolveWire && agentId) ? resolveWire(agentId) : null;
+      const leadEffort = (ident && ident.reasoningEffort) || reasoningEffort;   // Class Loadouts S1: its own class effort first
       if (w && w.ok && w.model) {
         const p = String(w.provider || '');
-        const effort = w.followsStation ? w.reasoningEffort : undefined;
+        const effort = w.reasoningEffort || undefined;
         if (!p || p === provider) return { provider, key, baseUrl, model: String(w.model), note: '', wireSource: w.source, reasoningEffort: effort };
         const lent = providerAuth ? providerAuth(p) : null;
         if (lent) return { provider: lent.provider || p, key: lent.key || '', baseUrl: lent.baseUrl || '', model: String(w.model), note: '', wireSource: w.source, reasoningEffort: effort };
-        return { provider, key, baseUrl, model, note: 'worker provider "' + p + '" has no credential on this station — ran on the lead\'s model instead', wireSource: 'lead' };
+        return { provider, key, baseUrl, model, note: 'worker provider "' + p + '" has no credential on this station — ran on the lead\'s model instead', wireSource: 'lead', reasoningEffort: leadEffort };
       }
       const wanted = (ident && ident.provider) ? String(ident.provider) : '';
       const ownModel = (ident && ident.model) ? String(ident.model) : '';
       if (!wanted || wanted === provider || !ownModel) {
-        return { provider, key, baseUrl, model: ownModel || model, note: '' };
+        return { provider, key, baseUrl, model: ownModel || model, note: '', reasoningEffort: leadEffort };
       }
       const auth = providerAuth ? providerAuth(wanted) : null;
-      if (auth) return { provider: auth.provider || wanted, key: auth.key || '', baseUrl: auth.baseUrl || '', model: ownModel, note: '' };
-      return { provider, key, baseUrl, model, note: 'worker provider "' + wanted + '" has no credential on this station — ran on the lead\'s model instead' };
+      if (auth) return { provider: auth.provider || wanted, key: auth.key || '', baseUrl: auth.baseUrl || '', model: ownModel, note: '', reasoningEffort: leadEffort };
+      return { provider, key, baseUrl, model, note: 'worker provider "' + wanted + '" has no credential on this station — ran on the lead\'s model instead', reasoningEffort: leadEffort };
     }
     // Opt-in ceiling only. Omitted/zero means dispatch every requested worker.
     const maxWorkers = (typeof deps.maxWorkers === 'number' && isFinite(deps.maxWorkers) && deps.maxWorkers > 0) ? Math.floor(deps.maxWorkers) : 0;
@@ -1027,7 +1031,7 @@
               key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
               // Class Loadouts S1: the WORKER runs at its OWN class-applied reasoning effort (roster record), not the
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
-              reasoningEffort: (job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
+              reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire): its own, else the station's when it follows
               model: wire.model,
               system: workerSystem((job.ident && job.ident.system) || ''),
               messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
@@ -1086,7 +1090,7 @@
                 outputOnly: true,
                 ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx), ...repairPool.options,
                 key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
-                reasoningEffort: (job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
+                reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
                 model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                   { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(job.resultSchema) }],
@@ -1124,7 +1128,7 @@
             usd: totalUsd,
             runId: workerRunId,
             model: effective.model || wire.model,
-            reasoningEffort: effective.reasoningEffort || ((job.ident && job.ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort),
+            reasoningEffort: effective.reasoningEffort || wire.reasoningEffort || null,
             toolsOk: (Number(result.toolsOk) || 0) + (Number(repaired && repaired.toolsOk) || 0),
             durationMs: (Number(result.durationMs) || 0) + (Number(repaired && repaired.durationMs) || 0),
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
@@ -1575,7 +1579,7 @@
           result = await runOnce({
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...watched.options,
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
-            reasoningEffort: (ident && ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,   // Class Loadouts S1: worker's own class effort (see runWorker)
+            reasoningEffort: wire.reasoningEffort,   // the ONE effort rule, as a fresh dispatch (workerWire)
             model: wire.model,
             system: workerSystem((ident && ident.system) || ''),
             messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
@@ -1615,7 +1619,7 @@
               outputOnly: true,
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...repairPool.options,
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
-            reasoningEffort: (ident && ident.reasoningEffort) || wire.reasoningEffort || reasoningEffort,
+            reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
             model: wire.model, system: workerSystem((ident && ident.system) || ''),
             messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
               { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(rec.resultSchema) }],
