@@ -218,9 +218,21 @@ function expect(entry, sc, agentId, got, opts) {
       // effort, low) is a no-op: its class effort stays, and it never drops to the Overseer's (high)
       A.ok(p.setAgentModelPin('crew', '', ''), 'the no-op unpin is accepted');
       A.eq(agents.get('crew').reasoningEffort, 'low', "a no-op unpin keeps the agent's class effort");
+      // (review round 5) ...through the 4-argument door too: the dossier's CLEAR calls applyModel('', '', ''), which hands
+      // setModel a 4th (empty) effort argument
+      const ui = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'stationui.js'), 'utf8');
+      A.ok(/mClear\.addEventListener\('click', \(\) => applyModel\('', '', ''\)\)/.test(ui) && /access\.config\.setModel\(a && a\.id, model, provider, effort\)/.test(ui),
+        'fixture: CLEAR unpins through the 4-argument setModel');
+      A.ok(p.setAgentModelPin('crew', '', '', ''), 'the 4-argument no-op unpin (CLEAR) is accepted');
+      A.eq(agents.get('crew').reasoningEffort, 'low', "a no-op CLEAR keeps the agent's class effort");
       p.applyWire(p.focusWire(agents.get('crew')));
       const crewRun = reach(host, { agentId: 'crew', provider: host.deps.normalizeProvider(Harness.getProv()), model: Harness.getModel(), reasoningEffort: Harness.getReasoningEffort(Harness.getProv()) });
       expect('COMMS', 'A', 'crew', crewRun, { source: true });
+      // ...while a 4-argument CLEAR of an agent that HAS a pin still drops that pin's effort with it
+      A.ok(p.setAgentModelPin('smith', 'gpt-5.5', 'codex', 'xhigh'), 'a 4-argument pin with its own effort is accepted');
+      A.eq(agents.get('smith').reasoningEffort, 'xhigh', '...and keeps that effort');
+      A.ok(p.setAgentModelPin('smith', '', '', ''), 'the 4-argument CLEAR of a pinned agent is accepted');
+      A.eq([agents.get('smith').model, agents.get('smith').reasoningEffort], [null, null], "...and drops the pin's effort with it");
     }
   }
 

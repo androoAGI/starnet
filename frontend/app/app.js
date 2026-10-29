@@ -489,10 +489,12 @@ const App = (() => {
     const hadPin = !!a.model;   // an unpin of an agent that never had a pin is a no-op: its class effort stays
     a.model = m || null;
     a.provider = p || null;
-    // effort is OPTIONAL + additive: written only when the 4th arg is passed (older 3-arg callers untouched); clearing a pin, of any arity, also clears it.
+    // effort is OPTIONAL + additive: a pin writes it only when the 4th arg is passed (older 3-arg callers untouched); an
+    // unpin, of any arity, clears it only when there WAS a pin — CLEAR (stationui applyModel('', '', '') passes 4 args) on an
+    // agent that never had one keeps its class effort.
     const hasEffort = (arguments.length >= 4);
     const e = String(effort || '').trim();
-    if (hasEffort || (!m && hadPin)) a.reasoningEffort = (m && e) ? e : null;
+    if (m ? hasEffort : hadPin) a.reasoningEffort = (m && e) ? e : null;
     if (agent && a.id === agent.id) {   // focused agent — apply live so the next run reflects the pin at once
       if (m) {
         if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(m);
