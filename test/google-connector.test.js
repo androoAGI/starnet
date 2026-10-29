@@ -107,8 +107,11 @@ const catalog = require('../sidecar/mcp/catalog.js');
       assert.equal(G.connectorDeferred(cfgOf('gmail')), false, 'holding the sign-in never defers a saved Gmail connection');
       assert.deepEqual(G.heldUse(cfgOf('gmail')), { id: 'gmail-app-password', name: 'Gmail (app password)' });
       assert.deepEqual(G.heldUse(cfgOf('google-drive')), { id: 'google-files', name: 'Selected Google files' });
-      assert.equal(G.heldMessage(cfgOf('gmail')), 'Google blocks StarNet’s Gmail sign-in until StarNet passes Google’s review. Gmail (app password) works now.');
-      assert.equal(G.heldMessage(cfgOf('google-drive'), false), 'Google blocks StarNet’s Google Drive sign-in until StarNet passes Google’s review.', 'never "works now" for an alternative this build cannot connect');
+      // it points to the alternative and never says it works: the card existing proves nothing about the account (GitHub #148)
+      assert.equal(G.heldMessage(cfgOf('gmail')), 'Google blocks StarNet’s Gmail sign-in until StarNet passes Google’s review. Meanwhile you can try Gmail (app password) instead.');
+      assert.equal(G.heldMessage(cfgOf('google-drive')), 'Google blocks StarNet’s Google Drive sign-in until StarNet passes Google’s review. Meanwhile you can try Selected Google files instead.');
+      for (const id of Object.keys(G.SERVICES)) assert.ok(!/works/.test(G.heldMessage(cfgOf(id))), id + ': the held line never says the alternative works');
+      assert.equal(G.heldMessage(cfgOf('google-drive'), false), 'Google blocks StarNet’s Google Drive sign-in until StarNet passes Google’s review.', 'never points to an alternative this build cannot connect');
       assert.equal(G.signInHeld({ id: 'notion', url: 'https://mcp.notion.com/mcp', transport: 'http' }), false, 'non-Google connectors are untouched');
       assert.equal(G.signInHeld({ id: 'google-files', url: G.FILES_URL, googleApi: true }), false, 'Selected Google files is never held');
       const savedHeld = Object.assign({}, G.RELEASED);

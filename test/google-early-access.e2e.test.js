@@ -27,9 +27,9 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
         const [name, useId, useName] = HELD[c.id];
         assert.equal(c.signInHeld, true, c.id + ' sign-in is held (Google blocks the restricted tier outright)');
         assert.equal(c.signInAvailable, false, c.id + ' offers no sign-in');
-        assert.equal(c.useInstead, useId, c.id + ' points at the connection that works');
+        assert.equal(c.useInstead, useId, c.id + ' points at the connection to try instead');
         assert.ok(all.some(x => x.id === useId), useId + ' is in the catalog');
-        assert.equal(c.signInMessage, 'Google blocks StarNet’s ' + name + ' sign-in until StarNet passes Google’s review. ' + useName + ' works now.', c.id + ': one honest line');
+        assert.equal(c.signInMessage, 'Google blocks StarNet’s ' + name + ' sign-in until StarNet passes Google’s review. Meanwhile you can try ' + useName + ' instead.', c.id + ': one honest line, never that the alternative works');
         assert.ok(!c.earlyAccess && !/Advanced|Sign in with Google/.test(c.blurb), c.id + ' never promises a way through Google: ' + c.blurb);
         continue;
       }
