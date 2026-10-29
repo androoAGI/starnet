@@ -36,6 +36,7 @@ const nodeCrypto = require('node:crypto');
 const { spawn, execFileSync } = require('node:child_process');
 const core = require('./lib/cli-core.js');
 const folderLib = require('./lib/folder.js');
+const { runPairOf } = require('./lib/station-model.js');   // a roster row's pair as its runs use it (the resolved wire)
 
 const REPO = path.resolve(__dirname, '..');
 const SIDECAR = path.join(REPO, 'sidecar', 'index.js');
@@ -500,7 +501,8 @@ async function statusCommand(opts, station) {
     workspace: workspace || null,
     providers: configured,
     keychain: !!(prov.ok && prov.json && prov.json.keychainMode),
-    agents: Array.isArray(r.agents) ? r.agents.map(a => ({ agentId: a.agentId, name: a.name, model: a.model, provider: a.provider })) : []
+    // each agent's pair as its runs really use it (the row's resolved wire — an unpinned agent follows the station default)
+    agents: Array.isArray(r.agents) ? r.agents.map(a => { const p = runPairOf(a); return { agentId: a.agentId, name: a.name, model: p.model || null, provider: p.provider || null, followsStation: p.followsStation, wireSource: p.source || undefined }; }) : []
   };
   if (opts.json) { process.stdout.write(JSON.stringify(out) + '\n'); return 0; }
   process.stdout.write([
@@ -508,7 +510,7 @@ async function statusCommand(opts, station) {
     'version    harness ' + (out.version.harness || '?') + (out.version.app ? ' · app ' + out.version.app : '') + ' · node ' + out.version.node,
     'workspace  ' + (out.workspace || 'not disclosed by the station'),
     'providers  ' + (out.providers.length ? out.providers.join(', ') : 'none configured') + (out.keychain ? ' (keys in the OS keychain)' : ''),
-    'agents     ' + (out.agents.length ? out.agents.map(a => a.agentId + '=' + a.name + ' [' + (a.provider || '?') + '/' + (a.model || 'no model') + ']').join('\n           ') : 'none')
+    'agents     ' + (out.agents.length ? out.agents.map(a => a.agentId + '=' + a.name + ' [' + (a.provider || '?') + '/' + (a.model || 'no model') + (a.followsStation ? ' · station default' : '') + ']').join('\n           ') : 'none')
   ].join('\n') + '\n');
   return 0;
 }

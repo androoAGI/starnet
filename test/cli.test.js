@@ -179,6 +179,18 @@ const lineage = require('../sidecar/workspace-lineage.js');
   A.eq(bare.agentId + '/' + bare.model, 'agent/env/default', 'an empty roster runs the bare agent on the station default model');
   const none = core.pickAgent({ agents: [{ agentId: 'agent', name: 'X', model: '', provider: 'openrouter' }] }, {});
   A.ok(!none.ok && /--model/.test(none.error), 'no model anywhere → an actionable error');
+  // --provider names the provider the station's alias map knows (sidecar/providers/registry.js): `openai-codex` IS the
+  // 'codex' the agent runs on, so it is no bare provider to refuse; an id the registry does not know is still refused
+  const alias = core.pickAgent(rt, { agent: 'researcher', provider: 'openai-codex' });
+  A.ok(alias.ok && alias.provider === 'codex' && alias.model === 'gpt-5', '--provider openai-codex is the codex the agent runs on: ' + JSON.stringify(alias));
+  const aliasModel = core.pickAgent(rt, { agent: 'agent', provider: 'OR', model: 'x/y' });
+  A.eq([aliasModel.provider, aliasModel.model], ['openrouter', 'x/y'], '--provider resolves its alias with --model too');
+  const unknownProv = core.pickAgent(rt, { agent: 'researcher', provider: 'not-a-provider' });
+  A.ok(!unknownProv.ok && /needs --model too/.test(unknownProv.error), 'an unknown bare --provider is still refused: ' + JSON.stringify(unknownProv));
+  // the help says what --model / --provider really do (the run-wire rule), not "override the agent's provider"
+  const help = core.USAGE;
+  A.ok(!/override the agent's provider/.test(help) && /a provider alone names no/.test(help) && /--model <slug>\s+run this model instead of the agent's \(on the agent's provider unless --provider names one\)/.test(help),
+    'the help text states the --model / --provider rule');
   const body = core.buildRunBody(d, 'do it', { cwd: '/proj' });
   A.eq(body.messages[0].role + ':' + body.messages[0].content, 'user:do it', 'one user message');
   A.eq(body.placed.map(p => p.objectType).join(','), 'computer,cabinet,workbench,dish,notebook', 'the headless coding office is placed');

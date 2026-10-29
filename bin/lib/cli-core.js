@@ -80,8 +80,9 @@ const USAGE = [
   '',
   'Run options:',
   '  --agent <id>       roster agent to run (default: "agent", else the first roster entry)',
-  '  --model <slug>     override the agent\'s model',
-  '  --provider <id>    override the agent\'s provider (openrouter, openai, anthropic, codex, …)',
+  '  --model <slug>     run this model instead of the agent\'s (on the agent\'s provider unless --provider names one)',
+  '  --provider <id>    the provider for --model (openrouter, openai, anthropic, codex, …); a provider alone names no',
+  '                     model, so it needs --model unless it is the provider the agent already runs on',
   '  --json             print one JSON object (result + run receipt) instead of streaming text',
   '  --cwd <dir>        the folder to work in (default: the one you are in, when it is a trusted project; a folder not',
   '                     trusted yet is asked about before the agent works in it)',
@@ -318,8 +319,12 @@ const APP_EXIT_START_CANCELLED = 3;
    older station without it, the raw row and then the station default (the top-level pair). --model / --provider are this
    run's explicit level under the same rule: a bare --model runs on the agent's provider, and a bare --provider names no
    model, so it is refused unless it is the provider the agent already runs on. An empty roster is fine only when a model
-   is given explicitly or the station reports one (the bare 'agent' identity — the cron driver's roster-less grace). */
+   is given explicitly or the station reports one (the bare 'agent' identity — the cron driver's roster-less grace).
+   Provider ids resolve through the station's own alias map (sidecar/providers/registry.js), so `--provider openai-codex`
+   is the 'codex' the agent runs on; an id the registry does not know is kept as typed, so a bare one is still refused. */
 const RunWire = require('../../sidecar/run-wire.js');
+const ProviderRegistry = require('../../sidecar/providers/registry.js');
+function cliProviderId(p) { return ProviderRegistry.normalizeProviderId(p, '') || String(p || '').trim().toLowerCase(); }
 function pickAgent(runtime, want) {
   const rt = runtime || {};
   const w = want || {};
@@ -336,7 +341,8 @@ function pickAgent(runtime, want) {
   const wire = RunWire.resolveRunWire({
     agentId: 'cli-target',   // not the hero's id: the row and the station default stay two levels
     explicit: (w.model || w.provider) ? { provider: w.provider || '', model: w.model || '' } : null,
-    agent: own, hero: { provider: rt.provider || '', model: rt.model || '' }
+    agent: own, hero: { provider: rt.provider || '', model: rt.model || '' },
+    normalizeProvider: cliProviderId
   });
   if (!wire.ok) return { ok: false, error: 'no model to run: agent ' + JSON.stringify(agentId) + ' has none configured — pass --model <slug> (or set STARNET_DEFAULT_MODEL for a spawned station)' };
   if (w.provider && !w.model && wire.ignored.some(x => x.source === 'explicit')) {

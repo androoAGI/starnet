@@ -110,9 +110,23 @@ function askInspect(tool, raw) {
   return Object.keys(o).map(k => k + ': ' + (typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k]))).join('\n');
 }
 
+/* runPairOf(row) — the PAIR a GET /api/runtime/agent row's runs really go out on: its resolved `wire` (sidecar/run-wire.js
+   — what COMMS, a routine or a chat runs for this agent) when it names a model. The raw model/provider are the row as
+   saved: an unpinned agent's empty model means "follows the station default", never "no model set", and its provider may
+   be an older page's stale stamp. An older station sends no wire: the raw row is all there is. The dashboard, `starnet
+   ls` and `starnet status` all read this, so the terminal never refuses or mislabels an agent the station runs. */
+function runPairOf(row) {
+  const r = row || {};
+  const w = (r.wire && typeof r.wire === 'object' && r.wire.model) ? r.wire : null;
+  return {
+    model: String((w ? w.model : r.model) || ''), provider: String((w ? w.provider : r.provider) || ''),
+    followsStation: !!(w && w.followsStation), source: w ? String(w.source || '') : '', wire: w
+  };
+}
+
 function makeAgent(id, name) {
   return {
-    id, name: String(name || id).toUpperCase().slice(0, 24), model: '', provider: '', inRoster: false,
+    id, name: String(name || id).toUpperCase().slice(0, 24), model: '', provider: '', followsStation: false, inRoster: false,
     runs: new Set(), last: null, now: '', act: new Array(SLOTS).fill(0), bucket: 0, log: [], seq: 0
   };
 }
@@ -148,11 +162,15 @@ function makeStation() {
       if (!r || !r.agentId) continue;
       const a = agent(r.agentId);
       a.name = String(r.name || r.agentId).toUpperCase().slice(0, 24);   // whole up to 24; each screen shortens it with …
-      a.model = String(r.model || ''); a.provider = String(r.provider || ''); a.inRoster = true;
+      // the PAIR its runs really go out on (runPairOf: the row's resolved wire, else the raw row on an older station)
+      const pair = runPairOf(r), w = pair.wire;
+      a.model = pair.model; a.provider = pair.provider; a.followsStation = pair.followsStation; a.inRoster = true;
       // what its runs are held to, when the station says (an older station does not: the app's save is read instead)
       // a station that says the field says it whole: null is the Commander clearing it (the provider's default), never
-      // "keep what the terminal last heard" — a cleared effort is not sent on the terminal's runs
-      if (Object.prototype.hasOwnProperty.call(r, 'reasoningEffort')) { a.reasoningEffort = typeof r.reasoningEffort === 'string' && r.reasoningEffort ? r.reasoningEffort : null; a.rosterSettings = true; }
+      // "keep what the terminal last heard" — a cleared effort is not sent on the terminal's runs. The wire's effort is the
+      // station's ONE effort rule (its own, else the Overseer's when it follows the station) and wins over the raw row's.
+      const effortFrom = (w && Object.prototype.hasOwnProperty.call(w, 'reasoningEffort')) ? w : (Object.prototype.hasOwnProperty.call(r, 'reasoningEffort') ? r : null);
+      if (effortFrom) { a.reasoningEffort = typeof effortFrom.reasoningEffort === 'string' && effortFrom.reasoningEffort ? effortFrom.reasoningEffort : null; a.rosterSettings = true; }
       if (typeof r.approvalMode === 'string' && r.approvalMode) { a.approvalMode = r.approvalMode; a.rosterSettings = true; }
       if (typeof r.personaId === 'string' && r.personaId) a.personaId = r.personaId;
     }
@@ -497,4 +515,4 @@ function costText(cost) {
   return 'spend unknown';
 }
 
-module.exports = { makeStation, sourceOf, toolName, oneLine, argDigest, askGlance, askInspect, fmtDur, fmtShort, ago, costText, SLOTS, SLOT_MS, RUN_FLOOR, RECENT_MS, ONCE_ONLY_TOOLS };
+module.exports = { makeStation, runPairOf, sourceOf, toolName, oneLine, argDigest, askGlance, askInspect, fmtDur, fmtShort, ago, costText, SLOTS, SLOT_MS, RUN_FLOOR, RECENT_MS, ONCE_ONLY_TOOLS };
