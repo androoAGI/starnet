@@ -63,9 +63,12 @@ function page(opts) {
       invokes.push({ cmd, args: Object.assign({}, args) });
       try { return await opts.shell(cmd, args); } finally { settled++; }
     },
+    // the page's /api fetch (the station's readout of the endpoints it keeps); a page with none answers nothing
+    fetch: opts.fetch || (async () => { throw new Error('no station in this sandbox'); }),
+    setTimeout: opts.setTimeout || setTimeout, clearTimeout: opts.clearTimeout || clearTimeout,
     console: { warn: m => warns.push(String(m)), log() {} }
   };
-  const api = vm.runInNewContext(helpers + handOver + '\n({ pushDesktopEndpoints, noteStationReply, desktopEndpointsHeld })', scope);
+  const api = vm.runInNewContext(helpers + handOver + "\n({ pushDesktopEndpoints, noteStationReply, desktopEndpointsHeld, endpointHandOverSettled: typeof endpointHandOverSettled === 'function' ? endpointHandOverSettled : null })", scope);
   return { api, invokes, warns, settled: () => settled };
 }
 
@@ -138,7 +141,8 @@ async function waitFor(fn, label) {
       'starnet.byok.baseUrl.groq': endpoint,          // ...and one this test runs on after a respawn
       'starnet.byok.baseUrl.starnet': 'http://cloud.invalid'   // the linked account's endpoint is the sidecar's own
     };
-    const desk = page({ desktop: true, storage, shell });
+    const stationFetch = u => fixture.request(u);
+    const desk = page({ desktop: true, storage, shell, fetch: stationFetch });
 
     // boot hand-over
     const out = await desk.api.pushDesktopEndpoints();
@@ -234,6 +238,29 @@ async function waitFor(fn, label) {
     A.ok(ranDone(back), 'after the come-back re-sync the CUSTOM routine runs to done again');
     A.eq(keychainWrites.length, 0, 'the keychain is still untouched');
 
+    // review r7 (m7): the station keeps an endpoint this window has NO slot for (its storage was reset, an older build pushed
+    // it) — nothing on the page shows it or can change it, and the keychain key keeps going there. The station says which
+    // endpoints it keeps (GET /api/runtime/agent keptEndpoints, no credentials in the URL), and the hand-over clears each one
+    // this window has no slot for.
+    const kept = await fixture.json('GET', '/api/runtime/agent');
+    const keptOf = b => ((b && b.keptEndpoints) || []).map(e => e.provider + ' ' + e.endpoint).sort();
+    A.eq(keptOf(kept.body), ['anthropic https://proxy.invalid/v1', 'custom ' + endpoint, 'groq ' + endpoint, 'ollama http://192.168.1.50:11434'],
+      'the station reads out the endpoints it keeps: ' + JSON.stringify(kept.body && kept.body.keptEndpoints));
+    const fresh = page({ desktop: true, storage: { 'starnet.byok.baseUrl.custom': endpoint }, shell, fetch: stationFetch });
+    const freshOut = await fresh.api.pushDesktopEndpoints();
+    A.eq(freshOut.map(o => o.provider).sort(), ['anthropic', 'custom', 'groq', 'ollama'], 'a window with one slot hands over that slot and a clear for every other endpoint the station keeps: ' + JSON.stringify(freshOut));
+    A.ok(fresh.invokes.filter(c => c.args.provider !== 'custom').every(c => c.args.baseUrl === '' && !Object.prototype.hasOwnProperty.call(c.args, 'key')), '...each a clear, with no key');
+    for (const f of [endpointsFile, endpointsFile + '.bak']) {
+      const saved = (() => { try { return JSON.parse(onDisk(f)); } catch (_) { return null; } })();
+      A.eq(saved && saved.baseUrls, { custom: endpoint }, path.basename(f) + ' keeps only what this window shows');
+    }
+    A.eq(keptOf((await fixture.json('GET', '/api/runtime/agent')).body), ['custom ' + endpoint], 'and the readout says so');
+    const redacted = await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', baseUrl: 'https://user:pw@gw.invalid/v1?token=SECRET#x' }) });
+    A.eq(redacted.status, 200, 'a pushed endpoint with credentials in its URL is kept');
+    const shown = ((await fixture.json('GET', '/api/runtime/agent')).body.keptEndpoints || []).find(e => e.provider === 'anthropic');
+    A.eq(shown && shown.endpoint, 'https://gw.invalid/v1', '...and read out without its user, password, query or fragment');
+    await fixture.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider: 'anthropic', baseUrl: '' }) });
+
     // a window that CLEARED its endpoints: the station forgets them, across a restart, in both copies on disk
     const cleared = page({ desktop: true, storage: { 'starnet.byok.baseUrl.custom': '', 'starnet.byok.baseUrl.ollama': '', 'starnet.byok.baseUrl.groq': '', 'starnet.byok.baseUrl.anthropic': '' }, shell });
     A.ok((await cleared.api.pushDesktopEndpoints()).every(o => o.ok), 'the clears landed');
@@ -266,6 +293,29 @@ async function waitFor(fn, label) {
     browser.api.noteStationReply(false); browser.api.noteStationReply(true);
     await sleep(50);
     A.eq(browser.invokes.length, 0, 'a browser page never invokes the shell');
+
+    // review r7 (m6): a run waits for an in-flight hand-over, never past 8 s — a shell command that never answers must not hold
+    // every run — and the hung hand-over is let go, so the next one starts
+    let fire = null;
+    const hung = page({ desktop: true, storage: { 'starnet.byok.baseUrl.custom': endpoint }, shell: () => new Promise(() => {}), fetch: async () => ({ ok: false }),
+      setTimeout: (fn, ms) => { fire = { fn, ms }; return 1; }, clearTimeout: () => {} });
+    A.ok(typeof hung.api.endpointHandOverSettled === 'function', 'harness.js has the bounded wait a run uses (endpointHandOverSettled)');
+    if (hung.api.endpointHandOverSettled) {
+      hung.api.pushDesktopEndpoints();   // never settles
+      await waitFor(() => hung.invokes.length === 1, 'the hung push');
+      let done = false;
+      const waited = hung.api.endpointHandOverSettled().then(() => { done = true; });
+      await sleep(30);
+      A.ok(!done && fire && fire.ms === 8000, 'a run waits on the in-flight hand-over, capped at 8 s: ' + JSON.stringify(fire && fire.ms));
+      fire.fn();
+      await waited;
+      A.ok(done, '...and goes on when the cap fires');
+      hung.api.pushDesktopEndpoints();
+      await waitFor(() => hung.invokes.length === 2, 'the next hand-over');
+      A.eq(hung.invokes.length, 2, 'the hung hand-over was let go: the next one starts');
+      const idle = page({ desktop: true, storage: {}, shell });
+      A.eq(await idle.api.endpointHandOverSettled(), undefined, 'with no hand-over in flight a run does not wait');
+    }
   } finally {
     await fixture.dispose();
     await new Promise(r => upstream.close(r));
@@ -277,7 +327,11 @@ async function waitFor(fn, label) {
   A.ok(/rawFetch\(u, withApiToken\(init, t\)\)\.then\(res => \{\s*\n\s*noteStationReply\(true\);[\s\S]{0,400}if \(!\(e && e\.name === 'AbortError'\)\) noteStationReply\(false\);[^\n]*\n\s*throw e;/.test(harness),
     'the /api fetch wrapper reports each answer and each refused connection (never a caller abort), and still rethrows');
   A.ok(/\.then\(up => \{ if \(up\) pushDesktopEndpoints\(\); return up; \}\)/.test(harness), 'ENGINE RESTART re-hands the endpoints once the sidecar is back');
-  A.ok(/if \(DESKTOP && endpointHandOver\) await endpointHandOver;\n\s*const post = \(\) => fetch\('\/api\/run', \{/.test(harness),
-    'a desktop run sent while the hand-over is in flight waits for it before POST /api/run');
+  A.ok(/if \(DESKTOP && endpointHandOver\) await endpointHandOverSettled\(\);\n\s*const post = \(\) => fetch\('\/api\/run', \{/.test(harness),
+    'a desktop run sent while the hand-over is in flight waits for it (bounded) before POST /api/run');
+  // review r7 (m8): the page never sends a StarNet endpoint (the linked account's is the station's own)
+  A.ok(/\n\s*if \(provider !== 'starnet' && getBaseUrl\(provider\)\) reqBody\.baseUrl = getBaseUrl\(provider\);/.test(harness), 'a run body carries no stray StarNet baseUrl slot');
+  // review r7 (m11): the hand-over's comment says what the station keeps now (a cloud override survives a respawn too)
+  A.ok(!/held for[\s*]*the session only/.test(handOver), 'the hand-over comment no longer says a cloud override is held for the session only');
   A.report('desktop-endpoint-handover.e2e.test');
 })().catch(e => { console.error('FATAL', e && e.stack || e); process.exit(1); });

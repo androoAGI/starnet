@@ -752,42 +752,73 @@ const Harness = (() => {
     return Promise.all(jobs);
   }
   /* #137 DESKTOP ENDPOINT HAND-OVER. On the desktop app the OS keychain holds provider KEYS only; a provider's endpoint
-     (a CUSTOM base URL, an Ollama that is not on this machine) lives in this window's storage, and the station keeps
-     the CUSTOM / Ollama copy it was last handed (sidecar/index.js DESKTOP_ENDPOINTS_FILE — before 0.14.0 that copy was
-     memory, so every app restart or respawn left routines, Run Now, line hops, channels and phone runs failing "no
-     CUSTOM base URL is saved on this station" while chat kept working; a cloud provider's override is still held for
-     the session only). The window is the source: once per page boot (init), after ENGINE
+     (a CUSTOM base URL, an Ollama that is not on this machine, a cloud provider's override such as an OpenRouter-compatible
+     proxy) lives in this window's storage, and the station keeps the copy it was last handed, across app restarts and
+     sidecar respawns (sidecar/index.js DESKTOP_ENDPOINTS_FILE — before 0.14.0 that copy was memory, so every app restart
+     or respawn left routines, Run Now, line hops, channels and phone runs failing "no CUSTOM base URL is saved on this
+     station" while chat kept working). The window is the source: once per page boot (init), after ENGINE
      RESTART, and on the first answer after this page saw the station stop answering, the page hands the station every
-     endpoint slot it holds — a cleared slot as a clear — so the station's copy matches this window. With NO key, so the
+     endpoint slot it holds — a cleared slot as a clear — and a clear for every endpoint the station keeps that this window
+     has NO slot for (GET /api/runtime/agent keptEndpoints: its storage was reset, an older build pushed it), so the
+     station's copy matches this window and no keychain key goes on to an endpoint nothing here shows. With NO key, so the
      keychain is never touched (harness_store_provider_key writes the keychain only when a key is given). Never rejects
-     and never awaited by boot; a failed hand-over is logged and tried again at the next come-back. */
+     and never awaited by boot; a failed hand-over is logged and tried again at the next come-back. A run waits for one in
+     flight, never past 8 s (endpointHandOverSettled). */
   function desktopEndpointsHeld() {
     const held = new Map();
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = String(localStorage.key(i) || '');
         const p = k === LS.baseUrl ? 'openrouter' : (k.indexOf(LS.baseUrl + '.') === 0 ? normalizeProviderId(k.slice(LS.baseUrl.length + 1)) : '');
-        // starnet's endpoint is the linked account's (the sidecar resolves it); the shell would file it under openrouter
+        // starnet's endpoint is the linked account's (the sidecar resolves it): never handed over
         if (!p || p === 'starnet' || held.has(p)) continue;
         held.set(p, String(readScoped(LS.baseUrl, p) || '').trim());   // '' = this window cleared it: the station forgets its copy
       }
-    } catch (_) { /* storage unavailable: no endpoint saved here to hand over */ }
+    } catch (e) {
+      // storage unavailable: nothing here to hand over, and nothing known to clear (null, never "this window holds none")
+      console.warn('[harness] could not read this window\'s endpoint slots: ' + ((e && e.message) || e));
+      return null;
+    }
     return held;
+  }
+  // the providers whose endpoint the station keeps (GET /api/runtime/agent keptEndpoints); [] when it cannot say
+  function stationKeptEndpoints() {
+    return Promise.resolve().then(() => fetch('/api/runtime/agent', { cache: 'no-store' }))
+      .then(r => (r && r.ok) ? r.json() : null)
+      .then(j => ((j && Array.isArray(j.keptEndpoints)) ? j.keptEndpoints : [])
+        .map(e => String((e && e.provider) || '').trim().toLowerCase()).filter(p => p && p !== 'starnet' && normalizeProviderId(p) === p), e => {
+        console.warn('[harness] could not read which endpoints the station keeps: ' + ((e && e.message) || e));
+        return [];
+      });
   }
   let endpointHandOver = null;
   function pushDesktopEndpoints() {
     if (!DESKTOP) return Promise.resolve([]);
     if (endpointHandOver) return endpointHandOver;   // one hand-over in flight at a time
-    const jobs = [];
-    desktopEndpointsHeld().forEach((baseUrl, provider) => {
-      jobs.push(Promise.resolve().then(() => invoke('harness_store_provider_key', { provider, baseUrl }))
-        .then(() => ({ provider, ok: true }), e => {
-          console.warn('[harness] ' + provider + ': could not hand the station its endpoint: ' + ((e && e.message) || e));
-          return { provider, ok: false };
-        }));
-    });
-    endpointHandOver = Promise.all(jobs).then(out => { endpointHandOver = null; return out; });
-    return endpointHandOver;
+    const handOver = stationKeptEndpoints().then(kept => {
+      const held = desktopEndpointsHeld();
+      if (held) kept.forEach(p => { if (!held.has(p)) held.set(p, ''); });   // kept by the station, shown nowhere here: a clear
+      const jobs = [];
+      (held || new Map()).forEach((baseUrl, provider) => {
+        jobs.push(Promise.resolve().then(() => invoke('harness_store_provider_key', { provider, baseUrl }))
+          .then(() => ({ provider, ok: true }), e => {
+            console.warn('[harness] ' + provider + ': could not hand the station its endpoint: ' + ((e && e.message) || e));
+            return { provider, ok: false };
+          }));
+      });
+      return Promise.all(jobs);
+    }).then(out => { if (endpointHandOver === handOver) endpointHandOver = null; return out; });
+    endpointHandOver = handOver;
+    return handOver;
+  }
+  // a run sent while a hand-over is in flight waits for it — but never past 8 s: a shell command that never answers must not
+  // hold every run. The hung hand-over is then let go (the next one starts) and the run goes on what the station holds.
+  function endpointHandOverSettled() {
+    const inFlight = endpointHandOver;
+    if (!inFlight) return Promise.resolve();
+    let timer = null;
+    const capped = new Promise(r => { timer = setTimeout(() => { if (endpointHandOver === inFlight) endpointHandOver = null; r(); }, 8000); });
+    return Promise.race([inFlight, capped]).then(() => { clearTimeout(timer); });
   }
   // the /api fetch wrapper reports each call: false = the station did not answer at all (a refused connection while it
   // respawns), true = it answered. The first answer after a silence re-syncs the endpoints (a change made in the gap).
@@ -1411,7 +1442,7 @@ const Harness = (() => {
           continuationToken: String(recovery.continuationToken)
         };
       }
-      if (getBaseUrl(provider)) reqBody.baseUrl = getBaseUrl(provider);
+      if (provider !== 'starnet' && getBaseUrl(provider)) reqBody.baseUrl = getBaseUrl(provider);   // StarNet's endpoint is the linked account's
       if (streamId) reqBody.streamId = streamId;   // M-mem.2b: scope this run's memory to the active workstream
       if (connectorContinuationOf) reqBody.connectorContinuationOf = connectorContinuationOf;
       if (retryUserRunId) reqBody.retryUserRunId = String(retryUserRunId);
@@ -1459,8 +1490,8 @@ const Harness = (() => {
       }
       // DESKTOP: a run sent while the endpoint hand-over is in flight (a respawn, a boot) waits for it — the station never
       // sends its keychain key to the endpoint this body names, so until the hand-over lands it would run on the provider's
-      // default. The hand-over never rejects (each push resolves its own failure).
-      if (DESKTOP && endpointHandOver) await endpointHandOver;
+      // default. The hand-over never rejects (each push resolves its own failure); the wait is capped at 8 s.
+      if (DESKTOP && endpointHandOver) await endpointHandOverSettled();
       const post = () => fetch('/api/run', {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
