@@ -368,6 +368,7 @@ test/skills.library.test.js
 test/skills.gate.test.js
 test/skill-support-files.test.js
 test/skills.roundtrip.property.test.js
+test/skills.scan-census.test.js
 test/skills.trust-origin.test.js
 test/skills.review-approval.test.js
 test/skills.worker-shared-approval.test.js

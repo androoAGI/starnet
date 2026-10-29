@@ -63,7 +63,10 @@
     const loaded = Array.isArray(input.loadedSkills) ? input.loadedSkills : [];
     const managed = Array.isArray(input.managedSkills) ? input.managedSkills : [];
     const memories = evidence && evidence.trustedOnly ? [] : (Array.isArray(input.memories) ? input.memories : []);
-    const skillLines = skills.length ? skills.map(s => '- ' + s.name + (s.summary ? ' -- ' + s.summary : '') + ' [' + (s.state || 'active') + ']').join('\n') : '(none)';
+    // A row the gate withholds (annotated by the host: skills/gate.js annotate) is named, never summarized: its summary
+    // is text the Commander has not cleared, and this pass is a model holding skill.manage (the scan census).
+    const skillLines = skills.length ? skills.map(s => s && s.withheld ? '- ' + s.name + ' [WITHHELD by the skill guard; do not recreate it]'
+      : '- ' + s.name + (s.summary ? ' -- ' + s.summary : '') + ' [' + (s.state || 'active') + ']').join('\n') : '(none)';
     const loadedLines = loaded.length ? loaded.map(s => '- ' + s.name + (s.summary ? ' -- ' + s.summary : '')).join('\n') : '(none)';
     const managedLines = managed.length ? managed.map(s => '- ' + s.name + ' (' + s.action + ')').join('\n') : '(none)';
     const memoryLines = memories.length ? memories.map(m => '- ' + (m.kind || 'note') + ': ' + str(m.content || m.body || '').replace(/\s+/g, ' ').slice(0, 220)).join('\n') : '(none)';

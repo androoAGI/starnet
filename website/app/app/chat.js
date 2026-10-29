@@ -7598,7 +7598,8 @@ const Chat = (() => {
           if (item.value === 'read') { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('skills'); } catch (_) {} return; }   // 'skills' aliases into ABILITIES ▸ SKILL LIBRARY, where the body + approve controls live
           decided = true;
           let ok = false, flash = '';
-          if (item.value === 'allow') { const res = await Harness.agentSkillAllow({ agentId: agentId || 'agent', id: skillId, allow: true }); ok = !!(res && res.ok); flash = ok ? '✔ in every briefing from now on' : 'could not approve — open ABILITIES › SKILLS'; }
+          // the digest of the version this card announced: a package changed on disk since then is refused (409), and approved only in the panel, which shows its bytes
+          if (item.value === 'allow') { const res = await Harness.agentSkillAllow({ agentId: agentId || 'agent', id: skillId, digest: String(sk.contentDigest || ''), allow: true }); ok = !!(res && res.ok); flash = ok ? '✔ in every briefing from now on' : 'could not approve — open ABILITIES › SKILLS'; }
           else { const res = Harness.agentSkillManage ? await Harness.agentSkillManage({ agentId: agentId || 'agent', action: 'archive', target: skillId, force: true }) : null; ok = !!(res && res.ok); flash = ok ? 'discarded' : 'could not discard — open ABILITIES › SKILLS'; }
           r.body.textContent = '◈ skill “' + brief(String(sk.name || skillName)) + '” — ' + flash;
           if (!ok) { try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(flash, 'warn'); } catch (_) {} }

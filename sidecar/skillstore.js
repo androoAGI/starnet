@@ -302,7 +302,11 @@
       }
       loaded = true;
     } catch (e) { loadError = e; failNote('skillstore.load', e); }   // the library reads empty, and refuses writes (canWrite)
-    /* SETTLED ON LOAD (canonical bytes, 2026-10-28), in RAM only: nothing is written at boot.
+    /* SETTLED ON LOAD (canonical bytes + scan census, 2026-10-28), in RAM only: nothing is written at boot.
+       A RECORD SAVED BEFORE THE GUARD EXISTED (no verdict, no stamp) is judged now (bug 56c6f962). Its body was withheld
+       at delivery, where verify() scans it, but the prompt index decides from metadata and printed its summary: text no
+       scan had covered rode every run. With its verdict in RAM the index and the delivery seam agree from the first run
+       (a flagged record is named and withheld, never summarized); markUsed still persists it on first use.
        DIGEST RE-STAMP. skills/gate.js digestOf reads a file's BYTES (FileBytes.contentKey), not the string it is
           stored as, so a package file stored base64 digests like the same bytes stored as text. A record stamped with
           the old (string) digest of exactly what it holds is re-stamped to the new digest of the same bytes, and the old
@@ -333,6 +337,11 @@
       const gateMod = require('./skills/gate.js');
       const legacyDigest = typeof opts.legacyDigest === 'function' ? opts.legacyDigest : gateMod.legacyDigestOf;
       for (const e of latest.values()) {
+        if (guard && !e.scan && !str(e.guardAction)) {   // a pre-guard record (see above)
+          scanInto(e, projectSkill(e, true));
+          // a scan that failed (scanInto notes the error) is no verdict: the record asks, in RAM, until a scan says otherwise
+          if (!e.scan) e.guardAction = 'ask';
+        }
         if (!digest || typeof legacyDigest !== 'function') continue;
         if (cannotMove(e, gateMod, legacyDigest)) { settleCounts.skipped++; continue; }
         settleCounts.digested++;
@@ -1000,6 +1009,45 @@
       persist(entry);
       return { ok: true, skill: projectSkill(entry, true) };
     }
+    /* A RE-APPROVED TAMPER IS ADOPTED (gate census, 2026-10-28). When the package on disk changed after review, the
+       Commander's Approve releases THOSE bytes at the delivery seam (it re-digests the disk), but the record still held
+       the old ones: the prompt index and skill.list (metadata only, stamp-keyed) went on listing the skill as withheld,
+       and the first use after a restart re-wrote the mirror from the record, so the approved bytes were gone. Adopting
+       them makes the record what was approved: its stamp is the approval's digest, so every surface agrees. Only the
+       Commander, only while the disk still holds exactly the approved bytes (`digest`), verbatim (they were read and
+       scanned as they are), never for a sealed install or a promoted revision (their view is the record, not the disk),
+       and never past the limits a write is held to: a file over the per-file limit, too many files or a package over
+       its total is refused whole (it used to be stored cut to the limit, and the mirror re-written cut).
+       `check: true` runs every one of those checks and writes nothing: the allow route asks it BEFORE it saves the
+       approval, so bytes the store would refuse are never approved (review r2: the route answered approved:true while
+       the record kept the old bytes, and the skill went withheld again after a restart). */
+    function adoptView(e) {
+      e = e || {};
+      if (e.actor !== 'user') return { ok: false, error: 'only the Commander may adopt a package\'s bytes' };
+      if (!canWrite()) return { ok: false, error: cannotWrite().message };
+      const s = find(str(e.agentId) || 'agent', e.target, { includeArchived: true });
+      if (!s) return { ok: false, error: 'no such skill' };
+      if (s.canonicalRevision || !packageStore || typeof packageStore.hydrate !== 'function') return { ok: false, error: 'this skill is not read from its package on disk' };
+      if (s.packageDigest && (s.packageFiles || []).length && !s.packageDiverged) return { ok: false, error: 'a sealed install is read from its package record, never adopted from disk' };
+      const v = view(s.agentId, s.id, { includeArchived: true, bump: false });
+      if (!v || !digest || str(digest(v)) !== str(e.digest)) return { ok: false, error: 'the package on disk changed again since it was approved' };
+      if (str(digest(v)) === str(s.contentDigest)) return { ok: true, adopted: false, skill: v };   // nothing on disk differs
+      const w = writtenFiles(v.files || [], supportFileMax, s.files);
+      if (!w.ok) return w;
+      const count = Object.keys(w.files).length;
+      if (count > maxFiles) return { ok: false, error: 'the package on disk holds ' + count + ' support files, over the ' + maxFiles + '-file limit' };
+      if (str(v.body).length > bodyMax || str(v.setup).length > bodyMax) return { ok: false, error: 'the SKILL.md on disk is over the ' + bodyMax + '-character limit' };
+      let total = Buffer.byteLength(str(v.body), 'utf8') + Buffer.byteLength(str(v.setup), 'utf8');
+      for (const k of Object.keys(w.files)) total += FileBytes.byteLength(w.files[k]);
+      if (total > maxPackageBytes) return { ok: false, error: 'the package on disk is ' + total + ' bytes, over the ' + maxPackageBytes + '-byte limit' };
+      if (e.check === true) return { ok: true, adopted: false, wouldAdopt: true };
+      const entry = clone(s);
+      entry.body = str(v.body); entry.setup = str(v.setup); entry.files = w.files;
+      entry.writtenBy = 'user'; entry.patchCount = (entry.patchCount || 0) + 1; entry.updatedAt = now();
+      entry.packageDiverged = !!entry.packageDigest;
+      persist(entry);
+      return { ok: true, adopted: true, skill: projectSkill(entry, true) };
+    }
 
     function list(agentId, opts2) {
       return mine(agentId, opts2).map(s => projectSkill(s, false));
@@ -1142,7 +1190,7 @@
       write, manage, list, view, markUsed, curate, compact,
       // broken is not empty: a library that failed to load says so instead of listing nothing
       loadState() { return canWrite() ? { ok: true, error: null } : { ok: false, error: cannotWrite().message }; },
-      candidates, candidate, pendingView, promotionBlocker, approveCandidate, rejectCandidate, veto, share, listAccessible, viewAccessible,
+      candidates, candidate, pendingView, promotionBlocker, approveCandidate, rejectCandidate, veto, share, adoptView, listAccessible, viewAccessible,
       all() { return Array.from(latest.values()).map(s => projectSkill(s, true)); },
       // the old digests an approval of each record may carry -> the digest of the same bytes now (see settleLoaded)
       digestRestamps() { return restamps.map(r => Object.assign({}, r, { from: r.from.slice() })); },

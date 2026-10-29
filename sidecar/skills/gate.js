@@ -181,7 +181,17 @@
          body finally exists. The index may still name it; only the bytes are gated. */
       if (!stamped && !str(skill.guardAction)) {
         const live = liveScan(skill);
-        if (!live || live.action === 'allow') return base;
+        /* UNSCANNABLE IS NOT CLEAN (review r3). A scanner that throws (or no guard at all) gave no verdict, and returning
+           `base` here released the unscanned body as if it had passed. It asks instead, decided against the digest of
+           these bytes, as the stamped branches below already do (unscannable => ask): an approval of exactly these bytes
+           still releases them, and a working scanner (every normal boot) never reaches this. */
+        if (!live) {
+          const unscanned = decide(Object.assign({}, skill, { guardAction: 'ask', contentDigest: digestOf(skill) }));
+          unscanned.unscanned = true;
+          if (!unscanned.visible) unscanned.reason = 'this skill was saved before the guard existed and could not be scanned — review it in ABILITIES > SKILLS';
+          return unscanned;
+        }
+        if (live.action === 'allow') return base;
         // Decide against the digest of the bytes just scanned: the allow route stores digestOf(the body the Commander
         // read), so with no stamp isApproved() would compare it to 'u'+updatedAt and ALLOW would never take effect.
         // An approval releases exactly these bytes.

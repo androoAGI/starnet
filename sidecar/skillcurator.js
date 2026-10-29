@@ -37,7 +37,8 @@
     input = input || {};
     const skills = candidates(input.skills);
     const cls = clusters(skills);
-    const list = skills.length ? skills.map(s =>
+    // A row the gate withholds (annotated by the host: skills/gate.js annotate) is named, never summarized (the scan census).
+    const list = skills.length ? skills.map(s => s.withheld ? '- ' + s.name + ' [WITHHELD by the skill guard; leave it alone]' :
       '- ' + s.name + ' [' + (s.category || 'General') + ', use=' + (s.useCount || 0) + ', patch=' + (s.patchCount || 0) + '] -- ' + str(s.summary || '').replace(/\s+/g, ' ').slice(0, 180)
     ).join('\n') : '(none)';
     const clusterLines = cls.length ? cls.map(c => '- ' + c.key + ': ' + c.skills.map(s => s.name).join(', ')).join('\n') : '(none)';

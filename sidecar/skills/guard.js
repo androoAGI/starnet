@@ -80,17 +80,30 @@
   /* Scan what the model is shown (sweep/skills 2026-10-20). The name, summary, description and category reach every
      run through the prompt index, so they are scanned too (reported without a line number; the market already did
      this). A support file stored base64-encoded is scanned as its decoded text, not as its encoding. */
+  const FileBytes = (typeof require === 'function') ? require('./file-bytes.js') : null;   // the canonical-bytes boundary
   function scanText64(file, f) {
     if (!f || f.encoding !== 'base64') return scanText(file, f && f.content);
-    const bytes = Buffer.from(str(f.content), 'base64'), text = bytes.toString('utf8');
-    return Buffer.from(text, 'utf8').equals(bytes) ? scanText(file, text) : [];
+    const text = FileBytes ? FileBytes.textOf(f) : null;
+    return text != null ? scanText(file, text) : [];
+  }
+  /* THE SCAN CENSUS (skills-canonical-bytes lane, 2026-10-28; test/skills.scan-census.test.js). Every field of a record
+     that reaches a prompt is scanned here. The index prints a skill's platforms, and skill.list / skill.view / a
+     preloaded skill print every support file's PATH: both are model-authored text no scan covered. A finding in a path
+     names that file (file: its path, line 0, inPath), never SKILL.md. */
+  function promptMeta(skill) {
+    const platforms = Array.isArray(skill.platforms) ? skill.platforms : [];
+    return [skill.name, skill.summary, skill.description, skill.category].map(str).concat(platforms.map(str)).join('\n');
   }
   function scanSkillRecord(skill, opts) {
     opts = opts || {};
     const source = opts.source || skill.createdBy || 'agent-created';
     const files = Array.isArray(skill.files) ? skill.files : [];
-    const meta = [skill.name, skill.summary, skill.description, skill.category].map(str).join('\n');
+    const meta = promptMeta(skill);
     let findings = scanText('SKILL.md', meta).map(f => Object.assign(f, { line: 0 }));
+    for (const f of files) {
+      const p = str(f && f.path);
+      findings = findings.concat(scanText(p || 'support-file', p).map(x => Object.assign(x, { line: 0, inPath: true, description: x.description + ' (in the file name)' })));
+    }
     findings = findings.concat(scanText('SKILL.md', str(skill.body) + '\n' + str(skill.setup)));
     for (const f of files) findings = findings.concat(scanText64(str(f.path || 'support-file'), f));
     const verdict = verdictFor(findings);

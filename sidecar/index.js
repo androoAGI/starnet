@@ -4042,7 +4042,7 @@ async function runBackgroundSkillReview(o) {
       // top-12 by rank() against the run's directive (was: last 12 in raw store order) — the reviewer sees the
       // memories RELEVANT to what this run did; on a queryless run rank degrades to recency+trust, still 12.
       memories: (o.learningEvidence && (o.learningEvidence.tainted || o.learningEvidence.trustedOnly)) ? [] : rank(Array.isArray(reviewNotebook) ? reviewNotebook : [], latestUserText(messages), { now: Date.now(), k: 12 }).slice(0, 12),   // rank adds up to 32 pinned/standing past k; the reviewer gets its top 12 (score order: pins lead)
-      skills: scrubSkillsForPrompt(skillStore.list(agentId, { includeArchived: true }))   // each field scrubbed before it is composed
+      skills: scrubSkillsForPrompt(skillGate.annotate(skillStore.list(agentId, { includeArchived: true })))   // a withheld row is named, never summarized (scan census); each field scrubbed before it is composed
     }));
     result = await runAgentLoop({
       messages: [
@@ -4106,7 +4106,7 @@ async function runSkillCurator(o) {
     result = await runAgentLoop({
       messages: [
         { role: 'system', content: 'You are a quiet StarNet skill curator. Use only skill tools, then stop.' },
-        { role: 'user', content: PromptScrub.scrubStored(skillCurator.buildPrompt({ skills: scrubSkillsForPrompt(all) })) }   // stored skill text, scrubbed field by field and whole
+        { role: 'user', content: PromptScrub.scrubStored(skillCurator.buildPrompt({ skills: scrubSkillsForPrompt(skillGate.annotate(all)) })) }   // withheld rows named only (scan census); stored skill text, scrubbed field by field and whole
       ],
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false },
@@ -20279,9 +20279,34 @@ async function handleAgentSkillAllow(req, res) {
   const released = makeSkillGate({ guard: skillGuard, approvals: { get: () => entry } }).verify(skill);
   if (!released.visible) return json(released.action === 'block' ? 400 : 409, { ok: false, approved: false, findings: released.categories,
     error: 'approving would not release this skill to the agent (' + (released.reason || 'held by the skill guard') + '); nothing was saved' });
+  /* A package changed on disk is approved (and adopted as the skill) only as the bytes the Commander was shown: an
+     Approve that posts no digest (a chat card that never showed the body) would bless whatever the disk holds now. So
+     would one for a record saved before digest stamping: it has no stamp to tell a change by, so it is never "tampered". */
+  const stampless = !String(skill.contentDigest || '');
+  if ((released.tampered || stampless) && !body.digest) return json(409, { ok: false, approved: false, error: released.tampered
+    ? 'the package on disk changed after it was reviewed - read it in ABILITIES > SKILLS and approve it there; nothing was saved'
+    : 'this skill has no recorded digest to approve - read it in ABILITIES > SKILLS and approve it there; nothing was saved' });
+  /* A RE-APPROVED TAMPER IS ADOPTED (skillstore adoptView): the record becomes the bytes just approved, so the prompt
+     index and skill.list (stamp-keyed) agree with the delivery seam. The store's checks run BEFORE the approval is saved
+     (check: true writes nothing): bytes it would refuse (a file over its per-file limit, too many files, a package over
+     its total) are never approved. The route used to save the approval, have the adoption refused, and answer
+     approved:true while the record kept the old bytes, so the skill was withheld again after a restart. */
+  const adopting = !!released.tampered && typeof skillStore.adoptView === 'function';
+  if (adopting) {
+    let check;
+    try { check = skillStore.adoptView({ agentId, target: skill.id, actor: 'user', digest, check: true }); }
+    catch (e) { check = { ok: false, error: (e && e.message) || String(e) }; }
+    if (!check || !check.ok) return json(409, { ok: false, approved: false,
+      error: 'the package on disk cannot become the skill (' + ((check && check.error) || 'refused') + ') - trim it and approve again; nothing was saved' });
+  }
   const next = supersedeSkillApproval(skillApprovals, key, entry);   // the new decision drops restamped copies of older ones
   try { persistSkillApprovals(next); }
   catch (e) { console.warn('[skills] approval persist failed:', (e && e.message) || e); return json(507, { ok: false, approved: false, error: 'approval could not be persisted; the skill remains withheld' }); }
+  // the adoption itself: after the checks above, a refusal here means the disk changed again in between
+  if (adopting) {
+    try { const adopted = skillStore.adoptView({ agentId, target: skill.id, actor: 'user', digest }); if (!adopted.ok) failNote('skills.approve.adopt', new Error(adopted.error || 'not adopted')); }
+    catch (e) { failNote('skills.approve.adopt', e); }
+  }
   const after = skillGate.annotate([skillStore.view(agentId, skill.id, { includeArchived: true, bump: false }) || skill], { verify: true })[0];
   json(200, { ok: true, approved: true, digest, skill: after });
 }
