@@ -100,6 +100,14 @@ const merge = (station, base, mine) => SaveMerge.merge(station, mine, Core.merge
   A.eq(sess(r.doc, 'general').lastActiveAt, 300, 'stamp: the later time');
   A.eq(contents(sess(r.doc, 'general')), ['hello', 'there', 'theirs 1', 'mine 1'], 'turns: this window\'s new turn goes after the station\'s, in one session');
   A.ok(!r.doc.workstreams.some(w => /~restored/.test(w.id)), 'turns: never a restored copy');
+  // the notice the window shows (app.js mergeNoticeLine) must say what the merge just did: the other window's change to
+  // agent.model was replaced, so it may never say the other window's changes are not undone (truth-copy, 0.14.2)
+  const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
+  const at = app.indexOf('  function mergeNoticeLine(merge) {');
+  const mergeNoticeLine = new Function(app.slice(at, app.indexOf('\n  }\n', at) + 4) + '\nreturn mergeNoticeLine;')();
+  const head = mergeNoticeLine({ inSession: true, first: true, lost: [] });
+  A.ok(r.overrode.length > 0 && !/without undoing/.test(head), 'notice: never "without undoing the other window’s" — a same-field change of the other window was just replaced: ' + head);
+  A.ok(/where both windows changed the same thing, this window’s version is used/.test(head) && /what only the other window changed stays/.test(head), 'notice: says what stays and what this window replaces');
 }
 
 // ---- a shared session written by two windows, round after round: no copies, no duplicates, no turn lost ----

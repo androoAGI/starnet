@@ -1651,7 +1651,8 @@ const App = (() => {
 
   /* THE MERGE NOTICES, worded only from what the station answered (cloudsave mergeNotice / onMerged):
      • inSession — another window saved past this one while it was open; its saves are merged three-way into the station file
-       (sidecar/save-merge.js): what it changed lands, the other window's changes stay. Its view does not show the other
+       (sidecar/save-merge.js): what it changed lands and what only the other window changed stays, but where both changed
+       the same thing this window's change wins (merge3 `overrode`, which is not named). Its view does not show the other
        window's changes until it is reloaded. Changes the station could not take (a session or crew member another window
        deleted) are named, with the copy of this window's save kept beside the station.
      • reentered — the same, for a window whose base was not known: merged on the boot merge's rules (sessions only) and
@@ -1664,7 +1665,7 @@ const App = (() => {
     if (merge.inSession) {
       const lost = Array.isArray(merge.lost) ? merge.lost : [];
       const head = merge.first
-        ? 'Another window saved station changes while this one was open. From now on this window’s changes are merged into the station file as it saves, without undoing the other window’s; this window does not show the other window’s changes until you reload it.'
+        ? 'Another window saved station changes while this one was open. From now on this window’s changes are merged into the station file as it saves: what only the other window changed stays, but where both windows changed the same thing, this window’s version is used. This window does not show the other window’s changes until you reload it.'
         : '';
       if (!lost.length) return head;
       const names = lost.slice(0, 3).map(x => '“' + String(x.name || x.id).slice(0, 40) + '”').join(', ') + (lost.length > 3 ? ' and ' + (lost.length - 3) + ' more' : '');
