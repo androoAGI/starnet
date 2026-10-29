@@ -36,3 +36,5 @@ _Found by the `sweep/skills` lane (skills surface), 2026-10-20._
 ## Verdict
 
 Fixed in `562b2b8da` (2026-10-23; an ancestor of trunk, first released in v0.14.0). skill.manage refuses 'unpin' from a run (a model may still pin, which only adds the lock), and the store refuses to unpin a pinned skill for any writer but the Commander (the SKILLS panel route), so a review or curator pass cannot either. `ca7f3c298` updated the gate test that had expected a model unpin to work. Regression: test/skills.gate.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).
+
+Censused 2026-10-28 (skills-canonical-bytes lane): `test/skills.scan-census.test.js` section C pins every gate decision on a pin: a run may pin and never unpin (the tool and the store, for agent, background-review and curator writers), only the Commander unpins, and a model patch/edit/write_file/remove_file/archive of a pinned skill is refused. Passes on the lane's base trunk commit and with the lane (no behaviour change).

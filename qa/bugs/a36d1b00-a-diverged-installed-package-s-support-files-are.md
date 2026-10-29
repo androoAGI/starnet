@@ -4,10 +4,10 @@ slug: a-diverged-installed-package-s-support-files-are
 title: A diverged installed package's support files are mirrored to disk and shown to the model as base64 text
 surface: skills
 severity: P2
-status: open
+status: fixed
 found: 2026-10-20
 lane: sweep/skills
-fix:
+fix: 0661095d8
 origin: audit
 ---
 
@@ -32,3 +32,22 @@ Anchor: `sidecar/skills/package.js:261` maps envelope files to `{ content: f.con
 
 _Found by the `sweep/skills` lane (skills surface), 2026-10-20._
 
+## Verdict
+
+Fixed by the skills-canonical-bytes lane (2026-10-28; the fixing commit is the `fix:` field above). What was true:
+`writePackage`'s diverged path wrote each support file's stored TEXT (`writeText(..., f.content)`), and every file of
+an installed package is stored base64, so the mirror held a line of base64; `readSupportFiles` then read that text
+back as the file and the model was shown base64. The same bug hit an authored skill's binary `write_file`, the export
+of a diverged package, and the evaluation runner.
+
+Closed as a family through one canonical-bytes boundary (`sidecar/skills/file-bytes.js`): the mirror writes
+`FileBytes.bytesOf(f)`, the disk is read once into the one stored form, an untouched mirror delivers the record's own
+entries (a mirror the pre-fix code wrote, holding the record's own base64 text, reads as the bytes it encodes and is
+re-written as real bytes on the next write), and digests hash bytes rather than their stored string (existing
+approvals are re-stamped at boot, nothing removed). With the store keeping exact bytes, a skill's text is scrubbed
+where it leaves for a model or the station (every such seam passes prompt-scrub `scrubStored`).
+
+Regression: `test/skills.roundtrip.property.test.js` — the repro as filed (section "a36d1b00": install a text
+reference, patch the body as the Commander, read `references/setup.md` off disk and the preloaded block), a v0.14 save
+with a base64-text mirror, and the byte round trip on every write and read path. It fails on the lane's base trunk
+commit, including `a36d1b00: references/setup.md on disk ... got "QmVmb3JlIGFueXRoaW5nIGV..."`, and passes on the fix.
